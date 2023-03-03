@@ -1,7 +1,9 @@
-use std::{cmp::Ordering, path::PathBuf, sync::Arc};
+use std::{cmp::Ordering, path::PathBuf, str::FromStr, sync::Arc};
 
+use anyhow::Result;
 use floem::{
     app::AppContext,
+    ext_event::create_ext_action,
     glazier::Modifiers,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
@@ -12,13 +14,15 @@ use lapce_core::{
     buffer::InvalLines,
     command::{EditCommand, FocusCommand},
     cursor::{Cursor, CursorMode},
+    editor::EditType,
     mode::Mode,
     register::Register,
-    selection::Selection,
+    selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
-use lapce_rpc::proxy::ProxyRpcHandler;
-use lapce_xi_rope::{Rope, RopeDelta};
+use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
+use lapce_xi_rope::{Rope, RopeDelta, Transformer};
+use lsp_types::{CompletionItem, CompletionTextEdit};
 
 use crate::{
     command::{CommandExecuted, InternalCommand},
@@ -27,8 +31,9 @@ use crate::{
     doc::Document,
     editor_tab::EditorTabChild,
     id::{EditorId, EditorTabId},
-    keypress::KeyPressFocus,
+    keypress::{condition::Condition, KeyPressFocus},
     main_split::{SplitDirection, SplitMoveDirection},
+    snippet::Snippet,
 };
 
 #[derive(Clone)]
@@ -44,6 +49,7 @@ pub struct EditorData {
     pub viewport: RwSignal<Rect>,
     pub gutter_viewport: RwSignal<Rect>,
     pub scroll: RwSignal<Vec2>,
+    pub snippet: RwSignal<Option<Vec<(usize, (usize, usize))>>>,
     proxy: ProxyRpcHandler,
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
@@ -64,6 +70,7 @@ impl EditorData {
             Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None);
         let cursor = create_rw_signal(cx.scope, cursor);
         let scroll = create_rw_signal(cx.scope, Vec2::ZERO);
+        let snippet = create_rw_signal(cx.scope, None);
         let window_origin = create_rw_signal(cx.scope, Point::ZERO);
         let viewport = create_rw_signal(cx.scope, Rect::ZERO);
         let gutter_viewport = create_rw_signal(cx.scope, Rect::ZERO);
@@ -72,6 +79,7 @@ impl EditorData {
             editor_id,
             doc,
             cursor,
+            snippet,
             register,
             completion,
             internal_command,
@@ -167,6 +175,11 @@ impl EditorData {
         } else {
             self.cancel_completion();
         }
+        self.apply_deltas(&deltas);
+        if let EditCommand::NormalMode = cmd {
+            self.snippet.set(None);
+        }
+
         CommandExecuted::Yes
     }
 
@@ -192,6 +205,23 @@ impl EditorData {
             });
         });
         self.cursor.set(cursor);
+
+        if self.snippet.with_untracked(|s| s.is_some()) {
+            self.snippet.update(|snippet| {
+                let offset = self.cursor.get_untracked().offset();
+                let mut within_region = false;
+                for (_, (start, end)) in snippet.as_mut().unwrap() {
+                    if offset >= *start && offset <= *end {
+                        within_region = true;
+                        break;
+                    }
+                }
+                if !within_region {
+                    *snippet = None;
+                }
+            })
+        }
+        self.cancel_completion();
         CommandExecuted::Yes
     }
 
@@ -279,6 +309,142 @@ impl EditorData {
             }
             FocusCommand::ScrollDown => {
                 self.scroll(cx, true, count.unwrap_or(1), mods);
+            }
+            FocusCommand::ListNext => {
+                self.completion.update(|c| {
+                    c.next();
+                });
+            }
+            FocusCommand::ListPrevious => {
+                self.completion.update(|c| {
+                    c.previous();
+                });
+            }
+            FocusCommand::ListNextPage => {
+                self.completion.update(|c| {
+                    c.next_page();
+                });
+            }
+            FocusCommand::ListPreviousPage => {
+                self.completion.update(|c| {
+                    c.previous_page();
+                });
+            }
+            FocusCommand::ListSelect => {
+                let item = self
+                    .completion
+                    .with_untracked(|c| c.current_item().cloned());
+                self.cancel_completion();
+                if let Some(item) = item {
+                    if item.item.data.is_some() {
+                        let editor = self.clone();
+                        let (rev, path) = self.doc.with_untracked(|doc| {
+                            (doc.rev(), doc.content.path().cloned())
+                        });
+                        let offset = self.cursor.with_untracked(|c| c.offset());
+                        let send = create_ext_action(cx, move |item| {
+                            if editor.cursor.with_untracked(|c| c.offset() != offset)
+                            {
+                                return;
+                            }
+                            if editor.doc.with_untracked(|doc| {
+                                doc.rev() != rev
+                                    || doc.content.path() != path.as_ref()
+                            }) {
+                                return;
+                            }
+                            let _ = editor.apply_completion_item(&item);
+                        });
+                        self.proxy.completion_resolve(
+                            item.plugin_id,
+                            item.item.clone(),
+                            move |result| {
+                                let item = if let Ok(
+                                    ProxyResponse::CompletionResolveResponse {
+                                        item,
+                                    },
+                                ) = result
+                                {
+                                    *item
+                                } else {
+                                    item.item.clone()
+                                };
+                                send(item);
+                            },
+                        );
+                    } else {
+                        let _ = self.apply_completion_item(&item.item);
+                    }
+                }
+            }
+            FocusCommand::JumpToNextSnippetPlaceholder => {
+                self.snippet.update(|snippet| {
+                    if let Some(snippet_mut) = snippet.as_mut() {
+                        let mut current = 0;
+                        let offset = self.cursor.get_untracked().offset();
+                        for (i, (_, (start, end))) in snippet_mut.iter().enumerate()
+                        {
+                            if *start <= offset && offset <= *end {
+                                current = i;
+                                break;
+                            }
+                        }
+
+                        let last_placeholder = current + 1 >= snippet_mut.len() - 1;
+
+                        if let Some((_, (start, end))) = snippet_mut.get(current + 1)
+                        {
+                            let mut selection =
+                                lapce_core::selection::Selection::new();
+                            let region = lapce_core::selection::SelRegion::new(
+                                *start, *end, None,
+                            );
+                            selection.add_region(region);
+                            self.cursor.update(|cursor| {
+                                cursor.set_insert(selection);
+                            });
+                        }
+
+                        if last_placeholder {
+                            *snippet = None;
+                        }
+                        // self.update_signature();
+                        self.cancel_completion();
+                    }
+                });
+            }
+            FocusCommand::JumpToPrevSnippetPlaceholder => {
+                self.snippet.update(|snippet| {
+                    if let Some(snippet_mut) = snippet.as_mut() {
+                        let mut current = 0;
+                        let offset = self.cursor.get_untracked().offset();
+                        for (i, (_, (start, end))) in snippet_mut.iter().enumerate()
+                        {
+                            if *start <= offset && offset <= *end {
+                                current = i;
+                                break;
+                            }
+                        }
+
+                        if current > 0 {
+                            if let Some((_, (start, end))) =
+                                snippet_mut.get(current - 1)
+                            {
+                                let mut selection =
+                                    lapce_core::selection::Selection::new();
+                                let region = lapce_core::selection::SelRegion::new(
+                                    *start, *end, None,
+                                );
+                                selection.add_region(region);
+                                self.cursor.update(|cursor| {
+                                    cursor.set_insert(selection);
+                                });
+                            }
+                            // self.update_signature();
+                            self.cancel_completion();
+                        }
+                    }
+                });
             }
             _ => {}
         }
@@ -462,6 +628,249 @@ impl EditorData {
             }
         });
     }
+
+    /// Check if there are completions that are being rendered
+    fn has_completions(&self) -> bool {
+        self.completion.with_untracked(|completion| {
+            completion.status != CompletionStatus::Inactive
+        })
+    }
+
+    fn apply_completion_item(&self, item: &CompletionItem) -> Result<()> {
+        let doc = self.doc.get_untracked();
+        let cursor = self.cursor.get_untracked();
+        // Get all the edits which would be applied in places other than right where the cursor is
+        let additional_edit: Vec<_> = item
+            .additional_text_edits
+            .as_ref()
+            .into_iter()
+            .flatten()
+            .map(|edit| {
+                let selection = lapce_core::selection::Selection::region(
+                    doc.buffer().offset_of_position(&edit.range.start),
+                    doc.buffer().offset_of_position(&edit.range.end),
+                );
+                (selection, edit.new_text.as_str())
+            })
+            .collect::<Vec<(lapce_core::selection::Selection, &str)>>();
+
+        let text_format = item
+            .insert_text_format
+            .unwrap_or(lsp_types::InsertTextFormat::PLAIN_TEXT);
+        if let Some(edit) = &item.text_edit {
+            match edit {
+                CompletionTextEdit::Edit(edit) => {
+                    let offset = cursor.offset();
+                    let start_offset = doc.buffer().prev_code_boundary(offset);
+                    let end_offset = doc.buffer().next_code_boundary(offset);
+                    let edit_start =
+                        doc.buffer().offset_of_position(&edit.range.start);
+                    let edit_end = doc.buffer().offset_of_position(&edit.range.end);
+
+                    let selection = lapce_core::selection::Selection::region(
+                        start_offset.min(edit_start),
+                        end_offset.max(edit_end),
+                    );
+                    match text_format {
+                        lsp_types::InsertTextFormat::PLAIN_TEXT => {
+                            self.completion_do_edit(
+                                &selection,
+                                &[
+                                    &[(selection.clone(), edit.new_text.as_str())][..],
+                                    &additional_edit[..],
+                                ]
+                                .concat(),
+                            );
+                            return Ok(());
+                        }
+                        lsp_types::InsertTextFormat::SNIPPET => {
+                            self.completion_apply_snippet(
+                                &edit.new_text,
+                                &selection,
+                                additional_edit,
+                                start_offset,
+                                edit_start,
+                            )?;
+                            return Ok(());
+                        }
+                        _ => {}
+                    }
+                }
+                CompletionTextEdit::InsertAndReplace(_) => (),
+            }
+        }
+
+        let offset = cursor.offset();
+        let start_offset = doc.buffer().prev_code_boundary(offset);
+        let end_offset = doc.buffer().next_code_boundary(offset);
+        let selection = Selection::region(start_offset, end_offset);
+
+        self.completion_do_edit(
+            &selection,
+            &[
+                &[(
+                    selection.clone(),
+                    item.insert_text.as_deref().unwrap_or(item.label.as_str()),
+                )][..],
+                &additional_edit[..],
+            ]
+            .concat(),
+        );
+        Ok(())
+    }
+
+    fn completion_apply_snippet(
+        &self,
+        snippet: &str,
+        selection: &Selection,
+        additional_edit: Vec<(Selection, &str)>,
+        start_offset: usize,
+        edit_start: usize,
+    ) -> Result<()> {
+        let snippet = Snippet::from_str(snippet)?;
+        let text = snippet.text();
+        let mut cursor = self.cursor.get_untracked();
+        let old_cursor = cursor.mode.clone();
+        let (delta, inval_lines, edits) = self
+            .doc
+            .update_returning(|doc| {
+                doc.do_raw_edit(
+                    &[
+                        &[(selection.clone(), text.as_str())][..],
+                        &additional_edit[..],
+                    ]
+                    .concat(),
+                    EditType::Completion,
+                )
+            })
+            .unwrap();
+
+        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
+
+        let start_offset = additional_edit
+            .iter()
+            .map(|(selection, _)| selection.min_offset())
+            .min()
+            .map(|offset| offset.min(start_offset).min(edit_start))
+            .unwrap_or(start_offset);
+
+        let mut transformer = Transformer::new(&delta);
+        let offset = transformer.transform(start_offset, false);
+        let snippet_tabs = snippet.tabs(offset);
+
+        if snippet_tabs.is_empty() {
+            self.doc.update(|doc| {
+                cursor.update_selection(doc.buffer(), selection);
+                doc.buffer_mut().set_cursor_before(old_cursor);
+                doc.buffer_mut().set_cursor_after(cursor.mode.clone());
+            });
+            self.cursor.set(cursor);
+            self.apply_deltas(&[(delta, inval_lines, edits)]);
+            return Ok(());
+        }
+
+        let mut selection = lapce_core::selection::Selection::new();
+        let (_tab, (start, end)) = &snippet_tabs[0];
+        let region = lapce_core::selection::SelRegion::new(*start, *end, None);
+        selection.add_region(region);
+        cursor.set_insert(selection);
+
+        self.doc.update(|doc| {
+            doc.buffer_mut().set_cursor_before(old_cursor);
+            doc.buffer_mut().set_cursor_after(cursor.mode.clone());
+        });
+        self.cursor.set(cursor);
+        self.apply_deltas(&[(delta, inval_lines, edits)]);
+        self.add_snippet_placeholders(snippet_tabs);
+        Ok(())
+    }
+
+    fn add_snippet_placeholders(
+        &self,
+        new_placeholders: Vec<(usize, (usize, usize))>,
+    ) {
+        self.snippet.update(|snippet| {
+            if snippet.is_none() {
+                if new_placeholders.len() > 1 {
+                    *snippet = Some(new_placeholders);
+                }
+                return;
+            }
+
+            let placeholders = snippet.as_mut().unwrap();
+
+            let mut current = 0;
+            let offset = self.cursor.get_untracked().offset();
+            for (i, (_, (start, end))) in placeholders.iter().enumerate() {
+                if *start <= offset && offset <= *end {
+                    current = i;
+                    break;
+                }
+            }
+
+            let v = placeholders.split_off(current);
+            placeholders.extend_from_slice(&new_placeholders);
+            placeholders.extend_from_slice(&v[1..]);
+        });
+    }
+
+    fn completion_do_edit(
+        &self,
+        selection: &Selection,
+        edits: &[(impl AsRef<Selection>, &str)],
+    ) {
+        let mut cursor = self.cursor.get_untracked();
+        let (delta, inval_lines, edits) = self
+            .doc
+            .update_returning(|doc| {
+                let (delta, inval_lines, edits) =
+                    doc.do_raw_edit(edits, EditType::Completion);
+                let selection =
+                    selection.apply_delta(&delta, true, InsertDrift::Default);
+                let old_cursor = cursor.mode.clone();
+                cursor.update_selection(doc.buffer(), selection);
+                doc.buffer_mut().set_cursor_before(old_cursor);
+                doc.buffer_mut().set_cursor_after(cursor.mode.clone());
+                (delta, inval_lines, edits)
+            })
+            .unwrap();
+        self.cursor.set(cursor);
+
+        self.apply_deltas(&[(delta, inval_lines, edits)]);
+    }
+
+    fn apply_deltas(&self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
+        for (delta, _, _) in deltas {
+            // self.inactive_apply_delta(delta);
+            self.update_snippet_offset(delta);
+            // self.update_breakpoints(delta);
+        }
+        // self.update_signature();
+    }
+
+    fn update_snippet_offset(&self, delta: &RopeDelta) {
+        if self.snippet.with_untracked(|s| s.is_some()) {
+            self.snippet.update(|snippet| {
+                let mut transformer = Transformer::new(delta);
+                *snippet = Some(
+                    snippet
+                        .as_ref()
+                        .unwrap()
+                        .iter()
+                        .map(|(tab, (start, end))| {
+                            (
+                                *tab,
+                                (
+                                    transformer.transform(*start, false),
+                                    transformer.transform(*end, true),
+                                ),
+                            )
+                        })
+                        .collect(),
+                );
+            });
+        }
+    }
 }
 
 impl KeyPressFocus for EditorData {
@@ -473,7 +882,12 @@ impl KeyPressFocus for EditorData {
         &self,
         condition: crate::keypress::condition::Condition,
     ) -> bool {
-        false
+        match condition {
+            Condition::ListFocus => self.has_completions(),
+            Condition::CompletionFocus => self.has_completions(),
+            Condition::InSnippet => self.snippet.with_untracked(|s| s.is_some()),
+            _ => false,
+        }
     }
 
     fn run_command(
@@ -516,6 +930,7 @@ impl KeyPressFocus for EditorData {
             } else {
                 self.cancel_completion();
             }
+            self.apply_deltas(&deltas);
         }
     }
 }

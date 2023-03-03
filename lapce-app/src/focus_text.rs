@@ -3,7 +3,7 @@ use floem::{
     id::Id,
     parley::{
         layout::{Alignment, Cursor},
-        style::StyleProperty,
+        style::{FontFamily, FontStack, StyleProperty},
         swash::Weight,
         LayoutContext,
     },
@@ -53,6 +53,7 @@ pub fn focus_text(
         focus_indices: Vec::new(),
         text_node: None,
         font_size: None,
+        font_family: None,
         available_text: None,
         available_width: None,
         available_text_layout: None,
@@ -67,6 +68,7 @@ pub struct FocusText {
     focus_color: Color,
     focus_indices: Vec<usize>,
     font_size: Option<f32>,
+    font_family: Option<String>,
     text_node: Option<Node>,
     available_text: Option<String>,
     available_width: Option<f32>,
@@ -83,6 +85,12 @@ impl FocusText {
         if let Some(font_size) = self.font_size {
             text_layout_builder.push_default(&StyleProperty::FontSize(font_size));
         }
+        if let Some(font_family) = self.font_family.as_ref() {
+            let family = FontFamily::parse_list(font_family).collect::<Vec<_>>();
+            text_layout_builder
+                .push_default(&StyleProperty::FontStack(FontStack::List(&family)))
+        }
+
         for &i_start in &self.focus_indices {
             let i_end = self
                 .text
@@ -117,6 +125,13 @@ impl FocusText {
                 text_layout_builder
                     .push_default(&StyleProperty::FontSize(font_size));
             }
+            if let Some(font_family) = self.font_family.as_ref() {
+                let family = FontFamily::parse_list(font_family).collect::<Vec<_>>();
+                text_layout_builder.push_default(&StyleProperty::FontStack(
+                    FontStack::List(&family),
+                ))
+            }
+
             for &i_start in &self.focus_indices {
                 if i_start + 3 > new_text_len {
                     break;
@@ -186,8 +201,11 @@ impl View for FocusText {
         cx: &mut floem::context::LayoutCx,
     ) -> floem::taffy::prelude::Node {
         cx.layout_node(self.id, true, |cx| {
-            if self.font_size != cx.current_font_size() {
+            if self.font_size != cx.current_font_size()
+                || self.font_family.as_deref() != cx.current_font_family()
+            {
                 self.font_size = cx.current_font_size();
+                self.font_family = cx.current_font_family().map(|s| s.to_string());
                 self.set_text_layout();
             }
             if self.text_layout.is_none() {
@@ -230,6 +248,14 @@ impl View for FocusText {
                     text_layout_builder
                         .push_default(&StyleProperty::FontSize(font_size));
                 }
+                if let Some(font_family) = self.font_family.as_ref() {
+                    let family =
+                        FontFamily::parse_list(font_family).collect::<Vec<_>>();
+                    text_layout_builder.push_default(&StyleProperty::FontStack(
+                        FontStack::List(&family),
+                    ))
+                }
+
                 let mut dots_text = text_layout_builder.build();
                 dots_text.break_all_lines(None, Alignment::Start);
                 let dots_width = dots_text.width();
@@ -270,9 +296,11 @@ impl View for FocusText {
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
         if self.color != cx.current_color()
             || self.font_size != cx.current_font_size()
+            || self.font_family.as_deref() != cx.current_font_family()
         {
             self.color = cx.current_color();
             self.font_size = cx.current_font_size();
+            self.font_family = cx.current_font_family().map(|s| s.to_string());
             self.set_text_layout();
         }
         let text_node = self.text_node.unwrap();

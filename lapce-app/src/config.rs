@@ -8,6 +8,7 @@ use floem::peniko::Color;
 use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
 use lapce_rpc::plugin::VoltID;
+use lsp_types::CompletionItemKind;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use serde::Deserialize;
@@ -281,6 +282,32 @@ impl LapceConfig {
     /// Retrieve a color value whose key starts with "style."
     pub fn get_style_color(&self, name: &str) -> Option<&Color> {
         self.color.syntax.get(name)
+    }
+
+    pub fn completion_color(
+        &self,
+        kind: Option<CompletionItemKind>,
+    ) -> Option<Color> {
+        let kind = kind?;
+        let theme_str = match kind {
+            CompletionItemKind::METHOD => "method",
+            CompletionItemKind::FUNCTION => "method",
+            CompletionItemKind::ENUM => "enum",
+            CompletionItemKind::ENUM_MEMBER => "enum-member",
+            CompletionItemKind::CLASS => "class",
+            CompletionItemKind::VARIABLE => "field",
+            CompletionItemKind::STRUCT => "structure",
+            CompletionItemKind::KEYWORD => "keyword",
+            CompletionItemKind::CONSTANT => "constant",
+            CompletionItemKind::PROPERTY => "property",
+            CompletionItemKind::FIELD => "field",
+            CompletionItemKind::INTERFACE => "interface",
+            CompletionItemKind::SNIPPET => "snippet",
+            CompletionItemKind::MODULE => "builtinType",
+            _ => "string",
+        };
+
+        self.get_style_color(theme_str).cloned()
     }
 
     fn resolve_colors(&mut self, default_config: Option<&LapceConfig>) {

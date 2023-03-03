@@ -68,7 +68,7 @@ impl WindowTabData {
         let (config, set_config) = create_signal(cx.scope, Arc::new(config));
 
         let focus = create_rw_signal(cx.scope, Focus::Workbench);
-        let completion = create_rw_signal(cx.scope, CompletionData::new());
+        let completion = create_rw_signal(cx.scope, CompletionData::new(cx, config));
 
         let proxy = start_proxy(cx, workspace.clone(), completion.write_only());
 
@@ -310,6 +310,7 @@ impl WindowTabData {
 
     pub fn completion_origin(&self) -> Point {
         let completion = self.completion.get();
+        let config = self.config.get();
         if completion.status == CompletionStatus::Inactive {
             return Point::ZERO;
         }
@@ -332,7 +333,13 @@ impl WindowTabData {
         let tab_size = self.layout_rect.get().size();
 
         let mut origin = window_origin
-            + Vec2::new(point_below.x - viewport.x0, point_below.y - viewport.y0);
+            + Vec2::new(
+                point_below.x
+                    - viewport.x0
+                    - config.editor.line_height() as f64
+                    - 5.0,
+                point_below.y - viewport.y0,
+            );
         if origin.y + completion_size.height > tab_size.height {
             origin.y = window_origin.y + (point_above.y - viewport.y0)
                 - completion_size.height;

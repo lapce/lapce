@@ -8,7 +8,7 @@ use std::{
 use floem::{
     app::AppContext,
     event::{Event, EventListner},
-    parley::style::{FontFamily, FontStack, StyleProperty},
+    parley::style::{FontFamily, FontStack, FontWeight, StyleProperty},
     peniko::{
         kurbo::{Point, Rect, Size},
         Brush, Color,
@@ -36,6 +36,7 @@ use lapce_core::{
     mode::{Mode, VisualMode},
     selection::Selection,
 };
+use lsp_types::CompletionItemKind;
 
 use crate::{
     command::{CommandKind, LapceWorkbenchCommand},
@@ -371,6 +372,14 @@ fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
                 ..Default::default()
             }),
         )
+    })
+    .style(cx, move || {
+        let config = config.get();
+        Style {
+            font_family: Some(config.editor.font_family.clone()),
+            font_size: Some(config.editor.font_size as f32),
+            ..Default::default()
+        }
     })
 }
 
@@ -1603,10 +1612,30 @@ impl<V: Clone + 'static> VirtualListVector<(usize, V)> for VectorItems<V> {
     }
 }
 
+fn completion_kind_to_str(kind: CompletionItemKind) -> &'static str {
+    match kind {
+        CompletionItemKind::METHOD => "f",
+        CompletionItemKind::FUNCTION => "f",
+        CompletionItemKind::CLASS => "c",
+        CompletionItemKind::STRUCT => "s",
+        CompletionItemKind::VARIABLE => "v",
+        CompletionItemKind::INTERFACE => "i",
+        CompletionItemKind::ENUM => "e",
+        CompletionItemKind::ENUM_MEMBER => "e",
+        CompletionItemKind::FIELD => "v",
+        CompletionItemKind::PROPERTY => "p",
+        CompletionItemKind::CONSTANT => "d",
+        CompletionItemKind::MODULE => "m",
+        CompletionItemKind::KEYWORD => "k",
+        CompletionItemKind::SNIPPET => "n",
+        _ => "t",
+    }
+}
+
 fn completion(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     let completion_data = window_tab_data.completion;
     let config = window_tab_data.config;
-    let line_height = 20.0;
+    let active = completion_data.with_untracked(|c| c.active);
     let request_id = create_memo(cx.scope, move |_| {
         completion_data.with(|c| (c.request_id, c.input_id))
     });
@@ -1618,13 +1647,67 @@ fn completion(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
             move |(i, item)| (request_id.get_untracked(), *i),
             move |cx, (i, item)| {
                 stack(cx, |cx| {
-                    (label(cx, move || item.item.label.clone()).style(
-                        cx,
-                        move || Style {
-                            min_width: Dimension::Points(0.0),
-                            ..Default::default()
-                        },
-                    ),)
+                    (
+                        container(cx, move |cx| {
+                            label(cx, move || {
+                                item.item
+                                    .kind
+                                    .map(completion_kind_to_str)
+                                    .unwrap_or("")
+                                    .to_string()
+                            })
+                            .style(cx, move || Style {
+                                width: Dimension::Percent(1.0),
+                                justify_content: Some(JustifyContent::Center),
+                                ..Default::default()
+                            })
+                        })
+                        .style(cx, move || {
+                            let config = config.get();
+                            Style {
+                                width: Dimension::Points(
+                                    config.editor.line_height() as f32,
+                                ),
+                                height: Dimension::Percent(1.0),
+                                align_items: Some(AlignItems::Center),
+                                font_weight: Some(FontWeight::BOLD),
+                                color: config.completion_color(item.item.kind),
+                                background: config
+                                    .completion_color(item.item.kind)
+                                    .map(|c| c.with_alpha_factor(0.3)),
+                                ..Default::default()
+                            }
+                        }),
+                        focus_text(
+                            cx,
+                            move || item.item.label.clone(),
+                            move || item.indices.clone(),
+                            move || {
+                                *config.get().get_color(LapceColor::EDITOR_FOCUS)
+                            },
+                        )
+                        .style(cx, move || {
+                            let config = config.get();
+                            Style {
+                                padding_left: 5.0,
+                                padding_right: 5.0,
+                                align_items: Some(AlignItems::Center),
+                                min_width: Dimension::Points(0.0),
+                                width: Dimension::Percent(1.0),
+                                height: Dimension::Percent(1.0),
+                                background: if active.get() == i {
+                                    Some(
+                                        *config.get_color(
+                                            LapceColor::COMPLETION_CURRENT,
+                                        ),
+                                    )
+                                } else {
+                                    None
+                                },
+                                ..Default::default()
+                            }
+                        }),
+                    )
                 })
                 .style(cx, move || Style {
                     align_items: Some(AlignItems::Center),
@@ -1644,6 +1727,16 @@ fn completion(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
             ..Default::default()
         })
     })
+    .on_ensure_visible(cx, move || {
+        let config = config.get();
+        let active = active.get();
+        Size::new(1.0, config.editor.line_height() as f64)
+            .to_rect()
+            .with_origin(Point::new(
+                0.0,
+                active as f64 * config.editor.line_height() as f64,
+            ))
+    })
     .on_resize(move |_, rect| {
         completion_data.update(|c| {
             c.layout_rect = rect;
@@ -1659,6 +1752,8 @@ fn completion(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
             margin_left: Some(origin.x as f32),
             margin_top: Some(origin.y as f32),
             background: Some(*config.get_color(LapceColor::COMPLETION_BACKGROUND)),
+            font_family: Some(config.editor.font_family.clone()),
+            font_size: Some(config.editor.font_size as f32),
             ..Default::default()
         }
     })

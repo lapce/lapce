@@ -12,6 +12,7 @@ pub mod keypress;
 pub mod main_split;
 pub mod palette;
 pub mod proxy;
+pub mod snippet;
 pub mod title;
 pub mod window_tab;
 pub mod workspace;

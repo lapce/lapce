@@ -25,7 +25,7 @@ use lapce_core::{
     char_buffer::CharBuffer,
     command::EditCommand,
     cursor::{ColPosition, Cursor, CursorMode},
-    editor::Editor,
+    editor::{EditType, Editor},
     mode::Mode,
     movement::{LinePosition, Movement},
     register::{Clipboard, Register},
@@ -260,6 +260,10 @@ impl Document {
         &self.buffer
     }
 
+    pub fn buffer_mut(&mut self) -> &mut Buffer {
+        &mut self.buffer
+    }
+
     /// Whether or not the underlying buffer is loaded
     pub fn loaded(&self) -> bool {
         self.loaded
@@ -301,6 +305,16 @@ impl Document {
         self.buffer.set_cursor_after(cursor.mode.clone());
         self.apply_deltas(&deltas);
         deltas
+    }
+
+    pub fn do_raw_edit(
+        &mut self,
+        edits: &[(impl AsRef<Selection>, &str)],
+        edit_type: EditType,
+    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
+        let (delta, inval_lines, edits) = self.buffer.edit(edits, edit_type);
+        self.apply_deltas(&[(delta.clone(), inval_lines.clone(), edits.clone())]);
+        (delta, inval_lines, edits)
     }
 
     pub fn do_edit(
@@ -352,7 +366,7 @@ impl Document {
     }
 
     /// Get the buffer's current revision. This is used to track whether the buffer has changed.
-    fn rev(&self) -> u64 {
+    pub fn rev(&self) -> u64 {
         self.buffer.rev()
     }
 

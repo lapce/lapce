@@ -1,9 +1,16 @@
 use std::{path::PathBuf, sync::Arc};
 
-use floem::peniko::kurbo::Rect;
+use floem::{
+    app::AppContext,
+    peniko::kurbo::Rect,
+    reactive::{create_rw_signal, ReadSignal, RwSignal, UntrackedGettableSignal},
+};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
+use lapce_core::movement::Movement;
 use lapce_rpc::{plugin::PluginId, proxy::ProxyRpcHandler};
 use lsp_types::{CompletionItem, CompletionResponse, Position};
+
+use crate::config::LapceConfig;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CompletionStatus {
@@ -28,28 +35,31 @@ pub struct CompletionData {
     pub input_id: usize,
     pub path: PathBuf,
     pub offset: usize,
-    pub active: usize,
+    pub active: RwSignal<usize>,
     pub input: String,
     pub input_items: im::HashMap<String, im::Vector<ScoredCompletionItem>>,
     pub filtered_items: im::Vector<ScoredCompletionItem>,
     pub layout_rect: Rect,
     matcher: Arc<SkimMatcherV2>,
+    config: ReadSignal<Arc<LapceConfig>>,
 }
 
 impl CompletionData {
-    pub fn new() -> Self {
+    pub fn new(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> Self {
+        let active = create_rw_signal(cx.scope, 0);
         Self {
             status: CompletionStatus::Inactive,
             request_id: 0,
             input_id: 0,
             path: PathBuf::new(),
             offset: 0,
-            active: 0,
+            active,
             input: "".to_string(),
             input_items: im::HashMap::new(),
             filtered_items: im::Vector::new(),
             layout_rect: Rect::ZERO,
             matcher: Arc::new(SkimMatcherV2::default().ignore_case()),
+            config,
         }
     }
 
@@ -101,6 +111,7 @@ impl CompletionData {
         }
         self.status = CompletionStatus::Inactive;
         self.input_id = 0;
+        self.active.set(0);
         self.input.clear();
         self.input_items.clear();
         self.filtered_items.clear();
@@ -111,7 +122,7 @@ impl CompletionData {
             return;
         }
         self.input = input;
-        self.active = 0;
+        self.active.set(0);
         self.filter_items();
     }
 
@@ -175,5 +186,55 @@ impl CompletionData {
                 .then_with(|| a.item.label.len().cmp(&b.item.label.len()))
         });
         self.filtered_items = items;
+    }
+
+    pub fn next(&mut self) {
+        let active = self.active.get_untracked();
+        let new =
+            Movement::Down.update_index(active, self.filtered_items.len(), 1, true);
+        self.active.set(new);
+    }
+
+    pub fn previous(&mut self) {
+        let active = self.active.get_untracked();
+        let new =
+            Movement::Up.update_index(active, self.filtered_items.len(), 1, true);
+        self.active.set(new);
+    }
+
+    pub fn next_page(&mut self) {
+        let config = self.config.get_untracked();
+        let count = ((self.layout_rect.size().height
+            / config.editor.line_height() as f64)
+            .floor() as usize)
+            .saturating_sub(1);
+        let active = self.active.get_untracked();
+        let new = Movement::Down.update_index(
+            active,
+            self.filtered_items.len(),
+            count,
+            false,
+        );
+        self.active.set(new);
+    }
+
+    pub fn previous_page(&mut self) {
+        let config = self.config.get_untracked();
+        let count = ((self.layout_rect.size().height
+            / config.editor.line_height() as f64)
+            .floor() as usize)
+            .saturating_sub(1);
+        let active = self.active.get_untracked();
+        let new = Movement::Up.update_index(
+            active,
+            self.filtered_items.len(),
+            count,
+            false,
+        );
+        self.active.set(new);
+    }
+
+    pub fn current_item(&self) -> Option<&ScoredCompletionItem> {
+        self.filtered_items.get(self.active.get_untracked())
     }
 }
