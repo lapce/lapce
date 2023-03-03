@@ -5,6 +5,7 @@
 ### Features/Changes
 
 ### Bug Fixes
+- [#2209](https://github.com/lapce/lapce/pull/2209): Fix macOS crashes
 
 ## 0.2.6
 
