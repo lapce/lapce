@@ -59,11 +59,12 @@ pub enum EditType {
     Completion,
     DeleteWord,
     DeleteToBeginningOfLine,
+    DeleteToEndOfLine,
+    DeleteToEndOfLineAndInsert,
     MotionDelete,
     Undo,
     Redo,
     Other,
-    DeleteToEndOfLineAndInsert,
 }
 
 impl EditType {
@@ -1225,6 +1226,23 @@ impl Editor {
                 cursor.update_selection(buffer, selection);
                 vec![(delta, inval_lines, edits)]
             }
+            DeleteLine => {
+                let selection = cursor.edit_selection(buffer);
+                let (start, end) = format_start_end(
+                    buffer,
+                    selection.min_offset(),
+                    selection.max_offset(),
+                    true,
+                    true,
+                );
+                let selection = Selection::region(start, end);
+                let (delta, inval_lines, edits) =
+                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                let selection =
+                    selection.apply_delta(&delta, true, InsertDrift::Default);
+                cursor.mode = CursorMode::Insert(selection);
+                vec![(delta, inval_lines, edits)]
+            }
             DeleteWordForward => {
                 let selection = match cursor.mode {
                     CursorMode::Normal(_) | CursorMode::Visual { .. } => {
@@ -1296,6 +1314,31 @@ impl Editor {
                 };
                 let (delta, inval_lines, edits) = buffer
                     .edit(&[(&selection, "")], EditType::DeleteToBeginningOfLine);
+                let selection =
+                    selection.apply_delta(&delta, true, InsertDrift::Default);
+                cursor.update_selection(buffer, selection);
+                vec![(delta, inval_lines, edits)]
+            }
+            DeleteToEndOfLine => {
+                let selection = match cursor.mode {
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => {
+                        cursor.edit_selection(buffer)
+                    }
+                    CursorMode::Insert(_) => {
+                        let mut selection = cursor.edit_selection(buffer);
+
+                        let cursor_offset = cursor.offset();
+                        let line = buffer.line_of_offset(cursor_offset);
+                        let end_of_line_offset = buffer.line_end_offset(line, true);
+                        let new_region =
+                            SelRegion::new(cursor_offset, end_of_line_offset, None);
+                        selection.add_region(new_region);
+
+                        selection
+                    }
+                };
+                let (delta, inval_lines, edits) =
+                    buffer.edit(&[(&selection, "")], EditType::DeleteToEndOfLine);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
@@ -1435,8 +1478,12 @@ impl Editor {
                 vec![]
             }
             Append => {
-                let count = (buffer.line_len(buffer.line_of_offset(cursor.offset()))
-                    > 1) as usize;
+                let offset = cursor.offset();
+                let line = buffer.line_of_offset(offset);
+                let line_len = buffer.line_len(line);
+                let count = (line_len > 1
+                    || (buffer.last_line() == line && line_len > 0))
+                    as usize;
                 let offset = buffer.move_right(cursor.offset(), Mode::Insert, count);
                 cursor.mode = CursorMode::Insert(Selection::caret(offset));
                 vec![]

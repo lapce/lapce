@@ -38,12 +38,25 @@ pub enum Naming {
         /// The folder that the file/directory is being created within
         base_path: PathBuf,
     },
+    /// Duplicating an existing file
+    Duplicating {
+        /// The index that the file being created should appear at
+        /// Note that when duplicating, it is not yet actually created.
+        list_index: usize,
+        /// Indentation level
+        indent_level: usize,
+        /// The folder that the file/directory is being created within
+        base_path: PathBuf,
+        /// The name of the file being duplicated
+        name: String,
+    },
 }
 impl Naming {
     pub fn list_index(&self) -> usize {
         match self {
             Naming::Renaming { list_index, .. }
-            | Naming::Naming { list_index, .. } => *list_index,
+            | Naming::Naming { list_index, .. }
+            | Naming::Duplicating { list_index, .. } => *list_index,
         }
     }
 }
@@ -278,7 +291,11 @@ impl FileExplorerData {
                 let path = path.clone();
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateExplorerItems(path, items, expand),
+                    LapceUICommand::UpdateExplorerItems {
+                        path,
+                        items,
+                        expand,
+                    },
                     Target::Widget(tab_id),
                 );
 
@@ -362,6 +379,21 @@ impl FileExplorerData {
                     Target::Auto,
                 ));
             }
+            Naming::Duplicating {
+                base_path, name, ..
+            } => {
+                let new_path = base_path.join(target_name);
+
+                let cmd = LapceUICommand::DuplicateFileOpen {
+                    existing_path: base_path.join(name),
+                    new_path,
+                };
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    cmd,
+                    Target::Auto,
+                ));
+            }
         }
 
         self.cancel_naming();
@@ -397,6 +429,54 @@ impl FileExplorerData {
             .get_mut(&self.renaming_editor_view_id)
             .unwrap();
         Arc::make_mut(editor).cursor.mode = CursorMode::Insert(Selection::caret(0));
+
+        // Focus on the input
+        ctx.submit_command(Command::new(
+            LAPCE_UI_COMMAND,
+            LapceUICommand::Focus,
+            Target::Widget(editor.view_id),
+        ));
+    }
+
+    /// Show the naming input for the given file at the index
+    /// Requires `main_split` for getting the input to set its content
+    /// Requires `ctx` to switch focus to the input
+    pub fn start_duplicating(
+        &mut self,
+        ctx: &mut EventCtx,
+        main_split: &mut LapceMainSplitData,
+        list_index: usize,
+        indent_level: usize,
+        base_path: PathBuf,
+        name: String,
+    ) {
+        self.cancel_naming();
+        self.naming = Some(Naming::Duplicating {
+            list_index,
+            indent_level,
+            base_path,
+            name: name.clone(),
+        });
+
+        // Set the text of the input
+        let doc = main_split
+            .local_docs
+            .get_mut(&LocalBufferKind::PathName)
+            .unwrap();
+        Arc::make_mut(doc).reload(Rope::from(name), true);
+
+        // TODO: We could provide a configuration option to only select the filename at first,
+        // which would fit a common case of just wanting to change the filename and not the ext
+        // (or that could be the default)
+
+        // Select all of the text, allowing them to quickly completely change the name if they wish
+        let editor = main_split
+            .editors
+            .get_mut(&self.renaming_editor_view_id)
+            .unwrap();
+        let offset = doc.buffer().line_end_offset(0, true);
+        Arc::make_mut(editor).cursor.mode =
+            CursorMode::Insert(Selection::region(0, offset));
 
         // Focus on the input
         ctx.submit_command(Command::new(

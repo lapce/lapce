@@ -2,7 +2,10 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
     thread,
     time::Duration,
 };
@@ -30,7 +33,6 @@ use lapce_rpc::{
 use lapce_xi_rope::Rope;
 use lsp_types::{Position, Range, TextDocumentItem, Url};
 use parking_lot::Mutex;
-use regex::Regex;
 
 use crate::{
     buffer::{get_mod_time, load_file, Buffer},
@@ -51,7 +53,6 @@ pub struct Dispatcher {
     #[allow(deprecated)]
     terminals: HashMap<TermId, mio::channel::Sender<Msg>>,
     file_watcher: FileWatcher,
-
     window_id: usize,
     tab_id: usize,
 }
@@ -92,6 +93,13 @@ impl ProxyHandler for Dispatcher {
                     plugin_rpc.mainloop(&mut plugin);
                 });
                 self.core_rpc.proxy_connected();
+
+                // send home directory for initinal filepicker dir
+                let dirs = directories::UserDirs::new();
+
+                if let Some(dirs) = dirs {
+                    self.core_rpc.home_dir(dirs.home_dir().into());
+                }
             }
             OpenPaths { folders, files } => {
                 self.core_rpc.notification(CoreNotification::OpenPaths {
@@ -302,64 +310,38 @@ impl ProxyHandler for Dispatcher {
                 pattern,
                 case_sensitive,
             } => {
+                static WORKER_ID: AtomicU64 = AtomicU64::new(0);
+                let our_id = WORKER_ID.fetch_add(1, Ordering::SeqCst) + 1;
+
                 let workspace = self.workspace.clone();
+                let buffers = self
+                    .buffers
+                    .iter()
+                    .map(|p| p.0)
+                    .cloned()
+                    .collect::<Vec<PathBuf>>();
                 let proxy_rpc = self.proxy_rpc.clone();
+
                 // Perform the search on another thread to avoid blocking the proxy thread
                 thread::spawn(move || {
-                    let result = if let Some(workspace) = workspace.as_ref() {
-                        let mut matches = IndexMap::new();
-                        let pattern = regex::escape(&pattern);
-                        if let Ok(matcher) = RegexMatcherBuilder::new()
-                            .case_insensitive(!case_sensitive)
-                            .build_literals(&[&pattern])
-                        {
-                            let mut searcher = SearcherBuilder::new().build();
-                            for path in ignore::Walk::new(workspace).flatten() {
-                                if let Some(file_type) = path.file_type() {
-                                    if file_type.is_file() {
-                                        let path = path.into_path();
-                                        let mut line_matches = Vec::new();
-                                        let _ = searcher.search_path(
-                                            &matcher,
-                                            path.clone(),
-                                            UTF8(|lnum, line| {
-                                                let mymatch = matcher
-                                                    .find(line.as_bytes())?
-                                                    .unwrap();
-                                                // Shorten the line to avoid sending over absurdly long-lines
-                                                // (such as in minified javascript)
-                                                // Note that the start/end are column based, not absolute from the
-                                                // start of the file.
-                                                let display_range = mymatch
-                                                    .start()
-                                                    .saturating_sub(100)
-                                                    ..line
-                                                        .len()
-                                                        .min(mymatch.end() + 100);
-                                                line_matches.push((
-                                                    lnum as usize,
-                                                    (mymatch.start(), mymatch.end()),
-                                                    line[display_range].to_string(),
-                                                ));
-                                                Ok(true)
-                                            }),
-                                        );
-                                        if !line_matches.is_empty() {
-                                            matches
-                                                .insert(path.clone(), line_matches);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        Ok(ProxyResponse::GlobalSearchResponse { matches })
-                    } else {
-                        Err(RpcError {
-                            code: 0,
-                            message: "no workspace set".to_string(),
-                        })
-                    };
-                    proxy_rpc.handle_response(id, result);
+                    proxy_rpc.handle_response(
+                        id,
+                        search_in_path(
+                            our_id,
+                            &WORKER_ID,
+                            workspace
+                                .iter()
+                                .flat_map(|w| ignore::Walk::new(w).flatten())
+                                .chain(
+                                    buffers.iter().flat_map(|p| {
+                                        ignore::Walk::new(p).flatten()
+                                    }),
+                                )
+                                .map(|p| p.into_path()),
+                            &pattern,
+                            case_sensitive,
+                        ),
+                    );
                 });
             }
             CompletionResolve {
@@ -709,7 +691,7 @@ impl ProxyHandler for Dispatcher {
                 rev,
                 content,
             } => {
-                let mut buffer = Buffer::new(buffer_id, path);
+                let mut buffer = Buffer::new(buffer_id, path.clone());
                 buffer.rope = Rope::from(content);
                 buffer.rev = rev;
                 let result = buffer
@@ -719,6 +701,7 @@ impl ProxyHandler for Dispatcher {
                         code: 0,
                         message: e.to_string(),
                     });
+                self.buffers.insert(path, buffer);
                 self.respond_rpc(id, result);
             }
             CreateFile { path } => {
@@ -756,13 +739,44 @@ impl ProxyHandler for Dispatcher {
                     });
                 self.respond_rpc(id, result);
             }
+            DuplicatePath {
+                existing_path,
+                new_path,
+            } => {
+                // We first check if the destination already exists, because copy can overwrite it
+                // and that's not the default behavior we want for when a user duplicates a document.
+                let result = if new_path.exists() {
+                    Err(RpcError {
+                        code: 0,
+                        message: format!("{new_path:?} already exists"),
+                    })
+                } else {
+                    if let Some(parent) = new_path.parent() {
+                        if let Err(error) = std::fs::create_dir_all(parent) {
+                            let result = Err(RpcError {
+                                code: 0,
+                                message: error.to_string(),
+                            });
+                            self.respond_rpc(id, result);
+                            return;
+                        }
+                    }
+                    std::fs::copy(existing_path, new_path)
+                        .map(|_| ProxyResponse::Success {})
+                        .map_err(|e| RpcError {
+                            code: 0,
+                            message: e.to_string(),
+                        })
+                };
+                self.respond_rpc(id, result);
+            }
             RenamePath { from, to } => {
                 // We first check if the destination already exists, because rename can overwrite it
                 // and that's not the default behavior we want for when a user renames a document.
                 let result = if to.exists() {
                     Err(RpcError {
                         code: 0,
-                        message: format!("{:?} already exists", to),
+                        message: format!("{to:?} already exists"),
                     })
                 } else {
                     std::fs::rename(from, to)
@@ -961,7 +975,9 @@ pub struct DiffHunk {
 }
 
 fn git_init(workspace_path: &Path) -> Result<()> {
-    Repository::init(workspace_path)?;
+    if Repository::discover(workspace_path).is_err() {
+        Repository::init(workspace_path)?;
+    };
     Ok(())
 }
 
@@ -970,11 +986,7 @@ fn git_commit(
     message: &str,
     diffs: Vec<FileDiff>,
 ) -> Result<()> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("workspace path can't changed to str"))?,
-    )?;
+    let repo = Repository::discover(workspace_path)?;
     let mut index = repo.index()?;
     for diff in diffs {
         match diff {
@@ -1008,11 +1020,7 @@ fn git_commit(
 }
 
 fn git_checkout(workspace_path: &Path, branch: &str) -> Result<()> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("workspace path can't changed to str"))?,
-    )?;
+    let repo = Repository::discover(workspace_path)?;
     let (object, reference) = repo.revparse_ext(branch)?;
     repo.checkout_tree(&object, None)?;
     repo.set_head(reference.unwrap().name().unwrap())?;
@@ -1023,7 +1031,7 @@ fn git_discard_files_changes<'a>(
     workspace_path: &Path,
     files: impl Iterator<Item = &'a Path>,
 ) -> Result<()> {
-    let repo = Repository::open(workspace_path)?;
+    let repo = Repository::discover(workspace_path)?;
 
     let mut checkout_b = CheckoutBuilder::new();
     checkout_b.update_only(false).force();
@@ -1050,7 +1058,7 @@ fn git_discard_files_changes<'a>(
 }
 
 fn git_discard_workspace_changes(workspace_path: &Path) -> Result<()> {
-    let repo = Repository::open(workspace_path)?;
+    let repo = Repository::discover(workspace_path)?;
     let mut checkout_b = CheckoutBuilder::new();
     checkout_b.force();
 
@@ -1084,7 +1092,7 @@ fn git_delta_format(
 }
 
 fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
-    let repo = Repository::open(workspace_path.to_str()?).ok()?;
+    let repo = Repository::discover(workspace_path).ok()?;
     let head = repo.head().ok()?;
     let name = head.shorthand()?.to_string();
 
@@ -1120,13 +1128,13 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     let mut renames = Vec::new();
     let mut renamed_deltas = HashSet::new();
 
-    for (i, delta) in deltas.iter().enumerate() {
+    for (added_index, delta) in deltas.iter().enumerate() {
         if delta.0 == git2::Delta::Added {
-            for (j, d) in deltas.iter().enumerate() {
+            for (deleted_index, d) in deltas.iter().enumerate() {
                 if d.0 == git2::Delta::Deleted && d.1 == delta.1 {
-                    renames.push((i, j));
-                    renamed_deltas.insert(i);
-                    renamed_deltas.insert(j);
+                    renames.push((added_index, deleted_index));
+                    renamed_deltas.insert(added_index);
+                    renamed_deltas.insert(deleted_index);
                     break;
                 }
             }
@@ -1134,10 +1142,10 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     }
 
     let mut file_diffs = Vec::new();
-    for (i, j) in renames.iter() {
+    for (added_index, deleted_index) in renames.iter() {
         file_diffs.push(FileDiff::Renamed(
-            deltas[*i].2.clone(),
-            deltas[*j].2.clone(),
+            deltas[*added_index].2.clone(),
+            deltas[*deleted_index].2.clone(),
         ));
     }
     for (i, delta) in deltas.iter().enumerate() {
@@ -1166,11 +1174,7 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
 }
 
 fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("can't to str"))?,
-    )?;
+    let repo = Repository::discover(workspace_path)?;
     let head = repo.head()?;
     let tree = head.peel_to_tree()?;
     let tree_entry = tree.get_path(path.strip_prefix(workspace_path)?)?;
@@ -1183,53 +1187,118 @@ fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)>
 }
 
 fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String> {
-    let repo = Repository::open(
-        workspace_path
-            .to_str()
-            .ok_or_else(|| anyhow!("can't to str"))?,
-    )?;
-
+    let repo = Repository::discover(workspace_path)?;
     let head = repo.head()?;
-
     let target_remote = repo.find_remote("origin")?;
 
-    let target_remote_file_url =
-        target_remote.url().ok_or_else(|| anyhow!("can't to str"))?;
+    // Grab URL part of remote
+    let remote = target_remote
+        .url()
+        .ok_or(anyhow!("Failed to convert remote to str"))?;
 
-    // This Regex isn't perfect, but it's good enough for now
-    // git@github.com:rust-lang/rust.git
-    // https://github.com/rust-lang/rust.git
+    let remote_url = match Url::parse(remote) {
+        Ok(url) => url,
+        Err(_) => {
+            // Parse URL as ssh
+            Url::parse(&format!("ssh://{}", remote.replacen(':', "/", 1)))?
+        }
+    };
 
-    let git_repo_remote_regex = Regex::new(
-        r"^(?:git@|https://)(?P<host>[^:/]+)[:/](?P<org>[^/]+)/(?P<repo>.+)$",
-    )
-    .unwrap();
+    // Get host part
+    let host = remote_url
+        .host_str()
+        .ok_or(anyhow!("Couldn't find remote host"))?;
+    // Get namespace (e.g. organisation/project in case of GitHub, org/team/team/team/../project on GitLab)
+    let namespace = if let Some(stripped) = remote_url.path().strip_suffix(".git") {
+        stripped
+    } else {
+        remote_url.path()
+    };
 
-    let (host, org, repo) =
-        if let Some(v) = git_repo_remote_regex.captures(target_remote_file_url) {
-            let host = v
-                .name("host")
-                .ok_or_else(|| anyhow!("can't to str"))?
-                .as_str();
-            let org = v
-                .name("org")
-                .ok_or_else(|| anyhow!("can't to str"))?
-                .as_str();
-            let repo = v
-                .name("repo")
-                .ok_or_else(|| anyhow!("can't to str"))?
-                .as_str();
-            (host, org, repo)
-        } else {
-            return Err(anyhow!("can't parse remote url"));
-        };
+    let commit = head.peel_to_commit()?.id();
 
-    Ok(format!(
-        "https://{}/{}/{}/blob/{}/{}",
-        host,
-        org,
-        repo,
-        head.peel_to_commit()?.id(),
-        file.strip_prefix(workspace_path)?.to_str().unwrap()
-    ))
+    let file_path = file
+        .strip_prefix(workspace_path)?
+        .to_str()
+        .ok_or(anyhow!("Couldn't convert file path to str"))?;
+
+    let url = format!("https://{host}{namespace}/blob/{commit}/{file_path}",);
+
+    Ok(url)
+}
+
+fn search_in_path(
+    id: u64,
+    current_id: &AtomicU64,
+    paths: impl Iterator<Item = PathBuf>,
+    pattern: &str,
+    case_sensitive: bool,
+) -> Result<ProxyResponse, RpcError> {
+    let mut matches = IndexMap::new();
+    let pattern = regex::escape(pattern);
+    let matcher = RegexMatcherBuilder::new()
+        .case_insensitive(!case_sensitive)
+        .build_literals(&[&pattern])
+        .map_err(|_| RpcError {
+            code: 0,
+            message: "can't build matcher".to_string(),
+        })?;
+    let mut searcher = SearcherBuilder::new().build();
+
+    for path in paths {
+        if current_id.load(Ordering::SeqCst) != id {
+            return Err(RpcError {
+                code: 0,
+                message: "expired search job".to_string(),
+            });
+        }
+
+        if path.is_file() {
+            let mut line_matches = Vec::new();
+            let _ = searcher.search_path(
+                &matcher,
+                path.clone(),
+                UTF8(|lnum, line| {
+                    if current_id.load(Ordering::SeqCst) != id {
+                        return Ok(false);
+                    }
+
+                    let mymatch = matcher.find(line.as_bytes())?.unwrap();
+                    let line = if line.len() > 200 {
+                        // Shorten the line to avoid sending over absurdly long-lines
+                        // (such as in minified javascript)
+                        // Note that the start/end are column based, not absolute from the
+                        // start of the file.
+                        let left_keep = line[..mymatch.start()]
+                            .chars()
+                            .rev()
+                            .take(100)
+                            .map(|c| c.len_utf8())
+                            .sum::<usize>();
+                        let right_keep = line[mymatch.end()..]
+                            .chars()
+                            .take(100)
+                            .map(|c| c.len_utf8())
+                            .sum::<usize>();
+                        let display_range =
+                            mymatch.start() - left_keep..mymatch.end() + right_keep;
+                        line[display_range].to_string()
+                    } else {
+                        line.to_string()
+                    };
+                    line_matches.push((
+                        lnum as usize,
+                        (mymatch.start(), mymatch.end()),
+                        line,
+                    ));
+                    Ok(true)
+                }),
+            );
+            if !line_matches.is_empty() {
+                matches.insert(path.clone(), line_matches);
+            }
+        }
+    }
+
+    Ok(ProxyResponse::GlobalSearchResponse { matches })
 }

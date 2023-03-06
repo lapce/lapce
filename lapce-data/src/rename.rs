@@ -27,6 +27,7 @@ pub struct RenameData {
     pub start: usize,
     pub end: usize,
     pub placeholder: String,
+    pub mouse_within: bool,
 }
 
 impl RenameData {
@@ -43,6 +44,7 @@ impl RenameData {
             start: 0,
             end: 0,
             placeholder: "".to_string(),
+            mouse_within: false,
         }
     }
 
@@ -60,6 +62,7 @@ impl RenameData {
         self.offset = offset;
         self.from_editor = from_editor;
         self.position = position;
+        self.mouse_within = false;
     }
 
     pub fn cancel(&mut self) {

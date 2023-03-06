@@ -13,6 +13,7 @@ use lapce_data::{
 
 use crate::{editor::view::LapceEditorView, tab::LapceIcon};
 
+// Local search widget
 pub struct FindBox {
     parent_view_id: WidgetId,
     input_width: f64,
@@ -158,6 +159,7 @@ impl Widget<LapceTabData> for FindBox {
                 bc.max().height,
             ));
             input_size = self.input.layout(ctx, &input_bc, data, env);
+            self.input.set_origin(ctx, data, env, Point::ZERO);
             width = input_size.width + self.result_width + height * icons_len;
         }
 
@@ -289,13 +291,13 @@ impl Widget<LapceTabData> for FindBox {
                     data.config
                         .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_UNDERLINE),
                 );
-            } else if icon.rect.contains(self.mouse_pos)
-                && icon.icon != LapceIcons::SEARCH_CASE_SENSITIVE
-            {
+            } else if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
                     icon.rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                    &data.config.get_hover_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                    ),
                 );
             }
 

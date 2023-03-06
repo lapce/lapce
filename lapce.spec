@@ -1,5 +1,5 @@
 Name:           lapce-git
-Version:        0.2.5.{{{ git_dir_version }}}
+Version:        0.2.6.{{{ git_dir_version }}}
 Release:        1
 Summary:        Lightning-fast and Powerful Code Editor written in Rust
 License:        Apache-2.0
@@ -23,9 +23,9 @@ RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=mold" cargo build --profile rele
 %install
 install -Dm755 target/release-lto/lapce %{buildroot}%{_bindir}/lapce
 install -Dm755 target/release-lto/lapce-proxy %{buildroot}%{_bindir}/lapce-proxy
-install -Dm755 extra/linux/dev.lapce.lapce.desktop %{buildroot}/usr/share/applications/dev.lapce.lapce.desktop
-install -Dm766 extra/linux/dev.lapce.lapce.metainfo.xml %{buildroot}/usr/share/metainfo/dev.lapce.lapce.metainfo.xml
-install -Dm766 extra/images/logo.png %{buildroot}/usr/share/pixmaps/dev.lapce.lapce.png
+install -Dm644 extra/linux/dev.lapce.lapce.desktop %{buildroot}/usr/share/applications/dev.lapce.lapce.desktop
+install -Dm644 extra/linux/dev.lapce.lapce.metainfo.xml %{buildroot}/usr/share/metainfo/dev.lapce.lapce.metainfo.xml
+install -Dm644 extra/images/logo.png %{buildroot}/usr/share/pixmaps/dev.lapce.lapce.png
 
 %files
 %license LICENSE*

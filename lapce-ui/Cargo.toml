@@ -1,41 +1,45 @@
 [package]
 name = "lapce-ui"
-version = "0.2.5"
-authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-base64 = "0.13.0"
-clap = { version = "3.2.17", features = ["derive"] }
+alacritty_terminal.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+clap.workspace = true
+hashbrown.workspace = true
+im.workspace = true
+include_dir.workspace = true
+indexmap.workspace = true
+itertools.workspace = true
+log.workspace = true
+once_cell.workspace = true
+rayon.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+smallvec.workspace = true
+toml_edit.workspace = true
+
+lsp-types.workspace = true
+
+lapce-xi-rope.workspace = true
+
+lapce-core.workspace = true
+lapce-data.workspace = true
+lapce-proxy.workspace = true
+lapce-rpc.workspace = true
+
+druid.workspace = true
+
 image = "0.24.3"
-chrono = "0.4.19"
-log = "0.4.14"
 fern = "0.6.0"
 Inflector = "0.11.4"
-rayon = "1.5.1"
-alacritty_terminal = "0.17.0"
-itertools = "0.10.1"
 log-panics = { version = "2.1.0", features = ["with-backtrace"] }
-unicode-width = "0.1.8"
-im = { version = "15.0.0", features = ["serde"] }
-regex = "1.5.6"
-include_dir = "0.6.0"
-anyhow = "1.0.32"
-once_cell = "1.15"
-serde = "1.0"
-serde_json = "1.0"
-lapce-xi-rope = { version = "0.3.1", features = ["serde"] }
-lsp-types = { version = "0.93", features = ["proposed"] }
-toml_edit = { version = "0.14.4", features = ["easy"] }
-open = "3.0.2"
-hashbrown = { version = "0.13.1", features = ["serde"] }
-
-# lapce deps
-druid = { git = "https://github.com/lapce/druid", branch = "shell_opengl", features = ["svg", "im", "serde"] }
-# druid = { path = "../../druid/druid", features = ["svg", "im" , "serde"] }
-lapce-data = { path = "../lapce-data" }
-lapce-rpc = { path = "../lapce-rpc" }
-lapce-core = { path = "../lapce-core" }
+unicode-width = "0.1.10"
+open = "3.0.2" # bump when other deps using windows{,-sys} are bump'd
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1.12"

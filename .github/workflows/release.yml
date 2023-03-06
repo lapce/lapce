@@ -11,6 +11,10 @@ on:
         default: nightly
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  pull_request:
+    paths:
+      # trigger release workflow only if this file changed
+      - .github/workflows/release.yml
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -32,6 +36,9 @@ jobs:
         run: |
           TAG_NAME=${{ github.ref }}
           echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
+          
+      - if: github.event_name == 'pull_request'
+        run: echo 'TAG_NAME=debug' >> $GITHUB_ENV
 
       - id: vars
         shell: bash
@@ -58,9 +65,12 @@ jobs:
 
       - name: Update rust
         run: rustup update
+        
+      - name: Fetch dependencies
+        run: cargo fetch --locked
 
       - name: Build
-        run: cargo build --profile release-lto
+        run: cargo build --frozen --profile release-lto
 
       - name: Install WiX
         run: nuget install WiX
@@ -119,9 +129,12 @@ jobs:
           toolchain: stable
           target: x86_64-unknown-linux-gnu
           profile: minimal
-          
+
+      - name: Fetch dependencies
+        run: cargo fetch --locked
+
       - name: Build
-        run: cargo build --profile release-lto --bin lapce
+        run: cargo build --frozen --profile release-lto --bin lapce
 
       - name: Gzip
         run: |
@@ -205,8 +218,9 @@ jobs:
           echo -e '#!/bin/sh\nPKG_CONFIG_SYSROOT_DIR=${{ env.CROSS_SYSROOT }} exec pkgconf "$@"' \
               | install -m755 /dev/stdin pkg-config
           export PKG_CONFIG="$(pwd)/pkg-config"
+          cargo fetch --locked
           cargo build \
-            --locked \
+            --frozen \
             --verbose \
             --release \
             --bin lapce-proxy \
@@ -244,6 +258,9 @@ jobs:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
 
+      - name: Fetch dependencies
+        run: cargo fetch --locked
+
       - name: Make DMG
         run: make dmg-universal
 
@@ -274,6 +291,7 @@ jobs:
           retention-days: 1
 
   publish:
+    if: github.event_name != 'pull_request'
     needs: [linux, linux-musl, windows, macos]
     runs-on: ubuntu-latest
     env:

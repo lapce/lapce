@@ -25,6 +25,7 @@ use crate::{
     tab::LapceIcon,
 };
 
+// Global search widget
 pub struct SearchInput {
     input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     icons: Vec<LapceIcon>,
@@ -140,6 +141,7 @@ impl Widget<LapceTabData> for SearchInput {
                 bc.max().height,
             ));
             input_size = self.input.layout(ctx, &input_bc, data, env);
+            self.input.set_origin(ctx, data, env, Point::ZERO);
             width = input_size.width + self.result_width + height * icon_len;
         }
 
@@ -207,7 +209,7 @@ impl Widget<LapceTabData> for SearchInput {
             .new_text_layout(if match_count > 0 {
                 match index {
                     Some(index) => format!("{}/{}", index + 1, match_count),
-                    None => format!("{} results", match_count),
+                    None => format!("{match_count} results"),
                 }
             } else {
                 "No results".to_string()
@@ -247,13 +249,13 @@ impl Widget<LapceTabData> for SearchInput {
                     data.config
                         .get_color_unchecked(LapceTheme::LAPCE_TAB_ACTIVE_UNDERLINE),
                 );
-            } else if icon.rect.contains(self.mouse_pos)
-                && icon.icon != LapceIcons::SEARCH_CASE_SENSITIVE
-            {
+            } else if icon.rect.contains(self.mouse_pos) {
                 ctx.fill(
                     icon.rect,
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_CURRENT_LINE),
+                    &data.config.get_hover_color(
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
+                    ),
                 );
             }
 

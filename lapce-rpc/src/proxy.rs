@@ -7,6 +7,7 @@ use std::{
     },
 };
 
+use super::plugin::VoltID;
 use crossbeam_channel::{Receiver, Sender};
 use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
@@ -145,6 +146,10 @@ pub enum ProxyRequest {
     TrashPath {
         path: PathBuf,
     },
+    DuplicatePath {
+        existing_path: PathBuf,
+        new_path: PathBuf,
+    },
     RenamePath {
         from: PathBuf,
         to: PathBuf,
@@ -156,7 +161,7 @@ pub enum ProxyRequest {
 pub enum ProxyNotification {
     Initialize {
         workspace: Option<PathBuf>,
-        disabled_volts: Vec<String>,
+        disabled_volts: Vec<VoltID>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
@@ -471,7 +476,7 @@ impl ProxyRpcHandler {
     pub fn initialize(
         &self,
         workspace: Option<PathBuf>,
-        disabled_volts: Vec<String>,
+        disabled_volts: Vec<VoltID>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
@@ -573,6 +578,21 @@ impl ProxyRpcHandler {
 
     pub fn trash_path(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::TrashPath { path }, f);
+    }
+
+    pub fn duplicate_path(
+        &self,
+        existing_path: PathBuf,
+        new_path: PathBuf,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::DuplicatePath {
+                existing_path,
+                new_path,
+            },
+            f,
+        );
     }
 
     pub fn rename_path(

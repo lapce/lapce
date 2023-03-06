@@ -24,6 +24,8 @@ pub enum Movement {
     NextUnmatched(char),
     PreviousUnmatched(char),
     MatchPairs,
+    ParagraphForward,
+    ParagraphBackward,
 }
 
 impl PartialEq for Movement {
@@ -41,6 +43,8 @@ impl Movement {
                 | Movement::Line(_)
                 | Movement::DocumentStart
                 | Movement::DocumentEnd
+                | Movement::ParagraphForward
+                | Movement::ParagraphBackward
         )
     }
 
@@ -55,6 +59,8 @@ impl Movement {
                 | Movement::Offset(_)
                 | Movement::DocumentStart
                 | Movement::DocumentEnd
+                | Movement::ParagraphForward
+                | Movement::ParagraphBackward
         )
     }
 
@@ -84,6 +90,9 @@ impl Movement {
                 LinePosition::First => 0,
                 LinePosition::Last => last,
             },
+
+            Movement::ParagraphForward => 0,
+            Movement::ParagraphBackward => 0,
             _ => index,
         }
     }

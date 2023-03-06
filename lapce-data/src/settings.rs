@@ -11,9 +11,11 @@ use crate::{
     command::{CommandExecuted, CommandKind, LapceUICommand, LAPCE_UI_COMMAND},
     config::LapceConfig,
     data::LapceMainSplitData,
+    dropdown::DropdownData,
     keypress::KeyPressFocus,
     split::SplitDirection,
 };
+use lapce_rpc::plugin::VoltID;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SettingsValueKind {
@@ -31,7 +33,7 @@ pub enum LapceSettingsKind {
     Terminal,
     Theme,
     Keymap,
-    Plugin(String),
+    Plugin(VoltID),
 }
 
 #[derive(Clone)]
@@ -45,6 +47,10 @@ pub struct LapceSettingsPanelData {
     pub settings_widget_id: WidgetId,
     pub settings_view_id: WidgetId,
     pub settings_split_id: WidgetId,
+
+    /// Mapping of setting key to dropdown data for that key
+    pub dropdown_data:
+        im::HashMap<String, im::HashMap<String, DropdownData<String, ()>>>,
 }
 
 impl KeyPressFocus for LapceSettingsPanelData {
@@ -93,6 +99,8 @@ impl LapceSettingsPanelData {
             settings_widget_id: WidgetId::next(),
             settings_view_id: WidgetId::next(),
             settings_split_id: WidgetId::next(),
+
+            dropdown_data: im::HashMap::new(),
         }
     }
 }

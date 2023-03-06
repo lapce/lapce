@@ -14,7 +14,7 @@ use dyn_clone::DynClone;
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::{buffer::rope_text::RopeText, encoding::offset_utf16_to_utf8};
 use lapce_rpc::{
-    plugin::PluginId,
+    plugin::{PluginId, VoltID},
     style::{LineStyle, Style},
     RpcError,
 };
@@ -35,12 +35,12 @@ use lsp_types::{
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
-    LogMessageParams, OneOf, ProgressParams, PublishDiagnosticsParams, Range,
-    Registration, RegistrationParams, SemanticTokens, SemanticTokensLegend,
-    SemanticTokensServerCapabilities, ServerCapabilities, ShowMessageParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier,
-    TextDocumentSaveRegistrationOptions, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncSaveOptions,
+    InitializeResult, LogMessageParams, OneOf, ProgressParams,
+    PublishDiagnosticsParams, Range, Registration, RegistrationParams,
+    SemanticTokens, SemanticTokensLegend, SemanticTokensServerCapabilities,
+    ServerCapabilities, ShowMessageParams, TextDocumentContentChangeEvent,
+    TextDocumentIdentifier, TextDocumentSaveRegistrationOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncSaveOptions,
     VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
@@ -96,6 +96,7 @@ impl<Resp, Error, F: Send + FnOnce(Result<Resp, Error>)> RpcCallback<Resp, Error
 
 pub enum PluginHandlerNotification {
     Initialize,
+    InitializeResult(InitializeResult),
     Shutdown,
 }
 
@@ -155,7 +156,7 @@ pub enum PluginServerRpc {
 #[derive(Clone)]
 pub struct PluginServerRpcHandler {
     pub plugin_id: PluginId,
-    pub volt_id: String,
+    pub volt_id: VoltID,
     rpc_tx: Sender<PluginServerRpc>,
     rpc_rx: Receiver<PluginServerRpc>,
     io_tx: Sender<JsonRpc>,
@@ -212,7 +213,7 @@ pub trait PluginServerHandler {
 }
 
 impl PluginServerRpcHandler {
-    pub fn new(volt_id: String, io_tx: Sender<JsonRpc>) -> Self {
+    pub fn new(volt_id: VoltID, io_tx: Sender<JsonRpc>) -> Self {
         let (rpc_tx, rpc_rx) = crossbeam_channel::unbounded();
 
         let rpc = Self {
@@ -285,10 +286,12 @@ impl PluginServerRpcHandler {
         }
     }
 
-    /// Make a request to plugin/language server and get the response
-    /// when check is true, the request will be in the handler mainloop to
-    /// do checks like if the server has the capability of the request
-    /// when check is false, the request will be sent out straight away
+    /// Make a request to plugin/language server and get the response.
+    ///
+    /// When check is true, the request will be in the handler mainloop to
+    /// do checks like if the server has the capability of the request.
+    ///
+    /// When check is false, the request will be sent out straight away.
     pub fn server_request<P: Serialize>(
         &self,
         method: &'static str,
@@ -471,7 +474,7 @@ pub fn handle_plugin_server_message(
 ) -> Option<JsonRpc> {
     match JsonRpc::parse(message) {
         Ok(value @ JsonRpc::Request(_)) => {
-            let (tx, rx) = crossbeam_channel::unbounded();
+            let (tx, rx) = crossbeam_channel::bounded(1);
             let id = value.get_id().unwrap();
             let rpc = PluginServerRpc::HostRequest {
                 id: id.clone(),
@@ -536,7 +539,7 @@ struct ServerRegistrations {
 }
 
 pub struct PluginHostHandler {
-    volt_id: String,
+    volt_id: VoltID,
     volt_display_name: String,
     pwd: Option<PathBuf>,
     pub(crate) workspace: Option<PathBuf>,
@@ -551,7 +554,7 @@ impl PluginHostHandler {
     pub fn new(
         workspace: Option<PathBuf>,
         pwd: Option<PathBuf>,
-        volt_id: String,
+        volt_id: VoltID,
         volt_display_name: String,
         document_selector: DocumentSelector,
         server_rpc: PluginServerRpcHandler,
@@ -829,6 +832,8 @@ impl PluginHostHandler {
                     .output()?;
                 Ok(serde_json::to_value(ExecuteProcessResult {
                     success: output.status.success(),
+                    stdout: Some(output.stdout),
+                    stderr: Some(output.stderr),
                 })?)
             }
             _ => Err(anyhow!("request not supported")),

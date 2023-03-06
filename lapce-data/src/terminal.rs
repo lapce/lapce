@@ -454,13 +454,23 @@ impl KeyPressFocus for LapceTerminalViewData {
                     }
                 }
                 EditCommand::ClipboardPaste => {
+                    let mut check_bracketed_paste: bool = false;
                     if self.terminal.mode == Mode::Terminal {
                         let mut raw = self.terminal.raw.lock();
                         let term = &mut raw.term;
                         self.terminal.clear_selection(term);
+                        if term.mode().contains(TermMode::BRACKETED_PASTE) {
+                            check_bracketed_paste = true;
+                        }
                     }
                     if let Some(s) = clipboard.get_string() {
-                        self.receive_char(ctx, &s);
+                        if check_bracketed_paste {
+                            self.receive_char(ctx, "\x1b[200~");
+                            self.receive_char(ctx, &s.replace('\x1b', ""));
+                            self.receive_char(ctx, "\x1b[201~");
+                        } else {
+                            self.receive_char(ctx, &s);
+                        }
                     }
                 }
                 _ => return CommandExecuted::No,
@@ -569,11 +579,9 @@ pub struct RawTerminal {
 }
 
 impl RawTerminal {
-    pub fn update_content(&mut self, content: &str) {
-        if let Ok(content) = base64::decode(content) {
-            for byte in content {
-                self.parser.advance(&mut self.term, byte);
-            }
+    pub fn update_content(&mut self, content: Vec<u8>) {
+        for byte in content {
+            self.parser.advance(&mut self.term, byte);
         }
     }
 }
@@ -637,6 +645,14 @@ impl LapceTerminalData {
         let local_proxy = proxy.clone();
         let local_raw = raw.clone();
         let shell = config.terminal.shell.clone();
+
+        // TODO: replace with profile name, once we implement terminal profiles
+        let title = if !shell.is_empty() {
+            shell.clone()
+        } else {
+            String::from("(no title)")
+        };
+
         std::thread::spawn(move || {
             local_proxy.new_terminal(term_id, cwd, shell, local_raw);
         });
@@ -646,7 +662,7 @@ impl LapceTerminalData {
             widget_id,
             view_id,
             split_id,
-            title: "".to_string(),
+            title,
             mode: Mode::Terminal,
             visual_mode: VisualMode::Normal,
             raw,

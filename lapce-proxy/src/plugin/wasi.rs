@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 use std::{
     collections::{HashMap, VecDeque},
     fs,
@@ -13,26 +16,27 @@ use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_core::directory::Directory;
 use lapce_rpc::{
-    plugin::{PluginId, VoltInfo, VoltMetadata},
+    plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     style::LineStyle,
     RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
-    request::Initialize, ClientCapabilities, InitializeParams,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, Url,
-    VersionedTextDocumentIdentifier,
+    notification::Initialized, request::Initialize, DocumentFilter,
+    InitializeParams, InitializedParams, TextDocumentContentChangeEvent,
+    TextDocumentIdentifier, Url, VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
-use psp_types::Request;
+use psp_types::{Notification, Request};
 use toml_edit::easy as toml;
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
 
 use super::{
+    client_capabilities,
     psp::{
         handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
-        PluginServerHandler, RpcCallback,
+        PluginServerHandler, PluginServerRpc, RpcCallback,
     },
     volt_icon, PluginCatalogRpcHandler,
 };
@@ -107,6 +111,9 @@ impl PluginServerHandler for Plugin {
             Initialize => {
                 self.initialize();
             }
+            InitializeResult(result) => {
+                self.host.server_capabilities = result.capabilities;
+            }
             Shutdown => {
                 self.shutdown();
             }
@@ -178,30 +185,44 @@ impl PluginServerHandler for Plugin {
 
 impl Plugin {
     fn initialize(&mut self) {
-        let server_rpc = self.host.server_rpc.clone();
         let workspace = self.host.workspace.clone();
         let configurations = self.configurations.as_ref().map(unflatten_map);
-        thread::spawn(move || {
-            let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
-            let _ = server_rpc.server_request(
-                Initialize::METHOD,
-                #[allow(deprecated)]
-                InitializeParams {
-                    process_id: Some(process::id()),
-                    root_path: None,
-                    root_uri,
-                    capabilities: ClientCapabilities::default(),
-                    trace: None,
-                    client_info: None,
-                    locale: None,
-                    initialization_options: configurations,
-                    workspace_folders: None,
-                },
-                None,
-                None,
-                false,
-            );
-        });
+        let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
+        let server_rpc = self.host.server_rpc.clone();
+        self.host.server_rpc.server_request_async(
+            Initialize::METHOD,
+            #[allow(deprecated)]
+            InitializeParams {
+                process_id: Some(process::id()),
+                root_path: None,
+                root_uri,
+                capabilities: client_capabilities(),
+                trace: None,
+                client_info: None,
+                locale: None,
+                initialization_options: configurations,
+                workspace_folders: None,
+            },
+            None,
+            None,
+            false,
+            move |value| {
+                if let Ok(value) = value {
+                    if let Ok(result) = serde_json::from_value(value) {
+                        server_rpc.handle_rpc(PluginServerRpc::Handler(
+                            PluginHandlerNotification::InitializeResult(result),
+                        ));
+                        server_rpc.server_notification(
+                            Initialized::METHOD,
+                            InitializedParams {},
+                            None,
+                            None,
+                            false,
+                        );
+                    }
+                }
+            },
+        );
     }
 
     fn shutdown(&self) {}
@@ -209,7 +230,7 @@ impl Plugin {
 
 pub fn load_all_volts(
     plugin_rpc: PluginCatalogRpcHandler,
-    disabled_volts: Vec<String>,
+    disabled_volts: Vec<VoltID>,
 ) {
     let all_volts = find_all_volts();
     let volts = all_volts
@@ -240,8 +261,7 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
                     {
                         return None;
                     }
-                    let path = entry.path().join("volt.toml");
-                    load_volt(&path).ok()
+                    load_volt(&entry.path()).ok()
                 })
                 .collect()
             })
@@ -249,49 +269,75 @@ pub fn find_all_volts() -> Vec<VoltMetadata> {
         .unwrap_or_default()
 }
 
+/// Returns an instance of "VoltMetadata" or an error if there is no file in the path,
+/// the contents of the file cannot be read into a string, or the content read cannot
+/// be converted to an instance of "VoltMetadata".
+///
+/// # Examples
+///
+/// ```
+/// use std::fs::File;
+/// use std::io::Write;
+/// use lapce_proxy::plugin::wasi::load_volt;
+/// use lapce_rpc::plugin::VoltMetadata;
+///
+/// let parent_path = std::env::current_dir().unwrap();
+/// let mut file = File::create(parent_path.join("volt.toml")).unwrap();
+/// let _ = writeln!(file, "name = \"plugin\" \n version = \"0.1\"");
+/// let _ = writeln!(file, "display-name = \"Plugin\" \n author = \"Author\"");
+/// let _ = writeln!(file, "description = \"Useful plugin\"");///
+/// let volt_metadata = match load_volt(&parent_path) {
+///     Ok(volt_metadata) => volt_metadata,
+///     Err(error) => panic!("{}", error),
+/// };
+/// assert_eq!(
+///     volt_metadata,
+///     VoltMetadata {
+///         name: "plugin".to_string(),
+///         version: "0.1".to_string(),
+///         display_name: "Plugin".to_string(),
+///         author: "Author".to_string(),
+///         description: "Useful plugin".to_string(),
+///         icon: None,
+///         repository: None,
+///         wasm: None,
+///         color_themes: None,
+///         icon_themes: None,
+///         dir: parent_path.canonicalize().ok(),
+///         activation: None,
+///         config: None
+///     }
+/// );
+/// let _ = std::fs::remove_file(parent_path.join("volt.toml"));
+/// ```
 pub fn load_volt(path: &Path) -> Result<VoltMetadata> {
-    let mut file = fs::File::open(path)?;
+    let path = path.canonicalize()?;
+    let mut file = fs::File::open(path.join("volt.toml"))?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
     let mut meta: VoltMetadata = toml::from_str(&contents)?;
-    meta.dir = Some(path.parent().unwrap().canonicalize()?);
+
+    meta.dir = Some(path.clone());
     meta.wasm = meta.wasm.as_ref().and_then(|wasm| {
-        Some(
-            path.parent()?
-                .join(wasm)
-                .canonicalize()
-                .ok()?
-                .to_str()?
-                .to_string(),
-        )
+        Some(path.join(wasm).canonicalize().ok()?.to_str()?.to_string())
     });
+    // FIXME: This does `meta.color_themes = Some([])` in case, for example,
+    // it cannot find matching files, but in that case it should do `meta.color_themes = None`
     meta.color_themes = meta.color_themes.as_ref().map(|themes| {
         themes
             .iter()
             .filter_map(|theme| {
-                Some(
-                    path.parent()?
-                        .join(theme)
-                        .canonicalize()
-                        .ok()?
-                        .to_str()?
-                        .to_string(),
-                )
+                Some(path.join(theme).canonicalize().ok()?.to_str()?.to_string())
             })
             .collect()
     });
+    // FIXME: This does `meta.icon_themes = Some([])` in case, for example,
+    // it cannot find matching files, but in that case it should do `meta.icon_themes = None`
     meta.icon_themes = meta.icon_themes.as_ref().map(|themes| {
         themes
             .iter()
             .filter_map(|theme| {
-                Some(
-                    path.parent()?
-                        .join(theme)
-                        .canonicalize()
-                        .ok()?
-                        .to_str()?
-                        .to_string(),
-                )
+                Some(path.join(theme).canonicalize().ok()?.to_str()?.to_string())
             })
             .collect()
     });
@@ -305,8 +351,7 @@ pub fn enable_volt(
 ) -> Result<()> {
     let path = Directory::plugins_directory()
         .ok_or_else(|| anyhow!("can't get plugin directory"))?
-        .join(volt.id())
-        .join("volt.toml");
+        .join(volt.id().to_string());
     let meta = load_volt(&path)?;
     plugin_rpc.unactivated_volts(vec![meta])?;
     Ok(())
@@ -394,7 +439,7 @@ pub fn start_volt(
     let mut store = wasmtime::Store::new(&engine, wasi);
 
     let (io_tx, io_rx) = crossbeam_channel::unbounded();
-    let rpc = PluginServerRpcHandler::new(meta.name.clone(), io_tx);
+    let rpc = PluginServerRpcHandler::new(meta.id(), io_tx);
 
     let local_rpc = rpc.clone();
     let local_stdin = stdin.clone();
@@ -402,7 +447,7 @@ pub fn start_volt(
         if let Ok(msg) = wasi_read_string(&stdout) {
             if let Some(resp) = handle_plugin_server_message(&local_rpc, &msg) {
                 if let Ok(msg) = serde_json::to_string(&resp) {
-                    let _ = writeln!(local_stdin.write().unwrap(), "{}", msg);
+                    let _ = writeln!(local_stdin.write().unwrap(), "{msg}");
                 }
             }
         }
@@ -413,17 +458,17 @@ pub fn start_volt(
         }
     })?;
     linker.module(&mut store, "", &module)?;
-    let handle_rpc = linker
-        .get(&mut store, "", "handle_rpc")
-        .ok_or_else(|| anyhow!("no function in wasm"))?
-        .into_func()
-        .ok_or_else(|| anyhow!("can't convet to function"))?
-        .typed::<(), (), _>(&mut store)?;
-
     thread::spawn(move || {
+        let instance = linker.instantiate(&mut store, &module).unwrap();
+        let handle_rpc = instance
+            .get_func(&mut store, "handle_rpc")
+            .ok_or_else(|| anyhow!("can't convet to function"))
+            .unwrap()
+            .typed::<(), (), _>(&mut store)
+            .unwrap();
         for msg in io_rx {
             if let Ok(msg) = serde_json::to_string(&msg) {
-                let _ = writeln!(stdin.write().unwrap(), "{}", msg);
+                let _ = writeln!(stdin.write().unwrap(), "{msg}");
             }
             let _ = handle_rpc.call(&mut store, ());
         }
@@ -437,7 +482,27 @@ pub fn start_volt(
             meta.dir.clone(),
             meta.id(),
             meta.display_name.clone(),
-            Vec::new(),
+            meta.activation
+                .iter()
+                .flat_map(|m| m.language.iter().flatten())
+                .cloned()
+                .map(|s| DocumentFilter {
+                    language: Some(s),
+                    pattern: None,
+                    scheme: None,
+                })
+                .chain(
+                    meta.activation
+                        .iter()
+                        .flat_map(|m| m.workspace_contains.iter().flatten())
+                        .cloned()
+                        .map(|s| DocumentFilter {
+                            language: None,
+                            pattern: Some(s),
+                            scheme: None,
+                        }),
+                )
+                .collect(),
             rpc.clone(),
             plugin_rpc.clone(),
         ),
@@ -478,33 +543,4 @@ fn unflatten_map(map: &HashMap<String, serde_json::Value>) -> serde_json::Value 
         }
     }
     new
-}
-
-#[cfg(test)]
-mod test {
-    use std::collections::HashMap;
-
-    use serde_json::{json, Value};
-
-    use crate::plugin::wasi::unflatten_map;
-
-    #[test]
-    fn test_unflatten_map() {
-        let map: HashMap<String, Value> = serde_json::from_value(json!({
-            "a.b.c": "d",
-            "a.d": ["e"],
-        }))
-        .unwrap();
-        assert_eq!(
-            unflatten_map(&map),
-            json!({
-                "a": {
-                    "b": {
-                        "c": "d",
-                    },
-                    "d": ["e"],
-                }
-            })
-        );
-    }
 }

@@ -12,6 +12,7 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_core::meta;
+use lapce_rpc::plugin::VoltID;
 use lapce_rpc::{style::LineStyle, RpcError};
 use lapce_xi_rope::Rope;
 use lsp_types::{
@@ -20,11 +21,14 @@ use lsp_types::{
     *,
 };
 use parking_lot::Mutex;
-use serde_json::{json, Value};
+use serde_json::Value;
 
-use super::psp::{
-    handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
-    PluginServerHandler, PluginServerRpcHandler, RpcCallback,
+use super::{
+    client_capabilities,
+    psp::{
+        handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
+        PluginServerHandler, PluginServerRpcHandler, RpcCallback,
+    },
 };
 use crate::{buffer::Buffer, plugin::PluginCatalogRpcHandler};
 
@@ -81,6 +85,9 @@ impl PluginServerHandler for LspClient {
         match notification {
             Initialize => {
                 self.initialize();
+            }
+            InitializeResult(result) => {
+                self.host.server_capabilities = result.capabilities;
             }
             Shutdown => {
                 self.shutdown();
@@ -157,7 +164,7 @@ impl LspClient {
         plugin_rpc: PluginCatalogRpcHandler,
         document_selector: DocumentSelector,
         workspace: Option<PathBuf>,
-        volt_id: String,
+        volt_id: VoltID,
         volt_display_name: String,
         pwd: Option<PathBuf>,
         server_uri: Url,
@@ -269,7 +276,7 @@ impl LspClient {
         plugin_rpc: PluginCatalogRpcHandler,
         document_selector: DocumentSelector,
         workspace: Option<PathBuf>,
-        volt_id: String,
+        volt_id: VoltID,
         volt_display_name: String,
         pwd: Option<PathBuf>,
         server_uri: Url,
@@ -299,120 +306,12 @@ impl LspClient {
             .workspace
             .clone()
             .map(|p| Url::from_directory_path(p).unwrap());
-        let client_capabilities = ClientCapabilities {
-            text_document: Some(TextDocumentClientCapabilities {
-                synchronization: Some(TextDocumentSyncClientCapabilities {
-                    did_save: Some(true),
-                    dynamic_registration: Some(true),
-                    ..Default::default()
-                }),
-                completion: Some(CompletionClientCapabilities {
-                    completion_item: Some(CompletionItemCapability {
-                        snippet_support: Some(true),
-                        resolve_support: Some(
-                            CompletionItemCapabilityResolveSupport {
-                                properties: vec!["additionalTextEdits".to_string()],
-                            },
-                        ),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                }),
-                signature_help: Some(SignatureHelpClientCapabilities {
-                    signature_information: Some(SignatureInformationSettings {
-                        documentation_format: Some(vec![
-                            MarkupKind::Markdown,
-                            MarkupKind::PlainText,
-                        ]),
-                        parameter_information: Some(ParameterInformationSettings {
-                            label_offset_support: Some(true),
-                        }),
-                        active_parameter_support: Some(true),
-                    }),
-                    ..Default::default()
-                }),
-                hover: Some(HoverClientCapabilities {
-                    content_format: Some(vec![
-                        MarkupKind::Markdown,
-                        MarkupKind::PlainText,
-                    ]),
-                    ..Default::default()
-                }),
-                inlay_hint: Some(InlayHintClientCapabilities {
-                    ..Default::default()
-                }),
-                code_action: Some(CodeActionClientCapabilities {
-                    data_support: Some(true),
-                    resolve_support: Some(CodeActionCapabilityResolveSupport {
-                        properties: vec!["edit".to_string()],
-                    }),
-                    code_action_literal_support: Some(CodeActionLiteralSupport {
-                        code_action_kind: CodeActionKindLiteralSupport {
-                            value_set: vec![
-                                CodeActionKind::EMPTY.as_str().to_string(),
-                                CodeActionKind::QUICKFIX.as_str().to_string(),
-                                CodeActionKind::REFACTOR.as_str().to_string(),
-                                CodeActionKind::REFACTOR_EXTRACT
-                                    .as_str()
-                                    .to_string(),
-                                CodeActionKind::REFACTOR_INLINE.as_str().to_string(),
-                                CodeActionKind::REFACTOR_REWRITE
-                                    .as_str()
-                                    .to_string(),
-                                CodeActionKind::SOURCE.as_str().to_string(),
-                                CodeActionKind::SOURCE_ORGANIZE_IMPORTS
-                                    .as_str()
-                                    .to_string(),
-                                "quickassist".to_string(),
-                                "source.fixAll".to_string(),
-                            ],
-                        },
-                    }),
-                    ..Default::default()
-                }),
-                semantic_tokens: Some(SemanticTokensClientCapabilities {
-                    ..Default::default()
-                }),
-                type_definition: Some(GotoCapability {
-                    // Note: This is explicitly specified rather than left to the Default because
-                    // of a bug in lsp-types https://github.com/gluon-lang/lsp-types/pull/244
-                    link_support: Some(false),
-                    ..Default::default()
-                }),
-                definition: Some(GotoCapability {
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            window: Some(WindowClientCapabilities {
-                work_done_progress: Some(true),
-                show_message: Some(ShowMessageRequestClientCapabilities {
-                    message_action_item: Some(MessageActionItemCapabilities {
-                        additional_properties_support: Some(true),
-                    }),
-                }),
-                ..Default::default()
-            }),
-            workspace: Some(WorkspaceClientCapabilities {
-                symbol: Some(WorkspaceSymbolClientCapabilities {
-                    ..Default::default()
-                }),
-                configuration: Some(false),
-                ..Default::default()
-            }),
-
-            experimental: Some(json!({
-                "serverStatusNotification": true,
-            })),
-            ..Default::default()
-        };
-
         #[allow(deprecated)]
         let params = InitializeParams {
             process_id: Some(process::id()),
             root_uri: root_uri.clone(),
             initialization_options: self.options.clone(),
-            capabilities: client_capabilities,
+            capabilities: client_capabilities(),
             trace: Some(TraceValue::Verbose),
             workspace_folders: root_uri.map(|uri| {
                 vec![WorkspaceFolder {
@@ -544,7 +443,7 @@ pub fn read_message<T: BufRead>(reader: &mut T) -> Result<String> {
 
     loop {
         buffer.clear();
-        let _result = reader.read_line(&mut buffer);
+        let _ = reader.read_line(&mut buffer)?;
         // eprin
         match &buffer {
             s if s.trim().is_empty() => break,

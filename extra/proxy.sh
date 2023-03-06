@@ -8,29 +8,26 @@ test_cmd() {
   command -v "$1" >/dev/null
 }
 
-# Using variables prefixed with _
-# to avoid clashing, POSIX doesn't
-# have 'local' keyword
-
-_TMP='/tmp'
+tmp_dir='/tmp'
 # proxy version
-_VER="${1}"
+lapce_new_ver="${1}"
 # proxy directory
 # eval to resolve '~' into proper user dir
-eval _DIR="'${2}'"
+eval lapce_dir="'${2}'"
 
-if [ -e "${_DIR}/lapce" ]; then
-  chmod +x "${_DIR}/lapce"
+if [ -e "${lapce_dir}/lapce" ]; then
+  chmod +x "${lapce_dir}/lapce"
 
-  _ver=$("${_DIR}/lapce" --version | cut -d'v' -f2)
+  lapce_installed_ver=$("${lapce_dir}/lapce" --version | cut -d'v' -f2)
 
-  printf '[DEBUG]: %s = %s' "${_ver}" "${_VER}"
-  if [ "${_ver}" = "${_VER}" ]; then
-    printf 'Proxy outdated. Replacing proxy\n'
-    rm "${_DIR}/lapce"
-  else
+  printf '[DEBUG]: Current proxy version: %s\n' "${lapce_installed_ver}"
+  printf '[DEBUG]: New proxy version: %s\n' "${lapce_new_ver}"
+  if [ "${lapce_installed_ver}" = "${lapce_new_ver}" ]; then
     printf 'Proxy already exists\n'
     exit 0
+  else
+    printf 'Proxy outdated. Replacing proxy\n'
+    rm "${lapce_dir}/lapce"
   fi
 fi
 
@@ -42,50 +39,53 @@ for _cmd in tar gzip uname; do
 done
 
 # Currently only linux/darwin are supported
-_OS="$(uname -s)"
-if [ "${_OS}" = "Linux" ]; then
-  _OS=linux
-elif [ "${_OS}" = "Darwin" ]; then
-  _OS=darwin
-fi
+case $(uname -s) in
+  Linux) os_name=linux ;;
+  Darwin) os_name=darwin ;;
+  *)
+    printf '[ERROR] unsupported os'
+  ;;
+esac
 
 # Currently only amd64/arm64 are supported
-_ARCH="$(uname -m)"
-if [ "${_ARCH}" = "x86_64" ]; then
-  _ARCH=x86_64
-elif [ "${_ARCH}" = "arm64" ]; then
-  _ARCH=aarch64
-fi
+case $(uname -m) in
+  x86_64|amd64|x64) arch_name=x86_64 ;;
+  arm64|aarch64) arch_name=aarch64 ;;
+  # riscv64) arch_name=riscv64 ;;
+  *)
+    printf '[ERROR] unsupported arch'
+  ;;
+esac
 
-printf 'Switching to "%s"\n' "${_TMP}"
-cd "${_TMP}"
+printf 'Switching to "%s"\n' "${tmp_dir}"
+cd "${tmp_dir}"
 
-_URL="https://github.com/lapce/lapce/releases/download/${_VER}/lapce-proxy-${_OS}-${_ARCH}.gz"
+lapce_download_url="https://github.com/lapce/lapce/releases/download/${lapce_new_ver}/lapce-proxy-${os_name}-${arch_name}.gz"
 
 if test_cmd 'curl'; then
   # How old curl has these options? we'll find out
   printf 'Downloading using curl\n'
-  curl --proto '=https' --tlsv1.2 -LfS -O "${_URL}"
-  # curl --proto '=https' --tlsv1.2 -LZfS -o "${_TMP}/lapce-proxy-${_OS}-${_ARCH}.gz" "${_URL}"
+  curl --proto '=https' --tlsv1.2 -LfS -O "${lapce_download_url}"
+  # curl --proto '=https' --tlsv1.2 -LZfS -o "${tmp_dir}/lapce-proxy-${os_name}-${arch_name}.gz" "${lapce_download_url}"
 elif test_cmd 'wget'; then
   printf 'Downloading using wget\n'
-  wget "${_URL}"
+  wget "${lapce_download_url}"
 else
   printf 'curl/wget not found, failed to download proxy\n'
   exit 1
 fi
 
-printf 'Creating "%s"\n' "${_DIR}"
-mkdir -p "${_DIR}"
+printf 'Creating "%s"\n' "${lapce_dir}"
+mkdir -p "${lapce_dir}"
 
 printf 'Decompressing gzip\n'
-gzip -d "${_TMP}/lapce-proxy-${_OS}-${_ARCH}.gz"
+gzip -d "${tmp_dir}/lapce-proxy-${os_name}-${arch_name}.gz"
 
 printf 'Moving proxy to our dir\n'
-mv -v "${_TMP}/lapce-proxy-${_OS}-${_ARCH}" "${_DIR}/lapce"
+mv -v "${tmp_dir}/lapce-proxy-${os_name}-${arch_name}" "${lapce_dir}/lapce"
 
 printf 'Making it executable\n'
-chmod +x "${_DIR}/lapce"
+chmod +x "${lapce_dir}/lapce"
 
 printf 'lapce-proxy installed\n'
 

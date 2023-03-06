@@ -9,7 +9,7 @@ use crate::{
     config::{LapceConfig, LapceTheme},
     data::EditorDiagnostic,
     document::{BufferContent, Document},
-    markdown::{from_marked_string, parse_markdown},
+    markdown::{from_marked_string, parse_markdown, Content},
     proxy::LapceProxy,
     rich_text::{RichText, RichTextBuilder},
 };
@@ -40,7 +40,7 @@ pub struct HoverData {
     /// Stores the actual size of the hover content
     pub content_size: Rc<RefCell<Size>>,
     /// The hover items that are currently loaded
-    pub items: Arc<Vec<RichText>>,
+    pub items: Arc<Vec<Content>>,
     /// The text for the diagnostic(s) at the position
     pub diagnostic_content: Option<RichText>,
 }
@@ -64,7 +64,7 @@ impl HoverData {
         }
     }
 
-    pub fn get_current_items(&self) -> Option<&[RichText]> {
+    pub fn get_current_items(&self) -> Option<&[Content]> {
         if self.items.is_empty() {
             None
         } else {
@@ -117,18 +117,11 @@ impl HoverData {
                         result
                     {
                         let items = parse_hover_resp(hover, &p_config);
-
-                        let items = Arc::new(
-                            items
-                                .into_iter()
-                                .filter(|i| !i.is_empty())
-                                .rev()
-                                .collect(),
-                        );
+                        let items = Arc::new(items);
 
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateHover(request_id, items),
+                            LapceUICommand::UpdateHover { request_id, items },
                             Target::Widget(hover_widget_id),
                         );
                     }
@@ -139,7 +132,7 @@ impl HoverData {
     }
 
     /// Receive the result of a hover request
-    pub fn receive(&mut self, request_id: usize, items: Arc<Vec<RichText>>) {
+    pub fn receive(&mut self, request_id: usize, items: Arc<Vec<Content>>) {
         // If we've moved to inactive between the time the request started and now
         // or we've moved to a different request
         // then don't bother processing the received data
@@ -226,32 +219,35 @@ impl Default for HoverData {
     }
 }
 
-fn parse_hover_resp(hover: lsp_types::Hover, config: &LapceConfig) -> Vec<RichText> {
+fn parse_hover_resp(hover: lsp_types::Hover, config: &LapceConfig) -> Vec<Content> {
     match hover.contents {
         HoverContents::Scalar(text) => match text {
-            MarkedString::String(text) => {
-                vec![parse_markdown(&text, 1.5, config)]
-            }
-            MarkedString::LanguageString(code) => vec![parse_markdown(
+            MarkedString::String(text) => parse_markdown(&text, 1.5, config),
+            MarkedString::LanguageString(code) => parse_markdown(
                 &format!("```{}\n{}\n```", code.language, code.value),
                 1.5,
                 config,
-            )],
+            ),
         },
-        HoverContents::Array(array) => array
-            .into_iter()
-            .map(|t| from_marked_string(t, config))
-            .collect(),
+        HoverContents::Array(array) => {
+            let entries = array
+                .into_iter()
+                .map(|t| from_marked_string(t, config))
+                .rev();
+
+            // TODO: It'd be nice to avoid this vec
+            itertools::Itertools::intersperse(entries, vec![Content::Separator])
+                .flatten()
+                .collect()
+        }
         HoverContents::Markup(content) => match content.kind {
             MarkupKind::PlainText => {
                 let mut builder = RichTextBuilder::new();
                 builder.set_line_height(1.5);
                 builder.push(&content.value);
-                vec![builder.build()]
+                vec![Content::Text(builder.build())]
             }
-            MarkupKind::Markdown => {
-                vec![parse_markdown(&content.value, 1.5, config)]
-            }
+            MarkupKind::Markdown => parse_markdown(&content.value, 1.5, config),
         },
     }
 }

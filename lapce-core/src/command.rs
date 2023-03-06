@@ -30,6 +30,8 @@ pub enum EditCommand {
     DeleteBackward,
     #[strum(serialize = "delete_forward")]
     DeleteForward,
+    #[strum(serialize = "delete_line")]
+    DeleteLine,
     #[strum(serialize = "delete_forward_and_insert")]
     DeleteForwardAndInsert,
     #[strum(serialize = "delete_word_and_insert")]
@@ -42,6 +44,9 @@ pub enum EditCommand {
     DeleteWordBackward,
     #[strum(serialize = "delete_to_beginning_of_line")]
     DeleteToBeginningOfLine,
+    #[strum(serialize = "delete_to_end_of_line")]
+    DeleteToEndOfLine,
+
     #[strum(serialize = "delete_to_end_and_insert")]
     DeleteToEndOfLineAndInsert,
     #[strum(message = "Join Lines")]
@@ -150,6 +155,12 @@ pub enum MoveCommand {
     NextUnmatchedRightCurlyBracket,
     #[strum(serialize = "previous_unmatched_left_curly_bracket")]
     PreviousUnmatchedLeftCurlyBracket,
+    #[strum(message = "Paragraph forward")]
+    #[strum(serialize = "paragraph_forward")]
+    ParagraphForward,
+    #[strum(message = "Paragraph backward")]
+    #[strum(serialize = "paragraph_backward")]
+    ParagraphBackward,
 }
 
 impl MoveCommand {
@@ -181,6 +192,8 @@ impl MoveCommand {
             PreviousUnmatchedLeftBracket => Movement::PreviousUnmatched('('),
             NextUnmatchedRightCurlyBracket => Movement::NextUnmatched('}'),
             PreviousUnmatchedLeftCurlyBracket => Movement::PreviousUnmatched('{'),
+            ParagraphForward => Movement::ParagraphForward,
+            ParagraphBackward => Movement::ParagraphBackward,
         }
     }
 }
@@ -294,6 +307,9 @@ pub enum FocusCommand {
     #[strum(message = "Toggle Code Lens")]
     #[strum(serialize = "toggle_code_lens")]
     ToggleCodeLens,
+    #[strum(message = "Toggle History")]
+    #[strum(serialize = "toggle_history")]
+    ToggleHistory,
     #[strum(serialize = "format_document")]
     #[strum(message = "Format Document")]
     FormatDocument,

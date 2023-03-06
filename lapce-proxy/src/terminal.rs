@@ -165,7 +165,7 @@ impl Terminal {
                                 Ok(n) => {
                                     core_rpc.update_terminal(
                                         self.term_id,
-                                        base64::encode(&buf[..n]),
+                                        buf[..n].to_vec(),
                                     );
                                 }
                                 Err(_e) => (),

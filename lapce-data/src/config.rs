@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{atomic::AtomicBool, Arc},
 };
 
 use druid::{
@@ -11,9 +11,10 @@ use druid::{
 use indexmap::IndexMap;
 use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
+use lapce_rpc::plugin::VoltID;
 use lsp_types::{CompletionItemKind, SymbolKind};
 use once_cell::sync::Lazy;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 use thiserror::Error;
@@ -98,6 +99,8 @@ impl LapceTheme {
     pub const ERROR_LENS_OTHER_FOREGROUND: &str = "error_lens.other.foreground";
     pub const ERROR_LENS_OTHER_BACKGROUND: &str = "error_lens.other.background";
 
+    pub const COMPLETION_LENS_FOREGROUND: &str = "completion_lens.foreground";
+
     pub const SOURCE_CONTROL_ADDED: &str = "source_control.added";
     pub const SOURCE_CONTROL_REMOVED: &str = "source_control.removed";
     pub const SOURCE_CONTROL_MODIFIED: &str = "source_control.modified";
@@ -148,10 +151,22 @@ impl LapceTheme {
 
     pub const STATUS_BACKGROUND: &str = "status.background";
     pub const STATUS_FOREGROUND: &str = "status.foreground";
-    pub const STATUS_MODAL_NORMAL: &str = "status.modal.normal";
-    pub const STATUS_MODAL_INSERT: &str = "status.modal.insert";
-    pub const STATUS_MODAL_VISUAL: &str = "status.modal.visual";
-    pub const STATUS_MODAL_TERMINAL: &str = "status.modal.terminal";
+    pub const STATUS_MODAL_NORMAL_BACKGROUND: &str =
+        "status.modal.normal.background";
+    pub const STATUS_MODAL_NORMAL_FOREGROUND: &str =
+        "status.modal.normal.foreground";
+    pub const STATUS_MODAL_INSERT_BACKGROUND: &str =
+        "status.modal.insert.background";
+    pub const STATUS_MODAL_INSERT_FOREGROUND: &str =
+        "status.modal.insert.foreground";
+    pub const STATUS_MODAL_VISUAL_BACKGROUND: &str =
+        "status.modal.visual.background";
+    pub const STATUS_MODAL_VISUAL_FOREGROUND: &str =
+        "status.modal.visual.foreground";
+    pub const STATUS_MODAL_TERMINAL_BACKGROUND: &str =
+        "status.modal.terminal.background";
+    pub const STATUS_MODAL_TERMINAL_FOREGROUND: &str =
+        "status.modal.terminal.foreground";
 
     pub const PALETTE_INPUT_LINE_HEIGHT: druid::Key<f64> =
         druid::Key::new("lapce.palette_input_line_height");
@@ -206,6 +221,9 @@ impl LapceIcons {
     pub const FILE_EXPLORER: &str = "file_explorer";
     pub const FILE_PICKER_UP: &str = "file_picker_up";
 
+    pub const IMAGE_LOADING: &str = "image_loading";
+    pub const IMAGE_ERROR: &str = "image_error";
+
     pub const SCM: &str = "scm.icon";
     pub const SCM_DIFF_MODIFIED: &str = "scm.diff.modified";
     pub const SCM_DIFF_ADDED: &str = "scm.diff.added";
@@ -215,6 +233,8 @@ impl LapceIcons {
     pub const SCM_CHANGE_REMOVE: &str = "scm.change.remove";
 
     pub const PALETTE_MENU: &str = "palette.menu";
+
+    pub const DROPDOWN_ARROW: &str = "dropdown.arrow";
 
     pub const LOCATION_BACKWARD: &str = "location.backward";
     pub const LOCATION_FORWARD: &str = "location.forward";
@@ -295,6 +315,17 @@ impl LapceIcons {
     pub const COMPLETION_ITEM_KIND_STRING: &str = "completion_item_kind.string";
     pub const COMPLETION_ITEM_KIND_STRUCT: &str = "completion_item_kind.struct";
     pub const COMPLETION_ITEM_KIND_VARIABLE: &str = "completion_item_kind.variable";
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum ClickMode {
+    #[default]
+    #[serde(rename = "single")]
+    SingleClick,
+    #[serde(rename = "file")]
+    DoubleClickFile,
+    #[serde(rename = "all")]
+    DoubleClickAll,
 }
 
 pub trait GetConfig {
@@ -406,6 +437,18 @@ pub struct EditorConfig {
     )]
     pub error_lens_font_size: usize,
     #[field_names(
+        desc = "If the editor should display the completion item as phantom text"
+    )]
+    pub enable_completion_lens: bool,
+    #[field_names(
+        desc = "Set completion lens font family. If empty, it uses the inlay hint font family."
+    )]
+    pub completion_lens_font_family: String,
+    #[field_names(
+        desc = "Set the completion lens font size. If 0 it uses the inlay hint font size."
+    )]
+    pub completion_lens_font_size: usize,
+    #[field_names(
         desc = "Set the cursor blink interval (in milliseconds). Set to 0 to completely disable."
     )]
     pub blink_interval: u64, // TODO: change to u128 when upgrading config-rs to >0.11
@@ -435,6 +478,20 @@ pub struct EditorConfig {
         desc = "If enabled the cursor treats leading soft tabs as if they are hard tabs."
     )]
     pub atomic_soft_tabs: bool,
+    #[field_names(
+        desc = "Use a double click to interact with the file explorer.\nOptions: single (default), file or all."
+    )]
+    pub double_click: ClickMode,
+    #[field_names(desc = "Move the focus as you type in the global search box")]
+    pub move_focus_while_search: bool,
+    #[field_names(
+        desc = "Set the default number of visible lines above and below the diff block (-1 for infinite)"
+    )]
+    pub diff_context_lines: i32,
+    #[field_names(
+        desc = "Scroll speed modifier. The scroll delta will be multiplied by whatever the value is povided here. Defaults to 1."
+    )]
+    pub scroll_speed_modifier: f64,
 }
 
 impl EditorConfig {
@@ -492,6 +549,22 @@ impl EditorConfig {
             self.error_lens_font_size
         }
     }
+
+    pub fn completion_lens_font_family(&self) -> FontFamily {
+        if self.completion_lens_font_family.is_empty() {
+            self.inlay_hint_font_family()
+        } else {
+            FontFamily::new_unchecked(self.completion_lens_font_family.clone())
+        }
+    }
+
+    pub fn completion_lens_font_size(&self) -> usize {
+        if self.completion_lens_font_size == 0 {
+            self.inlay_hint_font_size()
+        } else {
+            self.completion_lens_font_size
+        }
+    }
 }
 
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
@@ -537,6 +610,9 @@ pub struct UIConfig {
 
     #[field_names(desc = "Trim whitespace from search results")]
     trim_search_results_whitespace: bool,
+
+    #[field_names(desc = "Set the line height for list items")]
+    list_line_height: usize,
 }
 
 impl UIConfig {
@@ -604,6 +680,10 @@ impl UIConfig {
 
     pub fn trim_search_results_whitespace(&self) -> bool {
         self.trim_search_results_whitespace
+    }
+
+    pub fn list_line_height(&self) -> usize {
+        self.list_line_height
     }
 }
 
@@ -843,6 +923,14 @@ impl ThemeBaseColor {
     }
 }
 
+/// Used for creating a `DropdownData` for a setting
+#[derive(Debug, Clone)]
+pub struct DropdownInfo {
+    /// The currently selected item.
+    pub active_index: usize,
+    pub items: im::Vector<String>,
+}
+
 #[derive(Clone, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct LapceConfig {
@@ -871,18 +959,48 @@ pub struct LapceConfig {
     tab_layout_info: Arc<RwLock<HashMap<(FontFamily, usize), f64>>>,
     #[serde(skip)]
     svg_store: Arc<RwLock<SvgStore>>,
+    /// A list of the themes that are available. This is primarily for populating
+    /// the theme picker, and serves as a cache.
+    #[serde(skip)]
+    color_theme_list: im::Vector<String>,
+    #[serde(skip)]
+    icon_theme_list: im::Vector<String>,
+}
+impl LapceConfig {
+    /// Get the dropdown information for the specific setting, used for the settings UI.
+    /// This should aim to efficiently return the data, because it is used to determine whether to
+    /// update the dropdown items.
+    pub fn get_dropdown_info(&self, kind: &str, key: &str) -> Option<DropdownInfo> {
+        match (kind, key) {
+            ("core", "color-theme") => Some(DropdownInfo {
+                active_index: self
+                    .color_theme_list
+                    .index_of(&self.color_theme.name)
+                    .unwrap_or(0),
+                items: self.color_theme_list.clone(),
+            }),
+            ("core", "icon-theme") => Some(DropdownInfo {
+                active_index: self
+                    .icon_theme_list
+                    .index_of(&self.icon_theme.name)
+                    .unwrap_or(0),
+                items: self.icon_theme_list.clone(),
+            }),
+            _ => None,
+        }
+    }
 }
 
 pub struct ConfigWatcher {
     event_sink: ExtEventSink,
-    delay_handler: Arc<Mutex<Option<()>>>,
+    delay_handler: Arc<AtomicBool>,
 }
 
 impl ConfigWatcher {
     pub fn new(event_sink: ExtEventSink) -> Self {
         Self {
             event_sink,
-            delay_handler: Arc::new(Mutex::new(None)),
+            delay_handler: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -894,28 +1012,40 @@ impl notify::EventHandler for ConfigWatcher {
                 notify::EventKind::Create(_)
                 | notify::EventKind::Modify(_)
                 | notify::EventKind::Remove(_) => {
-                    *self.delay_handler.lock() = Some(());
-                    let delay_handler = self.delay_handler.clone();
-                    let event_sink = self.event_sink.clone();
-                    std::thread::spawn(move || {
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                        if delay_handler.lock().take().is_some() {
+                    if self
+                        .delay_handler
+                        .compare_exchange(
+                            false,
+                            true,
+                            std::sync::atomic::Ordering::Relaxed,
+                            std::sync::atomic::Ordering::Relaxed,
+                        )
+                        .is_ok()
+                    {
+                        let config_mutex = self.delay_handler.clone();
+                        let event_sink = self.event_sink.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(
+                                500,
+                            ));
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::ReloadConfig,
                                 Target::Auto,
                             );
-                        }
-                    });
+                            config_mutex
+                                .store(false, std::sync::atomic::Ordering::Relaxed);
+                        });
+                    }
                 }
-                _ => (),
+                _ => {}
             }
         }
     }
 }
 
 impl LapceConfig {
-    pub fn load(workspace: &LapceWorkspace, disabled_volts: &[String]) -> Self {
+    pub fn load(workspace: &LapceWorkspace, disabled_volts: &[VoltID]) -> Self {
         let config = Self::merge_config(workspace, None, None);
         let mut lapce_config: LapceConfig = config
             .try_deserialize()
@@ -925,6 +1055,21 @@ impl LapceConfig {
             Self::load_color_themes(disabled_volts);
         lapce_config.available_icon_themes = Self::load_icon_themes(disabled_volts);
         lapce_config.resolve_theme(workspace);
+
+        lapce_config.color_theme_list = lapce_config
+            .available_color_themes
+            .values()
+            .map(|(name, _)| name.clone())
+            .collect();
+        lapce_config.color_theme_list.sort();
+
+        lapce_config.icon_theme_list = lapce_config
+            .available_icon_themes
+            .values()
+            .map(|(name, _, _)| name.clone())
+            .collect();
+        lapce_config.icon_theme_list.sort();
+
         lapce_config
     }
 
@@ -1031,6 +1176,7 @@ impl LapceConfig {
                 }
             }
             LapceWorkspaceType::RemoteSSH(_) => {}
+            #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL => {}
         }
 
@@ -1067,7 +1213,7 @@ impl LapceConfig {
     }
 
     fn load_color_themes(
-        disabled_volts: &[String],
+        disabled_volts: &[VoltID],
     ) -> HashMap<String, (String, config::Config)> {
         let mut themes = Self::load_local_themes().unwrap_or_default();
 
@@ -1086,7 +1232,7 @@ impl LapceConfig {
     }
 
     fn load_icon_themes(
-        disabled_volts: &[String],
+        disabled_volts: &[VoltID],
     ) -> HashMap<String, (String, config::Config, Option<PathBuf>)> {
         let mut themes = HashMap::new();
 
@@ -1118,7 +1264,7 @@ impl LapceConfig {
     }
 
     fn load_plugin_color_themes(
-        disabled_volts: &[String],
+        disabled_volts: &[VoltID],
     ) -> HashMap<String, (String, config::Config)> {
         let mut themes: HashMap<String, (String, config::Config)> = HashMap::new();
         for meta in find_all_volts() {
@@ -1139,7 +1285,7 @@ impl LapceConfig {
     }
 
     fn load_plugin_icon_themes(
-        disabled_volts: &[String],
+        disabled_volts: &[VoltID],
     ) -> HashMap<String, (String, config::Config, PathBuf)> {
         let mut themes: HashMap<String, (String, config::Config, PathBuf)> =
             HashMap::new();

@@ -275,12 +275,12 @@ impl LapceStatus {
             let selection_range = selection.0.abs_diff(selection.1);
 
             if selection.0 != selection.1 {
-                string += &format!(" ({} selected)", selection_range);
+                string += &format!(" ({selection_range} selected)");
             }
         }
         let selection_count = editor.cursor.get_selection_count();
         if selection_count > 1 {
-            string += &format!(" {} selections", selection_count);
+            string += &format!(" {selection_count} selections");
         }
 
         if !string.is_empty() {
@@ -446,11 +446,27 @@ impl Widget<LapceTabData> for LapceStatus {
         let mut _right = 0.0;
 
         if data.config.core.modal {
-            let (mode, color) = match data.mode() {
-                Mode::Normal => ("Normal", LapceTheme::STATUS_MODAL_NORMAL),
-                Mode::Insert => ("Insert", LapceTheme::STATUS_MODAL_INSERT),
-                Mode::Visual => ("Visual", LapceTheme::STATUS_MODAL_VISUAL),
-                Mode::Terminal => ("Terminal", LapceTheme::STATUS_MODAL_TERMINAL),
+            let (mode, color_bg, color_fg) = match data.mode() {
+                Mode::Normal => (
+                    "Normal",
+                    LapceTheme::STATUS_MODAL_NORMAL_BACKGROUND,
+                    LapceTheme::STATUS_MODAL_NORMAL_FOREGROUND,
+                ),
+                Mode::Insert => (
+                    "Insert",
+                    LapceTheme::STATUS_MODAL_INSERT_BACKGROUND,
+                    LapceTheme::STATUS_MODAL_INSERT_FOREGROUND,
+                ),
+                Mode::Visual => (
+                    "Visual",
+                    LapceTheme::STATUS_MODAL_VISUAL_BACKGROUND,
+                    LapceTheme::STATUS_MODAL_VISUAL_FOREGROUND,
+                ),
+                Mode::Terminal => (
+                    "Terminal",
+                    LapceTheme::STATUS_MODAL_TERMINAL_BACKGROUND,
+                    LapceTheme::STATUS_MODAL_TERMINAL_FOREGROUND,
+                ),
             };
 
             let text_layout = ctx
@@ -460,16 +476,15 @@ impl Widget<LapceTabData> for LapceStatus {
                     data.config.ui.font_family(),
                     data.config.ui.font_size() as f64,
                 )
-                .text_color(
-                    data.config
-                        .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND)
-                        .clone(),
-                )
+                .text_color(data.config.get_color_unchecked(color_fg).clone())
                 .build()
                 .unwrap();
             let text_size = text_layout.size();
             let fill_size = Size::new(text_size.width + 10.0, size.height);
-            ctx.fill(fill_size.to_rect(), data.config.get_color_unchecked(color));
+            ctx.fill(
+                fill_size.to_rect(),
+                data.config.get_color_unchecked(color_bg),
+            );
             ctx.draw_text(
                 &text_layout,
                 Point::new(5.0, text_layout.y_offset(size.height)),

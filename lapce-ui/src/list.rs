@@ -14,10 +14,6 @@ use lapce_data::{
 
 use crate::scroll::{LapceIdentityWrapper, LapceScroll};
 
-pub struct DropdownButton<T: Clone + ListPaint<D> + PartialEq + 'static, D: Data> {
-    pub list: WidgetPod<ListData<T, D>, List<T, D>>,
-}
-
 // TODO: Support optional multi-select
 
 /// Contains a list of choices of type `T`  

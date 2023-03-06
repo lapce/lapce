@@ -742,11 +742,13 @@ impl ScrollComponent {
         port: &mut Viewport,
         ctx: &mut EventCtx,
         event: &Event,
+        config: &LapceConfig,
         env: &Env,
     ) {
         if !ctx.is_handled() {
             if let Event::Wheel(mouse) = event {
-                let mut delta = mouse.wheel_delta.round();
+                let mut delta =
+                    mouse.wheel_delta.round() * config.editor.scroll_speed_modifier;
                 if self.vertical_scroll_for_horizontal && delta.x == 0.0 {
                     delta.x = delta.y;
                 }
@@ -898,7 +900,7 @@ impl<T: Data + GetConfig, W: Widget<T>> Widget<T> for LapceScroll<T, W> {
         }
 
         self.clip.with_port(|port| {
-            scroll_component.handle_scroll(port, ctx, event, env);
+            scroll_component.handle_scroll(port, ctx, event, data.get_config(), env);
         });
 
         match event {

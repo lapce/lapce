@@ -35,12 +35,19 @@ enable-error-lens = true
 error-lens-end-of-line = true
 error-lens-font-family = ""
 error-lens-font-size = 0
+enable-completion-lens = false
+completion-lens-font-family = ""
+completion-lens-font-size = 0
 blink-interval = 500                    # ms
 multicursor-case-sensitive = true
 multicursor-whole-words = true
 render-whitespace = "none"
 show-indent-guide = true
 atomic-soft-tabs = false
+double-click = "single"
+move-focus-while-search = true
+diff-context-lines=3
+scroll-speed-modifier=1
 
 [terminal]
 font-family = ""
@@ -61,6 +68,7 @@ preview-editor-width = 0
 hover-font-family = ""
 hover-font-size = 0
 trim-search-results-whitespace = true
+list-line-height = 25
 
 [color-theme]
 name = ""
@@ -166,6 +174,8 @@ magenta = "#C678DD"
 "error_lens.other.foreground" = "#5C6370"
 "error_lens.other.background" = "#5C637020"
 
+"completion_lens.foreground" = "#5C6370"
+
 "source_control.added" = "#50A14F32"
 "source_control.removed" = "#FF526632"
 "source_control.modified" = "#0184BC32"
@@ -195,10 +205,14 @@ magenta = "#C678DD"
 
 "status.background" = "#21252B"
 "status.foreground" = "$white"
-"status.modal.normal" = "$blue"
-"status.modal.insert" = "$red"
-"status.modal.visual" = "$yellow"
-"status.modal.terminal" = "$purple"
+"status.modal.normal.background" = "$blue"
+"status.modal.normal.foreground" = "$black"
+"status.modal.insert.background" = "$red"
+"status.modal.insert.foreground" = "$black"
+"status.modal.visual.background" = "$yellow"
+"status.modal.visual.foreground" = "$black"
+"status.modal.terminal.background" = "$purple"
+"status.modal.terminal.foreground" = "$black"
 
 "markdown.blockquote" = "#898989"
 
@@ -250,6 +264,9 @@ name = ""
 "file_explorer" = "files.svg"
 "file_picker_up" = "arrow-up.svg"
 
+"image_loading" = "refresh.svg"
+"image_error" = "error.svg"
+
 "scm.icon" = "source-control.svg"
 "scm.diff.modified" = "diff-modified.svg"
 "scm.diff.added" = "diff-added.svg"
@@ -259,6 +276,8 @@ name = ""
 "scm.change.remove" = "remove.svg"
 
 "palette.menu" = "chevron-down.svg"
+
+"dropdown.arrow" = "chevron-down.svg"
 
 "location.forward" = "arrow-right.svg"
 "location.backward" = "arrow-left.svg"
@@ -270,7 +289,7 @@ name = ""
 "directory.opened" = "folder-opened.svg"
 
 "panel.restore" = "chevron-down.svg"
-"panel.maximise" = "chevron-up.svg"
+"panel.maximise" = "chevron-right.svg"
 
 "split.horizontal" = "split-horizontal.svg"
 

@@ -23,9 +23,12 @@ use lapce_data::{
         CommandExecuted, CommandKind, LapceUICommand, LAPCE_COMMAND,
         LAPCE_UI_COMMAND,
     },
-    config::{CoreConfig, EditorConfig, LapceTheme, TerminalConfig, UIConfig},
+    config::{
+        CoreConfig, DropdownInfo, EditorConfig, LapceTheme, TerminalConfig, UIConfig,
+    },
     data::{FocusArea, LapceEditorData, LapceTabData},
     document::{BufferContent, Document},
+    dropdown::DropdownData,
     keypress::KeyPressFocus,
     settings::{LapceSettingsFocusData, LapceSettingsKind, SettingsValueKind},
 };
@@ -34,6 +37,7 @@ use serde::Serialize;
 
 use crate::{
     button::Button,
+    dropdown::DropdownSelector,
     editor::view::LapceEditorView,
     keymap::LapceKeymap,
     scroll::{LapcePadding, LapceScroll},
@@ -93,10 +97,10 @@ impl LapceSettingsPanel {
         for (volt_id, volt) in data.plugin.installed.iter() {
             if volt.config.is_some() {
                 children.insert(
-                    LapceSettingsKind::Plugin(volt_id.to_string()),
+                    LapceSettingsKind::Plugin(volt_id.clone()),
                     WidgetPod::new(
                         LapceSettings::new_scroll(LapceSettingsKind::Plugin(
-                            volt_id.to_string(),
+                            volt_id.clone(),
                         ))
                         .boxed(),
                     ),
@@ -389,10 +393,11 @@ impl LapceSettings {
     fn update_children(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         fn into_settings_map(
             data: &impl Serialize,
-        ) -> HashMap<String, serde_json::Value> {
-            serde_json::to_value(data)
-                .and_then(serde_json::from_value)
-                .unwrap()
+        ) -> serde_json::Map<String, serde_json::Value> {
+            match serde_json::to_value(data).unwrap() {
+                serde_json::Value::Object(h) => h,
+                _ => serde_json::Map::default(),
+            }
         }
 
         self.children.clear();
@@ -439,6 +444,8 @@ impl LapceSettings {
                                     value = v.clone();
                                 }
                             }
+                            // TODO: let plugins define dropdowns
+                            let value = SettingsValue::from(value);
                             self.children.push(create_settings_item(
                                 data,
                                 volt.name.clone(),
@@ -457,7 +464,14 @@ impl LapceSettings {
         for (field, desc) in fields.iter().zip(descs.iter()) {
             // TODO(dbuga): we should generate kebab-case field names
             let field = field.replace('_', "-");
-            let value = settings.remove(&field).unwrap();
+            let value = if let Some(dropdown) =
+                data.config.get_dropdown_info(kind, &field)
+            {
+                SettingsValue::Dropdown(dropdown)
+            } else {
+                let value = settings.remove(&field).unwrap();
+                SettingsValue::from(value)
+            };
             self.children.push(create_settings_item(
                 data,
                 kind.to_string(),
@@ -522,14 +536,6 @@ impl Widget<LapceTabData> for LapceSettings {
         data: &LapceTabData,
         env: &Env,
     ) -> Size {
-        if self.children.is_empty() {
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::InitChildren,
-                Target::Widget(self.widget_id),
-            ));
-        }
-
         let mut y = 0.0;
         for child in self.children.iter_mut() {
             let size = child.layout(ctx, bc, data, env);
@@ -552,6 +558,32 @@ struct LapceSettingsItemKeypress {
     cursor: usize,
 }
 
+#[derive(Debug, Clone)]
+pub enum SettingsValue {
+    Float(f64),
+    Integer(i64),
+    String(String),
+    Bool(bool),
+    Dropdown(DropdownInfo),
+    Empty,
+}
+impl From<serde_json::Value> for SettingsValue {
+    fn from(v: serde_json::Value) -> Self {
+        match v {
+            serde_json::Value::Number(n) => {
+                if n.is_f64() {
+                    SettingsValue::Float(n.as_f64().unwrap())
+                } else {
+                    SettingsValue::Integer(n.as_i64().unwrap())
+                }
+            }
+            serde_json::Value::String(s) => SettingsValue::String(s),
+            serde_json::Value::Bool(b) => SettingsValue::Bool(b),
+            _ => SettingsValue::Empty,
+        }
+    }
+}
+
 /// Create a settings item widget  
 /// Includes padding.
 fn create_settings_item(
@@ -559,34 +591,43 @@ fn create_settings_item(
     kind: String,
     key: String,
     desc: String,
-    value: serde_json::Value,
+    value: SettingsValue,
     event_sink: ExtEventSink,
 ) -> WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>> {
     let insets = (10.0, 10.0);
     match value {
-        serde_json::Value::Number(n) => {
-            let value_kind = if n.is_f64() {
-                SettingsValueKind::Float
-            } else {
-                SettingsValueKind::Integer
-            };
-            WidgetPod::new(
-                LapcePadding::new(
-                    insets,
-                    InputSettingsItem::new(
-                        data,
-                        kind,
-                        key,
-                        desc,
-                        event_sink,
-                        n.to_string(),
-                        value_kind,
-                    ),
-                )
-                .boxed(),
+        // TODO: deduplicate these matches, the first three are just inputs with a string!
+        SettingsValue::Float(n) => WidgetPod::new(
+            LapcePadding::new(
+                insets,
+                InputSettingsItem::new(
+                    data,
+                    kind,
+                    key,
+                    desc,
+                    event_sink,
+                    n.to_string(),
+                    SettingsValueKind::Float,
+                ),
             )
-        }
-        serde_json::Value::String(s) => WidgetPod::new(
+            .boxed(),
+        ),
+        SettingsValue::Integer(n) => WidgetPod::new(
+            LapcePadding::new(
+                insets,
+                InputSettingsItem::new(
+                    data,
+                    kind,
+                    key,
+                    desc,
+                    event_sink,
+                    n.to_string(),
+                    SettingsValueKind::Integer,
+                ),
+            )
+            .boxed(),
+        ),
+        SettingsValue::String(s) => WidgetPod::new(
             LapcePadding::new(
                 insets,
                 InputSettingsItem::new(
@@ -601,16 +642,21 @@ fn create_settings_item(
             )
             .boxed(),
         ),
-        serde_json::Value::Bool(checked) => WidgetPod::new(
+        SettingsValue::Bool(checked) => WidgetPod::new(
             LapcePadding::new(
                 insets,
                 CheckBoxSettingsItem::new(key, kind, desc, checked),
             )
             .boxed(),
         ),
-        serde_json::Value::Array(_)
-        | serde_json::Value::Object(_)
-        | serde_json::Value::Null => WidgetPod::new(
+        SettingsValue::Dropdown(dropdown) => WidgetPod::new(
+            LapcePadding::new(
+                insets,
+                DropdownSettingsItem::new(data, key, kind, desc, dropdown),
+            )
+            .boxed(),
+        ),
+        SettingsValue::Empty => WidgetPod::new(
             LapcePadding::new(insets, EmptySettingsItem::new(key, kind, desc))
                 .boxed(),
         ),
@@ -748,11 +794,11 @@ impl SettingsItemInfo {
     ) {
         ctx.submit_command(Command::new(
             LAPCE_UI_COMMAND,
-            LapceUICommand::UpdateSettingsFile(
-                self.kind.clone(),
-                self.key.clone(),
+            LapceUICommand::UpdateSettingsFile {
+                kind: self.kind.clone(),
+                key: self.key.clone(),
                 value,
-            ),
+            },
             Target::Widget(data.id),
         ));
     }
@@ -896,19 +942,19 @@ impl Widget<LapceTabData> for EmptySettingsItem {
 struct CheckBoxSettingsItem {
     checked: bool,
     checkbox_width: f64,
-
     info: SettingsItemInfo,
 }
+
 impl CheckBoxSettingsItem {
     fn new(key: String, kind: String, desc: String, checked: bool) -> Self {
         Self {
             checked,
             checkbox_width: 20.0,
-
             info: SettingsItemInfo::new(key, kind, desc),
         }
     }
 }
+
 impl Widget<LapceTabData> for CheckBoxSettingsItem {
     fn event(
         &mut self,
@@ -1006,6 +1052,149 @@ impl Widget<LapceTabData> for CheckBoxSettingsItem {
     }
 }
 
+struct DropdownSettingsItem {
+    widget_id: WidgetId,
+    dropdown: WidgetPod<DropdownData<String, ()>, DropdownSelector<String, ()>>,
+
+    // We could have map of the key to a function to get the current items and selected item?
+    info: SettingsItemInfo,
+}
+impl DropdownSettingsItem {
+    fn new(
+        data: &mut LapceTabData,
+        key: String,
+        kind: String,
+        desc: String,
+        info: DropdownInfo,
+    ) -> Self {
+        let widget_id = WidgetId::next();
+
+        let dropdown = WidgetPod::new(DropdownSelector::default());
+
+        // Create our data and insert it into the settings data structure so we can access it later
+        let mut dropdown_data =
+            DropdownData::new(data.config.clone(), widget_id, ());
+        dropdown_data.update_from_info(info);
+
+        let settings = Arc::make_mut(&mut data.settings);
+        settings
+            .dropdown_data
+            .entry(kind.clone())
+            .or_insert_with(im::HashMap::new)
+            .insert(key.clone(), dropdown_data);
+
+        Self {
+            widget_id,
+            dropdown,
+
+            info: SettingsItemInfo::new(key, kind, desc),
+        }
+    }
+
+    /// Get the `DropdownData` for this widget, cloning it with the curent config
+    fn get_data_clone(&self, data: &LapceTabData) -> DropdownData<String, ()> {
+        data.settings
+            .dropdown_data
+            .get(&self.info.kind)
+            .unwrap()
+            .get(&self.info.key)
+            .unwrap()
+            .clone_with(data.config.clone())
+    }
+}
+impl Widget<LapceTabData> for DropdownSettingsItem {
+    fn id(&self) -> Option<WidgetId> {
+        Some(self.widget_id)
+    }
+
+    fn event(
+        &mut self,
+        ctx: &mut EventCtx,
+        event: &Event,
+        data: &mut LapceTabData,
+        env: &Env,
+    ) {
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
+                let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
+                if let LapceUICommand::DropdownItemSelected = command {
+                    // We just update the settings whenever you select an item in the dropdown
+                    // since it is unlikely that you're changing it fast enough to to be an
+                    // issue
+                    let dropdown_data = self.get_data_clone(data);
+                    if let Some(value) = dropdown_data.get_active_item() {
+                        self.info.update_settings(
+                            data,
+                            ctx,
+                            serde_json::json!(value),
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        let settings = Arc::make_mut(&mut data.settings);
+        let dropdown_data = settings
+            .dropdown_data
+            .get_mut(&self.info.kind)
+            .unwrap()
+            .get_mut(&self.info.key)
+            .unwrap();
+        dropdown_data.update_data(data.config.clone());
+
+        self.dropdown.event(ctx, event, dropdown_data, env);
+    }
+
+    fn lifecycle(
+        &mut self,
+        ctx: &mut LifeCycleCtx,
+        event: &LifeCycle,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        let dropdown = self.get_data_clone(data);
+        self.dropdown.lifecycle(ctx, event, &dropdown, env);
+    }
+
+    fn update(
+        &mut self,
+        ctx: &mut UpdateCtx,
+        old_data: &LapceTabData,
+        data: &LapceTabData,
+        env: &Env,
+    ) {
+        let dropdown = self.get_data_clone(data);
+        self.dropdown.update(ctx, &dropdown, env);
+        self.info.update(ctx, old_data, data, env)
+    }
+
+    fn layout(
+        &mut self,
+        ctx: &mut LayoutCtx,
+        bc: &BoxConstraints,
+        data: &LapceTabData,
+        env: &Env,
+    ) -> Size {
+        let size = self.info.layout(ctx, bc, data, env, 0.0);
+
+        let dropdown = self.get_data_clone(data);
+        let dropdown_size = self.dropdown.layout(ctx, bc, &dropdown, env);
+        self.dropdown
+            .set_origin(ctx, &dropdown, env, Point::new(0.0, size.height));
+
+        ctx.set_paint_insets(4000.0);
+
+        Size::new(size.width, (size.height + dropdown_size.height).ceil())
+    }
+
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
+        self.info.paint(ctx, data, env, 0.0);
+        let dropdown = self.get_data_clone(data);
+        self.dropdown.paint(ctx, &dropdown, env);
+    }
+}
+
 // TODO: Split input into separate kinds for for int/f64/string?
 struct InputSettingsItem {
     /// ID of the editor so that it can be easily accessed
@@ -1052,6 +1241,7 @@ impl InputSettingsItem {
         }
     }
 }
+
 impl Widget<LapceTabData> for InputSettingsItem {
     fn event(
         &mut self,
@@ -1333,29 +1523,20 @@ pub struct ThemeSection {
 
 impl ThemeSection {
     fn new(data: &LapceTabData, kind: ThemeKind) -> Self {
-        let colors: Vec<&str> = match kind {
-            ThemeKind::Base => {
-                data.config.color.base.keys().into_iter().sorted().collect()
+        let theme_color = &data.config.color;
+        let mut colors: Vec<String> = match kind {
+            ThemeKind::Base => theme_color
+                .base
+                .keys()
+                .into_iter()
+                .map(ToString::to_string)
+                .collect(),
+            ThemeKind::UI => theme_color.ui.keys().map(Clone::clone).collect(),
+            ThemeKind::Syntax => {
+                theme_color.syntax.keys().map(Clone::clone).collect()
             }
-            ThemeKind::UI => data
-                .config
-                .color
-                .ui
-                .keys()
-                .map(|s| s.as_str())
-                .sorted()
-                .collect(),
-            ThemeKind::Syntax => data
-                .config
-                .color
-                .syntax
-                .keys()
-                .map(|s| s.as_str())
-                .sorted()
-                .collect(),
         };
-
-        let colors: Vec<String> = colors.iter().map(|c| c.to_string()).collect();
+        colors.sort_unstable();
 
         Self {
             header_height: 40.0,
@@ -1370,15 +1551,14 @@ impl ThemeSection {
         let event_sink = ctx.get_external_handle();
         self.items = self
             .colors
-            .clone()
-            .into_iter()
+            .iter()
             .map(|color| {
                 WidgetPod::new(LapcePadding::new(
                     5.0,
                     ThemeSettingItem::new(
                         data,
                         self.kind,
-                        color,
+                        color.clone(),
                         event_sink.clone(),
                     ),
                 ))
@@ -1540,7 +1720,7 @@ impl ThemeSettingItem {
         color: String,
         event_sink: ExtEventSink,
     ) -> Self {
-        let name = format!("{}.{color}", kind);
+        let name = format!("{kind}.{color}");
         let content = BufferContent::SettingsValue(name.clone());
         let mut doc =
             Document::new(content.clone(), data.id, event_sink, data.proxy.clone());
@@ -1578,15 +1758,15 @@ impl ThemeSettingItem {
                     .on_click(move |ctx, data, _env| {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::ResetSettingsFile(
-                                kind.to_string(),
-                                local_color.clone(),
-                            ),
+                            LapceUICommand::ResetSettingsFile {
+                                kind: kind.to_string(),
+                                key: local_color.clone(),
+                            },
                             Target::Widget(data.id),
                         ));
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::ResetSettings,
+                            LapceUICommand::ResetSettingsItem,
                             Target::Widget(widget_id),
                         ));
                     })
@@ -1681,17 +1861,17 @@ impl Widget<LapceTabData> for ThemeSettingItem {
                 let content = editor_data.doc.buffer().to_string();
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateSettingsFile(
-                        self.kind.to_string(),
-                        self.color.clone(),
-                        serde_json::json!(content),
-                    ),
+                    LapceUICommand::UpdateSettingsFile {
+                        kind: self.kind.to_string(),
+                        key: self.color.clone(),
+                        value: serde_json::json!(content),
+                    },
                     Target::Widget(data.id),
                 ));
             }
             Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
-                if let LapceUICommand::ResetSettings = command {
+                if let LapceUICommand::ResetSettingsItem = command {
                     let default = self.default(data);
                     let name = format!("{}.{}", self.kind, self.color);
                     let doc = data.main_split.value_docs.get_mut(&name).unwrap();
@@ -1936,7 +2116,7 @@ impl Widget<LapceTabData> for SettingsSwitcher {
                                         LAPCE_UI_COMMAND,
                                         LapceUICommand::ShowSettingsKind(
                                             LapceSettingsKind::Plugin(
-                                                volt_id.to_string(),
+                                                volt_id.clone(),
                                             ),
                                         ),
                                         Target::Widget(self.settings_widget_id),

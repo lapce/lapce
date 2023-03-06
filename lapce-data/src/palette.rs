@@ -22,7 +22,7 @@ use lapce_core::{
     language::LapceLanguage,
     mode::Mode,
 };
-use lapce_rpc::proxy::ProxyResponse;
+use lapce_rpc::{proxy::ProxyResponse, source_control::FileDiff};
 use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
 use uuid::Uuid;
 
@@ -44,6 +44,7 @@ use crate::{
     list::ListData,
     panel::PanelKind,
     proxy::{path_from_url, LapceProxy},
+    source_control::SourceControlData,
     terminal::TerminalPanelData,
 };
 
@@ -135,7 +136,7 @@ pub enum PaletteStatus {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaletteItemContent {
-    File(PathBuf, PathBuf),
+    File(PathBuf, PathBuf, Option<FileDiff>),
     Line(usize, String),
     TerminalLine(i32, String),
     DocumentSymbol {
@@ -168,7 +169,7 @@ impl PaletteItemContent {
         preview_editor_id: WidgetId,
     ) -> bool {
         match &self {
-            PaletteItemContent::File(_, full_path) => {
+            PaletteItemContent::File(_, full_path, _) => {
                 if !preview {
                     ctx.submit_command(Command::new(
                         LAPCE_UI_COMMAND,
@@ -245,14 +246,20 @@ impl PaletteItemContent {
             PaletteItemContent::ColorTheme(theme) => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::SetColorTheme(theme.to_string(), preview),
+                    LapceUICommand::SetColorTheme {
+                        theme: theme.to_string(),
+                        preview,
+                    },
                     Target::Auto,
                 ));
             }
             PaletteItemContent::IconTheme(theme) => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::SetIconTheme(theme.to_string(), preview),
+                    LapceUICommand::SetIconTheme {
+                        theme: theme.to_string(),
+                        preview,
+                    },
                     Target::Auto,
                 ));
             }
@@ -324,6 +331,7 @@ pub struct PaletteViewData {
     pub db: Arc<LapceDb>,
     pub focus_area: FocusArea,
     pub terminal: Arc<TerminalPanelData>,
+    pub source_control: Arc<SourceControlData>,
 }
 
 impl Lens<LapceTabData, PaletteViewData> for PaletteViewLens {
@@ -433,6 +441,9 @@ impl KeyPressFocus for PaletteViewData {
                     self.delete_backward(ctx);
                 }
                 EditCommand::DeleteToBeginningOfLine => {
+                    self.delete_to_beginning_of_line(ctx);
+                }
+                EditCommand::DeleteToEndOfLine => {
                     self.delete_to_beginning_of_line(ctx);
                 }
                 _ => return CommandExecuted::No,
@@ -729,6 +740,24 @@ impl PaletteViewData {
         self.update_palette(ctx);
     }
 
+    pub fn delete_to_end_of_line(&mut self, ctx: &mut EventCtx) {
+        let palette = Arc::make_mut(&mut self.palette);
+        if palette.cursor == 0 {
+            return;
+        }
+
+        let end = palette.input.len();
+
+        if palette.cursor == end {
+            palette.input = "".to_string();
+            palette.cursor = 0;
+        } else {
+            palette.input.replace_range(palette.cursor..end, "");
+            palette.cursor = end;
+        }
+        self.update_palette(ctx);
+    }
+
     // TODO: This is a bit weird, its wanting to iterate over items, but it could be called before we fill the list!
     fn preselect_matching(&mut self, ctx: &mut EventCtx, matching: &str) {
         let palette = Arc::make_mut(&mut self.palette);
@@ -839,6 +868,7 @@ impl PaletteViewData {
         let widget_id = self.palette.widget_id;
         let workspace = self.workspace.clone();
         let event_sink = ctx.get_external_handle();
+        let file_diffs = self.source_control.file_diffs.clone();
         self.palette.proxy.proxy_rpc.get_files(move |result| {
             if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
                 let items: im::Vector<PaletteItem> = items
@@ -853,9 +883,13 @@ impl PaletteViewData {
                                 .unwrap_or(&full_path)
                                 .to_path_buf();
                         }
+                        let file_diff =
+                            file_diffs.get(&full_path).cloned().map(|t| t.0);
                         let filter_text = path.to_str().unwrap_or("").to_string();
                         PaletteItem {
-                            content: PaletteItemContent::File(path, full_path),
+                            content: PaletteItemContent::File(
+                                path, full_path, file_diff,
+                            ),
                             filter_text,
                             score: 0,
                             indices: Vec::new(),
@@ -865,7 +899,7 @@ impl PaletteViewData {
 
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdatePaletteItems(run_id, items),
+                    LapceUICommand::UpdatePaletteItems { run_id, items },
                     Target::Widget(widget_id),
                 );
             }
@@ -903,8 +937,9 @@ impl PaletteViewData {
                 let filter_text = match &w.kind {
                     LapceWorkspaceType::Local => text,
                     LapceWorkspaceType::RemoteSSH(ssh) => {
-                        format!("[{ssh}] {}", text)
+                        format!("[{ssh}] {text}")
                     }
+                    #[cfg(windows)]
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")
                     }
@@ -1154,7 +1189,7 @@ impl PaletteViewData {
                         };
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdatePaletteItems(run_id, items),
+                            LapceUICommand::UpdatePaletteItems { run_id, items },
                             Target::Widget(widget_id),
                         );
                     }
@@ -1214,7 +1249,7 @@ impl PaletteViewData {
                             .collect();
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdatePaletteItems(run_id, items),
+                            LapceUICommand::UpdatePaletteItems { run_id, items },
                             Target::Widget(widget_id),
                         );
                     }
@@ -1254,11 +1289,11 @@ impl PaletteViewData {
 
                 let _ = event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::FilterPaletteItems(
+                    LapceUICommand::FilterPaletteItems {
                         run_id,
                         input,
                         filtered_items,
-                    ),
+                    },
                     Target::Widget(widget_id),
                 );
             } else {

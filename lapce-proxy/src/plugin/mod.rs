@@ -36,17 +36,27 @@ use lsp_types::{
         ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest,
         SignatureHelpRequest, WorkspaceSymbol,
     },
-    CodeAction, CodeActionContext, CodeActionParams, CodeActionResponse,
-    CompletionItem, CompletionParams, CompletionResponse, Diagnostic,
-    DocumentFormattingParams, DocumentSymbolParams, DocumentSymbolResponse,
-    FormattingOptions, GotoDefinitionParams, GotoDefinitionResponse, Hover,
-    HoverParams, InlayHint, InlayHintParams, Location, PartialResultParams,
-    Position, PrepareRenameResponse, Range, ReferenceContext, ReferenceParams,
-    RenameParams, SelectionRange, SelectionRangeParams, SemanticTokens,
-    SemanticTokensParams, SignatureHelp, SignatureHelpParams, SymbolInformation,
-    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, TextEdit,
-    Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams, WorkspaceEdit,
-    WorkspaceSymbolParams,
+    ClientCapabilities, CodeAction, CodeActionCapabilityResolveSupport,
+    CodeActionClientCapabilities, CodeActionContext, CodeActionKind,
+    CodeActionKindLiteralSupport, CodeActionLiteralSupport, CodeActionParams,
+    CodeActionResponse, CompletionClientCapabilities, CompletionItem,
+    CompletionItemCapability, CompletionItemCapabilityResolveSupport,
+    CompletionParams, CompletionResponse, Diagnostic, DocumentFormattingParams,
+    DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions, GotoCapability,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverClientCapabilities,
+    HoverParams, InlayHint, InlayHintClientCapabilities, InlayHintParams, Location,
+    MarkupKind, MessageActionItemCapabilities, ParameterInformationSettings,
+    PartialResultParams, Position, PrepareRenameResponse, Range, ReferenceContext,
+    ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams,
+    SemanticTokens, SemanticTokensClientCapabilities, SemanticTokensParams,
+    ShowMessageRequestClientCapabilities, SignatureHelp,
+    SignatureHelpClientCapabilities, SignatureHelpParams,
+    SignatureInformationSettings, SymbolInformation, TextDocumentClientCapabilities,
+    TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams,
+    TextDocumentSyncClientCapabilities, TextEdit, Url,
+    VersionedTextDocumentIdentifier, WindowClientCapabilities,
+    WorkDoneProgressParams, WorkspaceClientCapabilities, WorkspaceEdit,
+    WorkspaceSymbolClientCapabilities, WorkspaceSymbolParams,
 };
 use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -975,10 +985,10 @@ pub enum PluginNotification {
     },
 }
 
-pub fn volt_icon(volt: &VoltMetadata) -> Option<String> {
+pub fn volt_icon(volt: &VoltMetadata) -> Option<Vec<u8>> {
     let dir = volt.dir.as_ref()?;
     let icon = dir.join(volt.icon.as_ref()?);
-    std::fs::read(icon).ok().map(base64::encode)
+    std::fs::read(icon).ok()
 }
 
 pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
@@ -1009,7 +1019,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
     let id = volt.id();
     let plugin_dir = Directory::plugins_directory()
         .ok_or_else(|| anyhow!("can't get plugin directory"))?
-        .join(id);
+        .join(id.to_string());
     let _ = fs::remove_dir_all(&plugin_dir);
     fs::create_dir_all(&plugin_dir)?;
 
@@ -1023,8 +1033,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
         archive.unpack(&plugin_dir)?;
     }
 
-    let meta_path = plugin_dir.join("volt.toml");
-    let meta = load_volt(&meta_path)?;
+    let meta = load_volt(&plugin_dir)?;
     Ok(meta)
 }
 
@@ -1062,7 +1071,7 @@ pub fn remove_volt(
             anyhow::anyhow!("don't have dir")
         })?;
         if let Err(e) = std::fs::remove_dir_all(path) {
-            eprintln!("Could not delete plugin folder: {}", e);
+            eprintln!("Could not delete plugin folder: {e}");
             catalog_rpc.core_rpc.volt_removing(
                 volt.clone(),
                 "Could not remove Plugin Directory".to_string(),
@@ -1073,4 +1082,104 @@ pub fn remove_volt(
         Ok(())
     });
     Ok(())
+}
+
+fn client_capabilities() -> ClientCapabilities {
+    ClientCapabilities {
+        text_document: Some(TextDocumentClientCapabilities {
+            synchronization: Some(TextDocumentSyncClientCapabilities {
+                did_save: Some(true),
+                dynamic_registration: Some(true),
+                ..Default::default()
+            }),
+            completion: Some(CompletionClientCapabilities {
+                completion_item: Some(CompletionItemCapability {
+                    snippet_support: Some(true),
+                    resolve_support: Some(CompletionItemCapabilityResolveSupport {
+                        properties: vec!["additionalTextEdits".to_string()],
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            signature_help: Some(SignatureHelpClientCapabilities {
+                signature_information: Some(SignatureInformationSettings {
+                    documentation_format: Some(vec![
+                        MarkupKind::Markdown,
+                        MarkupKind::PlainText,
+                    ]),
+                    parameter_information: Some(ParameterInformationSettings {
+                        label_offset_support: Some(true),
+                    }),
+                    active_parameter_support: Some(true),
+                }),
+                ..Default::default()
+            }),
+            hover: Some(HoverClientCapabilities {
+                content_format: Some(vec![
+                    MarkupKind::Markdown,
+                    MarkupKind::PlainText,
+                ]),
+                ..Default::default()
+            }),
+            inlay_hint: Some(InlayHintClientCapabilities {
+                ..Default::default()
+            }),
+            code_action: Some(CodeActionClientCapabilities {
+                data_support: Some(true),
+                resolve_support: Some(CodeActionCapabilityResolveSupport {
+                    properties: vec!["edit".to_string()],
+                }),
+                code_action_literal_support: Some(CodeActionLiteralSupport {
+                    code_action_kind: CodeActionKindLiteralSupport {
+                        value_set: vec![
+                            CodeActionKind::EMPTY.as_str().to_string(),
+                            CodeActionKind::QUICKFIX.as_str().to_string(),
+                            CodeActionKind::REFACTOR.as_str().to_string(),
+                            CodeActionKind::REFACTOR_EXTRACT.as_str().to_string(),
+                            CodeActionKind::REFACTOR_INLINE.as_str().to_string(),
+                            CodeActionKind::REFACTOR_REWRITE.as_str().to_string(),
+                            CodeActionKind::SOURCE.as_str().to_string(),
+                            CodeActionKind::SOURCE_ORGANIZE_IMPORTS
+                                .as_str()
+                                .to_string(),
+                            "quickassist".to_string(),
+                            "source.fixAll".to_string(),
+                        ],
+                    },
+                }),
+                ..Default::default()
+            }),
+            semantic_tokens: Some(SemanticTokensClientCapabilities {
+                ..Default::default()
+            }),
+            type_definition: Some(GotoCapability {
+                // Note: This is explicitly specified rather than left to the Default because
+                // of a bug in lsp-types https://github.com/gluon-lang/lsp-types/pull/244
+                link_support: Some(false),
+                ..Default::default()
+            }),
+            definition: Some(GotoCapability {
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        window: Some(WindowClientCapabilities {
+            work_done_progress: Some(true),
+            show_message: Some(ShowMessageRequestClientCapabilities {
+                message_action_item: Some(MessageActionItemCapabilities {
+                    additional_properties_support: Some(true),
+                }),
+            }),
+            ..Default::default()
+        }),
+        workspace: Some(WorkspaceClientCapabilities {
+            symbol: Some(WorkspaceSymbolClientCapabilities {
+                ..Default::default()
+            }),
+            configuration: Some(false),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
 }

@@ -10,7 +10,7 @@ use druid::{
 use indexmap::IndexMap;
 use lapce_core::directory::Directory;
 use lapce_proxy::plugin::{download_volt, volt_icon, wasi::find_all_volts};
-use lapce_rpc::plugin::{VoltInfo, VoltMetadata};
+use lapce_rpc::plugin::{VoltID, VoltInfo, VoltMetadata};
 use parking_lot::Mutex;
 use plugin_install_status::PluginInstallStatus;
 use serde::{Deserialize, Serialize};
@@ -48,8 +48,8 @@ impl VoltIconKind {
 pub struct VoltsList {
     pub tab_id: WidgetId,
     pub total: usize,
-    pub volts: IndexMap<String, VoltInfo>,
-    pub icons: im::HashMap<String, VoltIconKind>,
+    pub volts: IndexMap<VoltID, VoltInfo>,
+    pub icons: im::HashMap<VoltID, VoltIconKind>,
     pub status: PluginLoadStatus,
     pub loading: Arc<Mutex<bool>>,
     pub event_sink: ExtEventSink,
@@ -143,12 +143,12 @@ pub struct PluginData {
     pub uninstalled_id: WidgetId,
 
     pub volts: VoltsList,
-    pub installing: IndexMap<String, PluginInstallStatus>,
-    pub installed: IndexMap<String, VoltMetadata>,
-    pub installed_latest: IndexMap<String, VoltInfo>,
-    pub installed_icons: im::HashMap<String, VoltIconKind>,
-    pub disabled: HashSet<String>,
-    pub workspace_disabled: HashSet<String>,
+    pub installing: IndexMap<VoltID, PluginInstallStatus>,
+    pub installed: IndexMap<VoltID, VoltMetadata>,
+    pub installed_latest: IndexMap<VoltID, VoltInfo>,
+    pub installed_icons: im::HashMap<VoltID, VoltIconKind>,
+    pub disabled: HashSet<VoltID>,
+    pub workspace_disabled: HashSet<VoltID>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -167,8 +167,8 @@ pub struct PluginsInfo {
 impl PluginData {
     pub fn new(
         tab_id: WidgetId,
-        disabled: Vec<String>,
-        workspace_disabled: Vec<String>,
+        disabled: Vec<VoltID>,
+        workspace_disabled: Vec<VoltID>,
         event_sink: ExtEventSink,
     ) -> Self {
         {
@@ -210,11 +210,11 @@ impl PluginData {
         });
     }
 
-    pub fn plugin_disabled(&self, id: &str) -> bool {
+    pub fn plugin_disabled(&self, id: &VoltID) -> bool {
         self.disabled.contains(id) || self.workspace_disabled.contains(id)
     }
 
-    pub fn plugin_status(&self, id: &str) -> PluginStatus {
+    pub fn plugin_status(&self, id: &VoltID) -> PluginStatus {
         if self.plugin_disabled(id) {
             return PluginStatus::Disabled;
         }
@@ -345,7 +345,7 @@ impl PluginData {
             let text = parse_markdown("Plugin doesn't have a README", 2.0, config);
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateVoltReadme(text),
+                LapceUICommand::UpdateVoltReadme(Arc::new(text)),
                 Target::Widget(widget_id),
             );
             return Ok(());
@@ -354,7 +354,7 @@ impl PluginData {
         let text = parse_markdown(&text, 2.0, config);
         let _ = event_sink.submit_command(
             LAPCE_UI_COMMAND,
-            LapceUICommand::UpdateVoltReadme(text),
+            LapceUICommand::UpdateVoltReadme(Arc::new(text)),
             Target::Widget(widget_id),
         );
         Ok(())
@@ -417,7 +417,7 @@ impl PluginData {
         &mut self,
         tab_id: WidgetId,
         volt: &VoltMetadata,
-        icon: &Option<String>,
+        icon: &Option<Vec<u8>>,
         event_sink: ExtEventSink,
     ) {
         let volt_id = volt.id();
@@ -425,9 +425,10 @@ impl PluginData {
         self.installing.remove(&volt_id);
         self.installed.insert(volt_id.clone(), volt.clone());
 
-        if let Some(icon) = icon.as_ref().and_then(|icon| {
-            VoltIconKind::from_bytes(&base64::decode(icon).ok()?).ok()
-        }) {
+        if let Some(icon) = icon
+            .as_ref()
+            .and_then(|icon| VoltIconKind::from_bytes(icon).ok())
+        {
             self.installed_icons.insert(volt_id.clone(), icon);
         }
 

@@ -18,6 +18,7 @@ use lapce_data::{
         PaletteViewData,
     },
 };
+use lapce_rpc::source_control::FileDiff;
 use lsp_types::SymbolKind;
 
 use crate::{
@@ -52,31 +53,7 @@ impl Widget<LapceTabData> for Palette {
         data: &mut LapceTabData,
         env: &Env,
     ) {
-        // match event {
-        //     Event::MouseDown(_)
-        //     | Event::MouseMove(_)
-        //     | Event::Wheel(_)
-        //     | Event::MouseUp(_) => {
-        //         if data.palette.status == PaletteStatus::Inactive {
-        //             return;
-        //         }
-        //     }
-        //     _ => (),
-        // }
-
         match event {
-            // Event::KeyDown(key_event) => {
-            //     let mut keypress = data.keypress.clone();
-            //     let mut_keypress = Arc::make_mut(&mut keypress);
-            //     let mut palette_data = data.palette_view_data();
-            //     mut_keypress.key_down(ctx, key_event, &mut palette_data, env);
-            //     data.palette = palette_data.palette.clone();
-            //     data.keypress = keypress;
-            //     data.workspace = palette_data.workspace.clone();
-            //     data.main_split = palette_data.main_split.clone();
-            //     data.find = palette_data.find.clone();
-            //     ctx.set_handled();
-            // }
             Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {
                 let command = cmd.get_unchecked(LAPCE_COMMAND);
                 let mut palette_data = data.palette_view_data();
@@ -87,6 +64,8 @@ impl Widget<LapceTabData> for Palette {
                     Modifiers::default(),
                     env,
                 );
+                // TODO: manually restoring the changed palette data is unfortunate, it would be
+                // better to have a function to do this to avoid accidents where we forget to update
                 data.palette = palette_data.palette.clone();
                 data.workspace = palette_data.workspace.clone();
                 data.main_split = palette_data.main_split.clone();
@@ -122,12 +101,7 @@ impl Widget<LapceTabData> for Palette {
                             Target::Widget(data.palette.input_editor),
                         ));
                     }
-                    LapceUICommand::CancelPalette => {
-                        let mut palette_data = data.palette_view_data();
-                        palette_data.cancel(ctx);
-                        data.palette = palette_data.palette.clone();
-                    }
-                    LapceUICommand::UpdatePaletteItems(run_id, items) => {
+                    LapceUICommand::UpdatePaletteItems { run_id, items } => {
                         let palette = Arc::make_mut(&mut data.palette);
                         if &palette.run_id == run_id {
                             palette.total_items = items.clone();
@@ -144,11 +118,11 @@ impl Widget<LapceTabData> for Palette {
                             }
                         }
                     }
-                    LapceUICommand::FilterPaletteItems(
+                    LapceUICommand::FilterPaletteItems {
                         run_id,
                         input,
                         filtered_items,
-                    ) => {
+                    } => {
                         let palette = Arc::make_mut(&mut data.palette);
                         if &palette.run_id == run_id && palette.get_input() == input
                         {
@@ -508,6 +482,7 @@ struct PaletteItemPaintInfo {
     svg: Option<Svg>,
     svg_color: Option<Color>,
     text: String,
+    text_color: Option<Color>,
     text_indices: Vec<usize>,
     hint: String,
     hint_indices: Vec<usize>,
@@ -521,6 +496,7 @@ impl PaletteItemPaintInfo {
             svg: None,
             svg_color: None,
             text,
+            text_color: None,
             text_indices,
             hint: String::new(),
             hint_indices: Vec::new(),
@@ -541,13 +517,14 @@ impl ListPaint<PaletteListData> for PaletteItem {
             svg,
             svg_color,
             text,
+            text_color,
             text_indices,
             hint,
             hint_indices,
             keymap,
         } = match &self.content {
-            PaletteItemContent::File(path, _) => {
-                file_paint_items(path, &self.indices, data)
+            PaletteItemContent::File(path, _, file_diff) => {
+                file_paint_items(path, file_diff, &self.indices, data)
             }
             PaletteItemContent::DocumentSymbol {
                 kind,
@@ -589,6 +566,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                             .clone(),
                     ),
                     text,
+                    text_color: None,
                     text_indices,
                     hint,
                     hint_indices,
@@ -615,7 +593,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 PaletteItemPaintInfo::new_text(text.clone(), self.indices.to_vec())
             }
             PaletteItemContent::ReferenceLocation(rel_path, _location) => {
-                file_paint_items(rel_path, &self.indices, data)
+                file_paint_items(rel_path, &None, &self.indices, data)
             }
             PaletteItemContent::Workspace(w) => {
                 let text = w.path.as_ref().unwrap().to_str().unwrap();
@@ -624,6 +602,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     LapceWorkspaceType::RemoteSSH(ssh) => {
                         format!("[{ssh}] {text}")
                     }
+                    #[cfg(windows)]
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")
                     }
@@ -649,6 +628,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     svg: None,
                     svg_color: None,
                     text,
+                    text_color: None,
                     text_indices: self.indices.to_vec(),
                     hint: String::new(),
                     hint_indices: Vec::new(),
@@ -714,15 +694,17 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 data.config.ui.font_family(),
                 data.config.ui.font_size() as f64,
             )
-            .text_color(
-                data.config
+            .text_color(match text_color {
+                Some(ref color) => color.clone(),
+                None => data
+                    .config
                     .get_color_unchecked(if line == data.selected_index {
                         LapceTheme::PALETTE_CURRENT_FOREGROUND
                     } else {
                         LapceTheme::PALETTE_FOREGROUND
                     })
                     .clone(),
-            );
+            });
         for &i_start in &text_indices {
             let i_end = full_text
                 .char_indices()
@@ -742,7 +724,10 @@ impl ListPaint<PaletteListData> for PaletteItem {
 
             text_layout = text_layout.range_attribute(
                 i_start..i_end,
-                TextAttribute::TextColor(focus_color.clone()),
+                TextAttribute::TextColor(match text_color {
+                    Some(ref color) => color.clone(),
+                    None => focus_color.clone(),
+                }),
             );
             text_layout = text_layout.range_attribute(
                 i_start..i_end,
@@ -850,6 +835,7 @@ fn file_paint_symbols(
                 .clone(),
         ),
         text,
+        text_color: None,
         text_indices,
         hint,
         hint_indices,
@@ -859,6 +845,7 @@ fn file_paint_symbols(
 
 fn file_paint_items(
     path: &Path,
+    file_diff: &Option<FileDiff>,
     indices: &[usize],
     data: &ListData<PaletteItem, PaletteListData>,
 ) -> PaletteItemPaintInfo {
@@ -874,6 +861,16 @@ fn file_paint_items(
         .unwrap_or("")
         .to_string();
     let folder_len = folder.len();
+    let text_color = file_diff.as_ref().map(|diff| {
+        let color = match diff {
+            FileDiff::Modified(_) | FileDiff::Renamed(_, _) => {
+                LapceTheme::SOURCE_CONTROL_MODIFIED
+            }
+            FileDiff::Added(_) => LapceTheme::SOURCE_CONTROL_ADDED,
+            FileDiff::Deleted(_) => LapceTheme::SOURCE_CONTROL_REMOVED,
+        };
+        data.config.get_color_unchecked(color).clone()
+    });
     let text_indices: Vec<usize> = indices
         .iter()
         .filter_map(|i| {
@@ -904,6 +901,7 @@ fn file_paint_items(
         svg: Some(svg),
         svg_color: svg_color.cloned(),
         text: file_name,
+        text_color,
         text_indices,
         hint: folder,
         hint_indices,

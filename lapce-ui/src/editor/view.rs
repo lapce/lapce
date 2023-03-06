@@ -27,6 +27,7 @@ use lapce_data::{
 };
 
 use crate::{
+    diff::DiffBox,
     editor::{
         container::LapceEditorContainer, header::LapceEditorHeader, LapceEditor,
     },
@@ -41,6 +42,7 @@ pub struct LapceEditorView {
     pub header: WidgetPod<LapceTabData, LapceEditorHeader>,
     pub editor: WidgetPod<LapceTabData, LapceEditorContainer>,
     pub find: Option<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+    pub diff: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     cursor_blink_timer: TimerToken,
     autosave_timer: TimerToken,
     display_border: bool,
@@ -89,11 +91,13 @@ impl LapceEditorView {
             WidgetPod::new(FindBox::new(find_view_id, find_editor_id, view_id))
                 .boxed()
         });
+        let diff = WidgetPod::new(DiffBox::new(view_id)).boxed();
         Self {
             view_id,
             header: WidgetPod::new(header),
             editor: WidgetPod::new(editor),
             find,
+            diff,
             cursor_blink_timer: TimerToken::INVALID,
             autosave_timer: TimerToken::INVALID,
             display_border: true,
@@ -173,7 +177,8 @@ impl LapceEditorView {
             BufferContent::Local(kind) => match kind {
                 LocalBufferKind::Keymap => {}
                 LocalBufferKind::Settings => {}
-                LocalBufferKind::PluginSeach => {}
+                LocalBufferKind::PluginSearch => {}
+                LocalBufferKind::BranchesFilter => {}
                 LocalBufferKind::Palette => {
                     data.focus_area = FocusArea::Palette;
                 }
@@ -225,8 +230,13 @@ impl LapceEditorView {
             LapceUICommand::EnsureRectVisible(rect) => {
                 self.ensure_rect_visible(ctx, data, *rect, env);
             }
-            LapceUICommand::ResolveCompletion(buffer_id, rev, offset, item) => {
-                if data.doc.id() != *buffer_id {
+            LapceUICommand::ResolveCompletion {
+                id,
+                rev,
+                offset,
+                item,
+            } => {
+                if data.doc.id() != *id {
                     return;
                 }
                 if data.doc.rev() != *rev {
@@ -310,6 +320,7 @@ impl LapceEditorView {
         }
     }
 
+    /// Scroll the editor such that the rect is visible.
     fn ensure_rect_visible(
         &mut self,
         ctx: &mut EventCtx,
@@ -565,6 +576,13 @@ impl Widget<LapceTabData> for LapceEditorView {
                 }
             }
         }
+        match event {
+            Event::Command(cmd) if cmd.is(LAPCE_UI_COMMAND) => {}
+            Event::Command(cmd) if cmd.is(LAPCE_COMMAND) => {}
+            _ => {
+                self.diff.event(ctx, event, data, env);
+            }
+        }
 
         if ctx.is_handled() {
             return;
@@ -774,7 +792,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         if let Some(find) = self.find.as_mut() {
             find.lifecycle(ctx, event, data, env);
         }
-
+        self.diff.lifecycle(ctx, event, data, env);
         match event {
             LifeCycle::WidgetAdded => {
                 let editor = data.main_split.editors.get(&self.view_id).unwrap();
@@ -901,7 +919,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         if let Some(find) = self.find.as_mut() {
             find.update(ctx, data, env);
         }
-
+        self.diff.update(ctx, data, env);
         let old_editor_data = old_data.editor_view_content(self.view_id);
         let editor_data = data.editor_view_content(self.view_id);
 
@@ -1130,7 +1148,13 @@ impl Widget<LapceTabData> for LapceEditorView {
                 Point::new(size.width - find_size.width - 10.0, header_size.height),
             );
         }
-
+        let diff_size = self.diff.layout(ctx, bc, data, env);
+        self.diff.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new(size.width - diff_size.width - 10.0, header_size.height),
+        );
         size
     }
 
@@ -1163,5 +1187,6 @@ impl Widget<LapceTabData> for LapceEditorView {
         if let Some(find) = self.find.as_mut() {
             find.paint(ctx, data, env);
         }
+        self.diff.paint(ctx, data, env);
     }
 }

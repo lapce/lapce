@@ -9,7 +9,7 @@ use std::{
 };
 
 use lapce_rpc::{
-    plugin::{PluginId, VoltMetadata},
+    plugin::{PluginId, VoltID, VoltMetadata},
     proxy::ProxyResponse,
     style::LineStyle,
     RpcError,
@@ -35,14 +35,14 @@ pub struct PluginCatalog {
     plugin_rpc: PluginCatalogRpcHandler,
     plugins: HashMap<PluginId, PluginServerRpcHandler>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
-    unactivated_volts: HashMap<String, VoltMetadata>,
+    unactivated_volts: HashMap<VoltID, VoltMetadata>,
     open_files: HashMap<PathBuf, String>,
 }
 
 impl PluginCatalog {
     pub fn new(
         workspace: Option<PathBuf>,
-        disabled_volts: Vec<String>,
+        disabled_volts: Vec<VoltID>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
@@ -151,7 +151,7 @@ impl PluginCatalog {
         }
     }
 
-    fn start_unactivated_volts(&mut self, to_be_activated: Vec<String>) {
+    fn start_unactivated_volts(&mut self, to_be_activated: Vec<VoltID>) {
         for id in to_be_activated.iter() {
             let workspace = self.workspace.clone();
             if let Some(meta) = self.unactivated_volts.remove(id) {
@@ -166,7 +166,7 @@ impl PluginCatalog {
     }
 
     fn check_unactivated_volts(&mut self) {
-        let to_be_activated: Vec<String> = self
+        let to_be_activated: Vec<VoltID> = self
             .unactivated_volts
             .iter()
             .filter_map(|(id, meta)| {
@@ -181,7 +181,7 @@ impl PluginCatalog {
                     })
                     .unwrap_or(false);
                 if contains {
-                    return Some(id.to_string());
+                    return Some(id.clone());
                 }
 
                 if let Some(workspace) = self.workspace.as_ref() {
@@ -203,7 +203,7 @@ impl PluginCatalog {
                                     .flatten()
                                 {
                                     if matcher.is_match(entry.path()) {
-                                        return Some(id.to_string());
+                                        return Some(id.clone());
                                     }
                                 }
                             }
@@ -223,7 +223,7 @@ impl PluginCatalog {
             self.open_files.insert(path, language_id.clone());
         }
 
-        let to_be_activated: Vec<String> = self
+        let to_be_activated: Vec<VoltID> = self
             .unactivated_volts
             .iter()
             .filter_map(|(id, meta)| {
@@ -233,7 +233,7 @@ impl PluginCatalog {
                     .and_then(|a| a.language.as_ref())
                     .map(|l| l.contains(&language_id))?;
                 if contains {
-                    Some(id.to_string())
+                    Some(id.clone())
                 } else {
                     None
                 }

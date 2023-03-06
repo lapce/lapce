@@ -12,6 +12,7 @@ use lapce_data::{
     config::{LapceConfig, LapceTheme},
     data::{LapceTabData, LapceTabLens, LapceWindowData, LapceWorkspace},
 };
+use lapce_rpc::plugin::VoltID;
 
 use crate::tab::{LapceTab, LapceTabHeader, LapceTabMeta, LAPCE_TAB_META};
 
@@ -331,7 +332,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                             &[],
                         ));
                         for (_, tab) in data.tabs.iter_mut() {
-                            let mut disabled_volts: Vec<String> =
+                            let mut disabled_volts: Vec<VoltID> =
                                 tab.plugin.disabled.clone().into_iter().collect();
                             disabled_volts.append(
                                 &mut tab
@@ -364,7 +365,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                         self.new_tab(ctx, data, workspace.clone(), true);
                         return;
                     }
-                    LapceUICommand::SetColorTheme(theme, preview) => {
+                    LapceUICommand::SetColorTheme { theme, preview } => {
                         let config = Arc::make_mut(&mut data.config);
                         config.set_color_theme(
                             &LapceWorkspace::default(),
@@ -380,7 +381,7 @@ impl Widget<LapceWindowData> for LapceWindow {
                         }
                         ctx.set_handled();
                     }
-                    LapceUICommand::SetIconTheme(theme, preview) => {
+                    LapceUICommand::SetIconTheme { theme, preview } => {
                         let config = Arc::make_mut(&mut data.config);
                         config.set_icon_theme(
                             &LapceWorkspace::default(),

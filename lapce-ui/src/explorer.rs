@@ -13,14 +13,14 @@ use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
-    config::{LapceConfig, LapceIcons, LapceTheme},
+    config::{ClickMode, LapceConfig, LapceIcons, LapceTheme},
     data::{EditorTabChild, LapceData, LapceEditorData, LapceTabData},
     document::{BufferContent, LocalBufferKind},
     explorer::{FileExplorerData, Naming},
     panel::PanelKind,
     proxy::LapceProxy,
 };
-use lapce_rpc::file::FileNodeItem;
+use lapce_rpc::{file::FileNodeItem, source_control::FileDiff};
 
 use crate::{
     editor::view::LapceEditorView,
@@ -41,6 +41,7 @@ fn paint_single_file_node_item(
     hovered: Option<usize>,
     config: &LapceConfig,
     toggle_rects: &mut HashMap<usize, Rect>,
+    file_diff: Option<FileDiff>,
 ) {
     let background = if Some(item.path_buf.as_ref()) == active {
         Some(LapceTheme::PANEL_CURRENT_BACKGROUND)
@@ -61,6 +62,18 @@ fn paint_single_file_node_item(
             config.get_color_unchecked(background),
         );
     }
+
+    let text_color = if let Some(diff) = file_diff {
+        match diff {
+            FileDiff::Modified(_) | FileDiff::Renamed(_, _) => {
+                LapceTheme::SOURCE_CONTROL_MODIFIED
+            }
+            FileDiff::Added(_) => LapceTheme::SOURCE_CONTROL_ADDED,
+            FileDiff::Deleted(_) => LapceTheme::SOURCE_CONTROL_REMOVED,
+        }
+    } else {
+        LapceTheme::PANEL_FOREGROUND
+    };
 
     let font_size = config.ui.font_size() as f64;
 
@@ -125,11 +138,7 @@ fn paint_single_file_node_item(
                 .to_string(),
         )
         .font(config.ui.font_family(), font_size)
-        .text_color(
-            config
-                .get_color_unchecked(LapceTheme::PANEL_FOREGROUND)
-                .clone(),
-        )
+        .text_color(config.get_color_unchecked(text_color).clone())
         .build()
         .unwrap();
     ctx.draw_text(
@@ -194,6 +203,7 @@ pub fn paint_file_node_item(
                 hovered,
                 config,
                 toggle_rects,
+                get_item_diff(item, data),
             );
         }
     }
@@ -239,7 +249,7 @@ fn draw_name_input(
         Naming::Renaming { .. } => {
             name_edit_input.paint(ctx, data, env);
         }
-        Naming::Naming { .. } => {
+        Naming::Naming { .. } | Naming::Duplicating { .. } => {
             name_edit_input.paint(ctx, data, env);
             // Skip forward by an entry
             // This is fine since we aren't using i as an index, but as an offset-multiple in painting
@@ -270,6 +280,27 @@ pub fn get_item_children(
         }
     }
     (i, None)
+}
+
+/// Get a FileDiff for the given FileNodeItem. If the given item is a folder
+/// that contains changes, returns a "fake" FileDiff that can be used to style
+/// the item accordingly.
+fn get_item_diff<'data>(
+    item: &'data FileNodeItem,
+    data: &'data LapceTabData,
+) -> Option<FileDiff> {
+    if item.is_dir {
+        data.source_control
+            .file_diffs
+            .keys()
+            .find(|path| path.as_path().starts_with(&item.path_buf))
+            .map(|path| FileDiff::Modified(path.clone()))
+    } else {
+        data.source_control
+            .file_diffs
+            .get(&item.path_buf)
+            .map(|d| d.0.clone())
+    }
 }
 
 pub fn get_item_children_mut(
@@ -557,7 +588,6 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                         file_explorer.active_selected = path.clone();
                         ctx.request_paint();
                     }
-
                     LapceUICommand::FileExplorerRefresh => {
                         data.file_explorer.reload();
                     }
@@ -574,7 +604,6 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                             ctx,
                         );
                     }
-
                     _ => (),
                 }
             }
@@ -658,49 +687,62 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     return;
                 }
 
+                let double_click_mode = data.config.editor.double_click.clone();
                 let file_explorer = Arc::make_mut(&mut data.file_explorer);
                 let index = ((mouse_event.pos.y + self.line_height)
                     / self.line_height) as usize;
+
                 if mouse_event.button.is_left() {
                     if let Some((_, node)) =
                         file_explorer.get_node_by_index_mut(index)
                     {
                         if node.is_dir {
-                            if node.read {
-                                node.open = !node.open;
-                            } else {
-                                let tab_id = data.id;
-                                let event_sink = ctx.get_external_handle();
-                                FileExplorerData::read_dir(
-                                    &node.path_buf,
-                                    true,
-                                    tab_id,
-                                    &data.proxy,
-                                    event_sink,
-                                );
-                            }
-                            let path = node.path_buf.clone();
-                            if let Some(paths) = file_explorer.node_tree(&path) {
-                                for path in paths.iter() {
-                                    file_explorer.update_node_count(path);
+                            let cont_open = !(matches!(
+                                double_click_mode,
+                                ClickMode::DoubleClickAll
+                            ) && mouse_event.count < 2);
+                            if cont_open {
+                                if node.read {
+                                    node.open = !node.open;
+                                } else {
+                                    let tab_id = data.id;
+                                    let event_sink = ctx.get_external_handle();
+                                    FileExplorerData::read_dir(
+                                        &node.path_buf,
+                                        true,
+                                        tab_id,
+                                        &data.proxy,
+                                        event_sink,
+                                    );
+                                }
+                                let path = node.path_buf.clone();
+                                if let Some(paths) = file_explorer.node_tree(&path) {
+                                    for path in paths.iter() {
+                                        file_explorer.update_node_count(path);
+                                    }
                                 }
                             }
                         } else {
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::OpenFile(
-                                    node.path_buf.clone(),
-                                    false,
-                                ),
-                                Target::Widget(data.id),
-                            ));
-                            ctx.submit_command(Command::new(
-                                LAPCE_UI_COMMAND,
-                                LapceUICommand::ActiveFileChanged {
-                                    path: Some(node.path_buf.clone()),
-                                },
-                                Target::Widget(file_explorer.widget_id),
-                            ));
+                            let cont_open =
+                                matches!(double_click_mode, ClickMode::SingleClick)
+                                    || mouse_event.count > 1;
+                            if cont_open {
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::OpenFile(
+                                        node.path_buf.clone(),
+                                        false,
+                                    ),
+                                    Target::Widget(data.id),
+                                ));
+                                ctx.submit_command(Command::new(
+                                    LAPCE_UI_COMMAND,
+                                    LapceUICommand::ActiveFileChanged {
+                                        path: Some(node.path_buf.clone()),
+                                    },
+                                    Target::Widget(file_explorer.widget_id),
+                                ));
+                            }
                         }
                     }
                 }
@@ -801,6 +843,30 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                                 ),
                             );
                             menu = menu.entry(item);
+
+                            if !node.is_dir {
+                                let item = druid::MenuItem::new("Duplicate")
+                                    .command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::ExplorerStartDuplicate {
+                                            list_index: index,
+                                            indent_level,
+                                            base_path: node
+                                                .path_buf
+                                                .parent()
+                                                .expect("file without parent")
+                                                .to_owned(),
+                                            name: node
+                                                .path_buf
+                                                .file_name()
+                                                .expect("file without name")
+                                                .to_string_lossy()
+                                                .into_owned(),
+                                        },
+                                        Target::Auto,
+                                    ));
+                                menu = menu.entry(item);
+                            }
 
                             let trash_text = if node.is_dir {
                                 "Move Directory to Trash"
@@ -920,6 +986,11 @@ impl Widget<LapceTabData> for FileExplorerFileList {
                     indent_level,
                 }
                 | Naming::Naming {
+                    list_index,
+                    indent_level,
+                    ..
+                }
+                | Naming::Duplicating {
                     list_index,
                     indent_level,
                     ..
@@ -1177,6 +1248,9 @@ impl OpenEditorList {
                             .unwrap_or(&path)
                             .to_path_buf();
                     }
+                    // TODO: Can be updated to use a disambiguation algorithm.
+                    // For example when opening multiple lib.rs which usually sits
+                    // under src/
                     hint = path
                         .parent()
                         .and_then(|s| s.to_str())
@@ -1273,7 +1347,7 @@ impl OpenEditorList {
         ctx.draw_svg(&svg, svg_rect, svg_color);
 
         if !hint.is_empty() {
-            text = format!("{} {}", text, hint);
+            text = format!("{text} {hint}");
         }
         let total_len = text.len();
         let mut text_layout = ctx
@@ -1413,6 +1487,8 @@ impl Widget<LapceTabData> for OpenEditorList {
             .iter()
             .map(|(_, tab)| tab.children.len())
             .sum::<usize>();
+
+        // If there are split editor tabs, then we need to consider the group headers
         let n = if data.main_split.editor_tabs.len() > 1 {
             n + data.main_split.editor_tabs.len()
         } else {
@@ -1426,6 +1502,7 @@ impl Widget<LapceTabData> for OpenEditorList {
         let rect = ctx.region().bounding_box();
         let mut i = 0;
         let mut g = 0;
+
         for (_, tab) in
             data.main_split
                 .editor_tabs
@@ -1449,7 +1526,7 @@ impl Widget<LapceTabData> for OpenEditorList {
                 if self.line_height * ((i + 1) as f64) >= rect.y0 {
                     let text_layout = ctx
                         .text()
-                        .new_text_layout(format!("Group {}", g))
+                        .new_text_layout(format!("Group {g}"))
                         .font(
                             data.config.ui.font_family(),
                             data.config.ui.font_size() as f64,
