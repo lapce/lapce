@@ -592,7 +592,8 @@ impl RawTerminal {
         proxy: Arc<LapceProxy>,
         event_sink: ExtEventSink,
     ) -> Self {
-        let config = TermConfig::default();
+        let mut config = TermConfig::default();
+        config.env.insert("TERM".to_string(), "xterm-256color".to_string());
         let event_proxy = EventProxy {
             proxy,
             event_sink,
