@@ -6,6 +6,7 @@
 
 ### Bug Fixes
 - [#2209](https://github.com/lapce/lapce/pull/2209): Fix macOS crashes
+- [#2218](https://github.com/lapce/lapce/pull/2218): Set `TERM` environment variable in integrated terminal to xterm-256color
 
 ## 0.2.6
 
