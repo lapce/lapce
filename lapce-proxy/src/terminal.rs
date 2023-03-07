@@ -49,7 +49,9 @@ impl Terminal {
     ) -> Terminal {
         let poll = mio::Poll::new().unwrap();
         let mut config = TermConfig::default();
-        config.env.insert("TERM".to_string(), "xterm-256color".to_string());
+        config
+            .env
+            .insert("TERM".to_string(), "xterm-256color".to_string());
         config.pty_config.working_directory =
             if cwd.is_some() && cwd.clone().unwrap().exists() {
                 cwd
