@@ -1,4 +1,4 @@
-use std::{path::PathBuf};
+use std::path::PathBuf;
 
 use druid::{
     piet::{Text, TextAttribute, TextLayout as PietTextLayout, TextLayoutBuilder},
@@ -311,7 +311,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
 struct SearchContent {
     mouse_pos: Point,
     line_height: f64,
-    file_folds: IndexMap<PathBuf, bool>
+    file_folds: IndexMap<PathBuf, bool>,
 }
 
 impl SearchContent {
@@ -423,7 +423,7 @@ impl Widget<LapceTabData> for SearchContent {
     ) {
         if !old_data.search.matches.same(&data.search.matches) {
             self.file_folds.clear();
-            for (p,_) in data.search.matches.iter() {
+            for (p, _) in data.search.matches.iter() {
                 self.file_folds.insert(p.clone(), false);
             }
             ctx.request_layout();
@@ -484,7 +484,6 @@ impl Widget<LapceTabData> for SearchContent {
                 continue;
             }
 
-
             let svg_size = data.config.ui.icon_size() as f64;
             let fold = if let Some(fold) = self.file_folds.get(path) {
                 *fold
@@ -497,21 +496,24 @@ impl Widget<LapceTabData> for SearchContent {
                 LapceIcons::ITEM_CLOSED
             };
             let fold_svg = data.config.ui_svg(fold_icon_name);
-    
-            let fold_rect = Size::new(svg_size, svg_size)
-            .to_rect()
-            .with_origin(Point::new(
-                (self.line_height - svg_size) / 2.0,
-                self.line_height * i as f64
-                    + (self.line_height - svg_size) / 2.0,
-            ));
+
+            let fold_rect =
+                Size::new(svg_size, svg_size)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        (self.line_height - svg_size) / 2.0,
+                        self.line_height * i as f64
+                            + (self.line_height - svg_size) / 2.0,
+                    ));
             ctx.draw_svg(
                 &fold_svg,
                 fold_rect,
-                Some(data.config.get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)),
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                ),
             );
 
-            
             let (svg, svg_color) = data.config.file_svg(path);
             let rect =
                 Size::new(svg_size, svg_size)
@@ -561,7 +563,7 @@ impl Widget<LapceTabData> for SearchContent {
                 .unwrap_or("")
                 .to_string();
             if !folder.is_empty() {
-                let x = text_layout.size().width + self.line_height*2.0 + 5.0;
+                let x = text_layout.size().width + self.line_height * 2.0 + 5.0;
 
                 let text_layout = ctx
                     .text()
@@ -586,14 +588,14 @@ impl Widget<LapceTabData> for SearchContent {
                     ),
                 );
             }
-            
+
             if !fold {
                 for (line_number, (start, end), line) in matches {
                     i += 1;
                     if i > max {
                         return;
                     }
-    
+
                     let whitespace_count: usize =
                         if data.config.ui.trim_search_results_whitespace() {
                             line.chars()
@@ -603,7 +605,7 @@ impl Widget<LapceTabData> for SearchContent {
                         } else {
                             0
                         };
-    
+
                     if i >= min {
                         let mut text_layout = ctx
                             .text()
@@ -618,7 +620,9 @@ impl Widget<LapceTabData> for SearchContent {
                             )
                             .text_color(
                                 data.config
-                                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                                    .get_color_unchecked(
+                                        LapceTheme::EDITOR_FOREGROUND,
+                                    )
                                     .clone(),
                             );
                         let prefix = line_number.to_string().len() + 2;
