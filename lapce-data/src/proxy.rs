@@ -386,6 +386,7 @@ impl LapceProxy {
             LapceWorkspaceType::RemoteSSH(ssh) => {
                 self.start_remote(SshRemote { ssh })?;
             }
+            #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL => {
                 let distro = WslDistro::all()?
                     .into_iter()
@@ -873,12 +874,14 @@ impl Remote for SshRemote {
     }
 }
 
+#[cfg(windows)]
 #[derive(Debug)]
 struct WslDistro {
     pub name: String,
     pub default: bool,
 }
 
+#[cfg(windows)]
 impl WslDistro {
     fn all() -> Result<Vec<WslDistro>> {
         let cmd = new_command("wsl")
@@ -913,10 +916,12 @@ impl WslDistro {
     }
 }
 
+#[cfg(windows)]
 struct WslRemote {
     distro: String,
 }
 
+#[cfg(windows)]
 impl Remote for WslRemote {
     fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
         let mut wsl_path = Path::new(r"\\wsl.localhost\").join(&self.distro);

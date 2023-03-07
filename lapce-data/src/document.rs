@@ -1372,12 +1372,19 @@ impl Document {
         config: &LapceConfig,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let old_cursor = cursor.mode.clone();
+        let auto_closing = config.editor.auto_closing_matching_pairs
+            && match self.content {
+                BufferContent::File(_) => true,
+                BufferContent::Local(_) => false,
+                BufferContent::SettingsValue(_) => false,
+                BufferContent::Scratch(_, _) => true,
+            };
         let deltas = Editor::insert(
             cursor,
             &mut self.buffer,
             s,
             self.syntax.as_ref(),
-            config.editor.auto_closing_matching_pairs,
+            auto_closing,
         );
         // Keep track of the change in the cursor mode for undo/redo
         self.buffer_mut().set_cursor_before(old_cursor);
