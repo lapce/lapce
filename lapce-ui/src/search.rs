@@ -6,6 +6,7 @@ use druid::{
     LayoutCtx, LifeCycle, LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect,
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
+use indexmap::IndexMap;
 use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{
@@ -310,6 +311,7 @@ pub fn new_search_panel(data: &LapceTabData) -> LapcePanel {
 struct SearchContent {
     mouse_pos: Point,
     line_height: f64,
+    file_folds: IndexMap<PathBuf, bool>,
 }
 
 impl SearchContent {
@@ -317,11 +319,12 @@ impl SearchContent {
         Self {
             mouse_pos: Point::ZERO,
             line_height: 25.0,
+            file_folds: IndexMap::new(),
         }
     }
 
     fn mouse_down(
-        &self,
+        &mut self,
         ctx: &mut EventCtx,
         mouse_event: &MouseEvent,
         data: &LapceTabData,
@@ -334,30 +337,42 @@ impl SearchContent {
                 i += matches.len() + 1;
                 continue;
             }
-
-            for (line_number, (start, _end), _line) in matches {
-                i += 1;
-                if i == n {
-                    ctx.submit_command(Command::new(
-                        LAPCE_UI_COMMAND,
-                        LapceUICommand::JumpToLineColLocation(
-                            None,
-                            EditorLocation {
-                                path: path.clone(),
-                                position: Some(LineCol {
-                                    line: line_number.saturating_sub(1),
-                                    column: *start,
-                                }),
-                                scroll_offset: None,
-                                history: None,
-                            },
-                            false,
-                        ),
-                        Target::Widget(data.id),
-                    ));
-                    return;
+            let fold = if let Some(fold) = self.file_folds.get(path) {
+                *fold
+            } else {
+                false
+            };
+            if i == n {
+                self.file_folds.insert(path.clone(), !fold);
+                ctx.request_paint();
+                break;
+            }
+            if !fold {
+                for (line_number, (start, _end), _line) in matches {
+                    i += 1;
+                    if i == n {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::JumpToLineColLocation(
+                                None,
+                                EditorLocation {
+                                    path: path.clone(),
+                                    position: Some(LineCol {
+                                        line: line_number.saturating_sub(1),
+                                        column: *start,
+                                    }),
+                                    scroll_offset: None,
+                                    history: None,
+                                },
+                                false,
+                            ),
+                            Target::Widget(data.id),
+                        ));
+                        return;
+                    }
                 }
             }
+
             i += 1;
         }
     }
@@ -381,7 +396,7 @@ impl Widget<LapceTabData> for SearchContent {
             Event::MouseMove(mouse_event) => {
                 self.mouse_pos = mouse_event.pos;
                 ctx.set_cursor(&Cursor::Pointer);
-                ctx.request_paint();
+                ctx.request_layout();
             }
             Event::MouseDown(mouse_event) => {
                 self.mouse_down(ctx, mouse_event, data);
@@ -407,6 +422,10 @@ impl Widget<LapceTabData> for SearchContent {
         _env: &Env,
     ) {
         if !old_data.search.matches.same(&data.search.matches) {
+            self.file_folds.clear();
+            for (p, _) in data.search.matches.iter() {
+                self.file_folds.insert(p.clone(), false);
+            }
             ctx.request_layout();
         }
     }
@@ -422,7 +441,18 @@ impl Widget<LapceTabData> for SearchContent {
             .search
             .matches
             .iter()
-            .map(|(_, matches)| matches.len() + 1)
+            .map(|(path, matches)| {
+                let fold = if let Some(fold) = self.file_folds.get(path) {
+                    *fold
+                } else {
+                    false
+                };
+                if fold {
+                    1
+                } else {
+                    matches.len() + 1
+                }
+            })
             .sum::<usize>();
 
         let height = self.line_height * n as f64;
@@ -455,12 +485,41 @@ impl Widget<LapceTabData> for SearchContent {
             }
 
             let svg_size = data.config.ui.icon_size() as f64;
+            let fold = if let Some(fold) = self.file_folds.get(path) {
+                *fold
+            } else {
+                false
+            };
+            let fold_icon_name = if !fold {
+                LapceIcons::ITEM_OPENED
+            } else {
+                LapceIcons::ITEM_CLOSED
+            };
+            let fold_svg = data.config.ui_svg(fold_icon_name);
+
+            let fold_rect =
+                Size::new(svg_size, svg_size)
+                    .to_rect()
+                    .with_origin(Point::new(
+                        (self.line_height - svg_size) / 2.0,
+                        self.line_height * i as f64
+                            + (self.line_height - svg_size) / 2.0,
+                    ));
+            ctx.draw_svg(
+                &fold_svg,
+                fold_rect,
+                Some(
+                    data.config
+                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                ),
+            );
+
             let (svg, svg_color) = data.config.file_svg(path);
             let rect =
                 Size::new(svg_size, svg_size)
                     .to_rect()
                     .with_origin(Point::new(
-                        (self.line_height - svg_size) / 2.0,
+                        (self.line_height - svg_size) / 2.0 + self.line_height,
                         self.line_height * i as f64
                             + (self.line_height - svg_size) / 2.0,
                     ));
@@ -485,7 +544,7 @@ impl Widget<LapceTabData> for SearchContent {
             ctx.draw_text(
                 &text_layout,
                 Point::new(
-                    self.line_height,
+                    self.line_height * 2.0,
                     self.line_height * i as f64
                         + text_layout.y_offset(self.line_height),
                 ),
@@ -504,7 +563,7 @@ impl Widget<LapceTabData> for SearchContent {
                 .unwrap_or("")
                 .to_string();
             if !folder.is_empty() {
-                let x = text_layout.size().width + self.line_height + 5.0;
+                let x = text_layout.size().width + self.line_height * 2.0 + 5.0;
 
                 let text_layout = ctx
                     .text()
@@ -530,59 +589,63 @@ impl Widget<LapceTabData> for SearchContent {
                 );
             }
 
-            for (line_number, (start, end), line) in matches {
-                i += 1;
-                if i > max {
-                    return;
-                }
+            if !fold {
+                for (line_number, (start, end), line) in matches {
+                    i += 1;
+                    if i > max {
+                        return;
+                    }
 
-                let whitespace_count: usize =
-                    if data.config.ui.trim_search_results_whitespace() {
-                        line.chars()
-                            .take_while(|ch| ch.is_whitespace() && *ch != '\n')
-                            .map(|ch| ch.len_utf8())
-                            .sum()
-                    } else {
-                        0
-                    };
+                    let whitespace_count: usize =
+                        if data.config.ui.trim_search_results_whitespace() {
+                            line.chars()
+                                .take_while(|ch| ch.is_whitespace() && *ch != '\n')
+                                .map(|ch| ch.len_utf8())
+                                .sum()
+                        } else {
+                            0
+                        };
 
-                if i >= min {
-                    let mut text_layout = ctx
-                        .text()
-                        .new_text_layout(format!(
-                            "{}: {}",
-                            line_number,
-                            &line[whitespace_count..]
-                        ))
-                        .font(
-                            data.config.ui.font_family(),
-                            data.config.ui.font_size() as f64,
-                        )
-                        .text_color(
-                            data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                                .clone(),
+                    if i >= min {
+                        let mut text_layout = ctx
+                            .text()
+                            .new_text_layout(format!(
+                                "{}: {}",
+                                line_number,
+                                &line[whitespace_count..]
+                            ))
+                            .font(
+                                data.config.ui.font_family(),
+                                data.config.ui.font_size() as f64,
+                            )
+                            .text_color(
+                                data.config
+                                    .get_color_unchecked(
+                                        LapceTheme::EDITOR_FOREGROUND,
+                                    )
+                                    .clone(),
+                            );
+                        let prefix = line_number.to_string().len() + 2;
+                        text_layout = text_layout.range_attribute(
+                            *start + prefix - whitespace_count
+                                ..*end + prefix - whitespace_count,
+                            TextAttribute::TextColor(focus_color.clone()),
                         );
-                    let prefix = line_number.to_string().len() + 2;
-                    text_layout = text_layout.range_attribute(
-                        *start + prefix - whitespace_count
-                            ..*end + prefix - whitespace_count,
-                        TextAttribute::TextColor(focus_color.clone()),
-                    );
-                    text_layout = text_layout.range_attribute(
-                        *start + prefix - whitespace_count
-                            ..*end + prefix - whitespace_count,
-                        TextAttribute::Weight(FontWeight::BOLD),
-                    );
-                    let text_layout = text_layout.build().unwrap();
-                    ctx.draw_text(
-                        &text_layout,
-                        Point::new(
-                            self.line_height,
-                            self.line_height * i as f64
-                                + text_layout.y_offset(self.line_height),
-                        ),
-                    );
+                        text_layout = text_layout.range_attribute(
+                            *start + prefix - whitespace_count
+                                ..*end + prefix - whitespace_count,
+                            TextAttribute::Weight(FontWeight::BOLD),
+                        );
+                        let text_layout = text_layout.build().unwrap();
+                        ctx.draw_text(
+                            &text_layout,
+                            Point::new(
+                                self.line_height,
+                                self.line_height * i as f64
+                                    + text_layout.y_offset(self.line_height),
+                            ),
+                        );
+                    }
                 }
             }
             i += 1;
