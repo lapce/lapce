@@ -26,6 +26,18 @@ impl DiffBox {
     pub fn new(parent_view_id: WidgetId) -> Self {
         let icons = vec![
             LapceIcon {
+                icon: LapceIcons::FILE,
+                rect: Rect::ZERO,
+                command: Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::OpenSourceFile),
+                        data: None,
+                    },
+                    Target::Widget(parent_view_id),
+                ),
+            },
+            LapceIcon {
                 icon: LapceIcons::SEARCH_BACKWARD,
                 rect: Rect::ZERO,
                 command: Command::new(
