@@ -282,7 +282,6 @@ impl EditorData {
                 }
             }
             FocusCommand::SplitExchange => {
-                println!("split exchage");
                 if let Some(editor_tab_id) = self.editor_tab_id {
                     self.internal_command
                         .set(Some(InternalCommand::SplitExchange { editor_tab_id }));
@@ -575,7 +574,6 @@ impl EditorData {
             });
             return;
         }
-        println!("offset {offset} start offset {start_offset} input {input}");
 
         if self.completion.with_untracked(|completion| {
             completion.status != CompletionStatus::Inactive
@@ -608,7 +606,6 @@ impl EditorData {
         }
 
         self.completion.update(|completion| {
-            println!("new completion");
             completion.path = path.clone();
             completion.offset = start_offset;
             completion.input = input.clone();
@@ -689,7 +686,6 @@ impl EditorData {
                                 &selection,
                                 additional_edit,
                                 start_offset,
-                                edit_start,
                             )?;
                             return Ok(());
                         }
@@ -725,7 +721,6 @@ impl EditorData {
         selection: &Selection,
         additional_edit: Vec<(Selection, &str)>,
         start_offset: usize,
-        edit_start: usize,
     ) -> Result<()> {
         let snippet = Snippet::from_str(snippet)?;
         let text = snippet.text();
@@ -746,13 +741,6 @@ impl EditorData {
             .unwrap();
 
         let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
-
-        let start_offset = additional_edit
-            .iter()
-            .map(|(selection, _)| selection.min_offset())
-            .min()
-            .map(|offset| offset.min(start_offset).min(edit_start))
-            .unwrap_or(start_offset);
 
         let mut transformer = Transformer::new(&delta);
         let offset = transformer.transform(start_offset, false);

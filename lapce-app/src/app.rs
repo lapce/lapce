@@ -1503,6 +1503,7 @@ fn palette_content(cx: AppContext, window_tab_data: WindowTabData) -> impl View 
     let index = window_tab_data.palette.index.read_only();
     let config = window_tab_data.palette.config;
     let run_id = window_tab_data.palette.run_id;
+    let input = window_tab_data.palette.input.read_only();
     let palette_item_height = 24.0;
     container(cx, |cx| {
         scroll(cx, |cx| {
@@ -1510,7 +1511,9 @@ fn palette_content(cx: AppContext, window_tab_data: WindowTabData) -> impl View 
                 cx,
                 VirtualListDirection::Vertical,
                 move || PaletteItems(items.get()),
-                move |(i, _item)| (run_id.get_untracked(), *i),
+                move |(i, _item)| {
+                    (run_id.get_untracked(), *i, input.get_untracked().input)
+                },
                 move |cx, (i, item)| {
                     palette_item(cx, i, item, index, palette_item_height, config)
                 },
@@ -1636,15 +1639,14 @@ fn completion(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     let completion_data = window_tab_data.completion;
     let config = window_tab_data.config;
     let active = completion_data.with_untracked(|c| c.active);
-    let request_id = create_memo(cx.scope, move |_| {
-        completion_data.with(|c| (c.request_id, c.input_id))
-    });
+    let request_id =
+        move || completion_data.with_untracked(|c| (c.request_id, c.input_id));
     scroll(cx, move |cx| {
         virtual_list(
             cx,
             VirtualListDirection::Vertical,
             move || completion_data.with(|c| VectorItems(c.filtered_items.clone())),
-            move |(i, item)| (request_id.get_untracked(), *i),
+            move |(i, item)| (request_id(), *i),
             move |cx, (i, item)| {
                 stack(cx, |cx| {
                     (

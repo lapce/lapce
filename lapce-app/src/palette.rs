@@ -62,19 +62,32 @@ pub enum PaletteStatus {
     Done,
 }
 
+#[derive(Clone, Debug)]
+pub struct PaletteInput {
+    pub input: String,
+    pub kind: PaletteKind,
+}
+
+impl PaletteInput {
+    pub fn update_input(&mut self, input: String) {
+        self.kind = self.kind.get_palette_kind(&input);
+        self.input = self.kind.get_input(&input).to_string();
+    }
+}
+
 #[derive(Clone)]
 pub struct PaletteData {
     run_id_counter: Arc<AtomicU64>,
     run_tx: Sender<(u64, String, im::Vector<PaletteItem>)>,
     internal_command: WriteSignal<Option<InternalCommand>>,
-    pub run_id: ReadSignal<u64>,
+    pub run_id: RwSignal<u64>,
     pub workspace: Arc<LapceWorkspace>,
     pub status: RwSignal<PaletteStatus>,
     pub index: RwSignal<usize>,
-    pub kind: RwSignal<PaletteKind>,
     pub items: RwSignal<im::Vector<PaletteItem>>,
     pub filtered_items: ReadSignal<im::Vector<PaletteItem>>,
     pub proxy_rpc: ProxyRpcHandler,
+    pub input: RwSignal<PaletteInput>,
     pub editor: EditorData,
     pub focus: RwSignal<Focus>,
     pub keypress: ReadSignal<KeyPressData>,
@@ -95,9 +108,15 @@ impl PaletteData {
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
         let status = create_rw_signal(cx.scope, PaletteStatus::Inactive);
-        let kind = create_rw_signal(cx.scope, PaletteKind::File);
         let items = create_rw_signal(cx.scope, im::Vector::new());
         let index = create_rw_signal(cx.scope, 0);
+        let input = create_rw_signal(
+            cx.scope,
+            PaletteInput {
+                input: "".to_string(),
+                kind: PaletteKind::File,
+            },
+        );
         let editor = EditorData::new_local(
             cx,
             EditorId::next(),
@@ -107,19 +126,43 @@ impl PaletteData {
             proxy_rpc.clone(),
             config,
         );
+        let run_id = create_rw_signal(cx.scope, 0);
         let run_id_counter = Arc::new(AtomicU64::new(0));
 
         let (run_tx, run_rx) = crossbeam_channel::unbounded();
         {
-            let run_id = run_id_counter.clone();
-            let doc = editor.doc.read_only();
+            let run_id = run_id.read_only();
+            let input = input.read_only();
             let items = items.read_only();
             let tx = run_tx.clone();
-            create_effect(cx.scope, move |_| {
-                let run_id = run_id.fetch_add(1, Ordering::Relaxed) + 1;
-                let input = doc.with(|doc| doc.buffer().text().to_string());
-                let items = items.get();
-                let _ = tx.send((run_id, input, items));
+
+            {
+                let tx = tx.clone();
+                // this effect only monitors items change
+                create_effect(cx.scope, move |_| {
+                    let items = items.get();
+                    println!("filter items when items change");
+                    let input = input.get_untracked();
+                    let run_id = run_id.get_untracked();
+                    let _ = tx.send((run_id, input.input, items));
+                });
+            }
+
+            // this effect only monitors input change
+            create_effect(cx.scope, move |last_kind| {
+                let input = input.get();
+                println!("new input {input:?}");
+                let kind = input.kind;
+                if last_kind != Some(kind) {
+                    println!("got new kind {kind:?}");
+                    return kind;
+                }
+
+                println!("filter items when input change");
+                let items = items.get_untracked();
+                let run_id = run_id.get_untracked();
+                let _ = tx.send((run_id, input.input, items));
+                kind
             });
         }
 
@@ -131,20 +174,18 @@ impl PaletteData {
             });
         }
 
-        let (run_id, set_run_id) = create_signal(cx.scope, 0);
-
         let (filtered_items, set_filtered_items) =
             create_signal(cx.scope, im::Vector::new());
         {
             let resp = create_signal_from_channel(cx, resp_rx);
-            let run_id = run_id_counter.clone();
+            let run_id = run_id.read_only();
+            let input = input.read_only();
             let index = index.write_only();
             create_effect(cx.scope, move |_| {
-                if let Some((current_run_id, items)) = resp.get() {
-                    if run_id.load(std::sync::atomic::Ordering::Acquire)
-                        == current_run_id
+                if let Some((filter_run_id, filter_input, items)) = resp.get() {
+                    if run_id.get_untracked() == filter_run_id
+                        && input.get_untracked().input == filter_input
                     {
-                        set_run_id.set(current_run_id);
                         set_filtered_items.set(items);
                         index.set(0);
                     }
@@ -152,7 +193,7 @@ impl PaletteData {
             });
         }
 
-        Self {
+        let palette = Self {
             run_id_counter,
             run_tx,
             internal_command,
@@ -160,26 +201,80 @@ impl PaletteData {
             focus,
             workspace,
             status,
-            kind,
             index,
             items,
             filtered_items,
             editor,
+            input,
             proxy_rpc,
             keypress,
             config,
             executed_commands: Rc::new(RefCell::new(HashMap::new())),
+        };
+
+        {
+            let palette = palette.clone();
+            let doc = palette.editor.doc.read_only();
+            let input = palette.input.write_only();
+            let status = palette.status.read_only();
+            // this effect monitors the document change in the palette input editor
+            create_effect(cx.scope, move |last_input| {
+                let new_input = doc.with(|doc| doc.buffer().text().to_string());
+                let status = status.get_untracked();
+                if status == PaletteStatus::Inactive {
+                    // If the status is inactive, we set the input to None,
+                    // so that when we actually run the palette, the input
+                    // can be compared with this None.
+                    return None;
+                }
+
+                let last_input_is_none = !matches!(last_input, Some(Some(_)));
+
+                let changed = match last_input {
+                    None => true,
+                    Some(last_input) => {
+                        Some(new_input.as_str()) != last_input.as_deref()
+                    }
+                };
+
+                if changed {
+                    let new_kind = input
+                        .update_returning(|input| {
+                            let kind = input.kind;
+                            input.update_input(new_input.clone());
+                            if last_input_is_none || kind != input.kind {
+                                Some(input.kind)
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap();
+                    if let Some(new_kind) = new_kind {
+                        palette.run_inner(cx, new_kind);
+                    }
+                }
+                Some(new_input)
+            });
         }
+
+        palette
     }
 
     pub fn run(&self, cx: AppContext, kind: PaletteKind) {
         self.status.set(PaletteStatus::Started);
+        let symbol = kind.symbol();
         self.editor
             .doc
-            .update(|doc| doc.reload(Rope::from(""), true));
+            .update(|doc| doc.reload(Rope::from(symbol), true));
         self.editor
             .cursor
-            .update(|cursor| cursor.set_insert(Selection::caret(0)));
+            .update(|cursor| cursor.set_insert(Selection::caret(symbol.len())));
+    }
+
+    fn run_inner(&self, cx: AppContext, kind: PaletteKind) {
+        println!("palette run inner");
+        let run_id = self.run_id_counter.fetch_add(1, Ordering::Relaxed) + 1;
+        self.run_id.set(run_id);
         match kind {
             PaletteKind::File => {
                 self.get_files(cx);
@@ -188,7 +283,6 @@ impl PaletteData {
                 self.get_commands(cx);
             }
         }
-        self.kind.set(kind);
     }
 
     fn get_files(&self, cx: AppContext) {
@@ -299,13 +393,13 @@ impl PaletteData {
     fn cancel(&self, cx: AppContext) {
         self.status.set(PaletteStatus::Inactive);
         self.focus.set(Focus::Workbench);
+        self.items.update(|items| items.clear());
         self.editor
             .doc
             .update(|doc| doc.reload(Rope::from(""), true));
         self.editor
             .cursor
             .update(|cursor| cursor.set_insert(Selection::caret(0)));
-        self.items.update(|items| items.clear());
     }
 
     fn next(&self) {
@@ -384,9 +478,11 @@ impl PaletteData {
         }
 
         filtered_items.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Less)
+            let order = b.score.cmp(&a.score);
+            match order {
+                std::cmp::Ordering::Equal => a.filter_text.cmp(&b.filter_text),
+                _ => order,
+            }
         });
 
         if run_id.load(std::sync::atomic::Ordering::Acquire) != current_run_id {
@@ -398,7 +494,7 @@ impl PaletteData {
     fn update_process(
         run_id: Arc<AtomicU64>,
         receiver: Receiver<(u64, String, im::Vector<PaletteItem>)>,
-        resp_tx: Sender<(u64, im::Vector<PaletteItem>)>,
+        resp_tx: Sender<(u64, String, im::Vector<PaletteItem>)>,
     ) {
         fn receive_batch(
             receiver: &Receiver<(u64, String, im::Vector<PaletteItem>)>,
@@ -428,7 +524,7 @@ impl PaletteData {
                     items,
                     &matcher,
                 ) {
-                    let _ = resp_tx.send((current_run_id, filtered_items));
+                    let _ = resp_tx.send((current_run_id, input, filtered_items));
                 }
             } else {
                 return;

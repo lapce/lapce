@@ -75,7 +75,6 @@ impl CompletionData {
             return;
         }
 
-        println!("receive completion");
         let items = match resp {
             CompletionResponse::Array(items) => items,
             CompletionResponse::List(list) => &list.items,

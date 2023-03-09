@@ -1587,7 +1587,7 @@ dependencies = [
  "leptos_reactive",
  "once_cell",
  "parking_lot 0.12.1",
- "parley 0.1.0 (git+https://github.com/lapce/parley?rev=421e5c1eb07d108a9c05da4f021a34f5bd6532cd)",
+ "parley 0.1.0 (git+https://github.com/lapce/parley?rev=dd30cc9e4ae733d80650ad3ab0db0462ccd67e57)",
  "rustc-hash",
  "smallvec",
  "taffy",
@@ -1733,8 +1733,9 @@ dependencies = [
 [[package]]
 name = "fount"
 version = "0.1.0"
-source = "git+https://github.com/lapce/fount?rev=0ac37ef400d4048e2dbebe34b1a74f55dab4654d#0ac37ef400d4048e2dbebe34b1a74f55dab4654d"
+source = "git+https://github.com/lapce/fount?rev=7952647649c119be454691764c20768330a6e8f2#7952647649c119be454691764c20768330a6e8f2"
 dependencies = [
+ "peniko",
  "swash 0.1.6 (git+https://github.com/dfrg/swash)",
 ]
 
@@ -4201,9 +4202,9 @@ dependencies = [
 [[package]]
 name = "parley"
 version = "0.1.0"
-source = "git+https://github.com/lapce/parley?rev=421e5c1eb07d108a9c05da4f021a34f5bd6532cd#421e5c1eb07d108a9c05da4f021a34f5bd6532cd"
+source = "git+https://github.com/lapce/parley?rev=dd30cc9e4ae733d80650ad3ab0db0462ccd67e57#dd30cc9e4ae733d80650ad3ab0db0462ccd67e57"
 dependencies = [
- "fount 0.1.0 (git+https://github.com/lapce/fount?rev=0ac37ef400d4048e2dbebe34b1a74f55dab4654d)",
+ "fount 0.1.0 (git+https://github.com/lapce/fount?rev=7952647649c119be454691764c20768330a6e8f2)",
  "once_cell",
  "swash 0.1.6 (git+https://github.com/dfrg/swash)",
 ]
@@ -4257,7 +4258,7 @@ checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
 [[package]]
 name = "peniko"
 version = "0.1.0"
-source = "git+https://github.com/linebender/peniko?rev=8cb710f#8cb710ffcb0f04fa24648440f9b9fb038174a341"
+source = "git+https://github.com/linebender/peniko?rev=cafdac9a211a0fb2fec5656bd663d1ac770bcc81#cafdac9a211a0fb2fec5656bd663d1ac770bcc81"
 dependencies = [
  "kurbo 0.9.0",
  "smallvec",
@@ -6575,8 +6576,8 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "vello"
-version = "0.1.0"
-source = "git+https://github.com/linebender/vello#020a7f5c016ab5c572cefbe169f19082a0e34ffe"
+version = "0.0.1"
+source = "git+https://github.com/linebender/vello?rev=2f268d4e0f8596c2c05f4982ddc558e1cae0ffa2#2f268d4e0f8596c2c05f4982ddc558e1cae0ffa2"
 dependencies = [
  "bytemuck",
  "futures-intrusive",
@@ -6590,8 +6591,8 @@ dependencies = [
 
 [[package]]
 name = "vello_svg"
-version = "0.1.0"
-source = "git+https://github.com/linebender/vello#020a7f5c016ab5c572cefbe169f19082a0e34ffe"
+version = "0.0.1"
+source = "git+https://github.com/linebender/vello?rev=2f268d4e0f8596c2c05f4982ddc558e1cae0ffa2#2f268d4e0f8596c2c05f4982ddc558e1cae0ffa2"
 dependencies = [
  "usvg 0.28.0",
  "vello",
