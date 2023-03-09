@@ -1526,7 +1526,7 @@ impl LapceEditor {
             .slice_to_cow(region.min()..region.max())
             .to_string();
 
-        if !selection.is_empty() {
+        if !selection.trim().is_empty() {
             let cursor_offset = data.editor.cursor.offset();
             let start_line = *screen_lines.lines.first().unwrap();
             let end_line = *screen_lines.lines.last().unwrap();
