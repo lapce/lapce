@@ -1532,11 +1532,8 @@ impl LapceEditor {
             let end_line = *screen_lines.lines.last().unwrap();
             let start = data.doc.buffer().offset_of_line(start_line);
             let end = data.doc.buffer().offset_of_line(end_line + 1);
-            data.doc.update_selection_find(
-                &selection,
-                start_line,
-                end_line,
-            );
+            data.doc
+                .update_selection_find(&selection, start_line, end_line);
             for region in data
                 .doc
                 .selection_find

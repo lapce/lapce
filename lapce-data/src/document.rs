@@ -3011,17 +3011,12 @@ impl Document {
         start_line: usize,
         end_line: usize,
     ) {
-        // {
-        //     let find = self.selection_find.borrow();
-        //     if find.search_string == Some(selection.to_string()) {
-        //         return;
-        //     }
-        // }
-
         let mut selection_find = self.selection_find.borrow_mut();
-        selection_find.unset();
-        selection_find.search_string = Some(selection.to_string());
-        *self.selection_find_progress.borrow_mut() = FindProgress::Started;
+        if selection_find.search_string != Some(selection.to_string()) {
+            selection_find.unset();
+            selection_find.search_string = Some(selection.to_string());
+            *self.selection_find_progress.borrow_mut() = FindProgress::Started;
+        }
 
         let mut find_progress = self.selection_find_progress.borrow_mut();
         let search_range = match &find_progress.clone() {
