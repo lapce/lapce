@@ -881,6 +881,7 @@ impl LapceEditor {
 
         Self::paint_current_line(ctx, data, &screen_lines);
         Self::paint_cursor_new(ctx, data, &screen_lines, is_focused, env);
+        Self::paint_selection_find(ctx, data, &screen_lines);
         Self::paint_find(ctx, data, &screen_lines);
         Self::paint_text(ctx, data, &screen_lines);
         Self::paint_diagnostics(ctx, data, &screen_lines);
@@ -1479,6 +1480,125 @@ impl LapceEditor {
                             );
                         }
                     }
+                }
+            }
+        }
+    }
+
+    fn paint_selection_find(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        screen_lines: &ScreenLines,
+    ) {
+        if !data.editor.content.is_file() {
+            return;
+        }
+        if screen_lines.lines.is_empty() {
+            return;
+        }
+        if !data.config.editor.highlight_selection_occurrences {
+            return;
+        }
+        let region = match &data.editor.cursor.mode {
+            lapce_core::cursor::CursorMode::Normal(offset) => {
+                lapce_core::selection::SelRegion::caret(*offset)
+            }
+            lapce_core::cursor::CursorMode::Visual {
+                start,
+                end,
+                mode: _,
+            } => lapce_core::selection::SelRegion::new(
+                *start.min(end),
+                data.doc.buffer().next_grapheme_offset(
+                    *start.max(end),
+                    1,
+                    data.doc.buffer().len(),
+                ),
+                None,
+            ),
+            lapce_core::cursor::CursorMode::Insert(selection) => {
+                *selection.last_inserted().unwrap()
+            }
+        };
+        let selection = data
+            .doc
+            .buffer()
+            .slice_to_cow(region.min()..region.max())
+            .to_string();
+
+        if !selection.trim().is_empty() {
+            let cursor_offset = data.editor.cursor.offset();
+            let start_line = *screen_lines.lines.first().unwrap();
+            let end_line = *screen_lines.lines.last().unwrap();
+            let start = data.doc.buffer().offset_of_line(start_line);
+            let end = data.doc.buffer().offset_of_line(end_line + 1);
+            data.doc
+                .update_selection_find(&selection, start_line, end_line);
+            for region in data
+                .doc
+                .selection_find
+                .borrow()
+                .occurrences()
+                .regions_in_range(start, end)
+            {
+                let start = region.min();
+                let end = region.max();
+                let active = start <= cursor_offset && cursor_offset <= end;
+                let (start_line, start_col) =
+                    data.doc.buffer().offset_to_line_col(start);
+                let (end_line, end_col) = data.doc.buffer().offset_to_line_col(end);
+                for line in &screen_lines.lines {
+                    let line = *line;
+                    if line < start_line {
+                        continue;
+                    }
+                    if line > end_line {
+                        break;
+                    }
+
+                    let info = screen_lines.info.get(&line).unwrap();
+
+                    let left_col = if line == start_line { start_col } else { 0 };
+                    let right_col = if line == end_line {
+                        end_col
+                    } else {
+                        data.doc.buffer().line_end_col(line, true) + 1
+                    };
+
+                    let phantom_text =
+                        data.doc.line_phantom_text(&data.config, line);
+                    let left_col = phantom_text.col_at(left_col);
+                    let right_col = phantom_text.col_at(right_col);
+
+                    let text_layout = data.doc.get_text_layout(
+                        ctx.text(),
+                        line,
+                        info.font_size,
+                        &data.config,
+                    );
+                    let x0 =
+                        text_layout.text.hit_test_text_position(left_col).point.x;
+                    let x1 =
+                        text_layout.text.hit_test_text_position(right_col).point.x;
+                    let y0 = info.y;
+                    let y1 = info.y + info.line_height;
+                    let rect = Rect::new(x0 + info.x, y0, x1 + info.x, y1);
+                    if active {
+                        ctx.fill(
+                            rect,
+                            &data
+                                .config
+                                .get_color_unchecked(LapceTheme::EDITOR_CARET)
+                                .clone()
+                                .with_alpha(0.5),
+                        );
+                    }
+                    ctx.stroke(
+                        rect,
+                        data.config
+                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                        1.0,
+                    );
                 }
             }
         }

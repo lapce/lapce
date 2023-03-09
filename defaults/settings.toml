@@ -25,6 +25,7 @@ hover-delay = 300                       # ms
 modal-mode-relative-line-numbers = true
 format-on-save = false
 highlight-matching-brackets = true
+highlight-selection-occurrences = true
 highlight-scope-lines = false
 autosave-interval = 0
 format-on-autosave = true
