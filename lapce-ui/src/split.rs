@@ -17,7 +17,7 @@ use lapce_data::{
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap},
     panel::PanelKind,
     split::{SplitDirection, SplitMoveDirection},
-    terminal::LapceTerminalData,
+    terminal::LapceTerminalData, palette::PaletteStatus,
 };
 use lapce_rpc::terminal::TermId;
 
@@ -1073,6 +1073,19 @@ impl Widget<LapceTabData> for LapceSplit {
                             ));
                             return;
                         }
+                    }
+                    if mouse_event.button.is_left() && mouse_event.count == 2 && data.palette.status == PaletteStatus::Inactive {
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Workbench(
+                                    LapceWorkbenchCommand::NewFile,
+                                ),
+                                data: None,
+                            },
+                            Target::Auto,
+                        ));
+                        return;
                     }
                 }
             }
