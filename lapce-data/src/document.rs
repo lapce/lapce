@@ -3011,12 +3011,12 @@ impl Document {
         start_line: usize,
         end_line: usize,
     ) {
-        {
-            let find = self.selection_find.borrow();
-            if find.search_string == Some(selection.to_string()) {
-                return;
-            }
-        }
+        // {
+        //     let find = self.selection_find.borrow();
+        //     if find.search_string == Some(selection.to_string()) {
+        //         return;
+        //     }
+        // }
 
         let mut selection_find = self.selection_find.borrow_mut();
         selection_find.unset();
