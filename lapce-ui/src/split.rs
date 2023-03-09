@@ -15,6 +15,7 @@ use lapce_data::{
     config::{LapceConfig, LapceTheme},
     data::{FocusArea, LapceEditorData, LapceTabData, SplitContent, SplitData},
     keypress::{Alignment, DefaultKeyPressHandler, KeyMap},
+    palette::PaletteStatus,
     panel::PanelKind,
     split::{SplitDirection, SplitMoveDirection},
     terminal::LapceTerminalData,
@@ -1073,6 +1074,22 @@ impl Widget<LapceTabData> for LapceSplit {
                             ));
                             return;
                         }
+                    }
+                    if mouse_event.button.is_left()
+                        && mouse_event.count == 2
+                        && data.palette.status == PaletteStatus::Inactive
+                    {
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Workbench(
+                                    LapceWorkbenchCommand::NewFile,
+                                ),
+                                data: None,
+                            },
+                            Target::Auto,
+                        ));
+                        return;
                     }
                 }
             }
