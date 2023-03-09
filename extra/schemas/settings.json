@@ -233,6 +233,9 @@
                 "highlight-matching-brackets": {
                     "type": "boolean"
                 },
+                "highlight-selection-occurrences": {
+                    "type": "boolean"
+                },
                 "autosave-interval": {
                     "type": "integer"
                 },

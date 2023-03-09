@@ -408,6 +408,9 @@ pub struct EditorConfig {
     #[field_names(desc = "If matching brackets are highlighted")]
     pub highlight_matching_brackets: bool,
 
+    #[field_names(desc = "If all occurrences of the selected text are highlighted")]
+    pub highlight_selection_occurrences: bool,
+
     #[field_names(desc = "If scope lines are highlighted")]
     pub highlight_scope_lines: bool,
 
