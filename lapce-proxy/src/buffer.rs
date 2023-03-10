@@ -54,7 +54,11 @@ impl Buffer {
                 ext
             },
         );
-        let path = self.path.canonicalize()?;
+        let path = if self.path.is_symlink() {
+            self.path.canonicalize()?
+        } else {
+            self.path.clone()
+        };
         let tmp_path = &path.with_extension(tmp_extension);
 
         let mut f = File::create(tmp_path)?;
