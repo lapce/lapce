@@ -6,6 +6,7 @@
 
 ### Bug Fixes
 - [#2209](https://github.com/lapce/lapce/pull/2209): Fix macOS crashes
+- [#2228](https://github.com/lapce/lapce/pull/2228): Fix `.desktop` entry to properly associate with Lapce on Wayland
 
 ## 0.2.6
 
