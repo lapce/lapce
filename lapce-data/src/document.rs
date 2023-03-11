@@ -168,6 +168,7 @@ pub enum BufferContent {
     /// name
     Scratch(BufferId, String),
 }
+
 impl BufferContent {
     pub fn path(&self) -> Option<&Path> {
         if let BufferContent::File(p) = self {
