@@ -242,7 +242,9 @@ impl LapceData {
         {
             let local_event_sink = event_sink.clone();
             std::thread::spawn(move || loop {
-                if let Ok(release) = crate::update::get_latest_release() {
+                if let Ok(release) =
+                    crate::update::get_latest_release(config.core.web_proxy.clone())
+                {
                     let _ = local_event_sink.submit_command(
                         LAPCE_UI_COMMAND,
                         LapceUICommand::UpdateLatestRelease(release),
@@ -709,6 +711,7 @@ impl LapceTabData {
             config.plugins.clone(),
             term_sender.clone(),
             event_sink.clone(),
+            &config.core.web_proxy,
         ));
         let title = Arc::new(TitleData::new(config.clone()));
         let palette = Arc::new(PaletteData::new(config.clone(), proxy.clone()));
@@ -725,6 +728,7 @@ impl LapceTabData {
             disabled_volts,
             workspace_disabled_volts,
             event_sink.clone(),
+            config.core.web_proxy.clone(),
         ));
         let file_explorer = Arc::new(FileExplorerData::new(
             tab_id,
@@ -1300,6 +1304,7 @@ impl LapceTabData {
                                 LapceUICommand::RestartToUpdate(
                                     process_path,
                                     release,
+                                    self.config.core.web_proxy.clone(),
                                 ),
                                 Target::Global,
                             ));

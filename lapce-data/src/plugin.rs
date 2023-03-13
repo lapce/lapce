@@ -70,7 +70,7 @@ impl VoltsList {
         }
     }
 
-    pub fn update_query(&mut self, query: String) {
+    pub fn update_query(&mut self, query: String, web_proxy: String) {
         if self.query == query {
             return;
         }
@@ -84,12 +84,13 @@ impl VoltsList {
         let query = self.query.clone();
         let tab_id = self.tab_id;
         std::thread::spawn(move || {
-            let _ =
-                PluginData::load_volts(tab_id, true, &query, 0, None, event_sink);
+            let _ = PluginData::load_volts(
+                tab_id, true, &query, 0, None, event_sink, web_proxy,
+            );
         });
     }
 
-    pub fn load_more(&self) {
+    pub fn load_more(&self, web_proxy: String) {
         if self.all_loaded() {
             return;
         }
@@ -113,6 +114,7 @@ impl VoltsList {
                 offset,
                 Some(local_loading),
                 event_sink,
+                web_proxy,
             );
         });
     }
@@ -170,11 +172,12 @@ impl PluginData {
         disabled: Vec<VoltID>,
         workspace_disabled: Vec<VoltID>,
         event_sink: ExtEventSink,
+        web_proxy: String,
     ) -> Self {
         {
             let event_sink = event_sink.clone();
             std::thread::spawn(move || {
-                Self::load(tab_id, event_sink);
+                Self::load(tab_id, event_sink, web_proxy);
             });
         }
 
@@ -193,7 +196,7 @@ impl PluginData {
         }
     }
 
-    fn load(tab_id: WidgetId, event_sink: ExtEventSink) {
+    fn load(tab_id: WidgetId, event_sink: ExtEventSink, web_proxy: String) {
         for meta in find_all_volts() {
             if meta.wasm.is_none() {
                 let icon = volt_icon(&meta);
@@ -206,7 +209,9 @@ impl PluginData {
         }
 
         std::thread::spawn(move || {
-            let _ = PluginData::load_volts(tab_id, true, "", 0, None, event_sink);
+            let _ = PluginData::load_volts(
+                tab_id, true, "", 0, None, event_sink, web_proxy,
+            );
         });
     }
 
@@ -238,7 +243,7 @@ impl PluginData {
         }
     }
 
-    fn load_icon(volt: &VoltInfo) -> Result<VoltIconKind> {
+    fn load_icon(volt: &VoltInfo, web_proxy: String) -> Result<VoltIconKind> {
         let url = format!(
             "https://plugins.lapce.dev/api/v1/plugins/{}/{}/{}/icon?id={}",
             volt.author, volt.name, volt.version, volt.updated_at_ts
@@ -257,7 +262,8 @@ impl PluginData {
         let content = match cache_content {
             Some(content) => content,
             None => {
-                let resp = reqwest::blocking::get(&url)?;
+                let client = lapce_proxy::net::Client::new(web_proxy)?;
+                let resp = client.get(url).send()?;
                 if !resp.status().is_success() {
                     return Err(anyhow::anyhow!("can't download icon"));
                 }
@@ -281,15 +287,17 @@ impl PluginData {
         offset: usize,
         loading: Option<Arc<Mutex<bool>>>,
         event_sink: ExtEventSink,
+        web_proxy: String,
     ) -> Result<()> {
-        match PluginData::query_volts(query, offset) {
+        match PluginData::query_volts(query, offset, web_proxy.clone()) {
             Ok(info) => {
                 for v in info.plugins.iter() {
                     {
                         let volt = v.clone();
                         let event_sink = event_sink.clone();
+                        let web_proxy = web_proxy.clone();
                         std::thread::spawn(move || -> Result<()> {
-                            let icon = Self::load_icon(&volt)?;
+                            let icon = Self::load_icon(&volt, web_proxy)?;
                             let _ = event_sink.submit_command(
                                 LAPCE_UI_COMMAND,
                                 LapceUICommand::LoadPluginIcon(volt.id(), icon),
@@ -322,11 +330,17 @@ impl PluginData {
         Ok(())
     }
 
-    fn query_volts(query: &str, offset: usize) -> Result<PluginsInfo> {
+    fn query_volts(
+        query: &str,
+        offset: usize,
+        web_proxy: String,
+    ) -> Result<PluginsInfo> {
         let url = format!(
             "https://plugins.lapce.dev/api/v1/plugins?q={query}&offset={offset}"
         );
-        let plugins: PluginsInfo = reqwest::blocking::get(url)?.json()?;
+
+        let client = lapce_proxy::net::Client::new(web_proxy)?;
+        let plugins: PluginsInfo = client.get(url).send()?.json()?;
         Ok(plugins)
     }
 
@@ -340,7 +354,10 @@ impl PluginData {
             "https://plugins.lapce.dev/api/v1/plugins/{}/{}/{}/readme",
             volt.author, volt.name, volt.version
         );
-        let resp = reqwest::blocking::get(url)?;
+
+        let web_proxy = config.core.web_proxy.clone();
+        let client = lapce_proxy::net::Client::new(web_proxy)?;
+        let resp = client.get(url).send()?;
         if resp.status() != 200 {
             let text = parse_markdown("Plugin doesn't have a README", 2.0, config);
             let _ = event_sink.submit_command(
@@ -360,14 +377,18 @@ impl PluginData {
         Ok(())
     }
 
-    pub fn install_volt(proxy: Arc<LapceProxy>, volt: VoltInfo) -> Result<()> {
+    pub fn install_volt(
+        proxy: Arc<LapceProxy>,
+        volt: VoltInfo,
+        web_proxy: String,
+    ) -> Result<()> {
         proxy.core_rpc.volt_installing(volt.clone(), "".to_string());
 
         if volt.wasm {
-            proxy.proxy_rpc.install_volt(volt);
+            proxy.proxy_rpc.install_volt(volt, web_proxy);
         } else {
             std::thread::spawn(move || -> Result<()> {
-                let download_volt_result = download_volt(&volt);
+                let download_volt_result = download_volt(&volt, web_proxy);
                 if let Err(err) = download_volt_result {
                     log::warn!("download_volt err: {err:?}");
                     proxy.core_rpc.volt_installing(

@@ -2,6 +2,7 @@
 
 pub mod buffer;
 pub mod dispatch;
+pub mod net;
 pub mod plugin;
 pub mod terminal;
 pub mod watcher;

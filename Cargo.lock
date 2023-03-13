@@ -2560,6 +2560,7 @@ version = "0.2.6"
 dependencies = [
  "lapce-proxy",
  "lapce-ui",
+ "url",
 ]
 
 [[package]]

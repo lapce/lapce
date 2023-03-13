@@ -788,7 +788,7 @@ pub enum LapceUICommand {
     /// Switch to the previous editor tab (in terms of order, not usage)
     PreviousEditorTab,
     /// Restart Lapce at the given path so that we can apply the update
-    RestartToUpdate(PathBuf, ReleaseInfo),
+    RestartToUpdate(PathBuf, ReleaseInfo, String),
     UpdateStarted,
     UpdateFailed,
     /// Create a new Lapce window

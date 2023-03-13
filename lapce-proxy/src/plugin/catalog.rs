@@ -348,15 +348,20 @@ impl PluginCatalog {
                 }
                 self.plugins.insert(plugin.plugin_id, plugin);
             }
-            InstallVolt(volt) => {
+            InstallVolt(volt, web_proxy) => {
                 let workspace = self.workspace.clone();
                 let configurations =
                     self.plugin_configurations.get(&volt.name).cloned();
                 let catalog_rpc = self.plugin_rpc.clone();
                 let _ = catalog_rpc.stop_volt(volt.clone());
                 thread::spawn(move || {
-                    let _ =
-                        install_volt(catalog_rpc, workspace, configurations, volt);
+                    let _ = install_volt(
+                        catalog_rpc,
+                        workspace,
+                        configurations,
+                        volt,
+                        web_proxy,
+                    );
                 });
             }
             ReloadVolt(volt) => {

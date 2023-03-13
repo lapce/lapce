@@ -33,14 +33,15 @@ strum_macros.workspace = true
 tar.workspace = true
 thiserror.workspace = true
 toml_edit.workspace = true
+url.workspace = true
 
 lsp-types.workspace = true
 
 lapce-xi-rope.workspace = true
 
 lapce-core.workspace = true
-lapce-rpc.workspace = true
 lapce-proxy.workspace = true
+lapce-rpc.workspace = true
 
 druid.workspace = true
 
@@ -54,7 +55,6 @@ structdesc = { git = "https://github.com/lapce/structdesc" }
 bytemuck = "1.8.0"
 # For parsing markdown data, such as in hovers
 pulldown-cmark = "0.9.1"
-url = "2.3.1"
 
 [target.'cfg(target_os="macos")'.dependencies]
 dmg = "0.1.1"

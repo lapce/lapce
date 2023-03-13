@@ -19,7 +19,7 @@ pub struct ReleaseAsset {
     pub browser_download_url: String,
 }
 
-pub fn get_latest_release() -> Result<ReleaseInfo> {
+pub fn get_latest_release(web_proxy: String) -> Result<ReleaseInfo> {
     let url = match *meta::RELEASE {
         "Debug" => {
             return Err(anyhow!("no release for debug"));
@@ -30,11 +30,9 @@ pub fn get_latest_release() -> Result<ReleaseInfo> {
         _ => "https://api.github.com/repos/lapce/lapce/releases/latest",
     };
 
-    let resp = reqwest::blocking::ClientBuilder::new()
-        .user_agent("Lapce")
-        .build()?
-        .get(url)
-        .send()?;
+    let client = lapce_proxy::net::Client::new(web_proxy)?;
+
+    let resp = client.get(url).send()?;
     if !resp.status().is_success() {
         return Err(anyhow!("get release info failed {}", resp.text()?));
     }
@@ -48,7 +46,10 @@ pub fn get_latest_release() -> Result<ReleaseInfo> {
     Ok(release)
 }
 
-pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
+pub fn download_release(
+    release: &ReleaseInfo,
+    web_proxy: String,
+) -> Result<PathBuf> {
     let dir =
         Directory::updates_directory().ok_or_else(|| anyhow!("no directory"))?;
     let name = match std::env::consts::OS {
@@ -64,7 +65,8 @@ pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
 
     for asset in &release.assets {
         if asset.name == name {
-            let mut resp = reqwest::blocking::get(&asset.browser_download_url)?;
+            let client = lapce_proxy::net::Client::new(web_proxy)?;
+            let mut resp = client.get(&asset.browser_download_url).send()?;
             if !resp.status().is_success() {
                 return Err(anyhow!("download file error {}", resp.text()?));
             }

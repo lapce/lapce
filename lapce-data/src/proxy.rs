@@ -25,10 +25,11 @@ use lapce_rpc::{
     RequestId, RpcMessage,
 };
 use lapce_xi_rope::Rope;
-use lsp_types::{LogMessageParams, MessageType, Url};
+use lsp_types::{LogMessageParams, MessageType};
 use parking_lot::Mutex;
 use serde_json::Value;
 use thiserror::Error;
+use url::Url;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
@@ -306,6 +307,7 @@ impl CoreHandler for LapceProxy {
 }
 
 impl LapceProxy {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         window_id: WindowId,
         tab_id: WidgetId,
@@ -314,6 +316,7 @@ impl LapceProxy {
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         term_tx: Sender<(TermId, TermEvent)>,
         event_sink: ExtEventSink,
+        web_proxy: &str,
     ) -> Self {
         let proxy_rpc = ProxyRpcHandler::new();
         let core_rpc = CoreRpcHandler::new();
@@ -327,19 +330,31 @@ impl LapceProxy {
         };
 
         let local_proxy = proxy.clone();
+        let web_proxy = web_proxy.to_string();
         thread::spawn(move || {
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ProxyUpdateStatus(ProxyStatus::Connecting),
                 Target::Widget(tab_id),
             );
-            let _ = local_proxy.start(
+            if let Err(e) = local_proxy.start(
                 workspace.clone(),
                 disabled_volts,
                 plugin_configurations,
                 window_id.to_usize(),
                 tab_id.to_usize(),
-            );
+                web_proxy,
+            ) {
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::NewMessage {
+                        kind: MessageType::ERROR,
+                        title: String::from("Failed to connect to remote host"),
+                        message: e.to_string(),
+                    },
+                    Target::Widget(tab_id),
+                );
+            };
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ProxyUpdateStatus(ProxyStatus::Disconnected),
@@ -357,6 +372,7 @@ impl LapceProxy {
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
+        web_proxy: String,
     ) -> Result<()> {
         self.proxy_rpc.initialize(
             workspace.path.clone(),
@@ -377,7 +393,7 @@ impl LapceProxy {
                 });
             }
             LapceWorkspaceType::RemoteSSH(ssh) => {
-                self.start_remote(SshRemote { ssh })?;
+                self.start_remote(SshRemote { ssh }, web_proxy)?;
             }
             #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL => {
@@ -386,7 +402,7 @@ impl LapceProxy {
                     .find(|distro| distro.default)
                     .ok_or_else(|| anyhow!("no default distro found"))?
                     .name;
-                self.start_remote(WslRemote { distro })?;
+                self.start_remote(WslRemote { distro }, web_proxy)?;
             }
         }
 
@@ -396,7 +412,7 @@ impl LapceProxy {
         Ok(())
     }
 
-    fn start_remote(&self, remote: impl Remote) -> Result<()> {
+    fn start_remote(&self, remote: impl Remote, web_proxy: String) -> Result<()> {
         let proxy_version = match *meta::RELEASE {
             "Debug" | "Nightly" => "nightly".to_string(),
             _ => format!("v{}", *meta::VERSION),
@@ -546,7 +562,8 @@ impl LapceProxy {
                 }
                 let url = format!("https://github.com/lapce/lapce/releases/download/{proxy_version}/{proxy_filename}.gz");
                 log::debug!(target: "lapce_data::proxy::start_remote", "proxy download URI: {url}");
-                let mut resp = reqwest::blocking::get(url).expect("request failed");
+                let client = lapce_proxy::net::Client::new(web_proxy)?;
+                let mut resp = client.get(url).send()?;
                 if resp.status().is_success() {
                     let mut out = std::fs::File::create(&local_proxy_file)
                         .expect("failed to create file");

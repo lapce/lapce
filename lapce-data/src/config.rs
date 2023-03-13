@@ -332,7 +332,7 @@ pub trait GetConfig {
     fn get_config(&self) -> &LapceConfig;
 }
 
-#[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(FieldNames, Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct CoreConfig {
     #[field_names(desc = "Enable modal editing (Vim like)")]
@@ -345,6 +345,8 @@ pub struct CoreConfig {
         desc = "Enable customised titlebar and disable OS native one (Linux, BSD, Windows)"
     )]
     pub custom_titlebar: bool,
+    #[field_names(desc = "Address of proxy to use for web requests")]
+    pub web_proxy: String,
 }
 
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
@@ -934,7 +936,7 @@ pub struct DropdownInfo {
     pub items: im::Vector<String>,
 }
 
-#[derive(Clone, Deserialize, Default)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct LapceConfig {
     #[serde(skip)]

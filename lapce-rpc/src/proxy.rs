@@ -200,6 +200,7 @@ pub enum ProxyNotification {
     },
     InstallVolt {
         volt: VoltInfo,
+        web_proxy: String,
     },
     RemoveVolt {
         volt: VoltMetadata,
@@ -448,8 +449,8 @@ impl ProxyRpcHandler {
         self.notification(ProxyNotification::GitCheckout { branch });
     }
 
-    pub fn install_volt(&self, volt: VoltInfo) {
-        self.notification(ProxyNotification::InstallVolt { volt });
+    pub fn install_volt(&self, volt: VoltInfo, web_proxy: String) {
+        self.notification(ProxyNotification::InstallVolt { volt, web_proxy });
     }
 
     pub fn reload_volt(&self, volt: VoltMetadata) {

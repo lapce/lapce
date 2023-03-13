@@ -692,16 +692,22 @@ impl AppDelegate<LapceData> for LapceAppDelegate {
                     LapceUICommand::UpdateFailed => {
                         data.update_in_process = false;
                     }
-                    LapceUICommand::RestartToUpdate(process_path, release) => {
+                    LapceUICommand::RestartToUpdate(
+                        process_path,
+                        release,
+                        web_proxy,
+                    ) => {
                         let _ = data.db.save_app(data);
                         let process_path = process_path.clone();
                         let release = release.clone();
                         let event_sink = ctx.get_external_handle();
+                        let web_proxy = web_proxy.clone();
                         std::thread::spawn(move || {
                             let do_update = || -> anyhow::Result<()> {
                                 log::info!("start to down new versoin");
-                                let src =
-                                    lapce_data::update::download_release(&release)?;
+                                let src = lapce_data::update::download_release(
+                                    &release, web_proxy,
+                                )?;
 
                                 log::info!("start to extract");
                                 let path = lapce_data::update::extract(
