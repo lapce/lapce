@@ -933,7 +933,6 @@ pub enum LapceUICommand {
     },
     /// Informs the editor about the locations for requested references
     PaletteReferences(usize, Vec<Location>),
-    GotoLocation(Location),
     /// Update the current file highlighted in the explorer panel
     ActiveFileChanged {
         path: Option<PathBuf>,
