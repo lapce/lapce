@@ -112,11 +112,6 @@ command = "delete_word_forward"
 mode = "i"
 
 [[keymaps]]
-key = "shift+delete"
-command = "delete_line"
-mode = "i"
-
-[[keymaps]]
 key = "ctrl+|"
 command = "match_pairs"
 mode = "i"
