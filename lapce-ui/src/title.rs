@@ -532,7 +532,9 @@ impl Title {
                 format!(" [SSH: {}]", ssh.host)
             }
             #[cfg(windows)]
-            LapceWorkspaceType::RemoteWSL => " [WSL]".to_string(),
+            LapceWorkspaceType::RemoteWSL(distro) => {
+                format!(" [WSL: {}]", distro)
+            }
         };
         let text = format!("{path}{remote}");
         let text_layout = piet_text

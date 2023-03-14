@@ -108,7 +108,7 @@ fn workspace_title(workspace: &LapceWorkspace) -> Option<String> {
         LapceWorkspaceType::Local => format!("{dir}"),
         LapceWorkspaceType::RemoteSSH(ssh) => format!("{dir} [{ssh}]"),
         #[cfg(windows)]
-        LapceWorkspaceType::RemoteWSL => format!("{dir} [wsl]"),
+        LapceWorkspaceType::RemoteWSL(distro) => format!("{dir} [WSL: {distro}]"),
     })
 }
 

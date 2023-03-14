@@ -27,6 +27,7 @@ use lapce_rpc::{
 use lapce_xi_rope::Rope;
 use lsp_types::{LogMessageParams, MessageType, Url};
 use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
@@ -425,12 +426,7 @@ impl LapceProxy {
                 self.start_remote(SshRemote { ssh })?;
             }
             #[cfg(windows)]
-            LapceWorkspaceType::RemoteWSL => {
-                let distro = WslDistro::all()?
-                    .into_iter()
-                    .find(|distro| distro.default)
-                    .ok_or_else(|| anyhow!("no default distro found"))?
-                    .name;
+            LapceWorkspaceType::RemoteWSL(distro) => {
                 self.start_remote(WslRemote { distro })?;
             }
         }
@@ -910,15 +906,15 @@ impl Remote for SshRemote {
 }
 
 #[cfg(windows)]
-#[derive(Debug)]
-struct WslDistro {
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WslDistro {
     pub name: String,
     pub default: bool,
 }
 
 #[cfg(windows)]
 impl WslDistro {
-    fn all() -> Result<Vec<WslDistro>> {
+    pub fn all() -> Result<Vec<WslDistro>> {
         let cmd = new_command("wsl")
             .arg("-l")
             .arg("-v")

@@ -604,8 +604,8 @@ impl ListPaint<PaletteListData> for PaletteItem {
                         format!("[{ssh}] {text}")
                     }
                     #[cfg(windows)]
-                    LapceWorkspaceType::RemoteWSL => {
-                        format!("[wsl] {text}")
+                    LapceWorkspaceType::RemoteWSL(distro) => {
+                        format!("[WSL: {distro}] {text}")
                     }
                 };
                 PaletteItemPaintInfo::new_text(text, self.indices.to_vec())
@@ -700,6 +700,14 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     keymap: None,
                 }
             }
+            PaletteItemContent::WslDistro(distro) => PaletteItemPaintInfo::new_text(
+                if distro.default {
+                    format!("{distro} (default)")
+                } else {
+                    format!("{distro}")
+                },
+                self.indices.to_vec(),
+            ),
         };
 
         let line_height = data.line_height() as f64;

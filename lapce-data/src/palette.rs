@@ -46,7 +46,7 @@ use crate::{
     keypress::{KeyMap, KeyPressData, KeyPressFocus},
     list::ListData,
     panel::PanelKind,
-    proxy::{path_from_url, LapceProxy},
+    proxy::{path_from_url, LapceProxy, WslDistro},
     source_control::SourceControlData,
     terminal::TerminalPanelData,
 };
@@ -64,6 +64,7 @@ pub enum PaletteType {
     ColorTheme,
     IconTheme,
     SshHost,
+    WslDistro,
     Language,
     RunAndDebug,
 }
@@ -82,6 +83,7 @@ impl PaletteType {
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::SshHost
+            | PaletteType::WslDistro
             | PaletteType::RunAndDebug
             | PaletteType::Language => "",
         }
@@ -155,6 +157,7 @@ pub enum PaletteItemContent {
     Workspace(LapceWorkspace),
     SshHost(SshHost),
     RunAndDebug(RunDebugMode, RunDebugConfig),
+    WslDistro(WslDistro),
     Command(LapceCommand),
     ColorTheme(String),
     IconTheme(String),
@@ -313,6 +316,19 @@ impl PaletteItemContent {
                             mode: *mode,
                             config: config.clone(),
                         },
+                        Target::Auto,
+                    ));
+                }
+            }
+            PaletteItemContent::WslDistro(distro) => {
+                if !preview {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SetWorkspace(LapceWorkspace {
+                            kind: LapceWorkspaceType::RemoteWSL(distro.name.clone()),
+                            path: None,
+                            last_open: 0,
+                        }),
                         Target::Auto,
                     ));
                 }
@@ -536,7 +552,8 @@ impl PaletteData {
             | PaletteType::IconTheme
             | PaletteType::Language
             | PaletteType::RunAndDebug
-            | PaletteType::SshHost => &self.input,
+            | PaletteType::SshHost
+            | PaletteType::WslDistro => &self.input,
             PaletteType::Line
             | PaletteType::DocumentSymbol
             | PaletteType::WorkspaceSymbol
@@ -677,6 +694,9 @@ impl PaletteViewData {
             }
             PaletteType::SshHost => {
                 self.get_ssh_hosts(ctx);
+            }
+            PaletteType::WslDistro => {
+                self.get_wsl_distros(ctx);
             }
             PaletteType::GlobalSearch => {
                 self.get_global_search(ctx);
@@ -1004,6 +1024,21 @@ impl PaletteViewData {
             .collect();
     }
 
+    fn get_wsl_distros(&mut self, _ctx: &mut EventCtx) {
+        let palette = Arc::make_mut(&mut self.palette);
+        if let Ok(distros) = WslDistro::all() {
+            palette.total_items = distros
+                .iter()
+                .map(|distro| PaletteItem {
+                    content: PaletteItemContent::WslDistro(distro.clone()),
+                    filter_text: distro.name.clone(),
+                    score: if distro.default { 1 } else { 0 },
+                    indices: vec![],
+                })
+                .collect();
+        }
+    }
+
     fn get_workspaces(&mut self, _ctx: &mut EventCtx) {
         let workspaces = self.db.recent_workspaces().unwrap_or_default();
         let palette = Arc::make_mut(&mut self.palette);
@@ -1017,8 +1052,8 @@ impl PaletteViewData {
                         format!("[{ssh}] {text}")
                     }
                     #[cfg(windows)]
-                    LapceWorkspaceType::RemoteWSL => {
-                        format!("[wsl] {text}")
+                    LapceWorkspaceType::RemoteWSL(distro) => {
+                        format!("[WSL: {distro}] {text}")
                     }
                 };
                 Some(PaletteItem {

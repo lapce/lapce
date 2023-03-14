@@ -155,7 +155,7 @@ impl LapceData {
                     if !env::var("WSL_DISTRO_NAME").unwrap_or_default().is_empty()
                         || !env::var("WSL_INTEROP").unwrap_or_default().is_empty()
                     {
-                        LapceWorkspaceType::RemoteWSL
+                        LapceWorkspaceType::RemoteWSL(String::from(""))
                     } else {
                         LapceWorkspaceType::Local
                     };
@@ -1966,15 +1966,13 @@ impl LapceTabData {
                 ));
             }
             #[cfg(windows)]
-            LapceWorkbenchCommand::ConnectWsl => ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::SetWorkspace(LapceWorkspace {
-                    kind: LapceWorkspaceType::RemoteWSL,
-                    path: None,
-                    last_open: 0,
-                }),
-                Target::Auto,
-            )),
+            LapceWorkbenchCommand::ConnectWsl => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::WslDistro)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
             LapceWorkbenchCommand::DisconnectRemote => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
@@ -4810,7 +4808,7 @@ pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(SshHost),
     #[cfg(windows)]
-    RemoteWSL,
+    RemoteWSL(String),
 }
 
 impl LapceWorkspaceType {
@@ -4818,7 +4816,7 @@ impl LapceWorkspaceType {
     pub fn is_remote(&self) -> bool {
         matches!(
             self,
-            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL
+            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL(_)
         )
     }
 
@@ -4836,7 +4834,9 @@ impl std::fmt::Display for LapceWorkspaceType {
                 write!(f, "ssh://{ssh}")
             }
             #[cfg(windows)]
-            LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
+            LapceWorkspaceType::RemoteWSL(distro) => {
+                write!(f, "WSL: {distro}")
+            }
         }
     }
 }
