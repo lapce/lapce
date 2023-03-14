@@ -702,9 +702,9 @@ impl ListPaint<PaletteListData> for PaletteItem {
             }
             PaletteItemContent::WslDistro(distro) => PaletteItemPaintInfo::new_text(
                 if distro.default {
-                    format!("{distro} (default)")
+                    format!("{} (default)", distro.name)
                 } else {
-                    format!("{distro}")
+                    format!("{}", distro.name)
                 },
                 self.indices.to_vec(),
             ),
