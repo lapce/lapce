@@ -437,7 +437,6 @@ pub struct Document {
     pub syntax_selection_range: Option<SyntaxSelectionRanges>,
     /// Information about the selection find.
     pub selection_find: Rc<RefCell<Find>>,
-    selection_find_progress: Rc<RefCell<FindProgress>>,
     /// Information about the file-specific find box
     pub find: Rc<RefCell<Find>>,
     find_progress: Rc<RefCell<FindProgress>>,
@@ -493,7 +492,6 @@ impl Document {
             ime_text: None,
             ime_pos: (0, 0, 0),
             selection_find: Rc::new(RefCell::new(selection_find)),
-            selection_find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             find: Rc::new(RefCell::new(Find::new(0))),
             find_progress: Rc::new(RefCell::new(FindProgress::Ready)),
             event_sink,
@@ -3009,82 +3007,6 @@ impl Document {
         find.regex = current_find.regex.clone();
         find.whole_words = current_find.whole_words;
         *self.find_progress.borrow_mut() = FindProgress::Started;
-    }
-
-    pub fn update_selection_find(
-        &self,
-        selection: &str,
-        start_line: usize,
-        end_line: usize,
-    ) {
-        let mut selection_find = self.selection_find.borrow_mut();
-        if selection_find.search_string != Some(selection.to_string()) {
-            selection_find.unset();
-            selection_find.search_string = Some(selection.to_string());
-            *self.selection_find_progress.borrow_mut() = FindProgress::Started;
-        }
-
-        let mut find_progress = self.selection_find_progress.borrow_mut();
-        let search_range = match &find_progress.clone() {
-            FindProgress::Started => {
-                // start incremental find on visible region
-                let start = self.buffer.offset_of_line(start_line);
-                let end = self.buffer.offset_of_line(end_line + 1);
-                *find_progress =
-                    FindProgress::InProgress(Selection::region(start, end));
-                Some((start, end))
-            }
-            FindProgress::InProgress(searched_range) => {
-                if searched_range.regions().len() == 1
-                    && searched_range.min_offset() == 0
-                    && searched_range.max_offset() >= self.buffer.len()
-                {
-                    // the entire text has been searched
-                    // end find by executing multi-line regex queries on entire text
-                    // stop incremental find
-                    *find_progress = FindProgress::Ready;
-                    Some((0, self.buffer.len()))
-                } else {
-                    let start = self.buffer.offset_of_line(start_line);
-                    let end = self.buffer.offset_of_line(end_line + 1);
-                    let mut range = Some((start, end));
-                    for region in searched_range.regions() {
-                        if region.min() <= start && region.max() >= end {
-                            range = None;
-                            break;
-                        }
-                    }
-                    if range.is_some() {
-                        let mut new_range = searched_range.clone();
-                        new_range.add_region(SelRegion::new(start, end, None));
-                        *find_progress = FindProgress::InProgress(new_range);
-                    }
-                    range
-                }
-            }
-            _ => None,
-        };
-
-        if let Some((search_range_start, search_range_end)) = search_range {
-            if !selection_find.is_multiline_regex() {
-                selection_find.update_find(
-                    self.buffer.text(),
-                    search_range_start,
-                    search_range_end,
-                    true,
-                );
-            } else {
-                // only execute multi-line regex queries if we are searching the entire text (last step)
-                if search_range_start == 0 && search_range_end == self.buffer.len() {
-                    selection_find.update_find(
-                        self.buffer.text(),
-                        search_range_start,
-                        search_range_end,
-                        true,
-                    );
-                }
-            }
-        }
     }
 
     pub fn update_find(

@@ -276,8 +276,8 @@ impl Cursor {
         RegisterData { content, mode }
     }
 
-    /// Return the current selection start and end position for a
-    /// Single cursor selection
+    /// Returns the current selection start and end position for a
+    /// single cursor selection.
     pub fn get_selection(&self) -> Option<(usize, usize)> {
         match &self.mode {
             CursorMode::Visual {
@@ -285,11 +285,27 @@ impl Cursor {
                 end,
                 mode: _,
             } => Some((*start, *end)),
+
             CursorMode::Insert(selection) => selection
                 .regions()
                 .first()
                 .map(|region| (region.start, region.end)),
+
             _ => None,
+        }
+    }
+
+    /// Returns the [`Selection`] of the current mode.
+    pub fn as_selection(&self, buffer: &Buffer) -> Selection {
+        match &self.mode {
+            CursorMode::Normal(offset) => Selection::caret(*offset),
+
+            CursorMode::Visual { start, end, .. } => Selection::region(
+                (*start).min(*end),
+                buffer.next_grapheme_offset((*start).max(*end), 1, buffer.len()),
+            ),
+
+            CursorMode::Insert(selection) => selection.clone(),
         }
     }
 
