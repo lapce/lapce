@@ -28,6 +28,8 @@ use lapce_rpc::{
 use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
 use uuid::Uuid;
 
+#[cfg(windows)]
+use crate::proxy::WslDistro;
 use crate::{
     command::{
         CommandExecuted, CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND,
@@ -50,8 +52,6 @@ use crate::{
     source_control::SourceControlData,
     terminal::TerminalPanelData,
 };
-#[cfg(windows)]
-use crate::proxy::WslDistro;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PaletteType {

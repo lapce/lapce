@@ -708,7 +708,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 if distro.default {
                     format!("{} (default)", distro.name)
                 } else {
-                    format!("{}", distro.name)
+                    distro.name.to_string()
                 },
                 self.indices.to_vec(),
             ),
