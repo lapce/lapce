@@ -50,6 +50,8 @@ use crate::{
     source_control::SourceControlData,
     terminal::TerminalPanelData,
 };
+#[cfg(windows)]
+use crate::proxy::WslDistro;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PaletteType {

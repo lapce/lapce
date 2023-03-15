@@ -905,7 +905,7 @@ impl Remote for SshRemote {
 }
 
 #[cfg(windows)]
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WslDistro {
     pub name: String,
     pub default: bool,
