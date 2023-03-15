@@ -1601,14 +1601,18 @@ impl Document {
     pub fn find_enclosing_brackets(&self, offset: usize) -> Option<(usize, usize)> {
         self.syntax
             .with_untracked(|syntax| {
-                (!syntax.text.is_empty()).then(|| syntax.find_enclosing_pair(offset))
+                if !syntax.text.is_empty() {
+                    syntax.find_enclosing_pair(offset)
+                } else {
+                    None
+                }
             })
             // If syntax.text is empty, either the buffer is empty or we don't have syntax support
             // for the current language.
             // Try a language unaware search for enclosing brackets in case it is the latter.
-            .unwrap_or_else(|| {
+            .or_else(|| {
                 self.buffer.with_untracked(|buffer| {
-                    WordCursor::new(buffer.text(), offset).find_enclosing_pair()
+                    WordCursor::find_enclosing_pair(buffer.text(), offset)
                 })
             })
     }

@@ -681,6 +681,7 @@ impl Syntax {
         builder.build()
     }
 
+    /// Returns the matching bracket of the character at the given `offset`.
     pub fn find_matching_pair(&self, offset: usize) -> Option<usize> {
         let tree = self.layers.as_ref()?.try_tree()?;
         let node = tree
@@ -710,7 +711,7 @@ impl Syntax {
     pub fn find_tag(
         &self,
         offset: usize,
-        previous: bool,
+        find_previous: bool,
         tag: &str,
     ) -> Option<usize> {
         let tree = self.layers.as_ref()?.try_tree()?;
@@ -718,7 +719,7 @@ impl Syntax {
             .root_node()
             .descendant_for_byte_range(offset, offset + 1)?;
 
-        if let Some(offset) = self.find_tag_in_siblings(node, previous, tag) {
+        if let Some(offset) = self.find_tag_in_siblings(node, find_previous, tag) {
             return Some(offset);
         }
 
@@ -728,7 +729,9 @@ impl Syntax {
 
         let mut node = node;
         while let Some(parent) = node.parent() {
-            if let Some(offset) = self.find_tag_in_siblings(parent, previous, tag) {
+            if let Some(offset) =
+                self.find_tag_in_siblings(parent, find_previous, tag)
+            {
                 return Some(offset);
             }
             node = parent;
@@ -739,17 +742,18 @@ impl Syntax {
     fn find_tag_in_siblings(
         &self,
         node: Node,
-        previous: bool,
+        find_previous: bool,
         tag: &str,
     ) -> Option<usize> {
         let mut node = node;
-        while let Some(sibling) = if previous {
+        while let Some(sibling) = if find_previous {
             node.prev_sibling()
         } else {
             node.next_sibling()
         } {
+            let offset = sibling.start_byte();
+
             if sibling.kind() == tag {
-                let offset = sibling.start_byte();
                 return Some(offset);
             }
             node = sibling;
