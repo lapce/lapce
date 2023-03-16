@@ -1,5 +1,5 @@
 Name:           lapce-git
-Version:        0.2.6.{{{ git_dir_version }}}
+Version:        0.2.7.{{{ git_dir_version }}}
 Release:        1
 Summary:        Lightning-fast and Powerful Code Editor written in Rust
 License:        Apache-2.0

@@ -1,6 +1,6 @@
 [package]
 name = "lapce"
-version = "0.2.6"
+version = "0.2.7"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 rust-version = "1.65"
@@ -22,7 +22,7 @@ path = "lapce-proxy/src/bin/lapce-proxy.rs"
 members = ["lapce-ui", "lapce-proxy", "lapce-rpc", "lapce-data", "lapce-core"]
 
 [workspace.package]
-version = "0.2.6"
+version = "0.2.7"
 edition = "2021"
 rust-version = "1.64"
 homepage = "https://lapce.dev"
