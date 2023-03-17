@@ -2853,7 +2853,7 @@ impl Widget<LapceTabData> for LapceTabHeader {
         let tab_rect = ctx.size().to_rect();
 
         if ctx.is_hot() || self.drag_start.is_some() {
-            // Currenlty, we only paint background for the hot tab to prevent showing
+            // Currently, we only paint background for the hot tab to prevent showing
             // overlapped content on drag. In the future, we might want to:
             // - introduce a tab background color
             // - introduce a hover color
