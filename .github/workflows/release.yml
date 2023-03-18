@@ -120,6 +120,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Install make
+        run: |
+          apt-get -y update
+          apt-get -y install make
+
       - run: make release-dir >> $GITHUB_ENV
 
       - name: Install dependencies
