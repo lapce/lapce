@@ -135,7 +135,9 @@ jobs:
         run: make ubuntu-dependencies
 
       - name: Install Rust toolchain
-        run: make rustup
+        run: |
+          make rustup
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Fetch dependencies
         run: make fetch
