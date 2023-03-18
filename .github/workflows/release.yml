@@ -37,7 +37,7 @@ jobs:
         run: |
           TAG_NAME=${{ github.ref }}
           echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
-          
+
       - if: github.event_name == 'pull_request'
         run: echo 'TAG_NAME=debug' >> $GITHUB_ENV
 
@@ -68,10 +68,10 @@ jobs:
         run: rustup update
         
       - name: Fetch dependencies
-        run: cargo fetch --locked
+        run: make fetch
 
       - name: Build
-        run: cargo build --frozen --profile release-lto
+        run: make build
 
       - name: Install WiX
         run: nuget install WiX -Version 3.11.2
@@ -81,20 +81,20 @@ jobs:
           ./WiX.*/tools/candle.exe -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
             -out "./lapce.wixobj" "extra/windows/wix/lapce.wxs"
           ./WiX.*/tools/light.exe -ext WixUIExtension -ext WixUtilExtension \
-            -out "./Lapce-windows.msi" -sice:ICE61 -sice:ICE91 \
+            -out "./target/release-lto/windows/Lapce-windows.msi" -sice:ICE61 -sice:ICE91 \
             "./lapce.wixobj"
 
       - name: Create portable
         shell: pwsh
         run: |
           cargo build --profile release-lto --features lapce-ui/portable
-          Compress-Archive ./target/release-lto/lapce.exe ./Lapce-windows-portable.zip
+          Compress-Archive ./target/release-lto/lapce.exe ./target/release-lto/windows/Lapce-windows-portable.zip
 
       - name: Create lapce-proxy archive
         shell: pwsh
         run: |
           $file = [System.IO.File]::Open((Join-Path $PWD '.\target\release-lto\lapce-proxy.exe'), [System.IO.FileMode]::Open)
-          $archive = [System.IO.File]::Create((Join-Path $PWD '.\lapce-proxy-windows-x86_64.gz'))
+          $archive = [System.IO.File]::Create((Join-Path $PWD '.\target\release-lto\lapce-proxy-windows-x86_64.gz'))
           $compressor = [System.IO.Compression.GZipStream]::new($archive, [System.IO.Compression.CompressionMode]::Compress)
           $file.CopyTo($compressor)
           Start-Sleep -Seconds 10
@@ -104,9 +104,9 @@ jobs:
         with:
           name: lapce-windows
           path: |
-            ./lapce-proxy-windows-*.gz
-            ./Lapce-windows-portable.zip
-            ./Lapce-windows.msi
+            ./target/release-lto/windows/lapce-proxy-windows-*.gz
+            ./target/release-lto/windows/Lapce-windows-portable.zip
+            ./target/release-lto/windows/Lapce-windows.msi
           retention-days: 1
 
   linux:
@@ -120,40 +120,31 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - run: make release-dir >> $GITHUB_ENV
+
       - name: Install dependencies
-        run: |
-          apt-get -y update
-          apt-get -y install cmake pkg-config libfontconfig-dev libgtk-3-dev
-      
+        run: make ubuntu-dependencies
+
       - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: x86_64-unknown-linux-gnu
-          profile: minimal
+        run: make rustup
 
       - name: Fetch dependencies
-        run: cargo fetch --locked
+        run: make fetch
 
       - name: Vendor dependencies
-        run: |
-          cargo vendor --frozen
-          tar -zcvf ./vendor.tar.gz ./vendor/
+        run: make vendor
 
       - name: Build
-        run: cargo build --frozen --profile release-lto --bin lapce
+        run: make build
 
       - name: Gzip
-        run: |
-          mkdir Lapce
-          cp ./target/release-lto/lapce Lapce/
-          tar -zcvf ./Lapce-linux.tar.gz Lapce
+        run: make tarball
 
       - uses: actions/upload-artifact@v3
         with:
           name: lapce-linux
           path: |
-            ./Lapce-linux.tar.gz
+            ./${{ env.RELEASE_DIR }}/Lapce-linux.tar.gz
             ./vendor.tar.gz
           retention-days: 1
 
@@ -311,7 +302,12 @@ jobs:
       # before running, and would therefore delete the downloaded artifacts
       - uses: actions/checkout@v3
 
+      - name: Source release directory
+        run: make release-dir >> $GITHUB_ENV
+
       - uses: actions/download-artifact@v3
+        with:
+          path: ${{ env.RELEASE_DIR }}
 
       - if: github.event_name == 'workflow_dispatch'
         run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
@@ -355,13 +351,12 @@ jobs:
         env:
           DEBUG: api
         run: |
-          sha512sum ./lapce-{macos,linux,windows,proxy-}*/* vendor.tar.gz > checksums.sha512
+          sha512sum ${{ env.RELEASE_DIR }}/*/* > ${{ env.RELEASE_DIR }}/checksums.sha512
           gh release create \
             $DRAFT \
             $TAG_NAME \
             $PRERELEASE \
             --title "$TAG_NAME" \
             --target $GITHUB_SHA \
-            ./lapce-{macos,linux,windows,proxy-}*/* \
-            vendor.tar.gz \
-            checksums.sha512
+            ${{ env.RELEASE_DIR }}/*/* \
+            ${{ env.RELEASE_DIR }}/checksums.sha512

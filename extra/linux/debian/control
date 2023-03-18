@@ -1,0 +1,5 @@
+Package: %NAME%
+Version: %VERSION%
+Maintainer: Jakub Panek
+Architecture: %ARCHITECTURE%
+Description: Lightning-fast and Powerful Code Editor written in Rust

@@ -78,7 +78,7 @@ impl PaletteType {
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::SshHost
-            | PaletteType::Language => "".to_string(),
+            | PaletteType::Language => String::new(),
         }
     }
 

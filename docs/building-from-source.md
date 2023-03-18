@@ -1,4 +1,4 @@
-## Building from source
+# Building from source
 
 It is easy to build Lapce from source on a GNU/Linux distribution. Cargo handles the build process, all you need to do, is ensure the correct dependencies are installed.
 
@@ -6,21 +6,26 @@ It is easy to build Lapce from source on a GNU/Linux distribution. Cargo handles
 
 2. Install dependencies for your operating system:
 
-#### Ubuntu
+## Ubuntu
+
 ```sh
-sudo apt install cmake pkg-config libfontconfig-dev libgtk-3-dev g++
-```
-#### Fedora
-```sh
-sudo dnf install gcc-c++ perl-FindBin perl-File-Compare gtk3-devel
+apt install cmake pkg-config libfontconfig-dev libgtk-3-dev g++
 ```
 
-3. Clone this repository (this command will clone to your home directory):
+## Fedora
+
+```sh
+dnf install gcc-c++ perl-FindBin perl-File-Compare gtk3-devel
+```
+
+3.Clone this repository (this command will clone to your home directory):
+
 ```sh
 git clone https://github.com/lapce/lapce.git ~/lapce
 ```
 
-4. `cd` into the repository, and run the build command with the release flag
+4.`cd` into the repository, and run the build command with the release flag
+
 ```sh
 cd ~/lapce
 ```
