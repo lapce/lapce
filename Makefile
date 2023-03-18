@@ -100,7 +100,7 @@ rustup: ## Update/install rustup
 
 rustup-install:
 	@curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable
-	@source "$(HOME)/.cargo/env"
+	export PATH="$$HOME/.cargo/bin:$$PATH"
 
 fetch: ## Fetch Rust dependencies
 	@echo "Fetching dependencies"
