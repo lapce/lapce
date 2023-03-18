@@ -339,7 +339,7 @@ jobs:
           gh release delete nightly --yes || true
           git push origin :nightly || true
 
-      - if: env.TAG_NAME != 'nightly' github.event_name != 'pull_request'
+      - if: env.TAG_NAME != 'nightly' && github.event_name != 'pull_request'
         run: |
           {
             echo 'SUBJECT=Lapce release build'
