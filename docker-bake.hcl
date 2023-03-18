@@ -42,36 +42,55 @@ target "_platforms" {
     ]
 }
 
+target "_proxy_platforms" {
+    platforms = [
+        // "darwin/amd64",
+        // "darwin/arm64",
+        "linux/amd64",
+        // "linux/arm/v6",
+        // "linux/arm/v7",
+        "linux/arm64",
+        // "linux/ppc64le",
+        // "linux/riscv64",
+        // "linux/s390x",
+        // "windows/amd64",
+        // "windows/arm64"
+    ]
+}
+
 group "default" {
   targets = ["binary"]
 }
 
 target "binary" {
-    inherits = ["_common"]
-    target = "binary"
+    inherits  = ["_common"]
+    target    = "binary"
     platforms = ["local"]
-    output = ["build"]
+    output    = ["build"]
     args = {
         BASE_VARIANT = USE_GLIBC != "" ? "debian" : "alpine"
-        VERSION = VERSION
-        DEBIAN_DEPS = DEBIAN_DEPS
+        VERSION      = VERSION
+        DEBIAN_DEPS  = DEBIAN_DEPS
     }
     env = {
         CARGO_BUILD_PROFILE = "release"
     }
 }
 
-target "dynbinary" {
-    inherits = ["binary"]
-    args = {
-        GO_LINKMODE = "dynamic"
-    }
-}
-
-target "cross" {
+target "cross-binary" {
     inherits = ["binary", "_platforms"]
 }
 
-target "dynbinary-cross" {
-    inherits = ["dynbinary", "_platforms"]
+target "proxy" {
+    inherits = ["binary"]
+    target   = "proxy"
+    output   = ["proxy"]
+    args = {
+        BASE_VARIANT = "alpine"
+        VERSION      = VERSION
+    }
+}
+
+target "cross-proxy" {
+    inherits = ["proxy", "_proxy_platforms"]
 }

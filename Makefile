@@ -82,16 +82,24 @@ release-dir:
 
 dependencies: $(ID)-dependencies ## Install OS dependencies required to build Lapce
 $(ID)-dependencies: $(ID)$(VERSION_ID)-dependencies
+windows-dependencies:
+	@echo "Installing Windows dependencies"
+	@nuget install WiX
 fedora-dependencies:
+	@echo "Installing Fedora dependencies"
 	@dnf install \
 		gcc-c++ perl-FindBin perl-File-Compare gtk3-devel
 ubuntu-dependencies:
+	@echo "Installing Ubuntu dependencies"
 	@apt-get -y update
 	@apt-get -y install \
 		cmake pkg-config libfontconfig-dev libgtk-3-dev g++
 
-rustup: ## Install rustup
-	@curl https://sh.rustup.rs -sSf | sh -s -- --profile minimal --default-toolchain stable
+rustup: ## Update/install rustup
+	@rustup update || $(MAKE) rustup-install
+
+rustup-install:
+	@curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain stable
 
 fetch: ## Fetch Rust dependencies
 	@echo "Fetching dependencies"
