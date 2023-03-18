@@ -119,6 +119,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+
       - name: Install dependencies
         run: |
           apt-get -y update
@@ -134,6 +135,11 @@ jobs:
       - name: Fetch dependencies
         run: cargo fetch --locked
 
+      - name: Vendor dependencies
+        run: |
+          cargo vendor --frozen
+          tar -zcvf ./vendor.tar.gz ./vendor/
+
       - name: Build
         run: cargo build --frozen --profile release-lto --bin lapce
 
@@ -148,6 +154,7 @@ jobs:
           name: lapce-linux
           path: |
             ./Lapce-linux.tar.gz
+            ./vendor.tar.gz
           retention-days: 1
 
   linux-musl:
@@ -292,7 +299,6 @@ jobs:
           retention-days: 1
 
   publish:
-    if: github.event_name != 'pull_request'
     needs: [linux, linux-musl, windows, macos]
     runs-on: ubuntu-latest
     env:
@@ -305,8 +311,8 @@ jobs:
       # before running, and would therefore delete the downloaded artifacts
       - uses: actions/checkout@v3
 
-      - uses: actions/download-artifact@v3          
-      
+      - uses: actions/download-artifact@v3
+
       - if: github.event_name == 'workflow_dispatch'
         run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
 
@@ -318,20 +324,44 @@ jobs:
           TAG_NAME=${{ github.ref }}
           echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
 
-      - if: env.TAG_NAME == 'nightly'
+      - if: github.event_name == 'pull_request'
         run: |
-          (echo 'SUBJECT=Lapce development build';
-           echo 'PRERELEASE=--prerelease') >> $GITHUB_ENV
+          {
+            echo 'TAG_NAME='
+            echo 'SUBJECT=Lapce CI test build'
+            echo 'PRERELEASE=--prerelease'
+            echo 'DRAFT=--draft'
+          } >> $GITHUB_ENV
+
+      - if: env.TAG_NAME == 'nightly' && github.event_name != 'pull_request'
+        run: |
+          {
+            echo 'SUBJECT=Lapce development build'
+            echo 'PRERELEASE=--prerelease'
+            echo 'DRAFT='
+          } >> $GITHUB_ENV
           gh release delete nightly --yes || true
           git push origin :nightly || true
 
-      - if: env.TAG_NAME != 'nightly'
+      - if: env.TAG_NAME != 'nightly' github.event_name != 'pull_request'
         run: |
-          (echo 'SUBJECT=Lapce release build';
-           echo 'PRERELEASE=') >> $GITHUB_ENV
+          {
+            echo 'SUBJECT=Lapce release build'
+            echo 'PRERELEASE='
+            echo 'DRAFT='
+          } >> $GITHUB_ENV
 
       - name: Publish release
         env:
           DEBUG: api
         run: |
-          gh release create $TAG_NAME $PRERELEASE --title "$TAG_NAME" --target $GITHUB_SHA lapce-macos/* lapce-linux/* lapce-proxy-linux-*/* lapce-windows/*
+          sha512sum ./lapce-{macos,linux,windows,proxy-}*/* vendor.tar.gz > checksums.sha512
+          gh release create \
+            $DRAFT \
+            $TAG_NAME \
+            $PRERELEASE \
+            --title "$TAG_NAME" \
+            --target $GITHUB_SHA \
+            ./lapce-{macos,linux,windows,proxy-}*/* \
+            vendor.tar.gz \
+            checksums.sha512
