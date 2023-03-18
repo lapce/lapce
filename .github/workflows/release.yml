@@ -94,7 +94,7 @@ jobs:
         shell: pwsh
         run: |
           $file = [System.IO.File]::Open((Join-Path $PWD '.\target\release-lto\lapce-proxy.exe'), [System.IO.FileMode]::Open)
-          $archive = [System.IO.File]::Create((Join-Path $PWD '.\target\release-lto\lapce-proxy-windows-x86_64.gz'))
+          $archive = [System.IO.File]::Create((Join-Path $PWD '.\target\release-lto\windows\lapce-proxy-windows-x86_64.gz'))
           $compressor = [System.IO.Compression.GZipStream]::new($archive, [System.IO.Compression.CompressionMode]::Compress)
           $file.CopyTo($compressor)
           Start-Sleep -Seconds 10
