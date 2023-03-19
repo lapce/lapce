@@ -129,7 +129,7 @@ jobs:
           apt-get -y update
           apt-get -y install make
 
-      - run: make release-dir >> $GITHUB_ENV
+      - run: echo "RELEASE_DIR=$(make release-dir)" >> $GITHUB_ENV
 
       - name: Install dependencies
         run: make ubuntu-dependencies
@@ -151,12 +151,16 @@ jobs:
       - name: Gzip
         run: make tarball
 
+      - name: Make debian package
+        run: make deb
+
       - uses: actions/upload-artifact@v3
         with:
           name: lapce-linux
           path: |
-            ./${{ env.RELEASE_DIR }}/Lapce-linux.tar.gz
-            ./vendor.tar.gz
+            ./${{ env.RELEASE_DIR }}/linux/lapce.deb
+            ./${{ env.RELEASE_DIR }}/linux/Lapce-linux.tar.gz
+            ./${{ env.RELEASE_DIR }}/lapce-vendor-*.tar.gz
           retention-days: 1
 
   linux-musl:
@@ -256,8 +260,12 @@ jobs:
       NOTARIZE_USERNAME: ${{ secrets.NOTARIZE_USERNAME }}
       NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
 
+      DMG_NAME: Lapce-macos.dmg
     steps:
       - uses: actions/checkout@v3
+
+      - name: Source release directory
+        run: echo "RELEASE_DIR=$(make release-dir)" >> $GITHUB_ENV
 
       - name: Install ARM target
         run: rustup update && rustup target add aarch64-apple-darwin
@@ -274,30 +282,26 @@ jobs:
       - name: Make DMG
         run: make dmg-universal
 
-      - name: Rename
-        run: |
-          cp ./target/release-lto/macos/Lapce.dmg ./target/release-lto/macos/Lapce-macos.dmg
-
       - name: Gzip lapce-proxy
         run: |
-          gzip -c ./target/x86_64-apple-darwin/release-lto/lapce-proxy > ./target/release-lto/macos/lapce-proxy-darwin-x86_64.gz
-          gzip -c ./target/aarch64-apple-darwin/release-lto/lapce-proxy > ./target/release-lto/macos/lapce-proxy-darwin-aarch64.gz
+          make CARGO_BUILD_TARGET=x86_64-apple-darwin gz
+          make CARGO_BUILD_TARGET=aarch64-apple-darwin gz
 
       - name: "Notarize Release Build"
         run: |
-          npx notarize-cli --file ./target/release-lto/macos/Lapce-macos.dmg --bundle-id io.lapce --asc-provider CYSGAZFR8D
+          npx notarize-cli --file ./${{ env.RELEASE_DIR }}/${{ env.DMG_NAME }} --bundle-id io.lapce --asc-provider CYSGAZFR8D
 
       - name: "Staple Release Build"
         uses: lapce/xcode-staple@062485d6eeafe841c18a412f012e80f49e23c517
         with:
-          product-path: "./target/release-lto/macos/Lapce-macos.dmg"
+          product-path: "./${{ env.RELEASE_DIR }}/macos/${{ env.DMG_NAME }}"
 
       - uses: actions/upload-artifact@v3
         with:
           name: lapce-macos
           path: |
-            ./target/release-lto/macos/lapce-proxy-darwin-*.gz
-            ./target/release-lto/macos/Lapce-macos.dmg
+            ./${{ env.RELEASE_DIR }}/macos/lapce-proxy-darwin-*.gz
+            ./${{ env.RELEASE_DIR }}/macos/${{ env.DMG_NAME }}
           retention-days: 1
 
   publish:
@@ -314,7 +318,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Source release directory
-        run: make release-dir >> $GITHUB_ENV
+        run: echo "RELEASE_DIR=$(make release-dir)" >> $GITHUB_ENV
 
       - uses: actions/download-artifact@v3
         with:
