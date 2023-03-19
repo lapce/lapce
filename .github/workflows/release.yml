@@ -78,7 +78,7 @@ jobs:
         run: make build
 
       - name: Install WiX
-        run: nuget install WiX -Version 3.11.2
+        run: make windows-dependencies
 
       - name: Crate msi installer
         run: |
@@ -127,7 +127,7 @@ jobs:
       - name: Install make
         run: |
           apt-get -y update
-          apt-get -y install make
+          apt-get -y install make git
 
       - run: echo "RELEASE_DIR=$(make release-dir)" >> $GITHUB_ENV
 
@@ -160,7 +160,7 @@ jobs:
           path: |
             ./${{ env.RELEASE_DIR }}/linux/lapce.deb
             ./${{ env.RELEASE_DIR }}/linux/Lapce-linux.tar.gz
-            ./${{ env.RELEASE_DIR }}/lapce-vendor-*.tar.gz
+            ./${{ env.RELEASE_DIR }}/vendor-*.tar.gz
           retention-days: 1
 
   linux-musl:
@@ -174,7 +174,7 @@ jobs:
         zlib-static freetype-static fontconfig-static
         libgit2-static libssh2-static openssl-libs-static
         libssl3 gtk+3.0-dev http-parser-dev rustup
-        build-base openssl-dev git lld clang
+        build-base openssl-dev git lld clang make
     strategy:
       fail-fast: false
       matrix:
@@ -185,6 +185,8 @@ jobs:
             platform: aarch64
     steps:
       - uses: actions/checkout@v3
+
+      - run: echo "RELEASE_DIR=$(make release-dir)" >> $GITHUB_ENV
 
       - name: Set up Alpine Linux for ${{ matrix.platform }} (target arch)
         id: alpine-target
@@ -205,8 +207,11 @@ jobs:
           shell-name: alpine.sh
 
       - name: Install Rust stable toolchain via rustup
-        run: rustup-init --target ${{ matrix.triple }} --default-toolchain stable --profile minimal -y
         shell: alpine.sh {0}
+        run: rustup-init --target ${{ matrix.triple }} --default-toolchain stable --profile minimal -y
+
+      - name: Fetch dependencies
+        run: make fetch
 
       - name: Build ${{ matrix.triple }}
         shell: alpine.sh {0}
@@ -232,23 +237,13 @@ jobs:
           echo -e '#!/bin/sh\nPKG_CONFIG_SYSROOT_DIR=${{ env.CROSS_SYSROOT }} exec pkgconf "$@"' \
               | install -m755 /dev/stdin pkg-config
           export PKG_CONFIG="$(pwd)/pkg-config"
-          cargo fetch --locked
-          cargo build \
-            --frozen \
-            --verbose \
-            --release \
-            --bin lapce-proxy \
-            --manifest-path lapce-proxy/Cargo.toml
-
-      - name: Gzip
-        run: |
-          gzip -c ./target/${{ matrix.triple }}/release/lapce-proxy > ./lapce-proxy-linux-${{ matrix.platform }}.gz
+          make TARGET=lapce-proxy gz
 
       - uses: actions/upload-artifact@v3
         with:
           name: lapce-proxy-linux-${{ matrix.platform }}
           path: |
-            ./lapce-proxy-linux-*.gz
+            ./${{ env.RELEASE_DIR }}/linux/lapce-proxy-linux-*.gz
           retention-days: 1
 
   macos:
@@ -268,7 +263,7 @@ jobs:
         run: echo "RELEASE_DIR=$(make release-dir)" >> $GITHUB_ENV
 
       - name: Install ARM target
-        run: rustup update && rustup target add aarch64-apple-darwin
+        run: make rustup && rustup target add aarch64-apple-darwin
 
       - name: Import Certificate
         uses: lapce/import-codesign-certs@72dec84923586f8bef2bed09fdb4f9475c8f623d # use updated action, can be dropped once/if upstream is fixed
@@ -277,7 +272,7 @@ jobs:
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
 
       - name: Fetch dependencies
-        run: cargo fetch --locked
+        run: make fetch
 
       - name: Make DMG
         run: make dmg-universal

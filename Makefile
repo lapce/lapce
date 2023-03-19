@@ -1,5 +1,3 @@
-RELEASE_TAG_NAME = $(shell git describe --tags --match 'v*')
-
 TARGET  = lapce
 PROFILE = release-lto
 
@@ -11,13 +9,28 @@ ASSETS_DIR  = extra
 BUILD_DIR   = target/$(CARGO_BUILD_TARGET)/$(PROFILE)
 RELEASE_DIR = target/$(PROFILE)
 
-VENDOR_NAME = $(TARGET)-vendor-$(RELEASE_TAG_NAME).tar.gz
+# Make up some version when running locally
+ifneq ($(RELEASE_TAG_NAME),)
+	VERSION = $(RELEASE_TAG_NAME)
+endif
+ifeq ($(RELEASE_TAG_NAME),)
+	VERSION = $(shell git describe --tags --match 'v*')
+endif
+ifeq ($(RELEASE_TAG_NAME),debug)
+	VERSION = $(shell git describe --tags --match 'v*')
+endif
+ifeq ($(RELEASE_TAG_NAME),nightly)
+	VERSION = $(shell git describe --tags --match 'v*')
+endif
+
+VENDOR_NAME = vendor-$(VERSION).tar.gz
 
 vpath $(TARGET) $(RELEASE_DIR)
 
-TARGET_ARCH = $(firstword $(subst -, ,$(CARGO_BUILD_TARGET)))
-ifeq ($(CARGO_BUILD_TARGET),)
-	TARGET_ARCH = $(subst host: ,,$(shell rustc -vV | grep host:))
+# Wonders of technology
+TARGET_ARCH = $(firstword $(subst -, ,$(word 2,$(shell cargo -vV | grep host:))))
+ifneq ($(CARGO_BUILD_TARGET),)
+	TARGET_ARCH = $(firstword $(subst -, ,$(CARGO_BUILD_TARGET)))
 endif
 
 ifeq ($(STATIC),1)
@@ -87,6 +100,9 @@ ifneq ($(OS),Windows_NT)
 	ifneq ($(filter arm%,$(UNAME_P)),)
 		ARCH = $(UNAME_P)
 	endif
+
+	GZ_NAME = $(TARGET)-$(PLATFORM)-$(TARGET_ARCH).gz
+	GZ_DIR  = $(RELEASE_DIR)/$(PLATFORM)
 endif
 
 all: help
@@ -98,11 +114,10 @@ release-dir:
 	@mkdir -p $(RELEASE_DIR)
 	@echo $(RELEASE_DIR)
 
-dependencies: $(ID)-dependencies ## Install OS dependencies required to build Lapce
-$(ID)-dependencies: $(ID)$(VERSION_ID)-dependencies
+#dependencies: $(ID)-dependencies ## Install OS dependencies required to build Lapce
 windows-dependencies:
 	@echo "Installing Windows dependencies"
-	@nuget install WiX
+	@nuget install WiX -Version 3.11.2
 fedora-dependencies:
 	@echo "Installing Fedora dependencies"
 	@dnf install \
@@ -126,8 +141,12 @@ fetch: ## Fetch Rust dependencies
 vendor: fetch ## Create vendor tarball
 	@echo "Creating $(VENDOR_NAME)"
 	@cargo vendor --frozen
-	@tar -zcvf ./$(RELEASE_DIR)/$(VENDOR_NAME) ./vendor/
+	@tar -zcf ./$(RELEASE_DIR)/$(VENDOR_NAME) ./vendor/
 	@echo "Created '$(VENDOR_NAME)' in '$(RELEASE_DIR)'"
+
+fmt: ## Format code
+	@echo "Formatting..."
+	@cargo fmt --all
 
 check: ## Run check
 	@echo "Checking codebase"
@@ -138,7 +157,7 @@ test: ## Run tests
 	@echo "Running tests"
 	@cargo test $(LOCKED) $(FROZEN) --workspace
 
-build: $(TARGET)-build ## Build all executables
+build: $(TARGET)-build ## Build target
 $(TARGET)-build: fetch
 	cargo build $(LOCKED) $(FROZEN) --profile $(PROFILE) --bin $(TARGET)
 
@@ -154,8 +173,8 @@ $(TARGET)-tarball: release-dir $(TARGET)-build
 gz: $(TARGET)-gz ## Create gzipped binary
 $(TARGET)-gz: release-dir $(TARGET)-build
 	@echo "Creating gzipped binary"
-	@gzip -c $(RELEASE_DIR)/$(CARGO_BUILD_TARGET)/$(TARGET) > $(RELEASE_DIR)/$(PLATFORM)/$(TARGET)-$(PLATFORM)-$(TARGET_ARCH)
-	@echo "Created '$(TARGET)-$(PLATFORM)-$(TARGET_ARCH)' in '$(RELEASE_DIR)/$(PLATFORM)'"
+	@gzip -c $(BUILD_DIR)/$(TARGET) > $(GZ_DIR)/$(GZ_NAME)
+	@echo "Created '$(GZ_NAME)' in '$(GZ_DIR)'"
 
 ### macOS
 
@@ -204,7 +223,7 @@ $(TARGET)-deb: $(TARGET)-build
 	@cp $(ASSETS_DIR)/linux/debian/control $(DEB_PACKAGE_DIR)/DEBIAN/control
 	sed -i "s/%NAME%/$(TARGET)/g" $(DEB_PACKAGE_DIR)/DEBIAN/control
 	sed -i "s/%ARCHITECTURE%/$(ARCH)/g" $(DEB_PACKAGE_DIR)/DEBIAN/control
-	sed -i "s/%VERSION%/$(subst v,,$(RELEASE_TAG_NAME))/g" $(DEB_PACKAGE_DIR)/DEBIAN/control
+	sed -i "s/%VERSION%/$(subst v,,$(VERSION))/g" $(DEB_PACKAGE_DIR)/DEBIAN/control
 	@cp $(BUILD_DIR)/$(TARGET) $(DEB_PACKAGE_DIR)/usr/bin/$(TARGET)
 	@dpkg-deb --build $(DEB_PACKAGE_DIR) $(RELEASE_DIR)/$(PLATFORM)/$(DEB_NAME)
 	@echo "Built '$(DEB_NAME)' in '$(RELEASE_DIR)/$(PLATFORM)'"
@@ -215,7 +234,7 @@ rpm: $(TARGET)-rpm ## Create lapce.rpm
 $(TARGET)-rpm: $(TARGET)-build
 	@echo "Creating lapce.rpm"
 
-install: $(PLATFORM)-install ## Install app
+install: $(PLATFORM)-install ## Install target
 install-native: $(PLATFORM)-install-native ## Mount disk image
 install-universal: $(PLATFORM)-install-native ## Mount universal disk image
 
