@@ -21,7 +21,7 @@ lapce-xi-rope.workspace = true
 
 lapce-rpc.workspace = true
 
-bitflags = "1.3.2"
+bitflags = "2.0"
 slotmap = "1.0"
 arc-swap = "1.5.1"
 tree-sitter = "0.20.7"
@@ -33,7 +33,7 @@ tree-sitter-c = { version = "0.20.2", optional = true }
 tree-sitter-c-sharp = { git = "https://github.com/tree-sitter/tree-sitter-c-sharp", rev = "5b60f99545fea00a33bbfae5be956f684c4c69e2", optional = true }
 tree-sitter-cpp = { version = "0.20.0", optional = true }
 tree-sitter-clojure = { git = "https://github.com/abreumatheus/tree-sitter-clojure", rev = "fdc969eb04fc711e38ad74afe441d74b3b5d3091", optional = true }
-tree-sitter-cmake = { version = "0.1.0", optional = true }
+tree-sitter-cmake = { version = "0.2.0", optional = true }
 # switch to upstream version after this is merged https://github.com/tree-sitter/tree-sitter-css/pull/22
 tree-sitter-css = { git = "https://github.com/syntacti/tree-sitter-css", rev = "397aa132b9982fcdd2d473ed69343762a557f10a", optional = true }
 tree-sitter-d = {  git = "https://github.com/ghishadow/tree-sitter-d", rev = "36603135ecb37ac6494c520efff91b875815d6f7", optional = true }
