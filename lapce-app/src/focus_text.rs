@@ -1,18 +1,18 @@
 use floem::{
     app::AppContext,
+    cosmic_text::{Attrs, AttrsList, Family, FamilyOwned, TextLayout, Weight},
     id::Id,
     parley::{
         layout::{Alignment, Cursor},
         style::{FontFamily, FontStack, StyleProperty},
-        swash::Weight,
         LayoutContext,
     },
     peniko::{kurbo::Point, Brush, Color},
     reactive::create_effect,
     style::{Dimension, Style},
     taffy::prelude::Node,
-    text::ParleyBrush,
     view::{ChangeFlags, View},
+    Renderer,
 };
 
 enum FocusTextState {
@@ -63,7 +63,7 @@ pub fn focus_text(
 pub struct FocusText {
     id: Id,
     text: String,
-    text_layout: Option<floem::parley::Layout<ParleyBrush>>,
+    text_layout: Option<TextLayout>,
     color: Option<Color>,
     focus_color: Color,
     focus_indices: Vec<usize>,
@@ -72,24 +72,25 @@ pub struct FocusText {
     text_node: Option<Node>,
     available_text: Option<String>,
     available_width: Option<f32>,
-    available_text_layout: Option<floem::parley::Layout<ParleyBrush>>,
+    available_text_layout: Option<TextLayout>,
 }
 
 impl FocusText {
     fn set_text_layout(&mut self) {
-        let mut text_layout_builder =
-            LayoutContext::builder(self.text.as_str(), 1.0);
-        text_layout_builder.push_default(&StyleProperty::Brush(ParleyBrush(
-            Brush::Solid(self.color.unwrap_or_default()),
-        )));
+        let mut attrs = Attrs::new().color(self.color.unwrap_or_default());
         if let Some(font_size) = self.font_size {
-            text_layout_builder.push_default(&StyleProperty::FontSize(font_size));
+            attrs = attrs.font_size(font_size);
         }
-        if let Some(font_family) = self.font_family.as_ref() {
-            let family = FontFamily::parse_list(font_family).collect::<Vec<_>>();
-            text_layout_builder
-                .push_default(&StyleProperty::FontStack(FontStack::List(&family)))
+        let font_family = self.font_family.as_ref().map(|font_family| {
+            let family: Vec<FamilyOwned> =
+                FamilyOwned::parse_list(font_family).collect();
+            family
+        });
+        if let Some(font_family) = font_family.as_ref() {
+            attrs = attrs.family(font_family);
         }
+
+        let mut attrs_list = AttrsList::new(attrs);
 
         for &i_start in &self.focus_indices {
             let i_end = self
@@ -102,35 +103,32 @@ impl FocusText {
             } else {
                 continue;
             };
-            text_layout_builder.push(
-                &StyleProperty::Brush(ParleyBrush(Brush::Solid(self.focus_color))),
+            attrs_list.add_span(
                 i_start..i_end,
+                attrs.color(self.focus_color).weight(Weight::BOLD),
             );
-            text_layout_builder
-                .push(&StyleProperty::FontWeight(Weight::BOLD), i_start..i_end);
         }
-        let mut text_layout = text_layout_builder.build();
-        text_layout.break_all_lines(None, Alignment::Start);
+        let mut text_layout = TextLayout::new();
+        text_layout.set_text(&self.text, attrs_list);
         self.text_layout = Some(text_layout);
 
         if let Some(new_text) = self.available_text.as_ref() {
             let new_text_len = new_text.len();
 
-            let mut text_layout_builder =
-                LayoutContext::builder(new_text.as_str(), 1.0);
-            text_layout_builder.push_default(&StyleProperty::Brush(ParleyBrush(
-                Brush::Solid(self.color.unwrap_or_default()),
-            )));
+            let mut attrs = Attrs::new().color(self.color.unwrap_or_default());
             if let Some(font_size) = self.font_size {
-                text_layout_builder
-                    .push_default(&StyleProperty::FontSize(font_size));
+                attrs = attrs.font_size(font_size);
             }
-            if let Some(font_family) = self.font_family.as_ref() {
-                let family = FontFamily::parse_list(font_family).collect::<Vec<_>>();
-                text_layout_builder.push_default(&StyleProperty::FontStack(
-                    FontStack::List(&family),
-                ))
+            let font_family = self.font_family.as_ref().map(|font_family| {
+                let family: Vec<FamilyOwned> =
+                    FamilyOwned::parse_list(font_family).collect();
+                family
+            });
+            if let Some(font_family) = font_family.as_ref() {
+                attrs = attrs.family(font_family);
             }
+
+            let mut attrs_list = AttrsList::new(attrs);
 
             for &i_start in &self.focus_indices {
                 if i_start + 3 > new_text_len {
@@ -146,18 +144,14 @@ impl FocusText {
                 } else {
                     continue;
                 };
-                text_layout_builder.push(
-                    &StyleProperty::Brush(ParleyBrush(Brush::Solid(
-                        self.focus_color,
-                    ))),
+                attrs_list.add_span(
                     i_start..i_end,
+                    attrs.color(self.focus_color).weight(Weight::BOLD),
                 );
-                text_layout_builder
-                    .push(&StyleProperty::FontWeight(Weight::BOLD), i_start..i_end);
             }
-            let mut new_text = text_layout_builder.build();
-            new_text.break_all_lines(None, Alignment::Start);
-            self.available_text_layout = Some(new_text);
+            let mut text_layout = TextLayout::new();
+            text_layout.set_text(new_text, attrs_list);
+            self.available_text_layout = Some(text_layout);
         }
     }
 }
@@ -212,8 +206,9 @@ impl View for FocusText {
                 self.set_text_layout();
             }
             let text_layout = self.text_layout.as_ref().unwrap();
-            let width = text_layout.width().ceil();
-            let height = text_layout.height().ceil();
+            let size = text_layout.size();
+            let width = size.width.ceil() as f32;
+            let height = size.height.ceil() as f32;
 
             if self.text_node.is_none() {
                 self.text_node = Some(cx.new_node());
@@ -237,36 +232,31 @@ impl View for FocusText {
         let text_node = self.text_node.unwrap();
         let layout = cx.layout(text_node).unwrap();
         let text_layout = self.text_layout.as_ref().unwrap();
-        let width = text_layout.width();
+        let width = text_layout.size().width as f32;
         if width > layout.size.width {
             if self.available_width != Some(layout.size.width) {
-                let mut text_layout_builder = LayoutContext::builder("...", 1.0);
-                text_layout_builder.push_default(&StyleProperty::Brush(
-                    ParleyBrush(Brush::Solid(Color::rgb8(0xf0, 0xf0, 0xea))),
-                ));
+                let mut dots_text = TextLayout::new();
+                let mut attrs = Attrs::new().color(
+                    self.color.unwrap_or_else(|| Color::rgb8(0xf0, 0xf0, 0xea)),
+                );
                 if let Some(font_size) = self.font_size {
-                    text_layout_builder
-                        .push_default(&StyleProperty::FontSize(font_size));
+                    attrs = attrs.font_size(font_size);
                 }
-                if let Some(font_family) = self.font_family.as_ref() {
-                    let family =
-                        FontFamily::parse_list(font_family).collect::<Vec<_>>();
-                    text_layout_builder.push_default(&StyleProperty::FontStack(
-                        FontStack::List(&family),
-                    ))
+                let font_family = self.font_family.as_ref().map(|font_family| {
+                    let family: Vec<FamilyOwned> =
+                        FamilyOwned::parse_list(font_family).collect();
+                    family
+                });
+                if let Some(font_family) = font_family.as_ref() {
+                    attrs = attrs.family(font_family);
                 }
+                dots_text.set_text("...", AttrsList::new(attrs));
 
-                let mut dots_text = text_layout_builder.build();
-                dots_text.break_all_lines(None, Alignment::Start);
-                let dots_width = dots_text.width();
+                let dots_width = dots_text.size().width as f32;
                 let width_left = layout.size.width - dots_width;
-                let cursor = Cursor::from_point(text_layout, width_left, 0.0);
-                let range = cursor.text_range();
-                let index = if cursor.is_trailing() {
-                    range.end
-                } else {
-                    range.start
-                };
+                let hit_point =
+                    text_layout.hit_point(Point::new(width_left as f64, 0.0));
+                let index = hit_point.index;
 
                 let new_text = if index > 0 {
                     format!("{}...", &self.text[..index])
@@ -307,9 +297,9 @@ impl View for FocusText {
         let location = cx.layout(text_node).unwrap().location;
         let point = Point::new(location.x as f64, location.y as f64);
         if let Some(text_layout) = self.available_text_layout.as_ref() {
-            cx.render_text(text_layout, point);
+            cx.draw_text(text_layout, point);
         } else {
-            cx.render_text(self.text_layout.as_ref().unwrap(), point);
+            cx.draw_text(self.text_layout.as_ref().unwrap(), point);
         }
     }
 }

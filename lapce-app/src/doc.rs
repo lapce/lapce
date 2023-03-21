@@ -9,14 +9,10 @@ use std::{
 
 use floem::{
     app::AppContext,
+    cosmic_text::{Attrs, AttrsList, Family, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
-    parley::{
-        style::{FontFamily, FontStack, StyleProperty},
-        Layout,
-    },
     peniko::{kurbo::Point, Brush, Color},
     reactive::{create_rw_signal, ReadSignal, RwSignal, UntrackedGettableSignal},
-    text::ParleyBrush,
     views::VirtualListVector,
 };
 use itertools::Itertools;
@@ -96,7 +92,7 @@ pub struct TextLayoutLine {
     /// Extra styling that should be applied to the text
     /// (x0, x1 or line display end, style)
     pub extra_style: Vec<LineExtraStyle>,
-    pub text: Layout<ParleyBrush>,
+    pub text: TextLayout,
     pub whitespaces: Option<Vec<(char, (f64, f64))>>,
     pub indent: f64,
 }
@@ -435,17 +431,8 @@ impl Document {
         match *horiz {
             ColPosition::Col(x) => {
                 let text_layout = self.get_text_layout(line, font_size);
-                let cursor = floem::parley::layout::Cursor::from_point(
-                    &text_layout.text,
-                    x as f32,
-                    0.0,
-                );
-                let range = cursor.text_range();
-                let n = if cursor.is_trailing() {
-                    range.end
-                } else {
-                    range.start
-                };
+                let hit_point = text_layout.text.hit_point(Point::new(x, 0.0));
+                let n = hit_point.index;
 
                 n.min(self.buffer.line_end_col(line, caret))
             }
@@ -841,12 +828,7 @@ impl Document {
         font_size: usize,
     ) -> Point {
         let text_layout = self.get_text_layout(line, font_size);
-        let cursor = floem::parley::layout::Cursor::from_position(
-            &text_layout.text,
-            col,
-            true,
-        );
-        Point::new(cursor.offset() as f64, cursor.baseline() as f64)
+        text_layout.text.hit_position(col).point
     }
 
     /// Get the (point above, point below) of a particular offset within the editor.
@@ -885,10 +867,8 @@ impl Document {
                 let normal_text_layout =
                     self.get_text_layout(line, config.editor.font_size);
                 let small_text_layout = self.get_text_layout(line, font_size);
-                x_shift = hit_test_text_position(&normal_text_layout.text, col)
-                    .point
-                    .x
-                    - hit_test_text_position(&small_text_layout.text, col).point.x;
+                x_shift = normal_text_layout.text.hit_position(col).point.x
+                    - small_text_layout.text.hit_position(col).point.x;
             }
         }
 
@@ -909,19 +889,14 @@ impl Document {
         let phantom_text = self.line_phantom_text(line);
         let line_content = phantom_text.combine_with_text(line_content.to_string());
 
-        let mut layout_builder =
-            floem::parley::LayoutContext::builder(&line_content[..], 1.0);
-
         let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
-        layout_builder.push_default(&floem::parley::style::StyleProperty::Brush(
-            ParleyBrush(Brush::Solid(*color)),
-        ));
-        let families =
-            FontFamily::parse_list(&config.editor.font_family).collect::<Vec<_>>();
-        layout_builder
-            .push_default(&StyleProperty::FontStack(FontStack::List(&families)));
-        layout_builder
-            .push_default(&StyleProperty::FontSize(config.editor.font_size as f32));
+        let family: Vec<FamilyOwned> =
+            FamilyOwned::parse_list(&config.editor.font_family).collect();
+        let attrs = Attrs::new()
+            .color(*color)
+            .family(&family)
+            .font_size(config.editor.font_size as f32);
+        let mut attrs_list = AttrsList::new(attrs);
 
         // Apply various styles to the line's text based on our semantic/syntax highlighting
         let styles = self.line_style(line);
@@ -930,10 +905,7 @@ impl Document {
                 if let Some(fg_color) = config.get_style_color(fg_color) {
                     let start = phantom_text.col_at(line_style.start);
                     let end = phantom_text.col_at(line_style.end);
-                    layout_builder.push(
-                        &StyleProperty::Brush(ParleyBrush(Brush::Solid(*fg_color))),
-                        start..end,
-                    );
+                    attrs_list.add_span(start..end, attrs.color(*fg_color));
                 }
             }
         }
@@ -945,18 +917,14 @@ impl Document {
             let start = col + offset;
             let end = start + size;
 
+            let mut attrs = attrs;
             if let Some(fg) = phantom.fg {
-                layout_builder.push(
-                    &StyleProperty::Brush(ParleyBrush(Brush::Solid(fg))),
-                    start..end,
-                );
+                attrs = attrs.color(fg);
             }
             if let Some(phantom_font_size) = phantom.font_size {
-                layout_builder.push(
-                    &StyleProperty::FontSize(phantom_font_size.min(font_size) as f32),
-                    start..end,
-                );
+                attrs = attrs.font_size(phantom_font_size.min(font_size) as f32);
             }
+            attrs_list.add_span(start..end, attrs);
             // if let Some(font_family) = phantom.font_family.clone() {
             //     layout_builder = layout_builder.range_attribute(
             //         start..end,
@@ -965,8 +933,8 @@ impl Document {
             // }
         }
 
-        let mut text_layout = layout_builder.build();
-        text_layout.break_all_lines(None, floem::parley::layout::Alignment::Start);
+        let mut text_layout = TextLayout::new();
+        text_layout.set_text(&line_content, attrs_list);
 
         // Keep track of background styling from phantom text, which is done separately
         // from the text layout attributes
@@ -975,8 +943,8 @@ impl Document {
             if phantom.bg.is_some() || phantom.under_line.is_some() {
                 let start = col + offset;
                 let end = start + size;
-                let x0 = hit_test_text_position(&text_layout, start).point.x;
-                let x1 = hit_test_text_position(&text_layout, end).point.x;
+                let x0 = text_layout.hit_position(start).point.x;
+                let x1 = text_layout.hit_position(end).point.x;
                 extra_style.push(LineExtraStyle {
                     x: x0,
                     width: Some(x1 - x0),
@@ -1024,7 +992,7 @@ impl Document {
         if !cache_exists {
             let text_layout = Arc::new(self.new_text_layout(line, font_size));
             let mut cache = self.text_layouts.borrow_mut();
-            let width = text_layout.text.width() as f64;
+            let width = text_layout.text.size().width;
             if width > cache.max_width {
                 cache.max_width = width;
             }
@@ -1359,22 +1327,4 @@ impl Document {
 
         PhantomTextLine { text, max_severity }
     }
-}
-
-#[derive(Default)]
-pub struct HitTestPosition {
-    pub point: Point,
-    pub line: usize,
-}
-
-fn hit_test_text_position(
-    text_layout: &Layout<ParleyBrush>,
-    idx: usize,
-) -> HitTestPosition {
-    let cursor =
-        floem::parley::layout::Cursor::from_position(text_layout, idx, true);
-    let mut result = HitTestPosition::default();
-    result.point = Point::new(cursor.offset() as f64, cursor.baseline() as f64);
-    result.line = cursor.path().line_index;
-    result
 }

@@ -29,13 +29,10 @@ fn left(
             container(cx, move |cx| {
                 svg(cx, move || config.get().ui_svg(LapceIcons::REMOTE)).style(
                     cx,
-                    move || {
-                        let icon_size = config.get().ui.icon_size() as f32;
-                        Style {
-                            width: Dimension::Points(icon_size),
-                            height: Dimension::Points(icon_size),
-                            ..Default::default()
-                        }
+                    move || Style {
+                        width: Dimension::Points(26.0),
+                        height: Dimension::Points(26.0),
+                        ..Default::default()
                     },
                 )
             })
@@ -43,7 +40,6 @@ fn left(
                 height: Dimension::Percent(1.0),
                 padding_left: 10.0,
                 padding_right: 10.0,
-                border_right: 1.0,
                 align_items: Some(AlignItems::Center),
                 background: Some(
                     *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL),

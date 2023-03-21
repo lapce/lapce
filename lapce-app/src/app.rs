@@ -7,6 +7,7 @@ use std::{
 
 use floem::{
     app::AppContext,
+    cosmic_text::{Attrs, AttrsList, TextLayout},
     event::{Event, EventListner},
     parley::style::{FontFamily, FontStack, FontWeight, StyleProperty},
     peniko::{
@@ -22,7 +23,6 @@ use floem::{
         AlignContent, AlignItems, Dimension, Display, FlexDirection, JustifyContent,
         Position, Style,
     },
-    text::ParleyBrush,
     view::View,
     views::{click, svg, VirtualListVector},
     views::{
@@ -401,7 +401,7 @@ fn editor_cursor(
 
         let is_active = is_active();
 
-        doc.with_untracked(|doc| {
+        doc.with(|doc| {
             cursor.with(|cursor| match &cursor.mode {
                 CursorMode::Normal(offset) => {
                     let line = doc.buffer().line_of_offset(*offset);
@@ -1402,24 +1402,16 @@ fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
             let (_, col) = doc.buffer().offset_to_line_col(offset);
 
             let line_content = doc.buffer().line_content(0);
-            let mut text_layout_builder =
-                floem::parley::LayoutContext::builder(&line_content[..col], 1.0);
-            text_layout_builder.push_default(
-                &floem::parley::style::StyleProperty::Brush(ParleyBrush(
-                    Brush::Solid(Color::rgb8(0, 0, 0)),
-                )),
-            );
-            text_layout_builder.push_default(&StyleProperty::FontSize(
-                config.ui.font_size() as f32,
-            ));
-            let families = config.ui.font_family();
-            text_layout_builder
-                .push_default(&StyleProperty::FontStack(FontStack::List(&families)));
-            let mut text_layout = text_layout_builder.build();
-            text_layout
-                .break_all_lines(None, floem::parley::layout::Alignment::Start);
 
-            text_layout.width()
+            let families = config.ui.font_family();
+            let attrs = Attrs::new()
+                .font_size(config.ui.font_size() as f32)
+                .family(&families);
+            let attrs_list = AttrsList::new(attrs);
+            let mut text_layout = TextLayout::new();
+            text_layout.set_text(&line_content[..col], attrs_list);
+
+            text_layout.size().width as f32
         })
     });
     container(cx, move |cx| {

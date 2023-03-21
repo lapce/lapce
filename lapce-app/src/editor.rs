@@ -630,6 +630,7 @@ impl EditorData {
     fn has_completions(&self) -> bool {
         self.completion.with_untracked(|completion| {
             completion.status != CompletionStatus::Inactive
+                && !completion.filtered_items.is_empty()
         })
     }
 
