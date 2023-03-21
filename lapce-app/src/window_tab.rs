@@ -6,7 +6,7 @@ use floem::{
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
         create_effect, create_rw_signal, create_signal, use_context, ReadSignal,
-        RwSignal, UntrackedGettableSignal,
+        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalWithUntracked,
     },
 };
 use lapce_core::register::Register;
@@ -16,7 +16,7 @@ use crate::{
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
-    keypress::{DefaultKeyPress, KeyPressData, KeyPressFocus},
+    keypress::{DefaultKeyPress, KeyPressData},
     main_split::MainSplitData,
     palette::{kind::PaletteKind, PaletteData},
     proxy::{start_proxy, ProxyData},

@@ -3,7 +3,9 @@ use std::{path::PathBuf, sync::Arc};
 use floem::{
     app::AppContext,
     peniko::kurbo::Rect,
-    reactive::{create_rw_signal, ReadSignal, RwSignal, UntrackedGettableSignal},
+    reactive::{
+        create_rw_signal, ReadSignal, RwSignal, SignalGetUntracked, SignalSet,
+    },
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use lapce_core::movement::Movement;

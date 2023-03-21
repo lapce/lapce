@@ -894,6 +894,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.7.0"
+source = "git+https://github.com/lapce/cosmic-text?rev=6b1dbb529a2396378c05e452b5dc82376ee25040#6b1dbb529a2396378c05e452b5dc82376ee25040"
 dependencies = [
  "fontdb 0.13.0",
  "libm",
@@ -3475,15 +3476,16 @@ checksum = "03087c2bad5e1034e8cace5926dec053fb3790248370865f5117a7d0213354c8"
 
 [[package]]
 name = "leptos_reactive"
-version = "0.1.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f20215c7374ddcf4147bcd0b354dcedb01c2942e3837a4c198fdaa63788a2ea"
+checksum = "c2e740411ce3a6bce88d7e3724f9544408885a5cd29dd41f998be2e51dbb0fca"
 dependencies = [
  "base64 0.21.0",
  "cfg-if 1.0.0",
  "futures",
+ "indexmap",
  "js-sys",
- "log",
+ "rustc-hash",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
@@ -5243,9 +5245,9 @@ dependencies = [
 
 [[package]]
 name = "serde-wasm-bindgen"
-version = "0.4.5"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3b4c031cd0d9014307d82b8abf653c0290fbdaeb4c02d00c63cf52f728628bf"
+checksum = "f3b143e2833c57ab9ad3ea280d21fd34e285a42837aeb0ee301f4f41890fa00e"
 dependencies = [
  "js-sys",
  "serde",
@@ -7027,13 +7029,13 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.5"
+source = "git+https://github.com/lapce/vger-rs?rev=25696dc6cf79da499d466646cc4b0b30e5225d6a#25696dc6cf79da499d466646cc4b0b30e5225d6a"
 dependencies = [
  "cosmic-text",
  "euclid",
  "fontdue",
  "rand 0.7.3",
  "rect_packer",
- "swash 0.1.6 (git+https://github.com/dfrg/swash)",
  "wgpu",
 ]
 

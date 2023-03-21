@@ -1,18 +1,13 @@
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    collections::HashMap,
-    path::{Path, PathBuf},
-    rc::Rc,
-    sync::Arc,
-};
+use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     app::AppContext,
-    cosmic_text::{Attrs, AttrsList, Family, FamilyOwned, TextLayout},
+    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
-    peniko::{kurbo::Point, Brush, Color},
-    reactive::{create_rw_signal, ReadSignal, RwSignal, UntrackedGettableSignal},
+    peniko::{kurbo::Point, Color},
+    reactive::{
+        ReadSignal, RwSignal, SignalGetUntracked, SignalUpdate, SignalWithUntracked,
+    },
     views::VirtualListVector,
 };
 use itertools::Itertools;
@@ -43,10 +38,7 @@ use lapce_xi_rope::{
 use lsp_types::{Diagnostic, DiagnosticSeverity, InlayHint, InlayHintLabel};
 use smallvec::SmallVec;
 
-use crate::{
-    config::{color::LapceColor, LapceConfig},
-    proxy::ProxyData,
-};
+use crate::config::{color::LapceColor, LapceConfig};
 
 use self::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine};
 

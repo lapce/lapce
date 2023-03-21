@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use floem::{
     app::AppContext,
-    reactive::{create_signal, ReadSignal},
+    reactive::{create_signal, ReadSignal, SignalGet},
     stack::stack,
     style::{AlignItems, Dimension, JustifyContent, Style},
     view::View,

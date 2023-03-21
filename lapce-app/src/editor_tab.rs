@@ -2,7 +2,7 @@ use std::path::Path;
 
 use floem::{
     peniko::kurbo::{Point, Rect},
-    reactive::RwSignal,
+    reactive::{RwSignal, SignalGet, SignalWith},
 };
 
 use crate::{

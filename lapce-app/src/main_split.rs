@@ -7,10 +7,10 @@ use floem::{
     app::AppContext,
     ext_event::create_ext_action,
     glazier::KeyEvent,
-    peniko::kurbo::{Point, Rect, Vec2},
+    peniko::kurbo::{Point, Rect},
     reactive::{
-        create_effect, create_rw_signal, ReadSignal, RwSignal,
-        UntrackedGettableSignal, WriteSignal,
+        create_effect, create_rw_signal, ReadSignal, RwSignal, SignalGetUntracked,
+        SignalSet, SignalUpdate, SignalWith, SignalWithUntracked, WriteSignal,
     },
 };
 use lapce_core::register::Register;
@@ -22,11 +22,11 @@ use crate::{
     command::InternalCommand,
     completion::CompletionData,
     config::LapceConfig,
-    doc::{DocContent, Document},
+    doc::{Document},
     editor::EditorData,
     editor_tab::{EditorTabChild, EditorTabData},
     id::{EditorId, EditorTabId, SplitId},
-    keypress::{KeyPressData, KeyPressFocus},
+    keypress::{KeyPressData},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -587,7 +587,7 @@ impl MainSplitData {
         let parent_split = splits.get(&parent_split_id).copied()?;
 
         let split_len = parent_split
-            .update_returning(|split| {
+            .try_update(|split| {
                 split
                     .children
                     .retain(|c| c != &SplitContent::Split(split_id));
@@ -703,7 +703,7 @@ impl MainSplitData {
         })?;
 
         let editor_tab_children_len = editor_tab
-            .update_returning(|editor_tab| {
+            .try_update(|editor_tab| {
                 editor_tab.children.remove(index);
                 editor_tab.active =
                     index.min(editor_tab.children.len().saturating_sub(1));

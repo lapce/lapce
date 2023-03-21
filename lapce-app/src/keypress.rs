@@ -10,7 +10,7 @@ use anyhow::Result;
 use floem::{
     app::AppContext,
     glazier::{KbKey, KeyEvent, Modifiers, MouseEvent},
-    reactive::WriteSignal,
+    reactive::{SignalSet, WriteSignal},
 };
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;

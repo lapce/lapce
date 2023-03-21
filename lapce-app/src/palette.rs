@@ -14,23 +14,17 @@ use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use floem::{
     app::AppContext,
-    ext_event::{
-        create_ext_action, create_signal_from_channel,
-        create_signal_from_channel_oneshot,
-    },
+    ext_event::{create_ext_action, create_signal_from_channel},
     reactive::{
-        create_effect, create_memo, create_rw_signal, create_signal, ReadSignal,
-        RwSignal, UntrackedGettableSignal, WriteSignal,
+        create_effect, create_rw_signal, create_signal, ReadSignal, RwSignal,
+        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        SignalWithUntracked, WriteSignal,
     },
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lapce_core::{
-    command::FocusCommand,
-    cursor::{Cursor, CursorMode},
-    mode::Mode,
-    movement::Movement,
-    register::Register,
+    command::FocusCommand, mode::Mode, movement::Movement, register::Register,
     selection::Selection,
 };
 use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
@@ -239,7 +233,7 @@ impl PaletteData {
 
                 if changed {
                     let new_kind = input
-                        .update_returning(|input| {
+                        .try_update(|input| {
                             let kind = input.kind;
                             input.update_input(new_input.clone());
                             if last_input_is_none || kind != input.kind {

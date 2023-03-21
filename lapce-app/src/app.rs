@@ -1,7 +1,6 @@
 use std::{
-    iter::Enumerate,
     ops::Range,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{atomic::AtomicU64, Arc},
 };
 
@@ -9,14 +8,12 @@ use floem::{
     app::AppContext,
     cosmic_text::{Attrs, AttrsList, TextLayout},
     event::{Event, EventListner},
-    parley::style::{FontFamily, FontStack, FontWeight, StyleProperty},
-    peniko::{
-        kurbo::{Point, Rect, Size},
-        Brush, Color,
-    },
+    parley::style::FontWeight,
+    peniko::kurbo::{Point, Rect, Size},
     reactive::{
-        create_effect, create_memo, create_signal, provide_context, use_context,
-        ReadSignal, RwSignal, UntrackedGettableSignal, WriteSignal,
+        create_memo, provide_context, ReadSignal, RwSignal, SignalGet,
+        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        SignalWithUntracked,
     },
     stack::stack,
     style::{
@@ -39,24 +36,20 @@ use lapce_core::{
 use lsp_types::CompletionItemKind;
 
 use crate::{
-    command::{CommandKind, LapceWorkbenchCommand},
-    completion::{CompletionData, ScoredCompletionItem},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     db::LapceDb,
-    doc::{DocContent, DocLine, Document, TextLayoutLine},
+    doc::{DocContent, DocLine, Document},
     editor::EditorData,
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
-    keypress::{condition::Condition, DefaultKeyPress, KeyPressData, KeyPressFocus},
     main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
     palette::{
         item::{PaletteItem, PaletteItemContent},
-        PaletteData, PaletteStatus,
+        PaletteStatus,
     },
-    proxy::{start_proxy, ProxyData},
     title::title,
-    window_tab::{Focus, WindowTabData},
+    window_tab::WindowTabData,
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 

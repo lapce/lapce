@@ -17,9 +17,7 @@ use crate::workspace::{LapceWorkspace, LapceWorkspaceType};
 
 use self::{
     color::LapceColor,
-    color_theme::{
-        ColorThemeConfig, ThemeBaseColor, ThemeColor, ThemeColorPreference,
-    },
+    color_theme::{ColorThemeConfig, ThemeColor, ThemeColorPreference},
     core::CoreConfig,
     editor::EditorConfig,
     icon::LapceIcons,
