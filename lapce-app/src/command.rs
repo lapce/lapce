@@ -9,6 +9,7 @@ use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 
 use crate::{
+    editor::location::EditorLocation,
     editor_tab::EditorTabChild,
     id::EditorTabId,
     main_split::{SplitDirection, SplitMoveDirection},
@@ -449,6 +450,9 @@ pub enum LapceWorkbenchCommand {
 pub enum InternalCommand {
     OpenFile {
         path: PathBuf,
+    },
+    GoToLocation {
+        location: EditorLocation,
     },
     Split {
         direction: SplitDirection,

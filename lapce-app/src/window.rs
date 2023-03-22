@@ -95,13 +95,10 @@ impl WindowData {
     pub fn key_down(&self, cx: AppContext, key_event: &KeyEvent) {
         let active = self.active.get_untracked();
         let window_tab = self.window_tabs.with_untracked(|window_tabs| {
-            if let Some(window_tab) =
-                window_tabs.get(active).or_else(|| window_tabs.last())
-            {
-                Some(window_tab.clone())
-            } else {
-                None
-            }
+            window_tabs
+                .get(active)
+                .or_else(|| window_tabs.last())
+                .cloned()
         });
         if let Some(window_tab) = window_tab {
             window_tab.key_down(cx, key_event);

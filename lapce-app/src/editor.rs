@@ -23,19 +23,25 @@ use lapce_core::{
 };
 use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
-use lsp_types::{CompletionItem, CompletionTextEdit};
+use lsp_types::{
+    CompletionItem, CompletionTextEdit, GotoDefinitionResponse, Location,
+};
 
 use crate::{
     command::{CommandExecuted, InternalCommand},
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
     doc::Document,
+    editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
     id::{EditorId, EditorTabId},
     keypress::{condition::Condition, KeyPressFocus},
     main_split::{SplitDirection, SplitMoveDirection},
+    proxy::path_from_url,
     snippet::Snippet,
 };
+
+pub mod location;
 
 #[derive(Clone)]
 pub struct EditorData {
@@ -452,9 +458,117 @@ impl EditorData {
                     }
                 });
             }
+            FocusCommand::GotoDefinition => {
+                self.go_to_definition(cx);
+            }
             _ => {}
         }
         CommandExecuted::Yes
+    }
+
+    fn go_to_definition(&self, cx: AppContext) {
+        let path = match self.doc.with_untracked(|doc| {
+            if doc.loaded() {
+                doc.content.path().cloned()
+            } else {
+                None
+            }
+        }) {
+            Some(path) => path,
+            None => return,
+        };
+
+        let offset = self.cursor.with_untracked(|c| c.offset());
+        let (start_position, position) = self.doc.with_untracked(|doc| {
+            let start_offset = doc.buffer().prev_code_boundary(offset);
+            let start_position = doc.buffer().offset_to_position(start_offset);
+            let position = doc.buffer().offset_to_position(offset);
+            (start_position, position)
+        });
+
+        enum DefinitionOrReferece {
+            Location(EditorLocation),
+            References(Vec<Location>),
+        }
+
+        let internal_command = self.internal_command;
+        let send = create_ext_action(cx, move |d| match d {
+            DefinitionOrReferece::Location(location) => {
+                internal_command
+                    .set(Some(InternalCommand::GoToLocation { location }));
+            }
+            DefinitionOrReferece::References(_) => todo!(),
+        });
+        let proxy = self.proxy.clone();
+        self.proxy
+            .get_definition(offset, path.clone(), position, move |result| {
+                if let Ok(ProxyResponse::GetDefinitionResponse {
+                    definition, ..
+                }) = result
+                {
+                    if let Some(location) = match definition {
+                        GotoDefinitionResponse::Scalar(location) => Some(location),
+                        GotoDefinitionResponse::Array(locations) => {
+                            if !locations.is_empty() {
+                                Some(locations[0].clone())
+                            } else {
+                                None
+                            }
+                        }
+                        GotoDefinitionResponse::Link(location_links) => {
+                            let location_link = location_links[0].clone();
+                            Some(Location {
+                                uri: location_link.target_uri,
+                                range: location_link.target_selection_range,
+                            })
+                        }
+                    } {
+                        if location.range.start == start_position {
+                            proxy.get_references(
+                                path.clone(),
+                                position,
+                                move |result| {
+                                    if let Ok(
+                                        ProxyResponse::GetReferencesResponse {
+                                            references,
+                                        },
+                                    ) = result
+                                    {
+                                        if references.is_empty() {
+                                            return;
+                                        }
+                                        if references.len() == 1 {
+                                            let location = &references[0];
+                                            send(DefinitionOrReferece::Location(
+                                                EditorLocation {
+                                                    path,
+                                                    position: Some(
+                                                        EditorPosition::Position(
+                                                            location.range.start,
+                                                        ),
+                                                    ),
+                                                },
+                                            ));
+                                        } else {
+                                            send(DefinitionOrReferece::References(
+                                                references,
+                                            ));
+                                        }
+                                    }
+                                },
+                            );
+                        } else {
+                            let path = path_from_url(&location.uri);
+                            send(DefinitionOrReferece::Location(EditorLocation {
+                                path,
+                                position: Some(EditorPosition::Position(
+                                    location.range.start,
+                                )),
+                            }));
+                        }
+                    }
+                }
+            });
     }
 
     fn page_move(&self, cx: AppContext, down: bool, mods: Modifiers) {

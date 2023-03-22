@@ -13,7 +13,11 @@ use floem::{
         SignalSet, SignalUpdate, SignalWith, SignalWithUntracked, WriteSignal,
     },
 };
-use lapce_core::register::Register;
+use lapce_core::{
+    cursor::{Cursor, CursorMode},
+    register::Register,
+    selection::Selection,
+};
 use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
 use lapce_xi_rope::Rope;
 use serde::{Deserialize, Serialize};
@@ -22,11 +26,11 @@ use crate::{
     command::InternalCommand,
     completion::CompletionData,
     config::LapceConfig,
-    doc::{Document},
-    editor::EditorData,
+    doc::Document,
+    editor::{location::EditorLocation, EditorData},
     editor_tab::{EditorTabChild, EditorTabData},
     id::{EditorId, EditorTabId, SplitId},
-    keypress::{KeyPressData},
+    keypress::KeyPressData,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -195,6 +199,90 @@ impl MainSplitData {
             doc
         };
         self.get_editor_or_new(cx, doc, &path);
+    }
+
+    pub fn go_to_location(&self, cx: AppContext, location: EditorLocation) {
+        let path = location.path;
+        let doc = self.docs.with_untracked(|docs| docs.get(&path).cloned());
+        let (doc, new) = if let Some(doc) = doc {
+            (doc, false)
+        } else {
+            let doc =
+                Document::new(cx, path.clone(), self.proxy_rpc.clone(), self.config);
+            let doc = create_rw_signal(cx.scope, doc);
+            self.docs.update(|docs| {
+                docs.insert(path.clone(), doc);
+            });
+            (doc, true)
+        };
+
+        let config = self.config.get_untracked();
+        let editor = self.get_editor_or_new(cx, doc, &path);
+        if !new {
+            if let Some(position) = location.position.as_ref() {
+                let offset =
+                    doc.with_untracked(|doc| position.to_offset(doc.buffer()));
+                let cursor = editor.with_untracked(|editor| editor.cursor);
+                cursor.set(if config.core.modal {
+                    Cursor::new(CursorMode::Normal(offset), None, None)
+                } else {
+                    Cursor::new(
+                        CursorMode::Insert(Selection::caret(offset)),
+                        None,
+                        None,
+                    )
+                });
+            }
+        }
+
+        if new {
+            {
+                let proxy = self.proxy_rpc.clone();
+                create_effect(cx.scope, move |last| {
+                    let rev = doc.with(|doc| doc.buffer().rev());
+                    if last == Some(rev) {
+                        return rev;
+                    }
+                    Document::tigger_proxy_update(cx, doc, &proxy);
+                    rev
+                });
+            }
+
+            let buffer_id = doc.with_untracked(|doc| doc.buffer_id);
+            let set_doc = doc.write_only();
+            let position = location.position;
+            let config = self.config;
+            let send = create_ext_action(cx, move |content| {
+                let offset = set_doc
+                    .try_update(move |doc| {
+                        doc.init_content(content);
+                        position.map(|position| position.to_offset(doc.buffer()))
+                    })
+                    .unwrap();
+
+                if let Some(offset) = offset {
+                    let config = config.get_untracked();
+                    let cursor = editor.with_untracked(|editor| editor.cursor);
+                    cursor.set(if config.core.modal {
+                        Cursor::new(CursorMode::Normal(offset), None, None)
+                    } else {
+                        Cursor::new(
+                            CursorMode::Insert(Selection::caret(offset)),
+                            None,
+                            None,
+                        )
+                    });
+                }
+            });
+
+            self.proxy_rpc
+                .new_buffer(buffer_id, path.clone(), move |result| {
+                    if let Ok(ProxyResponse::NewBufferResponse { content }) = result
+                    {
+                        send(Rope::from(content))
+                    }
+                });
+        }
     }
 
     fn get_editor_or_new(

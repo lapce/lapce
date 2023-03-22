@@ -295,6 +295,9 @@ impl WindowTabData {
             InternalCommand::OpenFile { path } => {
                 self.main_split.open_file(cx, path);
             }
+            InternalCommand::GoToLocation { location } => {
+                self.main_split.go_to_location(cx, location);
+            }
             InternalCommand::Split {
                 direction,
                 editor_tab_id,
