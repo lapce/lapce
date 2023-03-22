@@ -346,7 +346,6 @@ impl SearchContent {
             i += 1;
             if !fold {
                 for (line_number, (start, _end), _line) in matches {
-
                     if i == n {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
@@ -648,4 +647,3 @@ impl Widget<LapceTabData> for SearchContent {
         }
     }
 }
-
