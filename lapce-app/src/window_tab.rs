@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use floem::{
     app::AppContext,
-    glazier::KeyEvent,
+    ext_event::open_file_dialog,
+    glazier::{FileDialogOptions, KeyEvent},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
         create_effect, create_rw_signal, create_signal, use_context, ReadSignal,
@@ -12,15 +13,20 @@ use floem::{
 use lapce_core::register::Register;
 
 use crate::{
-    command::{InternalCommand, LapceCommand, LapceWorkbenchCommand},
+    command::{
+        CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand,
+        WindowCommand,
+    },
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
-    keypress::{DefaultKeyPress, KeyPressData},
+    id::WindowTabId,
+    keypress::{DefaultKeyPress, KeyPressData, KeyPressFocus},
+
     main_split::MainSplitData,
     palette::{kind::PaletteKind, PaletteData},
     proxy::{start_proxy, ProxyData},
-    workspace::LapceWorkspace,
+    workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
 #[derive(Clone)]
@@ -31,6 +37,8 @@ pub enum Focus {
 
 #[derive(Clone)]
 pub struct WindowTabData {
+    pub window_tab_id: WindowTabId,
+    pub workspace: Arc<LapceWorkspace>,
     pub palette: PaletteData,
     pub main_split: MainSplitData,
     pub proxy: ProxyData,
@@ -38,15 +46,20 @@ pub struct WindowTabData {
     pub completion: RwSignal<CompletionData>,
     pub focus: RwSignal<Focus>,
     pub lapce_command: ReadSignal<Option<LapceCommand>>,
-    pub workbench_command: ReadSignal<Option<LapceWorkbenchCommand>>,
+    pub workbench_command: RwSignal<Option<LapceWorkbenchCommand>>,
     pub internal_command: ReadSignal<Option<InternalCommand>>,
+    pub set_window_command: WriteSignal<Option<WindowCommand>>,
     pub window_origin: RwSignal<Point>,
     pub layout_rect: RwSignal<Rect>,
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
 
 impl WindowTabData {
-    pub fn new(cx: AppContext, workspace: Arc<LapceWorkspace>) -> Self {
+    pub fn new(
+        cx: AppContext,
+        workspace: Arc<LapceWorkspace>,
+        set_window_command: WriteSignal<Option<WindowCommand>>,
+    ) -> Self {
         let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
 
         let disabled_volts = db.get_disabled_volts().unwrap_or_default();
@@ -57,13 +70,12 @@ impl WindowTabData {
         all_disabled_volts.extend(workspace_disabled_volts.into_iter());
 
         let (lapce_command, set_lapce_command) = create_signal(cx.scope, None);
-        let (workbench_command, set_workbench_command) =
-            create_signal(cx.scope, None);
+        let workbench_command = create_rw_signal(cx.scope, None);
         let (internal_command, set_internal_command) = create_signal(cx.scope, None);
         let config = LapceConfig::load(&workspace, &all_disabled_volts);
         let keypress = create_rw_signal(
             cx.scope,
-            KeyPressData::new(&config, set_workbench_command),
+            KeyPressData::new(&config, workbench_command.write_only()),
         );
         let (config, set_config) = create_signal(cx.scope, Arc::new(config));
 
@@ -76,11 +88,13 @@ impl WindowTabData {
 
         let palette = PaletteData::new(
             cx,
-            workspace,
+            workspace.clone(),
             proxy.rpc.clone(),
             register,
             completion,
+            set_window_command,
             set_internal_command,
+            set_lapce_command,
             focus,
             keypress.read_only(),
             config,
@@ -96,6 +110,9 @@ impl WindowTabData {
         );
 
         let window_tab_data = Self {
+            window_tab_id: WindowTabId::next(),
+            set_window_command,
+            workspace,
             palette,
             main_split,
             proxy,
@@ -141,14 +158,46 @@ impl WindowTabData {
         window_tab_data
     }
 
-    pub fn run_lapce_command(&self, cx: AppContext, cmd: LapceCommand) {}
+    pub fn run_lapce_command(&self, cx: AppContext, cmd: LapceCommand) {
+        match cmd.kind {
+            CommandKind::Workbench(cmd) => {
+                self.run_workbench_command(cx, cmd);
+            }
+            CommandKind::Edit(_) => todo!(),
+            CommandKind::Move(_) => todo!(),
+            CommandKind::Focus(_) => todo!(),
+            CommandKind::MotionMode(_) => todo!(),
+            CommandKind::MultiSelection(_) => todo!(),
+        }
+    }
 
     pub fn run_workbench_command(&self, cx: AppContext, cmd: LapceWorkbenchCommand) {
         use LapceWorkbenchCommand::*;
         match cmd {
             EnableModal => todo!(),
             DisableModal => todo!(),
-            OpenFolder => todo!(),
+            OpenFolder => {
+                println!("open folder");
+                if !self.workspace.kind.is_remote() {
+                    let set_window_command = self.set_window_command;
+                    let options = FileDialogOptions::new().select_directories();
+                    open_file_dialog(options, move |file| {
+                        if let Some(file) = file {
+                            let workspace = LapceWorkspace {
+                                kind: LapceWorkspaceType::Local,
+                                path: Some(file.path),
+                                last_open: std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap()
+                                    .as_secs(),
+                            };
+                            set_window_command.set(Some(
+                                WindowCommand::SetWorkspace { workspace },
+                            ));
+                        }
+                    });
+                }
+            }
             CloseFolder => todo!(),
             OpenFile => todo!(),
             RevealActiveFileInFileExplorer => todo!(),
@@ -182,15 +231,15 @@ impl WindowTabData {
             PaletteLine => todo!(),
             Palette => {
                 self.palette.run(cx, PaletteKind::File);
-                self.focus.set(Focus::Palette);
             }
             PaletteSymbol => todo!(),
             PaletteWorkspaceSymbol => todo!(),
             PaletteCommand => {
                 self.palette.run(cx, PaletteKind::Command);
-                self.focus.set(Focus::Palette);
             }
-            PaletteWorkspace => todo!(),
+            PaletteWorkspace => {
+                self.palette.run(cx, PaletteKind::Workspace);
+            }
             PaletteRunAndDebug => todo!(),
             RunAndDebugRestart => todo!(),
             RunAndDebugStop => todo!(),
@@ -290,22 +339,6 @@ impl WindowTabData {
         }
 
         self.keypress.set(keypress);
-
-        // self.keypress.update(|keypress| {
-        //     let executed = match focus {
-        //         Focus::Workbench => {
-        //             self.main_split.key_down(cx, key_event, keypress).is_some()
-        //         }
-        //         Focus::Palette => {
-        //             keypress.key_down(cx, key_event, &self.palette);
-        //             true
-        //         }
-        //     };
-
-        //     if !executed {
-        //         keypress.key_down(cx, key_event, &DefaultKeyPress {});
-        //     }
-        // });
     }
 
     pub fn completion_origin(&self) -> Point {

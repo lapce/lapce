@@ -31,14 +31,17 @@ use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
 use lapce_xi_rope::Rope;
 
 use crate::{
-    command::{CommandExecuted, CommandKind, InternalCommand},
+    command::{
+        CommandExecuted, CommandKind, InternalCommand, LapceCommand, WindowCommand,
+    },
     completion::CompletionData,
     config::LapceConfig,
+    db::LapceDb,
     editor::EditorData,
     id::EditorId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     window_tab::Focus,
-    workspace::LapceWorkspace,
+    workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
 use self::{
@@ -73,7 +76,9 @@ impl PaletteInput {
 pub struct PaletteData {
     run_id_counter: Arc<AtomicU64>,
     run_tx: Sender<(u64, String, im::Vector<PaletteItem>)>,
+    window_command: WriteSignal<Option<WindowCommand>>,
     internal_command: WriteSignal<Option<InternalCommand>>,
+    lapce_command: WriteSignal<Option<LapceCommand>>,
     pub run_id: RwSignal<u64>,
     pub workspace: Arc<LapceWorkspace>,
     pub status: RwSignal<PaletteStatus>,
@@ -96,7 +101,9 @@ impl PaletteData {
         proxy_rpc: ProxyRpcHandler,
         register: RwSignal<Register>,
         completion: RwSignal<CompletionData>,
+        window_command: WriteSignal<Option<WindowCommand>>,
         internal_command: WriteSignal<Option<InternalCommand>>,
+        lapce_command: WriteSignal<Option<LapceCommand>>,
         focus: RwSignal<Focus>,
         keypress: ReadSignal<KeyPressData>,
         config: ReadSignal<Arc<LapceConfig>>,
@@ -190,7 +197,9 @@ impl PaletteData {
         let palette = Self {
             run_id_counter,
             run_tx,
+            window_command,
             internal_command,
+            lapce_command,
             run_id,
             focus,
             workspace,
@@ -255,6 +264,7 @@ impl PaletteData {
     }
 
     pub fn run(&self, cx: AppContext, kind: PaletteKind) {
+        self.focus.set(Focus::Palette);
         self.status.set(PaletteStatus::Started);
         let symbol = kind.symbol();
         self.editor
@@ -266,7 +276,6 @@ impl PaletteData {
     }
 
     fn run_inner(&self, cx: AppContext, kind: PaletteKind) {
-        println!("palette run inner");
         let run_id = self.run_id_counter.fetch_add(1, Ordering::Relaxed) + 1;
         self.run_id.set(run_id);
         match kind {
@@ -275,6 +284,9 @@ impl PaletteData {
             }
             PaletteKind::Command => {
                 self.get_commands(cx);
+            }
+            PaletteKind::Workspace => {
+                self.get_workspaces(cx);
             }
         }
     }
@@ -368,6 +380,35 @@ impl PaletteData {
         self.items.set(items);
     }
 
+    fn get_workspaces(&self, cx: AppContext) {
+        let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
+        let workspaces = db.recent_workspaces().unwrap_or_default();
+
+        let items = workspaces
+            .into_iter()
+            .filter_map(|w| {
+                let text = w.path.as_ref()?.to_str()?.to_string();
+                let filter_text = match &w.kind {
+                    LapceWorkspaceType::Local => text,
+                    LapceWorkspaceType::RemoteSSH(ssh) => {
+                        format!("[{ssh}] {text}")
+                    }
+                    LapceWorkspaceType::RemoteWSL => {
+                        format!("[wsl] {text}")
+                    }
+                };
+                Some(PaletteItem {
+                    content: PaletteItemContent::Workspace { workspace: w },
+                    filter_text,
+                    score: 0,
+                    indices: vec![],
+                })
+            })
+            .collect();
+
+        self.items.set(items);
+    }
+
     fn select(&self, cx: AppContext) {
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
@@ -378,7 +419,14 @@ impl PaletteData {
                         path: full_path.to_owned(),
                     }));
                 }
-                PaletteItemContent::Command { cmd } => {}
+                PaletteItemContent::Command { cmd } => {
+                    self.lapce_command.set(Some(cmd.clone()));
+                }
+                PaletteItemContent::Workspace { workspace } => {
+                    self.window_command.set(Some(WindowCommand::SetWorkspace {
+                        workspace: workspace.clone(),
+                    }));
+                }
             }
         }
         self.cancel(cx);

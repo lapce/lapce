@@ -14,5 +14,6 @@ pub mod palette;
 pub mod proxy;
 pub mod snippet;
 pub mod title;
+pub mod window;
 pub mod window_tab;
 pub mod workspace;
