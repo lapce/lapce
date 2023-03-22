@@ -333,10 +333,6 @@ impl SearchContent {
 
         let mut i = 0;
         for (path, matches) in data.search.matches.iter() {
-            if matches.len() + 1 + i < n {
-                i += matches.len() + 1;
-                continue;
-            }
             let fold = if let Some(fold) = self.file_folds.get(path) {
                 *fold
             } else {
@@ -347,9 +343,10 @@ impl SearchContent {
                 ctx.request_paint();
                 break;
             }
+            i += 1;
             if !fold {
                 for (line_number, (start, _end), _line) in matches {
-                    i += 1;
+
                     if i == n {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
@@ -370,10 +367,9 @@ impl SearchContent {
                         ));
                         return;
                     }
+                    i += 1;
                 }
             }
-
-            i += 1;
         }
     }
 }
@@ -652,3 +648,4 @@ impl Widget<LapceTabData> for SearchContent {
         }
     }
 }
+
