@@ -13,13 +13,19 @@ concurrency:
 
 jobs:
   build:
-    name: Rust on ${{ matrix.os }}
+    name: Rust on ${{ matrix.os }} (${{ join(matrix.features, ',') }})
     if: github.event.pull_request.draft == false
     needs: [fmt, clippy]
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        os: [ ubuntu-latest, macos-latest ]
+        include:
+          - os: windows-latest
+            features: []
+          - os: windows-latest
+            features: 
+              - lapce-ui/portable
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repo
@@ -41,14 +47,20 @@ jobs:
         run: cargo fetch --locked
 
       - name: Build
+        if: ${{ join(matrix.features, ',') == '' }}
         run: cargo build --frozen
+
+      - name: Build
+        if: ${{ join(matrix.features, ',') != '' }}
+        run: cargo build --frozen --features ${{ join(matrix.features, ',') }}
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Run tests and coverage
+        if: ${{ toJSON(matrix.features) == '[]' }}
         run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
-          
+
       - name: Run doc tests
         run: cargo test --doc --workspace
 
