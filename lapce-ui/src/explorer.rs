@@ -368,33 +368,37 @@ impl FileExplorer {
 
     pub fn new_panel(data: &mut LapceTabData) -> LapcePanel {
         let split_id = WidgetId::next();
-        LapcePanel::new(
-            PanelKind::FileExplorer,
-            data.file_explorer.widget_id,
+        let mut sections = vec![(
             split_id,
-            vec![
+            PanelHeaderKind::Simple(
+                data.workspace
+                    .path
+                    .as_ref()
+                    .and_then(|p| p.file_name())
+                    .and_then(|s| s.to_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "No Folder Open".to_string())
+                    .into(),
+            ),
+            Self::new(data).boxed(),
+            PanelSizing::Flex(true),
+        )];
+        if !data.config.editor.hide_open_editors {
+            sections.insert(
+                0,
                 (
                     WidgetId::next(),
                     PanelHeaderKind::Simple("Open Editors".into()),
                     LapceScroll::new(OpenEditorList::new()).boxed(),
                     PanelSizing::Size(200.0),
                 ),
-                (
-                    split_id,
-                    PanelHeaderKind::Simple(
-                        data.workspace
-                            .path
-                            .as_ref()
-                            .and_then(|p| p.file_name())
-                            .and_then(|s| s.to_str())
-                            .map(|s| s.to_string())
-                            .unwrap_or_else(|| "No Folder Open".to_string())
-                            .into(),
-                    ),
-                    Self::new(data).boxed(),
-                    PanelSizing::Flex(true),
-                ),
-            ],
+            )
+        }
+        LapcePanel::new(
+            PanelKind::FileExplorer,
+            data.file_explorer.widget_id,
+            split_id,
+            sections,
         )
     }
 }

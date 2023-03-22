@@ -203,6 +203,9 @@
                 "show-tab": {
                     "type": "boolean"
                 },
+                "hide-open-editors": {
+                    "type": "boolean"
+                },
                 "show-bread-crumbs": {
                     "type": "boolean"
                 },
