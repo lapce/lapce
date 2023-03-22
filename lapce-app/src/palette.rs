@@ -16,9 +16,9 @@ use floem::{
     app::AppContext,
     ext_event::{create_ext_action, create_signal_from_channel},
     reactive::{
-        create_effect, create_rw_signal, create_signal, ReadSignal, RwSignal,
-        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked, WriteSignal,
+        create_effect, create_rw_signal, create_signal, use_context, ReadSignal,
+        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalWith, SignalWithUntracked, WriteSignal,
     },
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};

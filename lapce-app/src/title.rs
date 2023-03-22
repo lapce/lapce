@@ -3,7 +3,9 @@ use std::sync::Arc;
 use floem::{
     app::AppContext,
     peniko::Color,
-    reactive::{create_signal, ReadSignal, WriteSignal},
+    reactive::{
+        create_signal, ReadSignal, SignalGet, SignalSet, SignalWith, WriteSignal,
+    },
     stack::stack,
     style::{AlignItems, Dimension, Display, JustifyContent, Style},
     view::View,

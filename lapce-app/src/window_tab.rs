@@ -8,6 +8,7 @@ use floem::{
     reactive::{
         create_effect, create_rw_signal, create_signal, use_context, ReadSignal,
         RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalWithUntracked,
+        WriteSignal,
     },
 };
 use lapce_core::register::Register;
@@ -22,7 +23,6 @@ use crate::{
     db::LapceDb,
     id::WindowTabId,
     keypress::{DefaultKeyPress, KeyPressData, KeyPressFocus},
-
     main_split::MainSplitData,
     palette::{kind::PaletteKind, PaletteData},
     proxy::{start_proxy, ProxyData},

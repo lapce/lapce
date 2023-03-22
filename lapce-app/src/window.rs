@@ -3,7 +3,10 @@ use std::sync::Arc;
 use floem::{
     app::AppContext,
     glazier::KeyEvent,
-    reactive::{create_effect, create_rw_signal, RwSignal, UntrackedGettableSignal},
+    reactive::{
+        create_effect, create_rw_signal, RwSignal, SignalGet, SignalGetUntracked,
+        SignalUpdate, SignalWithUntracked,
+    },
 };
 
 use crate::{
