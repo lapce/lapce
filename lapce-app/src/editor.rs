@@ -66,8 +66,16 @@ impl EditorData {
         proxy: ProxyRpcHandler,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
-        let cursor =
-            Cursor::new(CursorMode::Insert(Selection::caret(0)), None, None);
+        let modal = config.with_untracked(|c| c.core.modal);
+        let cursor = Cursor::new(
+            if modal {
+                CursorMode::Normal(0)
+            } else {
+                CursorMode::Insert(Selection::caret(0))
+            },
+            None,
+            None,
+        );
         let cursor = create_rw_signal(cx.scope, cursor);
         let scroll = create_rw_signal(cx.scope, Vec2::ZERO);
         let snippet = create_rw_signal(cx.scope, None);

@@ -81,6 +81,25 @@ pub struct LapceWorkspace {
     pub last_open: u64,
 }
 
+impl LapceWorkspace {
+    pub fn display(&self) -> Option<String> {
+        let path = self.path.as_ref()?;
+        let path = path
+            .file_name()
+            .unwrap_or(path.as_os_str())
+            .to_string_lossy()
+            .to_string();
+        let remote = match &self.kind {
+            LapceWorkspaceType::Local => "".to_string(),
+            LapceWorkspaceType::RemoteSSH(ssh) => {
+                format!(" [SSH: {}]", ssh.host)
+            }
+            LapceWorkspaceType::RemoteWSL => " [WSL]".to_string(),
+        };
+        Some(format!("{path}{remote}"))
+    }
+}
+
 impl Default for LapceWorkspace {
     fn default() -> Self {
         Self {

@@ -66,7 +66,7 @@ impl UIConfig {
 
     pub fn icon_size(&self) -> usize {
         if self.icon_size == 0 {
-            self.font_size() + 2
+            self.font_size()
         } else {
             self.icon_size.max(6).min(32)
         }

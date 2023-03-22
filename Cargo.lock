@@ -1610,7 +1610,6 @@ name = "floem"
 version = "0.1.0"
 dependencies = [
  "bitflags",
- "cosmic-text",
  "crossbeam-channel",
  "educe",
  "floem_renderer",
@@ -1648,7 +1647,6 @@ name = "floem_vger"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "cosmic-text",
  "floem_renderer",
  "futures",
  "parley 0.1.0 (git+https://github.com/lapce/parley?rev=dd30cc9e4ae733d80650ad3ab0db0462ccd67e57)",
@@ -7033,7 +7031,6 @@ dependencies = [
  "fontdue",
  "rand 0.7.3",
  "rect_packer",
- "swash 0.1.6 (git+https://github.com/dfrg/swash)",
  "wgpu",
 ]
 

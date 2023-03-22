@@ -12,6 +12,7 @@ use crate::{
     editor_tab::EditorTabChild,
     id::EditorTabId,
     main_split::{SplitDirection, SplitMoveDirection},
+    workspace::LapceWorkspace,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -464,4 +465,9 @@ pub enum InternalCommand {
         editor_tab_id: EditorTabId,
         child: EditorTabChild,
     },
+}
+
+#[derive(Clone)]
+pub enum WindowCommand {
+    SetWorkspace { workspace: LapceWorkspace },
 }

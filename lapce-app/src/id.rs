@@ -15,5 +15,6 @@ impl Id {
 }
 
 pub type SplitId = Id;
+pub type WindowTabId = Id;
 pub type EditorTabId = Id;
 pub type EditorId = Id;

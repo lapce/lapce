@@ -56,6 +56,7 @@ use crate::{
     },
     proxy::{start_proxy, ProxyData},
     title::title,
+    window::WindowData,
     window_tab::{Focus, WindowTabData},
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
@@ -796,6 +797,7 @@ fn editor_tab_header(
                     )
                 })
                 .style(cx, move || Style {
+                    align_items: Some(AlignItems::Center),
                     border_left: if i == 0 { 1.0 } else { 0.0 },
                     border_right: 1.0,
                     ..Default::default()
@@ -1194,7 +1196,7 @@ fn split_list(
     })
 }
 
-fn main_split(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+fn main_split(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let root_split = window_tab_data.main_split.root_split;
     let root_split = window_tab_data
         .main_split
@@ -1208,18 +1210,22 @@ fn main_split(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     let editor_tabs = window_tab_data.main_split.editor_tabs.read_only();
     let editors = window_tab_data.main_split.editors.read_only();
     let config = window_tab_data.main_split.config;
-    split_list(cx, root_split, window_tab_data.main_split).style(cx, move || Style {
-        background: Some(*config.get().get_color(LapceColor::EDITOR_BACKGROUND)),
-        flex_grow: 1.0,
-        ..Default::default()
-    })
+    split_list(cx, root_split, window_tab_data.main_split.clone()).style(
+        cx,
+        move || Style {
+            background: Some(*config.get().get_color(LapceColor::EDITOR_BACKGROUND)),
+            flex_grow: 1.0,
+            ..Default::default()
+        },
+    )
 }
 
-fn workbench(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let config = window_tab_data.main_split.config;
     stack(cx, move |cx| {
         (
             label(cx, move || "left".to_string()).style(cx, move || Style {
+                width: Dimension::Points(250.0),
                 padding: 20.0,
                 border_right: 1.0,
                 background: Some(
@@ -1248,6 +1254,7 @@ fn workbench(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
                 padding: 20.0,
                 border_left: 1.0,
                 min_width: Dimension::Points(0.0),
+                display: Display::None,
                 background: Some(
                     *config.get().get_color(LapceColor::PANEL_BACKGROUND),
                 ),
@@ -1316,10 +1323,23 @@ fn palette_item(
                 .filter_map(|&i| if i < folder_len { Some(i) } else { None })
                 .collect::<Vec<_>>();
 
+            let path = path.to_path_buf();
             container_box(cx, move |cx| {
                 Box::new(
                     stack(cx, move |cx| {
                         (
+                            svg(cx, move || config.get().file_svg(&path).0).style(
+                                cx,
+                                move || {
+                                    let size = config.get().ui.icon_size() as f32;
+                                    Style {
+                                        width: Dimension::Points(size),
+                                        height: Dimension::Points(size),
+                                        margin_right: Some(5.0),
+                                        ..Default::default()
+                                    }
+                                },
+                            ),
                             focus_text(
                                 cx,
                                 move || file_name.clone(),
@@ -1340,7 +1360,10 @@ fn palette_item(
                                     *config.get().get_color(LapceColor::EDITOR_FOCUS)
                                 },
                             )
-                            .style(cx, || Style {
+                            .style(cx, move || Style {
+                                color: Some(
+                                    *config.get().get_color(LapceColor::EDITOR_DIM),
+                                ),
                                 margin_left: Some(6.0),
                                 min_width: Dimension::Points(0.0),
                                 ..Default::default()
@@ -1349,12 +1372,32 @@ fn palette_item(
                     })
                     .style(cx, || Style {
                         align_items: Some(AlignItems::Center),
+                        max_width: Dimension::Percent(1.0),
                         ..Default::default()
                     }),
                 )
             })
         }
-        PaletteItemContent::Command { cmd } => {
+        PaletteItemContent::Command { .. } => {
+            let text = item.filter_text;
+            let indices = item.indices;
+            container_box(cx, move |cx| {
+                Box::new(
+                    focus_text(
+                        cx,
+                        move || text.clone(),
+                        move || indices.clone(),
+                        move || *config.get().get_color(LapceColor::EDITOR_FOCUS),
+                    )
+                    .style(cx, || Style {
+                        align_items: Some(AlignItems::Center),
+                        max_width: Dimension::Percent(1.0),
+                        ..Default::default()
+                    }),
+                )
+            })
+        }
+        PaletteItemContent::Workspace { .. } => {
             let text = item.filter_text;
             let indices = item.indices;
             container_box(cx, move |cx| {
@@ -1391,7 +1434,7 @@ fn palette_item(
     })
 }
 
-fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let doc = window_tab_data.palette.editor.doc.read_only();
     let cursor = window_tab_data.palette.editor.cursor.read_only();
     let config = window_tab_data.palette.config;
@@ -1422,19 +1465,15 @@ fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
                         label(cx, move || {
                             doc.with(|doc| doc.buffer().text().to_string())
                         }),
-                        label(cx, move || "".to_string()).style(cx, move || {
-                            Style {
-                                position: Position::Absolute,
-                                margin_left: Some(cursor_x.get() - 1.0),
-                                width: Dimension::Points(2.0),
-                                background: Some(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::EDITOR_CARET),
-                                ),
-                                // border_left: 2.0,
-                                ..Default::default()
-                            }
+                        label(cx, move || "".to_string()).style(cx, move || Style {
+                            position: Position::Absolute,
+                            width: Dimension::Points(2.0),
+                            height: Dimension::Percent(1.0),
+                            margin_left: Some(cursor_x.get() - 0.5),
+                            background: Some(
+                                *config.get().get_color(LapceColor::EDITOR_CARET),
+                            ),
+                            ..Default::default()
                         }),
                     )
                 })
@@ -1456,7 +1495,7 @@ fn palette_input(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
             flex_grow: 1.0,
             min_width: Dimension::Points(0.0),
             border: 1.0,
-            border_radius: 2.0,
+            border_radius: 6.0,
             background: Some(*config.get().get_color(LapceColor::EDITOR_BACKGROUND)),
             padding_left: 5.0,
             padding_right: 5.0,
@@ -1490,13 +1529,16 @@ impl VirtualListVector<(usize, PaletteItem)> for PaletteItems {
     }
 }
 
-fn palette_content(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+fn palette_content(
+    cx: AppContext,
+    window_tab_data: Arc<WindowTabData>,
+) -> impl View {
     let items = window_tab_data.palette.filtered_items;
     let index = window_tab_data.palette.index.read_only();
     let config = window_tab_data.palette.config;
     let run_id = window_tab_data.palette.run_id;
     let input = window_tab_data.palette.input.read_only();
-    let palette_item_height = 24.0;
+    let palette_item_height = 25.0;
     container(cx, |cx| {
         scroll(cx, |cx| {
             virtual_list(
@@ -1544,7 +1586,7 @@ fn palette_content(cx: AppContext, window_tab_data: WindowTabData) -> impl View 
     })
 }
 
-fn palette(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+fn palette(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let keypress = window_tab_data.keypress.write_only();
     let palette_data = window_tab_data.palette.clone();
     let status = palette_data.status.read_only();
@@ -1627,7 +1669,7 @@ fn completion_kind_to_str(kind: CompletionItemKind) -> &'static str {
     }
 }
 
-fn completion(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
+fn completion(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let completion_data = window_tab_data.completion;
     let config = window_tab_data.config;
     let active = completion_data.with_untracked(|c| c.active);
@@ -1753,18 +1795,19 @@ fn completion(cx: AppContext, window_tab_data: WindowTabData) -> impl View {
     })
 }
 
-fn window_tab(cx: AppContext, workspace: Arc<LapceWorkspace>) -> impl View {
-    let window_tab_data = WindowTabData::new(cx, workspace);
+fn window_tab(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let proxy_data = window_tab_data.proxy.clone();
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;
     let config = window_tab_data.main_split.config;
+    let workspace = window_tab_data.workspace.clone();
+    let set_workbench_command = window_tab_data.workbench_command.write_only();
 
-    let window_tab_view = stack(cx, |cx| {
+    stack(cx, |cx| {
         (
             stack(cx, |cx| {
                 (
-                    title(cx, &proxy_data, config),
+                    title(cx, workspace, &proxy_data, set_workbench_command, config),
                     workbench(cx, window_tab_data.clone()),
                     status(cx, window_tab_data.main_split.config),
                 )
@@ -1791,19 +1834,35 @@ fn window_tab(cx: AppContext, workspace: Arc<LapceWorkspace>) -> impl View {
         font_size: Some(config.get().ui.font_size() as f32),
         ..Default::default()
     })
-    .on_event(EventListner::KeyDown, move |event| {
-        if let Event::KeyDown(key_event) = event {
-            window_tab_data.key_down(cx, key_event);
-            true
-        } else {
-            false
-        }
-    });
+}
 
-    let id = window_tab_view.id();
+fn window(cx: AppContext) -> impl View {
+    let window_data = WindowData::new(cx);
+    let window_tabs = window_data.window_tabs.read_only();
+    let active = window_data.active.read_only();
+    let items = move || window_tabs.get();
+    let key = |window_tab: &Arc<WindowTabData>| window_tab.window_tab_id;
+    let active = move || active.get();
+
+    let window_view = tab(cx, active, items, key, window_tab)
+        .style(cx, || Style {
+            width: Dimension::Percent(1.0),
+            height: Dimension::Percent(1.0),
+            ..Default::default()
+        })
+        .on_event(EventListner::KeyDown, move |event| {
+            if let Event::KeyDown(key_event) = event {
+                window_data.key_down(cx, key_event);
+                true
+            } else {
+                false
+            }
+        });
+
+    let id = window_view.id();
     cx.update_focus(id);
 
-    window_tab_view
+    window_view
 }
 
 fn app_logic(cx: AppContext) -> impl View {
@@ -1825,7 +1884,7 @@ fn app_logic(cx: AppContext) -> impl View {
         last_open: 0,
     });
 
-    window_tab(cx, workspace)
+    window(cx)
 }
 
 pub fn launch() {

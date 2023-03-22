@@ -2,6 +2,7 @@
 pub enum PaletteKind {
     File,
     Command,
+    Workspace,
 }
 
 impl PaletteKind {
@@ -11,7 +12,7 @@ impl PaletteKind {
             // PaletteKind::DocumentSymbol => "@",
             // PaletteKind::WorkspaceSymbol => "#",
             // PaletteKind::GlobalSearch => "?",
-            // PaletteKind::Workspace => ">",
+            PaletteKind::Workspace => ">",
             PaletteKind::Command => ":",
             PaletteKind::File
             // | PaletteKind::Reference
@@ -29,7 +30,7 @@ impl PaletteKind {
             // _ if input.starts_with('/') => PaletteKind::Line,
             // _ if input.starts_with('@') => PaletteKind::DocumentSymbol,
             // _ if input.starts_with('#') => PaletteKind::WorkspaceSymbol,
-            // _ if input.starts_with('>') => PaletteKind::Workspace,
+            _ if input.starts_with('>') => PaletteKind::Workspace,
             _ if input.starts_with(':') => PaletteKind::Command,
             _ => PaletteKind::File,
         }
@@ -57,9 +58,9 @@ impl PaletteKind {
             // | PaletteKind::SshHost
              => input,
             PaletteKind::Command
+            | PaletteKind::Workspace
             // | PaletteType::DocumentSymbol
             // | PaletteType::WorkspaceSymbol
-            // | PaletteType::Workspace
             // | PaletteType::Line
             // | PaletteType::GlobalSearch
              => if !input.is_empty() {&input[1..]} else {input},

@@ -2,17 +2,20 @@ use std::sync::Arc;
 
 use floem::{
     app::AppContext,
-    reactive::{create_signal, ReadSignal},
+    peniko::Color,
+    reactive::{create_signal, ReadSignal, WriteSignal},
     stack::stack,
-    style::{AlignItems, Dimension, JustifyContent, Style},
+    style::{AlignItems, Dimension, Display, JustifyContent, Style},
     view::View,
-    views::{container, Decorators},
+    views::{click, container, Decorators},
     views::{label, svg},
 };
 
 use crate::{
+    command::LapceWorkbenchCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     proxy::ProxyData,
+    workspace::LapceWorkspace,
 };
 
 fn left(
@@ -46,24 +49,33 @@ fn left(
                 ),
                 ..Default::default()
             }),
-            container(cx, move |cx| {
-                svg(cx, move || config.get().ui_svg(LapceIcons::SCM)).style(
-                    cx,
-                    move || {
-                        let icon_size = config.get().ui.icon_size() as f32;
+            stack(cx, move |cx| {
+                (
+                    svg(cx, move || config.get().ui_svg(LapceIcons::SCM)).style(
+                        cx,
+                        move || {
+                            let icon_size = config.get().ui.icon_size() as f32;
+                            Style {
+                                width: Dimension::Points(icon_size),
+                                height: Dimension::Points(icon_size),
+                                ..Default::default()
+                            }
+                        },
+                    ),
+                    label(cx, move || head().unwrap_or_default()).style(cx, || {
                         Style {
-                            width: Dimension::Points(icon_size),
-                            height: Dimension::Points(icon_size),
+                            margin_left: Some(10.0),
                             ..Default::default()
                         }
-                    },
+                    }),
                 )
             })
             .style(cx, move || Style {
-                padding_left: 10.0,
-                ..Default::default()
-            }),
-            label(cx, move || head().unwrap_or_default()).style(cx, || Style {
+                display: if diff_info.with(|diff_info| diff_info.is_some()) {
+                    Display::Flex
+                } else {
+                    Display::None
+                },
                 height: Dimension::Percent(1.0),
                 padding_left: 10.0,
                 padding_right: 10.0,
@@ -83,7 +95,13 @@ fn left(
     })
 }
 
-fn middle(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
+fn middle(
+    cx: AppContext,
+    workspace: Arc<LapceWorkspace>,
+    set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    let local_workspace = workspace.clone();
     stack(cx, move |cx| {
         (
             stack(cx, move |cx| {
@@ -131,35 +149,78 @@ fn middle(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
                 justify_content: Some(JustifyContent::FlexEnd),
                 ..Default::default()
             }),
-            stack(cx, move |cx| {
-                (
-                    svg(cx, move || config.get().ui_svg(LapceIcons::SEARCH)).style(
-                        cx,
-                        move || {
-                            let icon_size = config.get().ui.icon_size() as f32;
-                            Style {
-                                width: Dimension::Points(icon_size),
-                                height: Dimension::Points(icon_size),
+            click(
+                cx,
+                |cx| {
+                    stack(cx, |cx| {
+                        (
+                            svg(cx, move || config.get().ui_svg(LapceIcons::SEARCH))
+                                .style(cx, move || {
+                                    let icon_size =
+                                        config.get().ui.icon_size() as f32;
+                                    Style {
+                                        width: Dimension::Points(icon_size),
+                                        height: Dimension::Points(icon_size),
+                                        ..Default::default()
+                                    }
+                                }),
+                            label(cx, move || {
+                                if let Some(s) = local_workspace.display() {
+                                    s
+                                } else {
+                                    "Open Folder".to_string()
+                                }
+                            })
+                            .style(cx, || Style {
+                                padding_left: 10.0,
+                                padding_right: 5.0,
                                 ..Default::default()
-                            }
-                        },
-                    ),
-                    label(cx, move || "middle".to_string()).style(cx, || Style {
-                        padding_left: 10.0,
-                        padding_right: 10.0,
+                            }),
+                            click(
+                                cx,
+                                move |cx| {
+                                    svg(cx, move || {
+                                        config.get().ui_svg(LapceIcons::PALETTE_MENU)
+                                    })
+                                    .style(
+                                        cx,
+                                        move || {
+                                            let icon_size =
+                                                config.get().ui.icon_size() as f32;
+                                            Style {
+                                                width: Dimension::Points(icon_size),
+                                                height: Dimension::Points(icon_size),
+                                                ..Default::default()
+                                            }
+                                        },
+                                    )
+                                },
+                                || {},
+                            )
+                            .style(cx, move || Style {
+                                padding_left: 5.0,
+                                padding_right: 5.0,
+                                padding_top: 5.0,
+                                padding_bottom: 5.0,
+                                ..Default::default()
+                            }),
+                        )
+                    })
+                    .style(cx, || Style {
+                        align_items: Some(AlignItems::Center),
                         ..Default::default()
-                    }),
-                    svg(cx, move || config.get().ui_svg(LapceIcons::PALETTE_MENU))
-                        .style(cx, move || {
-                            let icon_size = config.get().ui.icon_size() as f32;
-                            Style {
-                                width: Dimension::Points(icon_size),
-                                height: Dimension::Points(icon_size),
-                                ..Default::default()
-                            }
-                        }),
-                )
-            })
+                    })
+                },
+                move || {
+                    if workspace.clone().path.is_some() {
+                        set_workbench_command
+                            .set(Some(LapceWorkbenchCommand::Palette));
+                    } else {
+                        set_workbench_command
+                            .set(Some(LapceWorkbenchCommand::PaletteWorkspace));
+                    }
+                },
+            )
             .style(cx, move || Style {
                 flex_basis: Dimension::Points(0.0),
                 flex_grow: 10.0,
@@ -169,7 +230,7 @@ fn middle(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
                 justify_content: Some(JustifyContent::Center),
                 align_items: Some(AlignItems::Center),
                 border: 1.0,
-                border_radius: 2.0,
+                border_radius: 6.0,
                 background: Some(
                     *config.get().get_color(LapceColor::EDITOR_BACKGROUND),
                 ),
@@ -233,7 +294,9 @@ fn right(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
 
 pub fn title(
     cx: AppContext,
+    workspace: Arc<LapceWorkspace>,
     proxy_data: &ProxyData,
+    set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let connected = proxy_data.connected;
@@ -242,7 +305,7 @@ pub fn title(
     stack(cx, move |cx| {
         (
             left(cx, proxy_data, config),
-            middle(cx, config),
+            middle(cx, workspace, set_workbench_command, config),
             right(cx, config),
         )
     })
