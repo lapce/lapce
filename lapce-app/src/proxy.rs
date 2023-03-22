@@ -1,10 +1,13 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use crossbeam_channel::Sender;
 use floem::{
     app::AppContext,
     ext_event::create_signal_from_channel,
-    reactive::{create_effect, create_signal, ReadSignal, WriteSignal},
+    reactive::{
+        create_effect, create_signal, ReadSignal, SignalSet, SignalUpdate,
+        SignalWith, WriteSignal,
+    },
 };
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::{

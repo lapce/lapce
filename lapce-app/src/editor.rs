@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, path::PathBuf, str::FromStr, sync::Arc};
+use std::{cmp::Ordering, str::FromStr, sync::Arc};
 
 use anyhow::Result;
 use floem::{
@@ -7,7 +7,8 @@ use floem::{
     glazier::Modifiers,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_rw_signal, ReadSignal, RwSignal, UntrackedGettableSignal, WriteSignal,
+        create_rw_signal, ReadSignal, RwSignal, SignalGetUntracked, SignalSet,
+        SignalUpdate, SignalWithUntracked, WriteSignal,
     },
 };
 use lapce_core::{
@@ -164,9 +165,7 @@ impl EditorData {
 
         let deltas = self
             .doc
-            .update_returning(|doc| {
-                doc.do_edit(&mut cursor, cmd, modal, &mut register)
-            })
+            .try_update(|doc| doc.do_edit(&mut cursor, cmd, modal, &mut register))
             .unwrap();
 
         if !deltas.is_empty() {
@@ -737,7 +736,7 @@ impl EditorData {
         let old_cursor = cursor.mode.clone();
         let (delta, inval_lines, edits) = self
             .doc
-            .update_returning(|doc| {
+            .try_update(|doc| {
                 doc.do_raw_edit(
                     &[
                         &[(selection.clone(), text.as_str())][..],
@@ -819,7 +818,7 @@ impl EditorData {
         let mut cursor = self.cursor.get_untracked();
         let (delta, inval_lines, edits) = self
             .doc
-            .update_returning(|doc| {
+            .try_update(|doc| {
                 let (delta, inval_lines, edits) =
                     doc.do_raw_edit(edits, EditType::Completion);
                 let selection =
@@ -915,7 +914,7 @@ impl KeyPressFocus for EditorData {
             let config = self.config.get_untracked();
             let deltas = self
                 .doc
-                .update_returning(|doc| doc.do_insert(&mut cursor, c, &config))
+                .try_update(|doc| doc.do_insert(&mut cursor, c, &config))
                 .unwrap();
             self.cursor.set(cursor);
 
