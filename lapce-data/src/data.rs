@@ -1368,20 +1368,32 @@ impl LapceTabData {
                 }
             }
             LapceWorkbenchCommand::RevealActiveFileInFileExplorer => {
-                let path = if let Some(editor) = self.main_split.active_editor() {
-                    match &editor.content {
-                        BufferContent::File(path) => path,
-                        _ => return,
-                    }
-                } else {
-                    return;
-                };
-
-                ctx.submit_command(Command::new(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::RevealInFileExplorer(path.to_owned()),
-                    Target::Auto,
-                ))
+                if let Some(LapceEditorData {
+                    content: BufferContent::File(path),
+                    ..
+                }) = self.main_split.active_editor()
+                {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::RevealInFileExplorer(path.to_owned()),
+                        Target::Auto,
+                    ));
+                }
+            }
+            LapceWorkbenchCommand::RevealActiveFileInFileTree => {
+                if let Some(LapceEditorData {
+                    content: BufferContent::File(path),
+                    ..
+                }) = self.main_split.active_editor()
+                {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::ExplorerRevealPath {
+                            path: path.to_owned(),
+                        },
+                        Target::Widget(self.file_explorer.widget_id),
+                    ));
+                }
             }
             LapceWorkbenchCommand::EnableModal => {
                 let config = Arc::make_mut(&mut self.config);
