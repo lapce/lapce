@@ -2621,6 +2621,7 @@ dependencies = [
  "tree-sitter-r",
  "tree-sitter-ruby",
  "tree-sitter-rust",
+ "tree-sitter-scala",
  "tree-sitter-scheme",
  "tree-sitter-scss",
  "tree-sitter-sql",
@@ -5257,6 +5258,15 @@ name = "tree-sitter-rust"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13470fafb7327a3acf96f5bc1013b5539a899a182f01c59b5af53f6b93195717"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-scala"
+version = "0.20.7"
+source = "git+https://github.com/tree-sitter/tree-sitter-scala.git#7d348f51e442563f4ab2b6c3e136dac658649f93"
 dependencies = [
  "cc",
  "tree-sitter",

@@ -96,6 +96,7 @@ declare_language_highlights!(
     R: "lang-r",
     Ruby: "lang-ruby",
     Rust: "lang-rust",
+    Scala: "lang-scala",
     Scheme: "lang-scheme",
     Scss: "lang-scss",
     Sql: "lang-sql",
