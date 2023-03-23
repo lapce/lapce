@@ -85,10 +85,14 @@ codegen-units = 1
 # but Lapce code in dev mode. This gives a good debugging experience for your
 # code and fast performance of other people's code. After the initial
 # build subsequent ones are as fast as dev mode builds.
-# See https://doc.rust-lang.org/cargo/reference/profiles.html
+# See: https://doc.rust-lang.org/cargo/reference/profiles.html
+#
 # To use this profile:
 #   cargo build --profile fastdev
-#   cargo run --profile fastdev --bin lapce
+#   cargo run --profile fastdev --bin lapce -- --wait
+#
+# Note: the --wait flag is passed to lapce for blocking the terminal
+#       in order to receive stdout and stderr output.
 [profile.fastdev.package."*"]
 opt-level = 3
 
