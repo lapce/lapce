@@ -2523,7 +2523,7 @@ impl LapceMainSplitData {
 
         if let Ok(edits) = edits {
             if !edits.is_empty() {
-                let doc = self.open_docs.get_mut(path).unwrap();
+                let doc = self.open_docs.get(path).unwrap();
 
                 let edits = edits
                     .iter()
@@ -2643,7 +2643,7 @@ impl LapceMainSplitData {
         for (selection, _) in edits.iter() {
             let selection = selection.as_ref();
             if selection.min_offset() == 0
-                && selection.max_offset() >= buffer_len - 1
+                && selection.max_offset() >= buffer_len.wrapping_sub(1)
             {
                 move_cursor = false;
                 break;
