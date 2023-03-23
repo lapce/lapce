@@ -55,7 +55,8 @@ pub struct EditorData {
     pub window_origin: RwSignal<Point>,
     pub viewport: RwSignal<Rect>,
     pub gutter_viewport: RwSignal<Rect>,
-    pub scroll: RwSignal<Vec2>,
+    pub scroll_delta: RwSignal<Vec2>,
+    pub scroll_to: RwSignal<Option<Vec2>>,
     pub snippet: RwSignal<Option<Vec<(usize, (usize, usize))>>>,
     proxy: ProxyRpcHandler,
     pub config: ReadSignal<Arc<LapceConfig>>,
@@ -84,7 +85,8 @@ impl EditorData {
             None,
         );
         let cursor = create_rw_signal(cx.scope, cursor);
-        let scroll = create_rw_signal(cx.scope, Vec2::ZERO);
+        let scroll_delta = create_rw_signal(cx.scope, Vec2::ZERO);
+        let scroll_to = create_rw_signal(cx.scope, None);
         let snippet = create_rw_signal(cx.scope, None);
         let window_origin = create_rw_signal(cx.scope, Point::ZERO);
         let viewport = create_rw_signal(cx.scope, Rect::ZERO);
@@ -101,7 +103,8 @@ impl EditorData {
             window_origin,
             viewport,
             gutter_viewport,
-            scroll,
+            scroll_delta,
+            scroll_to,
             proxy,
             config,
         }
@@ -143,7 +146,7 @@ impl EditorData {
             create_rw_signal(cx.scope, editor.viewport.get_untracked());
         editor.gutter_viewport =
             create_rw_signal(cx.scope, editor.gutter_viewport.get_untracked());
-        editor.scroll = create_rw_signal(cx.scope, Vec2::ZERO);
+        editor.scroll_delta = create_rw_signal(cx.scope, Vec2::ZERO);
         editor.window_origin = create_rw_signal(cx.scope, Point::ZERO);
         editor.editor_tab_id = editor_tab_id;
         editor.editor_id = editor_id;
@@ -461,6 +464,14 @@ impl EditorData {
             FocusCommand::GotoDefinition => {
                 self.go_to_definition(cx);
             }
+            FocusCommand::JumpLocationForward => {
+                self.internal_command
+                    .set(Some(InternalCommand::JumpLocationForward));
+            }
+            FocusCommand::JumpLocationBackward => {
+                self.internal_command
+                    .set(Some(InternalCommand::JumpLocationBackward));
+            }
             _ => {}
         }
         CommandExecuted::Yes
@@ -492,12 +503,33 @@ impl EditorData {
         }
 
         let internal_command = self.internal_command;
-        let send = create_ext_action(cx, move |d| match d {
-            DefinitionOrReferece::Location(location) => {
-                internal_command
-                    .set(Some(InternalCommand::GoToLocation { location }));
+        let cursor = self.cursor.read_only();
+        let send = create_ext_action(cx, move |d| {
+            let current_offset = cursor.with_untracked(|c| c.offset());
+            if current_offset != offset {
+                return;
             }
-            DefinitionOrReferece::References(_) => todo!(),
+
+            match d {
+                DefinitionOrReferece::Location(location) => {
+                    internal_command
+                        .set(Some(InternalCommand::JumpToLocation { location }));
+                }
+                DefinitionOrReferece::References(locations) => {
+                    internal_command.set(Some(InternalCommand::PaletteReferences {
+                        references: locations
+                            .into_iter()
+                            .map(|l| EditorLocation {
+                                path: path_from_url(&l.uri),
+                                position: Some(EditorPosition::Position(
+                                    l.range.start,
+                                )),
+                                scroll_offset: None,
+                            })
+                            .collect(),
+                    }));
+                }
+            }
         });
         let proxy = self.proxy.clone();
         self.proxy
@@ -547,6 +579,7 @@ impl EditorData {
                                                             location.range.start,
                                                         ),
                                                     ),
+                                                    scroll_offset: None,
                                                 },
                                             ));
                                         } else {
@@ -564,6 +597,7 @@ impl EditorData {
                                 position: Some(EditorPosition::Position(
                                     location.range.start,
                                 )),
+                                scroll_offset: None,
                             }));
                         }
                     }
@@ -577,7 +611,7 @@ impl EditorData {
         let line_height = config.editor.line_height() as f64;
         let lines = (viewport.height() / line_height / 2.0).round() as usize;
         let distance = (lines as f64) * line_height;
-        self.scroll
+        self.scroll_delta
             .set(Vec2::new(0.0, if down { distance } else { -distance }));
         self.run_move_command(
             cx,
@@ -619,7 +653,7 @@ impl EditorData {
             line
         };
 
-        self.scroll.set(Vec2::new(0.0, diff));
+        self.scroll_delta.set(Vec2::new(0.0, diff));
 
         match new_line.cmp(&line) {
             Ordering::Greater => {
@@ -980,6 +1014,25 @@ impl EditorData {
                 );
             });
         }
+    }
+
+    pub fn go_to_position(
+        &self,
+        position: EditorPosition,
+        scroll_offset: Option<Vec2>,
+    ) {
+        let offset = self
+            .doc
+            .with_untracked(|doc| position.to_offset(doc.buffer()));
+        let config = self.config.get_untracked();
+        if let Some(scroll_offset) = scroll_offset {
+            self.scroll_to.set(Some(scroll_offset));
+        }
+        self.cursor.set(if config.core.modal {
+            Cursor::new(CursorMode::Normal(offset), None, None)
+        } else {
+            Cursor::new(CursorMode::Insert(Selection::caret(offset)), None, None)
+        });
     }
 }
 

@@ -59,8 +59,8 @@ impl WindowData {
         };
 
         {
-            let window_command = window_command.read_only();
             let window_data = window_data.clone();
+            let window_command = window_data.window_command.read_only();
             create_effect(cx.scope, move |_| {
                 if let Some(cmd) = window_command.get() {
                     window_data.run_window_command(cx, cmd);

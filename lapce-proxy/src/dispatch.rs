@@ -661,10 +661,7 @@ impl ProxyHandler for Dispatcher {
                         }
                         Ok(ProxyResponse::GetFilesResponse { items })
                     } else {
-                        Err(RpcError {
-                            code: 0,
-                            message: "no workspace set".to_string(),
-                        })
+                        Ok(ProxyResponse::GetFilesResponse { items: Vec::new() })
                     };
                     proxy_rpc.handle_response(id, result);
                 });

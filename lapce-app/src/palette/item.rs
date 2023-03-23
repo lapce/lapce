@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use crate::{command::LapceCommand, workspace::LapceWorkspace};
+use crate::{
+    command::LapceCommand, editor::location::EditorLocation,
+    workspace::LapceWorkspace,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PaletteItem {
@@ -12,7 +15,18 @@ pub struct PaletteItem {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaletteItemContent {
-    File { path: PathBuf, full_path: PathBuf },
-    Command { cmd: LapceCommand },
-    Workspace { workspace: LapceWorkspace },
+    File {
+        path: PathBuf,
+        full_path: PathBuf,
+    },
+    Command {
+        cmd: LapceCommand,
+    },
+    Workspace {
+        workspace: LapceWorkspace,
+    },
+    Reference {
+        path: PathBuf,
+        location: EditorLocation,
+    },
 }

@@ -3,6 +3,7 @@ pub enum PaletteKind {
     File,
     Command,
     Workspace,
+    Reference,
 }
 
 impl PaletteKind {
@@ -15,7 +16,7 @@ impl PaletteKind {
             PaletteKind::Workspace => ">",
             PaletteKind::Command => ":",
             PaletteKind::File
-            // | PaletteKind::Reference
+            | PaletteKind::Reference
             // | PaletteKind::ColorTheme
             // | PaletteKind::IconTheme
             // | PaletteKind::SshHost
@@ -50,7 +51,7 @@ impl PaletteKind {
     pub fn get_input<'a>(&self, input: &'a str) -> &'a str {
         match self {
             PaletteKind::File
-            // | PaletteKind::Reference
+            | PaletteKind::Reference
             // | PaletteKind::ColorTheme
             // | PaletteKind::IconTheme
             // | PaletteKind::Language

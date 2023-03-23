@@ -11,8 +11,8 @@ use floem::{
     parley::style::FontWeight,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
-        create_memo, provide_context, ReadSignal, RwSignal, SignalGet,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        create_effect, create_memo, provide_context, ReadSignal, RwSignal,
+        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
         SignalWithUntracked,
     },
     stack::stack,
@@ -264,7 +264,7 @@ fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
             (
                 editor.doc.read_only(),
                 editor.cursor.read_only(),
-                editor.scroll.read_only(),
+                editor.scroll_delta.read_only(),
                 editor.viewport,
                 editor.gutter_viewport,
                 editor.config,
@@ -495,6 +495,7 @@ fn editor(
         doc,
         cursor,
         scroll_delta,
+        scroll_to,
         window_origin,
         viewport,
         gutter_viewport,
@@ -503,7 +504,8 @@ fn editor(
         (
             editor.doc.read_only(),
             editor.cursor.read_only(),
-            editor.scroll.read_only(),
+            editor.scroll_delta.read_only(),
+            editor.scroll_to,
             editor.window_origin,
             editor.viewport,
             editor.gutter_viewport,
@@ -603,6 +605,10 @@ fn editor(
                         viewport.set(rect);
                     })
                     .on_scroll_to(cx, move || {
+                        if let Some(scroll) = scroll_to.get() {
+                            scroll_to.set(None);
+                            return Some(scroll.to_point());
+                        }
                         let gutter_viewport = gutter_viewport.get();
                         let gutter_origin = gutter_viewport.origin();
                         let viewport = viewport.get_untracked();
@@ -631,12 +637,25 @@ fn editor(
                                     (line * line_height) as f64,
                                 ));
 
-                            rect.inflate(
-                                0.0,
-                                (config.editor.cursor_surrounding_lines
-                                    * line_height)
-                                    as f64,
-                            )
+                            let viewport = viewport.get_untracked();
+                            let smallest_distance = (viewport.y0 - rect.y0)
+                                .abs()
+                                .min((viewport.y1 - rect.y0).abs())
+                                .min((viewport.y0 - rect.y1).abs())
+                                .min((viewport.y1 - rect.y1).abs());
+                            let jump_to_middle =
+                                smallest_distance > viewport.height() / 2.0;
+
+                            if jump_to_middle {
+                                rect.inflate(0.0, viewport.height() / 2.0)
+                            } else {
+                                rect.inflate(
+                                    0.0,
+                                    (config.editor.cursor_surrounding_lines
+                                        * line_height)
+                                        as f64,
+                                )
+                            }
                         } else {
                             Rect::ZERO
                         }
@@ -710,11 +729,19 @@ fn editor_tab_header(
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let items = move || editor_tab.get().children.into_iter().enumerate();
-    let key = |(_, child): &(usize, EditorTabChild)| child.id();
+    let items = move || {
+        let editor_tab = editor_tab.get();
+        for (i, (index, _)) in editor_tab.children.iter().enumerate() {
+            if index.get_untracked() != i {
+                index.set(i);
+            }
+        }
+        editor_tab.children
+    };
+    let key = |(_, child): &(RwSignal<usize>, EditorTabChild)| child.id();
     let active = move || editor_tab.with(|editor_tab| editor_tab.active);
 
-    let view_fn = move |cx, (i, child)| {
+    let view_fn = move |cx, (i, child): (RwSignal<usize>, EditorTabChild)| {
         let child = move |cx: AppContext| match child {
             EditorTabChild::Editor(editor_id) => {
                 let editor_data =
@@ -791,7 +818,7 @@ fn editor_tab_header(
                 })
                 .style(cx, move || Style {
                     align_items: Some(AlignItems::Center),
-                    border_left: if i == 0 { 1.0 } else { 0.0 },
+                    border_left: if i.get() == 0 { 1.0 } else { 0.0 },
                     border_right: 1.0,
                     ..Default::default()
                 })
@@ -801,7 +828,7 @@ fn editor_tab_header(
             (
                 click(cx, child, move || {
                     editor_tab.update(|editor_tab| {
-                        editor_tab.active = i;
+                        editor_tab.active = i.get_untracked();
                     });
                 })
                 .style(cx, move || Style {
@@ -813,7 +840,7 @@ fn editor_tab_header(
                     label(cx, || "".to_string()).style(cx, move || Style {
                         width: Dimension::Percent(1.0),
                         height: Dimension::Percent(1.0),
-                        border_bottom: if active() == i { 2.0 } else { 0.0 },
+                        border_bottom: if active() == i.get() { 2.0 } else { 0.0 },
                         ..Default::default()
                     })
                 })
@@ -945,7 +972,13 @@ fn editor_tab_content(
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
 ) -> impl View {
-    let items = move || editor_tab.get().children;
+    let items = move || {
+        editor_tab
+            .get()
+            .children
+            .into_iter()
+            .map(|(_, child)| child)
+    };
     let key = |child: &EditorTabChild| child.id();
     let view_fn = move |cx, child| {
         let child = match child {
@@ -1280,7 +1313,8 @@ fn palette_item(
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     match &item.content {
-        PaletteItemContent::File { path, full_path } => {
+        PaletteItemContent::File { path, .. }
+        | PaletteItemContent::Reference { path, .. } => {
             let file_name = path
                 .file_name()
                 .and_then(|s| s.to_str())
@@ -1487,8 +1521,7 @@ fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl Vi
         .style(cx, move || Style {
             flex_grow: 1.0,
             min_width: Dimension::Points(0.0),
-            border: 1.0,
-            border_radius: 6.0,
+            border_bottom: 1.0,
             background: Some(*config.get().get_color(LapceColor::EDITOR_BACKGROUND)),
             padding_left: 5.0,
             padding_right: 5.0,
@@ -1496,7 +1529,7 @@ fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl Vi
         })
     })
     .style(cx, || Style {
-        padding: 5.0,
+        padding_bottom: 5.0,
         ..Default::default()
     })
 }
@@ -1532,46 +1565,60 @@ fn palette_content(
     let run_id = window_tab_data.palette.run_id;
     let input = window_tab_data.palette.input.read_only();
     let palette_item_height = 25.0;
-    container(cx, |cx| {
-        scroll(cx, |cx| {
-            virtual_list(
-                cx,
-                VirtualListDirection::Vertical,
-                move || PaletteItems(items.get()),
-                move |(i, _item)| {
-                    (run_id.get_untracked(), *i, input.get_untracked().input)
-                },
-                move |cx, (i, item)| {
-                    palette_item(cx, i, item, index, palette_item_height, config)
-                },
-                VirtualListItemSize::Fixed(palette_item_height),
-            )
+    stack(cx, |cx| {
+        (
+            scroll(cx, |cx| {
+                virtual_list(
+                    cx,
+                    VirtualListDirection::Vertical,
+                    move || PaletteItems(items.get()),
+                    move |(i, _item)| {
+                        (run_id.get_untracked(), *i, input.get_untracked().input)
+                    },
+                    move |cx, (i, item)| {
+                        palette_item(cx, i, item, index, palette_item_height, config)
+                    },
+                    VirtualListItemSize::Fixed(palette_item_height),
+                )
+                .style(cx, || Style {
+                    width: Dimension::Percent(1.0),
+                    flex_direction: FlexDirection::Column,
+                    ..Default::default()
+                })
+            })
+            .on_ensure_visible(cx, move || {
+                Size::new(1.0, palette_item_height).to_rect().with_origin(
+                    Point::new(0.0, index.get() as f64 * palette_item_height),
+                )
+            })
             .style(cx, || Style {
                 width: Dimension::Percent(1.0),
-                flex_direction: FlexDirection::Column,
+                min_height: Dimension::Points(0.0),
                 ..Default::default()
-            })
-        })
-        .on_ensure_visible(cx, move || {
-            Size::new(1.0, palette_item_height)
-                .to_rect()
-                .with_origin(Point::new(
-                    0.0,
-                    index.get() as f64 * palette_item_height,
-                ))
-        })
-        .style(cx, || Style {
-            width: Dimension::Percent(1.0),
-            min_height: Dimension::Points(0.0),
-            ..Default::default()
-        })
+            }),
+            label(cx, || "No matching results".to_string()).style(cx, move || {
+                Style {
+                    display: if items.with(|items| items.is_empty()) {
+                        Display::Flex
+                    } else {
+                        Display::None
+                    },
+                    padding_left: 10.0,
+                    padding_right: 10.0,
+                    align_items: Some(AlignItems::Center),
+                    height: Dimension::Points(palette_item_height as f32),
+                    ..Default::default()
+                }
+            }),
+        )
     })
     .style(cx, move || Style {
-        display: if items.with(|items| items.is_empty()) {
-            Display::None
-        } else {
-            Display::Flex
-        },
+        // display: if items.with(|items| items.is_empty()) {
+        //     Display::None
+        // } else {
+        //     Display::Flex
+        // },
+        flex_direction: FlexDirection::Column,
         width: Dimension::Percent(1.0),
         min_height: Dimension::Points(0.0),
         padding_bottom: 5.0,
@@ -1592,13 +1639,13 @@ fn palette(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
             )
         })
         .style(cx, move || Style {
-            width: Dimension::Points(512.0),
+            width: Dimension::Points(500.0),
             max_width: Dimension::Percent(0.9),
             min_height: Dimension::Points(0.0),
             max_height: Dimension::Percent(0.5),
-            margin_top: Some(-1.0),
+            margin_top: Some(5.0),
             border: 1.0,
-            border_radius: 5.0,
+            border_radius: 6.0,
             flex_direction: FlexDirection::Column,
             background: Some(
                 *config.get().get_color(LapceColor::PALETTE_BACKGROUND),

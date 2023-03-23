@@ -4,6 +4,7 @@ use indexmap::IndexMap;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
+use lsp_types::Location;
 use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
@@ -446,13 +447,21 @@ pub enum LapceWorkbenchCommand {
     Quit,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum InternalCommand {
     OpenFile {
         path: PathBuf,
     },
     GoToLocation {
         location: EditorLocation,
+    },
+    JumpToLocation {
+        location: EditorLocation,
+    },
+    JumpLocationForward,
+    JumpLocationBackward,
+    PaletteReferences {
+        references: Vec<EditorLocation>,
     },
     Split {
         direction: SplitDirection,

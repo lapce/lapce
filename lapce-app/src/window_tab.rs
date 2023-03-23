@@ -21,6 +21,7 @@ use crate::{
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
+    editor::location::EditorLocation,
     id::WindowTabId,
     keypress::{DefaultKeyPress, KeyPressData, KeyPressFocus},
     main_split::MainSplitData,
@@ -139,7 +140,7 @@ impl WindowTabData {
         {
             let window_tab_data = window_tab_data.clone();
             create_effect(cx.scope, move |_| {
-                if let Some(cmd) = workbench_command.get() {
+                if let Some(cmd) = window_tab_data.workbench_command.get() {
                     window_tab_data.run_workbench_command(cx, cmd);
                 }
             });
@@ -293,10 +294,30 @@ impl WindowTabData {
     pub fn run_internal_command(&self, cx: AppContext, cmd: InternalCommand) {
         match cmd {
             InternalCommand::OpenFile { path } => {
-                self.main_split.open_file(cx, path);
+                self.main_split.go_to_location(
+                    cx,
+                    EditorLocation {
+                        path,
+                        position: None,
+                        scroll_offset: None,
+                    },
+                );
             }
             InternalCommand::GoToLocation { location } => {
                 self.main_split.go_to_location(cx, location);
+            }
+            InternalCommand::JumpToLocation { location } => {
+                self.main_split.jump_to_location(cx, location);
+            }
+            InternalCommand::JumpLocationForward => {
+                self.main_split.jump_location_forward(cx);
+            }
+            InternalCommand::JumpLocationBackward => {
+                self.main_split.jump_location_backward(cx);
+            }
+            InternalCommand::PaletteReferences { references } => {
+                self.palette.references.set(references);
+                self.palette.run(cx, PaletteKind::Reference);
             }
             InternalCommand::Split {
                 direction,

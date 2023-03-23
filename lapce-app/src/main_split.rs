@@ -7,7 +7,7 @@ use floem::{
     app::AppContext,
     ext_event::create_ext_action,
     glazier::KeyEvent,
-    peniko::kurbo::{Point, Rect},
+    peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
         create_effect, create_rw_signal, ReadSignal, RwSignal, SignalGetUntracked,
         SignalSet, SignalUpdate, SignalWith, SignalWithUntracked, WriteSignal,
@@ -27,7 +27,10 @@ use crate::{
     completion::CompletionData,
     config::LapceConfig,
     doc::Document,
-    editor::{location::EditorLocation, EditorData},
+    editor::{
+        location::{EditorLocation, EditorPosition},
+        EditorData,
+    },
     editor_tab::{EditorTabChild, EditorTabData},
     id::{EditorId, EditorTabId, SplitId},
     keypress::KeyPressData,
@@ -83,6 +86,8 @@ pub struct MainSplitData {
     pub proxy_rpc: ProxyRpcHandler,
     completion: RwSignal<CompletionData>,
     register: RwSignal<Register>,
+    locations: RwSignal<im::Vector<EditorLocation>>,
+    current_location: RwSignal<usize>,
     internal_command: WriteSignal<Option<InternalCommand>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
@@ -114,6 +119,8 @@ impl MainSplitData {
         let editor_tabs = create_rw_signal(cx.scope, im::HashMap::new());
         let editors = create_rw_signal(cx.scope, im::HashMap::new());
         let docs = create_rw_signal(cx.scope, im::HashMap::new());
+        let locations = create_rw_signal(cx.scope, im::Vector::new());
+        let current_location = create_rw_signal(cx.scope, 0);
 
         Self {
             root_split,
@@ -125,6 +132,8 @@ impl MainSplitData {
             proxy_rpc,
             register,
             completion,
+            locations,
+            current_location,
             internal_command,
             config,
         }
@@ -140,7 +149,7 @@ impl MainSplitData {
         let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
             editor_tabs.get(&active_editor_tab).copied()
         })?;
-        let child = editor_tab.with_untracked(|editor_tab| {
+        let (_, child) = editor_tab.with_untracked(|editor_tab| {
             editor_tab.children.get(editor_tab.active).cloned()
         })?;
         match child {
@@ -156,49 +165,44 @@ impl MainSplitData {
         Some(())
     }
 
-    pub fn open_file(&self, cx: AppContext, path: PathBuf) {
-        let doc = self.docs.with_untracked(|docs| docs.get(&path).cloned());
-        let doc = if let Some(doc) = doc {
-            doc
-        } else {
-            let doc =
-                Document::new(cx, path.clone(), self.proxy_rpc.clone(), self.config);
-            let buffer_id = doc.buffer_id;
-            let doc = create_rw_signal(cx.scope, doc);
-            self.docs.update(|docs| {
-                docs.insert(path.clone(), doc);
+    fn save_current_jump_locatoin(&self) {
+        if let Some(editor) = self.active_editor() {
+            let (doc, cursor, viewport) = editor.with_untracked(|editor| {
+                (editor.doc, editor.cursor, editor.viewport)
             });
-
-            {
-                let proxy = self.proxy_rpc.clone();
-                create_effect(cx.scope, move |last| {
-                    let rev = doc.with(|doc| doc.buffer().rev());
-                    if last == Some(rev) {
-                        return rev;
-                    }
-                    Document::tigger_proxy_update(cx, doc, &proxy);
-                    rev
-                });
+            let path = doc.with_untracked(|doc| doc.content.path().cloned());
+            if let Some(path) = path {
+                let offset = cursor.with_untracked(|c| c.offset());
+                let scroll_offset = viewport.get_untracked().origin().to_vec2();
+                self.save_jump_location(path, offset, scroll_offset);
             }
+        }
+    }
 
-            let set_doc = doc.write_only();
-            let send = create_ext_action(cx, move |content| {
-                set_doc.update(|doc| {
-                    doc.init_content(content);
-                });
-            });
-
-            self.proxy_rpc
-                .new_buffer(buffer_id, path.clone(), move |result| {
-                    if let Ok(ProxyResponse::NewBufferResponse { content }) = result
-                    {
-                        send(Rope::from(content))
-                    }
-                });
-
-            doc
+    fn save_jump_location(&self, path: PathBuf, offset: usize, scroll_offset: Vec2) {
+        let mut locations = self.locations.get_untracked();
+        if let Some(last_location) = locations.last() {
+            if last_location.path == path
+                && last_location.position == Some(EditorPosition::Offset(offset))
+                && last_location.scroll_offset == Some(scroll_offset)
+            {
+                return;
+            }
+        }
+        let location = EditorLocation {
+            path,
+            position: Some(EditorPosition::Offset(offset)),
+            scroll_offset: Some(scroll_offset),
         };
-        self.get_editor_or_new(cx, doc, &path);
+        locations.push_back(location);
+        let current_location = locations.len();
+        self.locations.set(locations);
+        self.current_location.set(current_location);
+    }
+
+    pub fn jump_to_location(&self, cx: AppContext, location: EditorLocation) {
+        self.save_current_jump_locatoin();
+        self.go_to_location(cx, location);
     }
 
     pub fn go_to_location(&self, cx: AppContext, location: EditorLocation) {
@@ -216,26 +220,19 @@ impl MainSplitData {
             (doc, true)
         };
 
-        let config = self.config.get_untracked();
         let editor = self.get_editor_or_new(cx, doc, &path);
         if !new {
-            if let Some(position) = location.position.as_ref() {
-                let offset =
-                    doc.with_untracked(|doc| position.to_offset(doc.buffer()));
-                let cursor = editor.with_untracked(|editor| editor.cursor);
-                cursor.set(if config.core.modal {
-                    Cursor::new(CursorMode::Normal(offset), None, None)
-                } else {
-                    Cursor::new(
-                        CursorMode::Insert(Selection::caret(offset)),
-                        None,
-                        None,
-                    )
+            if let Some(position) = location.position {
+                let send = create_ext_action(cx, move |position| {
+                    editor.with_untracked(|editor| {
+                        editor.go_to_position(position, location.scroll_offset);
+                    })
+                });
+                std::thread::spawn(move || {
+                    send(position);
                 });
             }
-        }
-
-        if new {
+        } else {
             {
                 let proxy = self.proxy_rpc.clone();
                 create_effect(cx.scope, move |last| {
@@ -250,38 +247,28 @@ impl MainSplitData {
 
             let buffer_id = doc.with_untracked(|doc| doc.buffer_id);
             let set_doc = doc.write_only();
-            let position = location.position;
-            let config = self.config;
             let send = create_ext_action(cx, move |content| {
-                let offset = set_doc
-                    .try_update(move |doc| {
-                        doc.init_content(content);
-                        position.map(|position| position.to_offset(doc.buffer()))
-                    })
-                    .unwrap();
+                set_doc.update(move |doc| {
+                    doc.init_content(content);
+                });
 
-                if let Some(offset) = offset {
-                    let config = config.get_untracked();
-                    let cursor = editor.with_untracked(|editor| editor.cursor);
-                    cursor.set(if config.core.modal {
-                        Cursor::new(CursorMode::Normal(offset), None, None)
-                    } else {
-                        Cursor::new(
-                            CursorMode::Insert(Selection::caret(offset)),
-                            None,
-                            None,
-                        )
+                if let Some(position) = location.position {
+                    let send = create_ext_action(cx, move |position| {
+                        editor.with_untracked(|editor| {
+                            editor.go_to_position(position, location.scroll_offset);
+                        })
+                    });
+                    std::thread::spawn(move || {
+                        send(position);
                     });
                 }
             });
 
-            self.proxy_rpc
-                .new_buffer(buffer_id, path.clone(), move |result| {
-                    if let Ok(ProxyResponse::NewBufferResponse { content }) = result
-                    {
-                        send(Rope::from(content))
-                    }
-                });
+            self.proxy_rpc.new_buffer(buffer_id, path, move |result| {
+                if let Ok(ProxyResponse::NewBufferResponse { content }) = result {
+                    send(Rope::from(content))
+                }
+            });
         }
     }
 
@@ -302,9 +289,12 @@ impl MainSplitData {
 
         // first check if the file exists in active editor tab
         if let Some(editor_tab) = active_editor_tab {
-            if let Some(editor) = editor_tab
+            if let Some((index, editor)) = editor_tab
                 .with_untracked(|editor_tab| editor_tab.get_editor(&editors, path))
             {
+                editor_tab.update(|editor_tab| {
+                    editor_tab.active = index;
+                });
                 return editor;
             }
         }
@@ -312,10 +302,15 @@ impl MainSplitData {
         // check file exists in non active editor tabs
         for (editor_tab_id, editor_tab) in &editor_tabs {
             if Some(*editor_tab_id) != active_editor_tab_id {
-                if let Some(editor) = editor_tab.with_untracked(|editor_tab| {
-                    editor_tab.get_editor(&editors, path)
-                }) {
+                if let Some((index, editor)) =
+                    editor_tab.with_untracked(|editor_tab| {
+                        editor_tab.get_editor(&editors, path)
+                    })
+                {
                     self.active_editor_tab.set(Some(*editor_tab_id));
+                    editor_tab.update(|editor_tab| {
+                        editor_tab.active = index;
+                    });
                     return editor;
                 }
             }
@@ -347,7 +342,10 @@ impl MainSplitData {
                 split: self.root_split,
                 active: 0,
                 editor_tab_id,
-                children: vec![EditorTabChild::Editor(editor_id)],
+                children: vec![(
+                    create_rw_signal(cx.scope, 0),
+                    EditorTabChild::Editor(editor_id),
+                )],
                 window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
             };
@@ -391,21 +389,60 @@ impl MainSplitData {
                 editors.insert(editor_id, editor);
             });
 
-            println!("add editor tab child");
-
             editor_tab.update(|editor_tab| {
                 let active = editor_tab
                     .active
                     .min(editor_tab.children.len().saturating_sub(1));
-                editor_tab
-                    .children
-                    .insert(active + 1, EditorTabChild::Editor(editor_id));
+                editor_tab.children.insert(
+                    active + 1,
+                    (
+                        create_rw_signal(cx.scope, 0),
+                        EditorTabChild::Editor(editor_id),
+                    ),
+                );
                 editor_tab.active = active + 1;
             });
             editor
         };
 
         editor
+    }
+
+    pub fn jump_location_backward(&self, cx: AppContext) {
+        let locations = self.locations.get_untracked();
+        let current_location = self.current_location.get_untracked();
+        if current_location < 1 {
+            return;
+        }
+
+        if current_location >= locations.len() {
+            self.save_current_jump_locatoin();
+            self.current_location.update(|l| {
+                *l -= 1;
+            });
+        }
+
+        self.current_location.update(|l| {
+            *l -= 1;
+        });
+        let current_location = self.current_location.get_untracked();
+        let location = locations[current_location].clone();
+        self.current_location.set(current_location);
+        self.go_to_location(cx, location);
+    }
+
+    pub fn jump_location_forward(&self, cx: AppContext) {
+        let locations = self.locations.get_untracked();
+        let current_location = self.current_location.get_untracked();
+        if locations.is_empty() {
+            return;
+        }
+        if current_location >= locations.len() - 1 {
+            return;
+        }
+        self.current_location.set(current_location + 1);
+        let location = locations[current_location + 1].clone();
+        self.go_to_location(cx, location);
     }
 
     pub fn split(
@@ -494,7 +531,7 @@ impl MainSplitData {
         split_id: SplitId,
         editor_tab: &EditorTabData,
     ) -> Option<RwSignal<EditorTabData>> {
-        let child = editor_tab.children.get(editor_tab.active)?;
+        let (_, child) = editor_tab.children.get(editor_tab.active)?;
 
         let editor_tab_id = EditorTabId::next();
 
@@ -517,7 +554,7 @@ impl MainSplitData {
             split: split_id,
             editor_tab_id,
             active: 0,
-            children: vec![new_child],
+            children: vec![(create_rw_signal(cx.scope, 0), new_child)],
             window_origin: Point::ZERO,
             layout_rect: Rect::ZERO,
         };
@@ -770,7 +807,7 @@ impl MainSplitData {
         let editor_tabs = self.editor_tabs.get_untracked();
         let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
         let editor_tab = editor_tab.get_untracked();
-        for child in editor_tab.children {
+        for (_, child) in editor_tab.children {
             self.editor_tab_child_close(cx, editor_tab_id, child);
         }
 
@@ -787,7 +824,7 @@ impl MainSplitData {
         let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
 
         let index = editor_tab.with_untracked(|editor_tab| {
-            editor_tab.children.iter().position(|c| c == &child)
+            editor_tab.children.iter().position(|(_, c)| c == &child)
         })?;
 
         let editor_tab_children_len = editor_tab
@@ -834,7 +871,7 @@ impl MainSplitData {
         let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
             editor_tabs.get(&active_editor_tab).copied()
         })?;
-        let child = editor_tab.with_untracked(|editor_tab| {
+        let (_, child) = editor_tab.with_untracked(|editor_tab| {
             editor_tab.children.get(editor_tab.active).cloned()
         })?;
 

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use floem::{
     peniko::kurbo::{Point, Rect},
-    reactive::{RwSignal, SignalGet, SignalWith},
+    reactive::{RwSignal, SignalGetUntracked, SignalWithUntracked},
 };
 
 use crate::{
@@ -29,7 +29,7 @@ pub struct EditorTabData {
     pub split: SplitId,
     pub editor_tab_id: EditorTabId,
     pub active: usize,
-    pub children: Vec<EditorTabChild>,
+    pub children: Vec<(RwSignal<usize>, EditorTabChild)>,
     pub window_origin: Point,
     pub layout_rect: Rect,
 }
@@ -39,12 +39,12 @@ impl EditorTabData {
         &self,
         editors: &im::HashMap<EditorId, RwSignal<EditorData>>,
         path: &Path,
-    ) -> Option<RwSignal<EditorData>> {
-        for child in &self.children {
-            if let EditorTabChild::Editor(editor_id) = child {
+    ) -> Option<(usize, RwSignal<EditorData>)> {
+        for (i, child) in self.children.iter().enumerate() {
+            if let (_, EditorTabChild::Editor(editor_id)) = child {
                 if let Some(editor) = editors.get(editor_id) {
-                    let e = editor.get();
-                    let is_path = e.doc.with(|doc| {
+                    let e = editor.get_untracked();
+                    let is_path = e.doc.with_untracked(|doc| {
                         if let DocContent::File(p) = &doc.content {
                             p == path
                         } else {
@@ -52,7 +52,7 @@ impl EditorTabData {
                         }
                     });
                     if is_path {
-                        return Some(*editor);
+                        return Some((i, *editor));
                     }
                 }
             }

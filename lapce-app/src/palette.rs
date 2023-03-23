@@ -37,7 +37,7 @@ use crate::{
     completion::CompletionData,
     config::LapceConfig,
     db::LapceDb,
-    editor::EditorData,
+    editor::{location::EditorLocation, EditorData},
     id::EditorId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     window_tab::Focus,
@@ -66,8 +66,8 @@ pub struct PaletteInput {
 }
 
 impl PaletteInput {
-    pub fn update_input(&mut self, input: String) {
-        self.kind = self.kind.get_palette_kind(&input);
+    pub fn update_input(&mut self, input: String, kind: PaletteKind) {
+        self.kind = kind.get_palette_kind(&input);
         self.input = self.kind.get_input(&input).to_string();
     }
 }
@@ -87,11 +87,14 @@ pub struct PaletteData {
     pub filtered_items: ReadSignal<im::Vector<PaletteItem>>,
     pub proxy_rpc: ProxyRpcHandler,
     pub input: RwSignal<PaletteInput>,
+    kind: RwSignal<PaletteKind>,
     pub editor: EditorData,
     pub focus: RwSignal<Focus>,
     pub keypress: ReadSignal<KeyPressData>,
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub executed_commands: Rc<RefCell<HashMap<String, Instant>>>,
+
+    pub references: RwSignal<Vec<EditorLocation>>,
 }
 
 impl PaletteData {
@@ -111,6 +114,7 @@ impl PaletteData {
         let status = create_rw_signal(cx.scope, PaletteStatus::Inactive);
         let items = create_rw_signal(cx.scope, im::Vector::new());
         let index = create_rw_signal(cx.scope, 0);
+        let references = create_rw_signal(cx.scope, Vec::new());
         let input = create_rw_signal(
             cx.scope,
             PaletteInput {
@@ -118,6 +122,7 @@ impl PaletteData {
                 kind: PaletteKind::File,
             },
         );
+        let kind = create_rw_signal(cx.scope, PaletteKind::File);
         let editor = EditorData::new_local(
             cx,
             EditorId::next(),
@@ -142,7 +147,6 @@ impl PaletteData {
                 // this effect only monitors items change
                 create_effect(cx.scope, move |_| {
                     let items = items.get();
-                    println!("filter items when items change");
                     let input = input.get_untracked();
                     let run_id = run_id.get_untracked();
                     let _ = tx.send((run_id, input.input, items));
@@ -152,14 +156,11 @@ impl PaletteData {
             // this effect only monitors input change
             create_effect(cx.scope, move |last_kind| {
                 let input = input.get();
-                println!("new input {input:?}");
                 let kind = input.kind;
                 if last_kind != Some(kind) {
-                    println!("got new kind {kind:?}");
                     return kind;
                 }
 
-                println!("filter items when input change");
                 let items = items.get_untracked();
                 let run_id = run_id.get_untracked();
                 let _ = tx.send((run_id, input.input, items));
@@ -209,10 +210,12 @@ impl PaletteData {
             filtered_items,
             editor,
             input,
+            kind,
             proxy_rpc,
             keypress,
             config,
             executed_commands: Rc::new(RefCell::new(HashMap::new())),
+            references,
         };
 
         {
@@ -220,6 +223,7 @@ impl PaletteData {
             let doc = palette.editor.doc.read_only();
             let input = palette.input.write_only();
             let status = palette.status.read_only();
+            let preset_kind = palette.kind.read_only();
             // this effect monitors the document change in the palette input editor
             create_effect(cx.scope, move |last_input| {
                 let new_input = doc.with(|doc| doc.buffer().text().to_string());
@@ -244,7 +248,10 @@ impl PaletteData {
                     let new_kind = input
                         .try_update(|input| {
                             let kind = input.kind;
-                            input.update_input(new_input.clone());
+                            input.update_input(
+                                new_input.clone(),
+                                preset_kind.get_untracked(),
+                            );
                             if last_input_is_none || kind != input.kind {
                                 Some(input.kind)
                             } else {
@@ -267,6 +274,7 @@ impl PaletteData {
         self.focus.set(Focus::Palette);
         self.status.set(PaletteStatus::Started);
         let symbol = kind.symbol();
+        self.kind.set(kind);
         self.editor
             .doc
             .update(|doc| doc.reload(Rope::from(symbol), true));
@@ -287,6 +295,9 @@ impl PaletteData {
             }
             PaletteKind::Workspace => {
                 self.get_workspaces(cx);
+            }
+            PaletteKind::Reference => {
+                self.get_references(cx);
             }
         }
     }
@@ -409,6 +420,33 @@ impl PaletteData {
         self.items.set(items);
     }
 
+    fn get_references(&self, cx: AppContext) {
+        let items = self
+            .references
+            .get_untracked()
+            .into_iter()
+            .map(|l| {
+                let full_path = l.path.clone();
+                let mut path = l.path.clone();
+                if let Some(workspace_path) = self.workspace.path.as_ref() {
+                    path = path
+                        .strip_prefix(workspace_path)
+                        .unwrap_or(&full_path)
+                        .to_path_buf();
+                }
+                let filter_text = path.to_str().unwrap_or("").to_string();
+                PaletteItem {
+                    content: PaletteItemContent::Reference { path, location: l },
+                    filter_text,
+                    score: 0,
+                    indices: vec![],
+                }
+            })
+            .collect();
+
+        self.items.set(items);
+    }
+
     fn select(&self, cx: AppContext) {
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
@@ -426,6 +464,13 @@ impl PaletteData {
                     self.window_command.set(Some(WindowCommand::SetWorkspace {
                         workspace: workspace.clone(),
                     }));
+                }
+                PaletteItemContent::Reference { location, .. } => {
+                    self.internal_command.set(Some(
+                        InternalCommand::JumpToLocation {
+                            location: location.clone(),
+                        },
+                    ));
                 }
             }
         }
@@ -446,14 +491,14 @@ impl PaletteData {
 
     fn next(&self) {
         let index = self.index.get_untracked();
-        let len = self.filtered_items.with(|i| i.len());
+        let len = self.filtered_items.with_untracked(|i| i.len());
         let new_index = Movement::Down.update_index(index, len, 1, true);
         self.index.set(new_index);
     }
 
     fn previous(&self) {
         let index = self.index.get_untracked();
-        let len = self.filtered_items.with(|i| i.len());
+        let len = self.filtered_items.with_untracked(|i| i.len());
         let new_index = Movement::Up.update_index(index, len, 1, true);
         self.index.set(new_index);
     }
