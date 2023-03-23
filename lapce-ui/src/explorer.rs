@@ -383,7 +383,7 @@ impl FileExplorer {
             Self::new(data).boxed(),
             PanelSizing::Flex(true),
         )];
-        if !data.config.editor.hide_open_editors {
+        if data.config.editor.show_open_editors {
             sections.insert(
                 0,
                 (
