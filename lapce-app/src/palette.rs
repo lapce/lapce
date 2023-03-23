@@ -40,6 +40,7 @@ use crate::{
     editor::{location::EditorLocation, EditorData},
     id::EditorId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
+    main_split::MainSplitData,
     window_tab::Focus,
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
@@ -88,12 +89,15 @@ pub struct PaletteData {
     pub proxy_rpc: ProxyRpcHandler,
     pub input: RwSignal<PaletteInput>,
     kind: RwSignal<PaletteKind>,
-    pub editor: EditorData,
+    pub input_editor: EditorData,
+    pub preview_editor: RwSignal<EditorData>,
+    pub has_preview: RwSignal<bool>,
     pub focus: RwSignal<Focus>,
     pub keypress: ReadSignal<KeyPressData>,
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub executed_commands: Rc<RefCell<HashMap<String, Instant>>>,
 
+    main_split: MainSplitData,
     pub references: RwSignal<Vec<EditorLocation>>,
 }
 
@@ -101,6 +105,7 @@ impl PaletteData {
     pub fn new(
         cx: AppContext,
         workspace: Arc<LapceWorkspace>,
+        main_split: MainSplitData,
         proxy_rpc: ProxyRpcHandler,
         register: RwSignal<Register>,
         completion: RwSignal<CompletionData>,
@@ -123,7 +128,7 @@ impl PaletteData {
             },
         );
         let kind = create_rw_signal(cx.scope, PaletteKind::File);
-        let editor = EditorData::new_local(
+        let input_editor = EditorData::new_local(
             cx,
             EditorId::next(),
             register,
@@ -132,6 +137,17 @@ impl PaletteData {
             proxy_rpc.clone(),
             config,
         );
+        let preview_editor = EditorData::new_local(
+            cx,
+            EditorId::next(),
+            register,
+            completion,
+            internal_command,
+            proxy_rpc.clone(),
+            config,
+        );
+        let preview_editor = create_rw_signal(cx.scope, preview_editor);
+        let has_preview = create_rw_signal(cx.scope, false);
         let run_id = create_rw_signal(cx.scope, 0);
         let run_id_counter = Arc::new(AtomicU64::new(0));
 
@@ -198,6 +214,7 @@ impl PaletteData {
         let palette = Self {
             run_id_counter,
             run_tx,
+            main_split,
             window_command,
             internal_command,
             lapce_command,
@@ -208,7 +225,9 @@ impl PaletteData {
             index,
             items,
             filtered_items,
-            editor,
+            input_editor,
+            preview_editor,
+            has_preview,
             input,
             kind,
             proxy_rpc,
@@ -220,7 +239,7 @@ impl PaletteData {
 
         {
             let palette = palette.clone();
-            let doc = palette.editor.doc.read_only();
+            let doc = palette.input_editor.doc.read_only();
             let input = palette.input.write_only();
             let status = palette.status.read_only();
             let preset_kind = palette.kind.read_only();
@@ -267,6 +286,14 @@ impl PaletteData {
             });
         }
 
+        {
+            let palette = palette.clone();
+            create_effect(cx.scope, move |_| {
+                let _ = palette.index.get();
+                palette.preview(cx);
+            });
+        }
+
         palette
     }
 
@@ -275,15 +302,16 @@ impl PaletteData {
         self.status.set(PaletteStatus::Started);
         let symbol = kind.symbol();
         self.kind.set(kind);
-        self.editor
+        self.input_editor
             .doc
             .update(|doc| doc.reload(Rope::from(symbol), true));
-        self.editor
+        self.input_editor
             .cursor
             .update(|cursor| cursor.set_insert(Selection::caret(symbol.len())));
     }
 
     fn run_inner(&self, cx: AppContext, kind: PaletteKind) {
+        self.has_preview.set(false);
         let run_id = self.run_id_counter.fetch_add(1, Ordering::Relaxed) + 1;
         self.run_id.set(run_id);
         match kind {
@@ -477,14 +505,36 @@ impl PaletteData {
         self.cancel(cx);
     }
 
+    fn preview(&self, cx: AppContext) {
+        let index = self.index.get_untracked();
+        let items = self.filtered_items.get_untracked();
+        if let Some(item) = items.get(index) {
+            match &item.content {
+                PaletteItemContent::File { path, full_path } => {}
+                PaletteItemContent::Command { cmd } => {}
+                PaletteItemContent::Workspace { workspace } => {}
+                PaletteItemContent::Reference { path, location } => {
+                    self.has_preview.set(true);
+                    let (doc, new_doc) =
+                        self.main_split.get_doc(cx, location.path.clone());
+                    self.preview_editor.update(|preview_editor| {
+                        preview_editor.doc = doc;
+                        preview_editor.go_to_location(cx, location.clone(), new_doc);
+                    });
+                }
+            }
+        }
+    }
+
     fn cancel(&self, cx: AppContext) {
         self.status.set(PaletteStatus::Inactive);
         self.focus.set(Focus::Workbench);
+        self.has_preview.set(false);
         self.items.update(|items| items.clear());
-        self.editor
+        self.input_editor
             .doc
             .update(|doc| doc.reload(Rope::from(""), true));
-        self.editor
+        self.input_editor
             .cursor
             .update(|cursor| cursor.set_insert(Selection::caret(0)));
     }
@@ -645,10 +695,10 @@ impl KeyPressFocus for PaletteData {
         match &command.kind {
             CommandKind::Workbench(_) => todo!(),
             CommandKind::Edit(_) => {
-                self.editor.run_command(cx, command, count, mods)
+                self.input_editor.run_command(cx, command, count, mods)
             }
             CommandKind::Move(_) => {
-                self.editor.run_command(cx, command, count, mods)
+                self.input_editor.run_command(cx, command, count, mods)
             }
             CommandKind::Focus(cmd) => self.run_focus_command(cx, cmd),
             CommandKind::MotionMode(_) => todo!(),
@@ -657,6 +707,6 @@ impl KeyPressFocus for PaletteData {
     }
 
     fn receive_char(&self, cx: AppContext, c: &str) {
-        self.editor.receive_char(cx, c);
+        self.input_editor.receive_char(cx, c);
     }
 }

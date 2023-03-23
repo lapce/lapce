@@ -87,9 +87,19 @@ impl WindowTabData {
 
         let register = create_rw_signal(cx.scope, Register::default());
 
+        let main_split = MainSplitData::new(
+            cx,
+            proxy.rpc.clone(),
+            register,
+            completion,
+            set_internal_command,
+            config,
+        );
+
         let palette = PaletteData::new(
             cx,
             workspace.clone(),
+            main_split.clone(),
             proxy.rpc.clone(),
             register,
             completion,
@@ -98,15 +108,6 @@ impl WindowTabData {
             set_lapce_command,
             focus,
             keypress.read_only(),
-            config,
-        );
-
-        let main_split = MainSplitData::new(
-            cx,
-            proxy.rpc.clone(),
-            register,
-            completion,
-            set_internal_command,
             config,
         );
 

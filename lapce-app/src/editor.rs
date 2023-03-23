@@ -1016,6 +1016,52 @@ impl EditorData {
         }
     }
 
+    pub fn go_to_location(
+        &self,
+        cx: AppContext,
+        location: EditorLocation,
+        new_doc: bool,
+    ) {
+        if !new_doc {
+            if let Some(position) = location.position {
+                let editor = self.clone();
+                let send = create_ext_action(cx, move |position| {
+                    editor.go_to_position(position, location.scroll_offset);
+                });
+                std::thread::spawn(move || {
+                    send(position);
+                });
+            }
+        } else {
+            let buffer_id = self.doc.with_untracked(|doc| doc.buffer_id);
+            let set_doc = self.doc.write_only();
+            let editor = self.clone();
+            let send = create_ext_action(cx, move |content| {
+                set_doc.update(move |doc| {
+                    doc.init_content(content);
+                });
+
+                if let Some(position) = location.position {
+                    let editor = editor.clone();
+                    let send = create_ext_action(cx, move |position| {
+                        editor.go_to_position(position, location.scroll_offset);
+                    });
+                    std::thread::spawn(move || {
+                        send(position);
+                    });
+                }
+            });
+
+            self.proxy
+                .new_buffer(buffer_id, location.path, move |result| {
+                    if let Ok(ProxyResponse::NewBufferResponse { content }) = result
+                    {
+                        send(Rope::from(content))
+                    }
+                });
+        }
+    }
+
     pub fn go_to_position(
         &self,
         position: EditorPosition,

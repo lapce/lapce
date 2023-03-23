@@ -205,10 +205,13 @@ impl MainSplitData {
         self.go_to_location(cx, location);
     }
 
-    pub fn go_to_location(&self, cx: AppContext, location: EditorLocation) {
-        let path = location.path;
+    pub fn get_doc(
+        &self,
+        cx: AppContext,
+        path: PathBuf,
+    ) -> (RwSignal<Document>, bool) {
         let doc = self.docs.with_untracked(|docs| docs.get(&path).cloned());
-        let (doc, new) = if let Some(doc) = doc {
+        if let Some(doc) = doc {
             (doc, false)
         } else {
             let doc =
@@ -217,22 +220,7 @@ impl MainSplitData {
             self.docs.update(|docs| {
                 docs.insert(path.clone(), doc);
             });
-            (doc, true)
-        };
 
-        let editor = self.get_editor_or_new(cx, doc, &path);
-        if !new {
-            if let Some(position) = location.position {
-                let send = create_ext_action(cx, move |position| {
-                    editor.with_untracked(|editor| {
-                        editor.go_to_position(position, location.scroll_offset);
-                    })
-                });
-                std::thread::spawn(move || {
-                    send(position);
-                });
-            }
-        } else {
             {
                 let proxy = self.proxy_rpc.clone();
                 create_effect(cx.scope, move |last| {
@@ -245,31 +233,17 @@ impl MainSplitData {
                 });
             }
 
-            let buffer_id = doc.with_untracked(|doc| doc.buffer_id);
-            let set_doc = doc.write_only();
-            let send = create_ext_action(cx, move |content| {
-                set_doc.update(move |doc| {
-                    doc.init_content(content);
-                });
-
-                if let Some(position) = location.position {
-                    let send = create_ext_action(cx, move |position| {
-                        editor.with_untracked(|editor| {
-                            editor.go_to_position(position, location.scroll_offset);
-                        })
-                    });
-                    std::thread::spawn(move || {
-                        send(position);
-                    });
-                }
-            });
-
-            self.proxy_rpc.new_buffer(buffer_id, path, move |result| {
-                if let Ok(ProxyResponse::NewBufferResponse { content }) = result {
-                    send(Rope::from(content))
-                }
-            });
+            (doc, true)
         }
+    }
+
+    pub fn go_to_location(&self, cx: AppContext, location: EditorLocation) {
+        let path = location.path.clone();
+        let (doc, new_doc) = self.get_doc(cx, path.clone());
+
+        let editor = self.get_editor_or_new(cx, doc, &path);
+        let editor = editor.get_untracked();
+        editor.go_to_location(cx, location, new_doc);
     }
 
     fn get_editor_or_new(

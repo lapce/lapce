@@ -11,9 +11,9 @@ use floem::{
     parley::style::FontWeight,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
-        create_effect, create_memo, provide_context, ReadSignal, RwSignal,
-        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked,
+        create_effect, create_memo, create_rw_signal, provide_context, ReadSignal,
+        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalWith, SignalWithUntracked,
     },
     stack::stack,
     style::{
@@ -46,7 +46,7 @@ use crate::{
     main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
     palette::{
         item::{PaletteItem, PaletteItemContent},
-        PaletteStatus,
+        PaletteData, PaletteStatus,
     },
     title::title,
     window::WindowData,
@@ -259,17 +259,8 @@ fn insert_cursor(
 }
 
 fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
-    let (doc, cursor, scroll_delta, viewport, gutter_viewport, config) = editor
-        .with(|editor| {
-            (
-                editor.doc.read_only(),
-                editor.cursor.read_only(),
-                editor.scroll_delta.read_only(),
-                editor.viewport,
-                editor.gutter_viewport,
-                editor.config,
-            )
-        });
+    let (viewport, gutter_viewport, config) = editor
+        .with(|editor| (editor.viewport, editor.gutter_viewport, editor.config));
 
     stack(cx, |cx| {
         (
@@ -280,7 +271,10 @@ fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
                         ..Default::default()
                     }),
                     label(cx, move || {
-                        doc.with(|doc| (doc.buffer().last_line() + 1).to_string())
+                        editor
+                            .get()
+                            .doc
+                            .with(|doc| (doc.buffer().last_line() + 1).to_string())
                     })
                     .style(cx, || Style {
                         ..Default::default()
@@ -299,7 +293,7 @@ fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
                 virtual_list(
                     cx,
                     VirtualListDirection::Vertical,
-                    move || doc.get(),
+                    move || editor.get().doc.get(),
                     |line: &DocLine| line.line,
                     move |cx, line: DocLine| {
                         stack(cx, move |cx| {
@@ -379,7 +373,7 @@ fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
 
 fn editor_cursor(
     cx: AppContext,
-    doc: ReadSignal<Document>,
+    editor: RwSignal<EditorData>,
     cursor: ReadSignal<Cursor>,
     viewport: ReadSignal<Rect>,
     is_active: impl Fn() -> bool + 'static,
@@ -394,7 +388,7 @@ fn editor_cursor(
         let max_line = (viewport.y1 / line_height).ceil() as usize;
 
         let is_active = is_active();
-
+        let doc = editor.get().doc;
         doc.with(|doc| {
             cursor.with(|cursor| match &cursor.mode {
                 CursorMode::Normal(offset) => {
@@ -488,11 +482,10 @@ fn editor_cursor(
 
 fn editor(
     cx: AppContext,
-    active_editor_tab: ReadSignal<Option<EditorTabId>>,
+    is_active: impl Fn() -> bool + 'static,
     editor: RwSignal<EditorData>,
 ) -> impl View {
     let (
-        doc,
         cursor,
         scroll_delta,
         scroll_to,
@@ -502,7 +495,6 @@ fn editor(
         config,
     ) = editor.with(|editor| {
         (
-            editor.doc.read_only(),
             editor.cursor.read_only(),
             editor.scroll_delta.read_only(),
             editor.scroll_to,
@@ -512,12 +504,6 @@ fn editor(
             editor.config,
         )
     });
-
-    let is_active = move || {
-        let active_editor_tab = active_editor_tab.get();
-        let editor_tab = editor.with(|editor| editor.editor_tab_id);
-        editor_tab.is_some() && editor_tab == active_editor_tab
-    };
 
     let key_fn = |line: &DocLine| (line.rev, line.style_rev, line.line);
     let view_fn = move |cx, line: DocLine| {
@@ -576,7 +562,7 @@ fn editor(
                 (
                     editor_cursor(
                         cx,
-                        doc,
+                        editor,
                         cursor,
                         viewport.read_only(),
                         is_active,
@@ -588,7 +574,7 @@ fn editor(
                         virtual_list(
                             cx,
                             VirtualListDirection::Vertical,
-                            move || doc.get(),
+                            move || editor.get().doc.get(),
                             key_fn,
                             view_fn,
                             VirtualListItemSize::Fixed(line_height as f64),
@@ -624,6 +610,8 @@ fn editor(
                     .on_ensure_visible(cx, move || {
                         let cursor = cursor.get();
                         let offset = cursor.offset();
+                        let editor = editor.get();
+                        let doc = editor.doc;
                         let caret = doc.with_untracked(|doc| {
                             cursor_caret(doc, offset, !cursor.is_insert())
                         });
@@ -986,8 +974,14 @@ fn editor_tab_content(
                 let editor_data =
                     editors.with(|editors| editors.get(&editor_id).cloned());
                 if let Some(editor_data) = editor_data {
+                    let is_active = move || {
+                        let active_editor_tab = active_editor_tab.get();
+                        let editor_tab =
+                            editor_data.with(|editor| editor.editor_tab_id);
+                        editor_tab.is_some() && editor_tab == active_editor_tab
+                    };
                     container_box(cx, |cx| {
-                        Box::new(editor(cx, active_editor_tab, editor_data))
+                        Box::new(editor(cx, is_active, editor_data))
                     })
                 } else {
                     container_box(cx, |cx| {
@@ -1462,8 +1456,8 @@ fn palette_item(
 }
 
 fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
-    let doc = window_tab_data.palette.editor.doc.read_only();
-    let cursor = window_tab_data.palette.editor.cursor.read_only();
+    let doc = window_tab_data.palette.input_editor.doc.read_only();
+    let cursor = window_tab_data.palette.input_editor.cursor.read_only();
     let config = window_tab_data.palette.config;
     let cursor_x = create_memo(cx.scope, move |_| {
         let offset = cursor.get().offset();
@@ -1558,6 +1552,7 @@ impl VirtualListVector<(usize, PaletteItem)> for PaletteItems {
 fn palette_content(
     cx: AppContext,
     window_tab_data: Arc<WindowTabData>,
+    layout_rect: ReadSignal<Rect>,
 ) -> impl View {
     let items = window_tab_data.palette.filtered_items;
     let index = window_tab_data.palette.index.read_only();
@@ -1613,36 +1608,68 @@ fn palette_content(
         )
     })
     .style(cx, move || Style {
-        // display: if items.with(|items| items.is_empty()) {
-        //     Display::None
-        // } else {
-        //     Display::Flex
-        // },
         flex_direction: FlexDirection::Column,
         width: Dimension::Percent(1.0),
         min_height: Dimension::Points(0.0),
+        max_height: Dimension::Points(
+            (layout_rect.get().height() * 0.45 - 36.0).round() as f32,
+        ),
         padding_bottom: 5.0,
         ..Default::default()
     })
 }
 
+fn palette_preview(cx: AppContext, palette_data: PaletteData) -> impl View {
+    let preview_editor = palette_data.preview_editor;
+    let has_preview = palette_data.has_preview;
+    container(cx, |cx| {
+        editor(cx, || true, preview_editor).style(cx, move || Style {
+            position: Position::Absolute,
+            width: Dimension::Percent(1.0),
+            height: Dimension::Percent(1.0),
+            ..Default::default()
+        })
+    })
+    .style(cx, move || Style {
+        display: if has_preview.get() {
+            Display::Flex
+        } else {
+            Display::None
+        },
+        flex_grow: 1.0,
+        ..Default::default()
+    })
+}
+
 fn palette(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
-    let keypress = window_tab_data.keypress.write_only();
+    let layout_rect = window_tab_data.layout_rect.read_only();
     let palette_data = window_tab_data.palette.clone();
     let status = palette_data.status.read_only();
     let config = palette_data.config;
+    let has_preview = palette_data.has_preview.read_only();
     container(cx, |cx| {
         stack(cx, |cx| {
             (
                 palette_input(cx, window_tab_data.clone()),
-                palette_content(cx, window_tab_data.clone()),
+                palette_content(cx, window_tab_data.clone(), layout_rect),
+                palette_preview(cx, palette_data),
             )
         })
         .style(cx, move || Style {
             width: Dimension::Points(500.0),
             max_width: Dimension::Percent(0.9),
-            min_height: Dimension::Points(0.0),
-            max_height: Dimension::Percent(0.5),
+            // min_height: Dimension::Points(0.0),
+            // max_height: Dimension::Points(layout_rect.get().height() as f32 - 100.0),
+            max_height: if has_preview.get() {
+                Dimension::Auto
+            } else {
+                Dimension::Percent(1.0)
+            },
+            height: if has_preview.get() {
+                Dimension::Points(layout_rect.get().height() as f32 - 10.0)
+            } else {
+                Dimension::Auto
+            },
             margin_top: Some(5.0),
             border: 1.0,
             border_radius: 6.0,
