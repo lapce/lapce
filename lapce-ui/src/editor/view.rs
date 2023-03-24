@@ -179,6 +179,7 @@ impl LapceEditorView {
                 LocalBufferKind::Settings => {}
                 LocalBufferKind::PluginSearch => {}
                 LocalBufferKind::BranchesFilter => {}
+                LocalBufferKind::SettingsFilter => {}
                 LocalBufferKind::Palette => {
                     data.focus_area = FocusArea::Palette;
                 }

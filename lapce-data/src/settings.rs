@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use druid::{Command, Env, EventCtx, Modifiers, Target, WidgetId};
+use indexmap::IndexMap;
 use lapce_core::{
     command::{EditCommand, FocusCommand, MoveCommand},
     mode::Mode,
@@ -47,6 +48,9 @@ pub struct LapceSettingsPanelData {
     pub settings_widget_id: WidgetId,
     pub settings_view_id: WidgetId,
     pub settings_split_id: WidgetId,
+
+    pub filter_editor_id: WidgetId,
+    pub filter_matches: IndexMap<LapceSettingsKind, usize>,
 
     /// Mapping of setting key to dropdown data for that key
     pub dropdown_data:
@@ -99,8 +103,9 @@ impl LapceSettingsPanelData {
             settings_widget_id: WidgetId::next(),
             settings_view_id: WidgetId::next(),
             settings_split_id: WidgetId::next(),
-
+            filter_editor_id: WidgetId::next(),
             dropdown_data: im::HashMap::new(),
+            filter_matches: IndexMap::new(),
         }
     }
 }

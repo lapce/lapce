@@ -805,6 +805,13 @@ impl LapceTabData {
             event_sink.clone(),
         );
         main_split.add_editor(
+            settings.filter_editor_id,
+            None,
+            LocalBufferKind::SettingsFilter,
+            &config,
+            event_sink.clone(),
+        );
+        main_split.add_editor(
             rename.view_id,
             None,
             LocalBufferKind::Rename,
