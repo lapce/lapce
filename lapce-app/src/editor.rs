@@ -21,7 +21,10 @@ use lapce_core::{
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
-use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
+use lapce_rpc::{
+    plugin::PluginId,
+    proxy::{ProxyResponse, ProxyRpcHandler},
+};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     CompletionItem, CompletionTextEdit, GotoDefinitionResponse, Location,
@@ -31,7 +34,7 @@ use crate::{
     command::{CommandExecuted, InternalCommand},
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
-    doc::Document,
+    doc::{Document, EditorDiagnostic},
     editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
     id::{EditorId, EditorTabId},
@@ -48,6 +51,7 @@ pub struct EditorData {
     pub editor_tab_id: Option<EditorTabId>,
     pub editor_id: EditorId,
     pub doc: RwSignal<Document>,
+    pub confirmed: RwSignal<bool>,
     pub cursor: RwSignal<Cursor>,
     register: RwSignal<Register>,
     completion: RwSignal<CompletionData>,
@@ -91,11 +95,13 @@ impl EditorData {
         let window_origin = create_rw_signal(cx.scope, Point::ZERO);
         let viewport = create_rw_signal(cx.scope, Rect::ZERO);
         let gutter_viewport = create_rw_signal(cx.scope, Rect::ZERO);
+        let confirmed = create_rw_signal(cx.scope, false);
         Self {
             editor_tab_id,
             editor_id,
             doc,
             cursor,
+            confirmed,
             snippet,
             register,
             completion,
@@ -984,6 +990,9 @@ impl EditorData {
     }
 
     fn apply_deltas(&self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
+        if !deltas.is_empty() && !self.confirmed.get_untracked() {
+            self.confirmed.set(true);
+        }
         for (delta, _, _) in deltas {
             // self.inactive_apply_delta(delta);
             self.update_snippet_offset(delta);
@@ -1079,6 +1088,75 @@ impl EditorData {
         } else {
             Cursor::new(CursorMode::Insert(Selection::caret(offset)), None, None)
         });
+    }
+
+    pub fn get_code_actions(&self, cx: AppContext) {
+        let path = match self.doc.with_untracked(|doc| {
+            if doc.loaded() {
+                doc.content.path().cloned()
+            } else {
+                None
+            }
+        }) {
+            Some(path) => path,
+            None => return,
+        };
+
+        let offset = self.cursor.with_untracked(|c| c.offset());
+        let exists = self
+            .doc
+            .with_untracked(|doc| doc.code_actions.contains_key(&offset));
+
+        if exists {
+            return;
+        }
+
+        self.doc.update(|doc| {
+            // insert some empty data, so that we won't make the request again
+            doc.code_actions
+                .insert(offset, Arc::new((PluginId(0), Vec::new())));
+        });
+
+        let (position, rev, diagnostics) = self.doc.with_untracked(|doc| {
+            let position = doc.buffer().offset_to_position(offset);
+            let rev = doc.rev();
+
+            // Get the diagnostics for the current line, which the LSP might use to inform
+            // what code actions are available (such as fixes for the diagnostics).
+            let diagnostics: &[EditorDiagnostic] =
+                doc.diagnostics.as_deref().map(Vec::as_slice).unwrap_or(&[]);
+            let diagnostics = diagnostics
+                .iter()
+                .map(|x| &x.diagnostic)
+                .filter(|x| {
+                    x.range.start.line <= position.line
+                        && x.range.end.line >= position.line
+                })
+                .cloned()
+                .collect();
+
+            (position, rev, diagnostics)
+        });
+
+        let doc = self.doc;
+        let send = create_ext_action(cx, move |resp| {
+            if doc.with_untracked(|doc| doc.rev() == rev) {
+                doc.update(|doc| {
+                    doc.code_actions.insert(offset, Arc::new(resp));
+                });
+            }
+        });
+
+        self.proxy
+            .get_code_actions(path, position, diagnostics, move |result| {
+                if let Ok(ProxyResponse::GetCodeActionsResponse {
+                    plugin_id,
+                    resp,
+                }) = result
+                {
+                    send((plugin_id, resp))
+                }
+            });
     }
 }
 

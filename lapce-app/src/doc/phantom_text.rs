@@ -1,4 +1,4 @@
-use floem::{parley::style::FontFamily, peniko::Color};
+use floem::peniko::Color;
 use lsp_types::DiagnosticSeverity;
 use smallvec::SmallVec;
 

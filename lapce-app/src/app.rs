@@ -6,10 +6,12 @@ use std::{
 
 use floem::{
     app::AppContext,
-    cosmic_text::{Attrs, AttrsList, TextLayout},
+    cosmic_text::{Attrs, AttrsList, Style as FontStyle, TextLayout, Weight},
     event::{Event, EventListner},
-    parley::style::FontWeight,
-    peniko::kurbo::{Point, Rect, Size},
+    peniko::{
+        kurbo::{Point, Rect, Size},
+        Color,
+    },
     reactive::{
         create_effect, create_memo, create_rw_signal, provide_context, ReadSignal,
         RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
@@ -21,7 +23,7 @@ use floem::{
         Position, Style,
     },
     view::View,
-    views::{click, svg, VirtualListVector},
+    views::{click, double_click, svg, VirtualListVector},
     views::{
         container, container_box, list, tab, virtual_list, Decorators,
         VirtualListDirection, VirtualListItemSize,
@@ -258,16 +260,23 @@ fn insert_cursor(
     renders
 }
 
-fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
+fn editor_gutter(
+    cx: AppContext,
+    editor: RwSignal<EditorData>,
+    is_active: impl Fn() -> bool + 'static + Copy,
+) -> impl View {
     let (viewport, gutter_viewport, config) = editor
         .with(|editor| (editor.viewport, editor.gutter_viewport, editor.config));
+
+    let padding_left = 10.0;
+    let padding_right = 30.0;
 
     stack(cx, |cx| {
         (
             stack(cx, |cx| {
                 (
-                    label(cx, || "".to_string()).style(cx, || Style {
-                        width: Dimension::Points(20.0),
+                    label(cx, || "".to_string()).style(cx, move || Style {
+                        width: Dimension::Points(padding_left),
                         ..Default::default()
                     }),
                     label(cx, move || {
@@ -279,8 +288,8 @@ fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
                     .style(cx, || Style {
                         ..Default::default()
                     }),
-                    label(cx, || "".to_string()).style(cx, || Style {
-                        width: Dimension::Points(20.0),
+                    label(cx, || "".to_string()).style(cx, move || Style {
+                        width: Dimension::Points(padding_right),
                         ..Default::default()
                     }),
                 )
@@ -296,22 +305,75 @@ fn editor_gutter(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
                     move || editor.get().doc.get(),
                     |line: &DocLine| line.line,
                     move |cx, line: DocLine| {
+                        let line_number = line.line + 1;
                         stack(cx, move |cx| {
                             (
-                                label(cx, || "".to_string()).style(cx, || Style {
-                                    width: Dimension::Points(20.0),
-                                    ..Default::default()
+                                label(cx, || "".to_string()).style(cx, move || {
+                                    Style {
+                                        width: Dimension::Points(padding_left),
+                                        ..Default::default()
+                                    }
                                 }),
-                                label(cx, move || (line.line + 1).to_string())
-                                    .style(cx, || Style {
+                                label(cx, move || line_number.to_string()).style(
+                                    cx,
+                                    || Style {
                                         flex_grow: 1.0,
                                         justify_content: Some(JustifyContent::End),
                                         ..Default::default()
-                                    }),
-                                label(cx, || "".to_string()).style(cx, || Style {
-                                    width: Dimension::Points(20.0),
-                                    ..Default::default()
-                                }),
+                                    },
+                                ),
+                                container(cx, |cx| {
+                                    container(cx, |cx| {
+                                        svg(cx, move || {
+                                            config
+                                                .get()
+                                                .ui_svg(LapceIcons::LIGHTBULB)
+                                        })
+                                        .style(cx, move || {
+                                            let size =
+                                                config.get().ui.icon_size() as f32;
+                                            let display = if line
+                                                .code_actions
+                                                .clone()
+                                                .map(|c| !c.1.is_empty())
+                                                .unwrap_or(false)
+                                            {
+                                                Display::Flex
+                                            } else {
+                                                Display::None
+                                            };
+                                            Style {
+                                                display,
+                                                width: Dimension::Points(size),
+                                                height: Dimension::Points(size),
+                                                ..Default::default()
+                                            }
+                                        })
+                                    })
+                                    .style(
+                                        cx,
+                                        move || Style {
+                                            justify_content: Some(
+                                                JustifyContent::Center,
+                                            ),
+                                            align_content: Some(
+                                                AlignContent::Center,
+                                            ),
+                                            width: Dimension::Points(
+                                                padding_right - padding_left,
+                                            ),
+                                            ..Default::default()
+                                        },
+                                    )
+                                })
+                                .style(
+                                    cx,
+                                    move || Style {
+                                        justify_content: Some(JustifyContent::End),
+                                        width: Dimension::Points(padding_right),
+                                        ..Default::default()
+                                    },
+                                ),
                             )
                         })
                         .style(cx, move || {
@@ -482,7 +544,7 @@ fn editor_cursor(
 
 fn editor(
     cx: AppContext,
-    is_active: impl Fn() -> bool + 'static,
+    is_active: impl Fn() -> bool + 'static + Copy,
     editor: RwSignal<EditorData>,
 ) -> impl View {
     let (
@@ -557,7 +619,7 @@ fn editor(
 
     stack(cx, |cx| {
         (
-            editor_gutter(cx, editor),
+            editor_gutter(cx, editor, is_active),
             stack(cx, |cx| {
                 (
                     editor_cursor(
@@ -730,26 +792,46 @@ fn editor_tab_header(
     let active = move || editor_tab.with(|editor_tab| editor_tab.active);
 
     let view_fn = move |cx, (i, child): (RwSignal<usize>, EditorTabChild)| {
-        let child = move |cx: AppContext| match child {
+        let local_child = child.clone();
+        let child_view = move |cx: AppContext| match child {
             EditorTabChild::Editor(editor_id) => {
-                let editor_data =
-                    editors.with(|editors| editors.get(&editor_id).cloned());
-                let path = if let Some(editor_data) = editor_data {
-                    let content = editor_data.with(|editor_data| {
-                        editor_data.doc.with(|doc| doc.content.clone())
-                    });
-                    match content {
-                        DocContent::File(path) => Some(path),
-                        DocContent::Local => None,
-                    }
-                } else {
-                    None
-                };
+                #[derive(PartialEq)]
+                struct Info {
+                    icon: String,
+                    color: Option<Color>,
+                    path: String,
+                    confirmed: RwSignal<bool>,
+                    is_pristine: bool,
+                }
 
-                let (icon, color, path) = {
+                let info = create_memo(cx.scope, move |_| {
                     let config = config.get();
-                    match path {
-                        Some(path) => {
+                    let editor_data =
+                        editors.with(|editors| editors.get(&editor_id).cloned());
+                    let path = if let Some(editor_data) = editor_data {
+                        let ((content, is_pristine), confirmed) =
+                            editor_data.with(|editor_data| {
+                                (
+                                    editor_data.doc.with(|doc| {
+                                        (
+                                            doc.content.clone(),
+                                            doc.buffer().is_pristine(),
+                                        )
+                                    }),
+                                    editor_data.confirmed,
+                                )
+                            });
+                        match content {
+                            DocContent::File(path) => {
+                                Some((path, confirmed, is_pristine))
+                            }
+                            DocContent::Local => None,
+                        }
+                    } else {
+                        None
+                    };
+                    let (icon, color, path, confirmed, is_pristine) = match path {
+                        Some((path, confirmed, is_pritine)) => {
                             let (svg, color) = config.file_svg(&path);
                             (
                                 svg,
@@ -759,35 +841,31 @@ fn editor_tab_header(
                                     .to_str()
                                     .unwrap_or_default()
                                     .to_string(),
+                                confirmed,
+                                is_pritine,
                             )
                         }
                         None => (
                             config.ui_svg(LapceIcons::FILE),
                             Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
                             "local".to_string(),
+                            create_rw_signal(cx.scope, true),
+                            true,
                         ),
+                    };
+                    Info {
+                        icon,
+                        color,
+                        path,
+                        confirmed,
+                        is_pristine,
                     }
-                };
+                });
+
                 stack(cx, |cx| {
                     (
                         container(cx, |cx| {
-                            svg(cx, move || icon.clone()).style(cx, move || {
-                                let size = config.get().ui.icon_size() as f32;
-                                Style {
-                                    width: Dimension::Points(size),
-                                    height: Dimension::Points(size),
-                                    ..Default::default()
-                                }
-                            })
-                        })
-                        .style(cx, || Style {
-                            padding_left: 5.0,
-                            padding_right: 5.0,
-                            ..Default::default()
-                        }),
-                        label(cx, move || path.clone()),
-                        container(cx, |cx| {
-                            svg(cx, move || config.get().ui_svg(LapceIcons::CLOSE))
+                            svg(cx, move || info.with(|info| info.icon.clone()))
                                 .style(cx, move || {
                                     let size = config.get().ui.icon_size() as f32;
                                     Style {
@@ -796,6 +874,40 @@ fn editor_tab_header(
                                         ..Default::default()
                                     }
                                 })
+                        })
+                        .style(cx, || Style {
+                            padding_left: 5.0,
+                            padding_right: 5.0,
+                            ..Default::default()
+                        }),
+                        label(cx, move || info.with(|info| info.path.clone()))
+                            .style(cx, move || Style {
+                                font_style: if info.with(|info| info.confirmed).get()
+                                {
+                                    None
+                                } else {
+                                    Some(FontStyle::Italic)
+                                },
+                                ..Default::default()
+                            }),
+                        container(cx, |cx| {
+                            svg(cx, move || {
+                                config.get().ui_svg(
+                                    if info.with(|info| info.is_pristine) {
+                                        LapceIcons::CLOSE
+                                    } else {
+                                        LapceIcons::UNSAVED
+                                    },
+                                )
+                            })
+                            .style(cx, move || {
+                                let size = config.get().ui.icon_size() as f32;
+                                Style {
+                                    width: Dimension::Points(size),
+                                    height: Dimension::Points(size),
+                                    ..Default::default()
+                                }
+                            })
                         })
                         .style(cx, || Style {
                             padding_left: 5.0,
@@ -812,13 +924,37 @@ fn editor_tab_header(
                 })
             }
         };
+
+        let confirmed = match local_child {
+            EditorTabChild::Editor(editor_id) => {
+                let editor_data =
+                    editors.with(|editors| editors.get(&editor_id).cloned());
+                editor_data.map(|editor_data| editor_data.get().confirmed)
+            }
+        };
+
         stack(cx, |cx| {
             (
-                click(cx, child, move || {
-                    editor_tab.update(|editor_tab| {
-                        editor_tab.active = i.get_untracked();
-                    });
-                })
+                click(
+                    cx,
+                    |cx| {
+                        double_click(cx, child_view, move || {
+                            if let Some(confirmed) = confirmed {
+                                confirmed.set(true);
+                            }
+                        })
+                        .style(cx, move || Style {
+                            align_items: Some(AlignItems::Center),
+                            height: Dimension::Percent(1.0),
+                            ..Default::default()
+                        })
+                    },
+                    move || {
+                        editor_tab.update(|editor_tab| {
+                            editor_tab.active = i.get_untracked();
+                        });
+                    },
+                )
                 .style(cx, move || Style {
                     align_items: Some(AlignItems::Center),
                     height: Dimension::Percent(1.0),
@@ -1773,7 +1909,7 @@ fn completion(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
                                 ),
                                 height: Dimension::Percent(1.0),
                                 align_items: Some(AlignItems::Center),
-                                font_weight: Some(FontWeight::BOLD),
+                                font_weight: Some(Weight::BOLD),
                                 color: config.completion_color(item.item.kind),
                                 background: config
                                     .completion_color(item.item.kind)

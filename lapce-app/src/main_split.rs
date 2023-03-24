@@ -5,7 +5,6 @@ use std::{
 
 use floem::{
     app::AppContext,
-    ext_event::create_ext_action,
     glazier::KeyEvent,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
@@ -13,13 +12,8 @@ use floem::{
         SignalSet, SignalUpdate, SignalWith, SignalWithUntracked, WriteSignal,
     },
 };
-use lapce_core::{
-    cursor::{Cursor, CursorMode},
-    register::Register,
-    selection::Selection,
-};
+use lapce_core::{cursor::Cursor, register::Register};
 use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
-use lapce_xi_rope::Rope;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -157,9 +151,9 @@ impl MainSplitData {
                 let editor = self
                     .editors
                     .with_untracked(|editors| editors.get(&editor_id).copied())?;
-                editor.with_untracked(|editor| {
-                    keypress.key_down(cx, key_event, editor);
-                });
+                let editor = editor.get_untracked();
+                keypress.key_down(cx, key_event, &editor);
+                editor.get_code_actions(cx);
             }
         }
         Some(())
@@ -261,11 +255,26 @@ impl MainSplitData {
             .and_then(|id| editor_tabs.get(&id))
             .cloned();
 
-        // first check if the file exists in active editor tab
+        // first check if the file exists in active editor tab or there's unconfirmed editor
         if let Some(editor_tab) = active_editor_tab {
-            if let Some((index, editor)) = editor_tab
-                .with_untracked(|editor_tab| editor_tab.get_editor(&editors, path))
-            {
+            if let Some((index, editor)) = editor_tab.with_untracked(|editor_tab| {
+                editor_tab
+                    .get_editor(&editors, path)
+                    .or_else(|| editor_tab.get_unconfirmed_editor(&editors))
+            }) {
+                if editor.with_untracked(|editor| {
+                    editor.doc.with_untracked(|doc| doc.buffer_id)
+                        != doc.with_untracked(|doc| doc.buffer_id)
+                }) {
+                    editor.update(|editor| {
+                        editor.doc = doc;
+                    });
+                    editor.with_untracked(|editor| {
+                        editor.cursor.set(Cursor::origin(
+                            self.config.with_untracked(|c| c.core.modal),
+                        ));
+                    });
+                }
                 editor_tab.update(|editor_tab| {
                     editor_tab.active = index;
                 });

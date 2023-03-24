@@ -59,6 +59,18 @@ impl Cursor {
         }
     }
 
+    pub fn origin(modal: bool) -> Self {
+        Self::new(
+            if modal {
+                CursorMode::Normal(0)
+            } else {
+                CursorMode::Insert(Selection::caret(0))
+            },
+            None,
+            None,
+        )
+    }
+
     pub fn offset(&self) -> usize {
         self.mode.offset()
     }

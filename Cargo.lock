@@ -1622,7 +1622,6 @@ dependencies = [
  "leptos_reactive",
  "once_cell",
  "parking_lot 0.12.1",
- "parley 0.1.0 (git+https://github.com/lapce/parley?rev=dd30cc9e4ae733d80650ad3ab0db0462ccd67e57)",
  "rustc-hash",
  "sha2 0.10.6",
  "smallvec",
@@ -1638,7 +1637,6 @@ name = "floem_renderer"
 version = "0.1.0"
 dependencies = [
  "cosmic-text",
- "parley 0.1.0 (git+https://github.com/lapce/parley?rev=dd30cc9e4ae733d80650ad3ab0db0462ccd67e57)",
  "peniko",
  "usvg 0.29.0",
 ]
@@ -1650,7 +1648,6 @@ dependencies = [
  "anyhow",
  "floem_renderer",
  "futures",
- "parley 0.1.0 (git+https://github.com/lapce/parley?rev=dd30cc9e4ae733d80650ad3ab0db0462ccd67e57)",
  "peniko",
  "raw-window-handle",
  "resvg 0.29.0",
@@ -1825,15 +1822,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9c384f161156f5260c24a097c56119f9be8c798586aecc13afbcbe7b7e26bf8"
 dependencies = [
  "percent-encoding",
-]
-
-[[package]]
-name = "fount"
-version = "0.1.0"
-source = "git+https://github.com/lapce/fount?rev=7952647649c119be454691764c20768330a6e8f2#7952647649c119be454691764c20768330a6e8f2"
-dependencies = [
- "peniko",
- "swash 0.1.6 (git+https://github.com/dfrg/swash)",
 ]
 
 [[package]]
@@ -4356,19 +4344,9 @@ dependencies = [
 [[package]]
 name = "parley"
 version = "0.1.0"
-source = "git+https://github.com/lapce/parley?rev=dd30cc9e4ae733d80650ad3ab0db0462ccd67e57#dd30cc9e4ae733d80650ad3ab0db0462ccd67e57"
-dependencies = [
- "fount 0.1.0 (git+https://github.com/lapce/fount?rev=7952647649c119be454691764c20768330a6e8f2)",
- "once_cell",
- "swash 0.1.6 (git+https://github.com/dfrg/swash)",
-]
-
-[[package]]
-name = "parley"
-version = "0.1.0"
 source = "git+https://github.com/lapce/parley#c37477b889ff53b9a3033e2180becddf90b9bb17"
 dependencies = [
- "fount 0.1.0 (git+https://github.com/lapce/fount)",
+ "fount",
  "swash 0.1.6 (git+https://github.com/lapce/swash)",
 ]
 
@@ -4479,7 +4457,7 @@ dependencies = [
  "linked-hash-map",
  "log",
  "lyon",
- "parley 0.1.0 (git+https://github.com/lapce/parley)",
+ "parley",
  "pathfinder_geometry",
  "piet",
  "resvg 0.22.0",

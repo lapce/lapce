@@ -59,4 +59,22 @@ impl EditorTabData {
         }
         None
     }
+
+    pub fn get_unconfirmed_editor(
+        &self,
+        editors: &im::HashMap<EditorId, RwSignal<EditorData>>,
+    ) -> Option<(usize, RwSignal<EditorData>)> {
+        for (i, child) in self.children.iter().enumerate() {
+            if let (_, EditorTabChild::Editor(editor_id)) = child {
+                if let Some(editor) = editors.get(editor_id) {
+                    let e = editor.get_untracked();
+                    let confirmed = e.confirmed.get_untracked();
+                    if !confirmed {
+                        return Some((i, *editor));
+                    }
+                }
+            }
+        }
+        None
+    }
 }

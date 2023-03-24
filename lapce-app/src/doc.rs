@@ -28,6 +28,7 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::BufferId,
+    plugin::PluginId,
     proxy::{ProxyResponse, ProxyRpcHandler},
     style::{LineStyle, LineStyles, Style},
 };
@@ -35,7 +36,9 @@ use lapce_xi_rope::{
     spans::{Spans, SpansBuilder},
     Interval, Rope, RopeDelta,
 };
-use lsp_types::{Diagnostic, DiagnosticSeverity, InlayHint, InlayHintLabel};
+use lsp_types::{
+    CodeActionResponse, Diagnostic, DiagnosticSeverity, InlayHint, InlayHintLabel,
+};
 use smallvec::SmallVec;
 
 use crate::config::{color::LapceColor, LapceConfig};
@@ -158,6 +161,8 @@ pub struct Document {
     pub inlay_hints: Option<Spans<InlayHint>>,
     /// The diagnostics for the document
     pub diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
+    /// (Offset -> (Plugin the code actions are from, Code Actions))
+    pub code_actions: im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>,
     /// Whether the buffer's content has been loaded/initialized into the buffer.
     loaded: bool,
 
@@ -174,6 +179,7 @@ pub struct DocLine {
     pub style_rev: u64,
     pub line: usize,
     pub text: Arc<TextLayoutLine>,
+    pub code_actions: Option<Arc<(PluginId, CodeActionResponse)>>,
 }
 
 impl VirtualListVector<DocLine> for Document {
@@ -191,6 +197,7 @@ impl VirtualListVector<DocLine> for Document {
                 style_rev: self.style_rev,
                 line,
                 text: self.get_text_layout(line, 12),
+                code_actions: self.code_actions.get(&line).cloned(),
             })
             .collect::<Vec<_>>();
         lines.into_iter()
@@ -217,6 +224,7 @@ impl Document {
             content: DocContent::File(path),
             loaded: false,
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            code_actions: im::HashMap::new(),
             proxy,
             config,
         }
@@ -239,6 +247,7 @@ impl Document {
             diagnostics: None,
             loaded: true,
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            code_actions: im::HashMap::new(),
             proxy,
             config,
         }

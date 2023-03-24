@@ -1,4 +1,4 @@
-use floem::{cosmic_text::FamilyOwned, parley::style::FontFamily};
+use floem::cosmic_text::FamilyOwned;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 

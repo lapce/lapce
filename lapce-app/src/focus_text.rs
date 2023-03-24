@@ -1,13 +1,8 @@
 use floem::{
     app::AppContext,
-    cosmic_text::{Attrs, AttrsList, Family, FamilyOwned, TextLayout, Weight},
+    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
-    parley::{
-        layout::{Alignment, Cursor},
-        style::{FontFamily, FontStack, StyleProperty},
-        LayoutContext,
-    },
-    peniko::{kurbo::Point, Brush, Color},
+    peniko::{kurbo::Point, Color},
     reactive::create_effect,
     style::{Dimension, Style},
     taffy::prelude::Node,
