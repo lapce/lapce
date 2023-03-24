@@ -29,22 +29,86 @@ use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     CompletionItem, CompletionTextEdit, GotoDefinitionResponse, Location,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     command::{CommandExecuted, InternalCommand},
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
-    doc::{Document, EditorDiagnostic},
+    doc::{DocContent, Document, EditorDiagnostic},
     editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
     id::{EditorId, EditorTabId},
     keypress::{condition::Condition, KeyPressFocus},
-    main_split::{SplitDirection, SplitMoveDirection},
+    main_split::{MainSplitData, SplitDirection, SplitMoveDirection},
     proxy::path_from_url,
     snippet::Snippet,
+    window_tab::WindowTabData,
 };
 
 pub mod location;
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct EditorInfo {
+    pub content: DocContent,
+    // pub unsaved: Option<String>,
+    pub offset: usize,
+    pub scroll_offset: (f64, f64),
+}
+
+impl EditorInfo {
+    pub fn to_data(
+        &self,
+        cx: AppContext,
+        data: MainSplitData,
+        editor_tab_id: EditorTabId,
+    ) -> RwSignal<EditorData> {
+        let editor_id = EditorId::next();
+        let editor_data = match &self.content {
+            DocContent::File(path) => {
+                let (doc, new_doc) = data.get_doc(cx, path.clone());
+                let editor_data = EditorData::new(
+                    cx,
+                    Some(editor_tab_id),
+                    editor_id,
+                    doc,
+                    data.register,
+                    data.completion,
+                    data.internal_command.write_only(),
+                    data.proxy_rpc.clone(),
+                    data.config,
+                );
+                editor_data.go_to_location(
+                    cx,
+                    EditorLocation {
+                        path: path.clone(),
+                        position: Some(EditorPosition::Offset(self.offset)),
+                        scroll_offset: Some(Vec2::new(
+                            self.scroll_offset.0,
+                            self.scroll_offset.1,
+                        )),
+                    },
+                    new_doc,
+                );
+                editor_data
+            }
+            DocContent::Local => EditorData::new_local(
+                cx,
+                editor_id,
+                data.register,
+                data.completion,
+                data.internal_command.write_only(),
+                data.proxy_rpc.clone(),
+                data.config,
+            ),
+        };
+        let editor_data = create_rw_signal(cx.scope, editor_data);
+        data.editors.update(|editors| {
+            editors.insert(editor_id, editor_data);
+        });
+        editor_data
+    }
+}
 
 #[derive(Clone)]
 pub struct EditorData {
@@ -138,6 +202,23 @@ impl EditorData {
             proxy,
             config,
         )
+    }
+
+    pub fn editor_info(&self, data: &WindowTabData) -> EditorInfo {
+        // let unsaved = if let BufferContent::Scratch(id, _) = &self.content {
+        //     let doc = data.main_split.scratch_docs.get(id).unwrap();
+        //     Some(doc.buffer().to_string())
+        // } else {
+        //     None
+        // };
+
+        let offset = self.cursor.get_untracked().offset();
+        let scroll_offset = self.viewport.get_untracked().origin();
+        EditorInfo {
+            content: self.doc.get_untracked().content,
+            offset,
+            scroll_offset: (scroll_offset.x, scroll_offset.y),
+        }
     }
 
     pub fn copy(

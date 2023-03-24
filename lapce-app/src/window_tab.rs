@@ -7,8 +7,8 @@ use floem::{
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
         create_effect, create_rw_signal, create_signal, use_context, ReadSignal,
-        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalWithUntracked,
-        WriteSignal,
+        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalWithUntracked, WriteSignal,
     },
 };
 use lapce_core::register::Register;
@@ -24,10 +24,10 @@ use crate::{
     editor::location::EditorLocation,
     id::WindowTabId,
     keypress::{DefaultKeyPress, KeyPressData, KeyPressFocus},
-    main_split::MainSplitData,
+    main_split::{MainSplitData, SplitData, SplitDirection},
     palette::{kind::PaletteKind, PaletteData},
     proxy::{start_proxy, ProxyData},
-    workspace::{LapceWorkspace, LapceWorkspaceType},
+    workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
 
 #[derive(Clone)]
@@ -48,7 +48,7 @@ pub struct WindowTabData {
     pub focus: RwSignal<Focus>,
     pub lapce_command: ReadSignal<Option<LapceCommand>>,
     pub workbench_command: RwSignal<Option<LapceWorkbenchCommand>>,
-    pub internal_command: ReadSignal<Option<InternalCommand>>,
+    pub internal_command: RwSignal<Option<InternalCommand>>,
     pub set_window_command: WriteSignal<Option<WindowCommand>>,
     pub window_origin: RwSignal<Point>,
     pub layout_rect: RwSignal<Rect>,
@@ -70,9 +70,19 @@ impl WindowTabData {
         let mut all_disabled_volts = disabled_volts;
         all_disabled_volts.extend(workspace_disabled_volts.into_iter());
 
+        let workspace_info = if workspace.path.is_some() {
+            db.get_workspace_info(&workspace).ok()
+        } else {
+            let mut info = db.get_workspace_info(&workspace).ok();
+            if let Some(info) = info.as_mut() {
+                info.split.children.clear();
+            }
+            info
+        };
+
         let (lapce_command, set_lapce_command) = create_signal(cx.scope, None);
         let workbench_command = create_rw_signal(cx.scope, None);
-        let (internal_command, set_internal_command) = create_signal(cx.scope, None);
+        let internal_command = create_rw_signal(cx.scope, None);
         let config = LapceConfig::load(&workspace, &all_disabled_volts);
         let keypress = create_rw_signal(
             cx.scope,
@@ -92,9 +102,28 @@ impl WindowTabData {
             proxy.rpc.clone(),
             register,
             completion,
-            set_internal_command,
+            internal_command,
             config,
         );
+
+        if let Some(info) = workspace_info {
+            let root_split = main_split.root_split;
+            info.split.to_data(cx, main_split.clone(), None, root_split);
+        } else {
+            let root_split = main_split.root_split;
+            let root_split_data = SplitData {
+                parent_split: None,
+                split_id: root_split,
+                children: Vec::new(),
+                direction: SplitDirection::Horizontal,
+                window_origin: Point::ZERO,
+                layout_rect: Rect::ZERO,
+            };
+            main_split.splits.update(|splits| {
+                splits
+                    .insert(root_split, create_rw_signal(cx.scope, root_split_data));
+            });
+        }
 
         let palette = PaletteData::new(
             cx,
@@ -104,7 +133,7 @@ impl WindowTabData {
             register,
             completion,
             set_window_command,
-            set_internal_command,
+            internal_command.write_only(),
             set_lapce_command,
             focus,
             keypress.read_only(),
@@ -364,6 +393,19 @@ impl WindowTabData {
         }
 
         self.keypress.set(keypress);
+    }
+
+    pub fn workspace_info(&self) -> WorkspaceInfo {
+        let main_split_data = self
+            .main_split
+            .splits
+            .get_untracked()
+            .get(&self.main_split.root_split)
+            .cloned()
+            .unwrap();
+        WorkspaceInfo {
+            split: main_split_data.get_untracked().split_info(self),
+        }
     }
 
     pub fn completion_origin(&self) -> Point {

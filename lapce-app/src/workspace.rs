@@ -2,6 +2,8 @@ use std::{fmt::Display, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::main_split::SplitInfo;
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct SshHost {
     pub user: Option<String>,
@@ -119,4 +121,9 @@ impl std::fmt::Display for LapceWorkspace {
             self.path.as_ref().and_then(|p| p.to_str()).unwrap_or("")
         )
     }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct WorkspaceInfo {
+    pub split: SplitInfo,
 }

@@ -1,9 +1,16 @@
+use std::sync::Arc;
+
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
+use floem::reactive::SignalGetUntracked;
 use lapce_core::directory::Directory;
 use lapce_rpc::plugin::VoltID;
 
-use crate::workspace::LapceWorkspace;
+use crate::{
+    window::{WindowData, WindowInfo},
+    window_tab::WindowTabData,
+    workspace::{LapceWorkspace, WorkspaceInfo},
+};
 
 pub enum SaveEvent {
     RecentWorkspace(LapceWorkspace),
@@ -111,6 +118,65 @@ impl LapceDb {
 
         sled_db.insert("recent_workspaces", workspaces.as_str())?;
         sled_db.flush()?;
+
+        Ok(())
+    }
+
+    pub fn get_workspace_info(
+        &self,
+        workspace: &LapceWorkspace,
+    ) -> Result<WorkspaceInfo> {
+        let workspace = workspace.to_string();
+        let sled_db = self.get_db()?;
+        let info = sled_db
+            .get(workspace)?
+            .ok_or_else(|| anyhow!("can't find workspace info"))?;
+        let info = std::str::from_utf8(&info)?;
+        let info: WorkspaceInfo = serde_json::from_str(info)?;
+        Ok(info)
+    }
+
+    fn insert_workspace(
+        &self,
+        workspace: &LapceWorkspace,
+        info: &WorkspaceInfo,
+    ) -> Result<()> {
+        let workspace = workspace.to_string();
+        let workspace_info = serde_json::to_string(info)?;
+        let sled_db = self.get_db()?;
+        sled_db.insert(workspace.as_str(), workspace_info.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
+    pub fn get_window(&self) -> Result<WindowInfo> {
+        let sled_db = self.get_db()?;
+        let info = sled_db
+            .get("window")?
+            .ok_or_else(|| anyhow!("can't find app info"))?;
+        let info = std::str::from_utf8(&info)?;
+        let info: WindowInfo = serde_json::from_str(info)?;
+        Ok(info)
+    }
+
+    pub fn save_window(&self, data: WindowData) -> Result<()> {
+        for window_tab in data.window_tabs.get_untracked().into_iter() {
+            let _ = self.save_window_tab(window_tab);
+        }
+        let info = data.info();
+        let info = serde_json::to_string(&info)?;
+        let sled_db = self.get_db()?;
+        sled_db.insert("window", info.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
+    pub fn save_window_tab(&self, data: Arc<WindowTabData>) -> Result<()> {
+        let workspace = (*data.workspace).clone();
+        let workspace_info = data.workspace_info();
+
+        self.insert_workspace(&workspace, &workspace_info)?;
+        // self.insert_unsaved_buffer(main_split)?;
 
         Ok(())
     }

@@ -25,9 +25,11 @@ use crate::{
         location::{EditorLocation, EditorPosition},
         EditorData,
     },
-    editor_tab::{EditorTabChild, EditorTabData},
+    editor_tab::{EditorTabChild, EditorTabData, EditorTabInfo},
     id::{EditorId, EditorTabId, SplitId},
     keypress::KeyPressData,
+    window_tab::WindowTabData,
+    workspace::WorkspaceInfo,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,6 +59,33 @@ impl SplitContent {
             SplitContent::Split(id) => id.to_raw(),
         }
     }
+
+    pub fn content_info(&self, data: &WindowTabData) -> SplitContentInfo {
+        match &self {
+            SplitContent::EditorTab(editor_tab_id) => {
+                let editor_tab_data = data
+                    .main_split
+                    .editor_tabs
+                    .get_untracked()
+                    .get(editor_tab_id)
+                    .cloned()
+                    .unwrap();
+                SplitContentInfo::EditorTab(
+                    editor_tab_data.get_untracked().tab_info(data),
+                )
+            }
+            SplitContent::Split(split_id) => {
+                let split_data = data
+                    .main_split
+                    .splits
+                    .get_untracked()
+                    .get(split_id)
+                    .cloned()
+                    .unwrap();
+                SplitContentInfo::Split(split_data.get_untracked().split_info(data))
+            }
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -69,6 +98,83 @@ pub struct SplitData {
     pub layout_rect: Rect,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SplitInfo {
+    pub children: Vec<SplitContentInfo>,
+    pub direction: SplitDirection,
+}
+
+impl SplitInfo {
+    pub fn to_data(
+        &self,
+        cx: AppContext,
+        data: MainSplitData,
+        parent_split: Option<SplitId>,
+        split_id: SplitId,
+    ) -> RwSignal<SplitData> {
+        let split_data = SplitData {
+            split_id,
+            direction: self.direction,
+            parent_split,
+            children: self
+                .children
+                .iter()
+                .map(|child| child.to_data(cx, data.clone(), split_id))
+                .collect(),
+            window_origin: Point::ZERO,
+            layout_rect: Rect::ZERO,
+        };
+        let split_data = create_rw_signal(cx.scope, split_data);
+        data.splits.update(|splits| {
+            splits.insert(split_id, split_data);
+        });
+        split_data
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub enum SplitContentInfo {
+    EditorTab(EditorTabInfo),
+    Split(SplitInfo),
+}
+
+impl SplitContentInfo {
+    pub fn to_data(
+        &self,
+        cx: AppContext,
+        data: MainSplitData,
+        parent_split: SplitId,
+    ) -> SplitContent {
+        match &self {
+            SplitContentInfo::EditorTab(tab_info) => {
+                let tab_data = tab_info.to_data(cx, data, parent_split);
+                SplitContent::EditorTab(
+                    tab_data.with_untracked(|tab_data| tab_data.editor_tab_id),
+                )
+            }
+            SplitContentInfo::Split(split_info) => {
+                let split_id = SplitId::next();
+                split_info.to_data(cx, data, Some(parent_split), split_id);
+                SplitContent::Split(split_id)
+            }
+        }
+    }
+}
+
+impl SplitData {
+    pub fn split_info(&self, data: &WindowTabData) -> SplitInfo {
+        let info = SplitInfo {
+            direction: self.direction,
+            children: self
+                .children
+                .iter()
+                .map(|child| child.content_info(data))
+                .collect(),
+        };
+        info
+    }
+}
+
 #[derive(Clone)]
 pub struct MainSplitData {
     pub root_split: SplitId,
@@ -78,11 +184,11 @@ pub struct MainSplitData {
     pub editors: RwSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
     pub docs: RwSignal<im::HashMap<PathBuf, RwSignal<Document>>>,
     pub proxy_rpc: ProxyRpcHandler,
-    completion: RwSignal<CompletionData>,
-    register: RwSignal<Register>,
+    pub completion: RwSignal<CompletionData>,
+    pub register: RwSignal<Register>,
     locations: RwSignal<im::Vector<EditorLocation>>,
     current_location: RwSignal<usize>,
-    internal_command: WriteSignal<Option<InternalCommand>>,
+    pub internal_command: RwSignal<Option<InternalCommand>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
 
@@ -92,23 +198,10 @@ impl MainSplitData {
         proxy_rpc: ProxyRpcHandler,
         register: RwSignal<Register>,
         completion: RwSignal<CompletionData>,
-        internal_command: WriteSignal<Option<InternalCommand>>,
+        internal_command: RwSignal<Option<InternalCommand>>,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
-        let root_split = SplitId::next();
-        let root_split_data = SplitData {
-            parent_split: None,
-            split_id: root_split,
-            children: Vec::new(),
-            direction: SplitDirection::Horizontal,
-            window_origin: Point::ZERO,
-            layout_rect: Rect::ZERO,
-        };
-
-        let mut splits = im::HashMap::new();
-        splits.insert(root_split, create_rw_signal(cx.scope, root_split_data));
-        let splits = create_rw_signal(cx.scope, splits);
-
+        let splits = create_rw_signal(cx.scope, im::HashMap::new());
         let active_editor_tab = create_rw_signal(cx.scope, None);
         let editor_tabs = create_rw_signal(cx.scope, im::HashMap::new());
         let editors = create_rw_signal(cx.scope, im::HashMap::new());
@@ -117,7 +210,7 @@ impl MainSplitData {
         let current_location = create_rw_signal(cx.scope, 0);
 
         Self {
-            root_split,
+            root_split: SplitId::next(),
             splits,
             active_editor_tab,
             editor_tabs,
@@ -312,7 +405,7 @@ impl MainSplitData {
                 doc,
                 self.register,
                 self.completion,
-                self.internal_command,
+                self.internal_command.write_only(),
                 self.proxy_rpc.clone(),
                 self.config,
             );
@@ -363,7 +456,7 @@ impl MainSplitData {
                 doc,
                 self.register,
                 self.completion,
-                self.internal_command,
+                self.internal_command.write_only(),
                 self.proxy_rpc.clone(),
                 self.config,
             );

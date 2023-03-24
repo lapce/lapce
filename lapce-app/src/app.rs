@@ -13,9 +13,9 @@ use floem::{
         Color,
     },
     reactive::{
-        create_effect, create_memo, create_rw_signal, provide_context, ReadSignal,
-        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalWith, SignalWithUntracked,
+        create_effect, create_memo, create_rw_signal, provide_context, use_context,
+        ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
+        SignalUpdate, SignalWith, SignalWithUntracked,
     },
     stack::stack,
     style::{
@@ -51,7 +51,7 @@ use crate::{
         PaletteData, PaletteStatus,
     },
     title::title,
-    window::WindowData,
+    window::{TabsInfo, WindowData, WindowInfo},
     window_tab::{Focus, WindowTabData},
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
@@ -265,11 +265,39 @@ fn editor_gutter(
     editor: RwSignal<EditorData>,
     is_active: impl Fn() -> bool + 'static + Copy,
 ) -> impl View {
-    let (viewport, gutter_viewport, config) = editor
-        .with(|editor| (editor.viewport, editor.gutter_viewport, editor.config));
+    let (cursor, viewport, gutter_viewport, config) = editor.with(|editor| {
+        (
+            editor.cursor,
+            editor.viewport,
+            editor.gutter_viewport,
+            editor.config,
+        )
+    });
 
     let padding_left = 10.0;
     let padding_right = 30.0;
+
+    let code_action_line = create_memo(cx.scope, move |_| {
+        if is_active() {
+            let doc = editor.with(|editor| editor.doc);
+            let offset = cursor.with(|cursor| cursor.offset());
+            doc.with(|doc| {
+                let line = doc.buffer().line_of_offset(offset);
+                let has_code_actions = doc
+                    .code_actions
+                    .get(&line)
+                    .map(|c| !c.1.is_empty())
+                    .unwrap_or(false);
+                if has_code_actions {
+                    Some(line)
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        }
+    });
 
     stack(cx, |cx| {
         (
@@ -332,11 +360,8 @@ fn editor_gutter(
                                         .style(cx, move || {
                                             let size =
                                                 config.get().ui.icon_size() as f32;
-                                            let display = if line
-                                                .code_actions
-                                                .clone()
-                                                .map(|c| !c.1.is_empty())
-                                                .unwrap_or(false)
+                                            let display = if code_action_line.get()
+                                                == Some(line.line)
                                             {
                                                 Display::Flex
                                             } else {
@@ -2039,14 +2064,17 @@ fn window_tab(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
     })
 }
 
-fn window(cx: AppContext) -> impl View {
-    let window_data = WindowData::new(cx);
+fn window(cx: AppContext, window_data: WindowData) -> impl View {
+    let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
+
     let window_tabs = window_data.window_tabs.read_only();
     let active = window_data.active.read_only();
     let items = move || window_tabs.get();
     let key = |window_tab: &Arc<WindowTabData>| window_tab.window_tab_id;
     let active = move || active.get();
+    let window_size = window_data.size;
 
+    let local_window_data = window_data.clone();
     let window_view = tab(cx, active, items, key, window_tab)
         .style(cx, || Style {
             width: Dimension::Percent(1.0),
@@ -2060,6 +2088,17 @@ fn window(cx: AppContext) -> impl View {
             } else {
                 false
             }
+        })
+        .on_event(EventListner::WindowClosed, move |_| {
+            println!("window closed");
+            let _ = db.save_window(local_window_data.clone());
+            true
+        })
+        .on_event(EventListner::WindowResized, move |event| {
+            if let Event::WindowResized(size) = event {
+                window_size.set(*size);
+            }
+            true
         });
 
     let id = window_view.id();
@@ -2070,7 +2109,7 @@ fn window(cx: AppContext) -> impl View {
 
 fn app_logic(cx: AppContext) -> impl View {
     let db = Arc::new(LapceDb::new().unwrap());
-    provide_context(cx.scope, db);
+    provide_context(cx.scope, db.clone());
 
     let mut args = std::env::args_os();
     // Skip executable name
@@ -2087,7 +2126,8 @@ fn app_logic(cx: AppContext) -> impl View {
         last_open: 0,
     });
 
-    window(cx)
+    let window_data = WindowData::new(cx);
+    window(cx, window_data)
 }
 
 pub fn launch() {

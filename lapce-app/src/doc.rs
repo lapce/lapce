@@ -39,6 +39,7 @@ use lapce_xi_rope::{
 use lsp_types::{
     CodeActionResponse, Diagnostic, DiagnosticSeverity, InlayHint, InlayHintLabel,
 };
+use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::config::{color::LapceColor, LapceConfig};
@@ -126,7 +127,7 @@ impl TextLayoutCache {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum DocContent {
     /// A file at some location. This can be a remote path.
     File(PathBuf),
