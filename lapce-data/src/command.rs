@@ -11,6 +11,7 @@ use lapce_core::{
         EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
         MultiSelectionCommand,
     },
+    movement::LineCol,
     syntax::Syntax,
 };
 use lapce_rpc::{
@@ -39,7 +40,7 @@ use crate::{
         SplitContent,
     },
     document::BufferContent,
-    editor::{EditorLocation, EditorPosition, Line, LineCol},
+    editor::{EditorLocation, EditorPosition, Line},
     images,
     keypress::{KeyMap, KeyPress},
     markdown::Content,
