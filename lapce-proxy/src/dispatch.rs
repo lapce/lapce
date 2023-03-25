@@ -228,7 +228,7 @@ impl ProxyHandler for Dispatcher {
                             String::from("Source Control: Commit"),
                             ShowMessageParams {
                                 typ: MessageType::ERROR,
-                                message: format!("Failed to checkout: {e}"),
+                                message: format!("Failed to commit: {e}"),
                             },
                         );
                         log::error!(target: "lapce_proxy::dispatch::proxy_handler::handle_notification::git_commit", "{e}");
@@ -259,7 +259,7 @@ impl ProxyHandler for Dispatcher {
                             String::from("Source Control: Discard File Changes"),
                             ShowMessageParams {
                                 typ: MessageType::ERROR,
-                                message: format!("Failed to checkout: {e}"),
+                                message: format!("Failed to discard file changes: {e}"),
                             },
                         );
                         log::error!(target: "lapce_proxy::dispatch::proxy_handler::handle_notification::git_discard_files_change", "{e}");
@@ -275,7 +275,7 @@ impl ProxyHandler for Dispatcher {
                             ),
                             ShowMessageParams {
                                 typ: MessageType::ERROR,
-                                message: format!("Failed to checkout: {e}"),
+                                message: format!("Failed to discard workspace changes: {e}"),
                             },
                         );
                         log::error!(target: "lapce_proxy::dispatch::proxy_handler::handle_notification::git_discard_workspace_changes", "{e}");
@@ -289,7 +289,7 @@ impl ProxyHandler for Dispatcher {
                             String::from("Source Control: Init"),
                             ShowMessageParams {
                                 typ: MessageType::ERROR,
-                                message: format!("Failed to checkout: {e}"),
+                                message: format!("Failed to init repository: {e}"),
                             },
                         );
                         log::error!(target: "lapce_proxy::dispatch::proxy_handler::handle_notification::git_init", "{e}");
