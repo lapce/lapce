@@ -239,7 +239,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "tsx" => "typescriptreact",
                     "tex" => "tex",
                     "vb" => "vb",
-                    "xml" => "xml",
+                    "xml" | "csproj" => "xml",
                     "xsl" => "xsl",
                     "yml" | "yaml" => "yaml",
                     "zig" => "zig",
