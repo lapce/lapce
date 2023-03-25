@@ -17,6 +17,7 @@ use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    code_action::CodeActionData,
     command::InternalCommand,
     completion::CompletionData,
     config::LapceConfig,
@@ -185,6 +186,7 @@ pub struct MainSplitData {
     pub docs: RwSignal<im::HashMap<PathBuf, RwSignal<Document>>>,
     pub proxy_rpc: ProxyRpcHandler,
     pub completion: RwSignal<CompletionData>,
+    pub code_action: RwSignal<CodeActionData>,
     pub register: RwSignal<Register>,
     locations: RwSignal<im::Vector<EditorLocation>>,
     current_location: RwSignal<usize>,
@@ -198,6 +200,7 @@ impl MainSplitData {
         proxy_rpc: ProxyRpcHandler,
         register: RwSignal<Register>,
         completion: RwSignal<CompletionData>,
+        code_action: RwSignal<CodeActionData>,
         internal_command: RwSignal<Option<InternalCommand>>,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
@@ -219,6 +222,7 @@ impl MainSplitData {
             proxy_rpc,
             register,
             completion,
+            code_action,
             locations,
             current_location,
             internal_command,
@@ -405,6 +409,7 @@ impl MainSplitData {
                 doc,
                 self.register,
                 self.completion,
+                self.code_action,
                 self.internal_command.write_only(),
                 self.proxy_rpc.clone(),
                 self.config,
@@ -456,6 +461,7 @@ impl MainSplitData {
                 doc,
                 self.register,
                 self.completion,
+                self.code_action,
                 self.internal_command.write_only(),
                 self.proxy_rpc.clone(),
                 self.config,

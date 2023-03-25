@@ -31,6 +31,7 @@ use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
 use lapce_xi_rope::Rope;
 
 use crate::{
+    code_action::CodeActionData,
     command::{
         CommandExecuted, CommandKind, InternalCommand, LapceCommand, WindowCommand,
     },
@@ -109,6 +110,7 @@ impl PaletteData {
         proxy_rpc: ProxyRpcHandler,
         register: RwSignal<Register>,
         completion: RwSignal<CompletionData>,
+        code_action: RwSignal<CodeActionData>,
         window_command: WriteSignal<Option<WindowCommand>>,
         internal_command: WriteSignal<Option<InternalCommand>>,
         lapce_command: WriteSignal<Option<LapceCommand>>,
@@ -133,6 +135,7 @@ impl PaletteData {
             EditorId::next(),
             register,
             completion,
+            code_action,
             internal_command,
             proxy_rpc.clone(),
             config,
@@ -142,6 +145,7 @@ impl PaletteData {
             EditorId::next(),
             register,
             completion,
+            code_action,
             internal_command,
             proxy_rpc.clone(),
             config,

@@ -32,6 +32,7 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    code_action::{CodeActionData, CodeActionStatus, ScoredCodeActionItem},
     command::{CommandExecuted, InternalCommand},
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
@@ -74,6 +75,7 @@ impl EditorInfo {
                     doc,
                     data.register,
                     data.completion,
+                    data.code_action,
                     data.internal_command.write_only(),
                     data.proxy_rpc.clone(),
                     data.config,
@@ -97,6 +99,7 @@ impl EditorInfo {
                 editor_id,
                 data.register,
                 data.completion,
+                data.code_action,
                 data.internal_command.write_only(),
                 data.proxy_rpc.clone(),
                 data.config,
@@ -119,6 +122,7 @@ pub struct EditorData {
     pub cursor: RwSignal<Cursor>,
     register: RwSignal<Register>,
     completion: RwSignal<CompletionData>,
+    code_action: RwSignal<CodeActionData>,
     internal_command: WriteSignal<Option<InternalCommand>>,
     pub window_origin: RwSignal<Point>,
     pub viewport: RwSignal<Rect>,
@@ -138,6 +142,7 @@ impl EditorData {
         doc: RwSignal<Document>,
         register: RwSignal<Register>,
         completion: RwSignal<CompletionData>,
+        code_action: RwSignal<CodeActionData>,
         internal_command: WriteSignal<Option<InternalCommand>>,
         proxy: ProxyRpcHandler,
         config: ReadSignal<Arc<LapceConfig>>,
@@ -169,6 +174,7 @@ impl EditorData {
             snippet,
             register,
             completion,
+            code_action,
             internal_command,
             window_origin,
             viewport,
@@ -185,6 +191,7 @@ impl EditorData {
         editor_id: EditorId,
         register: RwSignal<Register>,
         completion: RwSignal<CompletionData>,
+        code_action: RwSignal<CodeActionData>,
         internal_command: WriteSignal<Option<InternalCommand>>,
         proxy: ProxyRpcHandler,
         config: ReadSignal<Arc<LapceConfig>>,
@@ -198,6 +205,7 @@ impl EditorData {
             doc,
             register,
             completion,
+            code_action,
             internal_command,
             proxy,
             config,
@@ -234,7 +242,10 @@ impl EditorData {
         editor.gutter_viewport =
             create_rw_signal(cx.scope, editor.gutter_viewport.get_untracked());
         editor.scroll_delta = create_rw_signal(cx.scope, Vec2::ZERO);
+        editor.scroll_to = create_rw_signal(cx.scope, None);
         editor.window_origin = create_rw_signal(cx.scope, Point::ZERO);
+        editor.confirmed = create_rw_signal(cx.scope, true);
+        editor.snippet = create_rw_signal(cx.scope, None);
         editor.editor_tab_id = editor_tab_id;
         editor.editor_id = editor_id;
         editor
@@ -1238,6 +1249,33 @@ impl EditorData {
                     send((plugin_id, resp))
                 }
             });
+    }
+
+    pub fn show_code_actions(&self, cx: AppContext) {
+        let offset = self.cursor.with_untracked(|c| c.offset());
+        let code_actions = self
+            .doc
+            .with_untracked(|doc| doc.code_actions.get(&offset).cloned());
+        if let Some(code_actions) = code_actions {
+            if !code_actions.1.is_empty() {
+                self.code_action.update(|code_action| {
+                    code_action.status = CodeActionStatus::Active;
+                    code_action.request_id += 1;
+                    code_action.items = code_actions
+                        .1
+                        .iter()
+                        .map(|code_action| ScoredCodeActionItem {
+                            item: code_action.clone(),
+                            plugin_id: code_actions.0,
+                            score: 0,
+                            indices: Vec::new(),
+                        })
+                        .collect();
+                    code_action.filtered_items = code_action.items.clone();
+                    code_action.active.set(0);
+                });
+            }
+        }
     }
 }
 

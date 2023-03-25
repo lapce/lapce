@@ -14,6 +14,7 @@ use floem::{
 use lapce_core::register::Register;
 
 use crate::{
+    code_action::CodeActionData,
     command::{
         CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand,
         WindowCommand,
@@ -45,6 +46,7 @@ pub struct WindowTabData {
     pub proxy: ProxyData,
     pub keypress: RwSignal<KeyPressData>,
     pub completion: RwSignal<CompletionData>,
+    pub code_action: RwSignal<CodeActionData>,
     pub focus: RwSignal<Focus>,
     pub lapce_command: ReadSignal<Option<LapceCommand>>,
     pub workbench_command: RwSignal<Option<LapceWorkbenchCommand>>,
@@ -92,6 +94,7 @@ impl WindowTabData {
 
         let focus = create_rw_signal(cx.scope, Focus::Workbench);
         let completion = create_rw_signal(cx.scope, CompletionData::new(cx, config));
+        let code_action = create_rw_signal(cx.scope, CodeActionData::new(cx));
 
         let proxy = start_proxy(cx, workspace.clone(), completion.write_only());
 
@@ -102,6 +105,7 @@ impl WindowTabData {
             proxy.rpc.clone(),
             register,
             completion,
+            code_action,
             internal_command,
             config,
         );
@@ -132,6 +136,7 @@ impl WindowTabData {
             proxy.rpc.clone(),
             register,
             completion,
+            code_action,
             set_window_command,
             internal_command.write_only(),
             set_lapce_command,
@@ -149,6 +154,7 @@ impl WindowTabData {
             proxy,
             keypress,
             completion,
+            code_action,
             focus,
             lapce_command,
             workbench_command,

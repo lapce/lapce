@@ -285,7 +285,7 @@ fn editor_gutter(
                 let line = doc.buffer().line_of_offset(offset);
                 let has_code_actions = doc
                     .code_actions
-                    .get(&line)
+                    .get(&offset)
                     .map(|c| !c.1.is_empty())
                     .unwrap_or(false);
                 if has_code_actions {
@@ -352,27 +352,44 @@ fn editor_gutter(
                                 ),
                                 container(cx, |cx| {
                                     container(cx, |cx| {
-                                        svg(cx, move || {
-                                            config
-                                                .get()
-                                                .ui_svg(LapceIcons::LIGHTBULB)
-                                        })
-                                        .style(cx, move || {
-                                            let size =
-                                                config.get().ui.icon_size() as f32;
-                                            let display = if code_action_line.get()
+                                        click(
+                                            cx,
+                                            |cx| {
+                                                svg(cx, move || {
+                                                    config.get().ui_svg(
+                                                        LapceIcons::LIGHTBULB,
+                                                    )
+                                                })
+                                                .style(cx, move || {
+                                                    let size =
+                                                        config.get().ui.icon_size()
+                                                            as f32;
+                                                    Style {
+                                                        width: Dimension::Points(
+                                                            size,
+                                                        ),
+                                                        height: Dimension::Points(
+                                                            size,
+                                                        ),
+                                                        ..Default::default()
+                                                    }
+                                                })
+                                            },
+                                            move || {
+                                                editor.with_untracked(|editor| {
+                                                    editor.show_code_actions(cx);
+                                                });
+                                            },
+                                        )
+                                        .style(cx, move || Style {
+                                            display: if code_action_line.get()
                                                 == Some(line.line)
                                             {
                                                 Display::Flex
                                             } else {
                                                 Display::None
-                                            };
-                                            Style {
-                                                display,
-                                                width: Dimension::Points(size),
-                                                height: Dimension::Points(size),
-                                                ..Default::default()
-                                            }
+                                            },
+                                            ..Default::default()
                                         })
                                     })
                                     .style(
@@ -2023,6 +2040,45 @@ fn completion(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
     })
 }
 
+fn code_action(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
+    let config = window_tab_data.config;
+    let code_action = window_tab_data.code_action;
+    let request_id =
+        move || code_action.with_untracked(|code_action| code_action.request_id);
+    scroll(cx, move |cx| {
+        list(
+            cx,
+            move || {
+                code_action.with(|code_action| {
+                    code_action.filtered_items.clone().into_iter().enumerate()
+                })
+            },
+            move |(i, _item)| (request_id(), *i),
+            move |cx, (_i, item)| {
+                label(cx, move || item.title().to_string()).style(cx, move || {
+                    Style {
+                        height: Dimension::Points(
+                            config.get().editor.line_height() as f32
+                        ),
+                        ..Default::default()
+                    }
+                })
+            },
+        )
+        .style(cx, || Style {
+            flex_direction: FlexDirection::Column,
+            ..Default::default()
+        })
+    })
+    .style(cx, move || Style {
+        position: Position::Absolute,
+        width: Dimension::Points(400.0),
+        max_height: Dimension::Points(400.0),
+        background: Some(*config.get().get_color(LapceColor::COMPLETION_BACKGROUND)),
+        ..Default::default()
+    })
+}
+
 fn window_tab(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let proxy_data = window_tab_data.proxy.clone();
     let window_origin = window_tab_data.window_origin;
@@ -2051,6 +2107,7 @@ fn window_tab(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
                 ..Default::default()
             }),
             completion(cx, window_tab_data.clone()),
+            code_action(cx, window_tab_data.clone()),
             palette(cx, window_tab_data.clone()),
         )
     })
@@ -2109,7 +2166,7 @@ fn window(cx: AppContext, window_data: WindowData) -> impl View {
 
 fn app_logic(cx: AppContext) -> impl View {
     let db = Arc::new(LapceDb::new().unwrap());
-    provide_context(cx.scope, db.clone());
+    provide_context(cx.scope, db);
 
     let mut args = std::env::args_os();
     // Skip executable name
