@@ -10,6 +10,8 @@
 
 ### Features/Changes
 
+- [#2407](https://github.com/lapce/lapce/pull/2407): Add option to open files at line/column
+
 ### Bug Fixes
 - [#2209](https://github.com/lapce/lapce/pull/2209): Fix macOS crashes
 - [#2228](https://github.com/lapce/lapce/pull/2228): Fix `.desktop` entry to properly associate with Lapce on Wayland
