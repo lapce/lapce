@@ -152,7 +152,7 @@ jobs:
         run: make tarball
 
       - name: Make debian package
-        run: make deb
+        run: make RELEASE_TAG_VERSION=${{ env.RELEASE_TAG_VERSION }} deb
 
       - uses: actions/upload-artifact@v3
         with:
@@ -237,7 +237,12 @@ jobs:
           echo -e '#!/bin/sh\nPKG_CONFIG_SYSROOT_DIR=${{ env.CROSS_SYSROOT }} exec pkgconf "$@"' \
               | install -m755 /dev/stdin pkg-config
           export PKG_CONFIG="$(pwd)/pkg-config"
-          make TARGET=lapce-proxy gz
+          cargo build \
+            --frozen \
+            --verbose \
+            --release \
+            --bin lapce-proxy \
+            --manifest-path lapce-proxy/Cargo.toml
 
       - uses: actions/upload-artifact@v3
         with:
