@@ -1817,7 +1817,7 @@ fn app_logic(cx: AppContext) -> impl View {
         .next()
         .map(|it| PathBuf::from(it).canonicalize().ok())
         .flatten()
-        .or_else(|| Some(PathBuf::from("/Users/dz/lapce-rust")));
+        .or_else(|| Some(std::env::current_dir().unwrap()));
 
     let workspace = Arc::new(LapceWorkspace {
         kind: LapceWorkspaceType::Local,
