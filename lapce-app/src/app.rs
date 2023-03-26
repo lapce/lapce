@@ -13,9 +13,9 @@ use floem::{
         Color,
     },
     reactive::{
-        create_effect, create_memo, create_rw_signal, provide_context, use_context,
-        ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWith, SignalWithUntracked,
+        create_memo, create_rw_signal, provide_context, use_context, ReadSignal,
+        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalWith, SignalWithUntracked,
     },
     stack::stack,
     style::{
@@ -51,8 +51,8 @@ use crate::{
         PaletteData, PaletteStatus,
     },
     title::title,
-    window::{TabsInfo, WindowData, WindowInfo},
-    window_tab::{Focus, WindowTabData},
+    window::WindowData,
+    window_tab::WindowTabData,
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
@@ -270,7 +270,7 @@ fn editor_gutter(
             editor.cursor,
             editor.viewport,
             editor.gutter_viewport,
-            editor.config,
+            editor.common.config,
         )
     });
 
@@ -524,7 +524,7 @@ fn editor_cursor(
     let id = AtomicU64::new(0);
     list(
         cx,
-        move || cursor(),
+        cursor,
         move |(viewport, cursor)| {
             id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         },
@@ -605,7 +605,7 @@ fn editor(
             editor.window_origin,
             editor.viewport,
             editor.gutter_viewport,
-            editor.config,
+            editor.common.config,
         )
     });
 
@@ -1302,7 +1302,7 @@ fn split_list(
     let active_editor_tab = main_split.active_editor_tab.read_only();
     let editors = main_split.editors.read_only();
     let splits = main_split.splits.read_only();
-    let config = main_split.config;
+    let config = main_split.common.config;
 
     let direction = move || split.with(|split| split.direction);
     let items = move || split.get().children.into_iter().enumerate();
@@ -1407,7 +1407,7 @@ fn main_split(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
     let active_editor_tab = window_tab_data.main_split.active_editor_tab.read_only();
     let editor_tabs = window_tab_data.main_split.editor_tabs.read_only();
     let editors = window_tab_data.main_split.editors.read_only();
-    let config = window_tab_data.main_split.config;
+    let config = window_tab_data.main_split.common.config;
     split_list(cx, root_split, window_tab_data.main_split.clone()).style(
         cx,
         move || Style {
@@ -1419,7 +1419,7 @@ fn main_split(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
 }
 
 fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
-    let config = window_tab_data.main_split.config;
+    let config = window_tab_data.main_split.common.config;
     stack(cx, move |cx| {
         (
             label(cx, move || "left".to_string()).style(cx, move || Style {
@@ -1636,7 +1636,7 @@ fn palette_item(
 fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let doc = window_tab_data.palette.input_editor.doc.read_only();
     let cursor = window_tab_data.palette.input_editor.cursor.read_only();
-    let config = window_tab_data.palette.config;
+    let config = window_tab_data.common.config;
     let cursor_x = create_memo(cx.scope, move |_| {
         let offset = cursor.get().offset();
         let config = config.get();
@@ -1734,7 +1734,7 @@ fn palette_content(
 ) -> impl View {
     let items = window_tab_data.palette.filtered_items;
     let index = window_tab_data.palette.index.read_only();
-    let config = window_tab_data.palette.config;
+    let config = window_tab_data.common.config;
     let run_id = window_tab_data.palette.run_id;
     let input = window_tab_data.palette.input.read_only();
     let palette_item_height = 25.0;
@@ -1823,7 +1823,7 @@ fn palette(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let layout_rect = window_tab_data.layout_rect.read_only();
     let palette_data = window_tab_data.palette.clone();
     let status = palette_data.status.read_only();
-    let config = palette_data.config;
+    let config = palette_data.common.config;
     let has_preview = palette_data.has_preview.read_only();
     container(cx, |cx| {
         stack(cx, |cx| {
@@ -1915,8 +1915,8 @@ fn completion_kind_to_str(kind: CompletionItemKind) -> &'static str {
 }
 
 fn completion(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
-    let completion_data = window_tab_data.completion;
-    let config = window_tab_data.config;
+    let completion_data = window_tab_data.common.completion;
+    let config = window_tab_data.common.config;
     let active = completion_data.with_untracked(|c| c.active);
     let request_id =
         move || completion_data.with_untracked(|c| (c.request_id, c.input_id));
@@ -2035,14 +2035,16 @@ fn completion(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
             background: Some(*config.get_color(LapceColor::COMPLETION_BACKGROUND)),
             font_family: Some(config.editor.font_family.clone()),
             font_size: Some(config.editor.font_size as f32),
+            border_radius: 6.0,
             ..Default::default()
         }
     })
 }
 
 fn code_action(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
-    let config = window_tab_data.config;
-    let code_action = window_tab_data.code_action;
+    let config = window_tab_data.common.config;
+    let code_action = window_tab_data.common.code_action;
+    let active = code_action.with_untracked(|code_action| code_action.active);
     let request_id =
         move || code_action.with_untracked(|code_action| code_action.request_id);
     scroll(cx, move |cx| {
@@ -2054,28 +2056,61 @@ fn code_action(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View
                 })
             },
             move |(i, _item)| (request_id(), *i),
-            move |cx, (_i, item)| {
-                label(cx, move || item.title().to_string()).style(cx, move || {
+            move |cx, (i, item)| {
+                container(cx, move |cx| {
+                    label(cx, move || item.title().to_string()).style(
+                        cx,
+                        move || Style {
+                            ..Default::default()
+                        },
+                    )
+                })
+                .style(cx, move || {
+                    let config = config.get();
                     Style {
+                        padding_left: 10.0,
+                        padding_right: 10.0,
+                        align_items: Some(AlignItems::Center),
+                        min_width: Dimension::Points(0.0),
+                        width: Dimension::Percent(1.0),
                         height: Dimension::Points(
-                            config.get().editor.line_height() as f32
+                            config.editor.line_height() as f32
                         ),
+                        background: if active.get() == i {
+                            Some(*config.get_color(LapceColor::COMPLETION_CURRENT))
+                        } else {
+                            None
+                        },
                         ..Default::default()
                     }
                 })
             },
         )
         .style(cx, || Style {
+            width: Dimension::Percent(1.0),
             flex_direction: FlexDirection::Column,
             ..Default::default()
         })
     })
-    .style(cx, move || Style {
-        position: Position::Absolute,
-        width: Dimension::Points(400.0),
-        max_height: Dimension::Points(400.0),
-        background: Some(*config.get().get_color(LapceColor::COMPLETION_BACKGROUND)),
-        ..Default::default()
+    .on_resize(move |_, rect| {
+        code_action.update(|c| {
+            c.layout_rect = rect;
+        });
+    })
+    .style(cx, move || {
+        let origin = window_tab_data.code_action_origin();
+        Style {
+            position: Position::Absolute,
+            width: Dimension::Points(400.0),
+            max_height: Dimension::Points(400.0),
+            margin_left: Some(origin.x as f32),
+            margin_top: Some(origin.y as f32),
+            background: Some(
+                *config.get().get_color(LapceColor::COMPLETION_BACKGROUND),
+            ),
+            border_radius: 20.0,
+            ..Default::default()
+        }
     })
 }
 
@@ -2083,9 +2118,10 @@ fn window_tab(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
     let proxy_data = window_tab_data.proxy.clone();
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;
-    let config = window_tab_data.main_split.config;
+    let config = window_tab_data.common.config;
     let workspace = window_tab_data.workspace.clone();
-    let set_workbench_command = window_tab_data.workbench_command.write_only();
+    let set_workbench_command =
+        window_tab_data.common.workbench_command.write_only();
 
     stack(cx, |cx| {
         (
@@ -2093,7 +2129,7 @@ fn window_tab(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
                 (
                     title(cx, workspace, &proxy_data, set_workbench_command, config),
                     workbench(cx, window_tab_data.clone()),
-                    status(cx, window_tab_data.main_split.config),
+                    status(cx, window_tab_data.common.config),
                 )
             })
             .on_resize(move |point, rect| {

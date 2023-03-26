@@ -42,7 +42,7 @@ use crate::{
     id::EditorId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     main_split::MainSplitData,
-    window_tab::Focus,
+    window_tab::{CommonData, Focus},
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
@@ -78,28 +78,22 @@ impl PaletteInput {
 pub struct PaletteData {
     run_id_counter: Arc<AtomicU64>,
     run_tx: Sender<(u64, String, im::Vector<PaletteItem>)>,
-    window_command: WriteSignal<Option<WindowCommand>>,
-    internal_command: WriteSignal<Option<InternalCommand>>,
-    lapce_command: WriteSignal<Option<LapceCommand>>,
     pub run_id: RwSignal<u64>,
     pub workspace: Arc<LapceWorkspace>,
     pub status: RwSignal<PaletteStatus>,
     pub index: RwSignal<usize>,
     pub items: RwSignal<im::Vector<PaletteItem>>,
     pub filtered_items: ReadSignal<im::Vector<PaletteItem>>,
-    pub proxy_rpc: ProxyRpcHandler,
     pub input: RwSignal<PaletteInput>,
     kind: RwSignal<PaletteKind>,
     pub input_editor: EditorData,
     pub preview_editor: RwSignal<EditorData>,
     pub has_preview: RwSignal<bool>,
-    pub focus: RwSignal<Focus>,
     pub keypress: ReadSignal<KeyPressData>,
-    pub config: ReadSignal<Arc<LapceConfig>>,
     pub executed_commands: Rc<RefCell<HashMap<String, Instant>>>,
-
     main_split: MainSplitData,
     pub references: RwSignal<Vec<EditorLocation>>,
+    pub common: CommonData,
 }
 
 impl PaletteData {
@@ -107,16 +101,8 @@ impl PaletteData {
         cx: AppContext,
         workspace: Arc<LapceWorkspace>,
         main_split: MainSplitData,
-        proxy_rpc: ProxyRpcHandler,
-        register: RwSignal<Register>,
-        completion: RwSignal<CompletionData>,
-        code_action: RwSignal<CodeActionData>,
-        window_command: WriteSignal<Option<WindowCommand>>,
-        internal_command: WriteSignal<Option<InternalCommand>>,
-        lapce_command: WriteSignal<Option<LapceCommand>>,
-        focus: RwSignal<Focus>,
         keypress: ReadSignal<KeyPressData>,
-        config: ReadSignal<Arc<LapceConfig>>,
+        common: CommonData,
     ) -> Self {
         let status = create_rw_signal(cx.scope, PaletteStatus::Inactive);
         let items = create_rw_signal(cx.scope, im::Vector::new());
@@ -130,26 +116,10 @@ impl PaletteData {
             },
         );
         let kind = create_rw_signal(cx.scope, PaletteKind::File);
-        let input_editor = EditorData::new_local(
-            cx,
-            EditorId::next(),
-            register,
-            completion,
-            code_action,
-            internal_command,
-            proxy_rpc.clone(),
-            config,
-        );
-        let preview_editor = EditorData::new_local(
-            cx,
-            EditorId::next(),
-            register,
-            completion,
-            code_action,
-            internal_command,
-            proxy_rpc.clone(),
-            config,
-        );
+        let input_editor =
+            EditorData::new_local(cx, EditorId::next(), common.clone());
+        let preview_editor =
+            EditorData::new_local(cx, EditorId::next(), common.clone());
         let preview_editor = create_rw_signal(cx.scope, preview_editor);
         let has_preview = create_rw_signal(cx.scope, false);
         let run_id = create_rw_signal(cx.scope, 0);
@@ -219,11 +189,7 @@ impl PaletteData {
             run_id_counter,
             run_tx,
             main_split,
-            window_command,
-            internal_command,
-            lapce_command,
             run_id,
-            focus,
             workspace,
             status,
             index,
@@ -234,11 +200,10 @@ impl PaletteData {
             has_preview,
             input,
             kind,
-            proxy_rpc,
             keypress,
-            config,
             executed_commands: Rc::new(RefCell::new(HashMap::new())),
             references,
+            common,
         };
 
         {
@@ -302,7 +267,7 @@ impl PaletteData {
     }
 
     pub fn run(&self, cx: AppContext, kind: PaletteKind) {
-        self.focus.set(Focus::Palette);
+        self.common.focus.set(Focus::Palette);
         self.status.set(PaletteStatus::Started);
         let symbol = kind.symbol();
         self.kind.set(kind);
@@ -360,7 +325,7 @@ impl PaletteData {
                 .collect::<im::Vector<_>>();
             set_items.set(items);
         });
-        self.proxy_rpc.get_files(move |result| {
+        self.common.proxy.get_files(move |result| {
             if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
                 send(items);
             }
@@ -485,20 +450,24 @@ impl PaletteData {
         if let Some(item) = items.get(index) {
             match &item.content {
                 PaletteItemContent::File { full_path, .. } => {
-                    self.internal_command.set(Some(InternalCommand::OpenFile {
-                        path: full_path.to_owned(),
-                    }));
+                    self.common.internal_command.set(Some(
+                        InternalCommand::OpenFile {
+                            path: full_path.to_owned(),
+                        },
+                    ));
                 }
                 PaletteItemContent::Command { cmd } => {
-                    self.lapce_command.set(Some(cmd.clone()));
+                    self.common.lapce_command.set(Some(cmd.clone()));
                 }
                 PaletteItemContent::Workspace { workspace } => {
-                    self.window_command.set(Some(WindowCommand::SetWorkspace {
-                        workspace: workspace.clone(),
-                    }));
+                    self.common.window_command.set(Some(
+                        WindowCommand::SetWorkspace {
+                            workspace: workspace.clone(),
+                        },
+                    ));
                 }
                 PaletteItemContent::Reference { location, .. } => {
-                    self.internal_command.set(Some(
+                    self.common.internal_command.set(Some(
                         InternalCommand::JumpToLocation {
                             location: location.clone(),
                         },
@@ -532,7 +501,7 @@ impl PaletteData {
 
     fn cancel(&self, cx: AppContext) {
         self.status.set(PaletteStatus::Inactive);
-        self.focus.set(Focus::Workbench);
+        self.common.focus.set(Focus::Workbench);
         self.has_preview.set(false);
         self.items.update(|items| items.clear());
         self.input_editor

@@ -34,7 +34,7 @@ use lapce_core::{
 use lapce_rpc::{
     buffer::BufferId,
     core::{CoreMessage, CoreNotification},
-    dap_types::{RunDebugConfig, SourceBreakpoint},
+    dap_types::RunDebugConfig,
     plugin::{VoltID, VoltInfo},
     proxy::ProxyResponse,
     source_control::FileDiff,

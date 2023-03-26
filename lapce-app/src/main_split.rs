@@ -29,7 +29,7 @@ use crate::{
     editor_tab::{EditorTabChild, EditorTabData, EditorTabInfo},
     id::{EditorId, EditorTabId, SplitId},
     keypress::KeyPressData,
-    window_tab::WindowTabData,
+    window_tab::{CommonData, Focus, WindowTabData},
     workspace::WorkspaceInfo,
 };
 
@@ -184,26 +184,13 @@ pub struct MainSplitData {
     pub editor_tabs: RwSignal<im::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
     pub editors: RwSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
     pub docs: RwSignal<im::HashMap<PathBuf, RwSignal<Document>>>,
-    pub proxy_rpc: ProxyRpcHandler,
-    pub completion: RwSignal<CompletionData>,
-    pub code_action: RwSignal<CodeActionData>,
-    pub register: RwSignal<Register>,
     locations: RwSignal<im::Vector<EditorLocation>>,
     current_location: RwSignal<usize>,
-    pub internal_command: RwSignal<Option<InternalCommand>>,
-    pub config: ReadSignal<Arc<LapceConfig>>,
+    pub common: CommonData,
 }
 
 impl MainSplitData {
-    pub fn new(
-        cx: AppContext,
-        proxy_rpc: ProxyRpcHandler,
-        register: RwSignal<Register>,
-        completion: RwSignal<CompletionData>,
-        code_action: RwSignal<CodeActionData>,
-        internal_command: RwSignal<Option<InternalCommand>>,
-        config: ReadSignal<Arc<LapceConfig>>,
-    ) -> Self {
+    pub fn new(cx: AppContext, common: CommonData) -> Self {
         let splits = create_rw_signal(cx.scope, im::HashMap::new());
         let active_editor_tab = create_rw_signal(cx.scope, None);
         let editor_tabs = create_rw_signal(cx.scope, im::HashMap::new());
@@ -219,14 +206,9 @@ impl MainSplitData {
             editor_tabs,
             editors,
             docs,
-            proxy_rpc,
-            register,
-            completion,
-            code_action,
             locations,
             current_location,
-            internal_command,
-            config,
+            common,
         }
     }
 
@@ -305,15 +287,19 @@ impl MainSplitData {
         if let Some(doc) = doc {
             (doc, false)
         } else {
-            let doc =
-                Document::new(cx, path.clone(), self.proxy_rpc.clone(), self.config);
+            let doc = Document::new(
+                cx,
+                path.clone(),
+                self.common.proxy.clone(),
+                self.common.config,
+            );
             let doc = create_rw_signal(cx.scope, doc);
             self.docs.update(|docs| {
                 docs.insert(path.clone(), doc);
             });
 
             {
-                let proxy = self.proxy_rpc.clone();
+                let proxy = self.common.proxy.clone();
                 create_effect(cx.scope, move |last| {
                     let rev = doc.with(|doc| doc.buffer().rev());
                     if last == Some(rev) {
@@ -368,7 +354,7 @@ impl MainSplitData {
                     });
                     editor.with_untracked(|editor| {
                         editor.cursor.set(Cursor::origin(
-                            self.config.with_untracked(|c| c.core.modal),
+                            self.common.config.with_untracked(|c| c.core.modal),
                         ));
                     });
                 }
@@ -407,12 +393,7 @@ impl MainSplitData {
                 Some(editor_tab_id),
                 editor_id,
                 doc,
-                self.register,
-                self.completion,
-                self.code_action,
-                self.internal_command.write_only(),
-                self.proxy_rpc.clone(),
-                self.config,
+                self.common.clone(),
             );
             let editor = create_rw_signal(cx.scope, editor);
             self.editors.update(|editors| {
@@ -459,12 +440,7 @@ impl MainSplitData {
                 Some(editor_tab_id),
                 editor_id,
                 doc,
-                self.register,
-                self.completion,
-                self.code_action,
-                self.internal_command.write_only(),
-                self.proxy_rpc.clone(),
-                self.config,
+                self.common.clone(),
             );
             let editor = create_rw_signal(cx.scope, editor);
             self.editors.update(|editors| {

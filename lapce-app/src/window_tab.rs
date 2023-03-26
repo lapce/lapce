@@ -12,9 +12,10 @@ use floem::{
     },
 };
 use lapce_core::register::Register;
+use lapce_rpc::proxy::ProxyRpcHandler;
 
 use crate::{
-    code_action::CodeActionData,
+    code_action::{CodeActionData, CodeActionStatus},
     command::{
         CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand,
         WindowCommand,
@@ -38,30 +39,37 @@ pub enum Focus {
 }
 
 #[derive(Clone)]
+pub struct CommonData {
+    pub focus: RwSignal<Focus>,
+    pub completion: RwSignal<CompletionData>,
+    pub code_action: RwSignal<CodeActionData>,
+    pub register: RwSignal<Register>,
+    pub window_command: WriteSignal<Option<WindowCommand>>,
+    pub internal_command: RwSignal<Option<InternalCommand>>,
+    pub lapce_command: RwSignal<Option<LapceCommand>>,
+    pub workbench_command: RwSignal<Option<LapceWorkbenchCommand>>,
+    pub proxy: ProxyRpcHandler,
+    pub config: ReadSignal<Arc<LapceConfig>>,
+}
+
+#[derive(Clone)]
 pub struct WindowTabData {
     pub window_tab_id: WindowTabId,
     pub workspace: Arc<LapceWorkspace>,
     pub palette: PaletteData,
     pub main_split: MainSplitData,
-    pub proxy: ProxyData,
     pub keypress: RwSignal<KeyPressData>,
-    pub completion: RwSignal<CompletionData>,
-    pub code_action: RwSignal<CodeActionData>,
-    pub focus: RwSignal<Focus>,
-    pub lapce_command: ReadSignal<Option<LapceCommand>>,
-    pub workbench_command: RwSignal<Option<LapceWorkbenchCommand>>,
-    pub internal_command: RwSignal<Option<InternalCommand>>,
-    pub set_window_command: WriteSignal<Option<WindowCommand>>,
     pub window_origin: RwSignal<Point>,
     pub layout_rect: RwSignal<Rect>,
-    pub config: ReadSignal<Arc<LapceConfig>>,
+    pub proxy: ProxyData,
+    pub common: CommonData,
 }
 
 impl WindowTabData {
     pub fn new(
         cx: AppContext,
         workspace: Arc<LapceWorkspace>,
-        set_window_command: WriteSignal<Option<WindowCommand>>,
+        window_command: WriteSignal<Option<WindowCommand>>,
     ) -> Self {
         let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
 
@@ -82,7 +90,7 @@ impl WindowTabData {
             info
         };
 
-        let (lapce_command, set_lapce_command) = create_signal(cx.scope, None);
+        let lapce_command = create_rw_signal(cx.scope, None);
         let workbench_command = create_rw_signal(cx.scope, None);
         let internal_command = create_rw_signal(cx.scope, None);
         let config = LapceConfig::load(&workspace, &all_disabled_volts);
@@ -94,21 +102,27 @@ impl WindowTabData {
 
         let focus = create_rw_signal(cx.scope, Focus::Workbench);
         let completion = create_rw_signal(cx.scope, CompletionData::new(cx, config));
-        let code_action = create_rw_signal(cx.scope, CodeActionData::new(cx));
+        let code_action =
+            create_rw_signal(cx.scope, CodeActionData::new(cx, config));
 
         let proxy = start_proxy(cx, workspace.clone(), completion.write_only());
 
         let register = create_rw_signal(cx.scope, Register::default());
 
-        let main_split = MainSplitData::new(
-            cx,
-            proxy.rpc.clone(),
-            register,
+        let common = CommonData {
+            focus,
             completion,
             code_action,
+            register,
+            window_command,
             internal_command,
+            lapce_command,
+            workbench_command,
+            proxy: proxy.rpc.clone(),
             config,
-        );
+        };
+
+        let main_split = MainSplitData::new(cx, common.clone());
 
         if let Some(info) = workspace_info {
             let root_split = main_split.root_split;
@@ -133,41 +147,26 @@ impl WindowTabData {
             cx,
             workspace.clone(),
             main_split.clone(),
-            proxy.rpc.clone(),
-            register,
-            completion,
-            code_action,
-            set_window_command,
-            internal_command.write_only(),
-            set_lapce_command,
-            focus,
             keypress.read_only(),
-            config,
+            common.clone(),
         );
 
         let window_tab_data = Self {
             window_tab_id: WindowTabId::next(),
-            set_window_command,
             workspace,
             palette,
             main_split,
-            proxy,
             keypress,
-            completion,
-            code_action,
-            focus,
-            lapce_command,
-            workbench_command,
-            internal_command,
             window_origin: create_rw_signal(cx.scope, Point::ZERO),
             layout_rect: create_rw_signal(cx.scope, Rect::ZERO),
-            config,
+            proxy,
+            common,
         };
 
         {
             let window_tab_data = window_tab_data.clone();
             create_effect(cx.scope, move |_| {
-                if let Some(cmd) = window_tab_data.lapce_command.get() {
+                if let Some(cmd) = window_tab_data.common.lapce_command.get() {
                     window_tab_data.run_lapce_command(cx, cmd);
                 }
             });
@@ -176,7 +175,7 @@ impl WindowTabData {
         {
             let window_tab_data = window_tab_data.clone();
             create_effect(cx.scope, move |_| {
-                if let Some(cmd) = window_tab_data.workbench_command.get() {
+                if let Some(cmd) = window_tab_data.common.workbench_command.get() {
                     window_tab_data.run_workbench_command(cx, cmd);
                 }
             });
@@ -184,7 +183,7 @@ impl WindowTabData {
 
         {
             let window_tab_data = window_tab_data.clone();
-            let internal_command = window_tab_data.internal_command;
+            let internal_command = window_tab_data.common.internal_command;
             create_effect(cx.scope, move |_| {
                 if let Some(cmd) = internal_command.get() {
                     window_tab_data.run_internal_command(cx, cmd);
@@ -216,7 +215,7 @@ impl WindowTabData {
             OpenFolder => {
                 println!("open folder");
                 if !self.workspace.kind.is_remote() {
-                    let set_window_command = self.set_window_command;
+                    let window_command = self.common.window_command;
                     let options = FileDialogOptions::new().select_directories();
                     open_file_dialog(options, move |file| {
                         if let Some(file) = file {
@@ -228,9 +227,9 @@ impl WindowTabData {
                                     .unwrap()
                                     .as_secs(),
                             };
-                            set_window_command.set(Some(
-                                WindowCommand::SetWorkspace { workspace },
-                            ));
+                            window_command.set(Some(WindowCommand::SetWorkspace {
+                                workspace,
+                            }));
                         }
                     });
                 }
@@ -381,7 +380,7 @@ impl WindowTabData {
     }
 
     pub fn key_down(&self, cx: AppContext, key_event: &KeyEvent) {
-        let focus = self.focus.get_untracked();
+        let focus = self.common.focus.get_untracked();
         let mut keypress = self.keypress.get_untracked();
         let executed = match focus {
             Focus::Workbench => self
@@ -415,8 +414,8 @@ impl WindowTabData {
     }
 
     pub fn completion_origin(&self) -> Point {
-        let completion = self.completion.get();
-        let config = self.config.get();
+        let completion = self.common.completion.get();
+        let config = self.common.config.get();
         if completion.status == CompletionStatus::Inactive {
             return Point::ZERO;
         }
@@ -452,6 +451,46 @@ impl WindowTabData {
         }
         if origin.x + completion_size.width + 1.0 > tab_size.width {
             origin.x = tab_size.width - completion_size.width - 1.0;
+        }
+        if origin.x <= 0.0 {
+            origin.x = 0.0;
+        }
+
+        origin
+    }
+
+    pub fn code_action_origin(&self) -> Point {
+        let code_action = self.common.code_action.get();
+        let config = self.common.config.get();
+        if code_action.status == CodeActionStatus::Inactive {
+            return Point::ZERO;
+        }
+
+        let editor = if let Some(editor) = self.main_split.active_editor() {
+            editor
+        } else {
+            return Point::ZERO;
+        };
+
+        let (window_origin, viewport, doc) =
+            editor.with_untracked(|e| (e.window_origin, e.viewport, e.doc));
+
+        let (point_above, point_below) =
+            doc.with_untracked(|doc| doc.points_of_offset(code_action.offset));
+
+        let window_origin = window_origin.get();
+        let viewport = viewport.get();
+        let code_action_size = code_action.layout_rect.size();
+        let tab_size = self.layout_rect.get().size();
+
+        let mut origin = window_origin
+            + Vec2::new(point_below.x - viewport.x0, point_below.y - viewport.y0);
+        if origin.y + code_action_size.height > tab_size.height {
+            origin.y = window_origin.y + (point_above.y - viewport.y0)
+                - code_action_size.height;
+        }
+        if origin.x + code_action_size.width + 1.0 > tab_size.width {
+            origin.x = tab_size.width - code_action_size.width - 1.0;
         }
         if origin.x <= 0.0 {
             origin.x = 0.0;
