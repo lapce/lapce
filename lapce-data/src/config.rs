@@ -364,7 +364,9 @@ pub struct EditorConfig {
     pub tab_width: usize,
     #[field_names(desc = "If opened editors are shown in a tab")]
     pub show_tab: bool,
-    #[field_names(desc = "If the 'Open Editors' is shown in the Explorer panel.(Requires restarting Lapce)")]
+    #[field_names(
+        desc = "If the 'Open Editors' is shown in the Explorer panel.(Requires restarting Lapce)"
+    )]
     pub show_open_editors: bool,
     #[field_names(desc = "If navigation breadcrumbs are shown for the file")]
     pub show_bread_crumbs: bool,
