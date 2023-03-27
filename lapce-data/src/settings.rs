@@ -48,9 +48,11 @@ pub struct LapceSettingsPanelData {
     pub settings_widget_id: WidgetId,
     pub settings_view_id: WidgetId,
     pub settings_split_id: WidgetId,
+    pub settings_sections: IndexMap<LapceSettingsKind, String>,
+    pub plugin_section: String,
 
     pub filter_editor_id: WidgetId,
-    pub filter_matches: IndexMap<LapceSettingsKind, usize>,
+    pub filter_matches: IndexMap<String, usize>,
 
     /// Mapping of setting key to dropdown data for that key
     pub dropdown_data:
@@ -95,6 +97,14 @@ impl KeyPressFocus for LapceSettingsPanelData {
 
 impl LapceSettingsPanelData {
     pub fn new() -> Self {
+        let settings_sections = IndexMap::from([
+            (LapceSettingsKind::Core, "Core Settings".to_string()),
+            (LapceSettingsKind::UI, "UI Settings".to_string()),
+            (LapceSettingsKind::Editor, "Editor Settings".to_string()),
+            (LapceSettingsKind::Terminal, "Terminal Settings".to_string()),
+            (LapceSettingsKind::Theme, "Theme Settings".to_string()),
+            (LapceSettingsKind::Keymap, "Keybindings".to_string()),
+        ]);
         Self {
             panel_widget_id: WidgetId::next(),
             keymap_widget_id: WidgetId::next(),
@@ -106,7 +116,13 @@ impl LapceSettingsPanelData {
             filter_editor_id: WidgetId::next(),
             dropdown_data: im::HashMap::new(),
             filter_matches: IndexMap::new(),
+            settings_sections,
+            plugin_section: String::from("Plugin Settings"),
         }
+    }
+
+    pub fn update_matches(&mut self, key: String, count: usize) {
+        self.filter_matches.insert(key, count);
     }
 }
 

@@ -512,6 +512,11 @@ impl LapceSettings {
                         }
                     }
                 }
+                let settings_data = Arc::make_mut(&mut data.settings);
+                settings_data.filter_matches.insert(
+                    format!("{}#{}", settings_data.plugin_section, volt_id.name),
+                    self.children.len(),
+                );
                 return;
             }
         };
@@ -541,6 +546,12 @@ impl LapceSettings {
                 value,
                 ctx.get_external_handle(),
             ));
+        }
+        let settings_data = Arc::make_mut(&mut data.settings);
+        if let Some(section) = settings_data.settings_sections.get(&self.kind) {
+            settings_data
+                .filter_matches
+                .insert(section.clone(), self.children.len());
         }
     }
 }
@@ -1652,6 +1663,15 @@ impl ThemeSection {
             })
             .collect();
         ctx.children_changed();
+        let settings_data = Arc::make_mut(&mut data.settings);
+        if let Some(section) = settings_data
+            .settings_sections
+            .get(&LapceSettingsKind::Theme)
+        {
+            settings_data
+                .filter_matches
+                .insert(format!("{}#{}", section, self.kind), self.items.len());
+        }
     }
 }
 
@@ -1668,7 +1688,9 @@ impl Widget<LapceTabData> for ThemeSection {
         }
         if let Event::Timer(token) = event {
             if *token == self.last_idle_timer {
-                self.last_idle_timer = TimerToken::INVALID;
+                self.update_items(ctx, data);
+                ctx.request_paint();
+                return;
             }
         }
         if self.items.is_empty() {
@@ -2297,15 +2319,34 @@ impl Widget<LapceTabData> for SettingsSwitcher {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        let mut settings_sections: Vec<&str> = vec![
-            "Core Settings",
-            "UI Settings",
-            "Editor Settings",
-            "Terminal Settings",
-            "Theme Settings",
-            "Keybindings",
-            "Plugin Settings",
-        ];
+        let mut settings_sections: Vec<String> =
+            data.settings.settings_sections.values().cloned().collect();
+        settings_sections.push(data.settings.plugin_section.clone());
+
+        let editor_data = data.editor_view_content(data.settings.filter_editor_id);
+        let query = editor_data.doc.buffer().text().to_string().to_lowercase();
+
+        let mut matches = im::HashMap::new();
+        if !query.is_empty() {
+            for (section, count) in data.settings.filter_matches.iter() {
+                let mut segs = section.split('#');
+                let mut is_plugin = false;
+                if let Some(label) = segs.next() {
+                    if matches.contains_key(label) {
+                        let count = matches.get(label).unwrap() + count;
+                        matches.insert(label.to_string(), count);
+                    } else {
+                        matches.insert(label.to_string(), *count);
+                    }
+                    is_plugin = label == data.settings.plugin_section;
+                }
+                if is_plugin {
+                    if let Some(name) = segs.next() {
+                        matches.insert(name.to_string(), *count);
+                    }
+                }
+            }
+        }
 
         self.plugin_settings_disabled = true;
         for (_, volt) in data
@@ -2316,7 +2357,12 @@ impl Widget<LapceTabData> for SettingsSwitcher {
             .sorted_by_key(|(_, v)| &v.display_name)
         {
             if self.plugin_settings_expanded {
-                settings_sections.push(volt.display_name.as_str());
+                settings_sections.push(volt.display_name.clone());
+                if volt.name != volt.display_name {
+                    if let Some(count) = matches.get(&volt.name) {
+                        matches.insert(volt.display_name.clone(), *count);
+                    }
+                }
             }
             self.plugin_settings_disabled = false;
         }
@@ -2327,12 +2373,21 @@ impl Widget<LapceTabData> for SettingsSwitcher {
             } else {
                 data.config.ui.font_size()
             };
+            let mut label = text.to_string();
+            if let Some(matches) = matches.get(&label) {
+                label.push_str(" (");
+                label.push_str(&matches.to_string());
+                label.push(')');
+            }
+
             let text_layout = ctx
                 .text()
-                .new_text_layout(text.to_string())
+                .new_text_layout(label.to_string())
                 .font(data.config.ui.font_family(), font_size as f64)
                 .text_color(
-                    if self.plugin_settings_disabled && text == &"Plugin Settings" {
+                    if self.plugin_settings_disabled
+                        && text == &data.settings.plugin_section
+                    {
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_DIM)
                             .clone()
