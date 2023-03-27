@@ -14,6 +14,7 @@ pub mod main_split;
 pub mod palette;
 pub mod proxy;
 pub mod snippet;
+pub mod source_control;
 pub mod title;
 pub mod window;
 pub mod window_tab;

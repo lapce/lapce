@@ -8,11 +8,12 @@ use floem::{
     reactive::{
         create_effect, create_rw_signal, create_signal, use_context, ReadSignal,
         RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalWithUntracked, WriteSignal,
+        SignalWith, SignalWithUntracked, WriteSignal,
     },
 };
-use lapce_core::register::Register;
-use lapce_rpc::proxy::ProxyRpcHandler;
+use itertools::Itertools;
+use lapce_core::{mode::Mode, register::Register};
+use lapce_rpc::{core::CoreNotification, proxy::ProxyRpcHandler};
 
 use crate::{
     code_action::{CodeActionData, CodeActionStatus},
@@ -23,26 +24,28 @@ use crate::{
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
+    doc::EditorDiagnostic,
     editor::location::EditorLocation,
     id::WindowTabId,
     keypress::{DefaultKeyPress, KeyPressData, KeyPressFocus},
     main_split::{MainSplitData, SplitData, SplitDirection},
     palette::{kind::PaletteKind, PaletteData},
-    proxy::{start_proxy, ProxyData},
+    proxy::{path_from_url, start_proxy, ProxyData},
+    source_control::SourceControlData,
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum Focus {
     Workbench,
     Palette,
+    CodeAction,
 }
 
 #[derive(Clone)]
 pub struct CommonData {
     pub focus: RwSignal<Focus>,
     pub completion: RwSignal<CompletionData>,
-    pub code_action: RwSignal<CodeActionData>,
     pub register: RwSignal<Register>,
     pub window_command: WriteSignal<Option<WindowCommand>>,
     pub internal_command: RwSignal<Option<InternalCommand>>,
@@ -58,6 +61,8 @@ pub struct WindowTabData {
     pub workspace: Arc<LapceWorkspace>,
     pub palette: PaletteData,
     pub main_split: MainSplitData,
+    pub code_action: RwSignal<CodeActionData>,
+    pub source_control: RwSignal<SourceControlData>,
     pub keypress: RwSignal<KeyPressData>,
     pub window_origin: RwSignal<Point>,
     pub layout_rect: RwSignal<Rect>,
@@ -102,8 +107,6 @@ impl WindowTabData {
 
         let focus = create_rw_signal(cx.scope, Focus::Workbench);
         let completion = create_rw_signal(cx.scope, CompletionData::new(cx, config));
-        let code_action =
-            create_rw_signal(cx.scope, CodeActionData::new(cx, config));
 
         let proxy = start_proxy(cx, workspace.clone(), completion.write_only());
 
@@ -112,7 +115,6 @@ impl WindowTabData {
         let common = CommonData {
             focus,
             completion,
-            code_action,
             register,
             window_command,
             internal_command,
@@ -123,6 +125,10 @@ impl WindowTabData {
         };
 
         let main_split = MainSplitData::new(cx, common.clone());
+        let code_action =
+            create_rw_signal(cx.scope, CodeActionData::new(cx, common.clone()));
+        let source_control =
+            create_rw_signal(cx.scope, SourceControlData::new(cx, common.clone()));
 
         if let Some(info) = workspace_info {
             let root_split = main_split.root_split;
@@ -156,6 +162,8 @@ impl WindowTabData {
             workspace,
             palette,
             main_split,
+            code_action,
+            source_control,
             keypress,
             window_origin: create_rw_signal(cx.scope, Point::ZERO),
             layout_rect: create_rw_signal(cx.scope, Rect::ZERO),
@@ -188,6 +196,18 @@ impl WindowTabData {
                 if let Some(cmd) = internal_command.get() {
                     window_tab_data.run_internal_command(cx, cmd);
                 }
+            });
+        }
+
+        {
+            let window_tab_data = window_tab_data.clone();
+            let notification = window_tab_data.proxy.notification;
+            create_effect(cx.scope, move |_| {
+                notification.with(|rpc| {
+                    if let Some(rpc) = rpc.as_ref() {
+                        window_tab_data.handle_core_notification(cx, rpc);
+                    }
+                });
             });
         }
 
@@ -335,14 +355,16 @@ impl WindowTabData {
                         path,
                         position: None,
                         scroll_offset: None,
+                        ignore_unconfirmed: false,
                     },
+                    None,
                 );
             }
             InternalCommand::GoToLocation { location } => {
-                self.main_split.go_to_location(cx, location);
+                self.main_split.go_to_location(cx, location, None);
             }
             InternalCommand::JumpToLocation { location } => {
-                self.main_split.jump_to_location(cx, location);
+                self.main_split.jump_to_location(cx, location, None);
             }
             InternalCommand::JumpLocationForward => {
                 self.main_split.jump_location_forward(cx);
@@ -376,6 +398,80 @@ impl WindowTabData {
                 self.main_split
                     .editor_tab_child_close(cx, editor_tab_id, child);
             }
+            InternalCommand::ShowCodeActions {
+                offset,
+                mouse_click,
+                code_actions,
+            } => {
+                let mut code_action = self.code_action.get_untracked();
+                code_action.show(code_actions, offset, mouse_click);
+                self.code_action.set(code_action);
+            }
+            InternalCommand::RunCodeAction { plugin_id, action } => {
+                self.main_split.run_code_action(cx, plugin_id, action);
+            }
+        }
+    }
+
+    fn handle_core_notification(&self, cx: AppContext, rpc: &CoreNotification) {
+        match rpc {
+            CoreNotification::DiffInfo { diff } => {
+                self.source_control.update(|source_control| {
+                    source_control.branch = diff.head.clone();
+                    source_control.branches =
+                        diff.branches.iter().cloned().collect();
+                    source_control.file_diffs = diff
+                        .diffs
+                        .iter()
+                        .cloned()
+                        .map(|diff| {
+                            let checked = source_control
+                                .file_diffs
+                                .get(diff.path())
+                                .map_or(true, |(_, c)| *c);
+                            (diff.path().clone(), (diff, checked))
+                        })
+                        .collect();
+                });
+            }
+            CoreNotification::CompletionResponse {
+                request_id,
+                input,
+                resp,
+                plugin_id,
+            } => {
+                self.common.completion.update(|completion| {
+                    completion.receive(*request_id, input, resp, *plugin_id);
+                });
+            }
+            CoreNotification::PublishDiagnostics { diagnostics } => {
+                let path = path_from_url(&diagnostics.uri);
+                let diagnostics: im::Vector<EditorDiagnostic> = diagnostics
+                    .diagnostics
+                    .iter()
+                    .map(|d| EditorDiagnostic {
+                        range: (0, 0),
+                        diagnostic: d.clone(),
+                    })
+                    .sorted_by_key(|d| d.diagnostic.range.start)
+                    .collect();
+
+                // inform the document about the diagnostics
+                if let Some(doc) = self
+                    .main_split
+                    .docs
+                    .with_untracked(|docs| docs.get(&path).cloned())
+                {
+                    doc.update(|doc| {
+                        doc.set_diagnostics(diagnostics.clone());
+                    });
+                }
+
+                self.main_split.diagnostics.update(|d| {
+                    d.insert(path, diagnostics);
+                });
+            }
+            _ => {}
         }
     }
 
@@ -389,6 +485,11 @@ impl WindowTabData {
                 .is_some(),
             Focus::Palette => {
                 keypress.key_down(cx, key_event, &self.palette);
+                true
+            }
+            Focus::CodeAction => {
+                let code_action = self.code_action.get_untracked();
+                keypress.key_down(cx, key_event, &code_action);
                 true
             }
         };
@@ -420,11 +521,12 @@ impl WindowTabData {
             return Point::ZERO;
         }
 
-        let editor = if let Some(editor) = self.main_split.active_editor() {
-            editor
-        } else {
-            return Point::ZERO;
-        };
+        let editor =
+            if let Some(editor) = self.main_split.active_editor.get_untracked() {
+                editor
+            } else {
+                return Point::ZERO;
+            };
 
         let (window_origin, viewport, doc) =
             editor.with_untracked(|e| (e.window_origin, e.viewport, e.doc));
@@ -460,33 +562,44 @@ impl WindowTabData {
     }
 
     pub fn code_action_origin(&self) -> Point {
-        let code_action = self.common.code_action.get();
+        let code_action = self.code_action.get();
         let config = self.common.config.get();
-        if code_action.status == CodeActionStatus::Inactive {
+        if code_action.status.get_untracked() == CodeActionStatus::Inactive {
             return Point::ZERO;
         }
 
-        let editor = if let Some(editor) = self.main_split.active_editor() {
-            editor
-        } else {
-            return Point::ZERO;
-        };
+        let tab_size = self.layout_rect.get().size();
+        let code_action_size = code_action.layout_rect.size();
+
+        let editor =
+            if let Some(editor) = self.main_split.active_editor.get_untracked() {
+                editor
+            } else {
+                return Point::ZERO;
+            };
 
         let (window_origin, viewport, doc) =
             editor.with_untracked(|e| (e.window_origin, e.viewport, e.doc));
 
-        let (point_above, point_below) =
+        let (_point_above, point_below) =
             doc.with_untracked(|doc| doc.points_of_offset(code_action.offset));
 
         let window_origin = window_origin.get();
         let viewport = viewport.get();
-        let code_action_size = code_action.layout_rect.size();
-        let tab_size = self.layout_rect.get().size();
 
         let mut origin = window_origin
-            + Vec2::new(point_below.x - viewport.x0, point_below.y - viewport.y0);
+            + Vec2::new(
+                if code_action.mouse_click {
+                    0.0
+                } else {
+                    point_below.x - viewport.x0
+                },
+                point_below.y - viewport.y0,
+            );
+
         if origin.y + code_action_size.height > tab_size.height {
-            origin.y = window_origin.y + (point_above.y - viewport.y0)
+            origin.y = origin.y
+                - config.editor.line_height() as f64
                 - code_action_size.height;
         }
         if origin.x + code_action_size.width + 1.0 > tab_size.width {
@@ -497,5 +610,22 @@ impl WindowTabData {
         }
 
         origin
+    }
+
+    /// Get the mode for the current editor or terminal
+    pub fn mode(&self) -> Mode {
+        if self.common.config.get().core.modal {
+            let mode = if self.common.focus.get() == Focus::Workbench {
+                self.main_split.active_editor.get().map(|e| {
+                    e.with_untracked(|editor| editor.cursor).get().get_mode()
+                })
+            } else {
+                None
+            };
+
+            mode.unwrap_or(Mode::Normal)
+        } else {
+            Mode::Insert
+        }
     }
 }

@@ -27,8 +27,7 @@ pub struct Proxy {
 #[derive(Clone)]
 pub struct ProxyData {
     pub rpc: ProxyRpcHandler,
-    pub connected: ReadSignal<bool>,
-    pub diff_info: ReadSignal<Option<DiffInfo>>,
+    pub notification: ReadSignal<Option<CoreNotification>>,
 }
 
 pub fn start_proxy(
@@ -59,40 +58,10 @@ pub fn start_proxy(
 
     let notification = create_signal_from_channel(cx, rx);
 
-    let (proxy_connected, set_proxy_connected) = create_signal(cx.scope, false);
-    let (diff_info, set_diff_info) = create_signal(cx.scope, None);
-
-    let proxy_data = ProxyData {
+    ProxyData {
         rpc: proxy_rpc,
-        connected: proxy_connected,
-        diff_info,
-    };
-
-    create_effect(cx.scope, move |_| {
-        notification.with(|event| {
-            if let Some(rpc) = event.as_ref() {
-                match rpc {
-                    CoreNotification::ProxyConnected {} => {
-                        set_proxy_connected.update(|v| *v = true);
-                    }
-                    CoreNotification::DiffInfo { diff } => {
-                        set_diff_info.set(Some(diff.clone()));
-                    }
-                    CoreNotification::CompletionResponse {
-                        request_id,
-                        input,
-                        resp,
-                        plugin_id,
-                    } => completion.update(|completion| {
-                        completion.receive(*request_id, input, resp, *plugin_id);
-                    }),
-                    _ => {}
-                }
-            }
-        });
-    });
-
-    proxy_data
+        notification,
+    }
 }
 
 impl CoreHandler for Proxy {

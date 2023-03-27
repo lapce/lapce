@@ -492,7 +492,12 @@ impl PaletteData {
                         self.main_split.get_doc(cx, location.path.clone());
                     self.preview_editor.update(|preview_editor| {
                         preview_editor.doc = doc;
-                        preview_editor.go_to_location(cx, location.clone(), new_doc);
+                        preview_editor.go_to_location(
+                            cx,
+                            location.clone(),
+                            new_doc,
+                            None,
+                        );
                     });
                 }
             }
@@ -666,17 +671,20 @@ impl KeyPressFocus for PaletteData {
         mods: floem::glazier::Modifiers,
     ) -> CommandExecuted {
         match &command.kind {
-            CommandKind::Workbench(_) => todo!(),
+            CommandKind::Workbench(_) => {}
             CommandKind::Edit(_) => {
-                self.input_editor.run_command(cx, command, count, mods)
+                self.input_editor.run_command(cx, command, count, mods);
             }
             CommandKind::Move(_) => {
-                self.input_editor.run_command(cx, command, count, mods)
+                self.input_editor.run_command(cx, command, count, mods);
             }
-            CommandKind::Focus(cmd) => self.run_focus_command(cx, cmd),
-            CommandKind::MotionMode(_) => todo!(),
-            CommandKind::MultiSelection(_) => todo!(),
+            CommandKind::Focus(cmd) => {
+                self.run_focus_command(cx, cmd);
+            }
+            CommandKind::MotionMode(_) => {}
+            CommandKind::MultiSelection(_) => {}
         }
+        CommandExecuted::Yes
     }
 
     fn receive_char(&self, cx: AppContext, c: &str) {

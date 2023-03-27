@@ -35,9 +35,10 @@ use lapce_core::{
     mode::{Mode, VisualMode},
     selection::Selection,
 };
-use lsp_types::CompletionItemKind;
+use lsp_types::{CompletionItemKind, DiagnosticSeverity};
 
 use crate::{
+    code_action::CodeActionStatus,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     db::LapceDb,
     doc::{DocContent, DocLine, Document},
@@ -333,7 +334,7 @@ fn editor_gutter(
                     move || editor.get().doc.get(),
                     |line: &DocLine| line.line,
                     move |cx, line: DocLine| {
-                        let line_number = line.line + 1;
+                        let line_number = line.line;
                         stack(cx, move |cx| {
                             (
                                 label(cx, || "".to_string()).style(cx, move || {
@@ -342,14 +343,12 @@ fn editor_gutter(
                                         ..Default::default()
                                     }
                                 }),
-                                label(cx, move || line_number.to_string()).style(
-                                    cx,
-                                    || Style {
+                                label(cx, move || (line_number + 1).to_string())
+                                    .style(cx, || Style {
                                         flex_grow: 1.0,
                                         justify_content: Some(JustifyContent::End),
                                         ..Default::default()
-                                    },
-                                ),
+                                    }),
                                 container(cx, |cx| {
                                     container(cx, |cx| {
                                         click(
@@ -377,7 +376,8 @@ fn editor_gutter(
                                             },
                                             move || {
                                                 editor.with_untracked(|editor| {
-                                                    editor.show_code_actions(cx);
+                                                    editor
+                                                        .show_code_actions(cx, true);
                                                 });
                                             },
                                         )
@@ -1468,11 +1468,126 @@ fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     })
 }
 
-fn status(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
-    label(cx, move || "status".to_string()).style(cx, move || Style {
-        border_top: 1.0,
-        background: Some(*config.get().get_color(LapceColor::STATUS_BACKGROUND)),
-        ..Default::default()
+fn status(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
+    let config = window_tab_data.common.config;
+    let diagnostics = window_tab_data.main_split.diagnostics;
+    let diagnostic_count = create_memo(cx.scope, move |_| {
+        let mut errors = 0;
+        let mut warnings = 0;
+        for (_, diagnostics) in diagnostics.get().iter() {
+            for diagnostic in diagnostics.iter() {
+                if let Some(severity) = diagnostic.diagnostic.severity {
+                    match severity {
+                        DiagnosticSeverity::ERROR => errors += 1,
+                        DiagnosticSeverity::WARNING => warnings += 1,
+                        _ => (),
+                    }
+                }
+            }
+        }
+        (errors, warnings)
+    });
+
+    let mode = create_memo(cx.scope, move |_| window_tab_data.mode());
+
+    stack(cx, |cx| {
+        (
+            label(cx, move || match mode.get() {
+                Mode::Normal => "Normal".to_string(),
+                Mode::Insert => "Insert".to_string(),
+                Mode::Visual => "Visual".to_string(),
+                Mode::Terminal => "Terminal".to_string(),
+            })
+            .style(cx, move || {
+                let config = config.get();
+                let display = if config.core.modal {
+                    Display::Flex
+                } else {
+                    Display::None
+                };
+
+                let (bg, fg) = match mode.get() {
+                    Mode::Normal => (
+                        LapceColor::STATUS_MODAL_NORMAL_BACKGROUND,
+                        LapceColor::STATUS_MODAL_NORMAL_FOREGROUND,
+                    ),
+                    Mode::Insert => (
+                        LapceColor::STATUS_MODAL_INSERT_BACKGROUND,
+                        LapceColor::STATUS_MODAL_INSERT_FOREGROUND,
+                    ),
+                    Mode::Visual => (
+                        LapceColor::STATUS_MODAL_VISUAL_BACKGROUND,
+                        LapceColor::STATUS_MODAL_VISUAL_FOREGROUND,
+                    ),
+                    Mode::Terminal => (
+                        LapceColor::STATUS_MODAL_TERMINAL_BACKGROUND,
+                        LapceColor::STATUS_MODAL_TERMINAL_FOREGROUND,
+                    ),
+                };
+
+                let bg = *config.get_color(bg);
+                let fg = *config.get_color(fg);
+
+                Style {
+                    display,
+                    padding_left: 10.0,
+                    padding_right: 10.0,
+                    color: Some(fg),
+                    background: Some(bg),
+                    height: Dimension::Percent(1.0),
+                    align_items: Some(AlignItems::Center),
+                    ..Default::default()
+                }
+            }),
+            svg(cx, move || config.get().ui_svg(LapceIcons::ERROR)).style(
+                cx,
+                move || {
+                    let size = config.get().ui.icon_size() as f32;
+                    Style {
+                        width: Dimension::Points(size),
+                        height: Dimension::Points(size),
+                        margin_left: Some(10.0),
+                        ..Default::default()
+                    }
+                },
+            ),
+            label(cx, move || diagnostic_count.get().0.to_string()).style(
+                cx,
+                || Style {
+                    margin_left: Some(5.0),
+                    ..Default::default()
+                },
+            ),
+            svg(cx, move || config.get().ui_svg(LapceIcons::WARNING)).style(
+                cx,
+                move || {
+                    let size = config.get().ui.icon_size() as f32;
+                    Style {
+                        width: Dimension::Points(size),
+                        height: Dimension::Points(size),
+                        margin_left: Some(5.0),
+                        ..Default::default()
+                    }
+                },
+            ),
+            label(cx, move || diagnostic_count.get().0.to_string()).style(
+                cx,
+                || Style {
+                    margin_left: Some(5.0),
+                    ..Default::default()
+                },
+            ),
+        )
+    })
+    .style(cx, move || {
+        let config = config.get();
+        Style {
+            border_top: 1.0,
+            background: Some(*config.get_color(LapceColor::STATUS_BACKGROUND)),
+            height: Dimension::Points(config.ui.status_height() as f32),
+            align_items: Some(AlignItems::Center),
+            ..Default::default()
+        }
     })
 }
 
@@ -2043,8 +2158,9 @@ fn completion(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
 
 fn code_action(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let config = window_tab_data.common.config;
-    let code_action = window_tab_data.common.code_action;
-    let active = code_action.with_untracked(|code_action| code_action.active);
+    let code_action = window_tab_data.code_action;
+    let (status, active) = code_action
+        .with_untracked(|code_action| (code_action.status, code_action.active));
     let request_id =
         move || code_action.with_untracked(|code_action| code_action.request_id);
     scroll(cx, move |cx| {
@@ -2092,6 +2208,16 @@ fn code_action(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View
             ..Default::default()
         })
     })
+    .on_ensure_visible(cx, move || {
+        let config = config.get();
+        let active = active.get();
+        Size::new(1.0, config.editor.line_height() as f64)
+            .to_rect()
+            .with_origin(Point::new(
+                0.0,
+                active as f64 * config.editor.line_height() as f64,
+            ))
+    })
     .on_resize(move |_, rect| {
         code_action.update(|c| {
             c.layout_rect = rect;
@@ -2100,6 +2226,10 @@ fn code_action(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View
     .style(cx, move || {
         let origin = window_tab_data.code_action_origin();
         Style {
+            display: match status.get() {
+                CodeActionStatus::Inactive => Display::None,
+                CodeActionStatus::Active => Display::Flex,
+            },
             position: Position::Absolute,
             width: Dimension::Points(400.0),
             max_height: Dimension::Points(400.0),
@@ -2116,6 +2246,7 @@ fn code_action(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View
 
 fn window_tab(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let proxy_data = window_tab_data.proxy.clone();
+    let source_control = window_tab_data.source_control;
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;
     let config = window_tab_data.common.config;
@@ -2127,9 +2258,15 @@ fn window_tab(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
         (
             stack(cx, |cx| {
                 (
-                    title(cx, workspace, &proxy_data, set_workbench_command, config),
+                    title(
+                        cx,
+                        workspace,
+                        source_control,
+                        set_workbench_command,
+                        config,
+                    ),
                     workbench(cx, window_tab_data.clone()),
-                    status(cx, window_tab_data.common.config),
+                    status(cx, window_tab_data.clone()),
                 )
             })
             .on_resize(move |point, rect| {

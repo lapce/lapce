@@ -9,6 +9,7 @@ pub struct EditorLocation {
     pub path: PathBuf,
     pub position: Option<EditorPosition>,
     pub scroll_offset: Option<Vec2>,
+    pub ignore_unconfirmed: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -1,9 +1,12 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
+use floem::peniko::kurbo::Point;
 use indexmap::IndexMap;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
+use lapce_rpc::plugin::PluginId;
+use lsp_types::CodeActionOrCommand;
 use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
@@ -476,6 +479,15 @@ pub enum InternalCommand {
     EditorTabChildClose {
         editor_tab_id: EditorTabId,
         child: EditorTabChild,
+    },
+    ShowCodeActions {
+        offset: usize,
+        mouse_click: bool,
+        code_actions: Arc<(PluginId, Vec<CodeActionOrCommand>)>,
+    },
+    RunCodeAction {
+        plugin_id: PluginId,
+        action: CodeActionOrCommand,
     },
 }
 

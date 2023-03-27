@@ -2,16 +2,20 @@ use std::sync::Arc;
 
 use floem::{
     app::AppContext,
-    peniko::kurbo::Rect,
+    peniko::kurbo::{Point, Rect},
     reactive::{
         create_rw_signal, ReadSignal, RwSignal, SignalGetUntracked, SignalSet,
     },
 };
-use lapce_core::movement::Movement;
+use lapce_core::{command::FocusCommand, mode::Mode, movement::Movement};
 use lapce_rpc::plugin::PluginId;
 use lsp_types::CodeActionOrCommand;
 
-use crate::config::LapceConfig;
+use crate::{
+    command::{CommandExecuted, CommandKind, InternalCommand},
+    keypress::{condition::Condition, KeyPressFocus},
+    window_tab::{CommonData, Focus},
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CodeActionStatus {
@@ -38,7 +42,7 @@ impl ScoredCodeActionItem {
 
 #[derive(Clone)]
 pub struct CodeActionData {
-    pub status: CodeActionStatus,
+    pub status: RwSignal<CodeActionStatus>,
     pub active: RwSignal<usize>,
     pub request_id: usize,
     pub input_id: usize,
@@ -46,14 +50,48 @@ pub struct CodeActionData {
     pub items: im::Vector<ScoredCodeActionItem>,
     pub filtered_items: im::Vector<ScoredCodeActionItem>,
     pub layout_rect: Rect,
-    config: ReadSignal<Arc<LapceConfig>>,
+    pub mouse_click: bool,
+    pub common: CommonData,
+}
+
+impl KeyPressFocus for CodeActionData {
+    fn get_mode(&self) -> Mode {
+        Mode::Insert
+    }
+
+    fn check_condition(&self, condition: Condition) -> bool {
+        matches!(condition, Condition::ListFocus | Condition::ModalFocus)
+    }
+
+    fn run_command(
+        &self,
+        cx: AppContext,
+        command: &crate::command::LapceCommand,
+        count: Option<usize>,
+        mods: floem::glazier::Modifiers,
+    ) -> crate::command::CommandExecuted {
+        match &command.kind {
+            CommandKind::Workbench(_) => {}
+            CommandKind::Edit(_) => {}
+            CommandKind::Move(_) => {}
+            CommandKind::Focus(cmd) => {
+                self.run_focus_command(cx, cmd);
+            }
+            CommandKind::MotionMode(_) => {}
+            CommandKind::MultiSelection(_) => {}
+        }
+        CommandExecuted::Yes
+    }
+
+    fn receive_char(&self, cx: AppContext, c: &str) {}
 }
 
 impl CodeActionData {
-    pub fn new(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> Self {
+    pub fn new(cx: AppContext, common: CommonData) -> Self {
+        let status = create_rw_signal(cx.scope, CodeActionStatus::Inactive);
         let active = create_rw_signal(cx.scope, 0);
         Self {
-            status: CodeActionStatus::Inactive,
+            status,
             active,
             request_id: 0,
             input_id: 0,
@@ -61,26 +99,27 @@ impl CodeActionData {
             items: im::Vector::new(),
             filtered_items: im::Vector::new(),
             layout_rect: Rect::ZERO,
-            config,
+            mouse_click: false,
+            common,
         }
     }
 
-    pub fn next(&mut self) {
+    pub fn next(&self) {
         let active = self.active.get_untracked();
         let new =
             Movement::Down.update_index(active, self.filtered_items.len(), 1, true);
         self.active.set(new);
     }
 
-    pub fn previous(&mut self) {
+    pub fn previous(&self) {
         let active = self.active.get_untracked();
         let new =
             Movement::Up.update_index(active, self.filtered_items.len(), 1, true);
         self.active.set(new);
     }
 
-    pub fn next_page(&mut self) {
-        let config = self.config.get_untracked();
+    pub fn next_page(&self) {
+        let config = self.common.config.get_untracked();
         let count = ((self.layout_rect.size().height
             / config.editor.line_height() as f64)
             .floor() as usize)
@@ -95,8 +134,8 @@ impl CodeActionData {
         self.active.set(new);
     }
 
-    pub fn previous_page(&mut self) {
-        let config = self.config.get_untracked();
+    pub fn previous_page(&self) {
+        let config = self.common.config.get_untracked();
         let count = ((self.layout_rect.size().height
             / config.editor.line_height() as f64)
             .floor() as usize)
@@ -109,5 +148,76 @@ impl CodeActionData {
             false,
         );
         self.active.set(new);
+    }
+
+    pub fn show(
+        &mut self,
+        code_actions: Arc<(PluginId, Vec<CodeActionOrCommand>)>,
+        offset: usize,
+        mouse_click: bool,
+    ) {
+        self.active.set(0);
+        self.status.set(CodeActionStatus::Active);
+        self.offset = offset;
+        self.mouse_click = mouse_click;
+        self.request_id += 1;
+        self.items = code_actions
+            .1
+            .iter()
+            .map(|code_action| ScoredCodeActionItem {
+                item: code_action.clone(),
+                plugin_id: code_actions.0,
+                score: 0,
+                indices: Vec::new(),
+            })
+            .collect();
+        self.filtered_items = self.items.clone();
+        self.common.focus.set(Focus::CodeAction);
+    }
+
+    fn cancel(&self, cx: AppContext) {
+        self.status.set(CodeActionStatus::Inactive);
+        self.common.focus.set(Focus::Workbench);
+    }
+
+    fn select(&self, cx: AppContext) {
+        if let Some(item) = self.filtered_items.get(self.active.get_untracked()) {
+            self.common
+                .internal_command
+                .set(Some(InternalCommand::RunCodeAction {
+                    plugin_id: item.plugin_id,
+                    action: item.item.clone(),
+                }));
+        }
+        self.cancel(cx);
+    }
+
+    fn run_focus_command(
+        &self,
+        cx: AppContext,
+        cmd: &FocusCommand,
+    ) -> CommandExecuted {
+        match cmd {
+            FocusCommand::ModalClose => {
+                self.cancel(cx);
+            }
+            FocusCommand::ListNext => {
+                self.next();
+            }
+            FocusCommand::ListNextPage => {
+                self.next_page();
+            }
+            FocusCommand::ListPrevious => {
+                self.previous();
+            }
+            FocusCommand::ListPreviousPage => {
+                self.previous_page();
+            }
+            FocusCommand::ListSelect => {
+                self.select(cx);
+            }
+            _ => return CommandExecuted::No,
+        }
+        CommandExecuted::Yes
     }
 }

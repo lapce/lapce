@@ -3464,14 +3464,12 @@ checksum = "03087c2bad5e1034e8cace5926dec053fb3790248370865f5117a7d0213354c8"
 [[package]]
 name = "leptos_reactive"
 version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2e740411ce3a6bce88d7e3724f9544408885a5cd29dd41f998be2e51dbb0fca"
+source = "git+https://github.com/leptos-rs/leptos?rev=a94711fcf0ee330a45758affd7b8328b5771ca4d#a94711fcf0ee330a45758affd7b8328b5771ca4d"
 dependencies = [
  "base64 0.21.0",
  "cfg-if 1.0.0",
  "futures",
  "indexmap",
- "js-sys",
  "rustc-hash",
  "serde",
  "serde-wasm-bindgen",
@@ -3479,9 +3477,6 @@ dependencies = [
  "slotmap",
  "thiserror",
  "tracing",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]

@@ -71,4 +71,9 @@ impl UIConfig {
             self.icon_size.max(6).min(32)
         }
     }
+
+    pub fn status_height(&self) -> usize {
+        let font_size = self.font_size();
+        self.status_height.max(font_size)
+    }
 }

@@ -1,27 +1,30 @@
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use floem::{
     app::AppContext,
+    ext_event::create_ext_action,
     glazier::KeyEvent,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_effect, create_rw_signal, ReadSignal, RwSignal, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWith, SignalWithUntracked, WriteSignal,
+        create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
+        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        SignalWithUntracked, WriteSignal,
     },
 };
-use lapce_core::{cursor::Cursor, register::Register};
-use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
+use lapce_core::cursor::Cursor;
+use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
+use lsp_types::{
+    CodeAction, CodeActionOrCommand, DocumentChangeOperation, DocumentChanges,
+    OneOf, TextEdit, Url, WorkspaceEdit,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    code_action::CodeActionData,
-    command::InternalCommand,
-    completion::CompletionData,
-    config::LapceConfig,
-    doc::Document,
+    doc::{Document, EditorDiagnostic},
     editor::{
         location::{EditorLocation, EditorPosition},
         EditorData,
@@ -29,8 +32,7 @@ use crate::{
     editor_tab::{EditorTabChild, EditorTabData, EditorTabInfo},
     id::{EditorId, EditorTabId, SplitId},
     keypress::KeyPressData,
-    window_tab::{CommonData, Focus, WindowTabData},
-    workspace::WorkspaceInfo,
+    window_tab::{CommonData, WindowTabData},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -184,6 +186,8 @@ pub struct MainSplitData {
     pub editor_tabs: RwSignal<im::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
     pub editors: RwSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
     pub docs: RwSignal<im::HashMap<PathBuf, RwSignal<Document>>>,
+    pub diagnostics: RwSignal<im::HashMap<PathBuf, im::Vector<EditorDiagnostic>>>,
+    pub active_editor: Memo<Option<RwSignal<EditorData>>>,
     locations: RwSignal<im::Vector<EditorLocation>>,
     current_location: RwSignal<usize>,
     pub common: CommonData,
@@ -193,11 +197,33 @@ impl MainSplitData {
     pub fn new(cx: AppContext, common: CommonData) -> Self {
         let splits = create_rw_signal(cx.scope, im::HashMap::new());
         let active_editor_tab = create_rw_signal(cx.scope, None);
-        let editor_tabs = create_rw_signal(cx.scope, im::HashMap::new());
+        let editor_tabs: RwSignal<
+            im::HashMap<EditorTabId, RwSignal<EditorTabData>>,
+        > = create_rw_signal(cx.scope, im::HashMap::new());
         let editors = create_rw_signal(cx.scope, im::HashMap::new());
         let docs = create_rw_signal(cx.scope, im::HashMap::new());
         let locations = create_rw_signal(cx.scope, im::Vector::new());
         let current_location = create_rw_signal(cx.scope, 0);
+        let diagnostics = create_rw_signal(cx.scope, im::HashMap::new());
+
+        let active_editor =
+            create_memo(cx.scope, move |_| -> Option<RwSignal<EditorData>> {
+                let active_editor_tab = active_editor_tab.get()?;
+                let editor_tab = editor_tabs.with(|editor_tabs| {
+                    editor_tabs.get(&active_editor_tab).copied()
+                })?;
+                let (_, child) = editor_tab.with(|editor_tab| {
+                    editor_tab.children.get(editor_tab.active).cloned()
+                })?;
+
+                let editor = match child {
+                    EditorTabChild::Editor(editor_id) => {
+                        editors.with(|editors| editors.get(&editor_id).copied())?
+                    }
+                };
+
+                Some(editor)
+            });
 
         Self {
             root_split: SplitId::next(),
@@ -206,6 +232,8 @@ impl MainSplitData {
             editor_tabs,
             editors,
             docs,
+            active_editor,
+            diagnostics,
             locations,
             current_location,
             common,
@@ -239,7 +267,7 @@ impl MainSplitData {
     }
 
     fn save_current_jump_locatoin(&self) {
-        if let Some(editor) = self.active_editor() {
+        if let Some(editor) = self.active_editor.get_untracked() {
             let (doc, cursor, viewport) = editor.with_untracked(|editor| {
                 (editor.doc, editor.cursor, editor.viewport)
             });
@@ -266,6 +294,7 @@ impl MainSplitData {
             path,
             position: Some(EditorPosition::Offset(offset)),
             scroll_offset: Some(scroll_offset),
+            ignore_unconfirmed: false,
         };
         locations.push_back(location);
         let current_location = locations.len();
@@ -273,9 +302,14 @@ impl MainSplitData {
         self.current_location.set(current_location);
     }
 
-    pub fn jump_to_location(&self, cx: AppContext, location: EditorLocation) {
+    pub fn jump_to_location(
+        &self,
+        cx: AppContext,
+        location: EditorLocation,
+        edits: Option<Vec<TextEdit>>,
+    ) {
         self.save_current_jump_locatoin();
-        self.go_to_location(cx, location);
+        self.go_to_location(cx, location, edits);
     }
 
     pub fn get_doc(
@@ -290,6 +324,7 @@ impl MainSplitData {
             let doc = Document::new(
                 cx,
                 path.clone(),
+                self.diagnostics.with_untracked(|d| d.get(&path).cloned()),
                 self.common.proxy.clone(),
                 self.common.config,
             );
@@ -314,13 +349,19 @@ impl MainSplitData {
         }
     }
 
-    pub fn go_to_location(&self, cx: AppContext, location: EditorLocation) {
+    pub fn go_to_location(
+        &self,
+        cx: AppContext,
+        location: EditorLocation,
+        edits: Option<Vec<TextEdit>>,
+    ) {
         let path = location.path.clone();
         let (doc, new_doc) = self.get_doc(cx, path.clone());
 
-        let editor = self.get_editor_or_new(cx, doc, &path);
+        let editor =
+            self.get_editor_or_new(cx, doc, &path, location.ignore_unconfirmed);
         let editor = editor.get_untracked();
-        editor.go_to_location(cx, location, new_doc);
+        editor.go_to_location(cx, location, new_doc, edits);
     }
 
     fn get_editor_or_new(
@@ -328,7 +369,10 @@ impl MainSplitData {
         cx: AppContext,
         doc: RwSignal<Document>,
         path: &Path,
+        ignore_unconfirmed: bool,
     ) -> RwSignal<EditorData> {
+        let config = self.common.config.get_untracked();
+
         let active_editor_tab_id = self.active_editor_tab.get_untracked();
         let editor_tabs = self.editor_tabs.get_untracked();
         let editors = self.editors.get_untracked();
@@ -340,11 +384,40 @@ impl MainSplitData {
 
         // first check if the file exists in active editor tab or there's unconfirmed editor
         if let Some(editor_tab) = active_editor_tab {
-            if let Some((index, editor)) = editor_tab.with_untracked(|editor_tab| {
-                editor_tab
-                    .get_editor(&editors, path)
-                    .or_else(|| editor_tab.get_unconfirmed_editor(&editors))
-            }) {
+            let selected = if !config.editor.show_tab {
+                editor_tab.with_untracked(|editor_tab| {
+                    for (i, child) in editor_tab.children.iter().enumerate() {
+                        if let (_, EditorTabChild::Editor(editor_id)) = child {
+                            if let Some(editor) = editors.get(editor_id) {
+                                let e = editor.get_untracked();
+                                let can_be_selected = e.doc.with_untracked(|doc| {
+                                    doc.content
+                                        .path()
+                                        .map(|p| p == path)
+                                        .unwrap_or(false)
+                                        || doc.buffer().is_pristine()
+                                });
+                                if can_be_selected {
+                                    return Some((i, *editor));
+                                }
+                            }
+                        }
+                    }
+                    None
+                })
+            } else {
+                editor_tab.with_untracked(|editor_tab| {
+                    editor_tab.get_editor(&editors, path).or_else(|| {
+                        if ignore_unconfirmed {
+                            None
+                        } else {
+                            editor_tab.get_unconfirmed_editor(&editors)
+                        }
+                    })
+                })
+            };
+
+            if let Some((index, editor)) = selected {
                 if editor.with_untracked(|editor| {
                     editor.doc.with_untracked(|doc| doc.buffer_id)
                         != doc.with_untracked(|doc| doc.buffer_id)
@@ -363,27 +436,48 @@ impl MainSplitData {
                 });
                 return editor;
             }
+
+            if !config.editor.show_tab {
+                editor_tab.with_untracked(|editor_tab| {
+                    for (i, child) in editor_tab.children.iter().enumerate() {
+                        if let (_, EditorTabChild::Editor(editor_id)) = child {
+                            if let Some(editor) = editors.get(editor_id) {
+                                let e = editor.get_untracked();
+                                let is_pristine = e.doc.with_untracked(|doc| {
+                                    doc.buffer().is_pristine()
+                                });
+                                if is_pristine {
+                                    return Some((i, *editor));
+                                }
+                            }
+                        }
+                    }
+                    None
+                });
+            }
         }
 
         // check file exists in non active editor tabs
-        for (editor_tab_id, editor_tab) in &editor_tabs {
-            if Some(*editor_tab_id) != active_editor_tab_id {
-                if let Some((index, editor)) =
-                    editor_tab.with_untracked(|editor_tab| {
-                        editor_tab.get_editor(&editors, path)
-                    })
-                {
-                    self.active_editor_tab.set(Some(*editor_tab_id));
-                    editor_tab.update(|editor_tab| {
-                        editor_tab.active = index;
-                    });
-                    return editor;
+        if config.editor.show_tab {
+            for (editor_tab_id, editor_tab) in &editor_tabs {
+                if Some(*editor_tab_id) != active_editor_tab_id {
+                    if let Some((index, editor)) =
+                        editor_tab.with_untracked(|editor_tab| {
+                            editor_tab.get_editor(&editors, path)
+                        })
+                    {
+                        self.active_editor_tab.set(Some(*editor_tab_id));
+                        editor_tab.update(|editor_tab| {
+                            editor_tab.active = index;
+                        });
+                        return editor;
+                    }
                 }
             }
         }
 
+        // the main split doens't have anything
         let editor = if editor_tabs.is_empty() {
-            // the main split doens't have anything
             let editor_tab_id = EditorTabId::next();
 
             // create the new editor
@@ -486,7 +580,7 @@ impl MainSplitData {
         let current_location = self.current_location.get_untracked();
         let location = locations[current_location].clone();
         self.current_location.set(current_location);
-        self.go_to_location(cx, location);
+        self.go_to_location(cx, location, None);
     }
 
     pub fn jump_location_forward(&self, cx: AppContext) {
@@ -500,7 +594,7 @@ impl MainSplitData {
         }
         self.current_location.set(current_location + 1);
         let location = locations[current_location + 1].clone();
-        self.go_to_location(cx, location);
+        self.go_to_location(cx, location, None);
     }
 
     pub fn split(
@@ -924,21 +1018,121 @@ impl MainSplitData {
         Some(())
     }
 
-    pub fn active_editor(&self) -> Option<RwSignal<EditorData>> {
-        let active_editor_tab = self.active_editor_tab.get_untracked()?;
-        let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
-            editor_tabs.get(&active_editor_tab).copied()
-        })?;
-        let (_, child) = editor_tab.with_untracked(|editor_tab| {
-            editor_tab.children.get(editor_tab.active).cloned()
-        })?;
-
-        let editor = match child {
-            EditorTabChild::Editor(editor_id) => self
-                .editors
-                .with_untracked(|editors| editors.get(&editor_id).copied())?,
-        };
-
-        Some(editor)
+    pub fn run_code_action(
+        &self,
+        cx: AppContext,
+        plugin_id: PluginId,
+        action: CodeActionOrCommand,
+    ) {
+        match action {
+            CodeActionOrCommand::Command(_) => {}
+            CodeActionOrCommand::CodeAction(action) => {
+                if let Some(edit) = action.edit.as_ref() {
+                    self.apply_workspace_edit(cx, edit);
+                } else {
+                    self.resolve_code_action(cx, plugin_id, action);
+                }
+            }
+        }
     }
+
+    /// Resolve a code action and apply its held workspace edit
+    fn resolve_code_action(
+        &self,
+        cx: AppContext,
+        plugin_id: PluginId,
+        action: CodeAction,
+    ) {
+        let main_split = self.clone();
+        let send = create_ext_action(cx, move |edit| {
+            main_split.apply_workspace_edit(cx, &edit);
+        });
+        self.common
+            .proxy
+            .code_action_resolve(action, plugin_id, move |result| {
+                if let Ok(ProxyResponse::CodeActionResolveResponse { item }) = result
+                {
+                    if let Some(edit) = item.edit {
+                        send(edit);
+                    }
+                }
+            });
+    }
+
+    /// Perform a workspace edit, which are from the LSP (such as code actions, or symbol renaming)
+    fn apply_workspace_edit(&self, cx: AppContext, edit: &WorkspaceEdit) {
+        if let Some(DocumentChanges::Operations(op)) = edit.document_changes.as_ref()
+        {
+            // TODO
+        }
+
+        if let Some(edits) = workspace_edits(edit) {
+            for (url, edits) in edits {
+                if let Ok(path) = url.to_file_path() {
+                    let active_path = self
+                        .active_editor
+                        .get_untracked()
+                        .map(|editor| editor.with_untracked(|editor| editor.doc))
+                        .map(|doc| doc.with_untracked(|doc| doc.content.clone()))
+                        .and_then(|content| content.path().cloned());
+                    let position = if active_path.as_ref() == Some(&path) {
+                        None
+                    } else {
+                        edits
+                            .get(0)
+                            .map(|edit| EditorPosition::Position(edit.range.start))
+                    };
+                    let location = EditorLocation {
+                        path,
+                        position,
+                        scroll_offset: None,
+                        ignore_unconfirmed: true,
+                    };
+                    self.jump_to_location(cx, location, Some(edits));
+                }
+            }
+        }
+    }
+}
+
+fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> {
+    if let Some(changes) = edit.changes.as_ref() {
+        return Some(changes.clone());
+    }
+
+    let changes = edit.document_changes.as_ref()?;
+    let edits = match changes {
+        DocumentChanges::Edits(edits) => edits
+            .iter()
+            .map(|e| {
+                (
+                    e.text_document.uri.clone(),
+                    e.edits
+                        .iter()
+                        .map(|e| match e {
+                            OneOf::Left(e) => e.clone(),
+                            OneOf::Right(e) => e.text_edit.clone(),
+                        })
+                        .collect(),
+                )
+            })
+            .collect::<HashMap<Url, Vec<TextEdit>>>(),
+        DocumentChanges::Operations(ops) => ops
+            .iter()
+            .filter_map(|o| match o {
+                DocumentChangeOperation::Op(_op) => None,
+                DocumentChangeOperation::Edit(e) => Some((
+                    e.text_document.uri.clone(),
+                    e.edits
+                        .iter()
+                        .map(|e| match e {
+                            OneOf::Left(e) => e.clone(),
+                            OneOf::Right(e) => e.text_edit.clone(),
+                        })
+                        .collect(),
+                )),
+            })
+            .collect::<HashMap<Url, Vec<TextEdit>>>(),
+    };
+    Some(edits)
 }

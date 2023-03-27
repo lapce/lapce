@@ -27,7 +27,8 @@ use lapce_rpc::{
 };
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
-    CompletionItem, CompletionTextEdit, GotoDefinitionResponse, Location,
+    CodeActionOrCommand, CompletionItem, CompletionTextEdit, GotoDefinitionResponse,
+    Location, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 
@@ -84,8 +85,10 @@ impl EditorInfo {
                             self.scroll_offset.0,
                             self.scroll_offset.1,
                         )),
+                        ignore_unconfirmed: false,
                     },
                     new_doc,
+                    None,
                 );
                 editor_data
             }
@@ -113,6 +116,12 @@ pub struct EditorData {
     pub scroll_to: RwSignal<Option<Vec2>>,
     pub snippet: RwSignal<Option<Vec<(usize, (usize, usize))>>>,
     pub common: CommonData,
+}
+
+impl PartialEq for EditorData {
+    fn eq(&self, other: &Self) -> bool {
+        self.editor_id == other.editor_id
+    }
 }
 
 impl EditorData {
@@ -499,6 +508,9 @@ impl EditorData {
                     .internal_command
                     .set(Some(InternalCommand::JumpLocationBackward));
             }
+            FocusCommand::ShowCodeActions => {
+                self.show_code_actions(cx, false);
+            }
             _ => {}
         }
         CommandExecuted::Yes
@@ -552,6 +564,7 @@ impl EditorData {
                                     l.range.start,
                                 )),
                                 scroll_offset: None,
+                                ignore_unconfirmed: false,
                             })
                             .collect(),
                     }));
@@ -610,6 +623,7 @@ impl EditorData {
                                                         ),
                                                     ),
                                                     scroll_offset: None,
+                                                    ignore_unconfirmed: false,
                                                 },
                                             ));
                                         } else {
@@ -628,6 +642,7 @@ impl EditorData {
                                     location.range.start,
                                 )),
                                 scroll_offset: None,
+                                ignore_unconfirmed: false,
                             }));
                         }
                     }
@@ -909,7 +924,7 @@ impl EditorData {
                     );
                     match text_format {
                         lsp_types::InsertTextFormat::PLAIN_TEXT => {
-                            self.completion_do_edit(
+                            self.do_edit(
                                 &selection,
                                 &[
                                     &[(selection.clone(), edit.new_text.as_str())][..],
@@ -940,7 +955,7 @@ impl EditorData {
         let end_offset = doc.buffer().next_code_boundary(offset);
         let selection = Selection::region(start_offset, end_offset);
 
-        self.completion_do_edit(
+        self.do_edit(
             &selection,
             &[
                 &[(
@@ -1041,7 +1056,7 @@ impl EditorData {
         });
     }
 
-    fn completion_do_edit(
+    fn do_edit(
         &self,
         selection: &Selection,
         edits: &[(impl AsRef<Selection>, &str)],
@@ -1064,6 +1079,25 @@ impl EditorData {
         self.cursor.set(cursor);
 
         self.apply_deltas(&[(delta, inval_lines, edits)]);
+    }
+
+    pub fn do_text_edit(&self, edits: &[TextEdit]) {
+        let (selection, edits) = self.doc.with_untracked(|doc| {
+            let selection = self.cursor.get_untracked().edit_selection(doc.buffer());
+            let edits = edits
+                .iter()
+                .map(|edit| {
+                    let selection = lapce_core::selection::Selection::region(
+                        doc.buffer().offset_of_position(&edit.range.start),
+                        doc.buffer().offset_of_position(&edit.range.end),
+                    );
+                    (selection, edit.new_text.as_str())
+                })
+                .collect::<Vec<_>>();
+            (selection, edits)
+        });
+
+        self.do_edit(&selection, &edits);
     }
 
     fn apply_deltas(&self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
@@ -1107,16 +1141,23 @@ impl EditorData {
         cx: AppContext,
         location: EditorLocation,
         new_doc: bool,
+        edits: Option<Vec<TextEdit>>,
     ) {
         if !new_doc {
             if let Some(position) = location.position {
                 let editor = self.clone();
                 let send = create_ext_action(cx, move |position| {
-                    editor.go_to_position(position, location.scroll_offset);
+                    editor.go_to_position(
+                        position,
+                        location.scroll_offset,
+                        edits.clone(),
+                    );
                 });
                 std::thread::spawn(move || {
                     send(position);
                 });
+            } else if let Some(edits) = edits.as_ref() {
+                self.do_text_edit(edits);
             }
         } else {
             let buffer_id = self.doc.with_untracked(|doc| doc.buffer_id);
@@ -1129,12 +1170,19 @@ impl EditorData {
 
                 if let Some(position) = location.position {
                     let editor = editor.clone();
+                    let edits = edits.clone();
                     let send = create_ext_action(cx, move |position| {
-                        editor.go_to_position(position, location.scroll_offset);
+                        editor.go_to_position(
+                            position,
+                            location.scroll_offset,
+                            edits.clone(),
+                        );
                     });
                     std::thread::spawn(move || {
                         send(position);
                     });
+                } else if let Some(edits) = edits.as_ref() {
+                    editor.do_text_edit(edits);
                 }
             });
 
@@ -1153,6 +1201,7 @@ impl EditorData {
         &self,
         position: EditorPosition,
         scroll_offset: Option<Vec2>,
+        edits: Option<Vec<TextEdit>>,
     ) {
         let offset = self
             .doc
@@ -1166,6 +1215,9 @@ impl EditorData {
         } else {
             Cursor::new(CursorMode::Insert(Selection::caret(offset)), None, None)
         });
+        if let Some(edits) = edits.as_ref() {
+            self.do_text_edit(edits);
+        }
     }
 
     pub fn get_code_actions(&self, cx: AppContext) {
@@ -1201,17 +1253,21 @@ impl EditorData {
 
             // Get the diagnostics for the current line, which the LSP might use to inform
             // what code actions are available (such as fixes for the diagnostics).
-            let diagnostics: &[EditorDiagnostic] =
-                doc.diagnostics.as_deref().map(Vec::as_slice).unwrap_or(&[]);
-            let diagnostics = diagnostics
-                .iter()
-                .map(|x| &x.diagnostic)
-                .filter(|x| {
-                    x.range.start.line <= position.line
-                        && x.range.end.line >= position.line
+            let diagnostics = doc
+                .diagnostics
+                .as_ref()
+                .map(|diagnostics| {
+                    diagnostics
+                        .iter()
+                        .map(|x| &x.diagnostic)
+                        .filter(|x| {
+                            x.range.start.line <= position.line
+                                && x.range.end.line >= position.line
+                        })
+                        .cloned()
+                        .collect()
                 })
-                .cloned()
-                .collect();
+                .unwrap_or_default();
 
             (position, rev, diagnostics)
         });
@@ -1241,30 +1297,20 @@ impl EditorData {
         );
     }
 
-    pub fn show_code_actions(&self, cx: AppContext) {
+    pub fn show_code_actions(&self, cx: AppContext, mouse_click: bool) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let code_actions = self
             .doc
             .with_untracked(|doc| doc.code_actions.get(&offset).cloned());
         if let Some(code_actions) = code_actions {
             if !code_actions.1.is_empty() {
-                self.common.code_action.update(|code_action| {
-                    code_action.status = CodeActionStatus::Active;
-                    code_action.offset = offset;
-                    code_action.request_id += 1;
-                    code_action.items = code_actions
-                        .1
-                        .iter()
-                        .map(|code_action| ScoredCodeActionItem {
-                            item: code_action.clone(),
-                            plugin_id: code_actions.0,
-                            score: 0,
-                            indices: Vec::new(),
-                        })
-                        .collect();
-                    code_action.filtered_items = code_action.items.clone();
-                    code_action.active.set(0);
-                });
+                self.common.internal_command.set(Some(
+                    InternalCommand::ShowCodeActions {
+                        offset,
+                        mouse_click,
+                        code_actions,
+                    },
+                ));
             }
         }
     }

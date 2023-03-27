@@ -34,7 +34,7 @@ use lapce_rpc::{
 };
 use lapce_xi_rope::{
     spans::{Spans, SpansBuilder},
-    Interval, Rope, RopeDelta,
+    Interval, Rope, RopeDelta, Transformer,
 };
 use lsp_types::{
     CodeActionResponse, Diagnostic, DiagnosticSeverity, InlayHint, InlayHintLabel,
@@ -70,9 +70,6 @@ impl Clipboard for SystemClipboard {
 pub struct EditorDiagnostic {
     pub range: (usize, usize),
     pub diagnostic: Diagnostic,
-    /// Line counter for the editor diagnostic.
-    /// Contains the total number of message lines and related information lines
-    pub lines: usize,
 }
 
 #[derive(Clone)]
@@ -161,7 +158,7 @@ pub struct Document {
     /// Inlay hints for the document
     pub inlay_hints: Option<Spans<InlayHint>>,
     /// The diagnostics for the document
-    pub diagnostics: Option<Arc<Vec<EditorDiagnostic>>>,
+    pub diagnostics: Option<im::Vector<EditorDiagnostic>>,
     /// (Offset -> (Plugin the code actions are from, Code Actions))
     pub code_actions: im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>,
     /// Whether the buffer's content has been loaded/initialized into the buffer.
@@ -209,6 +206,7 @@ impl Document {
     pub fn new(
         cx: AppContext,
         path: PathBuf,
+        diagnostics: Option<im::Vector<EditorDiagnostic>>,
         proxy: ProxyRpcHandler,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
@@ -221,7 +219,7 @@ impl Document {
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
             inlay_hints: None,
-            diagnostics: None,
+            diagnostics,
             content: DocContent::File(path),
             loaded: false,
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
@@ -273,6 +271,7 @@ impl Document {
         self.buffer.detect_indent(self.syntax.as_ref());
         self.loaded = true;
         self.on_update(None);
+        self.init_diagnostics();
     }
 
     /// Reload the document's content, and is what you should typically use when you want to *set*
@@ -348,7 +347,7 @@ impl Document {
         for (i, (delta, _, _)) in deltas.iter().enumerate() {
             self.update_styles(delta);
             self.update_inlay_hints(delta);
-            // self.update_diagnostics(delta);
+            self.update_diagnostics(delta);
             // self.update_completion(delta);
             if let DocContent::File(path) = &self.content {
                 self.proxy
@@ -369,7 +368,7 @@ impl Document {
     }
 
     fn on_update(&mut self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
-        // self.clear_code_actions();
+        self.clear_code_actions();
         // self.find.borrow_mut().unset();
         // *self.find_progress.borrow_mut() = FindProgress::Started;
         // self.get_inlay_hints();
@@ -421,6 +420,10 @@ impl Document {
     fn clear_text_layout_cache(&mut self) {
         self.text_layouts.borrow_mut().clear();
         self.style_rev += 1;
+    }
+
+    fn clear_code_actions(&mut self) {
+        self.code_actions.clear();
     }
 
     pub fn line_horiz_col(
@@ -1328,5 +1331,49 @@ impl Document {
         });
 
         PhantomTextLine { text, max_severity }
+    }
+
+    pub fn set_diagnostics(&mut self, diagnostics: im::Vector<EditorDiagnostic>) {
+        self.clear_text_layout_cache();
+        self.clear_code_actions();
+        self.diagnostics = Some(diagnostics);
+    }
+
+    /// Update the diagnostics' positions after an edit so that they appear in the correct place.
+    fn update_diagnostics(&mut self, delta: &RopeDelta) {
+        let Some(mut diagnostics) = self.diagnostics.clone() else { return };
+        for diagnostic in diagnostics.iter_mut() {
+            let mut transformer = Transformer::new(delta);
+            let (start, end) = diagnostic.range;
+            let (new_start, new_end) = (
+                transformer.transform(start, false),
+                transformer.transform(end, true),
+            );
+
+            let new_start_pos = self.buffer().offset_to_position(new_start);
+
+            let new_end_pos = self.buffer().offset_to_position(new_end);
+
+            diagnostic.range = (new_start, new_end);
+
+            diagnostic.diagnostic.range.start = new_start_pos;
+            diagnostic.diagnostic.range.end = new_end_pos;
+        }
+        self.diagnostics = Some(diagnostics);
+    }
+
+    /// init diagnostics offset ranges from lsp positions
+    fn init_diagnostics(&mut self) {
+        let Some(mut diagnostics) = self.diagnostics.clone() else { return };
+        for diagnostic in diagnostics.iter_mut() {
+            let start = self
+                .buffer()
+                .offset_of_position(&diagnostic.diagnostic.range.start);
+            let end = self
+                .buffer()
+                .offset_of_position(&diagnostic.diagnostic.range.end);
+            diagnostic.range = (start, end);
+        }
+        self.diagnostics = Some(diagnostics);
     }
 }

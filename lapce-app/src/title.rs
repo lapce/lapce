@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use floem::{
     app::AppContext,
-    peniko::Color,
     reactive::{
-        create_signal, ReadSignal, SignalGet, SignalSet, SignalWith, WriteSignal,
+        ReadSignal, RwSignal, SignalGet, SignalSet, SignalWith, WriteSignal,
     },
     stack::stack,
     style::{AlignItems, Dimension, Display, JustifyContent, Style},
@@ -16,19 +15,17 @@ use floem::{
 use crate::{
     command::LapceWorkbenchCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    proxy::ProxyData,
+    source_control::SourceControlData,
     workspace::LapceWorkspace,
 };
 
 fn left(
     cx: AppContext,
-    proxy_data: &ProxyData,
+    source_control: RwSignal<SourceControlData>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let connected = proxy_data.connected;
-    let diff_info = proxy_data.diff_info;
-    let head = move || diff_info.get().map(|info| info.head);
-    let (read_svg, set_svg) = create_signal(cx.scope, r#"<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"> <path fill-rule="evenodd" clip-rule="evenodd" d="M2.99999 9.00004L5.14644 11.1465L4.43933 11.8536L1.43933 8.85359V8.14649L4.43933 5.14648L5.14644 5.85359L2.99999 8.00004H13L10.8535 5.85359L11.5606 5.14648L14.5606 8.14648V8.85359L11.5606 11.8536L10.8535 11.1465L13 9.00004H2.99999Z" fill="\#C5C5C5"/></svg>"#.to_string());
+    let branch =
+        move || source_control.with(|source_control| source_control.branch.clone());
     stack(cx, move |cx| {
         (
             container(cx, move |cx| {
@@ -64,19 +61,17 @@ fn left(
                             }
                         },
                     ),
-                    label(cx, move || head().unwrap_or_default()).style(cx, || {
-                        Style {
-                            margin_left: Some(10.0),
-                            ..Default::default()
-                        }
+                    label(cx, move || branch()).style(cx, || Style {
+                        margin_left: Some(10.0),
+                        ..Default::default()
                     }),
                 )
             })
             .style(cx, move || Style {
-                display: if diff_info.with(|diff_info| diff_info.is_some()) {
-                    Display::Flex
-                } else {
+                display: if branch().is_empty() {
                     Display::None
+                } else {
+                    Display::Flex
                 },
                 height: Dimension::Percent(1.0),
                 padding_left: 10.0,
@@ -297,16 +292,13 @@ fn right(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
 pub fn title(
     cx: AppContext,
     workspace: Arc<LapceWorkspace>,
-    proxy_data: &ProxyData,
+    source_control: RwSignal<SourceControlData>,
     set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let connected = proxy_data.connected;
-    let diff_info = proxy_data.diff_info;
-    let head = move || diff_info.get().map(|info| info.head);
     stack(cx, move |cx| {
         (
-            left(cx, proxy_data, config),
+            left(cx, source_control, config),
             middle(cx, workspace, set_workbench_command, config),
             right(cx, config),
         )
