@@ -224,6 +224,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Reveal Active File in File Explorer")]
     RevealActiveFileInFileExplorer,
 
+    #[strum(serialize = "reveal_active_file_in_file_tree")]
+    #[strum(message = "Reveal Active File in File Tree")]
+    RevealActiveFileInFileTree,
+
     #[strum(serialize = "change_color_theme")]
     #[strum(message = "Change Color Theme")]
     ChangeColorTheme,
