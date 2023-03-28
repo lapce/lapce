@@ -54,6 +54,8 @@ pub struct LapceSettingsPanel {
         LapceSettingsKind,
         WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
     >,
+    filter_input: WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>,
+    last_idle_timer: TimerToken,
 }
 
 impl LapceSettingsPanel {
@@ -109,7 +111,14 @@ impl LapceSettingsPanel {
         }
 
         let switcher = LapceScroll::new(SettingsSwitcher::new(widget_id));
-
+        let input = LapceEditorView::new(
+            data.settings.filter_editor_id,
+            WidgetId::next(),
+            None,
+        )
+        .hide_header()
+        .hide_gutter()
+        .padding((5.0, 2.0, 5.0, 2.0));
         Self {
             widget_id,
             editor_tab_id,
@@ -118,6 +127,8 @@ impl LapceSettingsPanel {
             switcher: WidgetPod::new(switcher),
             children,
             active: LapceSettingsKind::Core,
+            filter_input: WidgetPod::new(input.boxed()),
+            last_idle_timer: TimerToken::INVALID,
         }
     }
 
@@ -191,6 +202,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         env: &Env,
     ) {
         match event {
+            Event::Timer(token) if *token == self.last_idle_timer => {}
             Event::KeyDown(key_event) => {
                 if ctx.is_focused() {
                     let mut keypress = data.keypress.clone();
@@ -282,6 +294,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
             return;
         }
 
+        self.filter_input.event(ctx, event, data, env);
         self.switcher.event(ctx, event, data, env);
         if event.should_propagate_to_hidden() {
             for child in self.children.values_mut() {
@@ -299,6 +312,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         data: &LapceTabData,
         env: &Env,
     ) {
+        self.filter_input.lifecycle(ctx, event, data, env);
         self.switcher.lifecycle(ctx, event, data, env);
         for child in self.children.values_mut() {
             child.lifecycle(ctx, event, data, env);
@@ -308,13 +322,25 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        _old_data: &LapceTabData,
+        old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
+        self.filter_input.update(ctx, data, env);
         self.switcher.update(ctx, data, env);
         for child in self.children.values_mut() {
             child.update(ctx, data, env);
+        }
+
+        let editor_data = data.editor_view_content(data.settings.filter_editor_id);
+        let old_editor_data =
+            old_data.editor_view_content(data.settings.filter_editor_id);
+        if editor_data.doc.buffer().len() != old_editor_data.doc.buffer().len()
+            || editor_data.doc.buffer().text().slice_to_cow(..)
+                != old_editor_data.doc.buffer().text().slice_to_cow(..)
+        {
+            self.last_idle_timer =
+                ctx.request_timer(Duration::from_millis(300), None);
         }
     }
 
@@ -329,24 +355,40 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
         let origin = Point::ZERO;
         self.content_rect = self_size.to_rect().with_origin(origin).round();
 
-        let switcher_size = self.switcher.layout(
+        let filter_size = self.filter_input.layout(
             ctx,
-            &BoxConstraints::new(Size::ZERO, bc.max()),
+            &BoxConstraints::tight(self_size),
             data,
             env,
         );
-        self.switcher.set_origin(ctx, data, env, Point::ZERO);
+        self.filter_input.set_origin(ctx, data, env, Point::ZERO);
+        let switcher_size = self.switcher.layout(
+            ctx,
+            &BoxConstraints::new(
+                Size::ZERO,
+                Size::new(self_size.width, self_size.height - filter_size.height),
+            ),
+            data,
+            env,
+        );
+        self.switcher.set_origin(
+            ctx,
+            data,
+            env,
+            Point::new(0.0, filter_size.height),
+        );
 
         self.switcher_rect = Size::new(150.0, self_size.height)
             .to_rect()
-            .with_origin(Point::ZERO)
+            .with_origin(Point::new(0.0, filter_size.height))
             .round();
 
         let content_size = Size::new(
             self_size.width - switcher_size.width - 20.0,
-            self_size.height,
+            self_size.height - filter_size.height,
         );
-        let content_origin = Point::new(switcher_size.width + 20.0, 0.0);
+        let content_origin =
+            Point::new(switcher_size.width + 20.0, filter_size.height);
         let content_bc = BoxConstraints::tight(content_size);
         if let Some(child) = self.children.get_mut(&self.active) {
             child.layout(ctx, &content_bc, data, env);
@@ -370,6 +412,7 @@ impl Widget<LapceTabData> for LapceSettingsPanel {
             data.config.get_color_unchecked(LapceTheme::LAPCE_BORDER),
             1.0,
         );
+        self.filter_input.paint(ctx, data, env);
     }
 }
 
@@ -377,6 +420,7 @@ struct LapceSettings {
     widget_id: WidgetId,
     kind: LapceSettingsKind,
     children: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+    last_idle_timer: TimerToken,
 }
 
 impl LapceSettings {
@@ -387,6 +431,7 @@ impl LapceSettings {
             widget_id: WidgetId::next(),
             kind,
             children: Vec::new(),
+            last_idle_timer: TimerToken::INVALID,
         })
     }
 
@@ -401,7 +446,8 @@ impl LapceSettings {
         }
 
         self.children.clear();
-
+        let editor_data = data.editor_view_content(data.settings.filter_editor_id);
+        let query = editor_data.doc.buffer().text().to_string().to_lowercase();
         let (kind, fields, descs, mut settings) = match &self.kind {
             LapceSettingsKind::Core => (
                 "core",
@@ -436,6 +482,15 @@ impl LapceSettings {
                         for (key, config) in
                             config.iter().sorted_by_key(|(key, _)| *key)
                         {
+                            if !query.is_empty()
+                                && !key.to_lowercase().contains(&query)
+                                && !config
+                                    .description
+                                    .to_lowercase()
+                                    .contains(&query)
+                            {
+                                continue;
+                            }
                             let mut value = config.default.clone();
                             if let Some(plugin_config) =
                                 data.config.plugins.get(&volt.name)
@@ -457,11 +512,22 @@ impl LapceSettings {
                         }
                     }
                 }
+                let settings_data = Arc::make_mut(&mut data.settings);
+                settings_data.filter_matches.insert(
+                    format!("{}#{}", settings_data.plugin_section, volt_id.name),
+                    self.children.len(),
+                );
                 return;
             }
         };
 
         for (field, desc) in fields.iter().zip(descs.iter()) {
+            if !query.is_empty()
+                && !field.to_lowercase().contains(&query)
+                && !desc.to_lowercase().contains(&query)
+            {
+                continue;
+            }
             // TODO(dbuga): we should generate kebab-case field names
             let field = field.replace('_', "-");
             let value = if let Some(dropdown) =
@@ -481,6 +547,12 @@ impl LapceSettings {
                 ctx.get_external_handle(),
             ));
         }
+        let settings_data = Arc::make_mut(&mut data.settings);
+        if let Some(section) = settings_data.settings_sections.get(&self.kind) {
+            settings_data
+                .filter_matches
+                .insert(section.clone(), self.children.len());
+        }
     }
 }
 
@@ -498,6 +570,14 @@ impl Widget<LapceTabData> for LapceSettings {
     ) {
         for child in self.children.iter_mut() {
             child.event(ctx, event, data, env);
+        }
+        match event {
+            Event::Timer(token) if token == &self.last_idle_timer => {
+                self.update_children(ctx, data);
+                ctx.children_changed();
+                return;
+            }
+            _ => {}
         }
         if self.children.is_empty() {
             self.update_children(ctx, data);
@@ -520,12 +600,22 @@ impl Widget<LapceTabData> for LapceSettings {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        _old_data: &LapceTabData,
+        old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
         for child in self.children.iter_mut() {
             child.update(ctx, data, env);
+        }
+        let editor_data = data.editor_view_content(data.settings.filter_editor_id);
+        let old_editor_data =
+            old_data.editor_view_content(data.settings.filter_editor_id);
+        if editor_data.doc.buffer().len() != old_editor_data.doc.buffer().len()
+            || editor_data.doc.buffer().text().slice_to_cow(..)
+                != old_editor_data.doc.buffer().text().slice_to_cow(..)
+        {
+            self.last_idle_timer =
+                ctx.request_timer(Duration::from_millis(300), None);
         }
     }
 
@@ -1519,6 +1609,7 @@ pub struct ThemeSection {
     colors: Vec<String>,
     text_layouts: Option<Vec<PietTextLayout>>,
     items: Vec<WidgetPod<LapceTabData, Box<dyn Widget<LapceTabData>>>>,
+    last_idle_timer: TimerToken,
 }
 
 impl ThemeSection {
@@ -1544,14 +1635,20 @@ impl ThemeSection {
             items: Vec::new(),
             text_layouts: None,
             colors,
+            last_idle_timer: TimerToken::INVALID,
         }
     }
 
     fn update_items(&mut self, ctx: &mut EventCtx, data: &mut LapceTabData) {
         let event_sink = ctx.get_external_handle();
+        let editor_data = data.editor_view_content(data.settings.filter_editor_id);
+        let query = editor_data.doc.buffer().text().to_string().to_lowercase();
         self.items = self
             .colors
             .iter()
+            .filter(|color| {
+                query.is_empty() || color.to_lowercase().contains(&query)
+            })
             .map(|color| {
                 WidgetPod::new(LapcePadding::new(
                     5.0,
@@ -1566,6 +1663,15 @@ impl ThemeSection {
             })
             .collect();
         ctx.children_changed();
+        let settings_data = Arc::make_mut(&mut data.settings);
+        if let Some(section) = settings_data
+            .settings_sections
+            .get(&LapceSettingsKind::Theme)
+        {
+            settings_data
+                .filter_matches
+                .insert(format!("{}#{}", section, self.kind), self.items.len());
+        }
     }
 }
 
@@ -1580,7 +1686,13 @@ impl Widget<LapceTabData> for ThemeSection {
         for item in self.items.iter_mut() {
             item.event(ctx, event, data, env);
         }
-
+        if let Event::Timer(token) = event {
+            if *token == self.last_idle_timer {
+                self.update_items(ctx, data);
+                ctx.request_paint();
+                return;
+            }
+        }
         if self.items.is_empty() {
             self.update_items(ctx, data);
         }
@@ -1601,12 +1713,22 @@ impl Widget<LapceTabData> for ThemeSection {
     fn update(
         &mut self,
         ctx: &mut UpdateCtx,
-        _old_data: &LapceTabData,
+        old_data: &LapceTabData,
         data: &LapceTabData,
         env: &Env,
     ) {
         for item in self.items.iter_mut() {
             item.update(ctx, data, env);
+        }
+        let editor_data = data.editor_view_content(data.settings.filter_editor_id);
+        let old_editor_data =
+            old_data.editor_view_content(data.settings.filter_editor_id);
+        if editor_data.doc.buffer().len() != old_editor_data.doc.buffer().len()
+            || editor_data.doc.buffer().text().slice_to_cow(..)
+                != old_editor_data.doc.buffer().text().slice_to_cow(..)
+        {
+            self.last_idle_timer =
+                ctx.request_timer(Duration::from_millis(300), None);
         }
     }
 
@@ -1618,9 +1740,12 @@ impl Widget<LapceTabData> for ThemeSection {
         env: &Env,
     ) -> Size {
         let mut text_layouts = Vec::new();
-
+        let editor_data = data.editor_view_content(data.settings.filter_editor_id);
+        let query = editor_data.doc.buffer().text().to_string().to_lowercase();
         let mut width = 0.0;
-        for color in self.colors.iter() {
+        for color in self.colors.iter().filter(|color| {
+            query.is_empty() || color.to_lowercase().contains(&query)
+        }) {
             let text_layout = ctx
                 .text()
                 .new_text_layout(color.to_string())
@@ -2194,15 +2319,34 @@ impl Widget<LapceTabData> for SettingsSwitcher {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, _env: &Env) {
-        let mut settings_sections: Vec<&str> = vec![
-            "Core Settings",
-            "UI Settings",
-            "Editor Settings",
-            "Terminal Settings",
-            "Theme Settings",
-            "Keybindings",
-            "Plugin Settings",
-        ];
+        let mut settings_sections: Vec<String> =
+            data.settings.settings_sections.values().cloned().collect();
+        settings_sections.push(data.settings.plugin_section.clone());
+
+        let editor_data = data.editor_view_content(data.settings.filter_editor_id);
+        let query = editor_data.doc.buffer().text().to_string().to_lowercase();
+
+        let mut matches = im::HashMap::new();
+        if !query.is_empty() {
+            for (section, count) in data.settings.filter_matches.iter() {
+                let mut segs = section.split('#');
+                let mut is_plugin = false;
+                if let Some(label) = segs.next() {
+                    if matches.contains_key(label) {
+                        let count = matches.get(label).unwrap() + count;
+                        matches.insert(label.to_string(), count);
+                    } else {
+                        matches.insert(label.to_string(), *count);
+                    }
+                    is_plugin = label == data.settings.plugin_section;
+                }
+                if is_plugin {
+                    if let Some(name) = segs.next() {
+                        matches.insert(name.to_string(), *count);
+                    }
+                }
+            }
+        }
 
         self.plugin_settings_disabled = true;
         for (_, volt) in data
@@ -2213,7 +2357,12 @@ impl Widget<LapceTabData> for SettingsSwitcher {
             .sorted_by_key(|(_, v)| &v.display_name)
         {
             if self.plugin_settings_expanded {
-                settings_sections.push(volt.display_name.as_str());
+                settings_sections.push(volt.display_name.clone());
+                if volt.name != volt.display_name {
+                    if let Some(count) = matches.get(&volt.name) {
+                        matches.insert(volt.display_name.clone(), *count);
+                    }
+                }
             }
             self.plugin_settings_disabled = false;
         }
@@ -2224,12 +2373,21 @@ impl Widget<LapceTabData> for SettingsSwitcher {
             } else {
                 data.config.ui.font_size()
             };
+            let mut label = text.to_string();
+            if let Some(matches) = matches.get(&label) {
+                label.push_str(" (");
+                label.push_str(&matches.to_string());
+                label.push(')');
+            }
+
             let text_layout = ctx
                 .text()
-                .new_text_layout(text.to_string())
+                .new_text_layout(label.to_string())
                 .font(data.config.ui.font_family(), font_size as f64)
                 .text_color(
-                    if self.plugin_settings_disabled && text == &"Plugin Settings" {
+                    if self.plugin_settings_disabled
+                        && text == &data.settings.plugin_section
+                    {
                         data.config
                             .get_color_unchecked(LapceTheme::EDITOR_DIM)
                             .clone()

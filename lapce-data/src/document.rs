@@ -151,6 +151,8 @@ pub enum LocalBufferKind {
     Rename,
     /// Search buffer in plugin panel
     PluginSearch,
+    /// Settings filter in settings panel
+    SettingsFilter,
     /// Source Control branch filter in the branch list
     BranchesFilter,
 }
@@ -192,6 +194,7 @@ impl BufferContent {
                 | LocalBufferKind::BranchesFilter
                 | LocalBufferKind::FilePicker
                 | LocalBufferKind::Settings
+                | LocalBufferKind::SettingsFilter
                 | LocalBufferKind::Keymap
                 | LocalBufferKind::PathName
                 | LocalBufferKind::PluginSearch
@@ -213,6 +216,7 @@ impl BufferContent {
                 | LocalBufferKind::Palette
                 | LocalBufferKind::FilePicker
                 | LocalBufferKind::Settings
+                | LocalBufferKind::SettingsFilter
                 | LocalBufferKind::Keymap
                 | LocalBufferKind::PathName
                 | LocalBufferKind::PluginSearch
@@ -1023,6 +1027,7 @@ impl Document {
                     LocalBufferKind::PluginSearch => {}
                     LocalBufferKind::SourceControl => {}
                     LocalBufferKind::BranchesFilter => {}
+                    LocalBufferKind::SettingsFilter => {}
                     LocalBufferKind::Empty => {}
                     LocalBufferKind::Rename => {}
                     LocalBufferKind::Palette => {
