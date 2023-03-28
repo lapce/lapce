@@ -2130,7 +2130,7 @@ impl LapceEditor {
             data.doc.find_enclosing_brackets(cursor_offset)
         {
             if data.config.editor.highlight_matching_brackets {
-                if start_offset > start && start_offset < end {
+                if start_offset >= start && start_offset <= end {
                     Self::paint_bracket_highlight(
                         ctx,
                         data,
@@ -2138,7 +2138,7 @@ impl LapceEditor {
                         start_offset,
                     );
                 }
-                if end_offset > start && end_offset < end {
+                if end_offset >= start && end_offset <= end {
                     Self::paint_bracket_highlight(
                         ctx,
                         data,
@@ -2239,11 +2239,7 @@ impl LapceEditor {
 
         let first_screen_line = *screen_lines.lines.first().unwrap();
 
-        let first_line = if first_screen_line > start_line {
-            first_screen_line
-        } else {
-            start_line
-        };
+        let first_line = first_screen_line.max(start_line);
 
         if first_line > end_line {
             return;
@@ -2254,25 +2250,42 @@ impl LapceEditor {
             None => return,
         };
 
-        let mut x1 = Self::calculate_x_coordinate(
+        let mut x0 = Self::calculate_x_coordinate(
             ctx,
             data,
-            end_line,
-            end_col,
+            start_line,
+            start_col + 1,
             info.font_size,
         );
 
-        let y0 = info.y + info.line_height;
+        /*
+        Calculate the following coordinate
+
+        (x0,y0)---------(x1,y0)
+        |
+        |
+        |
+        |
+        (x0,y1)---------(x2,y1)
+        */
+
+        let y0 = if first_screen_line > start_line {
+            info.y
+        } else {
+            // If the first line is visible, we want to start from
+            // the bottom part of the line.
+            info.y + info.line_height
+        };
 
         let mut paint_horizontal_line_at_end = false;
-        if first_line == end_line {
-            let x0 = Self::calculate_x_coordinate(
+        if start_line == end_line {
+            let x1 = Self::calculate_x_coordinate(
                 ctx,
                 data,
-                first_line,
-                start_col,
+                end_line,
+                end_col,
                 info.font_size,
-            ) + data.config.editor_char_width(ctx.text());
+            );
 
             ctx.stroke(
                 Line::new(Point::new(x0, y0), Point::new(x1, y0)),
@@ -2293,14 +2306,14 @@ impl LapceEditor {
                     &data.config,
                 );
 
-                if text_layout.indent < x1 {
-                    x1 = text_layout.indent;
+                if text_layout.indent < x0 {
+                    x0 = text_layout.indent;
                     paint_horizontal_line_at_end = true;
                 }
             }
 
-            let x0 = if first_line > start_line {
-                x1
+            let x1 = if first_line > start_line {
+                x0
             } else {
                 Self::calculate_x_coordinate(
                     ctx,
@@ -2326,13 +2339,13 @@ impl LapceEditor {
             };
 
             ctx.stroke(
-                Line::new(Point::new(x0, y0), Point::new(x1, y0)),
+                Line::new(Point::new(x1, y0), Point::new(x0, y0)),
                 color,
                 LINE_WIDTH,
             );
 
             ctx.stroke(
-                Line::new(Point::new(x1, y0), Point::new(x1, y1)),
+                Line::new(Point::new(x0, y0), Point::new(x0, y1)),
                 color,
                 LINE_WIDTH,
             );
@@ -2347,7 +2360,7 @@ impl LapceEditor {
                 );
 
                 ctx.stroke(
-                    Line::new(Point::new(x1, y1), Point::new(x2, y1)),
+                    Line::new(Point::new(x0, y1), Point::new(x2, y1)),
                     color,
                     LINE_WIDTH,
                 );
