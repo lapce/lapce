@@ -333,10 +333,6 @@ impl SearchContent {
 
         let mut i = 0;
         for (path, matches) in data.search.matches.iter() {
-            if matches.len() + 1 + i < n {
-                i += matches.len() + 1;
-                continue;
-            }
             let fold = if let Some(fold) = self.file_folds.get(path) {
                 *fold
             } else {
@@ -344,12 +340,16 @@ impl SearchContent {
             };
             if i == n {
                 self.file_folds.insert(path.clone(), !fold);
-                ctx.request_paint();
+                ctx.request_layout();
                 break;
             }
+            i += 1;
             if !fold {
+                if i + matches.len() < n {
+                    i += matches.len();
+                    continue;
+                }
                 for (line_number, (start, _end), _line) in matches {
-                    i += 1;
                     if i == n {
                         ctx.submit_command(Command::new(
                             LAPCE_UI_COMMAND,
@@ -370,10 +370,9 @@ impl SearchContent {
                         ));
                         return;
                     }
+                    i += 1;
                 }
             }
-
-            i += 1;
         }
     }
 }
@@ -479,17 +478,18 @@ impl Widget<LapceTabData> for SearchContent {
         let focus_color = data.config.get_color_unchecked(LapceTheme::EDITOR_FOCUS);
         let mut i = 0;
         for (path, matches) in data.search.matches.iter() {
-            if matches.len() + 1 + i < min {
-                i += matches.len() + 1;
-                continue;
-            }
-
             let svg_size = data.config.ui.icon_size() as f64;
             let fold = if let Some(fold) = self.file_folds.get(path) {
                 *fold
             } else {
                 false
             };
+            let children_len = if fold { 0 } else { matches.len() };
+            if i + children_len + 1 < min {
+                i += children_len + 1;
+                continue;
+            }
+
             let fold_icon_name = if !fold {
                 LapceIcons::ITEM_OPENED
             } else {
