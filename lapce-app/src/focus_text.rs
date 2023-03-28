@@ -203,7 +203,7 @@ impl View for FocusText {
             let text_layout = self.text_layout.as_ref().unwrap();
             let size = text_layout.size();
             let width = size.width.ceil() as f32;
-            let height = size.height.ceil() as f32;
+            let height = size.height as f32;
 
             if self.text_node.is_none() {
                 self.text_node = Some(cx.new_node());

@@ -221,7 +221,7 @@ impl WindowTabData {
             }
             CommandKind::Edit(_) => todo!(),
             CommandKind::Move(_) => todo!(),
-            CommandKind::Focus(_) => todo!(),
+            CommandKind::Focus(_) => {}
             CommandKind::MotionMode(_) => todo!(),
             CommandKind::MultiSelection(_) => todo!(),
         }
@@ -342,6 +342,16 @@ impl WindowTabData {
             InstallToPATH => todo!(),
             #[cfg(target_os = "macos")]
             UninstallFromPATH => todo!(),
+            JumpLocationForward => {
+                self.main_split.jump_location_forward(cx);
+            }
+            JumpLocationBackward => {
+                self.main_split.jump_location_backward(cx);
+            }
+            NextError => {
+                self.main_split.next_error(cx);
+            }
+            PreviousError => {}
             Quit => todo!(),
         }
     }
@@ -365,12 +375,6 @@ impl WindowTabData {
             }
             InternalCommand::JumpToLocation { location } => {
                 self.main_split.jump_to_location(cx, location, None);
-            }
-            InternalCommand::JumpLocationForward => {
-                self.main_split.jump_location_forward(cx);
-            }
-            InternalCommand::JumpLocationBackward => {
-                self.main_split.jump_location_backward(cx);
             }
             InternalCommand::PaletteReferences { references } => {
                 self.palette.references.set(references);

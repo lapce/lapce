@@ -289,15 +289,6 @@ pub enum FocusCommand {
     #[strum(message = "Show Hover")]
     #[strum(serialize = "show_hover")]
     ShowHover,
-    #[strum(serialize = "jump_location_backward")]
-    JumpLocationBackward,
-    #[strum(serialize = "jump_location_forward")]
-    JumpLocationForward,
-    #[strum(message = "Next Error in Workspace")]
-    #[strum(serialize = "next_error")]
-    NextError,
-    #[strum(serialize = "previous_error")]
-    PreviousError,
     #[strum(message = "Go to Next Difference")]
     #[strum(serialize = "next_diff")]
     NextDiff,

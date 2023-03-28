@@ -444,6 +444,20 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "uninstall_from_path")]
     UninstallFromPATH,
 
+    #[strum(serialize = "jump_location_backward")]
+    JumpLocationBackward,
+
+    #[strum(serialize = "jump_location_forward")]
+    JumpLocationForward,
+
+    #[strum(message = "Next Error in Workspace")]
+    #[strum(serialize = "next_error")]
+    NextError,
+
+    #[strum(message = "Previous Error in Workspace")]
+    #[strum(serialize = "previous_error")]
+    PreviousError,
+
     #[strum(serialize = "quit")]
     #[strum(message = "Quit Editor")]
     Quit,
@@ -460,8 +474,6 @@ pub enum InternalCommand {
     JumpToLocation {
         location: EditorLocation,
     },
-    JumpLocationForward,
-    JumpLocationBackward,
     PaletteReferences {
         references: Vec<EditorLocation>,
     },

@@ -852,44 +852,44 @@ impl Widget<LapceTabData> for Title {
                 palette_origin.x - TITLE_HEIGHT - TITLE_HEIGHT,
                 0.0,
             ));
-        let (arrow_left_svg_color, arrow_left_svg_hover_color) = if !data
-            .main_split
-            .can_jump_location_backward()
-        {
-            (
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_INACTIVE)
-                        .clone(),
-                ),
-                None,
-            )
-        } else {
-            self.menus.push((
-                arrow_left_rect,
-                Command::new(
-                    LAPCE_COMMAND,
-                    LapceCommand {
-                        kind: CommandKind::Focus(FocusCommand::JumpLocationBackward),
-                        data: None,
-                    },
-                    target,
-                ),
-            ));
-            (
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
-                        .clone(),
-                ),
-                Some(
-                    data.config.get_hover_color(
+        let (arrow_left_svg_color, arrow_left_svg_hover_color) =
+            if !data.main_split.can_jump_location_backward() {
+                (
+                    Some(
                         data.config
-                            .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_INACTIVE)
+                            .clone(),
                     ),
-                ),
-            )
-        };
+                    None,
+                )
+            } else {
+                self.menus.push((
+                    arrow_left_rect,
+                    Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::OpenSettings,
+                            ),
+                            data: None,
+                        },
+                        target,
+                    ),
+                ));
+                (
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
+                            .clone(),
+                    ),
+                    Some(
+                        data.config.get_hover_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                        ),
+                    ),
+                )
+            };
         self.svgs.push((
             data.config.ui_svg(LapceIcons::LOCATION_BACKWARD),
             arrow_left_rect.inflate(-10.5, -10.5),
@@ -900,44 +900,44 @@ impl Widget<LapceTabData> for Title {
         let arrow_right_rect = Size::new(TITLE_HEIGHT, TITLE_HEIGHT)
             .to_rect()
             .with_origin(Point::new(palette_origin.x - TITLE_HEIGHT, 0.0));
-        let (arrow_right_svg_color, arrow_right_svg_hover_color) = if !data
-            .main_split
-            .can_jump_location_forward()
-        {
-            (
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_INACTIVE)
-                        .clone(),
-                ),
-                None,
-            )
-        } else {
-            self.menus.push((
-                arrow_right_rect,
-                Command::new(
-                    LAPCE_COMMAND,
-                    LapceCommand {
-                        kind: CommandKind::Focus(FocusCommand::JumpLocationForward),
-                        data: None,
-                    },
-                    target,
-                ),
-            ));
-            (
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
-                        .clone(),
-                ),
-                Some(
-                    data.config.get_hover_color(
+        let (arrow_right_svg_color, arrow_right_svg_hover_color) =
+            if !data.main_split.can_jump_location_forward() {
+                (
+                    Some(
                         data.config
-                            .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_INACTIVE)
+                            .clone(),
                     ),
-                ),
-            )
-        };
+                    None,
+                )
+            } else {
+                self.menus.push((
+                    arrow_right_rect,
+                    Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(
+                                FocusCommand::JumpToPrevSnippetPlaceholder,
+                            ),
+                            data: None,
+                        },
+                        target,
+                    ),
+                ));
+                (
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
+                            .clone(),
+                    ),
+                    Some(
+                        data.config.get_hover_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                        ),
+                    ),
+                )
+            };
         self.svgs.push((
             data.config.ui_svg(LapceIcons::LOCATION_FORWARD),
             arrow_right_rect.inflate(-10.5, -10.5),

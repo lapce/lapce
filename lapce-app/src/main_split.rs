@@ -15,11 +15,12 @@ use floem::{
         SignalWithUntracked, WriteSignal,
     },
 };
+use itertools::Itertools;
 use lapce_core::cursor::Cursor;
 use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
 use lsp_types::{
-    CodeAction, CodeActionOrCommand, DocumentChangeOperation, DocumentChanges,
-    OneOf, TextEdit, Url, WorkspaceEdit,
+    CodeAction, CodeActionOrCommand, DiagnosticSeverity, DocumentChangeOperation,
+    DocumentChanges, OneOf, Position, TextEdit, Url, WorkspaceEdit,
 };
 use serde::{Deserialize, Serialize};
 
@@ -1093,6 +1094,76 @@ impl MainSplitData {
             }
         }
     }
+
+    pub fn next_error(&self, cx: AppContext) {
+        let file_diagnostics = self.diagnostics_items(DiagnosticSeverity::ERROR);
+        if file_diagnostics.is_empty() {
+            return;
+        }
+        let active_editor = self.active_editor.get_untracked();
+        let active_path = active_editor
+            .map(|editor| {
+                editor.with_untracked(|editor| (editor.doc, editor.cursor))
+            })
+            .and_then(|(doc, cursor)| {
+                let offset = cursor.with_untracked(|c| c.offset());
+                let (path, position) = doc.with_untracked(|doc| {
+                    (
+                        doc.content.path().cloned(),
+                        doc.buffer().offset_to_position(offset),
+                    )
+                });
+                path.map(|path| (path, position))
+            });
+        let (path, position) =
+            next_in_file_errors_offset(active_path, &file_diagnostics);
+        let location = EditorLocation {
+            path,
+            position: Some(EditorPosition::Position(position)),
+            scroll_offset: None,
+            ignore_unconfirmed: false,
+        };
+        self.jump_to_location(cx, location, None);
+    }
+
+    pub fn diagnostics_items(
+        &self,
+        severity: DiagnosticSeverity,
+    ) -> Vec<(PathBuf, Vec<EditorDiagnostic>)> {
+        let docs = self.docs.get_untracked();
+        self.diagnostics
+            .get_untracked()
+            .into_iter()
+            .filter_map(|(path, diagnostic)| {
+                if let Some(doc) = docs.get(&path) {
+                    return match doc.with_untracked(|doc| doc.diagnostics.clone()) {
+                        Some(d) => {
+                            let diagnostics: Vec<EditorDiagnostic> = d
+                                .into_iter()
+                                .filter(|d| d.diagnostic.severity == Some(severity))
+                                .collect();
+                            if !diagnostics.is_empty() {
+                                Some((path, diagnostics))
+                            } else {
+                                None
+                            }
+                        }
+                        None => None,
+                    };
+                }
+                let diagnostics: Vec<EditorDiagnostic> = diagnostic
+                    .into_iter()
+                    .filter(|d| d.diagnostic.severity == Some(severity))
+                    .collect();
+                if !diagnostics.is_empty() {
+                    Some((path, diagnostics))
+                } else {
+                    None
+                }
+            })
+            .sorted_by_key(|(path, _)| path.clone())
+            .collect()
+    }
 }
 
 fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> {
@@ -1135,4 +1206,39 @@ fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> 
             .collect::<HashMap<Url, Vec<TextEdit>>>(),
     };
     Some(edits)
+}
+
+fn next_in_file_errors_offset(
+    active_path: Option<(PathBuf, Position)>,
+    file_diagnostics: &[(PathBuf, Vec<EditorDiagnostic>)],
+) -> (PathBuf, Position) {
+    if let Some((active_path, position)) = active_path {
+        for (current_path, diagnostics) in file_diagnostics {
+            if &active_path == current_path {
+                for diagnostic in diagnostics {
+                    if diagnostic.diagnostic.range.start.line > position.line
+                        || (diagnostic.diagnostic.range.start.line == position.line
+                            && diagnostic.diagnostic.range.start.character
+                                > position.character)
+                    {
+                        return (
+                            (*current_path).clone(),
+                            diagnostic.diagnostic.range.start,
+                        );
+                    }
+                }
+            }
+            if current_path > &active_path {
+                return (
+                    (*current_path).clone(),
+                    diagnostics[0].diagnostic.range.start,
+                );
+            }
+        }
+    }
+
+    (
+        file_diagnostics[0].0.clone(),
+        file_diagnostics[0].1[0].diagnostic.range.start,
+    )
 }

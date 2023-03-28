@@ -28,7 +28,7 @@ use floem::{
         container, container_box, list, tab, virtual_list, Decorators,
         VirtualListDirection, VirtualListItemSize,
     },
-    views::{label, scroll, text_layout},
+    views::{label, rich_text, scroll},
 };
 use lapce_core::{
     cursor::{ColPosition, Cursor, CursorMode},
@@ -584,6 +584,84 @@ fn editor_cursor(
     })
 }
 
+fn editor_extra_style(
+    cx: AppContext,
+    editor: RwSignal<EditorData>,
+    viewport: ReadSignal<Rect>,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    let list_items = move || {
+        let config = config.get();
+        let mut doc = editor.get().doc.get();
+        let viewport = viewport.get();
+        let min = viewport.y0;
+        let max = viewport.y1;
+        let line_height = config.editor.line_height() as f64;
+        let total_len = doc.total_len();
+        let start = (min / line_height).floor() as usize;
+        let end = ((max / line_height).ceil() as usize).min(total_len);
+        doc.slice(start..end)
+    };
+
+    list(
+        cx,
+        list_items,
+        |line| (line.rev, line.style_rev, line.line),
+        move |cx, line| {
+            let extra_styles = line.text.extra_style.clone();
+            list(
+                cx,
+                move || extra_styles.clone(),
+                |extra| 0,
+                move |cx, extra| {
+                    container(cx, |cx| {
+                        label(cx, || " ".to_string()).style(cx, move || {
+                            let config = config.get();
+                            Style {
+                                font_family: Some(config.editor.font_family.clone()),
+                                font_size: Some(config.editor.font_size as f32),
+                                width: Dimension::Percent(1.0),
+                                background: extra.bg_color,
+                                ..Default::default()
+                            }
+                        })
+                    })
+                    .style(cx, move || {
+                        let viewport = viewport.get();
+                        let line_height = config.get().editor.line_height();
+                        let y = (line.line * line_height) as f64 - viewport.y0;
+                        Style {
+                            position: Position::Absolute,
+                            height: Dimension::Points(line_height as f32),
+                            width: match extra.width {
+                                Some(width) => Dimension::Points(width as f32),
+                                None => Dimension::Percent(1.0),
+                            },
+                            margin_left: extra
+                                .width
+                                .map(|_| (extra.x - viewport.x0) as f32),
+                            margin_top: Some(y as f32),
+                            align_items: Some(AlignItems::Center),
+                            ..Default::default()
+                        }
+                    })
+                },
+            )
+            .style(cx, || Style {
+                position: Position::Absolute,
+                width: Dimension::Percent(1.0),
+                ..Default::default()
+            })
+        },
+    )
+    .style(cx, || Style {
+        position: Position::Absolute,
+        width: Dimension::Percent(1.0),
+        height: Dimension::Percent(1.0),
+        ..Default::default()
+    })
+}
+
 fn editor(
     cx: AppContext,
     is_active: impl Fn() -> bool + 'static + Copy,
@@ -612,41 +690,7 @@ fn editor(
     let key_fn = |line: &DocLine| (line.rev, line.style_rev, line.line);
     let view_fn = move |cx, line: DocLine| {
         container(cx, |cx| {
-            stack(cx, move |cx| {
-                (
-                    {
-                        let extra_styles = line.text.extra_style.clone();
-                        list(
-                            cx,
-                            move || extra_styles.clone(),
-                            |extra| 0,
-                            |cx, extra| {
-                                label(cx, || "".to_string()).style(cx, move || {
-                                    Style {
-                                        position: Position::Absolute,
-                                        height: Dimension::Percent(1.0),
-                                        width: match extra.width {
-                                            Some(width) => {
-                                                Dimension::Points(width as f32)
-                                            }
-                                            None => Dimension::Percent(1.0),
-                                        },
-                                        margin_left: Some(extra.x as f32),
-                                        background: extra.bg_color,
-                                        ..Default::default()
-                                    }
-                                })
-                            },
-                        )
-                        .style(cx, || Style {
-                            position: Position::Absolute,
-                            height: Dimension::Percent(1.0),
-                            ..Default::default()
-                        })
-                    },
-                    text_layout(cx, move || line.text.clone().text.clone()),
-                )
-            })
+            rich_text(cx, move || line.text.clone().text.clone())
         })
         .style(cx, move || {
             let config = config.get_untracked();
@@ -672,6 +716,7 @@ fn editor(
                         is_active,
                         config,
                     ),
+                    editor_extra_style(cx, editor, viewport.read_only(), config),
                     scroll(cx, |cx| {
                         let config = config.get_untracked();
                         let line_height = config.editor.line_height();
@@ -1570,7 +1615,7 @@ fn status(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
                     }
                 },
             ),
-            label(cx, move || diagnostic_count.get().0.to_string()).style(
+            label(cx, move || diagnostic_count.get().1.to_string()).style(
                 cx,
                 || Style {
                     margin_left: Some(5.0),

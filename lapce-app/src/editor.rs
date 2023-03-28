@@ -498,16 +498,6 @@ impl EditorData {
             FocusCommand::GotoDefinition => {
                 self.go_to_definition(cx);
             }
-            FocusCommand::JumpLocationForward => {
-                self.common
-                    .internal_command
-                    .set(Some(InternalCommand::JumpLocationForward));
-            }
-            FocusCommand::JumpLocationBackward => {
-                self.common
-                    .internal_command
-                    .set(Some(InternalCommand::JumpLocationBackward));
-            }
             FocusCommand::ShowCodeActions => {
                 self.show_code_actions(cx, false);
             }

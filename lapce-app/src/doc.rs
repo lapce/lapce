@@ -888,11 +888,30 @@ impl Document {
     /// Typically you should use [`Document::get_text_layout`] instead.
     fn new_text_layout(&self, line: usize, font_size: usize) -> TextLayoutLine {
         let config = self.config.get_untracked();
-        let line_content = self.buffer.line_content(line);
+        let line_content_original = self.buffer.line_content(line);
 
+        // Get the line content with newline characters replaced with spaces
+        // and the content without the newline characters
+        let (line_content, line_content_original) =
+            if let Some(s) = line_content_original.strip_suffix("\r\n") {
+                (
+                    format!("{s}  "),
+                    &line_content_original[..line_content_original.len() - 2],
+                )
+            } else if let Some(s) = line_content_original.strip_suffix('\n') {
+                (
+                    format!("{s} ",),
+                    &line_content_original[..line_content_original.len() - 1],
+                )
+            } else {
+                (
+                    line_content_original.to_string(),
+                    &line_content_original[..],
+                )
+            };
         // Combine the phantom text with the line content
         let phantom_text = self.line_phantom_text(line);
-        let line_content = phantom_text.combine_with_text(line_content.to_string());
+        let line_content = phantom_text.combine_with_text(line_content);
 
         let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
         let family: Vec<FamilyOwned> =
@@ -957,6 +976,27 @@ impl Document {
                     under_line: phantom.under_line,
                 });
             }
+        }
+
+        // Add the styling for the diagnostic severity, if applicable
+        if let Some(max_severity) = phantom_text.max_severity {
+            let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
+                LapceColor::ERROR_LENS_ERROR_BACKGROUND
+            } else if max_severity == DiagnosticSeverity::WARNING {
+                LapceColor::ERROR_LENS_WARNING_BACKGROUND
+            } else {
+                LapceColor::ERROR_LENS_OTHER_BACKGROUND
+            };
+
+            let x1 = (!config.editor.error_lens_end_of_line)
+                .then(|| text_layout.hit_position(line_content.len()).point.x);
+
+            extra_style.push(LineExtraStyle {
+                x: 0.0,
+                width: x1,
+                bg_color: Some(*config.get_color(theme_prop)),
+                under_line: None,
+            });
         }
 
         TextLayoutLine {
