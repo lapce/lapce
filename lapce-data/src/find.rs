@@ -492,7 +492,7 @@ impl Find {
     }
 }
 
-/// Checks if the `start` and `end` of a match is on word boundaries.
+/// Checks whether the `start` and `end` of a match are on word boundaries.
 fn is_matching_whole_words(text: &Rope, start: usize, end: usize) -> bool {
     WordCursor::new(text, start + 1).prev_code_boundary() == start
         && WordCursor::new(text, end - 1).next_code_boundary() == end
