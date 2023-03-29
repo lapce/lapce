@@ -292,6 +292,11 @@ name = ""
 "panel.restore" = "chevron-down.svg"
 "panel.maximise" = "chevron-right.svg"
 
+"panel_section.expand_vertical" = "chevron-down.svg"
+"panel_section.collapse_vertical" = "chevron-left.svg"
+"panel_section.expand_horizontal" = "chevron-right.svg"
+"panel_section.collapse_horizontal" = "chevron-down.svg"
+
 "split.horizontal" = "split-horizontal.svg"
 
 "tab.previous" = "chevron-left.svg"

@@ -329,11 +329,16 @@ impl Widget<LapceTabData> for PanelSection {
         if let Some(header) = self.header.as_mut() {
             header.paint(ctx, data, env);
 
-            let icon_name = if self.display_content {
-                LapceIcons::PANEL_RESTORE
+            let mut icon_name = if self.display_content {
+                LapceIcons::PANEL_SECTION_EXPAND_VERTICAL
             } else {
-                LapceIcons::PANEL_MAXIMISE
+                LapceIcons::PANEL_SECTION_COLLAPSE_VERTICAL
             };
+            if let Some((_,position)) = data.panel.panel_position(&self.kind) {
+                if position.is_bottom() {
+                    icon_name = LapceIcons::PANEL_SECTION_COLLAPSE_HORIZONTAL
+                }
+            }
 
             let header_rect = header.layout_rect();
 
