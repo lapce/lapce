@@ -289,7 +289,7 @@ impl Find {
         None
     }
 
-    /// Executes the search on the given text in the range defined by `start` and `end`.
+    /// Performs a search on the specified text within the range defined by `start` and `end`.
     pub fn update_find(
         &mut self,
         text: &Rope,
