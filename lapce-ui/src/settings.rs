@@ -24,7 +24,8 @@ use lapce_data::{
         LAPCE_UI_COMMAND,
     },
     config::{
-        CoreConfig, DropdownInfo, EditorConfig, LapceTheme, TerminalConfig, UIConfig,
+        CoreConfig, DropdownInfo, EditorConfig, LapceIcons, LapceTheme,
+        TerminalConfig, UIConfig,
     },
     data::{FocusArea, LapceEditorData, LapceTabData},
     document::{BufferContent, Document},
@@ -2379,7 +2380,31 @@ impl Widget<LapceTabData> for SettingsSwitcher {
                 label.push_str(&matches.to_string());
                 label.push(')');
             }
-
+            if text == &data.settings.plugin_section {
+                let fold_icon_name = if self.plugin_settings_expanded {
+                    LapceIcons::ITEM_OPENED
+                } else {
+                    LapceIcons::ITEM_CLOSED
+                };
+                let fold_svg = data.config.ui_svg(fold_icon_name);
+                let svg_size = data.config.ui.icon_size() as f64;
+                let fold_rect =
+                    Size::new(svg_size, svg_size)
+                        .to_rect()
+                        .with_origin(Point::new(
+                            3.0,
+                            self.line_height * i as f64
+                                + (self.line_height - svg_size) / 2.0,
+                        ));
+                ctx.draw_svg(
+                    &fold_svg,
+                    fold_rect,
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE),
+                    ),
+                );
+            }
             let text_layout = ctx
                 .text()
                 .new_text_layout(label.to_string())
