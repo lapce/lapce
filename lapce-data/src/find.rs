@@ -115,8 +115,8 @@ impl Find {
         }
     }
 
-    /// Flips the current case sensitivity setting and returns the toggled value.
-    /// `true` means case sensitive and `false` case insensitive.
+    /// Reverses the current case setting and returns the reversed value.
+    /// `true` means case sensitive and `false` means case insensitive.
     pub fn toggle_case_sensitive(&mut self) -> bool {
         let toggled = !self.case_sensitive();
         self.set_case_sensitive(toggled);
