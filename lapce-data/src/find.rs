@@ -437,7 +437,7 @@ impl Find {
         }
     }
 
-    /// Returns the occurrence closest to the provided selection `sel`. If the search is reversed then
+    /// Returns the occurrence closest to the given selection `sel`. If the search is reversed, then
     /// the occurrence closest to the start of the selection is returned. `wrapped` indicates that
     /// if the end of the text is reached, the search continues from the start.
     pub fn next_occurrence(
