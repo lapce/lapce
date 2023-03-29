@@ -1587,68 +1587,102 @@ impl LapceEditor {
                 );
             });
 
-        selection_find
-            .occurrences()
-            .regions()
-            .iter()
-            .flat_map(|region| {
-                let [(start_line, start_col), (end_line, end_col)] =
-                    [region.min(), region.max()]
-                        .map(|offset| buffer.offset_to_line_col(offset));
+        for region in selection_find.occurrences().regions() {
+            let [start, end] = [region.min(), region.max()]
+                .map(|offset| buffer.offset_to_line_col(offset));
 
-                (start_line..=end_line).filter_map(move |line| {
-                    screen_lines.info.get(&line).map(|line_info| {
-                        (
-                            line,
-                            line_info,
-                            (start_line, start_col),
-                            (end_line, end_col),
+            let rect_tuples = (start.0..=end.0)
+                .filter_map(|line_nr| {
+                    screen_lines.info.get(&line_nr).map(|line_info| {
+                        Self::get_rect_points(
+                            ctx, data, line_nr, line_info, start, end,
                         )
                     })
                 })
-            })
-            .for_each(
-                |(line, line_info, (start_line, start_col), (end_line, end_col))| {
-                    let left_col = if line == start_line { start_col } else { 0 };
+                .collect::<Vec<_>>();
 
-                    let right_col = if line == end_line {
-                        end_col
-                    } else {
-                        buffer.line_end_col(line, true) + 1
-                    };
+            if !rect_tuples.is_empty() {
+                ctx.stroke(
+                    Self::join_rects_into_bezpath(&rect_tuples),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                    1.0,
+                );
+            }
+        }
+    }
 
-                    let text_layout = data.doc.get_text_layout(
-                        ctx.text(),
-                        line,
-                        line_info.font_size,
-                        &data.config,
-                    );
+    /// Returns the rectangular selection points in the current line
+    /// for the given selection range.
+    fn get_rect_points(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        line_nr: usize,
+        line_info: &LineInfo,
+        sel_start: (usize, usize),
+        sel_end: (usize, usize),
+    ) -> (f64, f64, f64, f64) {
+        let left_col = if line_nr == sel_start.0 {
+            sel_start.1
+        } else {
+            0
+        };
 
-                    let phantom_text =
-                        data.doc.line_phantom_text(&data.config, line);
+        let right_col = if line_nr == sel_end.0 {
+            sel_end.1
+        } else {
+            data.doc.buffer().line_end_col(line_nr, true) + 1
+        };
 
-                    let [x0, x1] = [
-                        phantom_text.col_at(left_col),
-                        phantom_text.col_after(right_col, false),
-                    ]
-                    .map(|col| {
-                        text_layout.text.hit_test_text_position(col).point.x
-                            + line_info.x
-                    });
+        let text_layout = data.doc.get_text_layout(
+            ctx.text(),
+            line_nr,
+            line_info.font_size,
+            &data.config,
+        );
 
-                    let (y0, y1) =
-                        (line_info.y, line_info.y + line_info.line_height);
+        let phantom_text = data.doc.line_phantom_text(&data.config, line_nr);
 
-                    let rect = Rect::new(x0, y0, x1, y1).to_rounded_rect(1.5);
+        let [x0, x1] = [
+            phantom_text.col_at(left_col),
+            phantom_text.col_after(right_col, false),
+        ]
+        .map(|col| {
+            text_layout.text.hit_test_text_position(col).point.x + line_info.x
+        });
 
-                    ctx.stroke(
-                        rect,
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                        1.0,
-                    );
-                },
-            );
+        let (y0, y1) = (line_info.y, line_info.y + line_info.line_height);
+
+        (x0, y0, x1, y1)
+    }
+
+    /// Joins the given rectangular points into a single continuous shape.
+    fn join_rects_into_bezpath(rect_points: &[(f64, f64, f64, f64)]) -> BezPath {
+        let mut path = BezPath::new();
+
+        if let Some(first) = rect_points.first() {
+            path.move_to((first.0, first.1));
+        } else {
+            return path;
+        };
+
+        // first build the right-hand side downward
+        let rhs = rect_points.iter().map(|(_x0, y0, x1, y1)| (x1, y0, y1));
+
+        // then build the left-hand side upward
+        let lhs = rect_points
+            .iter()
+            .rev()
+            .map(|(x0, y0, _x1, y1)| (x0, y1, y0));
+
+        for (x, horiz_y, vert_y) in rhs.chain(lhs) {
+            path.line_to((*x, *horiz_y));
+            path.line_to((*x, *vert_y));
+        }
+
+        path.close_path();
+
+        path
     }
 
     fn paint_find(
