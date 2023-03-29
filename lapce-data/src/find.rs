@@ -461,7 +461,7 @@ impl Find {
         };
 
         let next_occurrence = if reverse {
-            sel_start.checked_sub(1).map_or(None, |search_end| {
+            sel_start.checked_sub(1).and_then(|search_end| {
                 self.occurrences.full_regions_in_range(0, search_end).last()
             })
         } else {
