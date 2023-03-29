@@ -453,8 +453,8 @@ impl Find {
 
         let (sel_start, sel_end) = match sel.last() {
             Some(last) => {
-                // if the last selection is a caret then allow the current position to be part of the occurrence
-                // if the last selection is not a caret then continue searching after the caret
+                // if the last selection is a caret, then allow the current position to be part of the occurrence
+                // if the last selection is not a caret, then continue searching after the caret
                 (last.min(), last.max() + (!last.is_caret()) as usize)
             }
             _ => (0, 0),
