@@ -107,7 +107,7 @@ impl Find {
         self.hls_dirty = is_dirty
     }
 
-    /// Returns `true` if case sensitive and `false` if case insensitive.
+    /// Returns `true` if case sensitive and `false` if not.
     pub fn case_sensitive(&self) -> bool {
         match self.case_matching {
             CaseMatching::Exact => true,
