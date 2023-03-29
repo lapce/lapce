@@ -1377,6 +1377,7 @@ impl Document {
         self.clear_text_layout_cache();
         self.clear_code_actions();
         self.diagnostics = Some(diagnostics);
+        self.init_diagnostics();
     }
 
     /// Update the diagnostics' positions after an edit so that they appear in the correct place.

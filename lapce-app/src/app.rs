@@ -645,6 +645,7 @@ fn editor_extra_style(
             .style(cx, || Style {
                 position: Position::Absolute,
                 width: Dimension::Percent(1.0),
+                height: Dimension::Percent(1.0),
                 ..Default::default()
             })
         },
