@@ -26,17 +26,21 @@ pub fn focus_text(
 
     create_effect(cx.scope, move |_| {
         let new_text = text();
-        AppContext::update_state(id, FocusTextState::Text(new_text));
+        AppContext::update_state(id, FocusTextState::Text(new_text), false);
     });
 
     create_effect(cx.scope, move |_| {
         let focus_color = focus_color();
-        AppContext::update_state(id, FocusTextState::FocusColor(focus_color));
+        AppContext::update_state(id, FocusTextState::FocusColor(focus_color), false);
     });
 
     create_effect(cx.scope, move |_| {
         let focus_indices = focus_indices();
-        AppContext::update_state(id, FocusTextState::FocusIndices(focus_indices));
+        AppContext::update_state(
+            id,
+            FocusTextState::FocusIndices(focus_indices),
+            false,
+        );
     });
 
     FocusText {

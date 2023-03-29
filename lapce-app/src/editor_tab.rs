@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     doc::DocContent,
-    editor::{EditorData, EditorInfo},
+    editor::{location::EditorLocation, EditorData, EditorInfo},
     id::{EditorId, EditorTabId, SplitId},
     main_split::MainSplitData,
     window_tab::WindowTabData,
@@ -72,13 +72,15 @@ impl EditorTabInfo {
                 .collect(),
             layout_rect: Rect::ZERO,
             window_origin: Point::ZERO,
+            locations: create_rw_signal(cx.scope, im::Vector::new()),
+            current_location: create_rw_signal(cx.scope, 0),
         };
         let editor_tab_data = create_rw_signal(cx.scope, editor_tab_data);
         if self.is_focus {
             data.active_editor_tab.set(Some(editor_tab_id));
         }
         data.editor_tabs.update(|editor_tabs| {
-            editor_tabs.insert(editor_tab_id, editor_tab_data.clone());
+            editor_tabs.insert(editor_tab_id, editor_tab_data);
         });
         editor_tab_data
     }
@@ -122,6 +124,8 @@ pub struct EditorTabData {
     pub children: Vec<(RwSignal<usize>, EditorTabChild)>,
     pub window_origin: Point,
     pub layout_rect: Rect,
+    pub locations: RwSignal<im::Vector<EditorLocation>>,
+    pub current_location: RwSignal<usize>,
 }
 
 impl EditorTabData {

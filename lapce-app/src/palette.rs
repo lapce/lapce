@@ -38,7 +38,10 @@ use crate::{
     completion::CompletionData,
     config::LapceConfig,
     db::LapceDb,
-    editor::{location::EditorLocation, EditorData},
+    editor::{
+        location::{EditorLocation, EditorPosition},
+        EditorData,
+    },
     id::EditorId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     main_split::MainSplitData,
@@ -287,6 +290,9 @@ impl PaletteData {
             PaletteKind::File => {
                 self.get_files(cx);
             }
+            PaletteKind::Line => {
+                self.get_lines(cx);
+            }
             PaletteKind::Command => {
                 self.get_commands(cx);
             }
@@ -330,6 +336,45 @@ impl PaletteData {
                 send(items);
             }
         });
+    }
+
+    fn get_lines(&self, cx: AppContext) {
+        let editor = self.main_split.active_editor.get_untracked();
+        let doc = match editor {
+            Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+            None => {
+                return;
+            }
+        };
+
+        let buffer = doc.with_untracked(|doc| doc.buffer().clone());
+        let last_line_number = buffer.last_line() + 1;
+        let last_line_number_len = last_line_number.to_string().len();
+        let items = buffer
+            .text()
+            .lines(0..buffer.len())
+            .enumerate()
+            .map(|(i, l)| {
+                let line_number = i + 1;
+                let text = format!(
+                    "{}{} {}",
+                    line_number,
+                    vec![" "; last_line_number_len - line_number.to_string().len()]
+                        .join(""),
+                    l
+                );
+                PaletteItem {
+                    content: PaletteItemContent::Line {
+                        line: i,
+                        content: text.clone(),
+                    },
+                    filter_text: text,
+                    score: 0,
+                    indices: vec![],
+                }
+            })
+            .collect();
+        self.items.set(items);
     }
 
     fn get_commands(&self, cx: AppContext) {
@@ -456,6 +501,31 @@ impl PaletteData {
                         },
                     ));
                 }
+                PaletteItemContent::Line { line, .. } => {
+                    let editor = self.main_split.active_editor.get_untracked();
+                    let doc = match editor {
+                        Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+                        None => {
+                            return;
+                        }
+                    };
+                    let path = doc.with_untracked(|doc| doc.content.path().cloned());
+                    let path = match path {
+                        Some(path) => path,
+                        None => return,
+                    };
+                    self.common.internal_command.set(Some(
+                        InternalCommand::JumpToLocation {
+                            location: EditorLocation {
+                                path,
+                                position: Some(EditorPosition::Line(*line)),
+                                scroll_offset: None,
+                                ignore_unconfirmed: false,
+                                same_editor_tab: false,
+                            },
+                        },
+                    ));
+                }
                 PaletteItemContent::Command { cmd } => {
                     self.common.lapce_command.set(Some(cmd.clone()));
                 }
@@ -484,6 +554,36 @@ impl PaletteData {
         if let Some(item) = items.get(index) {
             match &item.content {
                 PaletteItemContent::File { path, full_path } => {}
+                PaletteItemContent::Line { line, content } => {
+                    self.has_preview.set(true);
+                    let editor = self.main_split.active_editor.get_untracked();
+                    let doc = match editor {
+                        Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+                        None => {
+                            return;
+                        }
+                    };
+                    let path = doc.with_untracked(|doc| doc.content.path().cloned());
+                    let path = match path {
+                        Some(path) => path,
+                        None => return,
+                    };
+                    self.preview_editor.update(|preview_editor| {
+                        preview_editor.doc = doc;
+                    });
+                    self.preview_editor.get_untracked().go_to_location(
+                        cx,
+                        EditorLocation {
+                            path,
+                            position: Some(EditorPosition::Line(*line)),
+                            scroll_offset: None,
+                            ignore_unconfirmed: false,
+                            same_editor_tab: false,
+                        },
+                        false,
+                        None,
+                    );
+                }
                 PaletteItemContent::Command { cmd } => {}
                 PaletteItemContent::Workspace { workspace } => {}
                 PaletteItemContent::Reference { path, location } => {
@@ -492,13 +592,13 @@ impl PaletteData {
                         self.main_split.get_doc(cx, location.path.clone());
                     self.preview_editor.update(|preview_editor| {
                         preview_editor.doc = doc;
-                        preview_editor.go_to_location(
-                            cx,
-                            location.clone(),
-                            new_doc,
-                            None,
-                        );
                     });
+                    self.preview_editor.get_untracked().go_to_location(
+                        cx,
+                        location.clone(),
+                        new_doc,
+                        None,
+                    );
                 }
             }
         }

@@ -19,6 +19,10 @@ pub enum PaletteItemContent {
         path: PathBuf,
         full_path: PathBuf,
     },
+    Line {
+        line: usize,
+        content: String,
+    },
     Command {
         cmd: LapceCommand,
     },

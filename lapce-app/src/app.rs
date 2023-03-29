@@ -266,11 +266,11 @@ fn editor_gutter(
     editor: RwSignal<EditorData>,
     is_active: impl Fn() -> bool + 'static + Copy,
 ) -> impl View {
-    let (cursor, viewport, gutter_viewport, config) = editor.with(|editor| {
+    let (cursor, viewport, scroll_delta, config) = editor.with(|editor| {
         (
             editor.cursor,
             editor.viewport,
-            editor.gutter_viewport,
+            editor.scroll_delta,
             editor.common.config,
         )
     });
@@ -439,20 +439,15 @@ fn editor_gutter(
                 })
             })
             .hide_bar()
-            .onscroll(move |rect| {
-                gutter_viewport.set(rect);
+            .on_event(EventListner::MouseWheel, move |event| {
+                if let Event::MouseWheel(wheel) = event {
+                    scroll_delta.set(wheel.wheel_delta);
+                }
+                true
             })
             .on_scroll_to(cx, move || {
-                let gutter_viewport = gutter_viewport.get_untracked();
-                let mut gutter_origin = gutter_viewport.origin();
                 let viewport = viewport.get();
-                let origin = viewport.origin();
-                if gutter_origin.y != origin.y {
-                    gutter_origin.y = origin.y;
-                    Some(gutter_origin)
-                } else {
-                    None
-                }
+                Some(viewport.origin())
             })
             .style(cx, move || Style {
                 position: Position::Absolute,
@@ -664,28 +659,21 @@ fn editor_extra_style(
 
 fn editor(
     cx: AppContext,
+    workspace: Arc<LapceWorkspace>,
     is_active: impl Fn() -> bool + 'static + Copy,
     editor: RwSignal<EditorData>,
 ) -> impl View {
-    let (
-        cursor,
-        scroll_delta,
-        scroll_to,
-        window_origin,
-        viewport,
-        gutter_viewport,
-        config,
-    ) = editor.with(|editor| {
-        (
-            editor.cursor.read_only(),
-            editor.scroll_delta.read_only(),
-            editor.scroll_to,
-            editor.window_origin,
-            editor.viewport,
-            editor.gutter_viewport,
-            editor.common.config,
-        )
-    });
+    let (cursor, scroll_delta, scroll_to, window_origin, viewport, config) = editor
+        .with(|editor| {
+            (
+                editor.cursor.read_only(),
+                editor.scroll_delta.read_only(),
+                editor.scroll_to,
+                editor.window_origin,
+                editor.viewport,
+                editor.common.config,
+            )
+        });
 
     let key_fn = |line: &DocLine| (line.rev, line.style_rev, line.line);
     let view_fn = move |cx, line: DocLine| {
@@ -705,101 +693,209 @@ fn editor(
 
     stack(cx, |cx| {
         (
-            editor_gutter(cx, editor, is_active),
             stack(cx, |cx| {
                 (
-                    editor_cursor(
-                        cx,
-                        editor,
-                        cursor,
-                        viewport.read_only(),
-                        is_active,
-                        config,
-                    ),
-                    editor_extra_style(cx, editor, viewport.read_only(), config),
-                    scroll(cx, |cx| {
-                        let config = config.get_untracked();
-                        let line_height = config.editor.line_height();
-                        virtual_list(
+                    label(cx, || " ".to_string()).style(cx, || Style {
+                        margin_top: Some(5.0),
+                        margin_bottom: Some(5.0),
+                        ..Default::default()
+                    }),
+                    scroll(cx, move |cx| {
+                        let workspace = workspace.clone();
+                        list(
                             cx,
-                            VirtualListDirection::Vertical,
-                            move || editor.get().doc.get(),
-                            key_fn,
-                            view_fn,
-                            VirtualListItemSize::Fixed(line_height as f64),
+                            move || {
+                                let doc = editor.with(|editor| editor.doc);
+                                let full_path = doc
+                                    .with_untracked(|doc| {
+                                        doc.content.path().cloned()
+                                    })
+                                    .unwrap_or_default();
+                                let mut path = full_path.clone();
+                                if let Some(workspace_path) =
+                                    workspace.clone().path.as_ref()
+                                {
+                                    path = path
+                                        .strip_prefix(workspace_path)
+                                        .unwrap_or(&full_path)
+                                        .to_path_buf();
+                                }
+                                path.ancestors()
+                                    .collect::<Vec<_>>()
+                                    .iter()
+                                    .rev()
+                                    .filter_map(|path| {
+                                        Some(path.file_name()?.to_str()?.to_string())
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .into_iter()
+                                    .enumerate()
+                            },
+                            |(i, section)| (*i, section.to_string()),
+                            move |cx, (i, section)| {
+                                stack(cx, |cx| {
+                                    (
+                                        svg(cx, move || {
+                                            config.get().ui_svg(
+                                                LapceIcons::BREADCRUMB_SEPARATOR,
+                                            )
+                                        })
+                                        .style(cx, move || {
+                                            let size =
+                                                config.get().ui.icon_size() as f32;
+                                            Style {
+                                                display: if i == 0 {
+                                                    Display::None
+                                                } else {
+                                                    Display::Flex
+                                                },
+                                                width: Dimension::Points(size),
+                                                height: Dimension::Points(size),
+                                                ..Default::default()
+                                            }
+                                        }),
+                                        label(cx, move || section.clone()),
+                                    )
+                                })
+                                .style(cx, || {
+                                    Style {
+                                        align_items: Some(AlignItems::Center),
+                                        ..Default::default()
+                                    }
+                                })
+                            },
                         )
                         .style(cx, || Style {
-                            flex_direction: FlexDirection::Column,
+                            padding_left: 10.0,
+                            padding_right: 10.0,
                             ..Default::default()
                         })
                     })
-                    .on_resize(move |point, rect| {
-                        window_origin.set(point);
-                    })
-                    .onscroll(move |rect| {
-                        viewport.set(rect);
-                    })
                     .on_scroll_to(cx, move || {
-                        if let Some(scroll) = scroll_to.get() {
-                            scroll_to.set(None);
-                            return Some(scroll.to_point());
-                        }
-                        let gutter_viewport = gutter_viewport.get();
-                        let gutter_origin = gutter_viewport.origin();
-                        let viewport = viewport.get_untracked();
-                        let mut origin = viewport.origin();
-                        if gutter_origin.y != origin.y {
-                            origin.y = gutter_origin.y;
-                            Some(origin)
-                        } else {
-                            None
-                        }
+                        editor.with(|_editor| ());
+                        Some(Point::new(3000.0, 0.0))
                     })
-                    .on_scroll_delta(cx, move || scroll_delta.get())
-                    .on_ensure_visible(cx, move || {
-                        let cursor = cursor.get();
-                        let offset = cursor.offset();
-                        let editor = editor.get();
-                        let doc = editor.doc;
-                        let caret = doc.with_untracked(|doc| {
-                            cursor_caret(doc, offset, !cursor.is_insert())
-                        });
-                        let config = config.get_untracked();
-                        let line_height = config.editor.line_height();
-                        if let CursorRender::Caret { x, width, line } = caret {
-                            let rect = Size::new(width, line_height as f64)
-                                .to_rect()
-                                .with_origin(Point::new(
-                                    x,
-                                    (line * line_height) as f64,
-                                ));
-
-                            let viewport = viewport.get_untracked();
-                            let smallest_distance = (viewport.y0 - rect.y0)
-                                .abs()
-                                .min((viewport.y1 - rect.y0).abs())
-                                .min((viewport.y0 - rect.y1).abs())
-                                .min((viewport.y1 - rect.y1).abs());
-                            let jump_to_middle =
-                                smallest_distance > viewport.height() / 2.0;
-
-                            if jump_to_middle {
-                                rect.inflate(0.0, viewport.height() / 2.0)
-                            } else {
-                                rect.inflate(
-                                    0.0,
-                                    (config.editor.cursor_surrounding_lines
-                                        * line_height)
-                                        as f64,
-                                )
-                            }
-                        } else {
-                            Rect::ZERO
-                        }
-                    })
+                    .hide_bar()
                     .style(cx, || Style {
                         position: Position::Absolute,
                         width: Dimension::Percent(1.0),
+                        height: Dimension::Percent(1.0),
+                        border_bottom: 1.0,
+                        align_items: Some(AlignItems::Center),
+                        ..Default::default()
+                    }),
+                )
+            })
+            .style(cx, || Style {
+                width: Dimension::Percent(1.0),
+                ..Default::default()
+            }),
+            stack(cx, |cx| {
+                (
+                    editor_gutter(cx, editor, is_active),
+                    stack(cx, |cx| {
+                        (
+                            editor_cursor(
+                                cx,
+                                editor,
+                                cursor,
+                                viewport.read_only(),
+                                is_active,
+                                config,
+                            ),
+                            editor_extra_style(
+                                cx,
+                                editor,
+                                viewport.read_only(),
+                                config,
+                            ),
+                            scroll(cx, |cx| {
+                                let config = config.get_untracked();
+                                let line_height = config.editor.line_height();
+                                virtual_list(
+                                    cx,
+                                    VirtualListDirection::Vertical,
+                                    move || editor.get().doc.get(),
+                                    key_fn,
+                                    view_fn,
+                                    VirtualListItemSize::Fixed(line_height as f64),
+                                )
+                                .style(cx, || {
+                                    Style {
+                                        flex_direction: FlexDirection::Column,
+                                        ..Default::default()
+                                    }
+                                })
+                            })
+                            .on_resize(move |point, rect| {
+                                window_origin.set(point);
+                            })
+                            .onscroll(move |rect| {
+                                viewport.set(rect);
+                            })
+                            .on_scroll_to(cx, move || {
+                                scroll_to.get().map(|s| s.to_point())
+                            })
+                            .on_scroll_delta(cx, move || scroll_delta.get())
+                            .on_ensure_visible(cx, move || {
+                                let cursor = cursor.get();
+                                let offset = cursor.offset();
+                                let editor = editor.get_untracked();
+                                let doc = editor.doc;
+                                let caret = doc.with_untracked(|doc| {
+                                    cursor_caret(doc, offset, !cursor.is_insert())
+                                });
+                                let config = config.get_untracked();
+                                let line_height = config.editor.line_height();
+                                if let CursorRender::Caret { x, width, line } = caret
+                                {
+                                    let rect = Size::new(width, line_height as f64)
+                                        .to_rect()
+                                        .with_origin(Point::new(
+                                            x,
+                                            (line * line_height) as f64,
+                                        ));
+
+                                    let viewport = viewport.get_untracked();
+                                    let smallest_distance = (viewport.y0 - rect.y0)
+                                        .abs()
+                                        .min((viewport.y1 - rect.y0).abs())
+                                        .min((viewport.y0 - rect.y1).abs())
+                                        .min((viewport.y1 - rect.y1).abs());
+                                    let biggest_distance = (viewport.y0 - rect.y0)
+                                        .abs()
+                                        .max((viewport.y1 - rect.y0).abs())
+                                        .max((viewport.y0 - rect.y1).abs())
+                                        .max((viewport.y1 - rect.y1).abs());
+                                    let jump_to_middle = biggest_distance
+                                        > viewport.height()
+                                        && smallest_distance
+                                            > viewport.height() / 2.0;
+
+                                    if jump_to_middle {
+                                        rect.inflate(0.0, viewport.height() / 2.0)
+                                    } else {
+                                        rect.inflate(
+                                            0.0,
+                                            (config.editor.cursor_surrounding_lines
+                                                * line_height)
+                                                as f64,
+                                        )
+                                    }
+                                } else {
+                                    Rect::ZERO
+                                }
+                            })
+                            .style(cx, || Style {
+                                position: Position::Absolute,
+                                width: Dimension::Percent(1.0),
+                                height: Dimension::Percent(1.0),
+                                ..Default::default()
+                            }),
+                        )
+                    })
+                    .style(cx, || Style {
+                        flex_grow: 1.0,
                         height: Dimension::Percent(1.0),
                         ..Default::default()
                     }),
@@ -807,57 +903,17 @@ fn editor(
             })
             .style(cx, || Style {
                 flex_grow: 1.0,
-                height: Dimension::Percent(1.0),
+                width: Dimension::Percent(1.0),
                 ..Default::default()
             }),
         )
     })
     .style(cx, || Style {
+        flex_direction: FlexDirection::Column,
         width: Dimension::Percent(1.0),
         height: Dimension::Percent(1.0),
         ..Default::default()
     })
-
-    // scroll(cx, |cx| {
-    //     stack(cx, |cx| {
-    //         (
-    //             editor_cursor(cx, doc, cursor, viewport, config),
-    //             virtual_list(
-    //                 cx,
-    //                 VirtualListDirection::Vertical,
-    //                 move || doc.get(),
-    //                 key_fn,
-    //                 view_fn,
-    //                 VirtualListItemSize::Fixed(20.0),
-    //             )
-    //             .style(cx, || Style {
-    //                 flex_direction: FlexDirection::Column,
-    //                 min_width: Dimension::Percent(1.0),
-    //                 min_height: Dimension::Percent(1.0),
-    //                 border: 1.0,
-    //                 ..Default::default()
-    //             }),
-    //         )
-    //     })
-    //     .style(cx, || Style {
-    //         min_width: Dimension::Percent(1.0),
-    //         min_height: Dimension::Percent(1.0),
-    //         flex_direction: FlexDirection::Column,
-    //         ..Default::default()
-    //     })
-    // })
-    // .onscroll(move |rect| {
-    //     set_viewport.set(rect);
-    // })
-    // .style(cx, || Style {
-    //     position: Position::Absolute,
-    //     border: 1.0,
-    //     border_radius: 10.0,
-    //     // flex_grow: 1.0,
-    //     width: Dimension::Percent(1.0),
-    //     height: Dimension::Percent(1.0),
-    //     ..Default::default()
-    // })
 }
 
 fn editor_tab_header(
@@ -1179,6 +1235,7 @@ fn editor_tab_header(
 
 fn editor_tab_content(
     cx: AppContext,
+    workspace: Arc<LapceWorkspace>,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
@@ -1204,7 +1261,12 @@ fn editor_tab_content(
                         editor_tab.is_some() && editor_tab == active_editor_tab
                     };
                     container_box(cx, |cx| {
-                        Box::new(editor(cx, is_active, editor_data))
+                        Box::new(editor(
+                            cx,
+                            workspace.clone(),
+                            is_active,
+                            editor_data,
+                        ))
                     })
                 } else {
                     container_box(cx, |cx| {
@@ -1230,6 +1292,7 @@ fn editor_tab_content(
 
 fn editor_tab(
     cx: AppContext,
+    workspace: Arc<LapceWorkspace>,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
@@ -1238,7 +1301,13 @@ fn editor_tab(
     stack(cx, |cx| {
         (
             editor_tab_header(cx, editor_tab, editors, config),
-            editor_tab_content(cx, active_editor_tab, editor_tab, editors),
+            editor_tab_content(
+                cx,
+                workspace.clone(),
+                active_editor_tab,
+                editor_tab,
+                editors,
+            ),
         )
     })
     .style(cx, || Style {
@@ -1340,6 +1409,7 @@ fn split_border(
 
 fn split_list(
     cx: AppContext,
+    workspace: Arc<LapceWorkspace>,
     split: ReadSignal<SplitData>,
     main_split: MainSplitData,
 ) -> impl View {
@@ -1361,6 +1431,7 @@ fn split_list(
                     container_box(cx, |cx| {
                         Box::new(editor_tab(
                             cx,
+                            workspace.clone(),
                             active_editor_tab,
                             editor_tab_data,
                             editors,
@@ -1377,7 +1448,12 @@ fn split_list(
                 if let Some(split) =
                     splits.with(|splits| splits.get(split_id).cloned())
                 {
-                    split_list(cx, split.read_only(), main_split.clone())
+                    split_list(
+                        cx,
+                        workspace.clone(),
+                        split.read_only(),
+                        main_split.clone(),
+                    )
                 } else {
                     container_box(cx, |cx| {
                         Box::new(label(cx, || "emtpy split".to_string()))
@@ -1453,14 +1529,18 @@ fn main_split(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
     let editor_tabs = window_tab_data.main_split.editor_tabs.read_only();
     let editors = window_tab_data.main_split.editors.read_only();
     let config = window_tab_data.main_split.common.config;
-    split_list(cx, root_split, window_tab_data.main_split.clone()).style(
+    let workspace = window_tab_data.workspace.clone();
+    split_list(
         cx,
-        move || Style {
-            background: Some(*config.get().get_color(LapceColor::EDITOR_BACKGROUND)),
-            flex_grow: 1.0,
-            ..Default::default()
-        },
+        workspace,
+        root_split,
+        window_tab_data.main_split.clone(),
     )
+    .style(cx, move || Style {
+        background: Some(*config.get().get_color(LapceColor::EDITOR_BACKGROUND)),
+        flex_grow: 1.0,
+        ..Default::default()
+    })
 }
 
 fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
@@ -1737,26 +1817,9 @@ fn palette_item(
                 )
             })
         }
-        PaletteItemContent::Command { .. } => {
-            let text = item.filter_text;
-            let indices = item.indices;
-            container_box(cx, move |cx| {
-                Box::new(
-                    focus_text(
-                        cx,
-                        move || text.clone(),
-                        move || indices.clone(),
-                        move || *config.get().get_color(LapceColor::EDITOR_FOCUS),
-                    )
-                    .style(cx, || Style {
-                        align_items: Some(AlignItems::Center),
-                        max_width: Dimension::Percent(1.0),
-                        ..Default::default()
-                    }),
-                )
-            })
-        }
-        PaletteItemContent::Workspace { .. } => {
+        PaletteItemContent::Command { .. }
+        | PaletteItemContent::Line { .. }
+        | PaletteItemContent::Workspace { .. } => {
             let text = item.filter_text;
             let indices = item.indices;
             container_box(cx, move |cx| {
@@ -1958,10 +2021,11 @@ fn palette_content(
 }
 
 fn palette_preview(cx: AppContext, palette_data: PaletteData) -> impl View {
+    let workspace = palette_data.workspace.clone();
     let preview_editor = palette_data.preview_editor;
     let has_preview = palette_data.has_preview;
     container(cx, |cx| {
-        editor(cx, || true, preview_editor).style(cx, move || Style {
+        editor(cx, workspace, || true, preview_editor).style(cx, move || Style {
             position: Position::Absolute,
             width: Dimension::Percent(1.0),
             height: Dimension::Percent(1.0),

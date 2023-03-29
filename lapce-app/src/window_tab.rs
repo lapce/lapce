@@ -95,20 +95,24 @@ impl WindowTabData {
             info
         };
 
+        let config = LapceConfig::load(&workspace, &all_disabled_volts);
         let lapce_command = create_rw_signal(cx.scope, None);
         let workbench_command = create_rw_signal(cx.scope, None);
         let internal_command = create_rw_signal(cx.scope, None);
-        let config = LapceConfig::load(&workspace, &all_disabled_volts);
         let keypress = create_rw_signal(
             cx.scope,
             KeyPressData::new(&config, workbench_command.write_only()),
+        );
+        let proxy = start_proxy(
+            cx,
+            workspace.clone(),
+            all_disabled_volts,
+            config.plugins.clone(),
         );
         let (config, set_config) = create_signal(cx.scope, Arc::new(config));
 
         let focus = create_rw_signal(cx.scope, Focus::Workbench);
         let completion = create_rw_signal(cx.scope, CompletionData::new(cx, config));
-
-        let proxy = start_proxy(cx, workspace.clone(), completion.write_only());
 
         let register = create_rw_signal(cx.scope, Register::default());
 
@@ -284,7 +288,9 @@ impl WindowTabData {
             ConnectSshHost => todo!(),
             ConnectWsl => todo!(),
             DisconnectRemote => todo!(),
-            PaletteLine => todo!(),
+            PaletteLine => {
+                self.palette.run(cx, PaletteKind::Line);
+            }
             Palette => {
                 self.palette.run(cx, PaletteKind::File);
             }
@@ -343,10 +349,16 @@ impl WindowTabData {
             #[cfg(target_os = "macos")]
             UninstallFromPATH => todo!(),
             JumpLocationForward => {
-                self.main_split.jump_location_forward(cx);
+                self.main_split.jump_location_forward(cx, false);
             }
             JumpLocationBackward => {
-                self.main_split.jump_location_backward(cx);
+                self.main_split.jump_location_backward(cx, false);
+            }
+            JumpLocationForwardLocal => {
+                self.main_split.jump_location_forward(cx, true);
+            }
+            JumpLocationBackwardLocal => {
+                self.main_split.jump_location_backward(cx, true);
             }
             NextError => {
                 self.main_split.next_error(cx);
@@ -366,6 +378,7 @@ impl WindowTabData {
                         position: None,
                         scroll_offset: None,
                         ignore_unconfirmed: false,
+                        same_editor_tab: false,
                     },
                     None,
                 );

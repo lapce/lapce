@@ -378,12 +378,12 @@ mode = "n"
 
 [[keymaps]]
 key = "ctrl+i"
-command = "jump_location_forward"
+command = "jump_location_forward_local"
 mode = "n"
 
 [[keymaps]]
 key = "ctrl+o"
-command = "jump_location_backward"
+command = "jump_location_backward_local"
 mode = "n"
 
 [[keymaps]]

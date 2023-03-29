@@ -86,6 +86,7 @@ impl EditorInfo {
                             self.scroll_offset.1,
                         )),
                         ignore_unconfirmed: false,
+                        same_editor_tab: false,
                     },
                     new_doc,
                     None,
@@ -111,7 +112,6 @@ pub struct EditorData {
     pub cursor: RwSignal<Cursor>,
     pub window_origin: RwSignal<Point>,
     pub viewport: RwSignal<Rect>,
-    pub gutter_viewport: RwSignal<Rect>,
     pub scroll_delta: RwSignal<Vec2>,
     pub scroll_to: RwSignal<Option<Vec2>>,
     pub snippet: RwSignal<Option<Vec<(usize, (usize, usize))>>>,
@@ -148,7 +148,6 @@ impl EditorData {
         let snippet = create_rw_signal(cx.scope, None);
         let window_origin = create_rw_signal(cx.scope, Point::ZERO);
         let viewport = create_rw_signal(cx.scope, Rect::ZERO);
-        let gutter_viewport = create_rw_signal(cx.scope, Rect::ZERO);
         let confirmed = create_rw_signal(cx.scope, false);
         Self {
             editor_tab_id,
@@ -159,7 +158,6 @@ impl EditorData {
             snippet,
             window_origin,
             viewport,
-            gutter_viewport,
             scroll_delta,
             scroll_to,
             common,
@@ -203,10 +201,11 @@ impl EditorData {
         editor.cursor = create_rw_signal(cx.scope, editor.cursor.get_untracked());
         editor.viewport =
             create_rw_signal(cx.scope, editor.viewport.get_untracked());
-        editor.gutter_viewport =
-            create_rw_signal(cx.scope, editor.gutter_viewport.get_untracked());
         editor.scroll_delta = create_rw_signal(cx.scope, Vec2::ZERO);
-        editor.scroll_to = create_rw_signal(cx.scope, None);
+        editor.scroll_to = create_rw_signal(
+            cx.scope,
+            Some(editor.viewport.get_untracked().origin().to_vec2()),
+        );
         editor.window_origin = create_rw_signal(cx.scope, Point::ZERO);
         editor.confirmed = create_rw_signal(cx.scope, true);
         editor.snippet = create_rw_signal(cx.scope, None);
@@ -555,6 +554,7 @@ impl EditorData {
                                 )),
                                 scroll_offset: None,
                                 ignore_unconfirmed: false,
+                                same_editor_tab: false,
                             })
                             .collect(),
                     }));
@@ -614,6 +614,7 @@ impl EditorData {
                                                     ),
                                                     scroll_offset: None,
                                                     ignore_unconfirmed: false,
+                                                    same_editor_tab: false,
                                                 },
                                             ));
                                         } else {
@@ -633,6 +634,7 @@ impl EditorData {
                                 )),
                                 scroll_offset: None,
                                 ignore_unconfirmed: false,
+                                same_editor_tab: false,
                             }));
                         }
                     }
@@ -1135,17 +1137,7 @@ impl EditorData {
     ) {
         if !new_doc {
             if let Some(position) = location.position {
-                let editor = self.clone();
-                let send = create_ext_action(cx, move |position| {
-                    editor.go_to_position(
-                        position,
-                        location.scroll_offset,
-                        edits.clone(),
-                    );
-                });
-                std::thread::spawn(move || {
-                    send(position);
-                });
+                self.go_to_position(position, location.scroll_offset, edits);
             } else if let Some(edits) = edits.as_ref() {
                 self.do_text_edit(edits);
             }
@@ -1159,18 +1151,11 @@ impl EditorData {
                 });
 
                 if let Some(position) = location.position {
-                    let editor = editor.clone();
-                    let edits = edits.clone();
-                    let send = create_ext_action(cx, move |position| {
-                        editor.go_to_position(
-                            position,
-                            location.scroll_offset,
-                            edits.clone(),
-                        );
-                    });
-                    std::thread::spawn(move || {
-                        send(position);
-                    });
+                    editor.go_to_position(
+                        position,
+                        location.scroll_offset,
+                        edits.clone(),
+                    );
                 } else if let Some(edits) = edits.as_ref() {
                     editor.do_text_edit(edits);
                 }
@@ -1197,14 +1182,14 @@ impl EditorData {
             .doc
             .with_untracked(|doc| position.to_offset(doc.buffer()));
         let config = self.common.config.get_untracked();
-        if let Some(scroll_offset) = scroll_offset {
-            self.scroll_to.set(Some(scroll_offset));
-        }
         self.cursor.set(if config.core.modal {
             Cursor::new(CursorMode::Normal(offset), None, None)
         } else {
             Cursor::new(CursorMode::Insert(Selection::caret(offset)), None, None)
         });
+        if let Some(scroll_offset) = scroll_offset {
+            self.scroll_to.set(Some(scroll_offset));
+        }
         if let Some(edits) = edits.as_ref() {
             self.do_text_edit(edits);
         }

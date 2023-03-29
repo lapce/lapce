@@ -267,7 +267,7 @@ impl MainSplitData {
         Some(())
     }
 
-    fn save_current_jump_locatoin(&self) {
+    fn save_current_jump_locatoin(&self) -> bool {
         if let Some(editor) = self.active_editor.get_untracked() {
             let (doc, cursor, viewport) = editor.with_untracked(|editor| {
                 (editor.doc, editor.cursor, editor.viewport)
@@ -276,19 +276,25 @@ impl MainSplitData {
             if let Some(path) = path {
                 let offset = cursor.with_untracked(|c| c.offset());
                 let scroll_offset = viewport.get_untracked().origin().to_vec2();
-                self.save_jump_location(path, offset, scroll_offset);
+                return self.save_jump_location(path, offset, scroll_offset);
             }
         }
+        false
     }
 
-    fn save_jump_location(&self, path: PathBuf, offset: usize, scroll_offset: Vec2) {
+    fn save_jump_location(
+        &self,
+        path: PathBuf,
+        offset: usize,
+        scroll_offset: Vec2,
+    ) -> bool {
         let mut locations = self.locations.get_untracked();
         if let Some(last_location) = locations.last() {
             if last_location.path == path
                 && last_location.position == Some(EditorPosition::Offset(offset))
                 && last_location.scroll_offset == Some(scroll_offset)
             {
-                return;
+                return false;
             }
         }
         let location = EditorLocation {
@@ -296,11 +302,31 @@ impl MainSplitData {
             position: Some(EditorPosition::Offset(offset)),
             scroll_offset: Some(scroll_offset),
             ignore_unconfirmed: false,
+            same_editor_tab: false,
         };
-        locations.push_back(location);
+        locations.push_back(location.clone());
         let current_location = locations.len();
         self.locations.set(locations);
         self.current_location.set(current_location);
+
+        let active_editor_tab_id = self.active_editor_tab.get_untracked();
+        let editor_tabs = self.editor_tabs.get_untracked();
+        if let Some((locations, current_location)) = active_editor_tab_id
+            .and_then(|id| editor_tabs.get(&id))
+            .map(|editor_tab| {
+                editor_tab.with_untracked(|editor_tab| {
+                    (editor_tab.locations, editor_tab.current_location)
+                })
+            })
+        {
+            let mut l = locations.get_untracked();
+            l.push_back(location);
+            let new_current_location = l.len();
+            locations.set(l);
+            current_location.set(new_current_location);
+        }
+
+        true
     }
 
     pub fn jump_to_location(
@@ -359,8 +385,13 @@ impl MainSplitData {
         let path = location.path.clone();
         let (doc, new_doc) = self.get_doc(cx, path.clone());
 
-        let editor =
-            self.get_editor_or_new(cx, doc, &path, location.ignore_unconfirmed);
+        let editor = self.get_editor_or_new(
+            cx,
+            doc,
+            &path,
+            location.ignore_unconfirmed,
+            location.same_editor_tab,
+        );
         let editor = editor.get_untracked();
         editor.go_to_location(cx, location, new_doc, edits);
     }
@@ -371,6 +402,7 @@ impl MainSplitData {
         doc: RwSignal<Document>,
         path: &Path,
         ignore_unconfirmed: bool,
+        same_editor_tab: bool,
     ) -> RwSignal<EditorData> {
         let config = self.common.config.get_untracked();
 
@@ -437,29 +469,10 @@ impl MainSplitData {
                 });
                 return editor;
             }
-
-            if !config.editor.show_tab {
-                editor_tab.with_untracked(|editor_tab| {
-                    for (i, child) in editor_tab.children.iter().enumerate() {
-                        if let (_, EditorTabChild::Editor(editor_id)) = child {
-                            if let Some(editor) = editors.get(editor_id) {
-                                let e = editor.get_untracked();
-                                let is_pristine = e.doc.with_untracked(|doc| {
-                                    doc.buffer().is_pristine()
-                                });
-                                if is_pristine {
-                                    return Some((i, *editor));
-                                }
-                            }
-                        }
-                    }
-                    None
-                });
-            }
         }
 
         // check file exists in non active editor tabs
-        if config.editor.show_tab {
+        if config.editor.show_tab && !ignore_unconfirmed && !same_editor_tab {
             for (editor_tab_id, editor_tab) in &editor_tabs {
                 if Some(*editor_tab_id) != active_editor_tab_id {
                     if let Some((index, editor)) =
@@ -477,8 +490,8 @@ impl MainSplitData {
             }
         }
 
-        // the main split doens't have anything
         let editor = if editor_tabs.is_empty() {
+            // the main split doens't have anything
             let editor_tab_id = EditorTabId::next();
 
             // create the new editor
@@ -505,6 +518,8 @@ impl MainSplitData {
                 )],
                 window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
+                locations: create_rw_signal(cx.scope, im::Vector::new()),
+                current_location: create_rw_signal(cx.scope, 0),
             };
             let editor_tab = create_rw_signal(cx.scope, editor_tab);
             self.editor_tabs.update(|editor_tabs| {
@@ -561,40 +576,88 @@ impl MainSplitData {
         editor
     }
 
-    pub fn jump_location_backward(&self, cx: AppContext) {
-        let locations = self.locations.get_untracked();
-        let current_location = self.current_location.get_untracked();
-        if current_location < 1 {
+    pub fn jump_location_backward(&self, cx: AppContext, local: bool) {
+        let (locations, current_location) = if local {
+            let active_editor_tab_id = self.active_editor_tab.get_untracked();
+            let editor_tabs = self.editor_tabs.get_untracked();
+            if let Some((locations, current_location)) = active_editor_tab_id
+                .and_then(|id| editor_tabs.get(&id))
+                .map(|editor_tab| {
+                    editor_tab.with_untracked(|editor_tab| {
+                        (editor_tab.locations, editor_tab.current_location)
+                    })
+                })
+            {
+                (locations, current_location)
+            } else {
+                return;
+            }
+        } else {
+            (self.locations, self.current_location)
+        };
+
+        let locations_value = locations.get_untracked();
+        let current_location_value = current_location.get_untracked();
+        if current_location_value < 1 {
             return;
         }
 
-        if current_location >= locations.len() {
-            self.save_current_jump_locatoin();
-            self.current_location.update(|l| {
-                *l -= 1;
-            });
+        if current_location_value >= locations_value.len() {
+            // if we are at the head of the locations, save the current location
+            // before jump back
+            if self.save_current_jump_locatoin() {
+                current_location.update(|l| {
+                    *l -= 1;
+                });
+            }
         }
 
-        self.current_location.update(|l| {
+        current_location.update(|l| {
             *l -= 1;
         });
-        let current_location = self.current_location.get_untracked();
-        let location = locations[current_location].clone();
-        self.current_location.set(current_location);
+        let current_location_value = current_location.get_untracked();
+        current_location.set(current_location_value);
+        let mut location = locations_value[current_location_value].clone();
+        // for local jumps, we keep on the same editor tab
+        // because we only jump on the same split
+        location.same_editor_tab = local;
+
         self.go_to_location(cx, location, None);
     }
 
-    pub fn jump_location_forward(&self, cx: AppContext) {
-        let locations = self.locations.get_untracked();
-        let current_location = self.current_location.get_untracked();
-        if locations.is_empty() {
+    pub fn jump_location_forward(&self, cx: AppContext, local: bool) {
+        let (locations, current_location) = if local {
+            let active_editor_tab_id = self.active_editor_tab.get_untracked();
+            let editor_tabs = self.editor_tabs.get_untracked();
+            if let Some((locations, current_location)) = active_editor_tab_id
+                .and_then(|id| editor_tabs.get(&id))
+                .map(|editor_tab| {
+                    editor_tab.with_untracked(|editor_tab| {
+                        (editor_tab.locations, editor_tab.current_location)
+                    })
+                })
+            {
+                (locations, current_location)
+            } else {
+                return;
+            }
+        } else {
+            (self.locations, self.current_location)
+        };
+
+        let locations_value = locations.get_untracked();
+        let current_location_value = current_location.get_untracked();
+        if locations_value.is_empty() {
             return;
         }
-        if current_location >= locations.len() - 1 {
+        if current_location_value >= locations_value.len() - 1 {
             return;
         }
-        self.current_location.set(current_location + 1);
-        let location = locations[current_location + 1].clone();
+        current_location.set(current_location_value + 1);
+        let mut location = locations_value[current_location_value + 1].clone();
+        // for local jumps, we keep on the same editor tab
+        // because we only jump on the same split
+        location.same_editor_tab = local;
         self.go_to_location(cx, location, None);
     }
 
@@ -710,6 +773,14 @@ impl MainSplitData {
             children: vec![(create_rw_signal(cx.scope, 0), new_child)],
             window_origin: Point::ZERO,
             layout_rect: Rect::ZERO,
+            locations: create_rw_signal(
+                cx.scope,
+                editor_tab.locations.get_untracked(),
+            ),
+            current_location: create_rw_signal(
+                cx.scope,
+                editor_tab.current_location.get_untracked(),
+            ),
         };
         let editor_tab = create_rw_signal(cx.scope, editor_tab);
         self.editor_tabs.update(|editor_tabs| {
@@ -1088,6 +1159,7 @@ impl MainSplitData {
                         position,
                         scroll_offset: None,
                         ignore_unconfirmed: true,
+                        same_editor_tab: false,
                     };
                     self.jump_to_location(cx, location, Some(edits));
                 }
@@ -1122,6 +1194,7 @@ impl MainSplitData {
             position: Some(EditorPosition::Position(position)),
             scroll_offset: None,
             ignore_unconfirmed: false,
+            same_editor_tab: false,
         };
         self.jump_to_location(cx, location, None);
     }

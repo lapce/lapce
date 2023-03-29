@@ -11,6 +11,7 @@ use floem::{
     },
 };
 use lapce_proxy::dispatch::Dispatcher;
+use lapce_rpc::plugin::VoltID;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRpcHandler},
     proxy::ProxyRpcHandler,
@@ -33,7 +34,8 @@ pub struct ProxyData {
 pub fn start_proxy(
     cx: AppContext,
     workspace: Arc<LapceWorkspace>,
-    completion: WriteSignal<CompletionData>,
+    disabled_volts: Vec<VoltID>,
+    plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
 ) -> ProxyData {
     let proxy_rpc = ProxyRpcHandler::new();
     let core_rpc = CoreRpcHandler::new();
@@ -48,7 +50,13 @@ pub fn start_proxy(
         });
     }
 
-    proxy_rpc.initialize(workspace.path.clone(), Vec::new(), HashMap::new(), 1, 1);
+    proxy_rpc.initialize(
+        workspace.path.clone(),
+        disabled_volts,
+        plugin_configurations,
+        1,
+        1,
+    );
 
     let (tx, rx) = crossbeam_channel::unbounded();
     std::thread::spawn(move || {

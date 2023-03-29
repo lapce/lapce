@@ -450,6 +450,12 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "jump_location_forward")]
     JumpLocationForward,
 
+    #[strum(serialize = "jump_location_backward_local")]
+    JumpLocationBackwardLocal,
+
+    #[strum(serialize = "jump_location_forward_local")]
+    JumpLocationForwardLocal,
+
     #[strum(message = "Next Error in Workspace")]
     #[strum(serialize = "next_error")]
     NextError,
