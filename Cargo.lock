@@ -7001,7 +7001,6 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.5"
-source = "git+https://github.com/lapce/vger-rs?rev=f08f9ce1147e1fe7b3bc22d5f42e69d2c1cdb6f7#f08f9ce1147e1fe7b3bc22d5f42e69d2c1cdb6f7"
 dependencies = [
  "cosmic-text",
  "euclid",

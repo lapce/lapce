@@ -82,7 +82,6 @@ impl CoreHandler for Proxy {
         id: lapce_rpc::RequestId,
         rpc: lapce_rpc::core::CoreRequest,
     ) {
-        todo!()
     }
 }
 

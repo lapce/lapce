@@ -8,7 +8,7 @@ use floem::peniko::Color;
 use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
 use lapce_rpc::plugin::VoltID;
-use lsp_types::CompletionItemKind;
+use lsp_types::{CompletionItemKind, SymbolKind};
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use serde::Deserialize;
@@ -516,5 +516,35 @@ impl LapceConfig {
                 Some(self.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
             )
         }
+    }
+
+    pub fn symbol_svg(&self, kind: &SymbolKind) -> Option<String> {
+        let kind_str = match *kind {
+            SymbolKind::ARRAY => LapceIcons::SYMBOL_KIND_ARRAY,
+            SymbolKind::BOOLEAN => LapceIcons::SYMBOL_KIND_BOOLEAN,
+            SymbolKind::CLASS => LapceIcons::SYMBOL_KIND_CLASS,
+            SymbolKind::CONSTANT => LapceIcons::SYMBOL_KIND_CONSTANT,
+            SymbolKind::ENUM_MEMBER => LapceIcons::SYMBOL_KIND_ENUM_MEMBER,
+            SymbolKind::ENUM => LapceIcons::SYMBOL_KIND_ENUM,
+            SymbolKind::EVENT => LapceIcons::SYMBOL_KIND_EVENT,
+            SymbolKind::FIELD => LapceIcons::SYMBOL_KIND_FIELD,
+            SymbolKind::FILE => LapceIcons::SYMBOL_KIND_FILE,
+            SymbolKind::INTERFACE => LapceIcons::SYMBOL_KIND_INTERFACE,
+            SymbolKind::KEY => LapceIcons::SYMBOL_KIND_KEY,
+            SymbolKind::FUNCTION => LapceIcons::SYMBOL_KIND_FUNCTION,
+            SymbolKind::METHOD => LapceIcons::SYMBOL_KIND_METHOD,
+            SymbolKind::OBJECT => LapceIcons::SYMBOL_KIND_OBJECT,
+            SymbolKind::NAMESPACE => LapceIcons::SYMBOL_KIND_NAMESPACE,
+            SymbolKind::NUMBER => LapceIcons::SYMBOL_KIND_NUMBER,
+            SymbolKind::OPERATOR => LapceIcons::SYMBOL_KIND_OPERATOR,
+            SymbolKind::TYPE_PARAMETER => LapceIcons::SYMBOL_KIND_TYPE_PARAMETER,
+            SymbolKind::PROPERTY => LapceIcons::SYMBOL_KIND_PROPERTY,
+            SymbolKind::STRING => LapceIcons::SYMBOL_KIND_STRING,
+            SymbolKind::STRUCT => LapceIcons::SYMBOL_KIND_STRUCT,
+            SymbolKind::VARIABLE => LapceIcons::SYMBOL_KIND_VARIABLE,
+            _ => return None,
+        };
+
+        Some(self.ui_svg(kind_str))
     }
 }
