@@ -72,6 +72,7 @@ pub struct PaletteInput {
 }
 
 impl PaletteInput {
+    /// Update the current input in the palette, and the kind of palette it is
     pub fn update_input(&mut self, input: String, kind: PaletteKind) {
         self.kind = kind.get_palette_kind(&input);
         self.input = self.kind.get_input(&input).to_string();
@@ -94,6 +95,8 @@ pub struct PaletteData {
     pub preview_editor: RwSignal<EditorData>,
     pub has_preview: RwSignal<bool>,
     pub keypress: ReadSignal<KeyPressData>,
+    /// Listened on for which entry in the palette has been clicked
+    pub clicked_index: RwSignal<Option<usize>>,
     pub executed_commands: Rc<RefCell<HashMap<String, Instant>>>,
     main_split: MainSplitData,
     pub references: RwSignal<Vec<EditorLocation>>,
@@ -189,6 +192,8 @@ impl PaletteData {
             });
         }
 
+        let clicked_index = create_rw_signal(cx.scope, Option::<usize>::None);
+
         let palette = Self {
             run_id_counter,
             run_tx,
@@ -205,6 +210,7 @@ impl PaletteData {
             input,
             kind,
             keypress,
+            clicked_index,
             executed_commands: Rc::new(RefCell::new(HashMap::new())),
             references,
             common,
@@ -212,13 +218,28 @@ impl PaletteData {
 
         {
             let palette = palette.clone();
+            let clicked_index = clicked_index.read_only();
+            let index = index.write_only();
+            create_effect(cx.scope, move |_| {
+                if let Some(clicked_index) = clicked_index.get() {
+                    index.set(clicked_index);
+                    palette.select(cx);
+                }
+            });
+        }
+
+        {
+            let palette = palette.clone();
             let doc = palette.input_editor.doc.read_only();
             let input = palette.input.write_only();
             let status = palette.status.read_only();
             let preset_kind = palette.kind.read_only();
-            // this effect monitors the document change in the palette input editor
+            // Monitors when the palette's input changes, so that it can update the stored input
+            // and kind of palette.
             create_effect(cx.scope, move |last_input| {
+                // TODO(minor, perf): this could have perf issues if the user accidentally pasted a huge amount of text into the palette.
                 let new_input = doc.with(|doc| doc.buffer().text().to_string());
+
                 let status = status.get_untracked();
                 if status == PaletteStatus::Inactive {
                     // If the status is inactive, we set the input to None,
@@ -227,14 +248,11 @@ impl PaletteData {
                     return None;
                 }
 
-                let last_input_is_none = !matches!(last_input, Some(Some(_)));
+                let last_input = last_input.flatten();
 
-                let changed = match last_input {
-                    None => true,
-                    Some(last_input) => {
-                        Some(new_input.as_str()) != last_input.as_deref()
-                    }
-                };
+                // If the input is not equivalent to the current input, or not initialized, then we
+                // need to update the information about the palette.
+                let changed = last_input.as_deref() != Some(new_input.as_str());
 
                 if changed {
                     let new_kind = input
@@ -244,7 +262,7 @@ impl PaletteData {
                                 new_input.clone(),
                                 preset_kind.get_untracked(),
                             );
-                            if last_input_is_none || kind != input.kind {
+                            if last_input.is_none() || kind != input.kind {
                                 Some(input.kind)
                             } else {
                                 None
@@ -270,11 +288,13 @@ impl PaletteData {
         palette
     }
 
+    /// Start and focus the palette for the given kind.  
     pub fn run(&self, cx: AppContext, kind: PaletteKind) {
         self.common.focus.set(Focus::Palette);
         self.status.set(PaletteStatus::Started);
         let symbol = kind.symbol();
         self.kind.set(kind);
+        // Refresh the palette input with only the symbol prefix, losing old content.
         self.input_editor
             .doc
             .update(|doc| doc.reload(Rope::from(symbol), true));
@@ -283,10 +303,14 @@ impl PaletteData {
             .update(|cursor| cursor.set_insert(Selection::caret(symbol.len())));
     }
 
+    /// Execute the internal behavior of the palette for the given kind. This ignores updating and
+    /// focusing the palette input.
     fn run_inner(&self, cx: AppContext, kind: PaletteKind) {
         self.has_preview.set(false);
+
         let run_id = self.run_id_counter.fetch_add(1, Ordering::Relaxed) + 1;
         self.run_id.set(run_id);
+
         match kind {
             PaletteKind::File => {
                 self.get_files(cx);
@@ -309,6 +333,7 @@ impl PaletteData {
         }
     }
 
+    /// Initialize the palette with the files in the current workspace.
     fn get_files(&self, cx: AppContext) {
         let workspace = self.workspace.clone();
         let set_items = self.items.write_only();
@@ -317,13 +342,15 @@ impl PaletteData {
                 .into_iter()
                 .map(|path| {
                     let full_path = path.clone();
-                    let mut path = path;
-                    if let Some(workspace_path) = workspace.path.as_ref() {
-                        path = path
-                            .strip_prefix(workspace_path)
+                    // Strip the workspace prefix off the path, to avoid clutter
+                    let path = if let Some(workspace_path) = workspace.path.as_ref()
+                    {
+                        path.strip_prefix(workspace_path)
                             .unwrap_or(&full_path)
-                            .to_path_buf();
-                    }
+                            .to_path_buf()
+                    } else {
+                        path
+                    };
                     let filter_text = path.to_str().unwrap_or("").to_string();
                     PaletteItem {
                         content: PaletteItemContent::File { path, full_path },
@@ -342,6 +369,7 @@ impl PaletteData {
         });
     }
 
+    /// Initialize the palette with the lines in the current document.
     fn get_lines(&self, cx: AppContext) {
         let editor = self.main_split.active_editor.get_untracked();
         let doc = match editor {
@@ -384,9 +412,9 @@ impl PaletteData {
     fn get_commands(&self, cx: AppContext) {
         const EXCLUDED_ITEMS: &[&str] = &["palette.command"];
 
-        self.keypress.get_untracked();
         let items = self.keypress.with_untracked(|keypress| {
-            let mut i = 0;
+            // Get all the commands we've executed, and sort them by how recently they were
+            // executed. Ignore commands without descriptions.
             let mut items: im::Vector<PaletteItem> = self
                 .executed_commands
                 .borrow()
@@ -404,12 +432,13 @@ impl PaletteData {
                                 score: 0,
                                 indices: vec![],
                             };
-                            i += 1;
                             item
                         })
                     })
                 })
                 .collect();
+            // Add all the rest of the commands, ignoring palette commands (because we're in it)
+            // and commands that are sorted earlier due to being executed.
             items.extend(keypress.commands.iter().filter_map(|(_, c)| {
                 if EXCLUDED_ITEMS.contains(&c.kind.str()) {
                     return None;
@@ -426,7 +455,6 @@ impl PaletteData {
                         score: 0,
                         indices: vec![],
                     };
-                    i += 1;
                     item
                 })
             }));
@@ -437,6 +465,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
+    /// Initialize the palette with all the available workspaces, local and remote.
     fn get_workspaces(&self, cx: AppContext) {
         let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
         let workspaces = db.recent_workspaces().unwrap_or_default();
@@ -466,6 +495,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
+    /// Initialize the list of references in the file, from the current editor location.
     fn get_references(&self, cx: AppContext) {
         let items = self
             .references
@@ -641,6 +671,7 @@ impl PaletteData {
         self.cancel(cx);
     }
 
+    /// Update the preview for the currently active palette item, if it has one.
     fn preview(&self, cx: AppContext) {
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
@@ -727,6 +758,7 @@ impl PaletteData {
         }
     }
 
+    /// Close the palette, reverting focus back to the workbench.
     fn cancel(&self, cx: AppContext) {
         self.status.set(PaletteStatus::Inactive);
         self.common.focus.set(Focus::Workbench);
@@ -740,6 +772,7 @@ impl PaletteData {
             .update(|cursor| cursor.set_insert(Selection::caret(0)));
     }
 
+    /// Move to the next entry in the palette list, wrapping around if needed.
     fn next(&self) {
         let index = self.index.get_untracked();
         let len = self.filtered_items.with_untracked(|i| i.len());
@@ -747,6 +780,7 @@ impl PaletteData {
         self.index.set(new_index);
     }
 
+    /// Move to the previous entry in the palette list, wrapping around if needed.
     fn previous(&self) {
         let index = self.index.get_untracked();
         let len = self.filtered_items.with_untracked(|i| i.len());
@@ -754,9 +788,13 @@ impl PaletteData {
         self.index.set(new_index);
     }
 
-    fn next_page(&self) {}
+    fn next_page(&self) {
+        // TODO: implement
+    }
 
-    fn previous_page(&self) {}
+    fn previous_page(&self) {
+        // TODO: implement
+    }
 
     fn run_focus_command(
         &self,
@@ -798,13 +836,16 @@ impl PaletteData {
             return Some(items);
         }
 
-        // Collecting into a Vec to sort we as are hitting a worst case in
-        // `im::Vector` that leads to a stack overflow
+        // NOTE: We collect into a Vec to sort as we are hitting a worst-case behavior in
+        // `im::Vector` that can lead to a stack overflow!
         let mut filtered_items = Vec::new();
         for i in &items {
+            // If the run id has ever changed, then we'll just bail out of this filtering to avoid
+            // wasting effort. This would happen, for example, on the user continuing to type.
             if run_id.load(std::sync::atomic::Ordering::Acquire) != current_run_id {
                 return None;
             }
+
             if let Some((score, indices)) =
                 matcher.fuzzy_indices(&i.filter_text, input)
             {

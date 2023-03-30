@@ -9,6 +9,7 @@ pub enum PaletteKind {
 }
 
 impl PaletteKind {
+    /// The symbol/prefix that is used to signify the behavior of the palette.
     pub fn symbol(&self) -> &'static str {
         match &self {
             PaletteKind::Line => "/",
@@ -28,6 +29,7 @@ impl PaletteKind {
         }
     }
 
+    /// Extract the palette kind from the input string. This is most often a prefix.
     pub fn from_input(input: &str) -> PaletteKind {
         match input {
             _ if input.starts_with('/') => PaletteKind::Line,

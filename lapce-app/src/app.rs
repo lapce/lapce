@@ -2073,6 +2073,7 @@ fn palette_content(
 ) -> impl View {
     let items = window_tab_data.palette.filtered_items;
     let index = window_tab_data.palette.index.read_only();
+    let clicked_index = window_tab_data.palette.clicked_index.write_only();
     let config = window_tab_data.common.config;
     let run_id = window_tab_data.palette.run_id;
     let input = window_tab_data.palette.input.read_only();
@@ -2088,7 +2089,22 @@ fn palette_content(
                         (run_id.get_untracked(), *i, input.get_untracked().input)
                     },
                     move |cx, (i, item)| {
-                        palette_item(cx, i, item, index, palette_item_height, config)
+                        click(
+                            cx,
+                            move |cx| {
+                                palette_item(
+                                    cx,
+                                    i,
+                                    item,
+                                    index,
+                                    palette_item_height,
+                                    config,
+                                )
+                            },
+                            move || {
+                                clicked_index.set(Some(i));
+                            },
+                        )
                     },
                     VirtualListItemSize::Fixed(palette_item_height),
                 )
