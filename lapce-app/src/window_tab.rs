@@ -223,19 +223,19 @@ impl WindowTabData {
             CommandKind::Workbench(cmd) => {
                 self.run_workbench_command(cx, cmd);
             }
-            CommandKind::Edit(_) => todo!(),
-            CommandKind::Move(_) => todo!(),
+            CommandKind::Edit(_) => {}
+            CommandKind::Move(_) => {}
             CommandKind::Focus(_) => {}
-            CommandKind::MotionMode(_) => todo!(),
-            CommandKind::MultiSelection(_) => todo!(),
+            CommandKind::MotionMode(_) => {}
+            CommandKind::MultiSelection(_) => {}
         }
     }
 
     pub fn run_workbench_command(&self, cx: AppContext, cmd: LapceWorkbenchCommand) {
         use LapceWorkbenchCommand::*;
         match cmd {
-            EnableModal => todo!(),
-            DisableModal => todo!(),
+            EnableModal => {}
+            DisableModal => {}
             OpenFolder => {
                 println!("open folder");
                 if !self.workspace.kind.is_remote() {
@@ -258,96 +258,98 @@ impl WindowTabData {
                     });
                 }
             }
-            CloseFolder => todo!(),
-            OpenFile => todo!(),
-            RevealActiveFileInFileExplorer => todo!(),
-            ChangeColorTheme => todo!(),
-            ChangeIconTheme => todo!(),
-            OpenSettings => todo!(),
-            OpenSettingsFile => todo!(),
-            OpenSettingsDirectory => todo!(),
-            OpenKeyboardShortcuts => todo!(),
-            OpenKeyboardShortcutsFile => todo!(),
-            OpenLogFile => todo!(),
-            OpenLogsDirectory => todo!(),
-            OpenProxyDirectory => todo!(),
-            OpenThemesDirectory => todo!(),
-            OpenPluginsDirectory => todo!(),
-            CloseWindowTab => todo!(),
-            NewWindowTab => todo!(),
-            NewTerminalTab => todo!(),
-            CloseTerminalTab => todo!(),
-            NextTerminalTab => todo!(),
-            PreviousTerminalTab => todo!(),
-            NextWindowTab => todo!(),
-            PreviousWindowTab => todo!(),
-            ReloadWindow => todo!(),
-            NewWindow => todo!(),
-            CloseWindow => todo!(),
-            NewFile => todo!(),
-            ConnectSshHost => todo!(),
-            ConnectWsl => todo!(),
-            DisconnectRemote => todo!(),
+            CloseFolder => {}
+            OpenFile => {}
+            RevealActiveFileInFileExplorer => {}
+            ChangeColorTheme => {}
+            ChangeIconTheme => {}
+            OpenSettings => {}
+            OpenSettingsFile => {}
+            OpenSettingsDirectory => {}
+            OpenKeyboardShortcuts => {}
+            OpenKeyboardShortcutsFile => {}
+            OpenLogFile => {}
+            OpenLogsDirectory => {}
+            OpenProxyDirectory => {}
+            OpenThemesDirectory => {}
+            OpenPluginsDirectory => {}
+            CloseWindowTab => {}
+            NewWindowTab => {}
+            NewTerminalTab => {}
+            CloseTerminalTab => {}
+            NextTerminalTab => {}
+            PreviousTerminalTab => {}
+            NextWindowTab => {}
+            PreviousWindowTab => {}
+            ReloadWindow => {}
+            NewWindow => {}
+            CloseWindow => {}
+            NewFile => {}
+            ConnectSshHost => {}
+            ConnectWsl => {}
+            DisconnectRemote => {}
             PaletteLine => {
                 self.palette.run(cx, PaletteKind::Line);
             }
             Palette => {
                 self.palette.run(cx, PaletteKind::File);
             }
-            PaletteSymbol => todo!(),
-            PaletteWorkspaceSymbol => todo!(),
+            PaletteSymbol => {
+                self.palette.run(cx, PaletteKind::DocumentSymbol);
+            }
+            PaletteWorkspaceSymbol => {}
             PaletteCommand => {
                 self.palette.run(cx, PaletteKind::Command);
             }
             PaletteWorkspace => {
                 self.palette.run(cx, PaletteKind::Workspace);
             }
-            PaletteRunAndDebug => todo!(),
-            RunAndDebugRestart => todo!(),
-            RunAndDebugStop => todo!(),
-            CheckoutBranch => todo!(),
-            ToggleMaximizedPanel => todo!(),
-            HidePanel => todo!(),
-            ShowPanel => todo!(),
-            TogglePanelFocus => todo!(),
-            TogglePanelVisual => todo!(),
-            TogglePanelLeftVisual => todo!(),
-            TogglePanelRightVisual => todo!(),
-            TogglePanelBottomVisual => todo!(),
-            ToggleTerminalFocus => todo!(),
-            ToggleSourceControlFocus => todo!(),
-            TogglePluginFocus => todo!(),
-            ToggleFileExplorerFocus => todo!(),
-            ToggleProblemFocus => todo!(),
-            ToggleSearchFocus => todo!(),
-            ToggleTerminalVisual => todo!(),
-            ToggleSourceControlVisual => todo!(),
-            TogglePluginVisual => todo!(),
-            ToggleFileExplorerVisual => todo!(),
-            ToggleProblemVisual => todo!(),
-            ToggleDebugVisual => todo!(),
-            ToggleSearchVisual => todo!(),
-            FocusEditor => todo!(),
-            FocusTerminal => todo!(),
-            SourceControlInit => todo!(),
-            SourceControlCommit => todo!(),
-            SourceControlCopyActiveFileRemoteUrl => todo!(),
-            SourceControlDiscardActiveFileChanges => todo!(),
-            SourceControlDiscardTargetFileChanges => todo!(),
-            SourceControlDiscardWorkspaceChanges => todo!(),
-            ExportCurrentThemeSettings => todo!(),
-            InstallTheme => todo!(),
-            ChangeFileLanguage => todo!(),
-            NextEditorTab => todo!(),
-            PreviousEditorTab => todo!(),
-            ToggleInlayHints => todo!(),
-            RestartToUpdate => todo!(),
-            ShowAbout => todo!(),
-            SaveAll => todo!(),
+            PaletteRunAndDebug => {}
+            RunAndDebugRestart => {}
+            RunAndDebugStop => {}
+            CheckoutBranch => {}
+            ToggleMaximizedPanel => {}
+            HidePanel => {}
+            ShowPanel => {}
+            TogglePanelFocus => {}
+            TogglePanelVisual => {}
+            TogglePanelLeftVisual => {}
+            TogglePanelRightVisual => {}
+            TogglePanelBottomVisual => {}
+            ToggleTerminalFocus => {}
+            ToggleSourceControlFocus => {}
+            TogglePluginFocus => {}
+            ToggleFileExplorerFocus => {}
+            ToggleProblemFocus => {}
+            ToggleSearchFocus => {}
+            ToggleTerminalVisual => {}
+            ToggleSourceControlVisual => {}
+            TogglePluginVisual => {}
+            ToggleFileExplorerVisual => {}
+            ToggleProblemVisual => {}
+            ToggleDebugVisual => {}
+            ToggleSearchVisual => {}
+            FocusEditor => {}
+            FocusTerminal => {}
+            SourceControlInit => {}
+            SourceControlCommit => {}
+            SourceControlCopyActiveFileRemoteUrl => {}
+            SourceControlDiscardActiveFileChanges => {}
+            SourceControlDiscardTargetFileChanges => {}
+            SourceControlDiscardWorkspaceChanges => {}
+            ExportCurrentThemeSettings => {}
+            InstallTheme => {}
+            ChangeFileLanguage => {}
+            NextEditorTab => {}
+            PreviousEditorTab => {}
+            ToggleInlayHints => {}
+            RestartToUpdate => {}
+            ShowAbout => {}
+            SaveAll => {}
             #[cfg(target_os = "macos")]
-            InstallToPATH => todo!(),
+            InstallToPATH => {}
             #[cfg(target_os = "macos")]
-            UninstallFromPATH => todo!(),
+            UninstallFromPATH => {}
             JumpLocationForward => {
                 self.main_split.jump_location_forward(cx, false);
             }
@@ -364,7 +366,7 @@ impl WindowTabData {
                 self.main_split.next_error(cx);
             }
             PreviousError => {}
-            Quit => todo!(),
+            Quit => {}
         }
     }
 

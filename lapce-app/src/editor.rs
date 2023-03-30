@@ -500,6 +500,9 @@ impl EditorData {
             FocusCommand::ShowCodeActions => {
                 self.show_code_actions(cx, false);
             }
+            FocusCommand::Save => {
+                self.save(cx, false, true);
+            }
             _ => {}
         }
         CommandExecuted::Yes
@@ -1286,6 +1289,72 @@ impl EditorData {
                         code_actions,
                     },
                 ));
+            }
+        }
+    }
+
+    fn do_save(&self, cx: AppContext) {
+        let (rev, content) = self
+            .doc
+            .with_untracked(|doc| (doc.rev(), doc.content.clone()));
+
+        let doc = self.doc;
+        let send = create_ext_action(cx, move |result| {
+            if let Ok(ProxyResponse::SaveResponse {}) = result {
+                let current_rev = doc.with_untracked(|doc| doc.rev());
+                if current_rev == rev {
+                    doc.update(|doc| {
+                        doc.buffer_mut().set_pristine();
+                    });
+                }
+            }
+        });
+
+        if let DocContent::File(path) = content {
+            self.common.proxy.save(rev, path, move |result| {
+                send(result);
+            })
+        }
+    }
+
+    fn save(&self, cx: AppContext, exit: bool, allow_formatting: bool) {
+        let (rev, is_pristine, content) = self.doc.with_untracked(|doc| {
+            (doc.rev(), doc.buffer().is_pristine(), doc.content.clone())
+        });
+
+        if content.path().is_some() && is_pristine {
+            if exit {}
+            return;
+        }
+
+        let config = self.common.config.get_untracked();
+        if let DocContent::File(path) = content {
+            let format_on_save = allow_formatting && config.editor.format_on_save;
+            if format_on_save {
+                let editor = self.clone();
+                let send = create_ext_action(cx, move |result| {
+                    if let Ok(Ok(ProxyResponse::GetDocumentFormatting { edits })) =
+                        result
+                    {
+                        let current_rev = editor.doc.with_untracked(|doc| doc.rev());
+                        if current_rev == rev {
+                            editor.do_text_edit(&edits);
+                        }
+                    }
+                    editor.do_save(cx);
+                });
+
+                let (tx, rx) = crossbeam_channel::bounded(1);
+                let proxy = self.common.proxy.clone();
+                std::thread::spawn(move || {
+                    proxy.get_document_formatting(path, move |result| {
+                        let _ = tx.send(result);
+                    });
+                    let result = rx.recv_timeout(std::time::Duration::from_secs(1));
+                    send(result);
+                });
+            } else {
+                self.do_save(cx);
             }
         }
     }

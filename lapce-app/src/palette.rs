@@ -29,6 +29,7 @@ use lapce_core::{
 };
 use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
 use lapce_xi_rope::Rope;
+use lsp_types::DocumentSymbolResponse;
 
 use crate::{
     code_action::CodeActionData,
@@ -326,6 +327,9 @@ impl PaletteData {
             PaletteKind::Reference => {
                 self.get_references(cx);
             }
+            PaletteKind::DocumentSymbol => {
+                self.get_document_symbols(cx);
+            }
         }
     }
 
@@ -519,7 +523,68 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    /// A palette list item was selected. Perform the appropriate action.
+    fn get_document_symbols(&self, cx: AppContext) {
+        let editor = self.main_split.active_editor.get_untracked();
+        let doc = match editor {
+            Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+            None => {
+                return;
+            }
+        };
+        let path = doc.with_untracked(|doc| doc.content.path().cloned());
+        let path = match path {
+            Some(path) => path,
+            None => return,
+        };
+
+        let set_items = self.items.write_only();
+        let send = create_ext_action(cx, move |resp: DocumentSymbolResponse| {
+            let items: im::Vector<PaletteItem> = match resp {
+                DocumentSymbolResponse::Flat(symbols) => symbols
+                    .iter()
+                    .map(|s| {
+                        let mut filter_text = s.name.clone();
+                        if let Some(container_name) = s.container_name.as_ref() {
+                            filter_text += container_name;
+                        }
+                        PaletteItem {
+                            content: PaletteItemContent::DocumentSymbol {
+                                kind: s.kind,
+                                name: s.name.clone(),
+                                range: s.location.range,
+                                container_name: s.container_name.clone(),
+                            },
+                            filter_text,
+                            score: 0,
+                            indices: Vec::new(),
+                        }
+                    })
+                    .collect(),
+                DocumentSymbolResponse::Nested(symbols) => symbols
+                    .iter()
+                    .map(|s| PaletteItem {
+                        content: PaletteItemContent::DocumentSymbol {
+                            kind: s.kind,
+                            name: s.name.clone(),
+                            range: s.range,
+                            container_name: None,
+                        },
+                        filter_text: s.name.clone(),
+                        score: 0,
+                        indices: Vec::new(),
+                    })
+                    .collect(),
+            };
+            set_items.set(items);
+        });
+
+        self.common.proxy.get_document_symbols(path, move |result| {
+            if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
+                send(resp);
+            }
+        });
+    }
+
     fn select(&self, cx: AppContext) {
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
@@ -571,6 +636,33 @@ impl PaletteData {
                     self.common.internal_command.set(Some(
                         InternalCommand::JumpToLocation {
                             location: location.clone(),
+                        },
+                    ));
+                }
+                PaletteItemContent::DocumentSymbol { range, .. } => {
+                    let editor = self.main_split.active_editor.get_untracked();
+                    let doc = match editor {
+                        Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+                        None => {
+                            return;
+                        }
+                    };
+                    let path = doc.with_untracked(|doc| doc.content.path().cloned());
+                    let path = match path {
+                        Some(path) => path,
+                        None => return,
+                    };
+                    self.common.internal_command.set(Some(
+                        InternalCommand::JumpToLocation {
+                            location: EditorLocation {
+                                path,
+                                position: Some(EditorPosition::Position(
+                                    range.start,
+                                )),
+                                scroll_offset: None,
+                                ignore_unconfirmed: false,
+                                same_editor_tab: false,
+                            },
                         },
                     ));
                 }
@@ -629,6 +721,36 @@ impl PaletteData {
                         cx,
                         location.clone(),
                         new_doc,
+                        None,
+                    );
+                }
+                PaletteItemContent::DocumentSymbol { range, .. } => {
+                    self.has_preview.set(true);
+                    let editor = self.main_split.active_editor.get_untracked();
+                    let doc = match editor {
+                        Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+                        None => {
+                            return;
+                        }
+                    };
+                    let path = doc.with_untracked(|doc| doc.content.path().cloned());
+                    let path = match path {
+                        Some(path) => path,
+                        None => return,
+                    };
+                    self.preview_editor.update(|preview_editor| {
+                        preview_editor.doc = doc;
+                    });
+                    self.preview_editor.get_untracked().go_to_location(
+                        cx,
+                        EditorLocation {
+                            path,
+                            position: Some(EditorPosition::Position(range.start)),
+                            scroll_offset: None,
+                            ignore_unconfirmed: false,
+                            same_editor_tab: false,
+                        },
+                        false,
                         None,
                     );
                 }
