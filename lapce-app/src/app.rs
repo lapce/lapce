@@ -1958,20 +1958,21 @@ fn palette_item(
             })
         }
     }
-    .style(cx, move || Style {
-        height: Dimension::Points(palette_item_height as f32),
-        padding_left: 10.0,
-        padding_right: 10.0,
-        background: if index.get() == i {
-            Some(
+    .style(cx, move || {
+        let style = Style::BASE
+            .width_p(1.0)
+            .height(palette_item_height as f32)
+            .padding_left(10.0)
+            .padding_right(10.0);
+        if index.get() == i {
+            style.background(
                 *config
                     .get()
                     .get_color(LapceColor::PALETTE_CURRENT_BACKGROUND),
             )
         } else {
-            None
-        },
-        ..Default::default()
+            style
+        }
     })
 }
 
@@ -2105,6 +2106,7 @@ fn palette_content(
                                 clicked_index.set(Some(i));
                             },
                         )
+                        .style(cx, || Style::BASE.width_p(1.0))
                     },
                     VirtualListItemSize::Fixed(palette_item_height),
                 )

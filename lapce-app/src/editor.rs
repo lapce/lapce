@@ -40,6 +40,7 @@ use crate::{
     doc::{DocContent, Document, EditorDiagnostic},
     editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
+    find::Find,
     id::{EditorId, EditorTabId},
     keypress::{condition::Condition, KeyPressFocus},
     main_split::{MainSplitData, SplitDirection, SplitMoveDirection},
@@ -115,6 +116,7 @@ pub struct EditorData {
     pub scroll_delta: RwSignal<Vec2>,
     pub scroll_to: RwSignal<Option<Vec2>>,
     pub snippet: RwSignal<Option<Vec<(usize, (usize, usize))>>>,
+    pub find: RwSignal<Find>,
     pub common: CommonData,
 }
 
@@ -149,6 +151,7 @@ impl EditorData {
         let window_origin = create_rw_signal(cx.scope, Point::ZERO);
         let viewport = create_rw_signal(cx.scope, Rect::ZERO);
         let confirmed = create_rw_signal(cx.scope, false);
+        let find = create_rw_signal(cx.scope, Find::new(0));
         Self {
             editor_tab_id,
             editor_id,
@@ -160,6 +163,7 @@ impl EditorData {
             viewport,
             scroll_delta,
             scroll_to,
+            find,
             common,
         }
     }
@@ -499,6 +503,15 @@ impl EditorData {
             }
             FocusCommand::ShowCodeActions => {
                 self.show_code_actions(cx, false);
+            }
+            FocusCommand::SearchWholeWordForward => {
+                self.search_whole_word_forward(cx, mods);
+            }
+            FocusCommand::SearchForward => {
+                self.search_forward(cx, mods);
+            }
+            FocusCommand::SearchBackward => {
+                self.search_backward(cx, mods);
             }
             FocusCommand::Save => {
                 self.save(cx, false, true);
@@ -1356,6 +1369,76 @@ impl EditorData {
             } else {
                 self.do_save(cx);
             }
+        }
+    }
+
+    fn search_whole_word_forward(&self, cx: AppContext, mods: Modifiers) {
+        let offset = self.cursor.with_untracked(|c| c.offset());
+        let (word, buffer) = self.doc.with_untracked(|doc| {
+            let (start, end) = doc.buffer().select_word(offset);
+            (
+                doc.buffer().slice_to_cow(start..end).to_string(),
+                doc.buffer().clone(),
+            )
+        });
+        let next = self
+            .find
+            .try_update(|find| {
+                find.visual = true;
+                find.set_find(&word, false, true);
+                find.next(buffer.text(), offset, false, true)
+            })
+            .unwrap();
+
+        if let Some((start, _end)) = next {
+            self.run_move_command(
+                cx,
+                &lapce_core::movement::Movement::Offset(start),
+                None,
+                mods,
+            );
+        }
+    }
+
+    fn search_forward(&self, cx: AppContext, mods: Modifiers) {
+        let offset = self.cursor.with_untracked(|c| c.offset());
+        let buffer = self.doc.with_untracked(|doc| doc.buffer().clone());
+        let next = self
+            .find
+            .try_update(|find| {
+                find.visual = true;
+                find.next(buffer.text(), offset, false, true)
+            })
+            .unwrap();
+
+        if let Some((start, _end)) = next {
+            self.run_move_command(
+                cx,
+                &lapce_core::movement::Movement::Offset(start),
+                None,
+                mods,
+            );
+        }
+    }
+
+    fn search_backward(&self, cx: AppContext, mods: Modifiers) {
+        let offset = self.cursor.with_untracked(|c| c.offset());
+        let buffer = self.doc.with_untracked(|doc| doc.buffer().clone());
+        let next = self
+            .find
+            .try_update(|find| {
+                find.visual = true;
+                find.next(buffer.text(), offset, true, true)
+            })
+            .unwrap();
+
+        if let Some((start, _end)) = next {
+            self.run_move_command(
+                cx,
+                &lapce_core::movement::Movement::Offset(start),
+                None,
+                mods,
+            );
         }
     }
 }
