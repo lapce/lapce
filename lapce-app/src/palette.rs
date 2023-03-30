@@ -94,6 +94,8 @@ pub struct PaletteData {
     pub preview_editor: RwSignal<EditorData>,
     pub has_preview: RwSignal<bool>,
     pub keypress: ReadSignal<KeyPressData>,
+    /// Listened on for which entry in the palette has been clicked
+    pub clicked_index: RwSignal<Option<usize>>,
     pub executed_commands: Rc<RefCell<HashMap<String, Instant>>>,
     main_split: MainSplitData,
     pub references: RwSignal<Vec<EditorLocation>>,
@@ -189,6 +191,8 @@ impl PaletteData {
             });
         }
 
+        let clicked_index = create_rw_signal(cx.scope, Option::<usize>::None);
+
         let palette = Self {
             run_id_counter,
             run_tx,
@@ -205,10 +209,23 @@ impl PaletteData {
             input,
             kind,
             keypress,
+            clicked_index,
             executed_commands: Rc::new(RefCell::new(HashMap::new())),
             references,
             common,
         };
+
+        {
+            let palette = palette.clone();
+            let clicked_index = clicked_index.read_only();
+            let index = index.write_only();
+            create_effect(cx.scope, move |_| {
+                if let Some(clicked_index) = clicked_index.get() {
+                    index.set(clicked_index);
+                    palette.select(cx);
+                }
+            });
+        }
 
         {
             let palette = palette.clone();
