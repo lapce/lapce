@@ -695,13 +695,16 @@ impl<'a> LapceEditorTabHeaderContextMenu<'a> {
             .on_activate(self.create_close_tab_callback());
 
         let entry_close_tabs_other = druid::MenuItem::new("Close Other Tabs")
-            .on_activate(self.create_close_all_tabs_callback());
+            .on_activate(self.create_close_tabs_callback(true));
 
         let entry_close_tabs_left = druid::MenuItem::new("Close Tabs to the Left")
             .on_activate(self.create_close_tabs_left_callback());
 
         let entry_close_tabs_right = druid::MenuItem::new("Close Tabs to the Right")
             .on_activate(self.create_close_tabs_right_callback());
+
+        let entry_close_all_tabs = druid::MenuItem::new("Close all tabs")
+            .on_activate(self.create_close_tabs_callback(false));
 
         let entry_reveal_file = self.tab_path.as_deref().map(|path| {
             druid::MenuItem::new("Reveal in File Tree")
@@ -714,6 +717,7 @@ impl<'a> LapceEditorTabHeaderContextMenu<'a> {
             .entry(entry_close_tabs_other)
             .entry(entry_close_tabs_left)
             .entry(entry_close_tabs_right)
+            .entry(entry_close_all_tabs)
             .separator();
 
         if let Some(entry) = entry_reveal_file {
@@ -750,22 +754,25 @@ impl<'a> LapceEditorTabHeaderContextMenu<'a> {
         }
     }
 
-    fn create_close_all_tabs_callback(
+    fn create_close_tabs_callback(
         &self,
+        keep_current_tab: bool,
     ) -> impl FnMut(&mut MenuEventCtx, &mut LapceData, &Env) + 'static {
         let editor_tab = self.editor_tab.clone();
+        let file_explorer_id = self.file_explorer_id;
         let tab_idx = self.tab_idx;
 
         move |ctx, _, _| {
-            editor_tab
-                .children
-                .iter()
-                .enumerate()
-                .rev()
-                .filter_map(
-                    |(idx, tab)| if idx != tab_idx { Some(tab) } else { None },
-                )
-                .for_each(|tab| {
+            for (idx, tab) in editor_tab.children.iter().enumerate().rev() {
+                if !keep_current_tab && editor_tab.active == tab_idx {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::ActiveFileChanged { path: None },
+                        Target::Widget(file_explorer_id),
+                    ));
+                }
+                
+                if !keep_current_tab || keep_current_tab && idx != tab_idx {
                     ctx.submit_command(Command::new(
                         LAPCE_COMMAND,
                         LapceCommand {
@@ -773,8 +780,9 @@ impl<'a> LapceEditorTabHeaderContextMenu<'a> {
                             data: None,
                         },
                         Target::Widget(tab.widget_id()),
-                    ))
-                })
+                    ));
+                }
+            }
         }
     }
 
