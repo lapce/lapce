@@ -4,6 +4,8 @@
 
 ### Features/Changes
 
+- [#2316](https://github.com/lapce/lapce/pull/2316): Added the `close all tabs` option to the tab menu
+
 ### Bug Fixes
 
 ## 0.2.7
