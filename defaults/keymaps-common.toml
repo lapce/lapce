@@ -458,7 +458,7 @@ mode = "n"
 
 [[keymaps]]
 key = "c e"
-command = "delete_word_and_insert"
+command = "delete_word_end_and_insert"
 mode = "n"
 
 [[keymaps]]
