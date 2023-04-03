@@ -3,7 +3,7 @@ use tree_sitter::Point;
 
 use crate::buffer::rope_text::{RopeText, RopeTextRef};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SyntaxEdit(pub(crate) Vec<tree_sitter::InputEdit>);
 
 impl SyntaxEdit {

@@ -590,14 +590,33 @@ impl Syntax {
         let _ = layers.update(self.rev, new_rev, &new_text, edits);
         let tree = layers.try_tree();
 
-        let styles = if tree.is_some() {
+        let (start_offset, end_offset) = match edits {
+            Some(edits) => (
+                edits
+                    .iter()
+                    .flat_map(|e| e.0.iter())
+                    .flat_map(|e| [e.start_byte, e.old_end_byte, e.new_end_byte])
+                    .min()
+                    .unwrap_or(0),
+                edits
+                    .iter()
+                    .flat_map(|e| e.0.iter())
+                    .flat_map(|e| [e.start_byte, e.old_end_byte, e.new_end_byte])
+                    .max()
+                    .unwrap_or(new_text.len()),
+            ),
+            None => (0usize, new_text.len()),
+        };
+
+        let new_styles = if tree.is_some() {
             let mut current_hl: Option<Highlight> = None;
             let mut highlights: SpansBuilder<Style> =
                 SpansBuilder::new(new_text.len());
 
             // TODO: Should we be ignoring highlight errors via flattening them?
-            for highlight in layers
-                .highlight_iter(&new_text, Some(0..new_text.len()), None)
+            for highlight in self
+                .layers
+                .highlight_iter(&new_text, Some(start_offset..end_offset), None)
                 .flatten()
             {
                 match highlight {
@@ -644,7 +663,19 @@ impl Syntax {
         self.rev = new_rev;
         self.lens = lens;
         self.normal_lines = normal_lines;
-        self.styles = styles;
+        self.styles = match (self.styles.as_mut(), new_styles) {
+            (Some(styles), Some(new_styles)) => {
+                Some(Arc::new(styles.merge(&new_styles, |a, b| {
+                    if let Some(b) = b {
+                        return b.clone();
+                    }
+                    a.clone()
+                })))
+            }
+            (None, Some(new_styles)) => Some(new_styles),
+            (Some(styles), None) => Some(styles.clone()),
+            _ => None,
+        };
         self.text = new_text
     }
 
