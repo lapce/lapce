@@ -216,10 +216,10 @@ impl View for FocusText {
 
             let view_style = self.view_style().unwrap_or_default();
             let style = Style::default()
-                .dim_pt(width, height)
+                .dimension_pt(width, height)
                 .reify(&view_style)
                 .to_taffy_style();
-            let taffy_style = cx.set_style(text_node, style);
+            cx.set_style(text_node, style);
             vec![text_node]
         })
     }

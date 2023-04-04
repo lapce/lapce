@@ -30,13 +30,13 @@ fn left(
         (
             container(cx, move |cx| {
                 svg(cx, move || config.get().ui_svg(LapceIcons::REMOTE))
-                    .style(cx, move || Style::default().dim_pt(26.0, 26.0))
+                    .style(cx, move || Style::default().dimension_pt(26.0, 26.0))
             })
             .style(cx, move || {
                 Style::default()
-                    .height_perc(1.0)
+                    .height_pct(1.0)
                     .padding_horiz(10.0)
-                    .align_items(Some(AlignItems::Center))
+                    .items_center()
                     .background(
                         *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL),
                     )
@@ -47,7 +47,7 @@ fn left(
                         cx,
                         move || {
                             let icon_size = config.get().ui.icon_size() as f32;
-                            Style::default().dim_pt(icon_size, icon_size)
+                            Style::default().dimension_pt(icon_size, icon_size)
                         },
                     ),
                     label(cx, move || branch())
@@ -61,7 +61,7 @@ fn left(
                     } else {
                         Display::Flex
                     })
-                    .height_perc(1.0)
+                    .height_pct(1.0)
                     .padding_horiz(10.0)
                     .border_right(1.0)
                     .align_items(Some(AlignItems::Center))
@@ -70,7 +70,7 @@ fn left(
     })
     .style(cx, move || {
         Style::default()
-            .height_perc(1.0)
+            .height_pct(1.0)
             .flex_basis(Dimension::Points(0.0))
             .flex_grow(1.0)
             .justify_content(Some(JustifyContent::FlexStart))
@@ -95,7 +95,7 @@ fn middle(
                         })
                         .style(cx, move || {
                             let icon_size = config.get().ui.icon_size() as f32;
-                            Style::default().dim_pt(icon_size, icon_size)
+                            Style::default().dimension_pt(icon_size, icon_size)
                         })
                     })
                     .style(cx, move || Style::default().padding_horiz(10.0)),
@@ -105,7 +105,7 @@ fn middle(
                         })
                         .style(cx, move || {
                             let icon_size = config.get().ui.icon_size() as f32;
-                            Style::default().dim_pt(icon_size, icon_size)
+                            Style::default().dimension_pt(icon_size, icon_size)
                         })
                     })
                     .style(cx, move || Style::default().padding_right(10.0)),
@@ -126,7 +126,8 @@ fn middle(
                                 .style(cx, move || {
                                     let icon_size =
                                         config.get().ui.icon_size() as f32;
-                                    Style::default().dim_pt(icon_size, icon_size)
+                                    Style::default()
+                                        .dimension_pt(icon_size, icon_size)
                                 }),
                             label(cx, move || {
                                 if let Some(s) = local_workspace.display() {
@@ -152,7 +153,7 @@ fn middle(
                                             let icon_size =
                                                 config.get().ui.icon_size() as f32;
                                             Style::default()
-                                                .dim_pt(icon_size, icon_size)
+                                                .dimension_pt(icon_size, icon_size)
                                         },
                                     )
                                 },
@@ -195,7 +196,7 @@ fn middle(
                     cx,
                     move || {
                         let icon_size = config.get().ui.icon_size() as f32;
-                        Style::default().dim_pt(icon_size, icon_size)
+                        Style::default().dimension_pt(icon_size, icon_size)
                     },
                 )
             })
@@ -223,7 +224,7 @@ fn right(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
             cx,
             move || {
                 let icon_size = config.get().ui.icon_size() as f32;
-                Style::default().dim_pt(icon_size, icon_size)
+                Style::default().dimension_pt(icon_size, icon_size)
             },
         )
     })
@@ -252,9 +253,9 @@ pub fn title(
     })
     .style(cx, move || {
         Style::default()
-            .width_perc(1.0)
+            .width_pct(1.0)
             .height_pt(37.0)
-            .align_items(Some(AlignItems::Center))
+            .items_center()
             .background(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
             .border_bottom(1.0)
     })
