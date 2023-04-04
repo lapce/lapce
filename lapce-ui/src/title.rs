@@ -117,7 +117,10 @@ impl Title {
         }
 
         let padding = 15.0;
-        x = self.update_remote(data, size, padding, x);
+
+        if data.config.ui.remote_connection_icon() {
+            x = self.update_remote(data, size, padding, x);
+        }
         x = self.update_source_control(data, piet_text, size, padding, x);
 
         let mut region = Region::EMPTY;

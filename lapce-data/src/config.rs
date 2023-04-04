@@ -616,6 +616,11 @@ pub struct UIConfig {
 
     #[field_names(desc = "Set the line height for list items")]
     list_line_height: usize,
+
+    #[field_names(
+        desc = "Set whether to show the remote connection icon in the titlebar"
+    )]
+    remote_connection_icon: bool,
 }
 
 impl UIConfig {
@@ -687,6 +692,10 @@ impl UIConfig {
 
     pub fn list_line_height(&self) -> usize {
         self.list_line_height
+    }
+
+    pub fn remote_connection_icon(&self) -> bool {
+        self.remote_connection_icon
     }
 }
 
