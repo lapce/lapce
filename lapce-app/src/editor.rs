@@ -7,8 +7,8 @@ use floem::{
     glazier::Modifiers,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_rw_signal, ReadSignal, RwSignal, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWithUntracked, WriteSignal,
+        create_rw_signal, RwSignal, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalWithUntracked,
     },
 };
 use lapce_core::{
@@ -17,27 +17,20 @@ use lapce_core::{
     cursor::{Cursor, CursorMode},
     editor::EditType,
     mode::Mode,
-    register::Register,
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
-use lapce_rpc::{
-    plugin::PluginId,
-    proxy::{ProxyResponse, ProxyRpcHandler},
-};
+use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
-    CodeActionOrCommand, CompletionItem, CompletionTextEdit, GotoDefinitionResponse,
-    Location, TextEdit,
+    CompletionItem, CompletionTextEdit, GotoDefinitionResponse, Location, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    code_action::{CodeActionData, CodeActionStatus, ScoredCodeActionItem},
     command::{CommandExecuted, InternalCommand},
-    completion::{CompletionData, CompletionStatus},
-    config::LapceConfig,
-    doc::{DocContent, Document, EditorDiagnostic},
+    completion::CompletionStatus,
+    doc::{DocContent, Document},
     editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
     find::Find,
@@ -46,7 +39,7 @@ use crate::{
     main_split::{MainSplitData, SplitDirection, SplitMoveDirection},
     proxy::path_from_url,
     snippet::Snippet,
-    window_tab::{CommonData, Focus, WindowTabData},
+    window_tab::{CommonData, WindowTabData},
 };
 
 pub mod location;
@@ -622,7 +615,9 @@ impl EditorData {
                                             let location = &references[0];
                                             send(DefinitionOrReferece::Location(
                                                 EditorLocation {
-                                                    path,
+                                                    path: path_from_url(
+                                                        &location.uri,
+                                                    ),
                                                     position: Some(
                                                         EditorPosition::Position(
                                                             location.range.start,

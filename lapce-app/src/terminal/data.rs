@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use floem::{
     app::AppContext,
-    reactive::{create_rw_signal, RwSignal},
+    reactive::{create_rw_signal, RwSignal, SignalGetUntracked},
 };
 use lapce_core::mode::{Mode, VisualMode};
 use lapce_rpc::{
@@ -11,37 +11,41 @@ use lapce_rpc::{
 use parking_lot::RwLock;
 
 use crate::{
-    config::LapceConfig, debug::RunDebugProcess, workspace::LapceWorkspace,
+    config::LapceConfig, debug::RunDebugProcess, window_tab::CommonData,
+    workspace::LapceWorkspace,
 };
 
-use super::raw::RawTerminal;
+use super::{event::TermEvent, raw::RawTerminal};
 
 #[derive(Clone)]
 pub struct TerminalData {
+    pub term_id: TermId,
     pub workspace: Arc<LapceWorkspace>,
-    pub proxy: ProxyRpcHandler,
+    pub title: RwSignal<String>,
     pub mode: RwSignal<Mode>,
     pub visual_mode: RwSignal<VisualMode>,
     pub raw: Arc<RwLock<RawTerminal>>,
     pub run_debug: RwSignal<Option<RunDebugProcess>>,
+    pub common: CommonData,
 }
 
 impl TerminalData {
     pub fn new(
         cx: AppContext,
         workspace: Arc<LapceWorkspace>,
-        proxy: ProxyRpcHandler,
         run_debug: Option<RunDebugProcess>,
-        config: &LapceConfig,
+        common: CommonData,
     ) -> Self {
         let term_id = TermId::next();
+
+        let title = create_rw_signal(cx.scope, "".to_string());
 
         let raw = Self::new_raw_terminal(
             workspace.clone(),
             term_id,
-            proxy.clone(),
+            title,
             run_debug.as_ref().map(|r| &r.config),
-            config,
+            common.clone(),
         );
 
         let run_debug = create_rw_signal(cx.scope, run_debug);
@@ -49,23 +53,29 @@ impl TerminalData {
         let visual_mode = create_rw_signal(cx.scope, VisualMode::Normal);
 
         Self {
+            term_id,
             workspace,
-            proxy,
             raw,
+            title,
             run_debug,
             mode,
             visual_mode,
+            common,
         }
     }
 
     pub fn new_raw_terminal(
         workspace: Arc<LapceWorkspace>,
         term_id: TermId,
-        proxy: ProxyRpcHandler,
+        title: RwSignal<String>,
         run_debug: Option<&RunDebugConfig>,
-        config: &LapceConfig,
+        common: CommonData,
     ) -> Arc<RwLock<RawTerminal>> {
-        let raw = Arc::new(RwLock::new(RawTerminal::new(term_id, proxy.clone())));
+        let raw = Arc::new(RwLock::new(RawTerminal::new(
+            term_id,
+            common.proxy.clone(),
+            title,
+        )));
 
         let mut cwd = workspace.path.as_ref().cloned();
         let shell = if let Some(run_debug) = run_debug {
@@ -90,14 +100,13 @@ impl TerminalData {
                 format!("{} {}", run_debug.program, run_debug.args.join(" "))
             }
         } else {
-            config.terminal.shell.clone()
+            common.config.get_untracked().terminal.shell.clone()
         };
 
         {
             let raw = raw.clone();
-            std::thread::spawn(move || {
-                proxy.new_terminal(term_id, cwd, shell);
-            });
+            let _ = common.term_tx.send((term_id, TermEvent::NewTerminal(raw)));
+            common.proxy.new_terminal(term_id, cwd, shell);
         }
         raw
     }

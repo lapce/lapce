@@ -576,11 +576,8 @@ impl ProxyRpcHandler {
         });
     }
 
-    pub fn terminal_write(&self, term_id: TermId, content: &str) {
-        self.notification(ProxyNotification::TerminalWrite {
-            term_id,
-            content: content.to_string(),
-        });
+    pub fn terminal_write(&self, term_id: TermId, content: String) {
+        self.notification(ProxyNotification::TerminalWrite { term_id, content });
     }
 
     pub fn new_buffer(

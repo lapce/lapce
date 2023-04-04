@@ -51,6 +51,11 @@ use crate::{
         item::{PaletteItem, PaletteItemContent},
         PaletteData, PaletteStatus,
     },
+    panel::{
+        kind::PanelKind,
+        position::{PanelContainerPosition, PanelPosition},
+    },
+    terminal::data::TerminalData,
     title::title,
     window::WindowData,
     window_tab::WindowTabData,
@@ -530,6 +535,7 @@ fn editor_cursor(
                     };
 
                     Style::default()
+                        .absolute()
                         .width(width)
                         .height_pt(line_height as f32)
                         .margin_left(margin_left)
@@ -541,9 +547,7 @@ fn editor_cursor(
         .style(cx, move || Style::default().dimension_pct(1.0, 1.0))
     })
     .style(cx, move || {
-        Style::default()
-            .position(Position::Absolute)
-            .dimension_pct(1.0, 1.0)
+        Style::default().absolute().dimension_pct(1.0, 1.0)
     })
 }
 
@@ -1415,6 +1419,118 @@ fn main_split(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
     })
 }
 
+fn terminal_tab_header(
+    cx: AppContext,
+    window_tab_data: Arc<WindowTabData>,
+) -> impl View {
+    let terminal = window_tab_data.terminal.clone();
+    let config = window_tab_data.common.config;
+
+    list(
+        cx,
+        move || terminal.tab_info.with(|info| info.tabs.clone()),
+        |tab| tab.active_terminal(false).map(|t| t.term_id),
+        |cx, tab| {
+            let title = move || {
+                let terminal = tab.active_terminal(true);
+                let title = terminal.map(|t| t.title);
+                let title = title.map(|t| t.get());
+                title.unwrap_or_default()
+            };
+            label(cx, title)
+        },
+    )
+    .style(cx, move || {
+        Style::default()
+            .height_pt(config.get().ui.header_height() as f32)
+            .width_pct(1.0)
+            .border_bottom(1.0)
+    })
+}
+
+fn terminal_panel(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
+    stack(cx, |cx| (terminal_tab_header(cx, window_tab_data),))
+        .style(cx, || Style::default().dimension_pct(1.0, 1.0).border(1.0))
+}
+
+fn panel_view(
+    cx: AppContext,
+    window_tab_data: Arc<WindowTabData>,
+    position: PanelPosition,
+) -> impl View {
+    let panel = window_tab_data.panel.clone();
+    let panels = move || {
+        panel
+            .panels
+            .with(|p| p.get(&position).cloned().unwrap_or_default())
+    };
+    let active_fn = move || {
+        panel
+            .styles
+            .with(|s| s.get(&position).map(|s| s.active).unwrap_or(0))
+    };
+    tab(
+        cx,
+        active_fn,
+        panels,
+        |p| *p,
+        move |cx, kind| {
+            let view = match kind {
+                PanelKind::Terminal => container_box(cx, |cx| {
+                    Box::new(terminal_panel(cx, window_tab_data.clone()))
+                }),
+                PanelKind::FileExplorer => container_box(cx, |cx| {
+                    Box::new(terminal_panel(cx, window_tab_data.clone()))
+                }),
+                PanelKind::SourceControl => container_box(cx, |cx| {
+                    Box::new(terminal_panel(cx, window_tab_data.clone()))
+                }),
+                PanelKind::Plugin => container_box(cx, |cx| {
+                    Box::new(terminal_panel(cx, window_tab_data.clone()))
+                }),
+                PanelKind::Search => container_box(cx, |cx| {
+                    Box::new(terminal_panel(cx, window_tab_data.clone()))
+                }),
+                PanelKind::Problem => container_box(cx, |cx| {
+                    Box::new(terminal_panel(cx, window_tab_data.clone()))
+                }),
+                PanelKind::Debug => container_box(cx, |cx| {
+                    Box::new(terminal_panel(cx, window_tab_data.clone()))
+                }),
+            };
+            view.style(cx, || Style::default().dimension_pct(1.0, 1.0))
+        },
+    )
+    .style(cx, move || {
+        Style::default()
+            .dimension_pct(1.0, 1.0)
+            .apply_if(!panel.is_position_shown(&position, true), |s| {
+                s.display(Display::None)
+            })
+    })
+}
+
+fn bottom_panel(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
+    let panel = window_tab_data.panel.clone();
+    stack(cx, |cx| {
+        (
+            panel_view(cx, window_tab_data.clone(), PanelPosition::BottomLeft),
+            panel_view(cx, window_tab_data, PanelPosition::BottomRight),
+        )
+    })
+    .style(cx, move || {
+        let height = panel.size.with(|s| s.bottom);
+        Style::default()
+            .apply_if(
+                !panel.is_container_shown(&PanelContainerPosition::Bottom, true),
+                |s| s.display(Display::None),
+            )
+            .height_pt(height as f32)
+            .width_pct(1.0)
+            .border_top(1.0)
+    })
+}
+
 fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let config = window_tab_data.main_split.common.config;
     stack(cx, move |cx| {
@@ -1430,13 +1546,8 @@ fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
             }),
             stack(cx, move |cx| {
                 (
-                    main_split(cx, window_tab_data),
-                    label(cx, move || "bottom".to_string()).style(cx, || {
-                        Style::default()
-                            .padding(20.0)
-                            .border_top(1.0)
-                            .min_width_pt(0.0)
-                    }),
+                    main_split(cx, window_tab_data.clone()),
+                    bottom_panel(cx, window_tab_data),
                 )
             })
             .style(cx, || {
@@ -1454,9 +1565,7 @@ fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
             }),
         )
     })
-    .style(cx, || {
-        Style::default().width_pct(1.0).flex_grow(1.0).flex_col()
-    })
+    .style(cx, || Style::default().width_pct(1.0).flex_grow(1.0))
 }
 
 fn status(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {

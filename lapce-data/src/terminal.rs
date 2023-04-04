@@ -21,10 +21,7 @@ use lapce_core::{
     movement::{LinePosition, Movement},
     register::Clipboard,
 };
-use lapce_rpc::{
-    dap_types::{DapId, RunDebugConfig},
-    terminal::{self, TermId},
-};
+use lapce_rpc::{dap_types::RunDebugConfig, terminal::TermId};
 use parking_lot::Mutex;
 
 use crate::{
@@ -527,7 +524,7 @@ impl LapceTerminalViewData {
             self.terminal
                 .proxy
                 .proxy_rpc
-                .terminal_write(self.terminal.term_id, command.as_ref());
+                .terminal_write(self.terminal.term_id, command.to_string());
             self.terminal.raw.lock().term.scroll_display(Scroll::Bottom);
         }
     }
@@ -1186,7 +1183,9 @@ impl LapceTerminalData {
 
     pub fn receive_char(&mut self, c: &str) {
         if self.mode == Mode::Terminal {
-            self.proxy.proxy_rpc.terminal_write(self.term_id, c);
+            self.proxy
+                .proxy_rpc
+                .terminal_write(self.term_id, c.to_string());
             self.raw.lock().term.scroll_display(Scroll::Bottom);
         }
     }
@@ -1205,7 +1204,7 @@ impl EventListener for EventProxy {
     fn send_event(&self, event: alacritty_terminal::event::Event) {
         match event {
             alacritty_terminal::event::Event::PtyWrite(s) => {
-                self.proxy.proxy_rpc.terminal_write(self.term_id, &s);
+                self.proxy.proxy_rpc.terminal_write(self.term_id, s);
             }
             alacritty_terminal::event::Event::Title(title) => {
                 let _ = self.event_sink.submit_command(

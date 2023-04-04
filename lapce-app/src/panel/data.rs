@@ -1,10 +1,17 @@
 use floem::{
     app::AppContext,
-    reactive::{create_rw_signal, RwSignal},
+    reactive::{
+        create_rw_signal, RwSignal, SignalGet, SignalGetUntracked,
+        SignalWithUntracked,
+    },
 };
 use serde::{Deserialize, Serialize};
 
-use super::{kind::PanelKind, position::PanelPosition, style::PanelStyle};
+use super::{
+    kind::PanelKind,
+    position::{PanelContainerPosition, PanelPosition},
+    style::PanelStyle,
+};
 
 pub type PanelOrder = im::HashMap<PanelPosition, im::Vector<PanelKind>>;
 
@@ -118,5 +125,27 @@ impl PanelData {
             styles,
             size,
         }
+    }
+
+    pub fn is_container_shown(
+        &self,
+        position: &PanelContainerPosition,
+        tracked: bool,
+    ) -> bool {
+        self.is_position_shown(&position.first(), tracked)
+            || self.is_position_shown(&position.second(), tracked)
+    }
+
+    pub fn is_position_shown(
+        &self,
+        position: &PanelPosition,
+        tracked: bool,
+    ) -> bool {
+        let styles = if tracked {
+            self.styles.get()
+        } else {
+            self.styles.get_untracked()
+        };
+        styles.get(position).map(|s| s.shown).unwrap_or(false)
     }
 }

@@ -1365,10 +1365,10 @@ impl Widget<LapceTabData> for LapceTerminal {
                         }
                         None => {
                             if let Some(string) = clipboard.get_string() {
-                                terminal.proxy.proxy_rpc.terminal_write(
-                                    terminal.term_id,
-                                    string.as_str(),
-                                );
+                                terminal
+                                    .proxy
+                                    .proxy_rpc
+                                    .terminal_write(terminal.term_id, string);
                                 term.scroll_display(Scroll::Bottom);
                             }
                         }

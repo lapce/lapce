@@ -28,13 +28,16 @@ use crate::{
     doc::EditorDiagnostic,
     editor::location::EditorLocation,
     id::WindowTabId,
-    keypress::{DefaultKeyPress, KeyPressData, KeyPressFocus},
+    keypress::{DefaultKeyPress, KeyPressData},
     main_split::{MainSplitData, SplitData, SplitDirection},
     palette::{kind::PaletteKind, PaletteData},
     panel::data::{default_panel_order, PanelData},
     proxy::{path_from_url, start_proxy, ProxyData},
     source_control::SourceControlData,
-    terminal::event::{terminal_update_process, TermEvent},
+    terminal::{
+        event::{terminal_update_process, TermEvent},
+        panel::TerminalPanelData,
+    },
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
 
@@ -66,6 +69,7 @@ pub struct WindowTabData {
     pub palette: PaletteData,
     pub main_split: MainSplitData,
     pub panel: PanelData,
+    pub terminal: TerminalPanelData,
     pub code_action: RwSignal<CodeActionData>,
     pub source_control: RwSignal<SourceControlData>,
     pub keypress: RwSignal<KeyPressData>,
@@ -178,11 +182,15 @@ impl WindowTabData {
             .unwrap_or_else(|_| default_panel_order());
         let panel = PanelData::new(cx, panel_order);
 
+        let terminal =
+            TerminalPanelData::new(cx, workspace.clone(), None, common.clone());
+
         let window_tab_data = Self {
             window_tab_id: WindowTabId::next(),
             workspace,
             palette,
             main_split,
+            terminal,
             panel,
             code_action,
             source_control,
