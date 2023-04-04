@@ -7,6 +7,7 @@ use lapce_core::directory::Directory;
 use lapce_rpc::plugin::VoltID;
 
 use crate::{
+    panel::{data::PanelOrder, kind::PanelKind, position::PanelPosition},
     window::{WindowData, WindowInfo},
     window_tab::WindowTabData,
     workspace::{LapceWorkspace, WorkspaceInfo},
@@ -179,5 +180,26 @@ impl LapceDb {
         // self.insert_unsaved_buffer(main_split)?;
 
         Ok(())
+    }
+
+    pub fn get_panel_orders(&self) -> Result<PanelOrder> {
+        let sled_db = self.get_db()?;
+        let panel_orders = sled_db
+            .get("panel_orders")?
+            .ok_or_else(|| anyhow!("can't find panel orders"))?;
+        let panel_orders = std::str::from_utf8(&panel_orders)?;
+        let mut panel_orders: PanelOrder = serde_json::from_str(panel_orders)?;
+
+        use strum::IntoEnumIterator;
+        for kind in PanelKind::iter() {
+            if kind.position(&panel_orders).is_none() {
+                let panels = panel_orders
+                    .entry(PanelPosition::LeftTop)
+                    .or_insert_with(im::Vector::new);
+                panels.push_back(kind);
+            }
+        }
+
+        Ok(panel_orders)
     }
 }

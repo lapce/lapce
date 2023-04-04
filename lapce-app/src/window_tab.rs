@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crossbeam_channel::Sender;
 use floem::{
     app::AppContext,
     ext_event::open_file_dialog,
@@ -13,7 +14,7 @@ use floem::{
 };
 use itertools::Itertools;
 use lapce_core::{mode::Mode, register::Register};
-use lapce_rpc::{core::CoreNotification, proxy::ProxyRpcHandler};
+use lapce_rpc::{core::CoreNotification, proxy::ProxyRpcHandler, terminal::TermId};
 
 use crate::{
     code_action::{CodeActionData, CodeActionStatus},
@@ -30,8 +31,10 @@ use crate::{
     keypress::{DefaultKeyPress, KeyPressData, KeyPressFocus},
     main_split::{MainSplitData, SplitData, SplitDirection},
     palette::{kind::PaletteKind, PaletteData},
+    panel::data::{default_panel_order, PanelData},
     proxy::{path_from_url, start_proxy, ProxyData},
     source_control::SourceControlData,
+    terminal::event::{terminal_update_process, TermEvent},
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
 
@@ -51,6 +54,7 @@ pub struct CommonData {
     pub internal_command: RwSignal<Option<InternalCommand>>,
     pub lapce_command: RwSignal<Option<LapceCommand>>,
     pub workbench_command: RwSignal<Option<LapceWorkbenchCommand>>,
+    pub term_tx: Sender<(TermId, TermEvent)>,
     pub proxy: ProxyRpcHandler,
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
@@ -61,6 +65,7 @@ pub struct WindowTabData {
     pub workspace: Arc<LapceWorkspace>,
     pub palette: PaletteData,
     pub main_split: MainSplitData,
+    pub panel: PanelData,
     pub code_action: RwSignal<CodeActionData>,
     pub source_control: RwSignal<SourceControlData>,
     pub keypress: RwSignal<KeyPressData>,
@@ -103,6 +108,12 @@ impl WindowTabData {
             cx.scope,
             KeyPressData::new(&config, workbench_command.write_only()),
         );
+
+        let (term_tx, term_rx) = crossbeam_channel::unbounded();
+        std::thread::spawn(move || {
+            terminal_update_process(term_rx);
+        });
+
         let proxy = start_proxy(
             cx,
             workspace.clone(),
@@ -124,6 +135,7 @@ impl WindowTabData {
             internal_command,
             lapce_command,
             workbench_command,
+            term_tx,
             proxy: proxy.rpc.clone(),
             config,
         };
@@ -161,11 +173,17 @@ impl WindowTabData {
             common.clone(),
         );
 
+        let panel_order = db
+            .get_panel_orders()
+            .unwrap_or_else(|_| default_panel_order());
+        let panel = PanelData::new(cx, panel_order);
+
         let window_tab_data = Self {
             window_tab_id: WindowTabId::next(),
             workspace,
             palette,
             main_split,
+            panel,
             code_action,
             source_control,
             keypress,
@@ -489,6 +507,18 @@ impl WindowTabData {
                 self.main_split.diagnostics.update(|d| {
                     d.insert(path, diagnostics);
                 });
+            }
+            CoreNotification::UpdateTerminal { term_id, content } => {
+                let _ = self
+                    .common
+                    .term_tx
+                    .send((*term_id, TermEvent::UpdateContent(content.to_vec())));
+            }
+            CoreNotification::TerminalProcessStopped { term_id } => {
+                let _ = self
+                    .common
+                    .term_tx
+                    .send((*term_id, TermEvent::CloseTerminal));
             }
             _ => {}
         }

@@ -12,6 +12,7 @@ use floem::{
 };
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::plugin::VoltID;
+use lapce_rpc::terminal::TermId;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRpcHandler},
     proxy::ProxyRpcHandler,
@@ -19,6 +20,7 @@ use lapce_rpc::{
 };
 use lsp_types::Url;
 
+use crate::terminal::event::TermEvent;
 use crate::{completion::CompletionData, workspace::LapceWorkspace};
 
 pub struct Proxy {

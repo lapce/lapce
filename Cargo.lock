@@ -3159,6 +3159,7 @@ dependencies = [
 name = "lapce-app"
 version = "0.2.6"
 dependencies = [
+ "alacritty_terminal",
  "anyhow",
  "config",
  "crossbeam-channel",
