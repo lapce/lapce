@@ -3192,6 +3192,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml_edit",
+ "unicode-width",
 ]
 
 [[package]]

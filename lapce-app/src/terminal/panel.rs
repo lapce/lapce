@@ -2,12 +2,17 @@ use std::sync::Arc;
 
 use floem::{
     app::AppContext,
-    reactive::{create_rw_signal, RwSignal},
+    glazier::KeyEvent,
+    reactive::{create_rw_signal, RwSignal, SignalWithUntracked},
 };
+use lapce_core::mode::Mode;
 use lapce_rpc::proxy::ProxyRpcHandler;
 
 use crate::{
-    config::LapceConfig, debug::RunDebugProcess, window_tab::CommonData,
+    config::LapceConfig,
+    debug::RunDebugProcess,
+    keypress::{KeyPressData, KeyPressFocus},
+    window_tab::CommonData,
     workspace::LapceWorkspace,
 };
 
@@ -36,5 +41,28 @@ impl TerminalPanelData {
         let tab_info = create_rw_signal(cx.scope, tab_info);
 
         Self { tab_info }
+    }
+
+    pub fn key_down(
+        &self,
+        cx: AppContext,
+        key_event: &KeyEvent,
+        keypress: &mut KeyPressData,
+    ) {
+        println!("terminal panel keydown");
+        let tab = self.tab_info.with_untracked(|info| {
+            info.tabs
+                .get(info.active)
+                .or_else(|| info.tabs.last())
+                .cloned()
+        });
+        let terminal = tab.and_then(|tab| tab.active_terminal(false));
+        if let Some(terminal) = terminal {
+            let executed = keypress.key_down(cx, key_event, &terminal);
+            let mode = terminal.get_mode();
+            if !executed && mode == Mode::Terminal {
+                terminal.send_keypress(cx, key_event);
+            }
+        }
     }
 }

@@ -46,6 +46,7 @@ pub enum Focus {
     Workbench,
     Palette,
     CodeAction,
+    Terminal,
 }
 
 #[derive(Clone)]
@@ -547,6 +548,10 @@ impl WindowTabData {
             Focus::CodeAction => {
                 let code_action = self.code_action.get_untracked();
                 keypress.key_down(cx, key_event, &code_action);
+                true
+            }
+            Focus::Terminal => {
+                self.terminal.key_down(cx, key_event, &mut keypress);
                 true
             }
         };

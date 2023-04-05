@@ -124,7 +124,7 @@ impl TextLayoutCache {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DocContent {
     /// A file at some location. This can be a remote path.
     File(PathBuf),

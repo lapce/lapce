@@ -51,6 +51,10 @@ pub enum Condition {
     ModalFocus,
     #[strum(serialize = "in_snippet")]
     InSnippet,
+    #[strum(serialize = "terminal_focus")]
+    TerminalFocus,
+    #[strum(serialize = "panel_focus")]
+    PanelFocus,
 }
 
 #[cfg(test)]

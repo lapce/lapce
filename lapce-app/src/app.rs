@@ -42,7 +42,7 @@ use crate::{
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     db::LapceDb,
     doc::{DocContent, DocLine, Document},
-    editor::EditorData,
+    editor::{self, EditorData},
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
@@ -55,10 +55,10 @@ use crate::{
         kind::PanelKind,
         position::{PanelContainerPosition, PanelPosition},
     },
-    terminal::data::TerminalData,
+    terminal::{data::TerminalData, tab::TerminalTabData, view::terminal_view},
     title::title,
     window::WindowData,
-    window_tab::WindowTabData,
+    window_tab::{Focus, WindowTabData},
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
@@ -645,7 +645,16 @@ fn editor(
             )
         });
 
-    let key_fn = |line: &DocLine| (line.rev, line.style_rev, line.line);
+    let key_fn = move |line: &DocLine| {
+        (
+            editor
+                .with_untracked(|editor| editor.doc)
+                .with_untracked(|doc| doc.content.clone()),
+            line.rev,
+            line.style_rev,
+            line.line,
+        )
+    };
     let view_fn = move |cx, line: DocLine| {
         container(cx, |cx| {
             rich_text(cx, move || line.text.clone().text.clone())
@@ -1429,7 +1438,7 @@ fn terminal_tab_header(
     list(
         cx,
         move || terminal.tab_info.with(|info| info.tabs.clone()),
-        |tab| tab.active_terminal(false).map(|t| t.term_id),
+        |tab| tab.terminal_tab_id,
         |cx, tab| {
             let title = move || {
                 let terminal = tab.active_terminal(true);
@@ -1448,9 +1457,75 @@ fn terminal_tab_header(
     })
 }
 
+fn terminal_tab_split(
+    cx: AppContext,
+    terminal_tab_data: TerminalTabData,
+) -> impl View {
+    list(
+        cx,
+        move || terminal_tab_data.terminals.get(),
+        |terminal| terminal.term_id,
+        |cx, terminal| {
+            let focus = terminal.common.focus;
+            click(
+                cx,
+                move |cx| {
+                    terminal_view(
+                        cx,
+                        terminal.term_id,
+                        terminal.raw.clone(),
+                        terminal.mode.read_only(),
+                        terminal.common.proxy.clone(),
+                        terminal.common.config,
+                    )
+                    .on_event(EventListner::MouseWheel, move |event| {
+                        if let Event::MouseWheel(mouse_event) = event {
+                            terminal.clone().wheel_scroll(mouse_event.wheel_delta.y);
+                            true
+                        } else {
+                            false
+                        }
+                    })
+                    .style(cx, || Style::default().dimension_pct(1.0, 1.0))
+                },
+                move || {
+                    println!("focus terminal");
+                    focus.set(Focus::Terminal);
+                },
+            )
+            .style(cx, || Style::default().dimension_pct(1.0, 1.0))
+        },
+    )
+    .style(cx, || {
+        Style::default()
+            .flex_grow(1.0)
+            .flex_basis(Dimension::Points(1.0))
+    })
+}
+
+fn terminal_tab_content(
+    cx: AppContext,
+    window_tab_data: Arc<WindowTabData>,
+) -> impl View {
+    let terminal = window_tab_data.terminal.clone();
+    tab(
+        cx,
+        move || terminal.tab_info.with(|info| info.active),
+        move || terminal.tab_info.with(|info| info.tabs.clone()),
+        |tab| tab.terminal_tab_id,
+        |cx, tab| terminal_tab_split(cx, tab),
+    )
+    .style(cx, || Style::default().width_pct(1.0).flex_grow(1.0))
+}
+
 fn terminal_panel(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
-    stack(cx, |cx| (terminal_tab_header(cx, window_tab_data),))
-        .style(cx, || Style::default().dimension_pct(1.0, 1.0).border(1.0))
+    stack(cx, |cx| {
+        (
+            terminal_tab_header(cx, window_tab_data.clone()),
+            terminal_tab_content(cx, window_tab_data),
+        )
+    })
+    .style(cx, || Style::default().dimension_pct(1.0, 1.0).flex_col())
 }
 
 fn panel_view(

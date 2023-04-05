@@ -10,14 +10,15 @@ use floem::{
 use lapce_rpc::proxy::ProxyRpcHandler;
 
 use crate::{
-    config::LapceConfig, debug::RunDebugProcess, window_tab::CommonData,
-    workspace::LapceWorkspace,
+    config::LapceConfig, debug::RunDebugProcess, id::TerminalTabId,
+    window_tab::CommonData, workspace::LapceWorkspace,
 };
 
 use super::data::TerminalData;
 
 #[derive(Clone)]
 pub struct TerminalTabData {
+    pub terminal_tab_id: TerminalTabId,
     pub active: RwSignal<usize>,
     pub terminals: RwSignal<im::Vector<TerminalData>>,
 }
@@ -33,7 +34,12 @@ impl TerminalTabData {
         let terminals = im::vector![terminal_data];
         let terminals = create_rw_signal(cx.scope, terminals);
         let active = create_rw_signal(cx.scope, 0);
-        Self { active, terminals }
+        let terminal_tab_id = TerminalTabId::next();
+        Self {
+            terminal_tab_id,
+            active,
+            terminals,
+        }
     }
 
     pub fn active_terminal(&self, tracked: bool) -> Option<TerminalData> {

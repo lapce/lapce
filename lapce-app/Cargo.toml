@@ -31,6 +31,7 @@ lsp-types.workspace = true
 smallvec.workspace = true
 include_dir.workspace = true
 regex.workspace = true
+unicode-width = "0.1.10"
 fuzzy-matcher = "0.3.7"
 sled = "0.34.7"
 tokio = { version = "1.21", features = ["full"] }
