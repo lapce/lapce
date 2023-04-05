@@ -19,14 +19,14 @@ pub struct PathObject {
 impl PathObject {
     pub fn new(path: PathBuf, line: usize, column: usize) -> PathObject {
         PathObject {
-            path,
+            path: path.canonicalize().unwrap_or(path),
             linecol: Some(LineCol { line, column }),
         }
     }
 
     pub fn from_path(path: PathBuf) -> PathObject {
         PathObject {
-            path,
+            path: path.canonicalize().unwrap_or(path),
             linecol: None,
         }
     }
