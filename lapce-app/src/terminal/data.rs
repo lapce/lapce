@@ -63,6 +63,7 @@ impl KeyPressFocus for TerminalData {
         count: Option<usize>,
         mods: floem::glazier::Modifiers,
     ) -> crate::command::CommandExecuted {
+        AppContext::request_paint();
         let config = self.common.config.get_untracked();
         match &command.kind {
             CommandKind::Move(cmd) => {
@@ -274,9 +275,7 @@ impl KeyPressFocus for TerminalData {
     }
 
     fn receive_char(&self, cx: AppContext, c: &str) {
-        println!("terminal receive char");
         if self.mode.get_untracked() == Mode::Terminal {
-            println!("terminal write");
             self.common
                 .proxy
                 .terminal_write(self.term_id, c.to_string());
@@ -294,12 +293,11 @@ impl TerminalData {
     ) -> Self {
         let term_id = TermId::next();
 
-        let title = create_rw_signal(cx.scope, "".to_string());
+        let title = create_rw_signal(cx.scope, "title".to_string());
 
         let raw = Self::new_raw_terminal(
             workspace.clone(),
             term_id,
-            title,
             run_debug.as_ref().map(|r| &r.config),
             common.clone(),
         );
@@ -323,14 +321,13 @@ impl TerminalData {
     pub fn new_raw_terminal(
         workspace: Arc<LapceWorkspace>,
         term_id: TermId,
-        title: RwSignal<String>,
         run_debug: Option<&RunDebugConfig>,
         common: CommonData,
     ) -> Arc<RwLock<RawTerminal>> {
         let raw = Arc::new(RwLock::new(RawTerminal::new(
             term_id,
             common.proxy.clone(),
-            title,
+            common.term_notification_tx.clone(),
         )));
 
         let mut cwd = workspace.path.as_ref().cloned();

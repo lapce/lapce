@@ -7,11 +7,10 @@ use floem::{
         SignalWithUntracked,
     },
 };
-use lapce_rpc::proxy::ProxyRpcHandler;
 
 use crate::{
-    config::LapceConfig, debug::RunDebugProcess, id::TerminalTabId,
-    window_tab::CommonData, workspace::LapceWorkspace,
+    debug::RunDebugProcess, id::TerminalTabId, window_tab::CommonData,
+    workspace::LapceWorkspace,
 };
 
 use super::data::TerminalData;

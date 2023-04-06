@@ -1,12 +1,19 @@
 use alacritty_terminal::{ansi, event::EventListener, term::test::TermSize, Term};
-use floem::reactive::{RwSignal, SignalSet};
+use crossbeam_channel::Sender;
+use floem::{
+    app::AppContext,
+    ext_event::create_ext_action,
+    reactive::{RwSignal, SignalSet},
+};
 use lapce_proxy::terminal::TermConfig;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 
+use super::event::TermNotification;
+
 pub struct EventProxy {
-    pub term_id: TermId,
+    term_id: TermId,
     proxy: ProxyRpcHandler,
-    title: RwSignal<String>,
+    term_notification_tx: Sender<TermNotification>,
 }
 
 impl EventListener for EventProxy {
@@ -15,8 +22,16 @@ impl EventListener for EventProxy {
             alacritty_terminal::event::Event::PtyWrite(s) => {
                 self.proxy.terminal_write(self.term_id, s);
             }
+            alacritty_terminal::event::Event::MouseCursorDirty => {
+                let _ = self
+                    .term_notification_tx
+                    .send(TermNotification::RequestPaint);
+            }
             alacritty_terminal::event::Event::Title(s) => {
-                self.title.set(s);
+                let _ = self.term_notification_tx.send(TermNotification::SetTitle {
+                    term_id: self.term_id,
+                    title: s,
+                });
             }
             _ => (),
         }
@@ -33,13 +48,13 @@ impl RawTerminal {
     pub fn new(
         term_id: TermId,
         proxy: ProxyRpcHandler,
-        title: RwSignal<String>,
+        term_notification_tx: Sender<TermNotification>,
     ) -> Self {
         let config = TermConfig::default();
         let event_proxy = EventProxy {
             term_id,
             proxy,
-            title,
+            term_notification_tx,
         };
 
         let size = TermSize::new(50, 30);

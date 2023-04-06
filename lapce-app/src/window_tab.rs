@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crossbeam_channel::Sender;
 use floem::{
     app::AppContext,
-    ext_event::open_file_dialog,
+    ext_event::{create_signal_from_channel, open_file_dialog},
     glazier::{FileDialogOptions, KeyEvent},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
@@ -15,6 +15,7 @@ use floem::{
 use itertools::Itertools;
 use lapce_core::{mode::Mode, register::Register};
 use lapce_rpc::{core::CoreNotification, proxy::ProxyRpcHandler, terminal::TermId};
+use serde_json::Value;
 
 use crate::{
     code_action::{CodeActionData, CodeActionStatus},
@@ -31,11 +32,14 @@ use crate::{
     keypress::{DefaultKeyPress, KeyPressData},
     main_split::{MainSplitData, SplitData, SplitDirection},
     palette::{kind::PaletteKind, PaletteData},
-    panel::data::{default_panel_order, PanelData},
+    panel::{
+        data::{default_panel_order, PanelData},
+        kind::PanelKind,
+    },
     proxy::{path_from_url, start_proxy, ProxyData},
     source_control::SourceControlData,
     terminal::{
-        event::{terminal_update_process, TermEvent},
+        event::{terminal_update_process, TermEvent, TermNotification},
         panel::TerminalPanelData,
     },
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
@@ -46,7 +50,7 @@ pub enum Focus {
     Workbench,
     Palette,
     CodeAction,
-    Terminal,
+    Panel(PanelKind),
 }
 
 #[derive(Clone)]
@@ -59,6 +63,7 @@ pub struct CommonData {
     pub lapce_command: RwSignal<Option<LapceCommand>>,
     pub workbench_command: RwSignal<Option<LapceWorkbenchCommand>>,
     pub term_tx: Sender<(TermId, TermEvent)>,
+    pub term_notification_tx: Sender<TermNotification>,
     pub proxy: ProxyRpcHandler,
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
@@ -115,15 +120,21 @@ impl WindowTabData {
         );
 
         let (term_tx, term_rx) = crossbeam_channel::unbounded();
-        std::thread::spawn(move || {
-            terminal_update_process(term_rx);
-        });
+        let (term_notification_tx, term_notification_rx) =
+            crossbeam_channel::unbounded();
+        {
+            let term_notification_tx = term_notification_tx.clone();
+            std::thread::spawn(move || {
+                terminal_update_process(term_rx, term_notification_tx);
+            });
+        }
 
         let proxy = start_proxy(
             cx,
             workspace.clone(),
             all_disabled_volts,
             config.plugins.clone(),
+            term_tx.clone(),
         );
         let (config, set_config) = create_signal(cx.scope, Arc::new(config));
 
@@ -141,6 +152,7 @@ impl WindowTabData {
             lapce_command,
             workbench_command,
             term_tx,
+            term_notification_tx,
             proxy: proxy.rpc.clone(),
             config,
         };
@@ -181,10 +193,29 @@ impl WindowTabData {
         let panel_order = db
             .get_panel_orders()
             .unwrap_or_else(|_| default_panel_order());
-        let panel = PanelData::new(cx, panel_order);
+        let panel = PanelData::new(cx, panel_order, common.clone());
 
         let terminal =
             TerminalPanelData::new(cx, workspace.clone(), None, common.clone());
+
+        {
+            let notification = create_signal_from_channel(cx, term_notification_rx);
+            let terminal = terminal.clone();
+            create_effect(cx.scope, move |_| {
+                notification.with(|notification| {
+                    if let Some(notification) = notification.as_ref() {
+                        match notification {
+                            TermNotification::SetTitle { term_id, title } => {
+                                terminal.set_title(term_id, title);
+                            }
+                            TermNotification::RequestPaint => {
+                                AppContext::request_paint();
+                            }
+                        }
+                    }
+                });
+            });
+        }
 
         let window_tab_data = Self {
             window_tab_id: WindowTabId::next(),
@@ -215,7 +246,7 @@ impl WindowTabData {
             let window_tab_data = window_tab_data.clone();
             create_effect(cx.scope, move |_| {
                 if let Some(cmd) = window_tab_data.common.workbench_command.get() {
-                    window_tab_data.run_workbench_command(cx, cmd);
+                    window_tab_data.run_workbench_command(cx, cmd, None);
                 }
             });
         }
@@ -247,8 +278,8 @@ impl WindowTabData {
 
     pub fn run_lapce_command(&self, cx: AppContext, cmd: LapceCommand) {
         match cmd.kind {
-            CommandKind::Workbench(cmd) => {
-                self.run_workbench_command(cx, cmd);
+            CommandKind::Workbench(command) => {
+                self.run_workbench_command(cx, command, cmd.data);
             }
             CommandKind::Edit(_) => {}
             CommandKind::Move(_) => {}
@@ -258,7 +289,12 @@ impl WindowTabData {
         }
     }
 
-    pub fn run_workbench_command(&self, cx: AppContext, cmd: LapceWorkbenchCommand) {
+    pub fn run_workbench_command(
+        &self,
+        cx: AppContext,
+        cmd: LapceWorkbenchCommand,
+        data: Option<Value>,
+    ) {
         use LapceWorkbenchCommand::*;
         match cmd {
             EnableModal => {}
@@ -335,29 +371,69 @@ impl WindowTabData {
             RunAndDebugRestart => {}
             RunAndDebugStop => {}
             CheckoutBranch => {}
-            ToggleMaximizedPanel => {}
-            HidePanel => {}
-            ShowPanel => {}
-            TogglePanelFocus => {}
-            TogglePanelVisual => {}
+            ToggleMaximizedPanel => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        self.panel.toggle_maximize(&kind);
+                    }
+                } else {
+                    self.panel.toggle_active_maximize();
+                }
+            }
+            HidePanel => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        self.hide_panel(cx, kind);
+                    }
+                }
+            }
+            ShowPanel => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        self.show_panel(cx, kind);
+                    }
+                }
+            }
+            TogglePanelFocus => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        self.toggle_panel_focus(cx, kind);
+                    }
+                }
+            }
+            TogglePanelVisual => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        self.toggle_panel_visual(cx, kind);
+                    }
+                }
+            }
             TogglePanelLeftVisual => {}
             TogglePanelRightVisual => {}
             TogglePanelBottomVisual => {}
-            ToggleTerminalFocus => {}
+            ToggleTerminalFocus => {
+                self.toggle_panel_focus(cx, PanelKind::Terminal);
+            }
             ToggleSourceControlFocus => {}
             TogglePluginFocus => {}
             ToggleFileExplorerFocus => {}
             ToggleProblemFocus => {}
             ToggleSearchFocus => {}
-            ToggleTerminalVisual => {}
+            ToggleTerminalVisual => {
+                self.toggle_panel_visual(cx, PanelKind::Terminal);
+            }
             ToggleSourceControlVisual => {}
             TogglePluginVisual => {}
             ToggleFileExplorerVisual => {}
             ToggleProblemVisual => {}
             ToggleDebugVisual => {}
             ToggleSearchVisual => {}
-            FocusEditor => {}
-            FocusTerminal => {}
+            FocusEditor => {
+                self.common.focus.set(Focus::Workbench);
+            }
+            FocusTerminal => {
+                self.common.focus.set(Focus::Panel(PanelKind::Terminal));
+            }
             SourceControlInit => {}
             SourceControlCommit => {}
             SourceControlCopyActiveFileRemoteUrl => {}
@@ -456,6 +532,14 @@ impl WindowTabData {
             InternalCommand::RunCodeAction { plugin_id, action } => {
                 self.main_split.run_code_action(cx, plugin_id, action);
             }
+            InternalCommand::SaveJumpLocation {
+                path,
+                offset,
+                scroll_offset,
+            } => {
+                self.main_split
+                    .save_jump_location(path, offset, scroll_offset);
+            }
         }
     }
 
@@ -517,18 +601,8 @@ impl WindowTabData {
                     d.insert(path, diagnostics);
                 });
             }
-            CoreNotification::UpdateTerminal { term_id, content } => {
-                let _ = self
-                    .common
-                    .term_tx
-                    .send((*term_id, TermEvent::UpdateContent(content.to_vec())));
-            }
-            CoreNotification::TerminalProcessStopped { term_id } => {
-                let _ = self
-                    .common
-                    .term_tx
-                    .send((*term_id, TermEvent::CloseTerminal));
-            }
+            CoreNotification::UpdateTerminal { term_id, content } => {}
+            CoreNotification::TerminalProcessStopped { term_id } => {}
             _ => {}
         }
     }
@@ -550,10 +624,11 @@ impl WindowTabData {
                 keypress.key_down(cx, key_event, &code_action);
                 true
             }
-            Focus::Terminal => {
+            Focus::Panel(PanelKind::Terminal) => {
                 self.terminal.key_down(cx, key_event, &mut keypress);
                 true
             }
+            _ => true,
         };
 
         if !executed {
@@ -689,5 +764,51 @@ impl WindowTabData {
         } else {
             Mode::Insert
         }
+    }
+
+    fn toggle_panel_visual(&self, cx: AppContext, kind: PanelKind) {
+        if self.panel.is_panel_visible(&kind) {
+            self.hide_panel(cx, kind);
+        } else {
+            self.show_panel(cx, kind);
+        }
+    }
+
+    fn toggle_panel_focus(&self, cx: AppContext, kind: PanelKind) {
+        let should_hide = match kind {
+            PanelKind::FileExplorer
+            | PanelKind::Plugin
+            | PanelKind::Problem
+            | PanelKind::Debug => {
+                // Some panels don't accept focus (yet). Fall back to visibility check
+                // in those cases.
+                self.panel.is_panel_visible(&kind)
+            }
+            PanelKind::Terminal | PanelKind::SourceControl | PanelKind::Search => {
+                self.is_panel_focused(kind)
+            }
+        };
+        if should_hide {
+            self.hide_panel(cx, kind);
+        } else {
+            self.show_panel(cx, kind);
+        }
+    }
+
+    fn is_panel_focused(&self, kind: PanelKind) -> bool {
+        // Moving between e.g. Search and Problems doesn't affect focus, so we need to also check
+        // visibility.
+        self.common.focus.get_untracked() == Focus::Panel(kind)
+            && self.panel.is_panel_visible(&kind)
+    }
+
+    fn hide_panel(&self, cx: AppContext, kind: PanelKind) {
+        self.panel.hide_panel(&kind);
+        self.common.focus.set(Focus::Workbench);
+    }
+
+    pub fn show_panel(&self, cx: AppContext, kind: PanelKind) {
+        self.panel.show_panel(&kind);
+        self.common.focus.set(Focus::Panel(kind));
     }
 }

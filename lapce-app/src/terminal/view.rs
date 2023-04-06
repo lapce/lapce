@@ -10,7 +10,9 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
-    reactive::{create_effect, ReadSignal, SignalGetUntracked, SignalWith},
+    reactive::{
+        create_effect, ReadSignal, SignalGet, SignalGetUntracked, SignalWith,
+    },
     view::{ChangeFlags, View},
     Renderer,
 };
@@ -19,9 +21,13 @@ use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 use parking_lot::RwLock;
 use unicode_width::UnicodeWidthChar;
 
-use crate::config::{color::LapceColor, LapceConfig};
+use crate::{
+    config::{color::LapceColor, LapceConfig},
+    panel::kind::PanelKind,
+    window_tab::{CommonData, Focus},
+};
 
-use super::raw::RawTerminal;
+use super::{panel::TerminalPanelData, raw::RawTerminal};
 
 enum TerminalViewState {
     ConfigChanged,
@@ -33,9 +39,9 @@ pub struct TerminalView {
     term_id: TermId,
     raw: Arc<RwLock<RawTerminal>>,
     mode: ReadSignal<Mode>,
-    config: ReadSignal<Arc<LapceConfig>>,
     size: Size,
     is_focused: bool,
+    config: ReadSignal<Arc<LapceConfig>>,
     proxy: ProxyRpcHandler,
 }
 
@@ -44,14 +50,39 @@ pub fn terminal_view(
     term_id: TermId,
     raw: Arc<RwLock<RawTerminal>>,
     mode: ReadSignal<Mode>,
-    proxy: ProxyRpcHandler,
-    config: ReadSignal<Arc<LapceConfig>>,
+    terminal_panel_data: TerminalPanelData,
 ) -> TerminalView {
     let id = cx.new_id();
 
+    let config = terminal_panel_data.common.config;
     create_effect(cx.scope, move |_| {
         config.with(|_c| {});
         AppContext::update_state(id, TerminalViewState::ConfigChanged, false);
+    });
+
+    let proxy = terminal_panel_data.common.proxy.clone();
+
+    create_effect(cx.scope, move |last| {
+        let focus = terminal_panel_data.common.focus.get();
+
+        let mut is_focused = false;
+        if let Focus::Panel(PanelKind::Terminal) = focus {
+            let tab = terminal_panel_data.active_tab(true);
+            if let Some(tab) = tab {
+                let terminal = tab.active_terminal(true);
+                is_focused = terminal.map(|t| t.term_id) == Some(term_id);
+            }
+        }
+
+        if last != Some(is_focused) {
+            AppContext::update_state(
+                id,
+                TerminalViewState::FocusChanged(is_focused),
+                false,
+            );
+        }
+
+        is_focused
     });
 
     TerminalView {
@@ -67,7 +98,7 @@ pub fn terminal_view(
 }
 
 impl TerminalView {
-    fn char_width(&self) -> f64 {
+    fn char_size(&self) -> Size {
         let config = self.config.get_untracked();
         let font_family = config.terminal_font_family();
         let font_size = config.terminal_font_size();
@@ -77,14 +108,13 @@ impl TerminalView {
         let attrs_list = AttrsList::new(attrs);
         let mut text_layout = TextLayout::new();
         text_layout.set_text("W", attrs_list);
-        let text_layout_size = text_layout.size();
-        text_layout_size.width
+        text_layout.size()
     }
 
     fn terminal_size(&self) -> (usize, usize) {
         let config = self.config.get_untracked();
         let line_height = config.terminal_line_height() as f64;
-        let char_width = self.char_width();
+        let char_width = self.char_size().width;
         let width = (self.size.width / char_width).floor() as usize;
         let height = (self.size.height / line_height).floor() as usize;
         (width, height)
@@ -112,8 +142,7 @@ impl View for TerminalView {
                     self.is_focused = is_focused;
                 }
             }
-            cx.request_layout(self.id());
-            ChangeFlags::LAYOUT
+            ChangeFlags::PAINT
         } else {
             ChangeFlags::empty()
         }
@@ -133,7 +162,6 @@ impl View for TerminalView {
         if size != self.size {
             self.size = size;
             let (width, height) = self.terminal_size();
-            println!("terminal reisze {width} {height}");
             let term_size = TermSize::new(width, height);
             self.raw.write().term.resize(term_size);
             self.proxy.terminal_resize(self.term_id, width, height);
@@ -155,7 +183,8 @@ impl View for TerminalView {
         let line_height = config.terminal_line_height() as f64;
         let font_family = config.terminal_font_family();
         let font_size = config.terminal_font_size();
-        let char_width = self.char_width();
+        let char_size = self.char_size();
+        let char_width = char_size.width;
 
         let family: Vec<FamilyOwned> =
             FamilyOwned::parse_list(font_family).collect();
@@ -211,6 +240,7 @@ impl View for TerminalView {
         let cursor_point = &content.cursor.point;
 
         let term_bg = *config.get_color(LapceColor::TERMINAL_BACKGROUND);
+        let mut text_layout = TextLayout::new();
         for item in content.display_iter {
             let point = item.point;
             let cell = item.cell;
@@ -274,9 +304,11 @@ impl View for TerminalView {
                 if bold {
                     attrs = attrs.weight(Weight::BOLD);
                 }
-                let mut text_layout = TextLayout::new();
                 text_layout.set_text(&cell.c.to_string(), AttrsList::new(attrs));
-                cx.draw_text(&text_layout, Point::new(x, y + line_height));
+                cx.draw_text(
+                    &text_layout,
+                    Point::new(x, y + (line_height - char_size.height) / 2.0),
+                );
             }
         }
         // if data.find.visual {

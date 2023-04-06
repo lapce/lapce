@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use floem::peniko::kurbo::Point;
+use floem::peniko::kurbo::{Point, Vec2};
 use indexmap::IndexMap;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
@@ -482,6 +482,11 @@ pub enum InternalCommand {
     },
     PaletteReferences {
         references: Vec<EditorLocation>,
+    },
+    SaveJumpLocation {
+        path: PathBuf,
+        offset: usize,
+        scroll_offset: Vec2,
     },
     Split {
         direction: SplitDirection,

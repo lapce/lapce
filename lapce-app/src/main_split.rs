@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 
 use floem::{
@@ -10,9 +9,9 @@ use floem::{
     glazier::KeyEvent,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
-        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked, WriteSignal,
+        create_effect, create_memo, create_rw_signal, Memo, RwSignal, SignalGet,
+        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        SignalWithUntracked,
     },
 };
 use itertools::Itertools;
@@ -282,7 +281,7 @@ impl MainSplitData {
         false
     }
 
-    fn save_jump_location(
+    pub fn save_jump_location(
         &self,
         path: PathBuf,
         offset: usize,
@@ -791,7 +790,7 @@ impl MainSplitData {
 
     pub fn split_move(
         &self,
-        cx: AppContext,
+        _cx: AppContext,
         direction: SplitMoveDirection,
         editor_tab_id: EditorTabId,
     ) -> Option<()> {

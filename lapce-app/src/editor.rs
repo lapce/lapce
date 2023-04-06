@@ -17,6 +17,7 @@ use lapce_core::{
     cursor::{Cursor, CursorMode},
     editor::EditType,
     mode::Mode,
+    movement::Movement,
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
@@ -43,6 +44,12 @@ use crate::{
 };
 
 pub mod location;
+
+#[derive(Clone, Debug)]
+pub enum InlineFindDirection {
+    Left,
+    Right,
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct EditorInfo {
@@ -110,6 +117,9 @@ pub struct EditorData {
     pub scroll_to: RwSignal<Option<Vec2>>,
     pub snippet: RwSignal<Option<Vec<(usize, (usize, usize))>>>,
     pub find: RwSignal<Find>,
+    pub last_movement: RwSignal<Movement>,
+    pub inline_find: RwSignal<Option<InlineFindDirection>>,
+    pub last_inline_find: RwSignal<Option<(InlineFindDirection, String)>>,
     pub common: CommonData,
 }
 
@@ -145,6 +155,9 @@ impl EditorData {
         let viewport = create_rw_signal(cx.scope, Rect::ZERO);
         let confirmed = create_rw_signal(cx.scope, false);
         let find = create_rw_signal(cx.scope, Find::new(0));
+        let last_movement = create_rw_signal(cx.scope, Movement::Left);
+        let inline_find = create_rw_signal(cx.scope, None);
+        let last_inline_find = create_rw_signal(cx.scope, None);
         Self {
             editor_tab_id,
             editor_id,
@@ -157,6 +170,9 @@ impl EditorData {
             scroll_delta,
             scroll_to,
             find,
+            last_movement,
+            inline_find,
+            last_inline_find,
             common,
         }
     }
@@ -267,6 +283,22 @@ impl EditorData {
         count: Option<usize>,
         mods: Modifiers,
     ) -> CommandExecuted {
+        if movement.is_jump() && movement != &self.last_movement.get_untracked() {
+            let path = self.doc.with_untracked(|doc| doc.content.path().cloned());
+            if let Some(path) = path {
+                let offset = self.cursor.with_untracked(|c| c.offset());
+                let scroll_offset = self.viewport.get_untracked().origin().to_vec2();
+                self.common.internal_command.set(Some(
+                    InternalCommand::SaveJumpLocation {
+                        path,
+                        offset,
+                        scroll_offset,
+                    },
+                ));
+            }
+        }
+        self.last_movement.set(movement.clone());
+
         let mut cursor = self.cursor.get_untracked();
         let config = self.common.config.get_untracked();
         self.doc.update(|doc| {
@@ -509,9 +541,60 @@ impl EditorData {
             FocusCommand::Save => {
                 self.save(cx, false, true);
             }
+            FocusCommand::InlineFindLeft => {
+                self.inline_find.set(Some(InlineFindDirection::Left));
+            }
+            FocusCommand::InlineFindRight => {
+                self.inline_find.set(Some(InlineFindDirection::Right));
+            }
+            FocusCommand::RepeatLastInlineFind => {
+                if let Some((direction, c)) = self.last_inline_find.get_untracked() {
+                    self.inline_find(cx, direction, &c);
+                }
+            }
             _ => {}
         }
         CommandExecuted::Yes
+    }
+
+    /// Jump to the next/previous column on the line which matches the given text
+    fn inline_find(&self, cx: AppContext, direction: InlineFindDirection, c: &str) {
+        let offset = self.cursor.with_untracked(|c| c.offset());
+        let (line_content, line_start_offset) = self.doc.with_untracked(|doc| {
+            let line = doc.buffer().line_of_offset(offset);
+            let line_content = doc.buffer().line_content(line);
+            let line_start_offset = doc.buffer().offset_of_line(line);
+            (line_content.to_string(), line_start_offset)
+        });
+        let index = offset - line_start_offset;
+        if let Some(new_index) = match direction {
+            InlineFindDirection::Left => line_content[..index].rfind(c),
+            InlineFindDirection::Right => {
+                if index + 1 >= line_content.len() {
+                    None
+                } else {
+                    let index = index
+                        + self.doc.with_untracked(|doc| {
+                            doc.buffer().next_grapheme_offset(
+                                offset,
+                                1,
+                                doc.buffer().offset_line_end(offset, false),
+                            )
+                        })
+                        - offset;
+                    line_content[index..].find(c).map(|i| i + index)
+                }
+            }
+        } {
+            self.run_move_command(
+                cx,
+                &lapce_core::movement::Movement::Offset(
+                    new_index + line_start_offset,
+                ),
+                None,
+                Modifiers::empty(),
+            );
+        }
     }
 
     fn go_to_definition(&self, cx: AppContext) {
@@ -1477,6 +1560,10 @@ impl KeyPressFocus for EditorData {
         }
     }
 
+    fn expect_char(&self) -> bool {
+        self.inline_find.with_untracked(|f| f.is_some())
+    }
+
     fn receive_char(&self, cx: AppContext, c: &str) {
         if self.get_mode() == Mode::Insert {
             let mut cursor = self.cursor.get_untracked();
@@ -1496,6 +1583,10 @@ impl KeyPressFocus for EditorData {
                 self.cancel_completion();
             }
             self.apply_deltas(&deltas);
+        } else if let Some(direction) = self.inline_find.get_untracked() {
+            self.inline_find(cx, direction.clone(), c);
+            self.last_inline_find.set(Some((direction, c.to_string())));
+            self.inline_find.set(None);
         }
     }
 }

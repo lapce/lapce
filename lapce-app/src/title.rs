@@ -29,8 +29,14 @@ fn left(
     stack(cx, move |cx| {
         (
             container(cx, move |cx| {
-                svg(cx, move || config.get().ui_svg(LapceIcons::REMOTE))
-                    .style(cx, move || Style::default().dimension_pt(26.0, 26.0))
+                svg(cx, move || config.get().ui_svg(LapceIcons::REMOTE)).style(
+                    cx,
+                    move || {
+                        Style::default().dimension_pt(26.0, 26.0).color(
+                            *config.get().get_color(LapceColor::LAPCE_REMOTE_ICON),
+                        )
+                    },
+                )
             })
             .style(cx, move || {
                 Style::default()
@@ -46,8 +52,13 @@ fn left(
                     svg(cx, move || config.get().ui_svg(LapceIcons::SCM)).style(
                         cx,
                         move || {
-                            let icon_size = config.get().ui.icon_size() as f32;
-                            Style::default().dimension_pt(icon_size, icon_size)
+                            let config = config.get();
+                            let icon_size = config.ui.icon_size() as f32;
+                            Style::default()
+                                .dimension_pt(icon_size, icon_size)
+                                .color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                )
                         },
                     ),
                     label(cx, move || branch())
@@ -64,6 +75,7 @@ fn left(
                     .height_pct(1.0)
                     .padding_horiz(10.0)
                     .border_right(1.0)
+                    .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
                     .align_items(Some(AlignItems::Center))
             }),
         )
@@ -94,8 +106,13 @@ fn middle(
                             config.get().ui_svg(LapceIcons::LOCATION_BACKWARD)
                         })
                         .style(cx, move || {
-                            let icon_size = config.get().ui.icon_size() as f32;
-                            Style::default().dimension_pt(icon_size, icon_size)
+                            let config = config.get();
+                            let icon_size = config.ui.icon_size() as f32;
+                            Style::default()
+                                .dimension_pt(icon_size, icon_size)
+                                .color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                )
                         })
                     })
                     .style(cx, move || Style::default().padding_horiz(10.0)),
@@ -104,8 +121,13 @@ fn middle(
                             config.get().ui_svg(LapceIcons::LOCATION_FORWARD)
                         })
                         .style(cx, move || {
-                            let icon_size = config.get().ui.icon_size() as f32;
-                            Style::default().dimension_pt(icon_size, icon_size)
+                            let config = config.get();
+                            let icon_size = config.ui.icon_size() as f32;
+                            Style::default()
+                                .dimension_pt(icon_size, icon_size)
+                                .color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                )
                         })
                     })
                     .style(cx, move || Style::default().padding_right(10.0)),
@@ -124,10 +146,13 @@ fn middle(
                         (
                             svg(cx, move || config.get().ui_svg(LapceIcons::SEARCH))
                                 .style(cx, move || {
-                                    let icon_size =
-                                        config.get().ui.icon_size() as f32;
+                                    let config = config.get();
+                                    let icon_size = config.ui.icon_size() as f32;
                                     Style::default()
                                         .dimension_pt(icon_size, icon_size)
+                                        .color(*config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ))
                                 }),
                             label(cx, move || {
                                 if let Some(s) = local_workspace.display() {
@@ -150,10 +175,14 @@ fn middle(
                                     .style(
                                         cx,
                                         move || {
+                                            let config = config.get();
                                             let icon_size =
-                                                config.get().ui.icon_size() as f32;
+                                                config.ui.icon_size() as f32;
                                             Style::default()
                                                 .dimension_pt(icon_size, icon_size)
+                                                .color(*config.get_color(
+                                                    LapceColor::LAPCE_ICON_ACTIVE,
+                                                ))
                                         },
                                     )
                                 },
@@ -177,6 +206,7 @@ fn middle(
                 },
             )
             .style(cx, move || {
+                let config = config.get();
                 Style::default()
                     .flex_basis(Dimension::Points(0.0))
                     .flex_grow(10.0)
@@ -186,17 +216,19 @@ fn middle(
                     .justify_content(Some(JustifyContent::Center))
                     .align_items(Some(AlignItems::Center))
                     .border(1.0)
+                    .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                     .border_radius(6.0)
-                    .background(
-                        *config.get().get_color(LapceColor::EDITOR_BACKGROUND),
-                    )
+                    .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
             }),
             container(cx, move |cx| {
                 svg(cx, move || config.get().ui_svg(LapceIcons::START)).style(
                     cx,
                     move || {
-                        let icon_size = config.get().ui.icon_size() as f32;
-                        Style::default().dimension_pt(icon_size, icon_size)
+                        let config = config.get();
+                        let icon_size = config.ui.icon_size() as f32;
+                        Style::default()
+                            .dimension_pt(icon_size, icon_size)
+                            .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
                     },
                 )
             })
@@ -223,8 +255,11 @@ fn right(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
         svg(cx, move || config.get().ui_svg(LapceIcons::SETTINGS)).style(
             cx,
             move || {
-                let icon_size = config.get().ui.icon_size() as f32;
-                Style::default().dimension_pt(icon_size, icon_size)
+                let config = config.get();
+                let icon_size = config.ui.icon_size() as f32;
+                Style::default()
+                    .dimension_pt(icon_size, icon_size)
+                    .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
             },
         )
     })
@@ -252,11 +287,13 @@ pub fn title(
         )
     })
     .style(cx, move || {
+        let config = config.get();
         Style::default()
             .width_pct(1.0)
             .height_pt(37.0)
             .items_center()
-            .background(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
+            .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             .border_bottom(1.0)
+            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
     })
 }

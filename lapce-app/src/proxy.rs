@@ -25,6 +25,7 @@ use crate::{completion::CompletionData, workspace::LapceWorkspace};
 
 pub struct Proxy {
     pub tx: Sender<CoreNotification>,
+    pub term_tx: Sender<(TermId, TermEvent)>,
 }
 
 #[derive(Clone)]
@@ -38,6 +39,7 @@ pub fn start_proxy(
     workspace: Arc<LapceWorkspace>,
     disabled_volts: Vec<VoltID>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
+    term_tx: Sender<(TermId, TermEvent)>,
 ) -> ProxyData {
     let proxy_rpc = ProxyRpcHandler::new();
     let core_rpc = CoreRpcHandler::new();
@@ -62,7 +64,7 @@ pub fn start_proxy(
 
     let (tx, rx) = crossbeam_channel::unbounded();
     std::thread::spawn(move || {
-        let mut proxy = Proxy { tx };
+        let mut proxy = Proxy { tx, term_tx };
         core_rpc.mainloop(&mut proxy);
     });
 
@@ -76,6 +78,19 @@ pub fn start_proxy(
 
 impl CoreHandler for Proxy {
     fn handle_notification(&mut self, rpc: lapce_rpc::core::CoreNotification) {
+        match &rpc {
+            CoreNotification::UpdateTerminal { term_id, content } => {
+                let _ = self
+                    .term_tx
+                    .send((*term_id, TermEvent::UpdateContent(content.to_vec())));
+                return;
+            }
+            CoreNotification::TerminalProcessStopped { term_id } => {
+                let _ = self.term_tx.send((*term_id, TermEvent::CloseTerminal));
+                return;
+            }
+            _ => {}
+        }
         let result = self.tx.send(rpc);
     }
 

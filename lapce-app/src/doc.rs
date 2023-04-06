@@ -553,15 +553,21 @@ impl Document {
                 (new_offset, None)
             }
             Movement::Up => {
+                let font_size = config.editor.font_size;
+
                 let line = self.buffer.line_of_offset(offset);
                 if line == 0 {
                     let line = self.buffer.line_of_offset(offset);
                     let new_offset = self.buffer.offset_of_line(line);
-                    return (new_offset, Some(ColPosition::Start));
+                    let horiz = horiz.cloned().unwrap_or_else(|| {
+                        ColPosition::Col(
+                            self.line_point_of_offset(offset, font_size).x,
+                        )
+                    });
+                    return (new_offset, Some(horiz));
                 }
 
                 let line = line.saturating_sub(count);
-                let font_size = config.editor.font_size;
 
                 let horiz = horiz.cloned().unwrap_or_else(|| {
                     ColPosition::Col(self.line_point_of_offset(offset, font_size).x)
@@ -576,16 +582,22 @@ impl Document {
                 (new_offset, Some(horiz))
             }
             Movement::Down => {
+                let font_size = config.editor.font_size;
+
                 let last_line = self.buffer.last_line();
                 let line = self.buffer.line_of_offset(offset);
                 if line == last_line {
                     let new_offset =
                         self.buffer.offset_line_end(offset, mode != Mode::Normal);
-                    return (new_offset, Some(ColPosition::End));
+                    let horiz = horiz.cloned().unwrap_or_else(|| {
+                        ColPosition::Col(
+                            self.line_point_of_offset(offset, font_size).x,
+                        )
+                    });
+                    return (new_offset, Some(horiz));
                 }
 
                 let line = line + count;
-                let font_size = config.editor.font_size;
 
                 let line = line.min(last_line);
 
