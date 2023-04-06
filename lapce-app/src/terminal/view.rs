@@ -117,7 +117,7 @@ impl TerminalView {
         let char_width = self.char_size().width;
         let width = (self.size.width / char_width).floor() as usize;
         let height = (self.size.height / line_height).floor() as usize;
-        (width, height)
+        (width.max(1), height.max(1))
     }
 }
 
