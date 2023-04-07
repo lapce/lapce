@@ -19,7 +19,7 @@ use super::data::TerminalData;
 pub struct TerminalTabData {
     pub terminal_tab_id: TerminalTabId,
     pub active: RwSignal<usize>,
-    pub terminals: RwSignal<im::Vector<TerminalData>>,
+    pub terminals: RwSignal<im::Vector<(RwSignal<usize>, TerminalData)>>,
 }
 
 impl TerminalTabData {
@@ -30,7 +30,7 @@ impl TerminalTabData {
         common: CommonData,
     ) -> Self {
         let terminal_data = TerminalData::new(cx, workspace, run_debug, common);
-        let terminals = im::vector![terminal_data];
+        let terminals = im::vector![(create_rw_signal(cx.scope, 0), terminal_data)];
         let terminals = create_rw_signal(cx.scope, terminals);
         let active = create_rw_signal(cx.scope, 0);
         let terminal_tab_id = TerminalTabId::next();
@@ -51,9 +51,11 @@ impl TerminalTabData {
         if tracked {
             self.terminals
                 .with(|t| t.get(active).or_else(|| t.last()).cloned())
+                .map(|(_, t)| t)
         } else {
             self.terminals
                 .with_untracked(|t| t.get(active).or_else(|| t.last()).cloned())
+                .map(|(_, t)| t)
         }
     }
 }

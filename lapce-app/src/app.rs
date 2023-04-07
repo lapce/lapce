@@ -473,7 +473,19 @@ fn editor_gutter(
                         config.get_untracked().editor.line_height() as f64,
                     ),
                 )
-                .style(cx, || Style::default().flex_col().width_pct(1.0))
+                .style(cx, move || {
+                    let config = config.get();
+                    let padding_bottom = if config.editor.scroll_beyond_last_line {
+                        viewport.get().height() as f32
+                            - config.editor.line_height() as f32
+                    } else {
+                        0.0
+                    };
+                    Style::default()
+                        .flex_col()
+                        .width_pct(1.0)
+                        .padding_bottom(padding_bottom)
+                })
             })
             .hide_bar()
             .on_event(EventListner::MouseWheel, move |event| {
@@ -820,7 +832,7 @@ fn editor(
                 stack(cx, |cx| {
                     (
                         editor_gutter(cx, editor, is_active),
-                        stack(cx, |cx| {
+                        stack(cx, move |cx| {
                             (
                                 editor_cursor(
                                     cx,
@@ -842,9 +854,10 @@ fn editor(
                                     click(
                                         cx,
                                         |cx| {
-                                            let config = config.get_untracked();
-                                            let line_height =
-                                                config.editor.line_height();
+                                            let line_height = config
+                                                .get_untracked()
+                                                .editor
+                                                .line_height();
                                             virtual_list(
                                                 cx,
                                                 VirtualListDirection::Vertical,
@@ -855,8 +868,21 @@ fn editor(
                                                     line_height as f64,
                                                 ),
                                             )
-                                            .style(cx, || {
-                                                Style::default().flex_col()
+                                            .style(cx, move || {
+                                                let config = config.get();
+                                                let padding_bottom = if config
+                                                    .editor
+                                                    .scroll_beyond_last_line
+                                                {
+                                                    viewport.get().height() as f32
+                                                        - config.editor.line_height()
+                                                            as f32
+                                                } else {
+                                                    0.0
+                                                };
+                                                Style::default()
+                                                    .flex_col()
+                                                    .padding_bottom(padding_bottom)
                                             })
                                         },
                                         move || {
@@ -1567,10 +1593,11 @@ fn main_split(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
         window_tab_data.main_split.clone(),
     )
     .style(cx, move || {
-        let is_maximized = panel.panel_bottom_maximized(true);
+        let is_hidden = panel.panel_bottom_maximized(true)
+            && panel.is_container_shown(&PanelContainerPosition::Bottom, true);
         Style::default()
             .background(*config.get().get_color(LapceColor::EDITOR_BACKGROUND))
-            .apply_if(is_maximized, |s| s.display(Display::None))
+            .apply_if(is_hidden, |s| s.display(Display::None))
             .flex_grow(1.0)
     })
 }
@@ -1707,11 +1734,20 @@ fn terminal_tab_split(
     terminal_panel_data: TerminalPanelData,
     terminal_tab_data: TerminalTabData,
 ) -> impl View {
+    let config = terminal_panel_data.common.config;
     list(
         cx,
-        move || terminal_tab_data.terminals.get(),
-        |terminal| terminal.term_id,
-        move |cx, terminal| {
+        move || {
+            let terminals = terminal_tab_data.terminals.get();
+            for (i, (index, _)) in terminals.iter().enumerate() {
+                if index.get_untracked() != i {
+                    index.set(i);
+                }
+            }
+            terminals
+        },
+        |(_, terminal)| terminal.term_id,
+        move |cx, (index, terminal)| {
             let focus = terminal.common.focus;
             let terminal_panel_data = terminal_panel_data.clone();
             click(
@@ -1738,7 +1774,16 @@ fn terminal_tab_split(
                     focus.set(Focus::Panel(PanelKind::Terminal));
                 },
             )
-            .style(cx, || Style::default().dimension_pct(1.0, 1.0))
+            .style(cx, move || {
+                Style::default()
+                    .dimension_pct(1.0, 1.0)
+                    .padding_horiz(5.0)
+                    .apply_if(index.get() > 0, |s| {
+                        s.border_left(1.0).border_color(
+                            *config.get().get_color(LapceColor::LAPCE_BORDER),
+                        )
+                    })
+            })
         },
     )
     .style(cx, || {

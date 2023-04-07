@@ -5,7 +5,7 @@ use indexmap::IndexMap;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
-use lapce_rpc::plugin::PluginId;
+use lapce_rpc::{plugin::PluginId, terminal::TermId};
 use lsp_types::CodeActionOrCommand;
 use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
@@ -498,6 +498,18 @@ pub enum InternalCommand {
     },
     SplitExchange {
         editor_tab_id: EditorTabId,
+    },
+    SplitTerminal {
+        term_id: TermId,
+    },
+    SplitTerminalPrevious {
+        term_id: TermId,
+    },
+    SplitTerminalNext {
+        term_id: TermId,
+    },
+    SplitTerminalExchange {
+        term_id: TermId,
     },
     EditorTabChildClose {
         editor_tab_id: EditorTabId,

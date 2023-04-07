@@ -22,7 +22,7 @@ use lapce_rpc::{dap_types::RunDebugConfig, terminal::TermId};
 use parking_lot::RwLock;
 
 use crate::{
-    command::{CommandExecuted, CommandKind},
+    command::{CommandExecuted, CommandKind, InternalCommand},
     debug::RunDebugProcess,
     doc::SystemClipboard,
     keypress::{condition::Condition, KeyPressFocus},
@@ -212,38 +212,39 @@ impl KeyPressFocus for TerminalData {
                     ));
                 }
                 FocusCommand::SplitVertical => {
-                    // ctx.submit_command(Command::new(
-                    //     LAPCE_UI_COMMAND,
-                    //     LapceUICommand::SplitTerminal(true, self.terminal.widget_id),
-                    //     Target::Widget(self.terminal.split_id),
-                    // ));
+                    self.common.internal_command.set(Some(
+                        InternalCommand::SplitTerminal {
+                            term_id: self.term_id,
+                        },
+                    ));
+                }
+                FocusCommand::SplitHorizontal => {
+                    self.common.internal_command.set(Some(
+                        InternalCommand::SplitTerminal {
+                            term_id: self.term_id,
+                        },
+                    ));
                 }
                 FocusCommand::SplitLeft => {
-                    // ctx.submit_command(Command::new(
-                    //     LAPCE_UI_COMMAND,
-                    //     LapceUICommand::SplitEditorMove(
-                    //         SplitMoveDirection::Left,
-                    //         self.terminal.widget_id,
-                    //     ),
-                    //     Target::Widget(self.terminal.split_id),
-                    // ));
+                    self.common.internal_command.set(Some(
+                        InternalCommand::SplitTerminalPrevious {
+                            term_id: self.term_id,
+                        },
+                    ));
                 }
                 FocusCommand::SplitRight => {
-                    // ctx.submit_command(Command::new(
-                    //     LAPCE_UI_COMMAND,
-                    //     LapceUICommand::SplitEditorMove(
-                    //         SplitMoveDirection::Right,
-                    //         self.terminal.widget_id,
-                    //     ),
-                    //     Target::Widget(self.terminal.split_id),
-                    // ));
+                    self.common.internal_command.set(Some(
+                        InternalCommand::SplitTerminalNext {
+                            term_id: self.term_id,
+                        },
+                    ));
                 }
                 FocusCommand::SplitExchange => {
-                    // ctx.submit_command(Command::new(
-                    //     LAPCE_UI_COMMAND,
-                    //     LapceUICommand::SplitEditorExchange(self.terminal.widget_id),
-                    //     Target::Widget(self.terminal.split_id),
-                    // ));
+                    self.common.internal_command.set(Some(
+                        InternalCommand::SplitTerminalExchange {
+                            term_id: self.term_id,
+                        },
+                    ));
                 }
                 FocusCommand::SearchForward => {
                     // if let Some(search_string) = self.find.search_string.as_ref() {

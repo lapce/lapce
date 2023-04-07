@@ -85,10 +85,6 @@ impl CoreHandler for Proxy {
                     .send((*term_id, TermEvent::UpdateContent(content.to_vec())));
                 return;
             }
-            CoreNotification::TerminalProcessStopped { term_id } => {
-                let _ = self.term_tx.send((*term_id, TermEvent::CloseTerminal));
-                return;
-            }
             _ => {}
         }
         let result = self.tx.send(rpc);

@@ -338,10 +338,45 @@ impl WindowTabData {
             OpenPluginsDirectory => {}
             CloseWindowTab => {}
             NewWindowTab => {}
-            NewTerminalTab => {}
-            CloseTerminalTab => {}
-            NextTerminalTab => {}
-            PreviousTerminalTab => {}
+            NewTerminalTab => {
+                self.terminal.new_tab(cx);
+                if !self.panel.is_panel_visible(&PanelKind::Terminal) {
+                    self.panel.show_panel(&PanelKind::Terminal);
+                }
+                self.common.focus.set(Focus::Panel(PanelKind::Terminal));
+            }
+            CloseTerminalTab => {
+                self.terminal.close_tab(None);
+                if self
+                    .terminal
+                    .tab_info
+                    .with_untracked(|info| info.tabs.is_empty())
+                {
+                    if self.panel.is_panel_visible(&PanelKind::Terminal) {
+                        self.panel.hide_panel(&PanelKind::Terminal);
+                    }
+                    self.common.focus.set(Focus::Workbench);
+                } else {
+                    if !self.panel.is_panel_visible(&PanelKind::Terminal) {
+                        self.panel.show_panel(&PanelKind::Terminal);
+                    }
+                    self.common.focus.set(Focus::Panel(PanelKind::Terminal));
+                }
+            }
+            NextTerminalTab => {
+                self.terminal.next_tab();
+                if !self.panel.is_panel_visible(&PanelKind::Terminal) {
+                    self.panel.show_panel(&PanelKind::Terminal);
+                }
+                self.common.focus.set(Focus::Panel(PanelKind::Terminal));
+            }
+            PreviousTerminalTab => {
+                self.terminal.previous_tab();
+                if !self.panel.is_panel_visible(&PanelKind::Terminal) {
+                    self.panel.show_panel(&PanelKind::Terminal);
+                }
+                self.common.focus.set(Focus::Panel(PanelKind::Terminal));
+            }
             NextWindowTab => {}
             PreviousWindowTab => {}
             ReloadWindow => {}
@@ -540,6 +575,18 @@ impl WindowTabData {
                 self.main_split
                     .save_jump_location(path, offset, scroll_offset);
             }
+            InternalCommand::SplitTerminal { term_id } => {
+                self.terminal.split(cx, term_id);
+            }
+            InternalCommand::SplitTerminalNext { term_id } => {
+                self.terminal.split_next(cx, term_id);
+            }
+            InternalCommand::SplitTerminalPrevious { term_id } => {
+                self.terminal.split_previous(cx, term_id);
+            }
+            InternalCommand::SplitTerminalExchange { term_id } => {
+                self.terminal.split_exchange(cx, term_id);
+            }
         }
     }
 
@@ -601,8 +648,23 @@ impl WindowTabData {
                     d.insert(path, diagnostics);
                 });
             }
-            CoreNotification::UpdateTerminal { term_id, content } => {}
-            CoreNotification::TerminalProcessStopped { term_id } => {}
+            CoreNotification::TerminalProcessStopped { term_id } => {
+                let _ = self
+                    .common
+                    .term_tx
+                    .send((*term_id, TermEvent::CloseTerminal));
+                self.terminal.terminal_stopped(term_id);
+                if self
+                    .terminal
+                    .tab_info
+                    .with_untracked(|info| info.tabs.is_empty())
+                {
+                    if self.panel.is_panel_visible(&PanelKind::Terminal) {
+                        self.panel.hide_panel(&PanelKind::Terminal);
+                    }
+                    self.common.focus.set(Focus::Workbench);
+                }
+            }
             _ => {}
         }
     }
@@ -808,6 +870,14 @@ impl WindowTabData {
     }
 
     pub fn show_panel(&self, cx: AppContext, kind: PanelKind) {
+        if kind == PanelKind::Terminal
+            && self
+                .terminal
+                .tab_info
+                .with_untracked(|info| info.tabs.is_empty())
+        {
+            self.terminal.new_tab(cx);
+        }
         self.panel.show_panel(&kind);
         self.common.focus.set(Focus::Panel(kind));
     }
