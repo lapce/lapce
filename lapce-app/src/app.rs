@@ -1104,7 +1104,7 @@ fn editor_tab_header(
                                         )
                                 })
                         })
-                        .style(cx, || Style::default().padding_horiz(5.0)),
+                        .style(cx, || Style::default().padding_horiz(10.0)),
                         label(cx, move || info.with(|info| info.path.clone()))
                             .style(cx, move || {
                                 Style::default().apply_if(
@@ -1130,7 +1130,7 @@ fn editor_tab_header(
                                 )
                             })
                         })
-                        .style(cx, || Style::default().padding_horiz(5.0)),
+                        .style(cx, || Style::default().padding_horiz(10.0)),
                     )
                 })
                 .style(cx, move || {
@@ -1652,7 +1652,7 @@ fn terminal_tab_header(
                                         },
                                     )
                                 })
-                                .style(cx, || Style::default().padding_horiz(5.0)),
+                                .style(cx, || Style::default().padding_horiz(10.0)),
                                 label(cx, title).style(cx, || {
                                     Style::default().min_width_pt(0.0).flex_grow(1.0)
                                 }),
@@ -1673,7 +1673,7 @@ fn terminal_tab_header(
                                         },
                                     )
                                 })
-                                .style(cx, || Style::default().padding_horiz(5.0)),
+                                .style(cx, || Style::default().padding_horiz(10.0)),
                             )
                         })
                         .style(cx, move || {
@@ -1777,7 +1777,7 @@ fn terminal_tab_split(
             .style(cx, move || {
                 Style::default()
                     .dimension_pct(1.0, 1.0)
-                    .padding_horiz(5.0)
+                    .padding_horiz(10.0)
                     .apply_if(index.get() > 0, |s| {
                         s.border_left(1.0).border_color(
                             *config.get().get_color(LapceColor::LAPCE_BORDER),
@@ -2349,7 +2349,7 @@ fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl Vi
                 .border_bottom(1.0)
                 .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                 .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
-                .padding_horiz(5.0)
+                .padding_horiz(10.0)
         })
     })
     .style(cx, || Style::default().padding_bottom(5.0))
