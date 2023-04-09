@@ -29,7 +29,7 @@ use crate::{
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
-    debug::{RunDebugMode, RunDebugProcess},
+    debug::{DapData, RunDebugMode, RunDebugProcess},
     doc::EditorDiagnostic,
     editor::location::EditorLocation,
     id::WindowTabId,
@@ -411,7 +411,15 @@ impl WindowTabData {
             PaletteRunAndDebug => {
                 self.palette.run(cx, PaletteKind::RunAndDebug);
             }
-            RunAndDebugRestart => {}
+            RunAndDebugRestart => {
+                let active_term = self.terminal.debug.active_term.get_untracked();
+                if active_term
+                    .and_then(|term_id| self.terminal.restart_run_debug(term_id))
+                    .is_none()
+                {
+                    self.palette.run(cx, PaletteKind::RunAndDebug);
+                }
+            }
             RunAndDebugStop => {}
             CheckoutBranch => {}
             ToggleMaximizedPanel => {
@@ -946,11 +954,13 @@ impl WindowTabData {
             );
             new_terminal_tab.active_terminal(false).unwrap().term_id
         };
-        // let debug = Arc::make_mut(&mut terminal.debug);
-        // debug.active_term = Some(term_id);
-        // debug
-        //     .daps
-        //     .insert(config.dap_id, DapData::new(config.dap_id, term_id));
+        self.common.focus.set(Focus::Panel(PanelKind::Terminal));
+        self.terminal.focus_terminal(term_id);
+
+        self.terminal.debug.active_term.set(Some(term_id));
+        self.terminal.debug.daps.update(|daps| {
+            daps.insert(config.dap_id, DapData::new(config.dap_id, term_id));
+        });
 
         if !self.panel.is_panel_visible(&PanelKind::Terminal) {
             self.panel.show_panel(&PanelKind::Terminal);
