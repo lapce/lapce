@@ -55,6 +55,7 @@ pub enum Focus {
 
 #[derive(Clone)]
 pub struct CommonData {
+    pub workspace: Arc<LapceWorkspace>,
     pub focus: RwSignal<Focus>,
     pub completion: RwSignal<CompletionData>,
     pub register: RwSignal<Register>,
@@ -144,6 +145,7 @@ impl WindowTabData {
         let register = create_rw_signal(cx.scope, Register::default());
 
         let common = CommonData {
+            workspace: workspace.clone(),
             focus,
             completion,
             register,

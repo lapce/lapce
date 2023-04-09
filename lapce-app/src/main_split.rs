@@ -454,6 +454,9 @@ impl MainSplitData {
                     editor.doc.with_untracked(|doc| doc.buffer_id)
                         != doc.with_untracked(|doc| doc.buffer_id)
                 }) {
+                    editor.with_untracked(|editor| {
+                        editor.save_doc_position(cx);
+                    });
                     editor.update(|editor| {
                         editor.doc = doc;
                     });
@@ -1061,9 +1064,14 @@ impl MainSplitData {
 
         match child {
             EditorTabChild::Editor(editor_id) => {
-                self.editors.update(|editors| {
-                    editors.remove(&editor_id);
-                });
+                let removed_editor = self
+                    .editors
+                    .try_update(|editors| editors.remove(&editor_id))
+                    .unwrap();
+                if let Some(editor) = removed_editor {
+                    let editor = editor.get_untracked();
+                    editor.save_doc_position(cx);
+                }
             }
         }
 

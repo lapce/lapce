@@ -42,7 +42,10 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use crate::config::{color::LapceColor, LapceConfig};
+use crate::{
+    config::{color::LapceColor, LapceConfig},
+    workspace::LapceWorkspace,
+};
 
 use self::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine};
 
@@ -143,6 +146,14 @@ impl DocContent {
             DocContent::Local => None,
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DocInfo {
+    pub workspace: LapceWorkspace,
+    pub path: PathBuf,
+    pub scroll_offset: (f64, f64),
+    pub cursor_offset: usize,
 }
 
 #[derive(Clone)]

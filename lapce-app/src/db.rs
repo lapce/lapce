@@ -1,12 +1,16 @@
-use std::sync::Arc;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{unbounded, Sender};
-use floem::reactive::SignalGetUntracked;
+use floem::{peniko::kurbo::Vec2, reactive::SignalGetUntracked};
 use lapce_core::directory::Directory;
 use lapce_rpc::plugin::VoltID;
 
 use crate::{
+    doc::DocInfo,
     panel::{data::PanelOrder, kind::PanelKind, position::PanelPosition},
     window::{WindowData, WindowInfo},
     window_tab::WindowTabData,
@@ -15,6 +19,7 @@ use crate::{
 
 pub enum SaveEvent {
     RecentWorkspace(LapceWorkspace),
+    Doc(DocInfo),
 }
 
 #[derive(Clone)]
@@ -44,6 +49,9 @@ impl LapceDb {
                 match event {
                     SaveEvent::RecentWorkspace(workspace) => {
                         let _ = local_db.insert_recent_workspace(workspace);
+                    }
+                    SaveEvent::Doc(info) => {
+                        let _ = local_db.insert_doc(&info);
                     }
                 }
             }
@@ -88,6 +96,15 @@ impl LapceDb {
         let workspaces = std::str::from_utf8(&workspaces)?;
         let workspaces: Vec<LapceWorkspace> = serde_json::from_str(workspaces)?;
         Ok(workspaces)
+    }
+
+    fn insert_doc(&self, info: &DocInfo) -> Result<()> {
+        let key = format!("{}:{}", info.workspace, info.path.to_str().unwrap_or(""));
+        let info = serde_json::to_string(info)?;
+        let sled_db = self.get_db()?;
+        sled_db.insert(key.as_str(), info.as_str())?;
+        sled_db.flush()?;
+        Ok(())
     }
 
     fn insert_recent_workspace(&self, workspace: LapceWorkspace) -> Result<()> {
@@ -201,5 +218,36 @@ impl LapceDb {
         }
 
         Ok(panel_orders)
+    }
+
+    pub fn save_doc_position(
+        &self,
+        workspace: &LapceWorkspace,
+        path: PathBuf,
+        cursor_offset: usize,
+        scroll_offset: Vec2,
+    ) {
+        let info = DocInfo {
+            workspace: workspace.clone(),
+            path: path.clone(),
+            scroll_offset: (scroll_offset.x, scroll_offset.y),
+            cursor_offset,
+        };
+        let _ = self.save_tx.send(SaveEvent::Doc(info));
+    }
+
+    pub fn get_doc_info(
+        &self,
+        workspace: &LapceWorkspace,
+        path: &Path,
+    ) -> Result<DocInfo> {
+        let key = format!("{}:{}", workspace, path.to_str().unwrap_or(""));
+        let sled_db = self.get_db()?;
+        let info = sled_db
+            .get(key.as_str())?
+            .ok_or_else(|| anyhow!("can't find workspace info"))?;
+        let info = std::str::from_utf8(&info)?;
+        let info: DocInfo = serde_json::from_str(info)?;
+        Ok(info)
     }
 }

@@ -7,8 +7,8 @@ use floem::{
     glazier::Modifiers,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_rw_signal, RwSignal, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalWithUntracked,
+        create_rw_signal, use_context, RwSignal, SignalGetUntracked, SignalSet,
+        SignalUpdate, SignalWithUntracked,
     },
 };
 use lapce_core::{
@@ -31,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     command::{CommandExecuted, InternalCommand},
     completion::CompletionStatus,
+    db::LapceDb,
     doc::{DocContent, Document},
     editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
@@ -1232,13 +1233,25 @@ impl EditorData {
         if !new_doc {
             if let Some(position) = location.position {
                 self.go_to_position(position, location.scroll_offset, edits);
-            } else if let Some(edits) = edits.as_ref() {
-                self.do_text_edit(edits);
+            } else {
+                let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
+                if let Ok(info) =
+                    db.get_doc_info(&self.common.workspace, &location.path)
+                {
+                    self.go_to_position(
+                        EditorPosition::Offset(info.cursor_offset),
+                        Some(Vec2::new(info.scroll_offset.0, info.scroll_offset.1)),
+                        edits,
+                    );
+                } else if let Some(edits) = edits.as_ref() {
+                    self.do_text_edit(edits);
+                }
             }
         } else {
             let buffer_id = self.doc.with_untracked(|doc| doc.buffer_id);
             let set_doc = self.doc.write_only();
             let editor = self.clone();
+            let path = location.path.clone();
             let send = create_ext_action(cx, move |content| {
                 set_doc.update(move |doc| {
                     doc.init_content(content);
@@ -1250,8 +1263,22 @@ impl EditorData {
                         location.scroll_offset,
                         edits.clone(),
                     );
-                } else if let Some(edits) = edits.as_ref() {
-                    editor.do_text_edit(edits);
+                } else {
+                    let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
+                    if let Ok(info) =
+                        db.get_doc_info(&editor.common.workspace, &path)
+                    {
+                        editor.go_to_position(
+                            EditorPosition::Offset(info.cursor_offset),
+                            Some(Vec2::new(
+                                info.scroll_offset.0,
+                                info.scroll_offset.1,
+                            )),
+                            edits.clone(),
+                        );
+                    } else if let Some(edits) = edits.as_ref() {
+                        editor.do_text_edit(edits);
+                    }
                 }
             });
 
@@ -1518,6 +1545,30 @@ impl EditorData {
                 mods,
             );
         }
+    }
+
+    pub fn save_doc_position(&self, cx: AppContext) {
+        let path = match self.doc.with_untracked(|doc| {
+            if doc.loaded() {
+                doc.content.path().cloned()
+            } else {
+                None
+            }
+        }) {
+            Some(path) => path,
+            None => return,
+        };
+
+        let cursor_offset = self.cursor.with_untracked(|c| c.offset());
+        let scroll_offset = self.viewport.with_untracked(|v| v.origin().to_vec2());
+
+        let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
+        db.save_doc_position(
+            &self.common.workspace,
+            path,
+            cursor_offset,
+            scroll_offset,
+        );
     }
 }
 
