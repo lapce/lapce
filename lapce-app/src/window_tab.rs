@@ -345,7 +345,7 @@ impl WindowTabData {
             CloseWindowTab => {}
             NewWindowTab => {}
             NewTerminalTab => {
-                self.terminal.new_tab(cx);
+                self.terminal.new_tab(cx, None);
                 if !self.panel.is_panel_visible(&PanelKind::Terminal) {
                     self.panel.show_panel(&PanelKind::Terminal);
                 }
@@ -887,14 +887,14 @@ impl WindowTabData {
                 .tab_info
                 .with_untracked(|info| info.tabs.is_empty())
         {
-            self.terminal.new_tab(cx);
+            self.terminal.new_tab(cx, None);
         }
         self.panel.show_panel(&kind);
         self.common.focus.set(Focus::Panel(kind));
     }
 
     fn run_and_debug(
-        &mut self,
+        &self,
         cx: AppContext,
         mode: &RunDebugMode,
         config: &RunDebugConfig,
@@ -913,7 +913,7 @@ impl WindowTabData {
     }
 
     fn run_in_terminal(
-        &mut self,
+        &self,
         cx: AppContext,
         mode: &RunDebugMode,
         config: &RunDebugConfig,
@@ -935,11 +935,8 @@ impl WindowTabData {
             // );
             terminal.term_id
         } else {
-            let new_terminal_tab_id = terminal.new_tab(
-                self.workspace.clone(),
-                self.proxy.clone(),
-                &self.config,
-                ctx.get_external_handle(),
+            let new_terminal_tab = self.terminal.new_tab(
+                cx,
                 Some(RunDebugProcess {
                     mode: *mode,
                     config: config.clone(),
@@ -947,17 +944,16 @@ impl WindowTabData {
                     created: Instant::now(),
                 }),
             );
-            let tab = terminal.tabs.get(&new_terminal_tab_id).unwrap();
-            tab.active_term_id
+            new_terminal_tab.active_terminal(false).unwrap().term_id
         };
-        let debug = Arc::make_mut(&mut terminal.debug);
-        debug.active_term = Some(term_id);
-        debug
-            .daps
-            .insert(config.dap_id, DapData::new(config.dap_id, term_id));
+        // let debug = Arc::make_mut(&mut terminal.debug);
+        // debug.active_term = Some(term_id);
+        // debug
+        //     .daps
+        //     .insert(config.dap_id, DapData::new(config.dap_id, term_id));
 
         if !self.panel.is_panel_visible(&PanelKind::Terminal) {
-            Arc::make_mut(&mut self.panel).show_panel(&PanelKind::Terminal);
+            self.panel.show_panel(&PanelKind::Terminal);
         }
     }
 }

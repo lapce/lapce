@@ -84,7 +84,7 @@ impl TerminalPanelData {
         keypress: &mut KeyPressData,
     ) {
         if self.tab_info.with_untracked(|info| info.tabs.is_empty()) {
-            self.new_tab(cx);
+            self.new_tab(cx, None);
         }
 
         let tab = self.active_tab(false);
@@ -98,11 +98,15 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn new_tab(&self, cx: AppContext) {
+    pub fn new_tab(
+        &self,
+        cx: AppContext,
+        run_debug: Option<RunDebugProcess>,
+    ) -> TerminalTabData {
         let terminal_tab = TerminalTabData::new(
             cx,
             self.workspace.clone(),
-            None,
+            run_debug,
             self.common.clone(),
         );
 
@@ -113,11 +117,13 @@ impl TerminalPanelData {
                 } else {
                     (info.active + 1).min(info.tabs.len())
                 },
-                (create_rw_signal(cx.scope, 0), terminal_tab),
+                (create_rw_signal(cx.scope, 0), terminal_tab.clone()),
             );
             let new_active = (info.active + 1).min(info.tabs.len() - 1);
             info.active = new_active;
-        })
+        });
+
+        terminal_tab
     }
 
     pub fn next_tab(&self) {
@@ -286,7 +292,7 @@ impl TerminalPanelData {
         config: &RunDebugConfig,
     ) -> Option<TerminalData> {
         self.tab_info.with_untracked(|info| {
-            for (_, tab) in info.tabs {
+            for (_, tab) in &info.tabs {
                 let terminal = tab.terminals.with_untracked(|terminals| {
                     for (_, terminal) in terminals {
                         if let Some(run_debug) =

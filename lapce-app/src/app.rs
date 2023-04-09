@@ -1757,7 +1757,7 @@ fn terminal_tab_split(
                     terminal_view(
                         cx,
                         terminal.term_id,
-                        terminal.raw.clone(),
+                        terminal.raw.read_only(),
                         terminal.mode.read_only(),
                         terminal_panel_data,
                     )

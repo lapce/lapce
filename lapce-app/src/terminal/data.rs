@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 use alacritty_terminal::{
     grid::{Dimensions, Scroll},
     selection::{Selection, SelectionType},
-    term::TermMode,
+    term::{test::TermSize, TermMode},
     vi_mode::ViMotion,
     Term,
 };
@@ -42,7 +42,7 @@ pub struct TerminalData {
     pub title: RwSignal<String>,
     pub mode: RwSignal<Mode>,
     pub visual_mode: RwSignal<VisualMode>,
-    pub raw: Arc<RwLock<RawTerminal>>,
+    pub raw: RwSignal<Arc<RwLock<RawTerminal>>>,
     pub run_debug: RwSignal<Option<RunDebugProcess>>,
     pub common: CommonData,
 }
@@ -68,7 +68,8 @@ impl KeyPressFocus for TerminalData {
         match &command.kind {
             CommandKind::Move(cmd) => {
                 let movement = cmd.to_movement(count);
-                let mut raw = self.raw.write();
+                let raw = self.raw.get_untracked();
+                let mut raw = raw.write();
                 let term = &mut raw.term;
                 match movement {
                     Movement::Left => {
@@ -124,7 +125,8 @@ impl KeyPressFocus for TerminalData {
                         return CommandExecuted::Yes;
                     }
                     self.mode.set(Mode::Normal);
-                    let mut raw = self.raw.write();
+                    let raw = self.raw.get_untracked();
+                    let mut raw = raw.write();
                     let term = &mut raw.term;
                     if !term.mode().contains(TermMode::VI) {
                         term.toggle_vi_mode();
@@ -142,7 +144,8 @@ impl KeyPressFocus for TerminalData {
                 }
                 EditCommand::InsertMode => {
                     self.mode.set(Mode::Terminal);
-                    let mut raw = self.raw.write();
+                    let raw = self.raw.get_untracked();
+                    let mut raw = raw.write();
                     let term = &mut raw.term;
                     if term.mode().contains(TermMode::VI) {
                         term.toggle_vi_mode();
@@ -156,7 +159,8 @@ impl KeyPressFocus for TerminalData {
                     if self.mode.get_untracked() == Mode::Visual {
                         self.mode.set(Mode::Normal);
                     }
-                    let mut raw = self.raw.write();
+                    let raw = self.raw.get_untracked();
+                    let mut raw = raw.write();
                     let term = &mut raw.term;
                     if let Some(content) = term.selection_to_string() {
                         clipboard.put_string(content);
@@ -169,7 +173,8 @@ impl KeyPressFocus for TerminalData {
                     let clipboard = SystemClipboard {};
                     let mut check_bracketed_paste: bool = false;
                     if self.mode.get_untracked() == Mode::Terminal {
-                        let mut raw = self.raw.write();
+                        let raw = self.raw.get_untracked();
+                        let mut raw = raw.write();
                         let term = &mut raw.term;
                         term.selection = None;
                         if term.mode().contains(TermMode::BRACKETED_PASTE) {
@@ -190,7 +195,8 @@ impl KeyPressFocus for TerminalData {
             },
             CommandKind::Focus(cmd) => match cmd {
                 FocusCommand::PageUp => {
-                    let mut raw = self.raw.write();
+                    let raw = self.raw.get_untracked();
+                    let mut raw = raw.write();
                     let term = &mut raw.term;
                     let scroll_lines = term.screen_lines() as i32 / 2;
                     term.vi_mode_cursor =
@@ -201,7 +207,8 @@ impl KeyPressFocus for TerminalData {
                     ));
                 }
                 FocusCommand::PageDown => {
-                    let mut raw = self.raw.write();
+                    let raw = self.raw.get_untracked();
+                    let mut raw = raw.write();
                     let term = &mut raw.term;
                     let scroll_lines = -(term.screen_lines() as i32 / 2);
                     term.vi_mode_cursor =
@@ -280,7 +287,11 @@ impl KeyPressFocus for TerminalData {
             self.common
                 .proxy
                 .terminal_write(self.term_id, c.to_string());
-            self.raw.write().term.scroll_display(Scroll::Bottom);
+            self.raw
+                .get_untracked()
+                .write()
+                .term
+                .scroll_display(Scroll::Bottom);
         }
     }
 }
@@ -306,6 +317,7 @@ impl TerminalData {
         let run_debug = create_rw_signal(cx.scope, run_debug);
         let mode = create_rw_signal(cx.scope, Mode::Terminal);
         let visual_mode = create_rw_signal(cx.scope, VisualMode::Normal);
+        let raw = create_rw_signal(cx.scope, raw);
 
         Self {
             term_id,
@@ -538,7 +550,8 @@ impl TerminalData {
     pub fn wheel_scroll(&self, delta: f64) {
         let config = self.common.config.get_untracked();
         let step = config.terminal_line_height() as f64;
-        let mut raw = self.raw.write();
+        let raw = self.raw.get_untracked();
+        let mut raw = raw.write();
         raw.scroll_delta -= delta;
         let delta = (raw.scroll_delta / step) as i32;
         raw.scroll_delta -= delta as f64 * step;
@@ -569,7 +582,8 @@ impl TerminalData {
             _ => (),
         }
 
-        let mut raw = self.raw.write();
+        let raw = self.raw.get_untracked();
+        let mut raw = raw.write();
         let term = &mut raw.term;
         if !term.mode().contains(TermMode::VI) {
             term.toggle_vi_mode();
@@ -620,6 +634,14 @@ impl TerminalData {
     }
 
     pub fn new_process(&self, run_debug: Option<RunDebugProcess>) {
+        let (width, height) = {
+            let raw = self.raw.get_untracked();
+            let raw = raw.read();
+            let width = raw.term.columns();
+            let height = raw.term.screen_lines();
+            (width, height)
+        };
+
         let raw = Self::new_raw_terminal(
             self.workspace.clone(),
             self.term_id,
@@ -627,10 +649,13 @@ impl TerminalData {
             self.common.clone(),
         );
 
-        self.raw = raw;
+        self.raw.set(raw);
         self.run_debug.set(run_debug);
 
-        // let (width, height) = *self.size.borrow();
-        // self.resize(width, height);
+        let term_size = TermSize::new(width, height);
+        self.raw.get_untracked().write().term.resize(term_size);
+        self.common
+            .proxy
+            .terminal_resize(self.term_id, width, height);
     }
 }

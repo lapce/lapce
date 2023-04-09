@@ -32,6 +32,7 @@ use super::{panel::TerminalPanelData, raw::RawTerminal};
 enum TerminalViewState {
     ConfigChanged,
     FocusChanged(bool),
+    RawChanged(Arc<RwLock<RawTerminal>>),
 }
 
 pub struct TerminalView {
@@ -48,11 +49,16 @@ pub struct TerminalView {
 pub fn terminal_view(
     cx: AppContext,
     term_id: TermId,
-    raw: Arc<RwLock<RawTerminal>>,
+    raw: ReadSignal<Arc<RwLock<RawTerminal>>>,
     mode: ReadSignal<Mode>,
     terminal_panel_data: TerminalPanelData,
 ) -> TerminalView {
     let id = cx.new_id();
+
+    create_effect(cx.scope, move |_| {
+        let raw = raw.get();
+        AppContext::update_state(id, TerminalViewState::RawChanged(raw), false);
+    });
 
     let config = terminal_panel_data.common.config;
     create_effect(cx.scope, move |_| {
@@ -88,7 +94,7 @@ pub fn terminal_view(
     TerminalView {
         id,
         term_id,
-        raw,
+        raw: raw.get_untracked(),
         mode,
         config,
         proxy,
@@ -146,6 +152,9 @@ impl View for TerminalView {
                 TerminalViewState::ConfigChanged => {}
                 TerminalViewState::FocusChanged(is_focused) => {
                     self.is_focused = is_focused;
+                }
+                TerminalViewState::RawChanged(raw) => {
+                    self.raw = raw;
                 }
             }
             ChangeFlags::PAINT
