@@ -41,6 +41,7 @@ use crate::{
     code_action::CodeActionStatus,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     db::LapceDb,
+    debug::RunDebugMode,
     doc::{DocContent, DocLine, Document},
     editor::{self, EditorData},
     editor_tab::{EditorTabChild, EditorTabData},
@@ -2190,6 +2191,105 @@ fn palette_item(
                                 config.symbol_svg(&kind).unwrap_or_else(|| {
                                     config.ui_svg(LapceIcons::FILE)
                                 })
+                            })
+                            .style(cx, move || {
+                                let config = config.get();
+                                let size = config.ui.icon_size() as f32;
+                                Style::default()
+                                    .min_width_pt(size)
+                                    .dimension_pt(size, size)
+                                    .margin_right(5.0)
+                                    .color(
+                                        *config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ),
+                                    )
+                            }),
+                            focus_text(
+                                cx,
+                                move || text.clone(),
+                                move || text_indices.clone(),
+                                move || {
+                                    *config.get().get_color(LapceColor::EDITOR_FOCUS)
+                                },
+                            )
+                            .style(cx, || {
+                                Style::default().margin_right(6.0).max_width_pct(1.0)
+                            }),
+                            focus_text(
+                                cx,
+                                move || hint.clone(),
+                                move || hint_indices.clone(),
+                                move || {
+                                    *config.get().get_color(LapceColor::EDITOR_FOCUS)
+                                },
+                            )
+                            .style(cx, move || {
+                                Style::default()
+                                    .color(
+                                        *config
+                                            .get()
+                                            .get_color(LapceColor::EDITOR_DIM),
+                                    )
+                                    .min_width_pt(0.0)
+                            }),
+                        )
+                    })
+                    .style(cx, || {
+                        Style::default()
+                            .align_items(Some(AlignItems::Center))
+                            .max_width_pct(1.0)
+                    }),
+                )
+            })
+        }
+        PaletteItemContent::RunAndDebug {
+            mode,
+            config: run_config,
+        } => {
+            let mode = mode.clone();
+            let text = format!("{mode} {}", run_config.name);
+            let hint =
+                format!("{} {}", run_config.program, run_config.args.join(" "));
+            let text_indices: Vec<usize> = item
+                .indices
+                .iter()
+                .filter_map(|i| {
+                    let i = *i;
+                    if i < text.len() {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            let hint_indices: Vec<usize> = item
+                .indices
+                .iter()
+                .filter_map(|i| {
+                    let i = *i;
+                    if i >= text.len() {
+                        Some(i - text.len())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            container_box(cx, move |cx| {
+                Box::new(
+                    stack(cx, move |cx| {
+                        (
+                            svg(cx, move || {
+                                let config = config.get();
+                                let svg = match mode {
+                                    RunDebugMode::Run => {
+                                        config.ui_svg(LapceIcons::START)
+                                    }
+                                    RunDebugMode::Debug => {
+                                        config.ui_svg(LapceIcons::DEBUG)
+                                    }
+                                };
+                                svg
                             })
                             .style(cx, move || {
                                 let config = config.get();

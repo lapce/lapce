@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use crossbeam_channel::Sender;
 use floem::{
@@ -14,7 +14,10 @@ use floem::{
 };
 use itertools::Itertools;
 use lapce_core::{mode::Mode, register::Register};
-use lapce_rpc::{core::CoreNotification, proxy::ProxyRpcHandler, terminal::TermId};
+use lapce_rpc::{
+    core::CoreNotification, dap_types::RunDebugConfig, proxy::ProxyRpcHandler,
+    terminal::TermId,
+};
 use serde_json::Value;
 
 use crate::{
@@ -26,6 +29,7 @@ use crate::{
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
+    debug::{RunDebugMode, RunDebugProcess},
     doc::EditorDiagnostic,
     editor::location::EditorLocation,
     id::WindowTabId,
@@ -404,7 +408,9 @@ impl WindowTabData {
             PaletteWorkspace => {
                 self.palette.run(cx, PaletteKind::Workspace);
             }
-            PaletteRunAndDebug => {}
+            PaletteRunAndDebug => {
+                self.palette.run(cx, PaletteKind::RunAndDebug);
+            }
             RunAndDebugRestart => {}
             RunAndDebugStop => {}
             CheckoutBranch => {}
@@ -588,6 +594,9 @@ impl WindowTabData {
             }
             InternalCommand::SplitTerminalExchange { term_id } => {
                 self.terminal.split_exchange(cx, term_id);
+            }
+            InternalCommand::RunAndDebug { mode, config } => {
+                self.run_and_debug(cx, &mode, &config);
             }
         }
     }
@@ -882,5 +891,73 @@ impl WindowTabData {
         }
         self.panel.show_panel(&kind);
         self.common.focus.set(Focus::Panel(kind));
+    }
+
+    fn run_and_debug(
+        &mut self,
+        cx: AppContext,
+        mode: &RunDebugMode,
+        config: &RunDebugConfig,
+    ) {
+        match mode {
+            RunDebugMode::Run => {
+                self.run_in_terminal(cx, mode, config);
+            }
+            RunDebugMode::Debug => {
+                // self.proxy.proxy_rpc.dap_start(
+                //     config.clone(),
+                //     self.terminal.debug.source_breakpoints(),
+                // );
+            }
+        }
+    }
+
+    fn run_in_terminal(
+        &mut self,
+        cx: AppContext,
+        mode: &RunDebugMode,
+        config: &RunDebugConfig,
+    ) {
+        let term_id = if let Some(terminal) =
+            self.terminal.get_stopped_run_debug_terminal(mode, config)
+        {
+            terminal.new_process(Some(RunDebugProcess {
+                mode: *mode,
+                config: config.clone(),
+                stopped: false,
+                created: Instant::now(),
+            }));
+
+            // let _ = ctx.get_external_handle().submit_command(
+            //     LAPCE_UI_COMMAND,
+            //     LapceUICommand::Focus,
+            //     Target::Widget(terminal.widget_id),
+            // );
+            terminal.term_id
+        } else {
+            let new_terminal_tab_id = terminal.new_tab(
+                self.workspace.clone(),
+                self.proxy.clone(),
+                &self.config,
+                ctx.get_external_handle(),
+                Some(RunDebugProcess {
+                    mode: *mode,
+                    config: config.clone(),
+                    stopped: false,
+                    created: Instant::now(),
+                }),
+            );
+            let tab = terminal.tabs.get(&new_terminal_tab_id).unwrap();
+            tab.active_term_id
+        };
+        let debug = Arc::make_mut(&mut terminal.debug);
+        debug.active_term = Some(term_id);
+        debug
+            .daps
+            .insert(config.dap_id, DapData::new(config.dap_id, term_id));
+
+        if !self.panel.is_panel_visible(&PanelKind::Terminal) {
+            Arc::make_mut(&mut self.panel).show_panel(&PanelKind::Terminal);
+        }
     }
 }

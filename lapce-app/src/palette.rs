@@ -39,6 +39,7 @@ use crate::{
     completion::CompletionData,
     config::LapceConfig,
     db::LapceDb,
+    debug::{run_configs, RunDebugMode},
     editor::{
         location::{EditorLocation, EditorPosition},
         EditorData,
@@ -98,6 +99,7 @@ pub struct PaletteData {
     /// Listened on for which entry in the palette has been clicked
     pub clicked_index: RwSignal<Option<usize>>,
     pub executed_commands: Rc<RefCell<HashMap<String, Instant>>>,
+    pub executed_run_configs: Rc<RefCell<HashMap<(RunDebugMode, String), Instant>>>,
     main_split: MainSplitData,
     pub references: RwSignal<Vec<EditorLocation>>,
     pub common: CommonData,
@@ -212,6 +214,7 @@ impl PaletteData {
             keypress,
             clicked_index,
             executed_commands: Rc::new(RefCell::new(HashMap::new())),
+            executed_run_configs: Rc::new(RefCell::new(HashMap::new())),
             references,
             common,
         };
@@ -289,7 +292,7 @@ impl PaletteData {
     }
 
     /// Start and focus the palette for the given kind.  
-    pub fn run(&self, cx: AppContext, kind: PaletteKind) {
+    pub fn run(&self, _cx: AppContext, kind: PaletteKind) {
         self.common.focus.set(Focus::Palette);
         self.status.set(PaletteStatus::Started);
         let symbol = kind.symbol();
@@ -329,6 +332,9 @@ impl PaletteData {
             }
             PaletteKind::DocumentSymbol => {
                 self.get_document_symbols(cx);
+            }
+            PaletteKind::RunAndDebug => {
+                self.get_run_configs(cx);
             }
         }
     }
@@ -370,7 +376,7 @@ impl PaletteData {
     }
 
     /// Initialize the palette with the lines in the current document.
-    fn get_lines(&self, cx: AppContext) {
+    fn get_lines(&self, _cx: AppContext) {
         let editor = self.main_split.active_editor.get_untracked();
         let doc = match editor {
             Some(editor) => editor.with_untracked(|editor| (editor.doc)),
@@ -409,7 +415,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_commands(&self, cx: AppContext) {
+    fn get_commands(&self, _cx: AppContext) {
         const EXCLUDED_ITEMS: &[&str] = &["palette.command"];
 
         let items = self.keypress.with_untracked(|keypress| {
@@ -585,9 +591,69 @@ impl PaletteData {
         });
     }
 
+    fn get_run_configs(&self, cx: AppContext) {
+        let configs = run_configs(self.common.workspace.path.as_deref());
+        if configs.is_none() {
+            if let Some(path) = self.workspace.path.as_ref() {
+                let path = path.join(".lapce").join("run.toml");
+                self.common
+                    .internal_command
+                    .set(Some(InternalCommand::OpenFile { path }));
+            }
+        }
+        let executed_run_configs = self.executed_run_configs.borrow();
+
+        let mut items = Vec::new();
+        if let Some(configs) = configs.as_ref() {
+            for config in &configs.configs {
+                items.push((
+                    executed_run_configs
+                        .get(&(RunDebugMode::Run, config.name.clone())),
+                    PaletteItem {
+                        content: PaletteItemContent::RunAndDebug {
+                            mode: RunDebugMode::Run,
+                            config: config.clone(),
+                        },
+                        filter_text: format!(
+                            "Run {} {} {}",
+                            config.name,
+                            config.program,
+                            config.args.join(" ")
+                        ),
+                        score: 0,
+                        indices: vec![],
+                    },
+                ));
+                items.push((
+                    executed_run_configs
+                        .get(&(RunDebugMode::Debug, config.name.clone())),
+                    PaletteItem {
+                        content: PaletteItemContent::RunAndDebug {
+                            mode: RunDebugMode::Debug,
+                            config: config.clone(),
+                        },
+                        filter_text: format!(
+                            "Debug {} {} {}",
+                            config.name,
+                            config.program,
+                            config.args.join(" ")
+                        ),
+                        score: 0,
+                        indices: vec![],
+                    },
+                ));
+            }
+        }
+
+        items.sort_by_key(|(executed, _item)| std::cmp::Reverse(executed.copied()));
+        self.items
+            .set(items.into_iter().map(|(_, item)| item).collect());
+    }
+
     fn select(&self, cx: AppContext) {
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
+        self.cancel(cx);
         if let Some(item) = items.get(index) {
             match &item.content {
                 PaletteItemContent::File { full_path, .. } => {
@@ -666,9 +732,16 @@ impl PaletteData {
                         },
                     ));
                 }
+                PaletteItemContent::RunAndDebug { mode, config } => {
+                    self.common.internal_command.set(Some(
+                        InternalCommand::RunAndDebug {
+                            mode: mode.clone(),
+                            config: config.clone(),
+                        },
+                    ));
+                }
             }
         }
-        self.cancel(cx);
     }
 
     /// Update the preview for the currently active palette item, if it has one.
@@ -710,6 +783,7 @@ impl PaletteData {
                 }
                 PaletteItemContent::Command { cmd } => {}
                 PaletteItemContent::Workspace { workspace } => {}
+                PaletteItemContent::RunAndDebug { mode, config } => {}
                 PaletteItemContent::Reference { path, location } => {
                     self.has_preview.set(true);
                     let (doc, new_doc) =
@@ -759,7 +833,7 @@ impl PaletteData {
     }
 
     /// Close the palette, reverting focus back to the workbench.
-    fn cancel(&self, cx: AppContext) {
+    fn cancel(&self, _cx: AppContext) {
         self.status.set(PaletteStatus::Inactive);
         self.common.focus.set(Focus::Workbench);
         self.has_preview.set(false);

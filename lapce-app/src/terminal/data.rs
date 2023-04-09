@@ -618,4 +618,19 @@ impl TerminalData {
     ) {
         term.selection = Some(Selection::new(ty, point, side));
     }
+
+    pub fn new_process(&self, run_debug: Option<RunDebugProcess>) {
+        let raw = Self::new_raw_terminal(
+            self.workspace.clone(),
+            self.term_id,
+            run_debug.as_ref().map(|r| &r.config),
+            self.common.clone(),
+        );
+
+        self.raw = raw;
+        self.run_debug.set(run_debug);
+
+        // let (width, height) = *self.size.borrow();
+        // self.resize(width, height);
+    }
 }

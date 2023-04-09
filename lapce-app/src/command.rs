@@ -5,13 +5,14 @@ use indexmap::IndexMap;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
-use lapce_rpc::{plugin::PluginId, terminal::TermId};
+use lapce_rpc::{dap_types::RunDebugConfig, plugin::PluginId, terminal::TermId};
 use lsp_types::CodeActionOrCommand;
 use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 
 use crate::{
+    debug::RunDebugMode,
     editor::location::EditorLocation,
     editor_tab::EditorTabChild,
     id::EditorTabId,
@@ -523,6 +524,10 @@ pub enum InternalCommand {
     RunCodeAction {
         plugin_id: PluginId,
         action: CodeActionOrCommand,
+    },
+    RunAndDebug {
+        mode: RunDebugMode,
+        config: RunDebugConfig,
     },
 }
 

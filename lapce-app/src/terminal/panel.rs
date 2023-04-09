@@ -9,11 +9,13 @@ use floem::{
     },
 };
 use lapce_core::mode::Mode;
-use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
+use lapce_rpc::{
+    dap_types::RunDebugConfig, proxy::ProxyRpcHandler, terminal::TermId,
+};
 
 use crate::{
     config::LapceConfig,
-    debug::RunDebugProcess,
+    debug::{RunDebugMode, RunDebugProcess},
     id::TerminalTabId,
     keypress::{KeyPressData, KeyPressFocus},
     window_tab::CommonData,
@@ -276,5 +278,43 @@ impl TerminalPanelData {
                 self.close_terminal(term_id);
             }
         }
+    }
+
+    pub fn get_stopped_run_debug_terminal(
+        &self,
+        mode: &RunDebugMode,
+        config: &RunDebugConfig,
+    ) -> Option<TerminalData> {
+        self.tab_info.with_untracked(|info| {
+            for (_, tab) in info.tabs {
+                let terminal = tab.terminals.with_untracked(|terminals| {
+                    for (_, terminal) in terminals {
+                        if let Some(run_debug) =
+                            terminal.run_debug.get_untracked().as_ref()
+                        {
+                            if run_debug.stopped && &run_debug.mode == mode {
+                                match run_debug.mode {
+                                    RunDebugMode::Run => {
+                                        if run_debug.config.name == config.name {
+                                            return Some(terminal.clone());
+                                        }
+                                    }
+                                    RunDebugMode::Debug => {
+                                        if run_debug.config.dap_id == config.dap_id {
+                                            return Some(terminal.clone());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    None
+                });
+                if let Some(terminal) = terminal {
+                    return Some(terminal);
+                }
+            }
+            None
+        })
     }
 }

@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
+use lapce_rpc::dap_types::RunDebugConfig;
 use lsp_types::{Range, SymbolKind};
 
 use crate::{
-    command::LapceCommand, editor::location::EditorLocation,
+    command::LapceCommand, debug::RunDebugMode, editor::location::EditorLocation,
     workspace::LapceWorkspace,
 };
 
@@ -40,5 +41,9 @@ pub enum PaletteItemContent {
         name: String,
         range: Range,
         container_name: Option<String>,
+    },
+    RunAndDebug {
+        mode: RunDebugMode,
+        config: RunDebugConfig,
     },
 }
