@@ -4,13 +4,13 @@
 
 ### Features/Changes
 
+- [#1964](https://github.com/lapce/lapce/pull/1964): Add option to open files at line/column
+
 ### Bug Fixes
 
 ## 0.2.7
 
 ### Features/Changes
-
-- [#2407](https://github.com/lapce/lapce/pull/2407): Add option to open files at line/column
 
 ### Bug Fixes
 - [#2209](https://github.com/lapce/lapce/pull/2209): Fix macOS crashes
