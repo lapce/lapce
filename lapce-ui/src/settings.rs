@@ -116,6 +116,7 @@ impl LapceSettingsPanel {
             WidgetId::next(),
             None,
         )
+        .set_placeholder("Filter Settings...".to_string())
         .hide_header()
         .hide_gutter()
         .padding((5.0, 2.0, 5.0, 2.0));
