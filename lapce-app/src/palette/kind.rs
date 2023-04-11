@@ -6,6 +6,7 @@ pub enum PaletteKind {
     Workspace,
     Reference,
     DocumentSymbol,
+    WorkspaceSymbol,
     RunAndDebug,
 }
 
@@ -15,7 +16,7 @@ impl PaletteKind {
         match &self {
             PaletteKind::Line => "/",
             PaletteKind::DocumentSymbol => "@",
-            // PaletteKind::WorkspaceSymbol => "#",
+            PaletteKind::WorkspaceSymbol => "#",
             // PaletteKind::GlobalSearch => "?",
             PaletteKind::Workspace => ">",
             PaletteKind::Command => ":",
@@ -35,7 +36,7 @@ impl PaletteKind {
         match input {
             _ if input.starts_with('/') => PaletteKind::Line,
             _ if input.starts_with('@') => PaletteKind::DocumentSymbol,
-            // _ if input.starts_with('#') => PaletteKind::WorkspaceSymbol,
+            _ if input.starts_with('#') => PaletteKind::WorkspaceSymbol,
             _ if input.starts_with('>') => PaletteKind::Workspace,
             _ if input.starts_with(':') => PaletteKind::Command,
             _ => PaletteKind::File,
@@ -66,7 +67,7 @@ impl PaletteKind {
             PaletteKind::Command
             | PaletteKind::Workspace
             | PaletteKind::DocumentSymbol
-            // | PaletteType::WorkspaceSymbol
+            | PaletteKind::WorkspaceSymbol
             | PaletteKind::Line
             // | PaletteType::GlobalSearch
              => if !input.is_empty() {&input[1..]} else {input},

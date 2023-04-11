@@ -42,6 +42,12 @@ pub enum PaletteItemContent {
         range: Range,
         container_name: Option<String>,
     },
+    WorkspaceSymbol {
+        kind: SymbolKind,
+        name: String,
+        container_name: Option<String>,
+        location: EditorLocation,
+    },
     RunAndDebug {
         mode: RunDebugMode,
         config: RunDebugConfig,

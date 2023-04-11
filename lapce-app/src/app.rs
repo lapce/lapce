@@ -1625,11 +1625,44 @@ fn terminal_tab_header(
         },
         |(_, tab)| tab.terminal_tab_id,
         move |cx, (index, tab)| {
-            let title = move || {
+            let title = {
+                let tab = tab.clone();
+                move || {
+                    let terminal = tab.active_terminal(true);
+                    let run_debug = terminal.as_ref().map(|t| t.run_debug);
+                    if let Some(run_debug) = run_debug {
+                        if let Some(name) = run_debug.with(|run_debug| {
+                            run_debug.as_ref().map(|r| r.config.name.clone())
+                        }) {
+                            return name;
+                        }
+                    }
+
+                    let title = terminal.map(|t| t.title);
+                    let title = title.map(|t| t.get());
+                    title.unwrap_or_default()
+                }
+            };
+
+            let svg_string = move || {
                 let terminal = tab.active_terminal(true);
-                let title = terminal.map(|t| t.title);
-                let title = title.map(|t| t.get());
-                title.unwrap_or_default()
+                let run_debug = terminal.as_ref().map(|t| t.run_debug);
+                if let Some(run_debug) = run_debug {
+                    if let Some((mode, stopped)) = run_debug.with(|run_debug| {
+                        run_debug.as_ref().map(|r| (r.mode, r.stopped))
+                    }) {
+                        let svg = match (mode, stopped) {
+                            (RunDebugMode::Run, false) => LapceIcons::START,
+                            (RunDebugMode::Run, true) => LapceIcons::RUN_ERRORS,
+                            (RunDebugMode::Debug, false) => LapceIcons::DEBUG,
+                            (RunDebugMode::Debug, true) => {
+                                LapceIcons::DEBUG_DISCONNECT
+                            }
+                        };
+                        return svg;
+                    }
+                }
+                LapceIcons::TERMINAL
             };
             stack(cx, |cx| {
                 (
@@ -1638,7 +1671,7 @@ fn terminal_tab_header(
                             (
                                 container(cx, |cx| {
                                     svg(cx, move || {
-                                        config.get().ui_svg(LapceIcons::TERMINAL)
+                                        config.get().ui_svg(svg_string())
                                     })
                                     .style(
                                         cx,
@@ -1759,6 +1792,7 @@ fn terminal_tab_split(
                         terminal.term_id,
                         terminal.raw.read_only(),
                         terminal.mode.read_only(),
+                        terminal.run_debug.read_only(),
                         terminal_panel_data,
                     )
                     .on_event(EventListner::MouseWheel, move |event| {
@@ -2047,6 +2081,7 @@ fn status(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
 
 fn palette_item(
     cx: AppContext,
+    workspace: Arc<LapceWorkspace>,
     i: usize,
     item: PaletteItem,
     index: ReadSignal<usize>,
@@ -2158,6 +2193,111 @@ fn palette_item(
             let kind = *kind;
             let text = name.to_string();
             let hint = container_name.clone().unwrap_or_default();
+            let text_indices: Vec<usize> = item
+                .indices
+                .iter()
+                .filter_map(|i| {
+                    let i = *i;
+                    if i < text.len() {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            let hint_indices: Vec<usize> = item
+                .indices
+                .iter()
+                .filter_map(|i| {
+                    let i = *i;
+                    if i >= text.len() {
+                        Some(i - text.len())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            container_box(cx, move |cx| {
+                Box::new(
+                    stack(cx, move |cx| {
+                        (
+                            svg(cx, move || {
+                                let config = config.get();
+                                config.symbol_svg(&kind).unwrap_or_else(|| {
+                                    config.ui_svg(LapceIcons::FILE)
+                                })
+                            })
+                            .style(cx, move || {
+                                let config = config.get();
+                                let size = config.ui.icon_size() as f32;
+                                Style::default()
+                                    .min_width_pt(size)
+                                    .dimension_pt(size, size)
+                                    .margin_right(5.0)
+                                    .color(
+                                        *config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ),
+                                    )
+                            }),
+                            focus_text(
+                                cx,
+                                move || text.clone(),
+                                move || text_indices.clone(),
+                                move || {
+                                    *config.get().get_color(LapceColor::EDITOR_FOCUS)
+                                },
+                            )
+                            .style(cx, || {
+                                Style::default().margin_right(6.0).max_width_pct(1.0)
+                            }),
+                            focus_text(
+                                cx,
+                                move || hint.clone(),
+                                move || hint_indices.clone(),
+                                move || {
+                                    *config.get().get_color(LapceColor::EDITOR_FOCUS)
+                                },
+                            )
+                            .style(cx, move || {
+                                Style::default()
+                                    .color(
+                                        *config
+                                            .get()
+                                            .get_color(LapceColor::EDITOR_DIM),
+                                    )
+                                    .min_width_pt(0.0)
+                            }),
+                        )
+                    })
+                    .style(cx, || {
+                        Style::default()
+                            .align_items(Some(AlignItems::Center))
+                            .max_width_pct(1.0)
+                    }),
+                )
+            })
+        }
+        PaletteItemContent::WorkspaceSymbol {
+            kind,
+            name,
+            location,
+            ..
+        } => {
+            let text = name.to_string();
+            let kind = *kind;
+
+            let path = location.path.clone();
+            let full_path = location.path.clone();
+            let path = if let Some(workspace_path) = workspace.path.as_ref() {
+                path.strip_prefix(workspace_path)
+                    .unwrap_or(&full_path)
+                    .to_path_buf()
+            } else {
+                path
+            };
+
+            let hint = path.to_string_lossy().to_string();
             let text_indices: Vec<usize> = item
                 .indices
                 .iter()
@@ -2488,9 +2628,11 @@ fn palette_content(
     let run_id = window_tab_data.palette.run_id;
     let input = window_tab_data.palette.input.read_only();
     let palette_item_height = 25.0;
-    stack(cx, |cx| {
+    let workspace = window_tab_data.workspace.clone();
+    stack(cx, move |cx| {
         (
-            scroll(cx, |cx| {
+            scroll(cx, move |cx| {
+                let workspace = workspace.clone();
                 virtual_list(
                     cx,
                     VirtualListDirection::Vertical,
@@ -2499,11 +2641,13 @@ fn palette_content(
                         (run_id.get_untracked(), *i, input.get_untracked().input)
                     },
                     move |cx, (i, item)| {
+                        let workspace = workspace.clone();
                         click(
                             cx,
                             move |cx| {
                                 palette_item(
                                     cx,
+                                    workspace,
                                     i,
                                     item,
                                     index,

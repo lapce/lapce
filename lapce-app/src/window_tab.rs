@@ -414,13 +414,18 @@ impl WindowTabData {
             RunAndDebugRestart => {
                 let active_term = self.terminal.debug.active_term.get_untracked();
                 if active_term
-                    .and_then(|term_id| self.terminal.restart_run_debug(term_id))
+                    .and_then(|term_id| self.terminal.restart_run_debug(cx, term_id))
                     .is_none()
                 {
                     self.palette.run(cx, PaletteKind::RunAndDebug);
                 }
             }
-            RunAndDebugStop => {}
+            RunAndDebugStop => {
+                let active_term = self.terminal.debug.active_term.get_untracked();
+                if let Some(term_id) = active_term {
+                    self.terminal.stop_run_debug(term_id);
+                }
+            }
             CheckoutBranch => {}
             ToggleMaximizedPanel => {
                 if let Some(data) = data {
@@ -668,6 +673,7 @@ impl WindowTabData {
                 });
             }
             CoreNotification::TerminalProcessStopped { term_id } => {
+                println!("terminal stopped {term_id:?}");
                 let _ = self
                     .common
                     .term_tx
@@ -683,6 +689,9 @@ impl WindowTabData {
                     }
                     self.common.focus.set(Focus::Workbench);
                 }
+            }
+            CoreNotification::RunInTerminal { config } => {
+                self.run_in_terminal(cx, &RunDebugMode::Debug, config);
             }
             _ => {}
         }
@@ -912,10 +921,10 @@ impl WindowTabData {
                 self.run_in_terminal(cx, mode, config);
             }
             RunDebugMode::Debug => {
-                // self.proxy.proxy_rpc.dap_start(
-                //     config.clone(),
-                //     self.terminal.debug.source_breakpoints(),
-                // );
+                self.common.proxy.dap_start(
+                    config.clone(),
+                    self.terminal.debug.source_breakpoints(),
+                );
             }
         }
     }

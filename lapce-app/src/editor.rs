@@ -1585,6 +1585,9 @@ impl KeyPressFocus for EditorData {
             Condition::ListFocus => self.has_completions(),
             Condition::CompletionFocus => self.has_completions(),
             Condition::InSnippet => self.snippet.with_untracked(|s| s.is_some()),
+            Condition::EditorFocus => {
+                self.doc.with_untracked(|doc| !doc.content.is_local())
+            }
             _ => false,
         }
     }

@@ -47,6 +47,7 @@ use crate::{
     id::EditorId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     main_split::MainSplitData,
+    proxy::path_from_url,
     window_tab::{CommonData, Focus},
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
@@ -234,7 +235,7 @@ impl PaletteData {
         {
             let palette = palette.clone();
             let doc = palette.input_editor.doc.read_only();
-            let input = palette.input.write_only();
+            let input = palette.input;
             let status = palette.status.read_only();
             let preset_kind = palette.kind.read_only();
             // Monitors when the palette's input changes, so that it can update the stored input
@@ -274,6 +275,10 @@ impl PaletteData {
                         .unwrap();
                     if let Some(new_kind) = new_kind {
                         palette.run_inner(cx, new_kind);
+                    } else if input
+                        .with_untracked(|i| i.kind == PaletteKind::WorkspaceSymbol)
+                    {
+                        palette.run_inner(cx, PaletteKind::WorkspaceSymbol);
                     }
                 }
                 Some(new_input)
@@ -332,6 +337,9 @@ impl PaletteData {
             }
             PaletteKind::DocumentSymbol => {
                 self.get_document_symbols(cx);
+            }
+            PaletteKind::WorkspaceSymbol => {
+                self.get_workspace_symbols(cx);
             }
             PaletteKind::RunAndDebug => {
                 self.get_run_configs(cx);
@@ -534,30 +542,96 @@ impl PaletteData {
         let doc = match editor {
             Some(editor) => editor.with_untracked(|editor| (editor.doc)),
             None => {
+                self.items.update(|items| items.clear());
                 return;
             }
         };
         let path = doc.with_untracked(|doc| doc.content.path().cloned());
         let path = match path {
             Some(path) => path,
-            None => return,
+            None => {
+                self.items.update(|items| items.clear());
+                return;
+            }
         };
 
         let set_items = self.items.write_only();
-        let send = create_ext_action(cx, move |resp: DocumentSymbolResponse| {
-            let items: im::Vector<PaletteItem> = match resp {
-                DocumentSymbolResponse::Flat(symbols) => symbols
+        let send = create_ext_action(cx, move |result| {
+            if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
+                let items: im::Vector<PaletteItem> = match resp {
+                    DocumentSymbolResponse::Flat(symbols) => symbols
+                        .iter()
+                        .map(|s| {
+                            let mut filter_text = s.name.clone();
+                            if let Some(container_name) = s.container_name.as_ref() {
+                                filter_text += container_name;
+                            }
+                            PaletteItem {
+                                content: PaletteItemContent::DocumentSymbol {
+                                    kind: s.kind,
+                                    name: s.name.clone(),
+                                    range: s.location.range,
+                                    container_name: s.container_name.clone(),
+                                },
+                                filter_text,
+                                score: 0,
+                                indices: Vec::new(),
+                            }
+                        })
+                        .collect(),
+                    DocumentSymbolResponse::Nested(symbols) => symbols
+                        .iter()
+                        .map(|s| PaletteItem {
+                            content: PaletteItemContent::DocumentSymbol {
+                                kind: s.kind,
+                                name: s.name.clone(),
+                                range: s.range,
+                                container_name: None,
+                            },
+                            filter_text: s.name.clone(),
+                            score: 0,
+                            indices: Vec::new(),
+                        })
+                        .collect(),
+                };
+                set_items.set(items);
+            } else {
+                set_items.update(|items| items.clear());
+            }
+        });
+
+        self.common.proxy.get_document_symbols(path, move |result| {
+            send(result);
+        });
+    }
+
+    fn get_workspace_symbols(&self, cx: AppContext) {
+        let input = self.input.get_untracked().input;
+
+        let set_items = self.items.write_only();
+        let send = create_ext_action(cx, move |result| {
+            if let Ok(ProxyResponse::GetWorkspaceSymbols { symbols }) = result {
+                let items: im::Vector<PaletteItem> = symbols
                     .iter()
                     .map(|s| {
+                        // TODO: Should we be using filter text?
                         let mut filter_text = s.name.clone();
                         if let Some(container_name) = s.container_name.as_ref() {
                             filter_text += container_name;
                         }
                         PaletteItem {
-                            content: PaletteItemContent::DocumentSymbol {
+                            content: PaletteItemContent::WorkspaceSymbol {
                                 kind: s.kind,
                                 name: s.name.clone(),
-                                range: s.location.range,
+                                location: EditorLocation {
+                                    path: path_from_url(&s.location.uri),
+                                    position: Some(EditorPosition::Position(
+                                        s.location.range.start,
+                                    )),
+                                    scroll_offset: None,
+                                    ignore_unconfirmed: false,
+                                    same_editor_tab: false,
+                                },
                                 container_name: s.container_name.clone(),
                             },
                             filter_text,
@@ -565,30 +639,18 @@ impl PaletteData {
                             indices: Vec::new(),
                         }
                     })
-                    .collect(),
-                DocumentSymbolResponse::Nested(symbols) => symbols
-                    .iter()
-                    .map(|s| PaletteItem {
-                        content: PaletteItemContent::DocumentSymbol {
-                            kind: s.kind,
-                            name: s.name.clone(),
-                            range: s.range,
-                            container_name: None,
-                        },
-                        filter_text: s.name.clone(),
-                        score: 0,
-                        indices: Vec::new(),
-                    })
-                    .collect(),
-            };
-            set_items.set(items);
-        });
-
-        self.common.proxy.get_document_symbols(path, move |result| {
-            if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
-                send(resp);
+                    .collect();
+                set_items.set(items);
+            } else {
+                set_items.update(|items| items.clear());
             }
         });
+
+        self.common
+            .proxy
+            .get_workspace_symbols(input, move |result| {
+                send(result);
+            });
     }
 
     fn get_run_configs(&self, cx: AppContext) {
@@ -732,10 +794,17 @@ impl PaletteData {
                         },
                     ));
                 }
+                PaletteItemContent::WorkspaceSymbol { location, .. } => {
+                    self.common.internal_command.set(Some(
+                        InternalCommand::JumpToLocation {
+                            location: location.clone(),
+                        },
+                    ));
+                }
                 PaletteItemContent::RunAndDebug { mode, config } => {
                     self.common.internal_command.set(Some(
                         InternalCommand::RunAndDebug {
-                            mode: mode.clone(),
+                            mode: *mode,
                             config: config.clone(),
                         },
                     ));
@@ -827,6 +896,16 @@ impl PaletteData {
                         false,
                         None,
                     );
+                }
+                PaletteItemContent::WorkspaceSymbol { location, .. } => {
+                    self.has_preview.set(true);
+                    let (doc, new_doc) =
+                        self.main_split.get_doc(cx, location.path.clone());
+                    self.preview_editor.update(|preview_editor| {
+                        preview_editor.doc = doc;
+                    });
+                    let editor = self.preview_editor.get_untracked();
+                    editor.go_to_location(cx, location.clone(), new_doc, None);
                 }
             }
         }

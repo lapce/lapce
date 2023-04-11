@@ -11,18 +11,22 @@ use floem::{
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
-        create_effect, ReadSignal, SignalGet, SignalGetUntracked, SignalWith,
+        create_effect, ReadSignal, RwSignal, SignalGet, SignalGetUntracked,
+        SignalWith,
     },
     view::{ChangeFlags, View},
     Renderer,
 };
 use lapce_core::mode::Mode;
-use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
+use lapce_rpc::{
+    dap_types::RunDebugConfig, proxy::ProxyRpcHandler, terminal::TermId,
+};
 use parking_lot::RwLock;
 use unicode_width::UnicodeWidthChar;
 
 use crate::{
     config::{color::LapceColor, LapceConfig},
+    debug::RunDebugProcess,
     panel::kind::PanelKind,
     window_tab::{CommonData, Focus},
 };
@@ -43,6 +47,7 @@ pub struct TerminalView {
     size: Size,
     is_focused: bool,
     config: ReadSignal<Arc<LapceConfig>>,
+    run_config: ReadSignal<Option<RunDebugProcess>>,
     proxy: ProxyRpcHandler,
 }
 
@@ -51,6 +56,7 @@ pub fn terminal_view(
     term_id: TermId,
     raw: ReadSignal<Arc<RwLock<RawTerminal>>>,
     mode: ReadSignal<Mode>,
+    run_config: ReadSignal<Option<RunDebugProcess>>,
     terminal_panel_data: TerminalPanelData,
 ) -> TerminalView {
     let id = cx.new_id();
@@ -98,6 +104,7 @@ pub fn terminal_view(
         mode,
         config,
         proxy,
+        run_config,
         size: Size::ZERO,
         is_focused: false,
     }
@@ -296,7 +303,13 @@ impl View for TerminalView {
                         * line_height,
                 ));
                 let cursor_color = if mode == Mode::Terminal {
-                    config.get_color(LapceColor::TERMINAL_CURSOR)
+                    if self.run_config.with(|run_config| {
+                        run_config.as_ref().map(|r| r.stopped).unwrap_or(false)
+                    }) {
+                        config.get_color(LapceColor::LAPCE_ERROR)
+                    } else {
+                        config.get_color(LapceColor::TERMINAL_CURSOR)
+                    }
                 } else {
                     config.get_color(LapceColor::EDITOR_CARET)
                 };

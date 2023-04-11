@@ -18,7 +18,8 @@ use crate::{
     debug::{RunDebugData, RunDebugMode, RunDebugProcess},
     id::TerminalTabId,
     keypress::{KeyPressData, KeyPressFocus},
-    window_tab::CommonData,
+    panel::kind::PanelKind,
+    window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
 };
 
@@ -328,15 +329,28 @@ impl TerminalPanelData {
         })
     }
 
-    pub fn restart_run_debug(&self, term_id: TermId) -> Option<()> {
-        let terminal = self.get_terminal(&term_id)?;
+    pub fn restart_run_debug(&self, cx: AppContext, term_id: TermId) -> Option<()> {
+        let (_, terminal_tab, index, terminal) =
+            self.get_terminal_in_tab(&term_id)?;
         let run_debug = terminal.run_debug.get_untracked()?;
-        match run_debug.mode {
+        let new_term_id = match run_debug.mode {
             RunDebugMode::Run => {
+                self.common.proxy.terminal_close(term_id);
+
                 let mut run_debug = run_debug;
                 run_debug.stopped = false;
-                self.common.proxy.terminal_close(term_id);
-                terminal.new_process(Some(run_debug));
+                let new_terminal = TerminalData::new(
+                    cx,
+                    self.workspace.clone(),
+                    Some(run_debug),
+                    self.common.clone(),
+                );
+                let new_term_id = new_terminal.term_id;
+                terminal_tab.terminals.update(|terminals| {
+                    terminals[index] = (create_rw_signal(cx.scope, 0), new_terminal);
+                });
+                self.debug.active_term.set(Some(new_term_id));
+                new_term_id
             }
             RunDebugMode::Debug => {
                 let dap_id =
@@ -346,10 +360,11 @@ impl TerminalPanelData {
                 self.common
                     .proxy
                     .dap_restart(dap.dap_id, self.debug.source_breakpoints());
+                term_id
             }
-        }
+        };
 
-        self.focus_terminal(term_id);
+        self.focus_terminal(new_term_id);
 
         Some(())
     }
@@ -362,6 +377,27 @@ impl TerminalPanelData {
                 info.active = tab_index;
             });
             terminal_tab.active.set(index);
+            self.common.focus.set(Focus::Panel(PanelKind::Terminal));
         }
+    }
+
+    pub fn stop_run_debug(&self, term_id: TermId) -> Option<()> {
+        let terminal = self.get_terminal(&term_id)?;
+        let run_debug = terminal.run_debug.get_untracked()?;
+
+        match run_debug.mode {
+            RunDebugMode::Run => {
+                self.common.proxy.terminal_close(term_id);
+            }
+            RunDebugMode::Debug => {
+                let dap_id = run_debug.config.dap_id;
+                let daps = self.debug.daps.get_untracked();
+                let dap = daps.get(&dap_id)?;
+                self.common.proxy.dap_stop(dap.dap_id);
+            }
+        }
+
+        self.focus_terminal(term_id);
+        Some(())
     }
 }
