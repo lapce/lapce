@@ -229,7 +229,7 @@ impl LapceDb {
     ) {
         let info = DocInfo {
             workspace: workspace.clone(),
-            path: path.clone(),
+            path,
             scroll_offset: (scroll_offset.x, scroll_offset.y),
             cursor_offset,
         };

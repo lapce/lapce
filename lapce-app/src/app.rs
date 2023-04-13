@@ -17,18 +17,16 @@ use floem::{
         RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
         SignalWith, SignalWithUntracked,
     },
-    stack::stack,
     style::{
         AlignContent, AlignItems, Dimension, Display, FlexDirection, JustifyContent,
         Position, Style,
     },
     view::View,
-    views::{click, double_click, svg, VirtualListVector},
     views::{
-        clip, container, container_box, list, tab, virtual_list, Decorators,
-        VirtualListDirection, VirtualListItemSize,
+        click, clip, container, container_box, double_click, label, list, rich_text,
+        scroll, stack, svg, tab, virtual_list, Decorators, VirtualListDirection,
+        VirtualListItemSize, VirtualListVector,
     },
-    views::{label, rich_text, scroll},
 };
 use lapce_core::{
     cursor::{ColPosition, Cursor, CursorMode},
@@ -43,7 +41,7 @@ use crate::{
     db::LapceDb,
     debug::RunDebugMode,
     doc::{DocContent, DocLine, Document},
-    editor::{self, EditorData},
+    editor::EditorData,
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
@@ -57,8 +55,7 @@ use crate::{
         position::{PanelContainerPosition, PanelPosition},
     },
     terminal::{
-        data::TerminalData, panel::TerminalPanelData, tab::TerminalTabData,
-        view::terminal_view,
+        panel::TerminalPanelData, tab::TerminalTabData, view::terminal_view,
     },
     title::title,
     window::WindowData,
@@ -1853,6 +1850,89 @@ fn terminal_panel(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl V
     .style(cx, || Style::default().dimension_pct(1.0, 1.0).flex_col())
 }
 
+fn panel_header(
+    cx: AppContext,
+    header: String,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    container(cx, |cx| label(cx, move || header.clone())).style(cx, move || {
+        Style::default()
+            .padding_horiz(10.0)
+            .padding_vert(6.0)
+            .width_pct(1.0)
+            .background(*config.get().get_color(LapceColor::EDITOR_BACKGROUND))
+    })
+}
+
+fn debug_panel(
+    cx: AppContext,
+    window_tab_data: Arc<WindowTabData>,
+    position: PanelPosition,
+) -> impl View {
+    let config = window_tab_data.common.config;
+    let terminal = window_tab_data.terminal.clone();
+    stack(cx, move |cx| {
+        (stack(cx, move |cx| {
+            (
+                panel_header(cx, "Processes".to_string(), config),
+                scroll(cx, move |cx| {
+                    let terminal = terminal.clone();
+                    list(
+                        cx,
+                        move || terminal.run_debug_process(true),
+                        |(term_id, p)| (*term_id, p.stopped),
+                        move |cx, (term_id, p)| {
+                            stack(cx, move |cx| {
+                                (
+                                    {
+                                        let svg_str = match (&p.mode, p.stopped) {
+                                            (RunDebugMode::Run, false) => {
+                                                LapceIcons::START
+                                            }
+                                            (RunDebugMode::Run, true) => {
+                                                LapceIcons::RUN_ERRORS
+                                            }
+                                            (RunDebugMode::Debug, false) => {
+                                                LapceIcons::DEBUG
+                                            }
+                                            (RunDebugMode::Debug, true) => {
+                                                LapceIcons::DEBUG_DISCONNECT
+                                            }
+                                        };
+                                        svg(cx, move || config.get().ui_svg(svg_str))
+                                            .style(cx, move || {
+                                                let config = config.get();
+                                                let size =
+                                                    config.ui.icon_size() as f32;
+                                                Style::default()
+                                                .dimension_pt(size, size)
+                                                .margin_horiz(10.0)
+                                                .color(*config.get_color(
+                                                    LapceColor::LAPCE_ICON_ACTIVE,
+                                                ))
+                                            })
+                                    },
+                                    label(cx, move || p.config.name.clone()),
+                                )
+                            })
+                            .style(cx, || {
+                                Style::default().padding_vert(6.0).items_center()
+                            })
+                        },
+                    )
+                    .style(cx, || Style::default().flex_col())
+                }),
+            )
+        })
+        .style(cx, || Style::default().width_pct(1.0).flex_col()),)
+    })
+    .style(cx, move || {
+        Style::default()
+            .width_pct(1.0)
+            .apply_if(!position.is_bottom(), |s| s.flex_col())
+    })
+}
+
 fn panel_view(
     cx: AppContext,
     window_tab_data: Arc<WindowTabData>,
@@ -1880,7 +1960,7 @@ fn panel_view(
                     Box::new(terminal_panel(cx, window_tab_data.clone()))
                 }),
                 PanelKind::FileExplorer => container_box(cx, |cx| {
-                    Box::new(terminal_panel(cx, window_tab_data.clone()))
+                    Box::new(debug_panel(cx, window_tab_data.clone(), position))
                 }),
                 PanelKind::SourceControl => container_box(cx, |cx| {
                     Box::new(terminal_panel(cx, window_tab_data.clone()))
@@ -1895,7 +1975,7 @@ fn panel_view(
                     Box::new(terminal_panel(cx, window_tab_data.clone()))
                 }),
                 PanelKind::Debug => container_box(cx, |cx| {
-                    Box::new(terminal_panel(cx, window_tab_data.clone()))
+                    Box::new(debug_panel(cx, window_tab_data.clone(), position))
                 }),
             };
             view.style(cx, || Style::default().dimension_pct(1.0, 1.0))
@@ -1910,28 +1990,51 @@ fn panel_view(
     })
 }
 
-fn bottom_panel(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
+fn panel_container_view(
+    cx: AppContext,
+    window_tab_data: Arc<WindowTabData>,
+    position: PanelContainerPosition,
+) -> impl View {
     let panel = window_tab_data.panel.clone();
     let config = window_tab_data.common.config;
     stack(cx, |cx| {
         (
-            panel_view(cx, window_tab_data.clone(), PanelPosition::BottomLeft),
-            panel_view(cx, window_tab_data, PanelPosition::BottomRight),
+            panel_view(cx, window_tab_data.clone(), position.first()),
+            panel_view(cx, window_tab_data, position.second()),
         )
     })
     .style(cx, move || {
-        let height = panel.size.with(|s| s.bottom);
+        let size = panel.size.with(|s| match position {
+            PanelContainerPosition::Left => s.left,
+            PanelContainerPosition::Bottom => s.bottom,
+            PanelContainerPosition::Right => s.right,
+        });
         let is_maximized = panel.panel_bottom_maximized(true);
+        let config = config.get();
         Style::default()
-            .apply_if(
-                !panel.is_container_shown(&PanelContainerPosition::Bottom, true),
-                |s| s.display(Display::None),
-            )
-            .apply_if(!is_maximized, |s| s.height_pt(height as f32))
-            .apply_if(is_maximized, |s| s.flex_grow(1.0))
-            .width_pct(1.0)
-            .border_top(1.0)
-            .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+            .apply_if(!panel.is_container_shown(&position, true), |s| {
+                s.display(Display::None)
+            })
+            .apply_if(position == PanelContainerPosition::Bottom, |s| {
+                s.border_top(1.0)
+                    .width_pct(1.0)
+                    .apply_if(!is_maximized, |s| s.height_pt(size as f32))
+                    .apply_if(is_maximized, |s| s.flex_grow(1.0))
+            })
+            .apply_if(position == PanelContainerPosition::Left, |s| {
+                s.border_right(1.0)
+                    .width_pt(size as f32)
+                    .height_pct(1.0)
+                    .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+            })
+            .apply_if(position == PanelContainerPosition::Right, |s| {
+                s.border_left(1.0)
+                    .width_pt(size as f32)
+                    .height_pct(1.0)
+                    .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+            })
+            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+            .color(*config.get_color(LapceColor::PANEL_FOREGROUND))
     })
 }
 
@@ -1939,19 +2042,19 @@ fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let config = window_tab_data.main_split.common.config;
     stack(cx, move |cx| {
         (
-            label(cx, move || "left".to_string()).style(cx, move || {
-                let config = config.get();
-                Style::default()
-                    .width_pt(250.0)
-                    .padding(20.0)
-                    .border_right(1.0)
-                    .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-                    .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
-            }),
+            panel_container_view(
+                cx,
+                window_tab_data.clone(),
+                PanelContainerPosition::Left,
+            ),
             stack(cx, move |cx| {
                 (
                     main_split(cx, window_tab_data.clone()),
-                    bottom_panel(cx, window_tab_data),
+                    panel_container_view(
+                        cx,
+                        window_tab_data,
+                        PanelContainerPosition::Bottom,
+                    ),
                 )
             })
             .style(cx, || {

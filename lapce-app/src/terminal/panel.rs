@@ -4,8 +4,8 @@ use floem::{
     app::AppContext,
     glazier::KeyEvent,
     reactive::{
-        create_rw_signal, RwSignal, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalWith, SignalWithUntracked,
+        create_rw_signal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
+        SignalUpdate, SignalWith, SignalWithUntracked,
     },
 };
 use lapce_core::mode::Mode;
@@ -399,5 +399,39 @@ impl TerminalPanelData {
 
         self.focus_terminal(term_id);
         Some(())
+    }
+
+    pub fn run_debug_process(
+        &self,
+        tracked: bool,
+    ) -> Vec<(TermId, RunDebugProcess)> {
+        let mut processes = Vec::new();
+        if tracked {
+            self.tab_info.with(|info| {
+                for (_, tab) in &info.tabs {
+                    tab.terminals.with(|terminals| {
+                        for (_, terminal) in terminals {
+                            if let Some(run_debug) = terminal.run_debug.get() {
+                                processes.push((terminal.term_id, run_debug));
+                            }
+                        }
+                    })
+                }
+            });
+        } else {
+            self.tab_info.with_untracked(|info| {
+                for (_, tab) in &info.tabs {
+                    tab.terminals.with_untracked(|terminals| {
+                        for (_, terminal) in terminals {
+                            if let Some(run_debug) = terminal.run_debug.get() {
+                                processes.push((terminal.term_id, run_debug));
+                            }
+                        }
+                    })
+                }
+            });
+        }
+        processes.sort_by_key(|(_, process)| process.created);
+        processes
     }
 }

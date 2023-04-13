@@ -5,10 +5,9 @@ use floem::{
     reactive::{
         ReadSignal, RwSignal, SignalGet, SignalSet, SignalWith, WriteSignal,
     },
-    stack::stack,
     style::{AlignItems, Dimension, Display, JustifyContent, Style},
     view::View,
-    views::{click, container, Decorators},
+    views::{click, container, stack, Decorators},
     views::{label, svg},
 };
 
