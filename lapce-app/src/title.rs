@@ -84,8 +84,7 @@ fn left(
             .height_pct(1.0)
             .flex_basis(Dimension::Points(0.0))
             .flex_grow(1.0)
-            .justify_content(Some(JustifyContent::FlexStart))
-            .align_items(Some(AlignItems::Center))
+            .items_center()
     })
 }
 
@@ -227,13 +226,13 @@ fn middle(
                         let icon_size = config.ui.icon_size() as f32;
                         Style::default()
                             .dimension_pt(icon_size, icon_size)
+                            .margin_horiz(10.0)
                             .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
                     },
                 )
             })
             .style(cx, move || {
                 Style::default()
-                    .padding_horiz(10.0)
                     .flex_basis(Dimension::Points(0.0))
                     .flex_grow(1.0)
                     .justify_content(Some(JustifyContent::FlexStart))
@@ -259,6 +258,7 @@ fn right(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
                 Style::default()
                     .dimension_pt(icon_size, icon_size)
                     .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+                    .margin_right(10.0)
             },
         )
     })
@@ -266,7 +266,6 @@ fn right(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
         Style::default()
             .flex_basis(Dimension::Points(0.0))
             .flex_grow(1.0)
-            .padding_horiz(10.0)
             .justify_content(Some(JustifyContent::FlexEnd))
     })
 }

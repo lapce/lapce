@@ -438,9 +438,7 @@ fn editor_gutter(
                                                 .justify_content(Some(
                                                     JustifyContent::Center,
                                                 ))
-                                                .align_content(Some(
-                                                    AlignContent::Center,
-                                                ))
+                                                .items_center()
                                                 .width_pt(
                                                     padding_right - padding_left,
                                                 )
@@ -463,7 +461,7 @@ fn editor_gutter(
                             let config = config.get_untracked();
                             let line_height = config.editor.line_height();
                             Style::default()
-                                .align_content(Some(AlignContent::Center))
+                                .items_center()
                                 .height_pt(line_height as f32)
                         })
                     },
@@ -732,7 +730,7 @@ fn editor(
             let config = config.get_untracked();
             let line_height = config.editor.line_height();
             Style::default()
-                .align_content(Some(AlignContent::Center))
+                .items_center()
                 .height_pt(line_height as f32)
         })
     };
@@ -2878,7 +2876,7 @@ fn palette(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
             .position(Position::Absolute)
             .dimension_pct(1.0, 1.0)
             .flex_col()
-            .align_content(Some(AlignContent::Center))
+            .items_center()
     })
 }
 

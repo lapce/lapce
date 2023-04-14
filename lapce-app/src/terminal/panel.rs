@@ -9,12 +9,9 @@ use floem::{
     },
 };
 use lapce_core::mode::Mode;
-use lapce_rpc::{
-    dap_types::RunDebugConfig, proxy::ProxyRpcHandler, terminal::TermId,
-};
+use lapce_rpc::{dap_types::RunDebugConfig, terminal::TermId};
 
 use crate::{
-    config::LapceConfig,
     debug::{RunDebugData, RunDebugMode, RunDebugProcess},
     id::TerminalTabId,
     keypress::{KeyPressData, KeyPressFocus},
