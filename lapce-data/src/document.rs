@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet},
+    collections::{hash_map::Entry, HashMap, HashSet},
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
@@ -48,6 +48,240 @@ use lsp_types::{
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+
+#[derive(Clone, Debug)]
+enum NodeType {
+    LeftParen,
+    RightParen,
+    LeftBracket,
+    RightBracket,
+    LeftCurly,
+    RightCurly,
+    Pair,
+    Code,
+    Dummy,
+}
+
+#[derive(Clone, Debug)]
+enum BracketParserMode {
+    Paring,
+    NoParsing,
+}
+
+#[derive(Clone, Debug)]
+struct ASTNode {
+    tt: NodeType,
+    len: usize,
+    children: Vec<ASTNode>,
+    level: usize,
+}
+
+impl ASTNode {
+    fn new() -> Self {
+        Self {
+            tt: NodeType::Dummy,
+            len: 0,
+            children: vec![],
+            level: 0,
+        }
+    }
+
+    fn new_with_type(tt: NodeType, len: usize) -> Self {
+        Self {
+            tt,
+            len,
+            children: vec![],
+            level: 0,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct BracketParser {
+    code: Vec<char>,
+    cur: usize,
+    ast: ASTNode,
+    bracket_set: HashMap<char, ASTNode>,
+    bracket_pos: HashMap<usize, Vec<LineStyle>>,
+    mode: BracketParserMode,
+    noparing_token: Vec<char>,
+}
+
+impl BracketParser {
+    fn new(code: String) -> Self {
+        Self {
+            code: code.chars().collect(),
+            cur: 0,
+            ast: ASTNode::new(),
+            bracket_set: HashMap::from([
+                ('(', ASTNode::new_with_type(NodeType::LeftParen, 1)),
+                (')', ASTNode::new_with_type(NodeType::RightParen, 1)),
+                ('{', ASTNode::new_with_type(NodeType::LeftCurly, 1)),
+                ('}', ASTNode::new_with_type(NodeType::RightCurly, 1)),
+                ('[', ASTNode::new_with_type(NodeType::LeftBracket, 1)),
+                (']', ASTNode::new_with_type(NodeType::RightBracket, 1)),
+            ]),
+            bracket_pos: HashMap::new(),
+            mode: BracketParserMode::Paring,
+            noparing_token: vec!['\'', '"'],
+        }
+    }
+
+    fn update_code(&mut self, code: String, buffer: &Buffer) {
+        self.code = code.chars().collect();
+        self.cur = 0;
+        self.parse();
+        let mut pos_vec = vec![];
+        Self::highlight_pos(&self.ast, &mut pos_vec, &mut 0usize, &mut 0usize);
+        for (offset, color) in pos_vec.iter() {
+            let (line, col) = buffer.offset_to_line_col(*offset);
+            let line_style = LineStyle {
+                start: col,
+                end: col + 1,
+                style: Style {
+                    fg_color: Some(color.clone()),
+                },
+            };
+            match self.bracket_pos.entry(line) {
+                Entry::Vacant(v) => _ = v.insert(vec![line_style.clone()]),
+                Entry::Occupied(mut o) => o.get_mut().push(line_style.clone()),
+            }
+        }
+    }
+
+    fn is_left(c: &char) -> bool {
+        if *c == '(' || *c == '{' || *c == '[' {
+            return true;
+        }
+        false
+    }
+
+    fn parse(&mut self) {
+        let new_ast = &mut ASTNode::new();
+        self.parse_bracket(0, new_ast);
+        self.ast = new_ast.clone();
+        Self::patch_len(&mut self.ast);
+        self.cur = 0;
+    }
+
+    fn parse_bracket(&mut self, level: usize, parent_node: &mut ASTNode) {
+        let mut counter = 0usize;
+        while self.cur < self.code.len() {
+            if self.noparing_token.contains(&self.code[self.cur]) {
+                if matches!(self.mode, BracketParserMode::Paring) {
+                    self.mode = BracketParserMode::NoParsing;
+                } else {
+                    self.mode = BracketParserMode::Paring;
+                }
+            }
+            if self.bracket_set.contains_key(&self.code[self.cur])
+                && matches!(self.mode, BracketParserMode::Paring)
+            {
+                if Self::is_left(&self.code[self.cur]) {
+                    let code_node = ASTNode::new_with_type(NodeType::Code, counter);
+                    let left_node =
+                        self.bracket_set.get(&self.code[self.cur]).unwrap().clone();
+                    let mut pair_node =
+                        ASTNode::new_with_type(NodeType::Pair, counter + 1);
+                    pair_node.level = level;
+                    pair_node.children.push(code_node);
+                    pair_node.children.push(left_node);
+                    self.cur += 1;
+                    self.parse_bracket(level + 1, &mut pair_node);
+                    parent_node.children.push(pair_node.clone());
+                    counter = 0;
+                } else if level <= parent_node.level {
+                    let right_node =
+                        self.bracket_set.get(&self.code[self.cur]).unwrap().clone();
+                    parent_node.children.push(right_node);
+                    self.cur += 1;
+                } else {
+                    let code_node = ASTNode::new_with_type(NodeType::Code, counter);
+                    let right_node =
+                        self.bracket_set.get(&self.code[self.cur]).unwrap().clone();
+                    parent_node.children.push(code_node);
+                    parent_node.children.push(right_node);
+                    let parent_len = parent_node.len;
+                    parent_node.len = parent_len + counter + 1;
+                    self.cur += 1;
+                    return;
+                }
+            } else {
+                counter += 1;
+                self.cur += 1;
+            }
+        }
+    }
+
+    fn patch_len(ast: &mut ASTNode) {
+        if !ast.children.is_empty() {
+            let mut len = 0usize;
+            for n in ast.children.iter_mut() {
+                match n.tt {
+                    NodeType::LeftCurly => len += 1,
+                    NodeType::RightCurly => len += 1,
+                    NodeType::LeftParen => len += 1,
+                    NodeType::RightParen => len += 1,
+                    NodeType::LeftBracket => len += 1,
+                    NodeType::RightBracket => len += 1,
+                    NodeType::Code => len += n.len,
+                    NodeType::Pair => {
+                        Self::patch_len(n);
+                        len += n.len;
+                    }
+                    _ => break,
+                }
+            }
+            ast.len = len;
+        }
+    }
+
+    fn highlight_pos(
+        ast: &ASTNode,
+        pos_vec: &mut Vec<(usize, String)>,
+        index: &mut usize,
+        level: &mut usize,
+    ) {
+        let palette = [
+            "function".to_string(),
+            "keyword".to_string(),
+            "type".to_string(),
+        ];
+        if !ast.children.is_empty() {
+            for n in ast.children.iter() {
+                //println!("{level}");
+                match n.tt {
+                    NodeType::LeftCurly
+                    | NodeType::LeftParen
+                    | NodeType::LeftBracket => {
+                        pos_vec
+                            .push((*index, palette[*level % palette.len()].clone()));
+                        *level += 1;
+                        *index += 1;
+                    }
+                    NodeType::RightCurly
+                    | NodeType::RightParen
+                    | NodeType::RightBracket => {
+                        let (new_level, overflow) = (*level).overflowing_sub(1);
+                        if overflow {
+                            pos_vec.push((*index, "variable".to_string()));
+                        } else {
+                            *level = new_level;
+                            pos_vec.push((
+                                *index,
+                                palette[*level % palette.len()].clone(),
+                            ));
+                        }
+                        *index += 1;
+                    }
+                    NodeType::Code => *index += n.len,
+                    NodeType::Pair => Self::highlight_pos(n, pos_vec, index, level),
+                    _ => break,
+                }
+            }
+        }
+    }
+}
 
 use crate::{
     atomic_soft_tabs::{snap_to_soft_tab, snap_to_soft_tab_line_col, SnapDirection},
@@ -444,6 +678,7 @@ pub struct Document {
     /// Event sink so that we can submit commands to the event loop
     pub event_sink: ExtEventSink,
     pub proxy: Arc<LapceProxy>,
+    parser: BracketParser,
 }
 
 impl Document {
@@ -470,6 +705,8 @@ impl Document {
         };
         let mut selection_find = Find::new(0);
         selection_find.case_matching = CaseMatching::Exact;
+
+        let parser = BracketParser::new("".to_string());
         Self {
             id,
             tab_id,
@@ -499,6 +736,7 @@ impl Document {
             event_sink,
             proxy,
             syntax_selection_range: None,
+            parser,
         }
     }
 
@@ -558,6 +796,7 @@ impl Document {
 
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&mut self, content: Rope) {
+        self.parser.update_code(content.to_string(), &self.buffer);
         self.buffer.init_content(content);
         self.buffer.detect_indent(self.syntax.as_ref());
         self.loaded = true;
@@ -1007,6 +1246,8 @@ impl Document {
         self.clear_sticky_headers_cache();
         self.trigger_head_change();
         self.notify_special();
+        self.parser
+            .update_code(self.buffer.to_string(), &self.buffer);
     }
 
     /// Notify special buffer content's about their content potentially changing.
@@ -2214,6 +2455,20 @@ impl Document {
                         start..end,
                         TextAttribute::TextColor(fg_color.clone()),
                     );
+                }
+            }
+        }
+        if let Some(bracket_styles) = self.parser.bracket_pos.get(&line) {
+            for bracket_style in bracket_styles.iter() {
+                if let Some(fg_color) = bracket_style.style.fg_color.as_ref() {
+                    if let Some(fg_color) = config.get_style_color(fg_color) {
+                        let start = phantom_text.col_at(bracket_style.start);
+                        let end = phantom_text.col_at(bracket_style.end);
+                        layout_builder = layout_builder.range_attribute(
+                            start..end,
+                            TextAttribute::TextColor(fg_color.clone()),
+                        );
+                    }
                 }
             }
         }
