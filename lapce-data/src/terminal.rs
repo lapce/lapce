@@ -133,12 +133,12 @@ impl TerminalPanelData {
     pub fn set_process_id(
         &mut self,
         term_id: TermId,
-        process_id: u32,
+        process_id: Option<u32>,
     ) -> Option<()> {
         println!("set process id");
         let terminal = self.get_terminal_mut(&term_id)?;
         let terminal = Arc::make_mut(terminal);
-        terminal.process_id = Some(process_id);
+        terminal.process_id = process_id;
         if let Some(run_debug) = terminal.run_debug.as_ref() {
             if run_debug.config.debug_command.is_some() {
                 let dap_id = run_debug.config.dap_id;

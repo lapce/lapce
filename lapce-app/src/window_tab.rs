@@ -693,6 +693,19 @@ impl WindowTabData {
             CoreNotification::RunInTerminal { config } => {
                 self.run_in_terminal(cx, &RunDebugMode::Debug, config);
             }
+            CoreNotification::TerminalProcessId {
+                term_id,
+                process_id,
+            } => {
+                self.terminal.set_process_id(term_id, *process_id);
+            }
+            CoreNotification::DapStopped {
+                dap_id,
+                stopped,
+                stack_frames,
+            } => {
+                self.terminal.dap_stopped(dap_id, stopped, stack_frames);
+            }
             _ => {}
         }
     }

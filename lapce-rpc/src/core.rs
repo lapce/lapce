@@ -108,7 +108,7 @@ pub enum CoreNotification {
     },
     TerminalProcessId {
         term_id: TermId,
-        process_id: u32,
+        process_id: Option<u32>,
     },
     TerminalProcessStopped {
         term_id: TermId,
@@ -318,7 +318,7 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::LogMessage { message });
     }
 
-    pub fn terminal_process_id(&self, term_id: TermId, process_id: u32) {
+    pub fn terminal_process_id(&self, term_id: TermId, process_id: Option<u32>) {
         self.notification(CoreNotification::TerminalProcessId {
             term_id,
             process_id,

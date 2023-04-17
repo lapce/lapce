@@ -915,7 +915,7 @@ pub enum LapceUICommand {
     TerminalProcessStopped(TermId),
     TerminalProcessId {
         term_id: TermId,
-        process_id: u32,
+        process_id: Option<u32>,
     },
     CloseTerminal(TermId),
     OpenPluginInfo(VoltInfo),

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use floem::{
     app::AppContext,
@@ -9,7 +9,10 @@ use floem::{
     },
 };
 use lapce_core::mode::Mode;
-use lapce_rpc::{dap_types::RunDebugConfig, terminal::TermId};
+use lapce_rpc::{
+    dap_types::{DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
+    terminal::TermId,
+};
 
 use crate::{
     debug::{RunDebugData, RunDebugMode, RunDebugProcess},
@@ -430,5 +433,28 @@ impl TerminalPanelData {
         }
         processes.sort_by_key(|(_, process)| process.created);
         processes
+    }
+
+    pub fn set_process_id(&self, term_id: &TermId, process_id: Option<u32>) {
+        if let Some(terminal) = self.get_terminal(term_id) {
+            terminal.run_debug.with_untracked(|run_debug| {
+                if let Some(run_debug) = run_debug.as_ref() {
+                    if run_debug.config.debug_command.is_some() {
+                        let dap_id = run_debug.config.dap_id;
+                        self.common
+                            .proxy
+                            .dap_process_id(dap_id, process_id, *term_id);
+                    }
+                }
+            });
+        }
+    }
+
+    pub fn dap_stopped(
+        &self,
+        dap_id: &DapId,
+        stopped: &Stopped,
+        stack_frames: &HashMap<ThreadId, Vec<StackFrame>>,
+    ) {
     }
 }

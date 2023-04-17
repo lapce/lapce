@@ -136,7 +136,7 @@ pub enum PluginCatalogNotification {
     },
     DapProcessId {
         dap_id: DapId,
-        process_id: u32,
+        process_id: Option<u32>,
         term_id: TermId,
     },
     DapContinue {
@@ -1022,7 +1022,7 @@ impl PluginCatalogRpcHandler {
     pub fn dap_process_id(
         &self,
         dap_id: DapId,
-        process_id: u32,
+        process_id: Option<u32>,
         term_id: TermId,
     ) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::DapProcessId {

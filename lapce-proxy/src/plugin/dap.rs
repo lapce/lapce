@@ -201,7 +201,7 @@ impl DapClient {
                     self.dap_rpc.termain_process_rx.recv()?;
                 self.term_id = Some(term_id);
                 let resp = RunInTerminalResponse {
-                    process_id: Some(process_id),
+                    process_id,
                     shell_process_id: None,
                 };
                 let resp = serde_json::to_value(&resp)?;
@@ -436,8 +436,8 @@ pub struct DapRpcHandler {
     rpc_rx: Receiver<DapRpc>,
     io_tx: Sender<DapPayload>,
     io_rx: Receiver<DapPayload>,
-    pub(crate) termain_process_tx: Sender<(TermId, u32)>,
-    termain_process_rx: Receiver<(TermId, u32)>,
+    pub(crate) termain_process_tx: Sender<(TermId, Option<u32>)>,
+    termain_process_rx: Receiver<(TermId, Option<u32>)>,
     seq_counter: Arc<AtomicU64>,
     server_pending: Arc<Mutex<HashMap<u64, ResponseHandler<DapResponse, RpcError>>>>,
 }

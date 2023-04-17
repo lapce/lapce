@@ -244,7 +244,7 @@ pub enum ProxyNotification {
     },
     DapProcessId {
         dap_id: DapId,
-        process_id: u32,
+        process_id: Option<u32>,
         term_id: TermId,
     },
     DapContinue {
@@ -905,7 +905,12 @@ impl ProxyRpcHandler {
         })
     }
 
-    pub fn dap_process_id(&self, dap_id: DapId, process_id: u32, term_id: TermId) {
+    pub fn dap_process_id(
+        &self,
+        dap_id: DapId,
+        process_id: Option<u32>,
+        term_id: TermId,
+    ) {
         self.notification(ProxyNotification::DapProcessId {
             dap_id,
             process_id,
