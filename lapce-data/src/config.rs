@@ -495,6 +495,8 @@ pub struct EditorConfig {
         desc = "Scroll speed modifier. The scroll delta will be multiplied by whatever the value is povided here. Defaults to 1."
     )]
     pub scroll_speed_modifier: f64,
+    #[field_names(desc = "Whether the editor colorizes brackets")]
+    pub colorize_brackets: bool,
 }
 
 impl EditorConfig {
@@ -735,7 +737,6 @@ impl ColorThemeConfig {
                 } else {
                     Color::from_hex_str(hex).ok()
                 };
-
                 let color = color
                     .or_else(|| {
                         default.and_then(|default| default.get(name).cloned())
