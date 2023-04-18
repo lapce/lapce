@@ -175,6 +175,7 @@ impl BracketParser {
             "bracket.color3".to_string(),
         ];
         if self.active {
+            self.bracket_pos = HashMap::new();
             if let Some(syntax) = syntax {
                 if let Some(tree) = syntax.layers.try_tree() {
                     let mut walk_cursor = tree.walk();
