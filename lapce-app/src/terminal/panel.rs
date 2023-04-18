@@ -456,5 +456,12 @@ impl TerminalPanelData {
         stopped: &Stopped,
         stack_frames: &HashMap<ThreadId, Vec<StackFrame>>,
     ) {
+        let dap = self
+            .debug
+            .daps
+            .with_untracked(|daps| daps.get(dap_id).cloned());
+        if let Some(dap) = dap {
+            dap.stopped(stopped, stack_frames);
+        }
     }
 }

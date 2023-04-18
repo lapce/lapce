@@ -970,9 +970,7 @@ fn editor(
                                 }),
                             )
                         })
-                        .style(cx, || {
-                            Style::default().flex_grow(1.0).height_pct(1.0)
-                        }),
+                        .style(cx, || Style::default().dimension_pct(1.0, 1.0)),
                     )
                 })
                 .style(cx, || {
@@ -981,7 +979,7 @@ fn editor(
                         .dimension_pct(1.0, 1.0)
                 })
             })
-            .style(cx, || Style::default().flex_grow(1.0).width_pct(1.0)),
+            .style(cx, || Style::default().dimension_pct(1.0, 1.0)),
         )
     })
     .style(cx, || Style::default().flex_col().dimension_pct(1.0, 1.0))
@@ -1245,7 +1243,7 @@ fn editor_tab_header(
                         .max_width_pct(1.0)
                 })
             })
-            .style(cx, || Style::default().height_pct(1.0).flex_grow(1.0)),
+            .style(cx, || Style::default().dimension_pct(1.0, 1.0)),
             container(cx, |cx| {
                 svg(cx, move || {
                     config.get().ui_svg(LapceIcons::SPLIT_HORIZONTAL)
@@ -1333,12 +1331,12 @@ fn editor_tab_content(
                 }
             }
         };
-        child.style(cx, || Style::default().flex_grow(1.0).flex_col())
+        child.style(cx, || Style::default().dimension_pct(1.0, 1.0))
     };
     let active = move || editor_tab.with(|t| t.active);
 
     tab(cx, active, items, key, view_fn)
-        .style(cx, || Style::default().flex_grow(1.0).flex_col())
+        .style(cx, || Style::default().dimension_pct(1.0, 1.0))
 }
 
 fn editor_tab(
@@ -1370,7 +1368,7 @@ fn editor_tab(
             ),
         )
     })
-    .style(cx, || Style::default().flex_col().flex_grow(1.0))
+    .style(cx, || Style::default().flex_col().dimension_pct(1.0, 1.0))
 }
 
 fn split_border(
@@ -1551,17 +1549,12 @@ fn split_list(
                                 SplitDirection::Vertical => FlexDirection::Row,
                                 SplitDirection::Horizontal => FlexDirection::Column,
                             })
-                            .flex_grow(1.0)
-                            .flex_basis(Dimension::Points(1.0))
+                            .dimension_pct(1.0, 1.0)
                     }),
                     split_border(cx, splits, editor_tabs, split, config),
                 )
             })
-            .style(cx, || {
-                Style::default()
-                    .flex_grow(1.0)
-                    .flex_basis(Dimension::Points(1.0))
-            }),
+            .style(cx, || Style::default().dimension_pct(1.0, 1.0)),
         )
     })
 }
@@ -1816,11 +1809,7 @@ fn terminal_tab_split(
             })
         },
     )
-    .style(cx, || {
-        Style::default()
-            .flex_grow(1.0)
-            .flex_basis(Dimension::Points(1.0))
-    })
+    .style(cx, || Style::default().dimension_pct(1.0, 1.0))
 }
 
 fn terminal_tab_content(
@@ -1835,7 +1824,7 @@ fn terminal_tab_content(
         |(_, tab)| tab.terminal_tab_id,
         move |cx, (_, tab)| terminal_tab_split(cx, terminal.clone(), tab),
     )
-    .style(cx, || Style::default().width_pct(1.0).flex_grow(1.0))
+    .style(cx, || Style::default().dimension_pct(1.0, 1.0))
 }
 
 fn terminal_panel(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
@@ -2055,9 +2044,7 @@ fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
                     ),
                 )
             })
-            .style(cx, || {
-                Style::default().flex_col().flex_grow(1.0).min_width_pt(0.0)
-            }),
+            .style(cx, || Style::default().flex_col().dimension_pct(1.0, 1.0)),
             label(cx, move || "right".to_string()).style(cx, move || {
                 let config = config.get();
                 Style::default()
@@ -2070,7 +2057,7 @@ fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
             }),
         )
     })
-    .style(cx, || Style::default().width_pct(1.0).flex_grow(1.0))
+    .style(cx, || Style::default().dimension_pct(1.0, 1.0))
 }
 
 fn status(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
@@ -2676,7 +2663,6 @@ fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl Vi
             })
             .style(cx, || {
                 Style::default()
-                    .flex_grow(1.0)
                     .min_width_pt(0.0)
                     .height_pt(24.0)
                     .align_items(Some(AlignItems::Center))
@@ -2685,7 +2671,7 @@ fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl Vi
         .style(cx, move || {
             let config = config.get();
             Style::default()
-                .flex_grow(1.0)
+                .width_pct(1.0)
                 .min_width_pt(0.0)
                 .border_bottom(1.0)
                 .border_color(*config.get_color(LapceColor::LAPCE_BORDER))

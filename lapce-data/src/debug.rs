@@ -15,7 +15,7 @@ use lapce_rpc::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{db::WorkspaceInfo, document::Document};
+use crate::db::WorkspaceInfo;
 
 const DEFAULT_RUN_TOML: &str = include_str!("../../defaults/run.toml");
 

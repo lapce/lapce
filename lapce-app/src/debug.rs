@@ -7,10 +7,15 @@ use std::{
 
 use floem::{
     app::AppContext,
-    reactive::{create_rw_signal, RwSignal, SignalGetUntracked},
+    reactive::{
+        create_rw_signal, RwSignal, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalWithUntracked,
+    },
 };
 use lapce_rpc::{
-    dap_types::{DapId, RunDebugConfig, SourceBreakpoint, StackFrame, ThreadId},
+    dap_types::{
+        DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped, ThreadId,
+    },
     terminal::TermId,
 };
 use serde::{Deserialize, Serialize};
@@ -124,19 +129,56 @@ pub struct LapceBreakpoint {
 pub struct DapData {
     pub term_id: TermId,
     pub dap_id: DapId,
-    pub stopped: bool,
-    pub thread_id: Option<ThreadId>,
-    pub stack_frames: BTreeMap<ThreadId, StackTraceData>,
+    pub stopped: RwSignal<bool>,
+    pub thread_id: RwSignal<Option<ThreadId>>,
+    pub stack_frames: RwSignal<BTreeMap<ThreadId, StackTraceData>>,
 }
 
 impl DapData {
-    pub fn new(dap_id: DapId, term_id: TermId) -> Self {
+    pub fn new(cx: AppContext, dap_id: DapId, term_id: TermId) -> Self {
+        let stopped = create_rw_signal(cx.scope, false);
+        let thread_id = create_rw_signal(cx.scope, None);
+        let stack_frames = create_rw_signal(cx.scope, BTreeMap::new());
         Self {
             term_id,
             dap_id,
-            stopped: false,
-            thread_id: None,
-            stack_frames: BTreeMap::new(),
+            stopped,
+            thread_id,
+            stack_frames,
         }
+    }
+
+    pub fn stopped(
+        &self,
+        stopped: &Stopped,
+        stack_frames: &HashMap<ThreadId, Vec<StackFrame>>,
+    ) {
+        self.stopped.set(true);
+        self.thread_id.update(|thread_id| {
+            if thread_id.is_none() {
+                *thread_id = Some(stopped.thread_id.unwrap_or_default());
+            }
+        });
+
+        let main_thread_id = self.thread_id.get_untracked();
+        self.stack_frames.update(|current_stack_frames| {
+            for (thread_id, frames) in stack_frames {
+                let main_thread_expanded =
+                    main_thread_id.as_ref() == Some(thread_id);
+                if let Some(current) = current_stack_frames.get_mut(thread_id) {
+                    current.frames = frames.to_owned();
+                    current.expanded |= main_thread_expanded;
+                } else {
+                    current_stack_frames.insert(
+                        *thread_id,
+                        StackTraceData {
+                            expanded: main_thread_expanded,
+                            frames: frames.to_owned(),
+                            frames_shown: 20,
+                        },
+                    );
+                }
+            }
+        });
     }
 }
