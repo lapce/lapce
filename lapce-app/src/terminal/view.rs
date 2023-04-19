@@ -181,6 +181,9 @@ impl View for TerminalView {
         let layout = cx.get_layout(self.id).unwrap();
         let size = layout.size;
         let size = Size::new(size.width as f64, size.height as f64);
+        if size.is_empty() {
+            return;
+        }
         if size != self.size {
             self.size = size;
             let (width, height) = self.terminal_size();

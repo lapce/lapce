@@ -4,7 +4,7 @@ use floem::{
     id::Id,
     peniko::{kurbo::Point, Color},
     reactive::create_effect,
-    style::Style,
+    style::{ComputedStyle, Style},
     taffy::prelude::Node,
     view::{ChangeFlags, View},
     Renderer,
@@ -214,10 +214,9 @@ impl View for FocusText {
             }
             let text_node = self.text_node.unwrap();
 
-            let view_style = self.view_style().unwrap_or_default();
             let style = Style::default()
                 .dimension_pt(width, height)
-                .reify(&view_style)
+                .compute(&ComputedStyle::default())
                 .to_taffy_style();
             cx.set_style(text_node, style);
             vec![text_node]

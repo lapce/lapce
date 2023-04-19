@@ -1124,7 +1124,12 @@ fn editor_tab_header(
                                 )
                             })
                         })
-                        .style(cx, || Style::default().padding_horiz(10.0)),
+                        .style(cx, || Style::default().padding_horiz(10.0))
+                        .hover_style(cx, move || {
+                            Style::default().background(
+                                *config.get().get_color(LapceColor::LAPCE_ERROR),
+                            )
+                        }),
                     )
                 })
                 .style(cx, move || {
@@ -1568,10 +1573,6 @@ fn main_split(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
         .get(&root_split)
         .unwrap()
         .read_only();
-    let splits = window_tab_data.main_split.splits.read_only();
-    let active_editor_tab = window_tab_data.main_split.active_editor_tab.read_only();
-    let editor_tabs = window_tab_data.main_split.editor_tabs.read_only();
-    let editors = window_tab_data.main_split.editors.read_only();
     let config = window_tab_data.main_split.common.config;
     let workspace = window_tab_data.workspace.clone();
     let panel = window_tab_data.panel.clone();
@@ -1695,7 +1696,17 @@ fn terminal_tab_header(
                                         },
                                     )
                                 })
-                                .style(cx, || Style::default().padding_horiz(10.0)),
+                                .style(cx, || Style::default().padding_horiz(10.0))
+                                .hover_style(
+                                    cx,
+                                    move || {
+                                        Style::default().background(
+                                            *config.get().get_color(
+                                                LapceColor::HOVER_BACKGROUND,
+                                            ),
+                                        )
+                                    },
+                                ),
                             )
                         })
                         .style(cx, move || {
@@ -1827,6 +1838,10 @@ fn terminal_tab_content(
     .style(cx, || Style::default().dimension_pct(1.0, 1.0))
 }
 
+fn blank_panel(cx: AppContext) -> impl View {
+    label(cx, || "blank".to_string())
+}
+
 fn terminal_panel(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     stack(cx, |cx| {
         (
@@ -1949,18 +1964,18 @@ fn panel_view(
                 PanelKind::FileExplorer => container_box(cx, |cx| {
                     Box::new(debug_panel(cx, window_tab_data.clone(), position))
                 }),
-                PanelKind::SourceControl => container_box(cx, |cx| {
-                    Box::new(terminal_panel(cx, window_tab_data.clone()))
-                }),
-                PanelKind::Plugin => container_box(cx, |cx| {
-                    Box::new(terminal_panel(cx, window_tab_data.clone()))
-                }),
-                PanelKind::Search => container_box(cx, |cx| {
-                    Box::new(terminal_panel(cx, window_tab_data.clone()))
-                }),
-                PanelKind::Problem => container_box(cx, |cx| {
-                    Box::new(terminal_panel(cx, window_tab_data.clone()))
-                }),
+                PanelKind::SourceControl => {
+                    container_box(cx, |cx| Box::new(blank_panel(cx)))
+                }
+                PanelKind::Plugin => {
+                    container_box(cx, |cx| Box::new(blank_panel(cx)))
+                }
+                PanelKind::Search => {
+                    container_box(cx, |cx| Box::new(blank_panel(cx)))
+                }
+                PanelKind::Problem => {
+                    container_box(cx, |cx| Box::new(blank_panel(cx)))
+                }
                 PanelKind::Debug => container_box(cx, |cx| {
                     Box::new(debug_panel(cx, window_tab_data.clone(), position))
                 }),
