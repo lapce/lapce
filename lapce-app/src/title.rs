@@ -5,7 +5,7 @@ use floem::{
     reactive::{
         ReadSignal, RwSignal, SignalGet, SignalSet, SignalWith, WriteSignal,
     },
-    style::{AlignItems, Dimension, Display, JustifyContent, Style},
+    style::{AlignItems, CursorStyle, Dimension, Display, JustifyContent, Style},
     view::View,
     views::{click, container, stack, Decorators},
     views::{label, svg},
@@ -118,6 +118,7 @@ fn middle(
                             .border_radius(6.0)
                             .padding(4.0)
                             .margin_horiz(6.0)
+                            .cursor(CursorStyle::Pointer)
                     })
                     .hover_style(cx, move || {
                         Style::default().background(
@@ -145,6 +146,7 @@ fn middle(
                             .border_radius(6.0)
                             .padding(4.0)
                             .margin_right(6.0)
+                            .cursor(CursorStyle::Pointer)
                     })
                     .hover_style(cx, move || {
                         Style::default().background(
@@ -262,6 +264,7 @@ fn middle(
                         .border_radius(6.0)
                         .padding(4.0)
                         .margin_horiz(6.0)
+                        .cursor(CursorStyle::Pointer)
                 })
                 .hover_style(cx, move || {
                     Style::default().background(

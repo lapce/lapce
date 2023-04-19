@@ -18,8 +18,8 @@ use floem::{
         SignalWith, SignalWithUntracked,
     },
     style::{
-        AlignContent, AlignItems, Dimension, Display, FlexDirection, JustifyContent,
-        Position, Style,
+        AlignContent, AlignItems, CursorStyle, Dimension, Display, FlexDirection,
+        JustifyContent, Position, Style,
     },
     view::View,
     views::{
@@ -879,6 +879,7 @@ fn editor(
                                                 Style::default()
                                                     .flex_col()
                                                     .padding_bottom(padding_bottom)
+                                                    .cursor(CursorStyle::Text)
                                             })
                                         },
                                         move || {
@@ -1129,6 +1130,7 @@ fn editor_tab_header(
                                 .border_radius(6.0)
                                 .padding(4.0)
                                 .margin_horiz(6.0)
+                                .cursor(CursorStyle::Pointer)
                         })
                         .hover_style(cx, move || {
                             Style::default().background(
@@ -1220,12 +1222,14 @@ fn editor_tab_header(
                     .border_radius(6.0)
                     .padding(4.0)
                     .margin_horiz(6.0)
+                    .cursor(CursorStyle::Pointer)
             }),
             svg_icon(cx, LapceIcons::TAB_NEXT, config).style(cx, || {
                 Style::default()
                     .border_radius(6.0)
                     .padding(4.0)
                     .margin_right(6.0)
+                    .cursor(CursorStyle::Pointer)
             }),
             container(cx, |cx| {
                 scroll(cx, |cx| {
@@ -1252,12 +1256,14 @@ fn editor_tab_header(
                     .border_radius(6.0)
                     .padding(4.0)
                     .margin_left(6.0)
+                    .cursor(CursorStyle::Pointer)
             }),
             svg_icon(cx, LapceIcons::CLOSE, config).style(cx, || {
                 Style::default()
                     .border_radius(6.0)
                     .padding(4.0)
                     .margin_horiz(6.0)
+                    .cursor(CursorStyle::Pointer)
             }),
         )
     })
@@ -1673,6 +1679,7 @@ fn terminal_tab_header(
                                             .border_radius(6.0)
                                             .padding(4.0)
                                             .margin_horiz(6.0)
+                                            .cursor(CursorStyle::Pointer)
                                     },
                                 ),
                             )
