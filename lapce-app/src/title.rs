@@ -113,7 +113,19 @@ fn middle(
                                 )
                         })
                     })
-                    .style(cx, move || Style::default().padding_horiz(10.0)),
+                    .style(cx, move || {
+                        Style::default()
+                            .border_radius(6.0)
+                            .padding(4.0)
+                            .margin_horiz(6.0)
+                    })
+                    .hover_style(cx, move || {
+                        Style::default().background(
+                            *config
+                                .get()
+                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        )
+                    }),
                     container(cx, move |cx| {
                         svg(cx, move || {
                             config.get().ui_svg(LapceIcons::LOCATION_FORWARD)
@@ -128,7 +140,19 @@ fn middle(
                                 )
                         })
                     })
-                    .style(cx, move || Style::default().padding_right(10.0)),
+                    .style(cx, move || {
+                        Style::default()
+                            .border_radius(6.0)
+                            .padding(4.0)
+                            .margin_right(6.0)
+                    })
+                    .hover_style(cx, move || {
+                        Style::default().background(
+                            *config
+                                .get()
+                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        )
+                    }),
                 )
             })
             .style(cx, || {
@@ -219,17 +243,33 @@ fn middle(
                     .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
             }),
             container(cx, move |cx| {
-                svg(cx, move || config.get().ui_svg(LapceIcons::START)).style(
-                    cx,
-                    move || {
-                        let config = config.get();
-                        let icon_size = config.ui.icon_size() as f32;
-                        Style::default()
-                            .dimension_pt(icon_size, icon_size)
-                            .margin_horiz(10.0)
-                            .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
-                    },
-                )
+                container(cx, move |cx| {
+                    svg(cx, move || config.get().ui_svg(LapceIcons::START)).style(
+                        cx,
+                        move || {
+                            let config = config.get();
+                            let icon_size = config.ui.icon_size() as f32;
+                            Style::default()
+                                .dimension_pt(icon_size, icon_size)
+                                .color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                )
+                        },
+                    )
+                })
+                .style(cx, || {
+                    Style::default()
+                        .border_radius(6.0)
+                        .padding(4.0)
+                        .margin_horiz(6.0)
+                })
+                .hover_style(cx, move || {
+                    Style::default().background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
             })
             .style(cx, move || {
                 Style::default()

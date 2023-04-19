@@ -1124,10 +1124,17 @@ fn editor_tab_header(
                                 )
                             })
                         })
-                        .style(cx, || Style::default().padding_horiz(10.0))
+                        .style(cx, || {
+                            Style::default()
+                                .border_radius(6.0)
+                                .padding(4.0)
+                                .margin_horiz(6.0)
+                        })
                         .hover_style(cx, move || {
                             Style::default().background(
-                                *config.get().get_color(LapceColor::LAPCE_ERROR),
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
                         }),
                     )
@@ -1208,32 +1215,18 @@ fn editor_tab_header(
 
     stack(cx, |cx| {
         (
-            container(cx, |cx| {
-                svg(cx, move || config.get().ui_svg(LapceIcons::TAB_PREVIOUS)).style(
-                    cx,
-                    move || {
-                        let config = config.get();
-                        let size = config.ui.icon_size() as f32;
-                        Style::default()
-                            .dimension_pt(size, size)
-                            .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
-                    },
-                )
-            })
-            .style(cx, || Style::default().padding_horiz(5.0)),
-            container(cx, |cx| {
-                svg(cx, move || config.get().ui_svg(LapceIcons::TAB_NEXT)).style(
-                    cx,
-                    move || {
-                        let config = config.get();
-                        let size = config.ui.icon_size() as f32;
-                        Style::default()
-                            .dimension_pt(size, size)
-                            .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
-                    },
-                )
-            })
-            .style(cx, || Style::default().padding_horiz(5.0)),
+            svg_icon(cx, LapceIcons::TAB_PREVIOUS, config).style(cx, || {
+                Style::default()
+                    .border_radius(6.0)
+                    .padding(4.0)
+                    .margin_horiz(6.0)
+            }),
+            svg_icon(cx, LapceIcons::TAB_NEXT, config).style(cx, || {
+                Style::default()
+                    .border_radius(6.0)
+                    .padding(4.0)
+                    .margin_right(6.0)
+            }),
             container(cx, |cx| {
                 scroll(cx, |cx| {
                     list(cx, items, key, view_fn).style(cx, || {
@@ -1248,33 +1241,24 @@ fn editor_tab_header(
                         .max_width_pct(1.0)
                 })
             })
-            .style(cx, || Style::default().dimension_pct(1.0, 1.0)),
-            container(cx, |cx| {
-                svg(cx, move || {
-                    config.get().ui_svg(LapceIcons::SPLIT_HORIZONTAL)
-                })
-                .style(cx, move || {
-                    let config = config.get();
-                    let size = config.ui.icon_size() as f32;
-                    Style::default()
-                        .dimension_pt(size, size)
-                        .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
-                })
-            })
-            .style(cx, || Style::default().padding_horiz(5.0)),
-            container(cx, |cx| {
-                svg(cx, move || config.get().ui_svg(LapceIcons::CLOSE)).style(
-                    cx,
-                    move || {
-                        let config = config.get();
-                        let size = config.ui.icon_size() as f32;
-                        Style::default()
-                            .dimension_pt(size, size)
-                            .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
-                    },
-                )
-            })
-            .style(cx, || Style::default().padding_horiz(5.0)),
+            .style(cx, || {
+                Style::default()
+                    .height_pct(1.0)
+                    .flex_grow(1.0)
+                    .flex_basis_pt(0.0)
+            }),
+            svg_icon(cx, LapceIcons::SPLIT_HORIZONTAL, config).style(cx, || {
+                Style::default()
+                    .border_radius(6.0)
+                    .padding(4.0)
+                    .margin_left(6.0)
+            }),
+            svg_icon(cx, LapceIcons::CLOSE, config).style(cx, || {
+                Style::default()
+                    .border_radius(6.0)
+                    .padding(4.0)
+                    .margin_horiz(6.0)
+            }),
         )
     })
     .style(cx, move || {
@@ -1677,34 +1661,18 @@ fn terminal_tab_header(
                                 })
                                 .style(cx, || Style::default().padding_horiz(10.0)),
                                 label(cx, title).style(cx, || {
-                                    Style::default().min_width_pt(0.0).flex_grow(1.0)
+                                    Style::default()
+                                        .min_width_pt(0.0)
+                                        .flex_basis_pt(0.0)
+                                        .flex_grow(1.0)
                                 }),
-                                container(cx, |cx| {
-                                    svg(cx, move || {
-                                        config.get().ui_svg(LapceIcons::CLOSE)
-                                    })
-                                    .style(
-                                        cx,
-                                        move || {
-                                            let config = config.get();
-                                            let size = config.ui.icon_size() as f32;
-                                            Style::default()
-                                                .dimension_pt(size, size)
-                                                .color(*config.get_color(
-                                                    LapceColor::LAPCE_ICON_ACTIVE,
-                                                ))
-                                        },
-                                    )
-                                })
-                                .style(cx, || Style::default().padding_horiz(10.0))
-                                .hover_style(
+                                svg_icon(cx, LapceIcons::CLOSE, config).style(
                                     cx,
-                                    move || {
-                                        Style::default().background(
-                                            *config.get().get_color(
-                                                LapceColor::HOVER_BACKGROUND,
-                                            ),
-                                        )
+                                    || {
+                                        Style::default()
+                                            .border_radius(6.0)
+                                            .padding(4.0)
+                                            .margin_horiz(6.0)
                                     },
                                 ),
                             )
@@ -1759,6 +1727,27 @@ fn terminal_tab_header(
             .width_pct(1.0)
             .border_bottom(1.0)
             .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+    })
+}
+
+fn svg_icon(
+    cx: AppContext,
+    icon: &'static str,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    container(cx, |cx| {
+        svg(cx, move || config.get().ui_svg(icon)).style(cx, move || {
+            let config = config.get();
+            let size = config.ui.icon_size() as f32;
+            Style::default()
+                .dimension_pt(size, size)
+                .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+        })
+    })
+    .hover_style(cx, move || {
+        Style::default().background(
+            *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+        )
     })
 }
 
