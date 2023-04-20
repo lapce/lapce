@@ -1179,20 +1179,10 @@ fn editor_tab_header(
 
     stack(cx, |cx| {
         (
-            svg_icon(cx, LapceIcons::TAB_PREVIOUS, config).style(cx, || {
-                Style::default()
-                    .border_radius(6.0)
-                    .padding(4.0)
-                    .margin_horiz(6.0)
-                    .cursor(CursorStyle::Pointer)
-            }),
-            svg_icon(cx, LapceIcons::TAB_NEXT, config).style(cx, || {
-                Style::default()
-                    .border_radius(6.0)
-                    .padding(4.0)
-                    .margin_right(6.0)
-                    .cursor(CursorStyle::Pointer)
-            }),
+            clickable_icon(cx, LapceIcons::TAB_PREVIOUS, || {}, || false, config)
+                .style(cx, || Style::default().margin_horiz(6.0)),
+            clickable_icon(cx, LapceIcons::TAB_NEXT, || {}, || false, config)
+                .style(cx, || Style::default().margin_right(6.0)),
             container(cx, |cx| {
                 scroll(cx, |cx| {
                     list(cx, items, key, view_fn).style(cx, || {
@@ -1213,20 +1203,16 @@ fn editor_tab_header(
                     .flex_grow(1.0)
                     .flex_basis_pt(0.0)
             }),
-            svg_icon(cx, LapceIcons::SPLIT_HORIZONTAL, config).style(cx, || {
-                Style::default()
-                    .border_radius(6.0)
-                    .padding(4.0)
-                    .margin_left(6.0)
-                    .cursor(CursorStyle::Pointer)
-            }),
-            svg_icon(cx, LapceIcons::CLOSE, config).style(cx, || {
-                Style::default()
-                    .border_radius(6.0)
-                    .padding(4.0)
-                    .margin_horiz(6.0)
-                    .cursor(CursorStyle::Pointer)
-            }),
+            clickable_icon(
+                cx,
+                LapceIcons::SPLIT_HORIZONTAL,
+                || {},
+                || false,
+                config,
+            )
+            .style(cx, || Style::BASE.margin_left(6.0)),
+            clickable_icon(cx, LapceIcons::CLOSE, || {}, || false, config)
+                .style(cx, || Style::BASE.margin_horiz(6.0)),
         )
     })
     .style(cx, move || {
@@ -1697,7 +1683,7 @@ fn terminal_tab_header(
     })
 }
 
-fn clickable_icon(
+pub fn clickable_icon(
     cx: AppContext,
     icon: &'static str,
     on_click: impl Fn() + 'static,
@@ -1744,27 +1730,6 @@ fn clickable_icon(
                     .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
             )
         })
-    })
-}
-
-fn svg_icon(
-    cx: AppContext,
-    icon: &'static str,
-    config: ReadSignal<Arc<LapceConfig>>,
-) -> impl View {
-    container(cx, |cx| {
-        svg(cx, move || config.get().ui_svg(icon)).style(cx, move || {
-            let config = config.get();
-            let size = config.ui.icon_size() as f32;
-            Style::default()
-                .dimension_pt(size, size)
-                .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
-        })
-    })
-    .hover_style(cx, move || {
-        Style::default().background(
-            *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-        )
     })
 }
 
@@ -1931,14 +1896,15 @@ fn debug_process_icons(
                 (
                     {
                         let terminal = terminal.clone();
-                        svg_icon(cx, LapceIcons::DEBUG_CONTINUE, config)
-                            .style(cx, || {
-                                Style::default()
-                                    .padding(4.0)
-                                    .margin_horiz(6.0)
-                                    .border_radius(6.0)
-                            })
-                            .disabled(cx, move || !stopped)
+                        clickable_icon(
+                            cx,
+                            LapceIcons::DEBUG_CONTINUE,
+                            || {},
+                            || false,
+                            config,
+                        )
+                        .style(cx, || Style::BASE.margin_horiz(6.0))
+                        .disabled(cx, move || !stopped)
                     },
                     {
                         let terminal = terminal.clone();

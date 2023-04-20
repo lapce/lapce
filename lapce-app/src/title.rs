@@ -12,6 +12,7 @@ use floem::{
 };
 
 use crate::{
+    app::clickable_icon,
     command::LapceWorkbenchCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     source_control::SourceControlData,
@@ -99,62 +100,22 @@ fn middle(
         (
             stack(cx, move |cx| {
                 (
-                    container(cx, move |cx| {
-                        svg(cx, move || {
-                            config.get().ui_svg(LapceIcons::LOCATION_BACKWARD)
-                        })
-                        .style(cx, move || {
-                            let config = config.get();
-                            let icon_size = config.ui.icon_size() as f32;
-                            Style::default()
-                                .dimension_pt(icon_size, icon_size)
-                                .color(
-                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                                )
-                        })
-                    })
-                    .style(cx, move || {
-                        Style::default()
-                            .border_radius(6.0)
-                            .padding(4.0)
-                            .margin_horiz(6.0)
-                            .cursor(CursorStyle::Pointer)
-                    })
-                    .hover_style(cx, move || {
-                        Style::default().background(
-                            *config
-                                .get()
-                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                        )
-                    }),
-                    container(cx, move |cx| {
-                        svg(cx, move || {
-                            config.get().ui_svg(LapceIcons::LOCATION_FORWARD)
-                        })
-                        .style(cx, move || {
-                            let config = config.get();
-                            let icon_size = config.ui.icon_size() as f32;
-                            Style::default()
-                                .dimension_pt(icon_size, icon_size)
-                                .color(
-                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                                )
-                        })
-                    })
-                    .style(cx, move || {
-                        Style::default()
-                            .border_radius(6.0)
-                            .padding(4.0)
-                            .margin_right(6.0)
-                            .cursor(CursorStyle::Pointer)
-                    })
-                    .hover_style(cx, move || {
-                        Style::default().background(
-                            *config
-                                .get()
-                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                        )
-                    }),
+                    clickable_icon(
+                        cx,
+                        LapceIcons::LOCATION_BACKWARD,
+                        || {},
+                        || false,
+                        config,
+                    )
+                    .style(cx, move || Style::default().margin_horiz(6.0)),
+                    clickable_icon(
+                        cx,
+                        LapceIcons::LOCATION_FORWARD,
+                        || {},
+                        || false,
+                        config,
+                    )
+                    .style(cx, move || Style::default().margin_right(6.0)),
                 )
             })
             .style(cx, || {
@@ -245,34 +206,8 @@ fn middle(
                     .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
             }),
             container(cx, move |cx| {
-                container(cx, move |cx| {
-                    svg(cx, move || config.get().ui_svg(LapceIcons::START)).style(
-                        cx,
-                        move || {
-                            let config = config.get();
-                            let icon_size = config.ui.icon_size() as f32;
-                            Style::default()
-                                .dimension_pt(icon_size, icon_size)
-                                .color(
-                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                                )
-                        },
-                    )
-                })
-                .style(cx, || {
-                    Style::default()
-                        .border_radius(6.0)
-                        .padding(4.0)
-                        .margin_horiz(6.0)
-                        .cursor(CursorStyle::Pointer)
-                })
-                .hover_style(cx, move || {
-                    Style::default().background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
-                })
+                clickable_icon(cx, LapceIcons::START, || {}, || false, config)
+                    .style(cx, move || Style::default().margin_horiz(6.0))
             })
             .style(cx, move || {
                 Style::default()
@@ -293,17 +228,8 @@ fn middle(
 
 fn right(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
     container(cx, move |cx| {
-        svg(cx, move || config.get().ui_svg(LapceIcons::SETTINGS)).style(
-            cx,
-            move || {
-                let config = config.get();
-                let icon_size = config.ui.icon_size() as f32;
-                Style::default()
-                    .dimension_pt(icon_size, icon_size)
-                    .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
-                    .margin_right(10.0)
-            },
-        )
+        clickable_icon(cx, LapceIcons::SETTINGS, || {}, || false, config)
+            .style(cx, move || Style::default().margin_horiz(6.0))
     })
     .style(cx, || {
         Style::default()
