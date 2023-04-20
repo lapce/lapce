@@ -206,8 +206,17 @@ fn middle(
                     .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
             }),
             container(cx, move |cx| {
-                clickable_icon(cx, LapceIcons::START, || {}, || false, config)
-                    .style(cx, move || Style::default().margin_horiz(6.0))
+                clickable_icon(
+                    cx,
+                    LapceIcons::START,
+                    move || {
+                        set_workbench_command
+                            .set(Some(LapceWorkbenchCommand::PaletteRunAndDebug))
+                    },
+                    || false,
+                    config,
+                )
+                .style(cx, move || Style::default().margin_horiz(6.0))
             })
             .style(cx, move || {
                 Style::default()

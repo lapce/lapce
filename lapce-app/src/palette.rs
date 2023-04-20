@@ -293,6 +293,18 @@ impl PaletteData {
             });
         }
 
+        {
+            let palette = palette.clone();
+            create_effect(cx.scope, move |_| {
+                let focus = palette.common.focus.get();
+                if focus != Focus::Palette
+                    && palette.status.get_untracked() != PaletteStatus::Inactive
+                {
+                    palette.cancel(cx);
+                }
+            });
+        }
+
         palette
     }
 
@@ -914,7 +926,9 @@ impl PaletteData {
     /// Close the palette, reverting focus back to the workbench.
     fn cancel(&self, _cx: AppContext) {
         self.status.set(PaletteStatus::Inactive);
-        self.common.focus.set(Focus::Workbench);
+        if self.common.focus.get_untracked() == Focus::Palette {
+            self.common.focus.set(Focus::Workbench);
+        }
         self.has_preview.set(false);
         self.items.update(|items| items.clear());
         self.input_editor
