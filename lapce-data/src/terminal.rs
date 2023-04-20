@@ -297,7 +297,7 @@ impl TerminalPanelData {
             .debug
             .daps
             .get(&terminal.run_debug.as_ref()?.config.dap_id)?;
-        let thread_id = dap.thread_id?;
+        let thread_id = dap.thread_id.unwrap_or_default();
         self.proxy.proxy_rpc.dap_pause(dap.dap_id, thread_id);
         Some(())
     }

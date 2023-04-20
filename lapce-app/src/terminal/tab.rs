@@ -3,8 +3,8 @@ use std::sync::Arc;
 use floem::{
     app::AppContext,
     reactive::{
-        create_rw_signal, RwSignal, SignalGet, SignalGetUntracked, SignalWith,
-        SignalWithUntracked,
+        create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked,
+        SignalWith, SignalWithUntracked,
     },
 };
 
@@ -24,15 +24,15 @@ pub struct TerminalTabData {
 
 impl TerminalTabData {
     pub fn new(
-        cx: AppContext,
+        cx: Scope,
         workspace: Arc<LapceWorkspace>,
         run_debug: Option<RunDebugProcess>,
         common: CommonData,
     ) -> Self {
         let terminal_data = TerminalData::new(cx, workspace, run_debug, common);
-        let terminals = im::vector![(create_rw_signal(cx.scope, 0), terminal_data)];
-        let terminals = create_rw_signal(cx.scope, terminals);
-        let active = create_rw_signal(cx.scope, 0);
+        let terminals = im::vector![(create_rw_signal(cx, 0), terminal_data)];
+        let terminals = create_rw_signal(cx, terminals);
+        let active = create_rw_signal(cx, 0);
         let terminal_tab_id = TerminalTabId::next();
         Self {
             terminal_tab_id,

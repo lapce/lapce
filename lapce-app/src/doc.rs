@@ -81,6 +81,7 @@ pub struct LineExtraStyle {
     pub width: Option<f64>,
     pub bg_color: Option<Color>,
     pub under_line: Option<Color>,
+    pub wave_line: Option<Color>,
 }
 
 #[derive(Clone)]
@@ -997,6 +998,7 @@ impl Document {
                     width: Some(x1 - x0),
                     bg_color: phantom.bg,
                     under_line: phantom.under_line,
+                    wave_line: None,
                 });
             }
         }
@@ -1019,7 +1021,51 @@ impl Document {
                 width: x1,
                 bg_color: Some(*config.get_color(theme_prop)),
                 under_line: None,
+                wave_line: None,
             });
+        }
+
+        if let Some(diags) = self.diagnostics.as_ref() {
+            for diag in diags {
+                if diag.diagnostic.range.start.line as usize <= line
+                    && line <= diag.diagnostic.range.end.line as usize
+                {
+                    let start = if diag.diagnostic.range.start.line as usize == line
+                    {
+                        let (_, col) = self.buffer.offset_to_line_col(diag.range.0);
+                        col
+                    } else {
+                        let offset =
+                            self.buffer.first_non_blank_character_on_line(line);
+                        let (_, col) = self.buffer.offset_to_line_col(offset);
+                        col
+                    };
+                    let start = phantom_text.col_after(start, true);
+
+                    let end = if diag.diagnostic.range.end.line as usize == line {
+                        let (_, col) = self.buffer.offset_to_line_col(diag.range.1);
+                        col
+                    } else {
+                        self.buffer.line_end_col(line, true)
+                    };
+                    let end = phantom_text.col_after(end, false);
+
+                    let x0 = text_layout.hit_position(start).point.x;
+                    let x1 = text_layout.hit_position(end).point.x;
+                    let color_name = match diag.diagnostic.severity {
+                        Some(DiagnosticSeverity::ERROR) => LapceColor::LAPCE_ERROR,
+                        _ => LapceColor::LAPCE_WARN,
+                    };
+                    let color = *config.get_color(color_name);
+                    extra_style.push(LineExtraStyle {
+                        x: x0,
+                        width: Some(x1 - x0),
+                        bg_color: None,
+                        under_line: None,
+                        wave_line: Some(color),
+                    });
+                }
+            }
         }
 
         TextLayoutLine {

@@ -4,7 +4,7 @@ use floem::{
     app::AppContext,
     glazier::KeyEvent,
     reactive::{
-        create_rw_signal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
+        create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
         SignalUpdate, SignalWith, SignalWithUntracked,
     },
 };
@@ -32,6 +32,7 @@ pub struct TerminalTabInfo {
 
 #[derive(Clone)]
 pub struct TerminalPanelData {
+    pub cx: Scope,
     pub workspace: Arc<LapceWorkspace>,
     pub tab_info: RwSignal<TerminalTabInfo>,
     pub debug: RunDebugData,
@@ -40,7 +41,7 @@ pub struct TerminalPanelData {
 
 impl TerminalPanelData {
     pub fn new(
-        cx: AppContext,
+        cx: Scope,
         workspace: Arc<LapceWorkspace>,
         run_debug: Option<RunDebugProcess>,
         common: CommonData,
@@ -48,13 +49,14 @@ impl TerminalPanelData {
         let terminal_tab =
             TerminalTabData::new(cx, workspace.clone(), run_debug, common.clone());
 
-        let tabs = im::vector![(create_rw_signal(cx.scope, 0), terminal_tab)];
+        let tabs = im::vector![(create_rw_signal(cx, 0), terminal_tab)];
         let tab_info = TerminalTabInfo { active: 0, tabs };
-        let tab_info = create_rw_signal(cx.scope, tab_info);
+        let tab_info = create_rw_signal(cx, tab_info);
 
         let debug = RunDebugData::new(cx);
 
         Self {
+            cx,
             workspace,
             tab_info,
             debug,
@@ -109,7 +111,7 @@ impl TerminalPanelData {
         run_debug: Option<RunDebugProcess>,
     ) -> TerminalTabData {
         let terminal_tab = TerminalTabData::new(
-            cx,
+            cx.scope,
             self.workspace.clone(),
             run_debug,
             self.common.clone(),
@@ -214,7 +216,7 @@ impl TerminalPanelData {
     pub fn split(&self, cx: AppContext, term_id: TermId) {
         if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
             let terminal_data = TerminalData::new(
-                cx,
+                cx.scope,
                 self.workspace.clone(),
                 None,
                 self.common.clone(),
@@ -329,7 +331,7 @@ impl TerminalPanelData {
         })
     }
 
-    pub fn restart_run_debug(&self, cx: AppContext, term_id: TermId) -> Option<()> {
+    pub fn restart_run_debug(&self, term_id: TermId) -> Option<()> {
         let (_, terminal_tab, index, terminal) =
             self.get_terminal_in_tab(&term_id)?;
         let run_debug = terminal.run_debug.get_untracked()?;
@@ -340,14 +342,14 @@ impl TerminalPanelData {
                 let mut run_debug = run_debug;
                 run_debug.stopped = false;
                 let new_terminal = TerminalData::new(
-                    cx,
+                    self.cx,
                     self.workspace.clone(),
                     Some(run_debug),
                     self.common.clone(),
                 );
                 let new_term_id = new_terminal.term_id;
                 terminal_tab.terminals.update(|terminals| {
-                    terminals[index] = (create_rw_signal(cx.scope, 0), new_terminal);
+                    terminals[index] = (create_rw_signal(self.cx, 0), new_terminal);
                 });
                 self.debug.active_term.set(Some(new_term_id));
                 new_term_id
@@ -463,5 +465,20 @@ impl TerminalPanelData {
         if let Some(dap) = dap {
             dap.stopped(stopped, stack_frames);
         }
+    }
+
+    pub fn dap_pause(&self, term_id: TermId) -> Option<()> {
+        let terminal = self.get_terminal(&term_id)?;
+        let dap_id = terminal
+            .run_debug
+            .with_untracked(|r| r.as_ref().map(|r| r.config.dap_id))?;
+        let thread_id = self.debug.daps.with_untracked(|daps| {
+            daps.get(&dap_id)
+                .and_then(|dap| dap.thread_id.get_untracked())
+        });
+        let thread_id = thread_id.unwrap_or_default();
+        println!("dap pause {thread_id:?}");
+        self.common.proxy.dap_pause(dap_id, thread_id);
+        Some(())
     }
 }

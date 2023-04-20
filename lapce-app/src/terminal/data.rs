@@ -10,7 +10,7 @@ use alacritty_terminal::{
 use floem::{
     app::AppContext,
     glazier::{keyboard_types::Key, KeyEvent, Modifiers},
-    reactive::{create_rw_signal, RwSignal, SignalGetUntracked, SignalSet},
+    reactive::{create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet},
 };
 use lapce_core::{
     command::{EditCommand, FocusCommand},
@@ -298,14 +298,14 @@ impl KeyPressFocus for TerminalData {
 
 impl TerminalData {
     pub fn new(
-        cx: AppContext,
+        cx: Scope,
         workspace: Arc<LapceWorkspace>,
         run_debug: Option<RunDebugProcess>,
         common: CommonData,
     ) -> Self {
         let term_id = TermId::next();
 
-        let title = create_rw_signal(cx.scope, "title".to_string());
+        let title = create_rw_signal(cx, "title".to_string());
 
         let raw = Self::new_raw_terminal(
             workspace.clone(),
@@ -314,10 +314,10 @@ impl TerminalData {
             common.clone(),
         );
 
-        let run_debug = create_rw_signal(cx.scope, run_debug);
-        let mode = create_rw_signal(cx.scope, Mode::Terminal);
-        let visual_mode = create_rw_signal(cx.scope, VisualMode::Normal);
-        let raw = create_rw_signal(cx.scope, raw);
+        let run_debug = create_rw_signal(cx, run_debug);
+        let mode = create_rw_signal(cx, Mode::Terminal);
+        let visual_mode = create_rw_signal(cx, VisualMode::Normal);
+        let raw = create_rw_signal(cx, raw);
 
         Self {
             term_id,

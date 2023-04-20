@@ -128,6 +128,8 @@ impl LapceColor {
     pub const PANEL_CURRENT_FOREGROUND: &str = "panel.current.foreground";
     pub const PANEL_CURRENT_FOREGROUND_DIM: &str = "panel.current.foreground.dim";
     pub const PANEL_HOVERED_BACKGROUND: &str = "panel.hovered.background";
+    pub const PANEL_HOVERED_ACTIVE_BACKGROUND: &str =
+        "panel.hovered.active.background";
     pub const PANEL_HOVERED_FOREGROUND: &str = "panel.hovered.foreground";
     pub const PANEL_HOVERED_FOREGROUND_DIM: &str = "panel.hovered.foreground.dim";
 

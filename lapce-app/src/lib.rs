@@ -20,6 +20,7 @@ pub mod snippet;
 pub mod source_control;
 pub mod terminal;
 pub mod title;
+pub mod wave;
 pub mod window;
 pub mod window_tab;
 pub mod workspace;

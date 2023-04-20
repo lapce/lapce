@@ -181,7 +181,7 @@ impl EditorConfig {
 
     pub fn error_lens_font_size(&self) -> usize {
         if self.error_lens_font_size == 0 {
-            self.inlay_hint_font_size()
+            self.font_size
         } else {
             self.error_lens_font_size
         }

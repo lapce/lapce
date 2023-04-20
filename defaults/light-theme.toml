@@ -172,6 +172,7 @@ yellow = "#C18401"
 "panel.current.foreground" = "$black"
 "panel.current.foreground.dim" = "#A0A1A7"
 "panel.hovered.background" = "#E4E4E6"
+"panel.hovered.active.background" = "#A0A1A7"
 "panel.hovered.foreground" = "$black"
 "panel.hovered.foreground.dim" = "#A0A1A7"
 

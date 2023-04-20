@@ -201,8 +201,12 @@ impl WindowTabData {
             .unwrap_or_else(|_| default_panel_order());
         let panel = PanelData::new(cx, panel_order, common.clone());
 
-        let terminal =
-            TerminalPanelData::new(cx, workspace.clone(), None, common.clone());
+        let terminal = TerminalPanelData::new(
+            cx.scope,
+            workspace.clone(),
+            None,
+            common.clone(),
+        );
 
         {
             let notification = create_signal_from_channel(cx, term_notification_rx);
@@ -414,7 +418,7 @@ impl WindowTabData {
             RunAndDebugRestart => {
                 let active_term = self.terminal.debug.active_term.get_untracked();
                 if active_term
-                    .and_then(|term_id| self.terminal.restart_run_debug(cx, term_id))
+                    .and_then(|term_id| self.terminal.restart_run_debug(term_id))
                     .is_none()
                 {
                     self.palette.run(cx, PaletteKind::RunAndDebug);

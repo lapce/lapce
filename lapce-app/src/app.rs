@@ -18,8 +18,8 @@ use floem::{
         SignalWith, SignalWithUntracked,
     },
     style::{
-        AlignContent, AlignItems, CursorStyle, Dimension, Display, FlexDirection,
-        JustifyContent, Position, Style,
+        AlignItems, CursorStyle, Dimension, Display, FlexDirection, JustifyContent,
+        Position, Style,
     },
     view::View,
     views::{
@@ -33,6 +33,7 @@ use lapce_core::{
     mode::{Mode, VisualMode},
     selection::Selection,
 };
+use lapce_rpc::terminal::TermId;
 use lsp_types::{CompletionItemKind, DiagnosticSeverity};
 
 use crate::{
@@ -40,7 +41,7 @@ use crate::{
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     db::LapceDb,
     debug::RunDebugMode,
-    doc::{DocContent, DocLine, Document},
+    doc::{DocContent, DocLine, Document, LineExtraStyle},
     editor::EditorData,
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
@@ -58,9 +59,10 @@ use crate::{
         panel::TerminalPanelData, tab::TerminalTabData, view::terminal_view,
     },
     title::title,
+    wave::wave_line,
     window::WindowData,
     window_tab::{Focus, WindowTabData},
-    workspace::{LapceWorkspace, LapceWorkspaceType},
+    workspace::LapceWorkspace,
 };
 
 #[derive(Clone, Debug)]
@@ -609,99 +611,161 @@ fn editor_cursor(
     })
 }
 
-fn editor_extra_style(
+fn editor_breadcrumbs(
     cx: AppContext,
+    workspace: Arc<LapceWorkspace>,
     editor: RwSignal<EditorData>,
-    viewport: ReadSignal<Rect>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let list_items = move || {
-        let config = config.get();
-        let mut doc = editor.get().doc.get();
-        let viewport = viewport.get();
-        let min = viewport.y0;
-        let max = viewport.y1;
-        let line_height = config.editor.line_height() as f64;
-        let total_len = doc.total_len();
-        let start = (min / line_height).floor() as usize;
-        let end = ((max / line_height).ceil() as usize).min(total_len);
-        doc.slice(start..end)
-    };
-
-    clip(cx, |cx| {
-        list(
-            cx,
-            list_items,
-            move |line| {
-                (
-                    editor
-                        .with_untracked(|editor| editor.doc)
-                        .with_untracked(|doc| doc.content.clone()),
-                    line.rev,
-                    line.style_rev,
-                    line.line,
-                )
-            },
-            move |cx, line| {
-                let extra_styles = line.text.extra_style.clone();
+    stack(cx, move |cx| {
+        (
+            label(cx, || " ".to_string())
+                .style(cx, || Style::default().margin_vert(5.0)),
+            scroll(cx, move |cx| {
+                let workspace = workspace.clone();
                 list(
                     cx,
-                    move || extra_styles.clone(),
-                    |extra| 0,
-                    move |cx, extra| {
-                        container(cx, |cx| {
-                            label(cx, || " ".to_string()).style(cx, move || {
-                                let config = config.get();
-                                Style::default()
-                                    .font_family(config.editor.font_family.clone())
-                                    .font_size(config.editor.font_size as f32)
-                                    .width_pct(1.0)
-                                    .apply_opt(extra.bg_color, Style::background)
+                    move || {
+                        let doc = editor.with(|editor| editor.doc);
+                        let full_path = doc
+                            .with_untracked(|doc| doc.content.path().cloned())
+                            .unwrap_or_default();
+                        let mut path = full_path.clone();
+                        if let Some(workspace_path) = workspace.clone().path.as_ref()
+                        {
+                            path = path
+                                .strip_prefix(workspace_path)
+                                .unwrap_or(&full_path)
+                                .to_path_buf();
+                        }
+                        path.ancestors()
+                            .collect::<Vec<_>>()
+                            .iter()
+                            .rev()
+                            .filter_map(|path| {
+                                Some(path.file_name()?.to_str()?.to_string())
                             })
+                            .collect::<Vec<_>>()
+                            .into_iter()
+                            .enumerate()
+                    },
+                    |(i, section)| (*i, section.to_string()),
+                    move |cx, (i, section)| {
+                        stack(cx, move |cx| {
+                            (
+                                svg(cx, move || {
+                                    config
+                                        .get()
+                                        .ui_svg(LapceIcons::BREADCRUMB_SEPARATOR)
+                                })
+                                .style(
+                                    cx,
+                                    move || {
+                                        let config = config.get();
+                                        let size = config.ui.icon_size() as f32;
+                                        Style::default()
+                                            .display(if i == 0 {
+                                                Display::None
+                                            } else {
+                                                Display::Flex
+                                            })
+                                            .dimension_pt(size, size)
+                                            .color(*config.get_color(
+                                                LapceColor::LAPCE_ICON_ACTIVE,
+                                            ))
+                                    },
+                                ),
+                                label(cx, move || section.clone()),
+                            )
                         })
-                        .style(cx, move || {
-                            let viewport = viewport.get();
-                            let line_height = config.get().editor.line_height();
-                            let y = (line.line * line_height) as f64 - viewport.y0;
-                            Style::default()
-                                .position(Position::Absolute)
-                                .height_pt(line_height as f32)
-                                .width(match extra.width {
-                                    Some(width) => Dimension::Points(width as f32),
-                                    None => Dimension::Percent(1.0),
-                                })
-                                .apply_if(extra.width.is_some(), |s| {
-                                    s.margin_left((extra.x - viewport.x0) as f32)
-                                })
-                                .margin_top(y as f32)
-                                .align_items(Some(AlignItems::Center))
+                        .style(cx, || {
+                            Style::default().align_items(Some(AlignItems::Center))
                         })
                     },
                 )
-                .style(cx, || {
-                    Style::default()
-                        .position(Position::Absolute)
-                        .dimension_pct(1.0, 1.0)
-                })
-            },
+                .style(cx, || Style::default().padding_horiz(10.0))
+            })
+            .on_scroll_to(cx, move || {
+                editor.with(|_editor| ());
+                Some(Point::new(3000.0, 0.0))
+            })
+            .hide_bar()
+            .style(cx, move || {
+                Style::default()
+                    .position(Position::Absolute)
+                    .dimension_pct(1.0, 1.0)
+                    .border_bottom(1.0)
+                    .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+                    .align_items(Some(AlignItems::Center))
+            }),
         )
-        .style(cx, || Style::default().dimension_pct(1.0, 1.0))
     })
     .style(cx, move || {
+        let config = config.get_untracked();
+        let line_height = config.editor.line_height();
+        Style::default()
+            .items_center()
+            .height_pt(line_height as f32)
+    })
+}
+
+fn editor_extra_style(
+    cx: AppContext,
+    extra_styles: Vec<LineExtraStyle>,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    list(
+        cx,
+        move || extra_styles.clone(),
+        |_| 0,
+        move |cx, extra| {
+            container(cx, |cx| {
+                stack(cx, |cx| {
+                    (
+                        label(cx, || " ".to_string()).style(cx, move || {
+                            let config = config.get();
+                            Style::default()
+                                .font_family(config.editor.font_family.clone())
+                                .font_size(config.editor.font_size as f32)
+                                .width_pct(1.0)
+                                .apply_opt(extra.bg_color, Style::background)
+                        }),
+                        wave_line(cx).style(cx, move || {
+                            Style::default()
+                                .absolute()
+                                .dimension_pct(1.0, 1.0)
+                                .apply_opt(extra.wave_line, Style::color)
+                        }),
+                    )
+                })
+                .style(cx, || Style::default().width_pct(1.0))
+            })
+            .style(cx, move || {
+                let line_height = config.get().editor.line_height();
+                Style::default()
+                    .position(Position::Absolute)
+                    .height_pt(line_height as f32)
+                    .width(match extra.width {
+                        Some(width) => Dimension::Points(width as f32),
+                        None => Dimension::Percent(1.0),
+                    })
+                    .apply_if(extra.width.is_some(), |s| {
+                        s.margin_left(extra.x as f32)
+                    })
+                    .items_center()
+            })
+        },
+    )
+    .style(cx, || {
         Style::default()
             .position(Position::Absolute)
             .dimension_pct(1.0, 1.0)
     })
 }
 
-fn editor(
-    cx: AppContext,
-    workspace: Arc<LapceWorkspace>,
-    is_active: impl Fn() -> bool + 'static + Copy,
-    editor: RwSignal<EditorData>,
-) -> impl View {
+fn editor_content(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
     let (cursor, scroll_delta, scroll_to, window_origin, viewport, config) = editor
-        .with(|editor| {
+        .with_untracked(|editor| {
             (
                 editor.cursor.read_only(),
                 editor.scroll_delta.read_only(),
@@ -723,8 +787,12 @@ fn editor(
         )
     };
     let view_fn = move |cx, line: DocLine| {
-        container(cx, |cx| {
-            rich_text(cx, move || line.text.clone().text.clone())
+        let extra_styles = line.text.extra_style.clone();
+        stack(cx, |cx| {
+            (
+                editor_extra_style(cx, extra_styles, config),
+                rich_text(cx, move || line.text.clone().text.clone()),
+            )
         })
         .style(cx, move || {
             let config = config.get_untracked();
@@ -735,95 +803,119 @@ fn editor(
         })
     };
 
+    scroll(cx, |cx| {
+        let focus = editor.with_untracked(|e| e.common.focus);
+        click(
+            cx,
+            |cx| {
+                let line_height = config.get_untracked().editor.line_height();
+                virtual_list(
+                    cx,
+                    VirtualListDirection::Vertical,
+                    move || {
+                        // println!("editor content update");
+                        editor.get().doc.get()
+                    },
+                    key_fn,
+                    view_fn,
+                    VirtualListItemSize::Fixed(line_height as f64),
+                )
+                .style(cx, move || {
+                    let config = config.get();
+                    let padding_bottom = if config.editor.scroll_beyond_last_line {
+                        viewport.get().height() as f32
+                            - config.editor.line_height() as f32
+                    } else {
+                        0.0
+                    };
+                    Style::default()
+                        .flex_col()
+                        .padding_bottom(padding_bottom)
+                        .cursor(CursorStyle::Text)
+                        .min_width_pct(1.0)
+                })
+            },
+            move || {
+                focus.set(Focus::Workbench);
+            },
+        )
+        .style(cx, || Style::default().min_dimension_pct(1.0, 1.0))
+    })
+    .scroll_bar_color(cx, move || {
+        *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
+    })
+    .on_resize(move |point, _rect| {
+        window_origin.set(point);
+    })
+    .onscroll(move |rect| {
+        viewport.set(rect);
+    })
+    .on_scroll_to(cx, move || scroll_to.get().map(|s| s.to_point()))
+    .on_scroll_delta(cx, move || scroll_delta.get())
+    .on_ensure_visible(cx, move || {
+        let cursor = cursor.get();
+        let offset = cursor.offset();
+        let editor = editor.get_untracked();
+        let doc = editor.doc;
+        let caret =
+            doc.with_untracked(|doc| cursor_caret(doc, offset, !cursor.is_insert()));
+        let config = config.get_untracked();
+        let line_height = config.editor.line_height();
+        if let CursorRender::Caret { x, width, line } = caret {
+            let rect = Size::new(width, line_height as f64)
+                .to_rect()
+                .with_origin(Point::new(x, (line * line_height) as f64));
+
+            let viewport = viewport.get_untracked();
+            let smallest_distance = (viewport.y0 - rect.y0)
+                .abs()
+                .min((viewport.y1 - rect.y0).abs())
+                .min((viewport.y0 - rect.y1).abs())
+                .min((viewport.y1 - rect.y1).abs());
+            let biggest_distance = (viewport.y0 - rect.y0)
+                .abs()
+                .max((viewport.y1 - rect.y0).abs())
+                .max((viewport.y0 - rect.y1).abs())
+                .max((viewport.y1 - rect.y1).abs());
+            let jump_to_middle = biggest_distance > viewport.height()
+                && smallest_distance > viewport.height() / 2.0;
+
+            if jump_to_middle {
+                rect.inflate(0.0, viewport.height() / 2.0)
+            } else {
+                rect.inflate(
+                    0.0,
+                    (config.editor.cursor_surrounding_lines * line_height) as f64,
+                )
+            }
+        } else {
+            Rect::ZERO
+        }
+    })
+    .style(cx, || {
+        Style::default()
+            .position(Position::Absolute)
+            .dimension_pct(1.0, 1.0)
+    })
+}
+
+fn editor(
+    cx: AppContext,
+    workspace: Arc<LapceWorkspace>,
+    is_active: impl Fn() -> bool + 'static + Copy,
+    editor: RwSignal<EditorData>,
+) -> impl View {
+    let (cursor, viewport, config) = editor.with_untracked(|editor| {
+        (
+            editor.cursor.read_only(),
+            editor.viewport,
+            editor.common.config,
+        )
+    });
+
     stack(cx, move |cx| {
         (
-            stack(cx, move |cx| {
-                (
-                    label(cx, || " ".to_string())
-                        .style(cx, || Style::default().margin_vert(5.0)),
-                    scroll(cx, move |cx| {
-                        let workspace = workspace.clone();
-                        list(
-                            cx,
-                            move || {
-                                let doc = editor.with(|editor| editor.doc);
-                                let full_path = doc
-                                    .with_untracked(|doc| {
-                                        doc.content.path().cloned()
-                                    })
-                                    .unwrap_or_default();
-                                let mut path = full_path.clone();
-                                if let Some(workspace_path) =
-                                    workspace.clone().path.as_ref()
-                                {
-                                    path = path
-                                        .strip_prefix(workspace_path)
-                                        .unwrap_or(&full_path)
-                                        .to_path_buf();
-                                }
-                                path.ancestors()
-                                    .collect::<Vec<_>>()
-                                    .iter()
-                                    .rev()
-                                    .filter_map(|path| {
-                                        Some(path.file_name()?.to_str()?.to_string())
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .into_iter()
-                                    .enumerate()
-                            },
-                            |(i, section)| (*i, section.to_string()),
-                            move |cx, (i, section)| {
-                                stack(cx, move |cx| {
-                                    (
-                                        svg(cx, move || {
-                                            config.get().ui_svg(
-                                                LapceIcons::BREADCRUMB_SEPARATOR,
-                                            )
-                                        })
-                                        .style(cx, move || {
-                                            let config = config.get();
-                                            let size = config.ui.icon_size() as f32;
-                                            Style::default()
-                                                .display(if i == 0 {
-                                                    Display::None
-                                                } else {
-                                                    Display::Flex
-                                                })
-                                                .dimension_pt(size, size)
-                                                .color(*config.get_color(
-                                                    LapceColor::LAPCE_ICON_ACTIVE,
-                                                ))
-                                        }),
-                                        label(cx, move || section.clone()),
-                                    )
-                                })
-                                .style(cx, || {
-                                    Style::default()
-                                        .align_items(Some(AlignItems::Center))
-                                })
-                            },
-                        )
-                        .style(cx, || Style::default().padding_horiz(10.0))
-                    })
-                    .on_scroll_to(cx, move || {
-                        editor.with(|_editor| ());
-                        Some(Point::new(3000.0, 0.0))
-                    })
-                    .hide_bar()
-                    .style(cx, move || {
-                        Style::default()
-                            .position(Position::Absolute)
-                            .dimension_pct(1.0, 1.0)
-                            .border_bottom(1.0)
-                            .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
-                            )
-                            .align_items(Some(AlignItems::Center))
-                    }),
-                )
-            })
-            .style(cx, || Style::default().width_pct(1.0)),
+            editor_breadcrumbs(cx, workspace, editor, config),
             container(cx, |cx| {
                 stack(cx, |cx| {
                     (
@@ -838,137 +930,7 @@ fn editor(
                                     is_active,
                                     config,
                                 ),
-                                editor_extra_style(
-                                    cx,
-                                    editor,
-                                    viewport.read_only(),
-                                    config,
-                                ),
-                                scroll(cx, |cx| {
-                                    let focus =
-                                        editor.with_untracked(|e| e.common.focus);
-                                    click(
-                                        cx,
-                                        |cx| {
-                                            let line_height = config
-                                                .get_untracked()
-                                                .editor
-                                                .line_height();
-                                            virtual_list(
-                                                cx,
-                                                VirtualListDirection::Vertical,
-                                                move || editor.get().doc.get(),
-                                                key_fn,
-                                                view_fn,
-                                                VirtualListItemSize::Fixed(
-                                                    line_height as f64,
-                                                ),
-                                            )
-                                            .style(cx, move || {
-                                                let config = config.get();
-                                                let padding_bottom = if config
-                                                    .editor
-                                                    .scroll_beyond_last_line
-                                                {
-                                                    viewport.get().height() as f32
-                                                        - config.editor.line_height()
-                                                            as f32
-                                                } else {
-                                                    0.0
-                                                };
-                                                Style::default()
-                                                    .flex_col()
-                                                    .padding_bottom(padding_bottom)
-                                                    .cursor(CursorStyle::Text)
-                                            })
-                                        },
-                                        move || {
-                                            focus.set(Focus::Workbench);
-                                        },
-                                    )
-                                })
-                                .scroll_bar_color(cx, move || {
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::LAPCE_SCROLL_BAR)
-                                })
-                                .on_resize(move |point, rect| {
-                                    window_origin.set(point);
-                                })
-                                .onscroll(move |rect| {
-                                    viewport.set(rect);
-                                })
-                                .on_scroll_to(cx, move || {
-                                    scroll_to.get().map(|s| s.to_point())
-                                })
-                                .on_scroll_delta(cx, move || scroll_delta.get())
-                                .on_ensure_visible(cx, move || {
-                                    let cursor = cursor.get();
-                                    let offset = cursor.offset();
-                                    let editor = editor.get_untracked();
-                                    let doc = editor.doc;
-                                    let caret = doc.with_untracked(|doc| {
-                                        cursor_caret(
-                                            doc,
-                                            offset,
-                                            !cursor.is_insert(),
-                                        )
-                                    });
-                                    let config = config.get_untracked();
-                                    let line_height = config.editor.line_height();
-                                    if let CursorRender::Caret { x, width, line } =
-                                        caret
-                                    {
-                                        let rect =
-                                            Size::new(width, line_height as f64)
-                                                .to_rect()
-                                                .with_origin(Point::new(
-                                                    x,
-                                                    (line * line_height) as f64,
-                                                ));
-
-                                        let viewport = viewport.get_untracked();
-                                        let smallest_distance = (viewport.y0
-                                            - rect.y0)
-                                            .abs()
-                                            .min((viewport.y1 - rect.y0).abs())
-                                            .min((viewport.y0 - rect.y1).abs())
-                                            .min((viewport.y1 - rect.y1).abs());
-                                        let biggest_distance = (viewport.y0
-                                            - rect.y0)
-                                            .abs()
-                                            .max((viewport.y1 - rect.y0).abs())
-                                            .max((viewport.y0 - rect.y1).abs())
-                                            .max((viewport.y1 - rect.y1).abs());
-                                        let jump_to_middle = biggest_distance
-                                            > viewport.height()
-                                            && smallest_distance
-                                                > viewport.height() / 2.0;
-
-                                        if jump_to_middle {
-                                            rect.inflate(
-                                                0.0,
-                                                viewport.height() / 2.0,
-                                            )
-                                        } else {
-                                            rect.inflate(
-                                                0.0,
-                                                (config
-                                                    .editor
-                                                    .cursor_surrounding_lines
-                                                    * line_height)
-                                                    as f64,
-                                            )
-                                        }
-                                    } else {
-                                        Rect::ZERO
-                                    }
-                                })
-                                .style(cx, || {
-                                    Style::default()
-                                        .position(Position::Absolute)
-                                        .dimension_pct(1.0, 1.0)
-                                }),
+                                editor_content(cx, editor),
                             )
                         })
                         .style(cx, || Style::default().dimension_pct(1.0, 1.0)),
@@ -1464,8 +1426,8 @@ fn split_list(
 
     let direction = move || split.with(|split| split.direction);
     let items = move || split.get().children.into_iter().enumerate();
-    let key = |(index, content): &(usize, SplitContent)| content.id();
-    let view_fn = move |cx, (index, content), main_split: MainSplitData| {
+    let key = |(_index, content): &(usize, SplitContent)| content.id();
+    let view_fn = move |cx, (_index, content), main_split: MainSplitData| {
         let child = match &content {
             SplitContent::EditorTab(editor_tab_id) => {
                 let editor_tab_data =
@@ -1672,16 +1634,14 @@ fn terminal_tab_header(
                                         .flex_basis_pt(0.0)
                                         .flex_grow(1.0)
                                 }),
-                                svg_icon(cx, LapceIcons::CLOSE, config).style(
+                                clickable_icon(
                                     cx,
-                                    || {
-                                        Style::default()
-                                            .border_radius(6.0)
-                                            .padding(4.0)
-                                            .margin_horiz(6.0)
-                                            .cursor(CursorStyle::Pointer)
-                                    },
-                                ),
+                                    LapceIcons::CLOSE,
+                                    || {},
+                                    || false,
+                                    config,
+                                )
+                                .style(cx, || Style::default().margin_horiz(6.0)),
                             )
                         })
                         .style(cx, move || {
@@ -1734,6 +1694,56 @@ fn terminal_tab_header(
             .width_pct(1.0)
             .border_bottom(1.0)
             .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+    })
+}
+
+fn clickable_icon(
+    cx: AppContext,
+    icon: &'static str,
+    on_click: impl Fn() + 'static,
+    disabled_fn: impl Fn() -> bool + 'static + Copy,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    container(cx, |cx| {
+        click(
+            cx,
+            |cx| {
+                svg(cx, move || config.get().ui_svg(icon))
+                    .style(cx, move || {
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32;
+                        Style::default()
+                            .dimension_pt(size, size)
+                            .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+                    })
+                    .disabled(cx, disabled_fn)
+                    .disabled_style(cx, move || {
+                        Style::default().color(
+                            *config.get().get_color(LapceColor::LAPCE_ICON_INACTIVE),
+                        )
+                    })
+            },
+            on_click,
+        )
+        .disabled(cx, disabled_fn)
+        .style(cx, || {
+            Style::default()
+                .padding(4.0)
+                .border_radius(6.0)
+                .cursor(CursorStyle::Pointer)
+        })
+        .hover_style(cx, move || {
+            Style::default().background(
+                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+            )
+        })
+        .active_style(cx, move || {
+            Style::default().background(
+                *config
+                    .get()
+                    .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+            )
+        })
     })
 }
 
@@ -1862,6 +1872,132 @@ fn panel_header(
     })
 }
 
+fn debug_process_icons(
+    cx: AppContext,
+    terminal: TerminalPanelData,
+    term_id: TermId,
+    mode: RunDebugMode,
+    stopped: bool,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    match mode {
+        RunDebugMode::Run => container_box(cx, |cx| {
+            Box::new(stack(cx, |cx| {
+                (
+                    {
+                        let terminal = terminal.clone();
+                        clickable_icon(
+                            cx,
+                            LapceIcons::DEBUG_RESTART,
+                            move || {
+                                terminal.restart_run_debug(term_id);
+                            },
+                            || false,
+                            config,
+                        )
+                        .style(cx, || Style::default().margin_horiz(6.0))
+                    },
+                    {
+                        let terminal = terminal.clone();
+                        clickable_icon(
+                            cx,
+                            LapceIcons::DEBUG_STOP,
+                            move || {
+                                terminal.stop_run_debug(term_id);
+                            },
+                            move || stopped,
+                            config,
+                        )
+                        .style(cx, || Style::default().margin_right(6.0))
+                    },
+                    {
+                        let terminal = terminal.clone();
+                        clickable_icon(
+                            cx,
+                            LapceIcons::CLOSE,
+                            move || {
+                                terminal.close_terminal(&term_id);
+                            },
+                            || false,
+                            config,
+                        )
+                        .style(cx, || Style::default().margin_right(6.0))
+                    },
+                )
+            }))
+        }),
+        RunDebugMode::Debug => container_box(cx, |cx| {
+            Box::new(stack(cx, |cx| {
+                (
+                    {
+                        let terminal = terminal.clone();
+                        svg_icon(cx, LapceIcons::DEBUG_CONTINUE, config)
+                            .style(cx, || {
+                                Style::default()
+                                    .padding(4.0)
+                                    .margin_horiz(6.0)
+                                    .border_radius(6.0)
+                            })
+                            .disabled(cx, move || !stopped)
+                    },
+                    {
+                        let terminal = terminal.clone();
+                        clickable_icon(
+                            cx,
+                            LapceIcons::DEBUG_PAUSE,
+                            move || {
+                                terminal.dap_pause(term_id);
+                            },
+                            || false,
+                            config,
+                        )
+                        .style(cx, || Style::default().margin_right(6.0))
+                    },
+                    {
+                        let terminal = terminal.clone();
+                        clickable_icon(
+                            cx,
+                            LapceIcons::DEBUG_RESTART,
+                            move || {
+                                terminal.restart_run_debug(term_id);
+                            },
+                            || false,
+                            config,
+                        )
+                        .style(cx, || Style::default().margin_right(6.0))
+                    },
+                    {
+                        let terminal = terminal.clone();
+                        clickable_icon(
+                            cx,
+                            LapceIcons::DEBUG_STOP,
+                            move || {
+                                terminal.stop_run_debug(term_id);
+                            },
+                            move || stopped,
+                            config,
+                        )
+                        .style(cx, || Style::default().margin_right(6.0))
+                    },
+                    {
+                        let terminal = terminal.clone();
+                        clickable_icon(
+                            cx,
+                            LapceIcons::CLOSE,
+                            move || {
+                                terminal.close_terminal(&term_id);
+                            },
+                            || false,
+                            config,
+                        )
+                        .style(cx, || Style::default().margin_right(6.0))
+                    },
+                )
+            }))
+        }),
+    }
+}
+
 fn debug_panel(
     cx: AppContext,
     window_tab_data: Arc<WindowTabData>,
@@ -1869,17 +2005,20 @@ fn debug_panel(
 ) -> impl View {
     let config = window_tab_data.common.config;
     let terminal = window_tab_data.terminal.clone();
+
     stack(cx, move |cx| {
         (stack(cx, move |cx| {
             (
                 panel_header(cx, "Processes".to_string(), config),
                 scroll(cx, move |cx| {
                     let terminal = terminal.clone();
+                    let local_terminal = terminal.clone();
                     list(
                         cx,
-                        move || terminal.run_debug_process(true),
+                        move || local_terminal.run_debug_process(true),
                         |(term_id, p)| (*term_id, p.stopped),
                         move |cx, (term_id, p)| {
+                            let terminal = terminal.clone();
                             stack(cx, move |cx| {
                                 (
                                     {
@@ -1910,15 +2049,34 @@ fn debug_panel(
                                                 ))
                                             })
                                     },
-                                    label(cx, move || p.config.name.clone()),
+                                    label(cx, move || p.config.name.clone()).style(
+                                        cx,
+                                        || {
+                                            Style::default()
+                                                .flex_grow(1.0)
+                                                .flex_basis_pt(0.0)
+                                                .min_width_pt(0.0)
+                                        },
+                                    ),
+                                    debug_process_icons(
+                                        cx,
+                                        terminal.clone(),
+                                        term_id,
+                                        p.mode,
+                                        p.stopped,
+                                        config,
+                                    ),
                                 )
                             })
                             .style(cx, || {
-                                Style::default().padding_vert(6.0).items_center()
+                                Style::default()
+                                    .padding_vert(6.0)
+                                    .width_pct(1.0)
+                                    .items_center()
                             })
                         },
                     )
-                    .style(cx, || Style::default().flex_col())
+                    .style(cx, || Style::default().width_pct(1.0).flex_col())
                 }),
             )
         })
@@ -2486,7 +2644,7 @@ fn palette_item(
             mode,
             config: run_config,
         } => {
-            let mode = mode.clone();
+            let mode = *mode;
             let text = format!("{mode} {}", run_config.name);
             let hint =
                 format!("{} {}", run_config.program, run_config.args.join(" "));
@@ -2520,15 +2678,14 @@ fn palette_item(
                         (
                             svg(cx, move || {
                                 let config = config.get();
-                                let svg = match mode {
+                                match mode {
                                     RunDebugMode::Run => {
                                         config.ui_svg(LapceIcons::START)
                                     }
                                     RunDebugMode::Debug => {
                                         config.ui_svg(LapceIcons::DEBUG)
                                     }
-                                };
-                                svg
+                                }
                             })
                             .style(cx, move || {
                                 let config = config.get();
@@ -2676,7 +2833,7 @@ fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl Vi
                 Style::default()
                     .min_width_pt(0.0)
                     .height_pt(24.0)
-                    .align_items(Some(AlignItems::Center))
+                    .items_center()
             })
         })
         .style(cx, move || {
@@ -2688,6 +2845,7 @@ fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl Vi
                 .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                 .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
                 .padding_horiz(10.0)
+                .cursor(CursorStyle::Text)
         })
     })
     .style(cx, || Style::default().padding_bottom(5.0))
@@ -2757,7 +2915,18 @@ fn palette_content(
                                 clicked_index.set(Some(i));
                             },
                         )
-                        .style(cx, || Style::default().width_pct(1.0))
+                        .style(cx, || {
+                            Style::default()
+                                .width_pct(1.0)
+                                .cursor(CursorStyle::Pointer)
+                        })
+                        .hover_style(cx, move || {
+                            Style::default().background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                        })
                     },
                     VirtualListItemSize::Fixed(palette_item_height),
                 )
@@ -2929,7 +3098,7 @@ fn completion(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
             cx,
             VirtualListDirection::Vertical,
             move || completion_data.with(|c| VectorItems(c.filtered_items.clone())),
-            move |(i, item)| (request_id(), *i),
+            move |(i, _item)| (request_id(), *i),
             move |cx, (i, item)| {
                 stack(cx, |cx| {
                     (
@@ -3200,21 +3369,6 @@ fn window(cx: AppContext, window_data: WindowData) -> impl View {
 fn app_logic(cx: AppContext) -> impl View {
     let db = Arc::new(LapceDb::new().unwrap());
     provide_context(cx.scope, db);
-
-    let mut args = std::env::args_os();
-    // Skip executable name
-    args.next();
-    let path = args
-        .next()
-        .map(|it| PathBuf::from(it).canonicalize().ok())
-        .flatten()
-        .or_else(|| Some(PathBuf::from("/Users/dz/lapce-rust")));
-
-    let workspace = Arc::new(LapceWorkspace {
-        kind: LapceWorkspaceType::Local,
-        path,
-        last_open: 0,
-    });
 
     let window_data = WindowData::new(cx);
     window(cx, window_data)

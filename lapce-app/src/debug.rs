@@ -8,8 +8,8 @@ use std::{
 use floem::{
     app::AppContext,
     reactive::{
-        create_rw_signal, RwSignal, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalWithUntracked,
+        create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet,
+        SignalUpdate, SignalWithUntracked,
     },
 };
 use lapce_rpc::{
@@ -74,10 +74,10 @@ pub struct RunDebugData {
 }
 
 impl RunDebugData {
-    pub fn new(cx: AppContext) -> Self {
-        let active_term = create_rw_signal(cx.scope, None);
-        let daps = create_rw_signal(cx.scope, im::HashMap::new());
-        let breakpoints = create_rw_signal(cx.scope, BTreeMap::new());
+    pub fn new(cx: Scope) -> Self {
+        let active_term = create_rw_signal(cx, None);
+        let daps = create_rw_signal(cx, im::HashMap::new());
+        let breakpoints = create_rw_signal(cx, BTreeMap::new());
         Self {
             active_term,
             daps,

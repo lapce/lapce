@@ -1223,6 +1223,29 @@ impl EditorData {
         }
     }
 
+    fn do_go_to_location(
+        &self,
+        cx: AppContext,
+        location: EditorLocation,
+        edits: Option<Vec<TextEdit>>,
+    ) {
+        if let Some(position) = location.position {
+            self.go_to_position(position, location.scroll_offset, edits);
+        } else if let Some(edits) = edits.as_ref() {
+            self.do_text_edit(edits);
+        } else {
+            let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
+            if let Ok(info) = db.get_doc_info(&self.common.workspace, &location.path)
+            {
+                self.go_to_position(
+                    EditorPosition::Offset(info.cursor_offset),
+                    Some(Vec2::new(info.scroll_offset.0, info.scroll_offset.1)),
+                    edits,
+                );
+            }
+        }
+    }
+
     pub fn go_to_location(
         &self,
         cx: AppContext,
@@ -1231,22 +1254,7 @@ impl EditorData {
         edits: Option<Vec<TextEdit>>,
     ) {
         if !new_doc {
-            if let Some(position) = location.position {
-                self.go_to_position(position, location.scroll_offset, edits);
-            } else {
-                let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
-                if let Ok(info) =
-                    db.get_doc_info(&self.common.workspace, &location.path)
-                {
-                    self.go_to_position(
-                        EditorPosition::Offset(info.cursor_offset),
-                        Some(Vec2::new(info.scroll_offset.0, info.scroll_offset.1)),
-                        edits,
-                    );
-                } else if let Some(edits) = edits.as_ref() {
-                    self.do_text_edit(edits);
-                }
-            }
+            self.do_go_to_location(cx, location, edits);
         } else {
             let buffer_id = self.doc.with_untracked(|doc| doc.buffer_id);
             let set_doc = self.doc.write_only();
@@ -1257,34 +1265,12 @@ impl EditorData {
                     doc.init_content(content);
                 });
 
-                if let Some(position) = location.position {
-                    editor.go_to_position(
-                        position,
-                        location.scroll_offset,
-                        edits.clone(),
-                    );
-                } else {
-                    let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
-                    if let Ok(info) =
-                        db.get_doc_info(&editor.common.workspace, &path)
-                    {
-                        editor.go_to_position(
-                            EditorPosition::Offset(info.cursor_offset),
-                            Some(Vec2::new(
-                                info.scroll_offset.0,
-                                info.scroll_offset.1,
-                            )),
-                            edits.clone(),
-                        );
-                    } else if let Some(edits) = edits.as_ref() {
-                        editor.do_text_edit(edits);
-                    }
-                }
+                editor.do_go_to_location(cx, location.clone(), edits.clone());
             });
 
             self.common
                 .proxy
-                .new_buffer(buffer_id, location.path, move |result| {
+                .new_buffer(buffer_id, path, move |result| {
                     if let Ok(ProxyResponse::NewBufferResponse { content }) = result
                     {
                         send(Rope::from(content))

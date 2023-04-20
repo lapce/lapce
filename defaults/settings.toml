@@ -203,6 +203,7 @@ magenta = "#C678DD"
 "panel.current.foreground" = "$white"
 "panel.current.foreground.dim" = "#5C6370"
 "panel.hovered.background" = "#343A45"
+"panel.hovered.active.background" = "#5C6370"
 "panel.hovered.foreground" = "$white"
 "panel.hovered.foreground.dim" = "#5C6370"
 
