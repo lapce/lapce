@@ -2246,6 +2246,26 @@ impl Document {
                             start..end,
                             TextAttribute::TextColor(fg_color.clone()),
                         );
+                    } else {
+                        let fg_color = match fg_color.as_str() {
+                            "bracket.color1" => {
+                                config.get_color_unchecked(LapceTheme::TERMINAL_BLUE)
+                            }
+                            "bracket.color2" => config
+                                .get_color_unchecked(LapceTheme::TERMINAL_YELLOW),
+                            "bracket.color3" => config
+                                .get_color_unchecked(LapceTheme::TERMINAL_MAGENTA),
+                            "bracket.unpaired" => {
+                                config.get_color_unchecked(LapceTheme::TERMINAL_RED)
+                            }
+                            _ => unreachable!(),
+                        };
+                        let start = phantom_text.col_at(bracket_style.start);
+                        let end = phantom_text.col_at(bracket_style.end);
+                        layout_builder = layout_builder.range_attribute(
+                            start..end,
+                            TextAttribute::TextColor(fg_color.clone()),
+                        );
                     }
                 }
             }
