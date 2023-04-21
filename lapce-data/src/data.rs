@@ -1671,8 +1671,10 @@ impl LapceTabData {
             }
             LapceWorkbenchCommand::ToggleMaximizedPanel => {
                 if let Some(data) = data {
-                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
-                        Arc::make_mut(&mut self.panel).toggle_maximize(&kind);
+                    if let Ok(position) =
+                        serde_json::from_value::<PanelPosition>(data)
+                    {
+                        Arc::make_mut(&mut self.panel).toggle_maximize(&position);
                     }
                 } else {
                     Arc::make_mut(&mut self.panel).toggle_active_maximize();

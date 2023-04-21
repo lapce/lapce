@@ -292,6 +292,13 @@ name = ""
 "panel.restore" = "chevron-down.svg"
 "panel.maximise" = "chevron-right.svg"
 
+"panel.restore_left" = "chevron-left.svg"
+"panel.maximise_left" = "chevron-right.svg"
+"panel.restore_right" = "chevron-right.svg"
+"panel.maximise_right" = "chevron-left.svg"
+"panel.restore_bottom" = "chevron-down.svg"
+"panel.maximise_bottom" = "chevron-up.svg"
+
 "panel_section.expand_vertical" = "chevron-down.svg"
 "panel_section.collapse_vertical" = "chevron-left.svg"
 "panel_section.expand_horizontal" = "chevron-right.svg"

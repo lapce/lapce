@@ -248,10 +248,20 @@ impl LapceIcons {
     pub const PANEL_RESTORE: &str = "panel.restore";
     pub const PANEL_MAXIMISE: &str = "panel.maximise";
 
+    pub const PANEL_RESTORE_LEFT: &str = "panel.restore_left";
+    pub const PANEL_MAXIMISE_LEFT: &str = "panel.maximise_left";
+    pub const PANEL_RESTORE_RIGHT: &str = "panel.restore_right";
+    pub const PANEL_MAXIMISE_RIGHT: &str = "panel.maximise_right";
+    pub const PANEL_RESTORE_BOTTOM: &str = "panel.restore_bottom";
+    pub const PANEL_MAXIMISE_BOTTOM: &str = "panel.maximise_bottom";
+
     pub const PANEL_SECTION_EXPAND_VERTICAL: &str = "panel_section.expand_vertical";
-    pub const PANEL_SECTION_COLLAPSE_VERTICAL: &str = "panel_section.collapse_vertical";
-    pub const PANEL_SECTION_EXPAND_HORIZONTAL: &str = "panel_section.expand_horizontal";
-    pub const PANEL_SECTION_COLLAPSE_HORIZONTAL: &str = "panel_section.collapse_horizontal";
+    pub const PANEL_SECTION_COLLAPSE_VERTICAL: &str =
+        "panel_section.collapse_vertical";
+    pub const PANEL_SECTION_EXPAND_HORIZONTAL: &str =
+        "panel_section.expand_horizontal";
+    pub const PANEL_SECTION_COLLAPSE_HORIZONTAL: &str =
+        "panel_section.collapse_horizontal";
 
     pub const SPLIT_HORIZONTAL: &str = "split.horizontal";
 

@@ -130,16 +130,16 @@ impl PanelData {
         self.style.get(position).map(|s| s.shown).unwrap_or(false)
     }
 
-    pub fn panel_bottom_maximized(&self) -> bool {
+    pub fn is_contianer_maximized(&self, position: &PanelContainerPosition) -> bool {
+        self.is_position_maximized(&position.first())
+            || self.is_position_maximized(&position.second())
+    }
+
+    pub fn is_position_maximized(&self, position: &PanelPosition) -> bool {
         self.style
-            .get(&PanelPosition::BottomLeft)
-            .map(|p| p.maximized)
+            .get(position)
+            .map(|s| s.maximized)
             .unwrap_or(false)
-            || self
-                .style
-                .get(&PanelPosition::BottomRight)
-                .map(|p| p.maximized)
-                .unwrap_or(false)
     }
 
     pub fn panel_position(
@@ -155,27 +155,87 @@ impl PanelData {
         None
     }
 
-    pub fn toggle_maximize(&mut self, kind: &PanelKind) {
-        if let Some((_, p)) = self.panel_position(kind) {
-            if p.is_bottom() {
+    pub fn toggle_maximize(&mut self, position: &PanelPosition) {
+        match position {
+            PanelPosition::LeftTop | PanelPosition::LeftBottom => {
+                self.toggle_left_maximize();
+            }
+            PanelPosition::BottomLeft | PanelPosition::BottomRight => {
                 self.toggle_bottom_maximize();
+            }
+            PanelPosition::RightTop | PanelPosition::RightBottom => {
+                self.toggle_right_maximize();
             }
         }
     }
 
     pub fn toggle_active_maximize(&mut self) {
-        if self.active.is_bottom() {
-            self.toggle_bottom_maximize();
+        self.toggle_maximize(&self.active.clone());
+    }
+
+    pub fn set_container_maximized(
+        &mut self,
+        position: &PanelContainerPosition,
+        maximized: bool,
+    ) {
+        vec![position.first(), position.second()]
+            .iter()
+            .for_each(|p| {
+                if let Some(style) = self.style.get_mut(p) {
+                    style.maximized = maximized;
+                }
+            });
+    }
+
+    pub fn set_container_shown(
+        &mut self,
+        position: &PanelContainerPosition,
+        shown: bool,
+    ) {
+        vec![position.first(), position.second()]
+            .iter()
+            .for_each(|p| {
+                if let Some(style) = self.style.get_mut(p) {
+                    style.shown = shown;
+                }
+            });
+    }
+
+    pub fn toggle_left_maximize(&mut self) {
+        let maximized = !self.is_contianer_maximized(&PanelContainerPosition::Left);
+        self.set_container_maximized(&PanelContainerPosition::Left, maximized);
+
+        if self.is_contianer_maximized(&PanelContainerPosition::Right) {
+            self.set_container_maximized(&PanelContainerPosition::Right, false);
+        }
+        if maximized && self.is_container_shown(&PanelContainerPosition::Bottom) {
+            self.set_container_shown(&PanelContainerPosition::Bottom, false);
+        }
+    }
+
+    pub fn toggle_right_maximize(&mut self) {
+        let maximized = !self.is_contianer_maximized(&PanelContainerPosition::Right);
+        self.set_container_maximized(&PanelContainerPosition::Right, maximized);
+
+        if self.is_contianer_maximized(&PanelContainerPosition::Left) {
+            self.set_container_maximized(&PanelContainerPosition::Left, false);
+        }
+        if maximized && self.is_container_shown(&PanelContainerPosition::Bottom) {
+            self.set_container_shown(&PanelContainerPosition::Bottom, false);
         }
     }
 
     pub fn toggle_bottom_maximize(&mut self) {
-        let maximized = !self.panel_bottom_maximized();
-        if let Some(style) = self.style.get_mut(&PanelPosition::BottomLeft) {
-            style.maximized = maximized;
+        let maximized =
+            !self.is_contianer_maximized(&PanelContainerPosition::Bottom);
+        self.set_container_maximized(&PanelContainerPosition::Bottom, maximized);
+
+        if self.is_contianer_maximized(&PanelContainerPosition::Left) {
+            self.set_container_maximized(&PanelContainerPosition::Left, false);
         }
-        if let Some(style) = self.style.get_mut(&PanelPosition::BottomRight) {
-            style.maximized = maximized;
+
+        if self.is_contianer_maximized(&PanelContainerPosition::Right) {
+            self.set_container_maximized(&PanelContainerPosition::Right, false);
         }
     }
 

@@ -2375,7 +2375,22 @@ impl Widget<LapceTabData> for LapceTab {
         );
         self.status_height = status_size.height;
 
-        let left_width = data.panel.size.left;
+        let left_width = if data
+            .panel
+            .is_contianer_maximized(&PanelContainerPosition::Left)
+        {
+            self_size.width
+                - if data
+                    .panel
+                    .is_container_shown(&PanelContainerPosition::Right)
+                {
+                    data.panel.size.right
+                } else {
+                    0.0
+                }
+        } else {
+            data.panel.size.left
+        };
         self.panel_left.layout(
             ctx,
             &BoxConstraints::tight(Size::new(
@@ -2387,14 +2402,26 @@ impl Widget<LapceTabData> for LapceTab {
         );
         self.panel_left
             .set_origin(ctx, data, env, Point::new(0.0, title_height));
-        let panel_left_width =
+        let panel_left_width: f64 =
             if data.panel.is_container_shown(&PanelContainerPosition::Left) {
                 left_width
             } else {
                 0.0
             };
 
-        let right_width = data.panel.size.right;
+        let right_width = if data
+            .panel
+            .is_contianer_maximized(&PanelContainerPosition::Right)
+        {
+            self_size.width
+                - if data.panel.is_container_shown(&PanelContainerPosition::Left) {
+                    data.panel.size.left
+                } else {
+                    0.0
+                }
+        } else {
+            data.panel.size.right
+        };
         self.panel_right.layout(
             ctx,
             &BoxConstraints::tight(Size::new(
@@ -2419,7 +2446,10 @@ impl Widget<LapceTabData> for LapceTab {
             0.0
         };
 
-        let bottom_height = if data.panel.panel_bottom_maximized() {
+        let bottom_height = if data
+            .panel
+            .is_contianer_maximized(&PanelContainerPosition::Bottom)
+        {
             self_size.height - status_size.height - title_height
         } else {
             data.panel.size.bottom

@@ -334,7 +334,7 @@ impl Widget<LapceTabData> for PanelSection {
             } else {
                 LapceIcons::PANEL_SECTION_COLLAPSE_VERTICAL
             };
-            if let Some((_,position)) = data.panel.panel_position(&self.kind) {
+            if let Some((_, position)) = data.panel.panel_position(&self.kind) {
                 if position.is_bottom() {
                     icon_name = LapceIcons::PANEL_SECTION_COLLAPSE_HORIZONTAL
                 }
@@ -1051,6 +1051,14 @@ impl PanelSwitcher {
                     ))
                     .inflate(icon_size / 2.0, icon_size / 2.0);
             }
+            self.maximise_toggle = Some(
+                Rect::ZERO
+                    .with_origin(Point::new(
+                        self_size.width - switcher_size / 2.0,
+                        self_size.height / 2.0,
+                    ))
+                    .inflate(icon_size / 2.0, icon_size / 2.0),
+            );
         }
         self.icons = icons;
     }
@@ -1192,7 +1200,7 @@ impl Widget<LapceTabData> for PanelSwitcher {
                             kind: CommandKind::Workbench(
                                 LapceWorkbenchCommand::ToggleMaximizedPanel,
                             ),
-                            data: None,
+                            data: Some(serde_json::to_value(self.position).unwrap()),
                         },
                         Target::Widget(data.id),
                     ));
@@ -1442,15 +1450,9 @@ impl Widget<LapceTabData> for PanelSwitcher {
             let maximized = data
                 .panel
                 .style
-                .get(&PanelPosition::BottomLeft)
+                .get(&self.position)
                 .map(|s| s.maximized)
-                .unwrap_or(false)
-                || data
-                    .panel
-                    .style
-                    .get(&PanelPosition::BottomRight)
-                    .map(|s| s.maximized)
-                    .unwrap_or(false);
+                .unwrap_or(false);
             let mouse_rect = rect.inflate(icon_padding, icon_padding);
             if mouse_rect.contains(self.mouse_pos) {
                 ctx.fill(
@@ -1464,10 +1466,28 @@ impl Widget<LapceTabData> for PanelSwitcher {
                     }),
                 );
             }
-            let svg = if maximized {
-                data.config.ui_svg(LapceIcons::PANEL_RESTORE)
-            } else {
-                data.config.ui_svg(LapceIcons::PANEL_MAXIMISE)
+            let svg = match self.position {
+                PanelPosition::LeftTop | PanelPosition::LeftBottom => {
+                    if maximized {
+                        data.config.ui_svg(LapceIcons::PANEL_RESTORE_LEFT)
+                    } else {
+                        data.config.ui_svg(LapceIcons::PANEL_MAXIMISE_LEFT)
+                    }
+                }
+                PanelPosition::RightTop | PanelPosition::RightBottom => {
+                    if maximized {
+                        data.config.ui_svg(LapceIcons::PANEL_RESTORE_RIGHT)
+                    } else {
+                        data.config.ui_svg(LapceIcons::PANEL_MAXIMISE_RIGHT)
+                    }
+                }
+                PanelPosition::BottomLeft | PanelPosition::BottomRight => {
+                    if maximized {
+                        data.config.ui_svg(LapceIcons::PANEL_RESTORE_BOTTOM)
+                    } else {
+                        data.config.ui_svg(LapceIcons::PANEL_MAXIMISE_BOTTOM)
+                    }
+                }
             };
             ctx.draw_svg(
                 &svg,
