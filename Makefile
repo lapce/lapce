@@ -12,13 +12,13 @@ RELEASE_DIR = target/$(PROFILE)
 # Make up some version when running locally
 ifneq ($(RELEASE_TAG_NAME),)
 	VERSION = $(RELEASE_TAG_NAME)
-endif
+else \
 ifeq ($(RELEASE_TAG_NAME),)
 	VERSION = $(shell git describe --tags --match 'v*')
-endif
+else \
 ifeq ($(RELEASE_TAG_NAME),debug)
 	VERSION = $(shell git describe --tags --match 'v*')
-endif
+else \
 ifeq ($(RELEASE_TAG_NAME),nightly)
 	VERSION = $(shell git describe --tags --match 'v*')
 endif
@@ -44,7 +44,7 @@ endif
 ifeq ($(FROZEN),1)
 	FROZEN = --frozen
 	LOCKED =
-endif
+else \
 ifeq ($(LOCKED),1)
 	FROZEN =
 	LOCKED = --locked
@@ -52,7 +52,7 @@ endif
 
 ifeq ($(OS),Windows_NT)
 	PLATFORM = windows
-endif
+else \
 ifneq ($(OS),Windows_NT)
 	UNAME_S := $(shell uname -s)
 	ifeq ($(UNAME_S),Linux)
@@ -68,7 +68,7 @@ ifneq ($(OS),Windows_NT)
 		RPM_NAME        = lapce.rpm
 		RPM_DIR         = $(RELEASE_DIR)/fedora
 		RPM_PACKAGE_DIR = $(RPM_DIR)/$(TARGET)
-	endif
+	else \
 	ifeq ($(UNAME_S),Darwin)
 		PLATFORM = macos
 
@@ -93,10 +93,10 @@ ifneq ($(OS),Windows_NT)
 	UNAME_P := $(shell uname -p)
 	ifeq ($(UNAME_P),x86_64)
 		ARCH = amd64
-	endif
+	else \
 	ifneq ($(filter %86,$(UNAME_P)),)
 		ARCH = x86
-	endif
+	else \
 	ifneq ($(filter arm%,$(UNAME_P)),)
 		ARCH = $(UNAME_P)
 	endif

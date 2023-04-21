@@ -57,14 +57,21 @@ RUN --mount=type=bind,target=.,ro \
     cargo fetch --locked
 # Install target dependencies
 ARG TARGETPLATFORM
-RUN xx-apt-get install --no-install-recommends -y libc6-dev libgcc-10-dev libfontconfig-dev libgtk-3-dev libstdc++-10-dev
+RUN xx-apt-get install --no-install-recommends -y \
+        libc6-dev \
+        libgcc-10-dev \
+        libfontconfig-dev \
+        libgtk-3-dev \
+        libstdc++-10-dev
 
 FROM build-${BASE_VARIANT} AS build
 # in bullseye arm64 target does not link with lld so configure it to use ld instead
 RUN [ ! -f /etc/alpine-release ] && xx-info is-cross && [ "$(xx-info arch)" = "arm64" ] && XX_CC_PREFER_LINKER=ld xx-clang --setup-target-triple || true
 ENV RUSTC_WRAPPER='sccache'
-ENV CARGO_BUILD_INCREMENTAL='false'
+ARG CARGO_BUILD_PROFILE='debug'
+ARG CARGO_BUILD_INCREMENTAL='false'
 ENV CARGO_TARGET_DIR='/output'
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL='sparse'
 ENV CC='xx-clang'
 ENV CXX='xx-clang++'
 RUN --mount=type=bind,target=.,ro \
@@ -75,7 +82,7 @@ RUN --mount=type=bind,target=.,ro \
     --mount=from=dockercore/golang-cross:xx-sdk-extras,target=/xx-sdk,src=/xx-sdk \
     # xx-clang --setup-target-triple \
     # xx-clang --wrap && \
-    export RUSTFLAGS="-C linker=$(xx-clang --print-prog=lld)" && \
+    # export RUSTFLAGS="-C linker=$(xx-clang --print-prog=lld)" && \
     export PKG_CONFIG="$(xx-clang --print-prog-name=pkg-config)" && \
     export CARGO_BUILD_TARGET="$(xx-cargo --print-target-triple)" && \
     cargo build \

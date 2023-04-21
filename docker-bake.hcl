@@ -5,7 +5,7 @@ variable "VERSION" {
     default = ""
 }
 variable "USE_GLIBC" {
-    default = "true"
+    default = true
 }
 variable "STRIP_TARGET" {
     default = ""
@@ -68,12 +68,10 @@ target "binary" {
     platforms = ["local"]
     output    = ["build"]
     args = {
-        BASE_VARIANT = USE_GLIBC != "" ? "debian" : "alpine"
+        BASE_VARIANT = USE_GLIBC ? "debian" : "alpine"
         VERSION      = VERSION
         DEBIAN_DEPS  = DEBIAN_DEPS
-    }
-    env = {
-        CARGO_BUILD_PROFILE = "release"
+        // CARGO_BUILD_PROFILE = "release"
     }
 }
 
