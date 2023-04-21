@@ -15,7 +15,7 @@ use lapce_rpc::{
 };
 
 use crate::{
-    debug::{RunDebugData, RunDebugMode, RunDebugProcess},
+    debug::{DapData, RunDebugData, RunDebugMode, RunDebugProcess},
     id::TerminalTabId,
     keypress::{KeyPressData, KeyPressFocus},
     panel::kind::PanelKind,
@@ -452,6 +452,16 @@ impl TerminalPanelData {
         }
     }
 
+    pub fn dap_continued(&self, dap_id: &DapId) {
+        let dap = self
+            .debug
+            .daps
+            .with_untracked(|daps| daps.get(dap_id).cloned());
+        if let Some(dap) = dap {
+            dap.stopped.set(false);
+        }
+    }
+
     pub fn dap_stopped(
         &self,
         dap_id: &DapId,
@@ -463,8 +473,22 @@ impl TerminalPanelData {
             .daps
             .with_untracked(|daps| daps.get(dap_id).cloned());
         if let Some(dap) = dap {
-            dap.stopped(stopped, stack_frames);
+            dap.stopped(self.cx, stopped, stack_frames);
         }
+    }
+
+    pub fn dap_continue(&self, term_id: TermId) -> Option<()> {
+        let terminal = self.get_terminal(&term_id)?;
+        let dap_id = terminal
+            .run_debug
+            .with_untracked(|r| r.as_ref().map(|r| r.config.dap_id))?;
+        let thread_id = self.debug.daps.with_untracked(|daps| {
+            daps.get(&dap_id)
+                .and_then(|dap| dap.thread_id.get_untracked())
+        });
+        let thread_id = thread_id.unwrap_or_default();
+        self.common.proxy.dap_continue(dap_id, thread_id);
+        Some(())
     }
 
     pub fn dap_pause(&self, term_id: TermId) -> Option<()> {
@@ -480,5 +504,35 @@ impl TerminalPanelData {
         println!("dap pause {thread_id:?}");
         self.common.proxy.dap_pause(dap_id, thread_id);
         Some(())
+    }
+
+    pub fn get_active_dap(&self, tracked: bool) -> Option<DapData> {
+        let active_term = if tracked {
+            self.debug.active_term.get()?
+        } else {
+            self.debug.active_term.get_untracked()?
+        };
+        self.get_dap(active_term, tracked)
+    }
+
+    pub fn get_dap(&self, term_id: TermId, tracked: bool) -> Option<DapData> {
+        let terminal = self.get_terminal(&term_id)?;
+        let dap_id = if tracked {
+            terminal
+                .run_debug
+                .with(|r| r.as_ref().map(|r| r.config.dap_id))?
+        } else {
+            terminal
+                .run_debug
+                .with_untracked(|r| r.as_ref().map(|r| r.config.dap_id))?
+        };
+
+        if tracked {
+            self.debug.daps.with(|daps| daps.get(&dap_id).cloned())
+        } else {
+            self.debug
+                .daps
+                .with_untracked(|daps| daps.get(&dap_id).cloned())
+        }
     }
 }

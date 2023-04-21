@@ -710,6 +710,9 @@ impl WindowTabData {
             } => {
                 self.terminal.dap_stopped(dap_id, stopped, stack_frames);
             }
+            CoreNotification::DapContinued { dap_id } => {
+                self.terminal.dap_continued(dap_id);
+            }
             _ => {}
         }
     }

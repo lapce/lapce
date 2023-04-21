@@ -24,15 +24,26 @@ fn left(
     source_control: RwSignal<SourceControlData>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let branch =
-        move || source_control.with(|source_control| source_control.branch.clone());
+    let branch = move || {
+        source_control.with(|source_control| {
+            format!(
+                "{}{}",
+                source_control.branch,
+                if source_control.file_diffs.is_empty() {
+                    ""
+                } else {
+                    "*"
+                }
+            )
+        })
+    };
     stack(cx, move |cx| {
         (
             container(cx, move |cx| {
                 svg(cx, move || config.get().ui_svg(LapceIcons::REMOTE)).style(
                     cx,
                     move || {
-                        Style::default().dimension_pt(26.0, 26.0).color(
+                        Style::default().dimension_px(26.0, 26.0).color(
                             *config.get().get_color(LapceColor::LAPCE_REMOTE_ICON),
                         )
                     },
@@ -55,7 +66,7 @@ fn left(
                             let config = config.get();
                             let icon_size = config.ui.icon_size() as f32;
                             Style::default()
-                                .dimension_pt(icon_size, icon_size)
+                                .dimension_px(icon_size, icon_size)
                                 .color(
                                     *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                                 )
@@ -134,7 +145,7 @@ fn middle(
                                     let config = config.get();
                                     let icon_size = config.ui.icon_size() as f32;
                                     Style::default()
-                                        .dimension_pt(icon_size, icon_size)
+                                        .dimension_px(icon_size, icon_size)
                                         .color(*config.get_color(
                                             LapceColor::LAPCE_ICON_ACTIVE,
                                         ))
@@ -164,7 +175,7 @@ fn middle(
                                             let icon_size =
                                                 config.ui.icon_size() as f32;
                                             Style::default()
-                                                .dimension_pt(icon_size, icon_size)
+                                                .dimension_px(icon_size, icon_size)
                                                 .color(*config.get_color(
                                                     LapceColor::LAPCE_ICON_ACTIVE,
                                                 ))
@@ -195,9 +206,9 @@ fn middle(
                 Style::default()
                     .flex_basis(Dimension::Points(0.0))
                     .flex_grow(10.0)
-                    .min_width_pt(200.0)
-                    .max_width_pt(500.0)
-                    .height_pt(26.0)
+                    .min_width_px(200.0)
+                    .max_width_px(500.0)
+                    .height_px(26.0)
                     .justify_content(Some(JustifyContent::Center))
                     .align_items(Some(AlignItems::Center))
                     .border(1.0)
@@ -266,7 +277,7 @@ pub fn title(
         let config = config.get();
         Style::default()
             .width_pct(1.0)
-            .height_pt(37.0)
+            .height_px(37.0)
             .items_center()
             .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             .border_bottom(1.0)

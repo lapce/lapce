@@ -13,7 +13,6 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use lapce_rpc::{
-    core::CoreRpcHandler,
     dap_types::{
         self, ConfigurationDone, Continue, ContinueArguments, ContinueResponse,
         DapEvent, DapId, DapPayload, DapRequest, DapResponse, DapServer,
@@ -28,7 +27,6 @@ use lapce_rpc::{
     RpcError,
 };
 use parking_lot::Mutex;
-use serde::Serialize;
 use serde_json::Value;
 
 use super::{
@@ -230,11 +228,11 @@ impl DapClient {
             }
             DapEvent::Stopped(stopped) => {
                 // println!("stopped {stopped:?}");
-                if stopped.reason == "entry" || stopped.reason == "exception" {
-                    self.dap_rpc
-                        .continue_thread(stopped.thread_id.unwrap_or_default());
-                    return Ok(());
-                }
+                // if stopped.reason == "exception" {
+                //     self.dap_rpc
+                //         .continue_thread(stopped.thread_id.unwrap_or_default());
+                //     return Ok(());
+                // }
                 let all_threads_stopped =
                     stopped.all_threads_stopped.unwrap_or_default();
                 let mut stack_frames = HashMap::new();

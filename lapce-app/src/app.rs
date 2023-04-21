@@ -1,6 +1,5 @@
 use std::{
     ops::Range,
-    path::PathBuf,
     sync::{atomic::AtomicU64, Arc},
 };
 
@@ -33,14 +32,17 @@ use lapce_core::{
     mode::{Mode, VisualMode},
     selection::Selection,
 };
-use lapce_rpc::terminal::TermId;
+use lapce_rpc::{
+    dap_types::{DapId, ThreadId},
+    terminal::TermId,
+};
 use lsp_types::{CompletionItemKind, DiagnosticSeverity};
 
 use crate::{
     code_action::CodeActionStatus,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     db::LapceDb,
-    debug::RunDebugMode,
+    debug::{RunDebugMode, StackTraceData},
     doc::{DocContent, DocLine, Document, LineExtraStyle},
     editor::EditorData,
     editor_tab::{EditorTabChild, EditorTabData},
@@ -324,7 +326,7 @@ fn editor_gutter(
             stack(cx, |cx| {
                 (
                     label(cx, || "".to_string())
-                        .style(cx, move || Style::default().width_pt(padding_left)),
+                        .style(cx, move || Style::default().width_px(padding_left)),
                     label(cx, move || {
                         editor
                             .get()
@@ -335,7 +337,7 @@ fn editor_gutter(
                         ..Default::default()
                     }),
                     label(cx, || "".to_string())
-                        .style(cx, move || Style::default().width_pt(padding_right)),
+                        .style(cx, move || Style::default().width_px(padding_right)),
                 )
             })
             .style(cx, || Style::default().height_pct(1.0)),
@@ -370,7 +372,7 @@ fn editor_gutter(
                         stack(cx, move |cx| {
                             (
                                 label(cx, || "".to_string()).style(cx, move || {
-                                    Style::default().width_pt(padding_left)
+                                    Style::default().width_px(padding_left)
                                 }),
                                 label(cx, move || line_number.to_string()).style(
                                     cx,
@@ -408,7 +410,7 @@ fn editor_gutter(
                                                     let size =
                                                         config.ui.icon_size() as f32;
                                                     Style::default()
-                                                        .dimension_pt(size, size)
+                                                        .dimension_px(size, size)
                                                         .color(*config.get_color(
                                                             LapceColor::LAPCE_WARN,
                                                         ))
@@ -441,7 +443,7 @@ fn editor_gutter(
                                                     JustifyContent::Center,
                                                 ))
                                                 .items_center()
-                                                .width_pt(
+                                                .width_px(
                                                     padding_right - padding_left,
                                                 )
                                         },
@@ -454,7 +456,7 @@ fn editor_gutter(
                                             .justify_content(Some(
                                                 JustifyContent::End,
                                             ))
-                                            .width_pt(padding_right)
+                                            .width_px(padding_right)
                                     },
                                 ),
                             )
@@ -464,7 +466,7 @@ fn editor_gutter(
                             let line_height = config.editor.line_height();
                             Style::default()
                                 .items_center()
-                                .height_pt(line_height as f32)
+                                .height_px(line_height as f32)
                         })
                     },
                     VirtualListItemSize::Fixed(
@@ -597,7 +599,7 @@ fn editor_cursor(
                     Style::default()
                         .absolute()
                         .width(width)
-                        .height_pt(line_height as f32)
+                        .height_px(line_height as f32)
                         .margin_left(margin_left)
                         .margin_top((line * line_height) as f32 - viewport.y0 as f32)
                         .background(background)
@@ -669,7 +671,7 @@ fn editor_breadcrumbs(
                                             } else {
                                                 Display::Flex
                                             })
-                                            .dimension_pt(size, size)
+                                            .dimension_px(size, size)
                                             .color(*config.get_color(
                                                 LapceColor::LAPCE_ICON_ACTIVE,
                                             ))
@@ -705,7 +707,7 @@ fn editor_breadcrumbs(
         let line_height = config.editor.line_height();
         Style::default()
             .items_center()
-            .height_pt(line_height as f32)
+            .height_px(line_height as f32)
     })
 }
 
@@ -744,7 +746,7 @@ fn editor_extra_style(
                 let line_height = config.get().editor.line_height();
                 Style::default()
                     .position(Position::Absolute)
-                    .height_pt(line_height as f32)
+                    .height_px(line_height as f32)
                     .width(match extra.width {
                         Some(width) => Dimension::Points(width as f32),
                         None => Dimension::Percent(1.0),
@@ -799,7 +801,7 @@ fn editor_content(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
             let line_height = config.editor.line_height();
             Style::default()
                 .items_center()
-                .height_pt(line_height as f32)
+                .height_px(line_height as f32)
         })
     };
 
@@ -1054,7 +1056,7 @@ fn editor_tab_header(
                                 .style(cx, move || {
                                     let size = config.get().ui.icon_size() as f32;
                                     Style::default()
-                                        .dimension_pt(size, size)
+                                        .dimension_px(size, size)
                                         .apply_opt(
                                             info.with(|info| info.color),
                                             |s, c| s.color(c),
@@ -1082,7 +1084,7 @@ fn editor_tab_header(
                             .style(cx, move || {
                                 let config = config.get();
                                 let size = config.ui.icon_size() as f32;
-                                Style::default().dimension_pt(size, size).color(
+                                Style::default().dimension_px(size, size).color(
                                     *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                                 )
                             })
@@ -1201,7 +1203,7 @@ fn editor_tab_header(
                 Style::default()
                     .height_pct(1.0)
                     .flex_grow(1.0)
-                    .flex_basis_pt(0.0)
+                    .flex_basis_px(0.0)
             }),
             clickable_icon(
                 cx,
@@ -1218,7 +1220,7 @@ fn editor_tab_header(
     .style(cx, move || {
         let config = config.get();
         Style::default()
-            .height_pt(config.ui.header_height() as f32)
+            .height_px(config.ui.header_height() as f32)
             .items_center()
             .border_bottom(1.0)
             .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
@@ -1606,7 +1608,7 @@ fn terminal_tab_header(
                                             let config = config.get();
                                             let size = config.ui.icon_size() as f32;
                                             Style::default()
-                                                .dimension_pt(size, size)
+                                                .dimension_px(size, size)
                                                 .color(*config.get_color(
                                                     LapceColor::LAPCE_ICON_ACTIVE,
                                                 ))
@@ -1616,8 +1618,8 @@ fn terminal_tab_header(
                                 .style(cx, || Style::default().padding_horiz(10.0)),
                                 label(cx, title).style(cx, || {
                                     Style::default()
-                                        .min_width_pt(0.0)
-                                        .flex_basis_pt(0.0)
+                                        .min_width_px(0.0)
+                                        .flex_basis_px(0.0)
                                         .flex_grow(1.0)
                                 }),
                                 clickable_icon(
@@ -1633,7 +1635,7 @@ fn terminal_tab_header(
                         .style(cx, move || {
                             Style::default()
                                 .items_center()
-                                .width_pt(200.0)
+                                .width_px(200.0)
                                 .border_right(1.0)
                                 .border_color(
                                     *config
@@ -1676,7 +1678,7 @@ fn terminal_tab_header(
     .style(cx, move || {
         let config = config.get();
         Style::default()
-            .height_pt(config.ui.header_height() as f32)
+            .height_px(config.ui.header_height() as f32)
             .width_pct(1.0)
             .border_bottom(1.0)
             .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
@@ -1699,7 +1701,7 @@ pub fn clickable_icon(
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
                         Style::default()
-                            .dimension_pt(size, size)
+                            .dimension_px(size, size)
                             .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
                     })
                     .disabled(cx, disabled_fn)
@@ -1841,10 +1843,18 @@ fn debug_process_icons(
     cx: AppContext,
     terminal: TerminalPanelData,
     term_id: TermId,
+    dap_id: DapId,
     mode: RunDebugMode,
     stopped: bool,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
+    let paused = move || {
+        let stopped = terminal
+            .debug
+            .daps
+            .with_untracked(|daps| daps.get(&dap_id).map(|dap| dap.stopped));
+        stopped.map(|stopped| stopped.get()).unwrap_or(false)
+    };
     match mode {
         RunDebugMode::Run => container_box(cx, |cx| {
             Box::new(stack(cx, |cx| {
@@ -1899,12 +1909,13 @@ fn debug_process_icons(
                         clickable_icon(
                             cx,
                             LapceIcons::DEBUG_CONTINUE,
-                            || {},
-                            || false,
+                            move || {
+                                terminal.dap_continue(term_id);
+                            },
+                            move || !paused() || stopped,
                             config,
                         )
                         .style(cx, || Style::BASE.margin_horiz(6.0))
-                        .disabled(cx, move || !stopped)
                     },
                     {
                         let terminal = terminal.clone();
@@ -1914,7 +1925,7 @@ fn debug_process_icons(
                             move || {
                                 terminal.dap_pause(term_id);
                             },
-                            || false,
+                            move || paused() || stopped,
                             config,
                         )
                         .style(cx, || Style::default().margin_right(6.0))
@@ -1964,6 +1975,155 @@ fn debug_process_icons(
     }
 }
 
+fn debug_processes(
+    cx: AppContext,
+    terminal: TerminalPanelData,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    scroll(cx, move |cx| {
+        let terminal = terminal.clone();
+        let local_terminal = terminal.clone();
+        list(
+            cx,
+            move || local_terminal.run_debug_process(true),
+            |(term_id, p)| (*term_id, p.stopped),
+            move |cx, (term_id, p)| {
+                let terminal = terminal.clone();
+                stack(cx, move |cx| {
+                    (
+                        {
+                            let svg_str = match (&p.mode, p.stopped) {
+                                (RunDebugMode::Run, false) => LapceIcons::START,
+                                (RunDebugMode::Run, true) => LapceIcons::RUN_ERRORS,
+                                (RunDebugMode::Debug, false) => LapceIcons::DEBUG,
+                                (RunDebugMode::Debug, true) => {
+                                    LapceIcons::DEBUG_DISCONNECT
+                                }
+                            };
+                            svg(cx, move || config.get().ui_svg(svg_str)).style(
+                                cx,
+                                move || {
+                                    let config = config.get();
+                                    let size = config.ui.icon_size() as f32;
+                                    Style::default()
+                                        .dimension_px(size, size)
+                                        .margin_horiz(10.0)
+                                        .color(*config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ))
+                                },
+                            )
+                        },
+                        label(cx, move || p.config.name.clone()).style(cx, || {
+                            Style::default()
+                                .flex_grow(1.0)
+                                .flex_basis_px(0.0)
+                                .min_width_px(0.0)
+                        }),
+                        debug_process_icons(
+                            cx,
+                            terminal.clone(),
+                            term_id,
+                            p.config.dap_id,
+                            p.mode,
+                            p.stopped,
+                            config,
+                        ),
+                    )
+                })
+                .style(cx, || {
+                    Style::default()
+                        .padding_vert(6.0)
+                        .width_pct(1.0)
+                        .items_center()
+                })
+            },
+        )
+        .style(cx, || Style::default().width_pct(1.0).flex_col())
+    })
+}
+
+fn debug_stack_traces(
+    cx: AppContext,
+    thread_id: ThreadId,
+    stack_trace: StackTraceData,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    stack(cx, move |cx| {
+        (
+            label(cx, move || thread_id.to_string()),
+            list(
+                cx,
+                move || {
+                    let expanded = stack_trace.expanded.get();
+                    if expanded {
+                        stack_trace.frames.get()
+                    } else {
+                        im::Vector::new()
+                    }
+                },
+                |frame| frame.id,
+                |cx, frame| label(cx, move || frame.name.clone()),
+            )
+            .style(cx, || {
+                Style::BASE.flex_col().margin_left(20.0).margin_right(10.0)
+            }),
+        )
+    })
+    .style(cx, || Style::BASE.flex_col().margin_horiz(10.0))
+}
+
+fn debug_stack_frames(
+    cx: AppContext,
+    terminal: TerminalPanelData,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    container(cx, move |cx| {
+        scroll(cx, move |cx| {
+            let local_terminal = terminal.clone();
+            list(
+                cx,
+                move || {
+                    let dap = local_terminal.get_active_dap(true);
+                    println!(
+                        "getting active dap is {:?}",
+                        dap.as_ref().map(|dap| dap.dap_id)
+                    );
+                    if let Some(dap) = dap {
+                        println!("dap is some");
+                        let stack_frames = dap.stack_frames.get();
+                        println!("stack frames len {}", stack_frames.len());
+                        stack_frames
+                            .into_iter()
+                            .map(|(thread_id, stack_trace)| {
+                                (dap.dap_id, thread_id, stack_trace)
+                            })
+                            .collect::<Vec<_>>()
+                    } else {
+                        println!("dap is not there");
+                        Vec::new()
+                    }
+                },
+                |(dap_id, thread_id, _)| (*dap_id, *thread_id),
+                move |cx, (_, thread_id, stack_trace)| {
+                    debug_stack_traces(cx, thread_id, stack_trace, config)
+                },
+            )
+            .style(cx, || Style::BASE.flex_col())
+        })
+        .scroll_bar_color(cx, move || {
+            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
+        })
+        .style(cx, || Style::default().absolute().dimension_pct(1.0, 1.0))
+    })
+    .style(cx, || {
+        Style::default()
+            .width_pct(1.0)
+            .flex_grow(1.0)
+            .flex_basis_px(0.0)
+    })
+}
+
 fn debug_panel(
     cx: AppContext,
     window_tab_data: Arc<WindowTabData>,
@@ -1973,80 +2133,33 @@ fn debug_panel(
     let terminal = window_tab_data.terminal.clone();
 
     stack(cx, move |cx| {
-        (stack(cx, move |cx| {
-            (
-                panel_header(cx, "Processes".to_string(), config),
-                scroll(cx, move |cx| {
-                    let terminal = terminal.clone();
-                    let local_terminal = terminal.clone();
-                    list(
-                        cx,
-                        move || local_terminal.run_debug_process(true),
-                        |(term_id, p)| (*term_id, p.stopped),
-                        move |cx, (term_id, p)| {
-                            let terminal = terminal.clone();
-                            stack(cx, move |cx| {
-                                (
-                                    {
-                                        let svg_str = match (&p.mode, p.stopped) {
-                                            (RunDebugMode::Run, false) => {
-                                                LapceIcons::START
-                                            }
-                                            (RunDebugMode::Run, true) => {
-                                                LapceIcons::RUN_ERRORS
-                                            }
-                                            (RunDebugMode::Debug, false) => {
-                                                LapceIcons::DEBUG
-                                            }
-                                            (RunDebugMode::Debug, true) => {
-                                                LapceIcons::DEBUG_DISCONNECT
-                                            }
-                                        };
-                                        svg(cx, move || config.get().ui_svg(svg_str))
-                                            .style(cx, move || {
-                                                let config = config.get();
-                                                let size =
-                                                    config.ui.icon_size() as f32;
-                                                Style::default()
-                                                .dimension_pt(size, size)
-                                                .margin_horiz(10.0)
-                                                .color(*config.get_color(
-                                                    LapceColor::LAPCE_ICON_ACTIVE,
-                                                ))
-                                            })
-                                    },
-                                    label(cx, move || p.config.name.clone()).style(
-                                        cx,
-                                        || {
-                                            Style::default()
-                                                .flex_grow(1.0)
-                                                .flex_basis_pt(0.0)
-                                                .min_width_pt(0.0)
-                                        },
-                                    ),
-                                    debug_process_icons(
-                                        cx,
-                                        terminal.clone(),
-                                        term_id,
-                                        p.mode,
-                                        p.stopped,
-                                        config,
-                                    ),
-                                )
-                            })
-                            .style(cx, || {
-                                Style::default()
-                                    .padding_vert(6.0)
-                                    .width_pct(1.0)
-                                    .items_center()
-                            })
-                        },
+        (
+            {
+                let terminal = terminal.clone();
+                stack(cx, move |cx| {
+                    (
+                        panel_header(cx, "Processes".to_string(), config),
+                        debug_processes(cx, terminal, config),
                     )
-                    .style(cx, || Style::default().width_pct(1.0).flex_col())
-                }),
-            )
-        })
-        .style(cx, || Style::default().width_pct(1.0).flex_col()),)
+                })
+                .style(cx, || {
+                    Style::default().width_pct(1.0).flex_col().height_px(200.0)
+                })
+            },
+            stack(cx, move |cx| {
+                (
+                    panel_header(cx, "Stack Frames".to_string(), config),
+                    debug_stack_frames(cx, terminal, config),
+                )
+            })
+            .style(cx, || {
+                Style::default()
+                    .width_pct(1.0)
+                    .flex_grow(1.0)
+                    .flex_basis_px(0.0)
+                    .flex_col()
+            }),
+        )
     })
     .style(cx, move || {
         Style::default()
@@ -2140,18 +2253,18 @@ fn panel_container_view(
             .apply_if(position == PanelContainerPosition::Bottom, |s| {
                 s.border_top(1.0)
                     .width_pct(1.0)
-                    .apply_if(!is_maximized, |s| s.height_pt(size as f32))
+                    .apply_if(!is_maximized, |s| s.height_px(size as f32))
                     .apply_if(is_maximized, |s| s.flex_grow(1.0))
             })
             .apply_if(position == PanelContainerPosition::Left, |s| {
                 s.border_right(1.0)
-                    .width_pt(size as f32)
+                    .width_px(size as f32)
                     .height_pct(1.0)
                     .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             })
             .apply_if(position == PanelContainerPosition::Right, |s| {
                 s.border_left(1.0)
-                    .width_pt(size as f32)
+                    .width_px(size as f32)
                     .height_pct(1.0)
                     .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             })
@@ -2186,7 +2299,7 @@ fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
                     .padding(20.0)
                     .border_left(1.0)
                     .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-                    .min_width_pt(0.0)
+                    .min_width_px(0.0)
                     .display(Display::None)
                     .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             }),
@@ -2269,7 +2382,7 @@ fn status(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
                     let config = config.get();
                     let size = config.ui.icon_size() as f32;
                     Style::default()
-                        .dimension_pt(size, size)
+                        .dimension_px(size, size)
                         .margin_left(10.0)
                         .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
                 },
@@ -2282,7 +2395,7 @@ fn status(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
                     let config = config.get();
                     let size = config.ui.icon_size() as f32;
                     Style::default()
-                        .dimension_pt(size, size)
+                        .dimension_px(size, size)
                         .margin_left(5.0)
                         .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
                 },
@@ -2297,7 +2410,7 @@ fn status(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
             .border_top(1.0)
             .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
             .background(*config.get_color(LapceColor::STATUS_BACKGROUND))
-            .height_pt(config.ui.status_height() as f32)
+            .height_px(config.ui.status_height() as f32)
             .align_items(Some(AlignItems::Center))
     })
 }
@@ -2363,8 +2476,8 @@ fn palette_item(
                                     let color =
                                         config.file_svg(&style_path).1.copied();
                                     Style::default()
-                                        .min_width_pt(size)
-                                        .dimension_pt(size, size)
+                                        .min_width_px(size)
+                                        .dimension_px(size, size)
                                         .margin_right(5.0)
                                         .apply_opt(color, Style::color)
                                 },
@@ -2395,7 +2508,7 @@ fn palette_item(
                                             .get()
                                             .get_color(LapceColor::EDITOR_DIM),
                                     )
-                                    .min_width_pt(0.0)
+                                    .min_width_px(0.0)
                             }),
                         )
                     })
@@ -2454,8 +2567,8 @@ fn palette_item(
                                 let config = config.get();
                                 let size = config.ui.icon_size() as f32;
                                 Style::default()
-                                    .min_width_pt(size)
-                                    .dimension_pt(size, size)
+                                    .min_width_px(size)
+                                    .dimension_px(size, size)
                                     .margin_right(5.0)
                                     .color(
                                         *config.get_color(
@@ -2489,7 +2602,7 @@ fn palette_item(
                                             .get()
                                             .get_color(LapceColor::EDITOR_DIM),
                                     )
-                                    .min_width_pt(0.0)
+                                    .min_width_px(0.0)
                             }),
                         )
                     })
@@ -2559,8 +2672,8 @@ fn palette_item(
                                 let config = config.get();
                                 let size = config.ui.icon_size() as f32;
                                 Style::default()
-                                    .min_width_pt(size)
-                                    .dimension_pt(size, size)
+                                    .min_width_px(size)
+                                    .dimension_px(size, size)
                                     .margin_right(5.0)
                                     .color(
                                         *config.get_color(
@@ -2594,7 +2707,7 @@ fn palette_item(
                                             .get()
                                             .get_color(LapceColor::EDITOR_DIM),
                                     )
-                                    .min_width_pt(0.0)
+                                    .min_width_px(0.0)
                             }),
                         )
                     })
@@ -2657,8 +2770,8 @@ fn palette_item(
                                 let config = config.get();
                                 let size = config.ui.icon_size() as f32;
                                 Style::default()
-                                    .min_width_pt(size)
-                                    .dimension_pt(size, size)
+                                    .min_width_px(size)
+                                    .dimension_px(size, size)
                                     .margin_right(5.0)
                                     .color(
                                         *config.get_color(
@@ -2692,7 +2805,7 @@ fn palette_item(
                                             .get()
                                             .get_color(LapceColor::EDITOR_DIM),
                                     )
-                                    .min_width_pt(0.0)
+                                    .min_width_px(0.0)
                             }),
                         )
                     })
@@ -2729,7 +2842,7 @@ fn palette_item(
     .style(cx, move || {
         Style::default()
             .width_pct(1.0)
-            .height_pt(palette_item_height as f32)
+            .height_px(palette_item_height as f32)
             .padding_horiz(10.0)
             .apply_if(index.get() == i, |style| {
                 style.background(
@@ -2775,7 +2888,7 @@ fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl Vi
                         label(cx, move || "".to_string()).style(cx, move || {
                             Style::default()
                                 .position(Position::Absolute)
-                                .width_pt(2.0)
+                                .width_px(2.0)
                                 .height_pct(1.0)
                                 .margin_left(cursor_x.get() - 0.5)
                                 .background(
@@ -2797,8 +2910,8 @@ fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl Vi
             })
             .style(cx, || {
                 Style::default()
-                    .min_width_pt(0.0)
-                    .height_pt(24.0)
+                    .min_width_px(0.0)
+                    .height_px(24.0)
                     .items_center()
             })
         })
@@ -2806,7 +2919,7 @@ fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl Vi
             let config = config.get();
             Style::default()
                 .width_pct(1.0)
-                .min_width_pt(0.0)
+                .min_width_px(0.0)
                 .border_bottom(1.0)
                 .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                 .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
@@ -2906,7 +3019,7 @@ fn palette_content(
                     Point::new(0.0, index.get() as f64 * palette_item_height),
                 )
             })
-            .style(cx, || Style::default().width_pct(1.0).min_height_pt(0.0)),
+            .style(cx, || Style::default().width_pct(1.0).min_height_px(0.0)),
             label(cx, || "No matching results".to_string()).style(cx, move || {
                 Style::default()
                     .display(if items.with(|items| items.is_empty()) {
@@ -2916,7 +3029,7 @@ fn palette_content(
                     })
                     .padding_horiz(10.0)
                     .align_items(Some(AlignItems::Center))
-                    .height_pt(palette_item_height as f32)
+                    .height_px(palette_item_height as f32)
             }),
         )
     })
@@ -2924,8 +3037,8 @@ fn palette_content(
         Style::default()
             .flex_col()
             .width_pct(1.0)
-            .min_height_pt(0.0)
-            .max_height_pt((layout_rect.get().height() * 0.45 - 36.0).round() as f32)
+            .min_height_px(0.0)
+            .max_height_px((layout_rect.get().height() * 0.45 - 36.0).round() as f32)
             .padding_bottom(5.0)
             .padding_bottom(5.0)
     })
@@ -2978,7 +3091,7 @@ fn palette(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
         .style(cx, move || {
             let config = config.get();
             Style::default()
-                .width_pt(500.0)
+                .width_px(500.0)
                 .max_width_pct(0.9)
                 .max_height(if has_preview.get() {
                     Dimension::Auto
@@ -3085,7 +3198,7 @@ fn completion(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
                         .style(cx, move || {
                             let config = config.get();
                             Style::default()
-                                .width_pt(config.editor.line_height() as f32)
+                                .width_px(config.editor.line_height() as f32)
                                 .height_pct(1.0)
                                 .align_items(Some(AlignItems::Center))
                                 .font_weight(Weight::BOLD)
@@ -3125,7 +3238,7 @@ fn completion(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
                     Style::default()
                         .align_items(Some(AlignItems::Center))
                         .width_pct(1.0)
-                        .height_pt(config.get().editor.line_height() as f32)
+                        .height_px(config.get().editor.line_height() as f32)
                 })
             },
             VirtualListItemSize::Fixed(config.get().editor.line_height() as f64),
@@ -3160,8 +3273,8 @@ fn completion(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
         let origin = window_tab_data.completion_origin();
         Style::default()
             .position(Position::Absolute)
-            .width_pt(400.0)
-            .max_height_pt(400.0)
+            .width_px(400.0)
+            .max_height_px(400.0)
             .margin_left(origin.x as f32)
             .margin_top(origin.y as f32)
             .background(*config.get_color(LapceColor::COMPLETION_BACKGROUND))
@@ -3201,9 +3314,9 @@ fn code_action(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View
                     Style::default()
                         .padding_horiz(10.0)
                         .align_items(Some(AlignItems::Center))
-                        .min_width_pt(0.0)
+                        .min_width_px(0.0)
                         .width_pct(1.0)
-                        .height_pt(config.editor.line_height() as f32)
+                        .height_px(config.editor.line_height() as f32)
                         .apply_if(active.get() == i, |s| {
                             s.background(
                                 *config.get_color(LapceColor::COMPLETION_CURRENT),
@@ -3240,8 +3353,8 @@ fn code_action(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View
                 CodeActionStatus::Active => Display::Flex,
             })
             .position(Position::Absolute)
-            .width_pt(400.0)
-            .max_height_pt(400.0)
+            .width_px(400.0)
+            .max_height_px(400.0)
             .margin_left(origin.x as f32)
             .margin_top(origin.y as f32)
             .background(*config.get().get_color(LapceColor::COMPLETION_BACKGROUND))

@@ -110,8 +110,8 @@ impl RunDebugData {
 
 #[derive(Clone, PartialEq)]
 pub struct StackTraceData {
-    pub expanded: bool,
-    pub frames: Vec<StackFrame>,
+    pub expanded: RwSignal<bool>,
+    pub frames: RwSignal<im::Vector<StackFrame>>,
     pub frames_shown: usize,
 }
 
@@ -150,30 +150,31 @@ impl DapData {
 
     pub fn stopped(
         &self,
+        cx: Scope,
         stopped: &Stopped,
         stack_frames: &HashMap<ThreadId, Vec<StackFrame>>,
     ) {
         self.stopped.set(true);
         self.thread_id.update(|thread_id| {
-            if thread_id.is_none() {
-                *thread_id = Some(stopped.thread_id.unwrap_or_default());
-            }
+            *thread_id = Some(stopped.thread_id.unwrap_or_default());
         });
 
         let main_thread_id = self.thread_id.get_untracked();
         self.stack_frames.update(|current_stack_frames| {
+            current_stack_frames.retain(|t, _| stack_frames.contains_key(t));
             for (thread_id, frames) in stack_frames {
-                let main_thread_expanded =
-                    main_thread_id.as_ref() == Some(thread_id);
+                let is_main_thread = main_thread_id.as_ref() == Some(thread_id);
                 if let Some(current) = current_stack_frames.get_mut(thread_id) {
-                    current.frames = frames.to_owned();
-                    current.expanded |= main_thread_expanded;
+                    current.frames.set(frames.into());
+                    if is_main_thread {
+                        current.expanded.set(true);
+                    }
                 } else {
                     current_stack_frames.insert(
                         *thread_id,
                         StackTraceData {
-                            expanded: main_thread_expanded,
-                            frames: frames.to_owned(),
+                            expanded: create_rw_signal(cx, is_main_thread),
+                            frames: create_rw_signal(cx, frames.into()),
                             frames_shown: 20,
                         },
                     );
