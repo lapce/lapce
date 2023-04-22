@@ -150,7 +150,7 @@ impl BracketParser {
             ]),
             bracket_pos: HashMap::new(),
             mode: BracketParserMode::Parsing,
-            noparsing_token: vec!['\'', '"'],
+            noparsing_token: vec!['\'', '"', '`'],
             active,
         }
     }
@@ -194,7 +194,6 @@ impl BracketParser {
                 self.code = code.chars().collect();
                 self.cur = 0;
                 self.parse();
-
                 let mut pos_vec = vec![];
                 Self::highlight_pos(
                     &self.ast,
@@ -270,9 +269,14 @@ impl BracketParser {
                     parent_node.children.push(pair_node.clone());
                     counter = 0;
                 } else if level <= parent_node.level {
+                    let code_node = ASTNode::new_with_type(NodeType::Code, counter);
                     let right_node =
                         self.bracket_set.get(&self.code[self.cur]).unwrap().clone();
+                    parent_node.children.push(code_node);
                     parent_node.children.push(right_node);
+                    let parent_len = parent_node.len;
+                    parent_node.len = parent_len + counter + 1;
+                    counter = 0;
                     self.cur += 1;
                 } else {
                     let code_node = ASTNode::new_with_type(NodeType::Code, counter);
@@ -286,7 +290,7 @@ impl BracketParser {
                     return;
                 }
             } else {
-                counter += 1;
+                counter += self.code[self.cur].len_utf8();
                 self.cur += 1;
             }
         }

@@ -1850,23 +1850,27 @@ pub(crate) fn walk_tree_bracket_ast(
     bracket_pos: &mut HashMap<usize, Vec<LineStyle>>,
     palette: &Vec<String>,
 ) {
-    if cursor.node().kind() == "("
-        || cursor.node().kind() == "{"
-        || cursor.node().kind() == "["
+    if cursor.node().kind().ends_with('(')
+        || cursor.node().kind().ends_with('{')
+        || cursor.node().kind().ends_with('[')
     {
-        let start_pos = cursor.node().start_position();
+        let row = cursor.node().end_position().row;
+        let col = cursor.node().end_position().column - 1;
+        let start_pos = Point::new(row, col);
         add_bracket_pos(
             bracket_pos,
             start_pos,
             palette.get(*level % palette.len()).unwrap().clone(),
         );
         *level += 1;
-    } else if cursor.node().kind() == ")"
-        || cursor.node().kind() == "}"
-        || cursor.node().kind() == "]"
+    } else if cursor.node().kind().ends_with(')')
+        || cursor.node().kind().ends_with('}')
+        || cursor.node().kind().ends_with(']')
     {
         let (new_level, overflow) = (*level).overflowing_sub(1);
-        let start_pos = cursor.node().start_position();
+        let row = cursor.node().end_position().row;
+        let col = cursor.node().end_position().column - 1;
+        let start_pos = Point::new(row, col);
         if overflow {
             add_bracket_pos(bracket_pos, start_pos, "bracket.unpaired".to_string());
         } else {
