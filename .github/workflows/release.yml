@@ -19,6 +19,7 @@ on:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   CARGO_TERM_COLOR: always
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
   tagname:
@@ -73,7 +74,7 @@ jobs:
         run: cargo build --frozen --profile release-lto
 
       - name: Install WiX
-        run: nuget install WiX
+        run: nuget install WiX -Version 3.11.2
 
       - name: Crate msi installer
         run: |

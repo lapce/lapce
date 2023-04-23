@@ -11,6 +11,10 @@ concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+
 jobs:
   build:
     name: Rust on ${{ matrix.os }} (${{ join(matrix.features, ',') }})
