@@ -36,6 +36,17 @@ impl PanelKind {
             PanelKind::Problem => LapceIcons::PROBLEM,
         }
     }
+
+    pub fn panel_name(&self) -> &'static str {
+        match &self {
+            PanelKind::FileExplorer => "File Explorer",
+            PanelKind::SourceControl => "Source Control",
+            PanelKind::Plugin => "Plugin",
+            PanelKind::Terminal => "Terminal",
+            PanelKind::Search => "Search",
+            PanelKind::Problem => "Problem",
+        }
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]

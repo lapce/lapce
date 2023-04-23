@@ -5,7 +5,7 @@ use druid::{
     piet::{Text, TextLayout, TextLayoutBuilder, TextStorage},
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
-    Widget, WidgetExt, WidgetId, WidgetPod,
+    Widget, WidgetExt, WidgetId, WidgetPod, MenuItem, Menu,
 };
 use lapce_data::{
     command::{
@@ -13,11 +13,11 @@ use lapce_data::{
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{LapceIcons, LapceTheme},
-    data::{DragContent, LapceTabData},
-    panel::{PanelContainerPosition, PanelKind, PanelPosition},
+    data::{DragContent, LapceTabData, LapceData},
+    panel::{PanelContainerPosition, PanelKind, PanelPosition}, list::ListData,
 };
 
-use crate::{scroll::LapceScroll, split::LapceSplit, tab::LapceIcon};
+use crate::{scroll::LapceScroll, split::LapceSplit, tab::LapceIcon, list::List};
 
 pub enum PanelSizing {
     Size(f64),
@@ -1015,6 +1015,27 @@ impl PanelSwitcher {
             .round()
     }
 
+    fn show_panel_actions(&self, ctx: &mut EventCtx, data: &LapceTabData, pos: Point) {
+        let mut menu = Menu::<LapceData>::new("Panel Actions");
+
+ 
+        menu = menu.entry( MenuItem::new("Panels").enabled(false));
+        if let Some(panels) = data.panel.order.get(&self.position) {
+            if panels.len() > 0 {
+                for panel in panels.iter() {
+                    let item = MenuItem::new(panel.panel_name());
+                    menu = menu.entry(item);
+                }
+                menu = menu.separator();
+            }
+        }
+        if let Some((p,_)) = data.panel.active_panel_at_position(&self.position) {
+            menu = menu.entry( MenuItem::new(format!("Sections of {}", p.panel_name())).enabled(false));
+        }
+         
+        ctx.show_context_menu::<LapceData>(menu, ctx.to_window(pos));
+    }
+
     fn update_icons(&mut self, self_size: Size, data: &LapceTabData) {
         let mut icons = Vec::new();
         if let Some(order) = data.panel.order.get(&self.position) {
@@ -1207,6 +1228,10 @@ impl Widget<LapceTabData> for PanelSwitcher {
                 }
                 self.clicked_icon = None;
                 self.clicked_maximise = false;
+
+                if mouse_event.button.is_right() {
+                    self.show_panel_actions(ctx, data, mouse_event.pos);
+                }
             }
             _ => (),
         }
