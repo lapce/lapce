@@ -54,6 +54,7 @@ pub struct PanelStyle {
     pub active: usize,
     pub shown: bool,
     pub maximized: bool,
+    pub panels: im::HashMap<PanelKind, bool>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -81,6 +82,7 @@ impl PanelData {
                 active: 0,
                 shown: true,
                 maximized: false,
+                panels: im::HashMap::new(),
             },
         );
         style.insert(
@@ -89,6 +91,7 @@ impl PanelData {
                 active: 0,
                 shown: false,
                 maximized: false,
+                panels: im::HashMap::new(),
             },
         );
         style.insert(
@@ -97,6 +100,7 @@ impl PanelData {
                 active: 0,
                 shown: true,
                 maximized: false,
+                panels: im::HashMap::new(),
             },
         );
         style.insert(
@@ -105,6 +109,7 @@ impl PanelData {
                 active: 0,
                 shown: false,
                 maximized: false,
+                panels: im::HashMap::new(),
             },
         );
         style.insert(
@@ -113,6 +118,7 @@ impl PanelData {
                 active: 0,
                 shown: false,
                 maximized: false,
+                panels: im::HashMap::new(),
             },
         );
         style.insert(
@@ -121,6 +127,7 @@ impl PanelData {
                 active: 0,
                 shown: false,
                 maximized: false,
+                panels: im::HashMap::new(),
             },
         );
 
@@ -334,6 +341,79 @@ impl PanelData {
             }
         }
         false
+    }
+
+    pub fn is_panel_hidden_in_container(&self, kind: &PanelKind) -> bool {
+        if let Some((_, position)) = self.panel_position(kind) {
+            if let Some(style) = self.style.get(&position) {
+                return *style.panels.get(kind).unwrap_or(&false);
+            }
+        }
+        false
+    }
+
+    pub fn toggle_panel_visual_in_container(&mut self, kind: &PanelKind) {
+        if let Some((_, pos)) = self.panel_position(kind) {
+            if let Some(style) = self.style.get_mut(&pos) {
+                if let Some(hidden) = style.panels.get_mut(kind) {
+                    *hidden = !*hidden;
+                } else {
+                    style.panels.insert(*kind, true);
+                }
+                if let Some(hidden) = style.panels.get(kind) {
+                    if *hidden {
+                        if let Some(panels) = self.order.get(&pos) {
+                            if let Some(index) =
+                                panels.iter().position(|k| k == kind)
+                            {
+                                if style.active == index {
+                                    for (i, p) in panels.iter().enumerate() {
+                                        if index == i {
+                                            continue;
+                                        }
+                                        let h =
+                                            style.panels.get(p).unwrap_or(&false);
+                                        if !h {
+                                            style.active = i;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn handle_move_panel(
+        &mut self,
+        kind: &PanelKind,
+        to_position: &PanelPosition,
+    ) {
+        let (_, from_position) = self.panel_position(kind).unwrap();
+
+        if let Some(order) = self.order.get_mut(&from_position) {
+            order.retain(|k| k != kind);
+        }
+
+        let order = self
+            .order
+            .entry(*to_position)
+            .or_insert_with(im::Vector::new);
+
+        order.push_back(*kind);
+
+        let style = self.style.entry(*to_position).or_insert(PanelStyle {
+            active: 0,
+            shown: true,
+            maximized: false,
+            panels: im::HashMap::new(),
+        });
+
+        style.active = order.len() - 1;
+        style.shown = true;
     }
 }
 

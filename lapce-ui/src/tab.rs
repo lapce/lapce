@@ -481,9 +481,6 @@ impl LapceTab {
                 }
 
                 let (_, from_position) = data.panel.panel_position(kind).unwrap();
-                if from_position == *p {
-                    return;
-                }
 
                 let panel = Arc::make_mut(&mut data.panel);
                 if let Some(order) = panel.order.get_mut(&from_position) {
@@ -498,6 +495,7 @@ impl LapceTab {
                     active: 0,
                     shown: true,
                     maximized: false,
+                    panels: im::HashMap::new(),
                 });
 
                 style.active = order.len() - 1;

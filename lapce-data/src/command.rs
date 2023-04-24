@@ -387,6 +387,27 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "toggle_panel_bottom_visual")]
     TogglePanelBottomVisual,
 
+    #[strum(serialize = "toggle_panel_visual_in_container")]
+    TogglePanelVisualInContainer,
+
+    #[strum(serialize = "move_panel_to_left_top")]
+    MovePanelToLeftTop,
+
+    #[strum(serialize = "move_panel_to_left_bottom")]
+    MovePanelToLeftBottom,
+
+    #[strum(serialize = "move_panel_to_right_top")]
+    MovePanelToRightTop,
+
+    #[strum(serialize = "move_panel_to_right_bottom")]
+    MovePanelToRightBottom,
+
+    #[strum(serialize = "move_panel_to_bottom_left")]
+    MovePanelToBottomLeft,
+
+    #[strum(serialize = "move_panel_to_bottom_right")]
+    MovePanelToBottomRight,
+
     // Focus toggle commands
     #[strum(message = "Toggle Terminal Focus")]
     #[strum(serialize = "toggle_terminal_focus")]

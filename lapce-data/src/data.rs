@@ -1680,6 +1680,54 @@ impl LapceTabData {
                     Arc::make_mut(&mut self.panel).toggle_active_maximize();
                 }
             }
+            LapceWorkbenchCommand::MovePanelToLeftTop => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        Arc::make_mut(&mut self.panel)
+                            .handle_move_panel(&kind, &PanelPosition::LeftTop);
+                    }
+                }
+            }
+            LapceWorkbenchCommand::MovePanelToLeftBottom => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        Arc::make_mut(&mut self.panel)
+                            .handle_move_panel(&kind, &PanelPosition::LeftBottom);
+                    }
+                }
+            }
+            LapceWorkbenchCommand::MovePanelToRightTop => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        Arc::make_mut(&mut self.panel)
+                            .handle_move_panel(&kind, &PanelPosition::RightTop);
+                    }
+                }
+            }
+            LapceWorkbenchCommand::MovePanelToRightBottom => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        Arc::make_mut(&mut self.panel)
+                            .handle_move_panel(&kind, &PanelPosition::RightBottom);
+                    }
+                }
+            }
+            LapceWorkbenchCommand::MovePanelToBottomLeft => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        Arc::make_mut(&mut self.panel)
+                            .handle_move_panel(&kind, &PanelPosition::BottomLeft);
+                    }
+                }
+            }
+            LapceWorkbenchCommand::MovePanelToBottomRight => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        Arc::make_mut(&mut self.panel)
+                            .handle_move_panel(&kind, &PanelPosition::BottomRight);
+                    }
+                }
+            }
             LapceWorkbenchCommand::FocusEditor => {
                 if let Some(active) = *self.main_split.active_tab {
                     ctx.submit_command(Command::new(
@@ -1730,6 +1778,13 @@ impl LapceTabData {
             }
             LapceWorkbenchCommand::TogglePanelBottomVisual => {
                 self.toggle_container_visual(ctx, &PanelContainerPosition::Bottom);
+            }
+            LapceWorkbenchCommand::TogglePanelVisualInContainer => {
+                if let Some(data) = data {
+                    if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
+                        self.toggle_panel_visual_in_container(ctx, kind);
+                    }
+                }
             }
             LapceWorkbenchCommand::ToggleSourceControlFocus => {
                 self.toggle_panel_focus(ctx, PanelKind::SourceControl);
@@ -2265,6 +2320,14 @@ impl LapceTabData {
         } else {
             self.show_panel(ctx, kind);
         }
+    }
+
+    fn toggle_panel_visual_in_container(
+        &mut self,
+        _ctx: &mut EventCtx,
+        kind: PanelKind,
+    ) {
+        Arc::make_mut(&mut self.panel).toggle_panel_visual_in_container(&kind);
     }
 
     fn toggle_panel_focus(&mut self, ctx: &mut EventCtx, kind: PanelKind) {

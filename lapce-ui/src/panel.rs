@@ -4,8 +4,8 @@ use druid::{
     kurbo::Line,
     piet::{Text, TextLayout, TextLayoutBuilder, TextStorage},
     BoxConstraints, Command, Cursor, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
-    Widget, WidgetExt, WidgetId, WidgetPod, MenuItem, Menu,
+    LifeCycleCtx, Menu, MenuItem, PaintCtx, Point, Rect, RenderContext, Size,
+    Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use lapce_data::{
     command::{
@@ -13,11 +13,11 @@ use lapce_data::{
         LAPCE_COMMAND, LAPCE_UI_COMMAND,
     },
     config::{LapceIcons, LapceTheme},
-    data::{DragContent, LapceTabData, LapceData},
-    panel::{PanelContainerPosition, PanelKind, PanelPosition}, list::ListData,
+    data::{DragContent, LapceData, LapceTabData},
+    panel::{PanelContainerPosition, PanelKind, PanelPosition},
 };
 
-use crate::{scroll::LapceScroll, split::LapceSplit, tab::LapceIcon, list::List};
+use crate::{scroll::LapceScroll, split::LapceSplit, tab::LapceIcon};
 
 pub enum PanelSizing {
     Size(f64),
@@ -888,7 +888,7 @@ impl Widget<LapceTabData> for PanelContainer {
         if let Some((panel, shown)) =
             data.panel.active_panel_at_position(&self.position.first())
         {
-            if shown {
+            if shown && !data.panel.is_panel_hidden_in_container(&panel) {
                 let panel = self.panels.get_mut(&panel).unwrap();
                 panel.paint(ctx, data, env);
             }
@@ -896,7 +896,7 @@ impl Widget<LapceTabData> for PanelContainer {
         if let Some((panel, shown)) =
             data.panel.active_panel_at_position(&self.position.second())
         {
-            if shown {
+            if shown && !data.panel.is_panel_hidden_in_container(&panel) {
                 let panel = self.panels.get_mut(&panel).unwrap();
                 panel.paint(ctx, data, env);
             }
@@ -962,7 +962,13 @@ impl Widget<LapceTabData> for PanelContainer {
         self.switcher0.paint(ctx, data, env);
         self.switcher1.paint(ctx, data, env);
 
-        if self.panels.is_empty() {
+        if self
+            .panels
+            .iter()
+            .filter(|(k, _)| !data.panel.is_panel_hidden_in_container(k))
+            .count()
+            == 0
+        {
             let text_layout = ctx
                 .text()
                 .new_text_layout("You can drag panel icon here")
@@ -1015,24 +1021,183 @@ impl PanelSwitcher {
             .round()
     }
 
-    fn show_panel_actions(&self, ctx: &mut EventCtx, data: &LapceTabData, pos: Point) {
+    fn show_panel_actions(
+        &self,
+        ctx: &mut EventCtx,
+        data: &LapceTabData,
+        pos: Point,
+    ) {
         let mut menu = Menu::<LapceData>::new("Panel Actions");
 
- 
-        menu = menu.entry( MenuItem::new("Panels").enabled(false));
         if let Some(panels) = data.panel.order.get(&self.position) {
-            if panels.len() > 0 {
+            if !panels.is_empty() {
                 for panel in panels.iter() {
-                    let item = MenuItem::new(panel.panel_name());
+                    let mut item = MenuItem::new(panel.panel_name());
+                    if let Some(style) = data.panel.style.get(&self.position) {
+                        let hidden = style.panels.get(panel).unwrap_or(&false);
+                        item = item.selected(!hidden);
+                    }
+                    item = item.command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::TogglePanelVisualInContainer,
+                            ),
+                            data: Some(serde_json::to_value(panel).unwrap()),
+                        },
+                        Target::Auto,
+                    ));
+
                     menu = menu.entry(item);
                 }
                 menu = menu.separator();
             }
         }
-        if let Some((p,_)) = data.panel.active_panel_at_position(&self.position) {
-            menu = menu.entry( MenuItem::new(format!("Sections of {}", p.panel_name())).enabled(false));
+
+        if let Some((panel, _)) = data.panel.active_panel_at_position(&self.position)
+        {
+            if let Some(style) = data.panel.style.get(&self.position) {
+                let maximize_title = if style.maximized {
+                    "Restore Panels"
+                } else {
+                    "Maximize Panels"
+                };
+                menu = menu.entry(
+                    MenuItem::new(maximize_title)
+                        .command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Workbench(
+                                    LapceWorkbenchCommand::ToggleMaximizedPanel,
+                                ),
+                                data: Some(
+                                    serde_json::to_value(self.position).unwrap(),
+                                ),
+                            },
+                            Target::Auto,
+                        ))
+                        .enabled(true),
+                );
+                let visual_title = if style.shown {
+                    "Hide Panels"
+                } else {
+                    "Show Panels"
+                };
+                menu = menu.entry(
+                    MenuItem::new(visual_title)
+                        .command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Workbench(
+                                    LapceWorkbenchCommand::TogglePanelVisual,
+                                ),
+                                data: Some(serde_json::to_value(panel).unwrap()),
+                            },
+                            Target::Widget(data.id),
+                        ))
+                        .enabled(true),
+                );
+            }
+
+            menu = menu.separator();
+
+            menu = menu.entry(
+                MenuItem::new(format!("Move '{}' to LeftTop", panel.panel_name()))
+                    .command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::MovePanelToLeftTop,
+                            ),
+                            data: Some(serde_json::to_value(panel).unwrap()),
+                        },
+                        Target::Auto,
+                    ))
+                    .enabled(self.position != PanelPosition::LeftTop),
+            );
+            menu = menu.entry(
+                MenuItem::new(format!(
+                    "Move '{}' to LeftBottom",
+                    panel.panel_name()
+                ))
+                .command(Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::MovePanelToLeftBottom,
+                        ),
+                        data: Some(serde_json::to_value(panel).unwrap()),
+                    },
+                    Target::Auto,
+                ))
+                .enabled(self.position != PanelPosition::LeftBottom),
+            );
+            menu = menu.entry(
+                MenuItem::new(format!("Move '{}' to RightTop", panel.panel_name()))
+                    .command(Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::MovePanelToRightTop,
+                            ),
+                            data: Some(serde_json::to_value(panel).unwrap()),
+                        },
+                        Target::Auto,
+                    ))
+                    .enabled(self.position != PanelPosition::RightTop),
+            );
+            menu = menu.entry(
+                MenuItem::new(format!(
+                    "Move '{}' to RightBottom",
+                    panel.panel_name()
+                ))
+                .command(Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::MovePanelToRightBottom,
+                        ),
+                        data: Some(serde_json::to_value(panel).unwrap()),
+                    },
+                    Target::Auto,
+                ))
+                .enabled(self.position != PanelPosition::RightBottom),
+            );
+            menu = menu.entry(
+                MenuItem::new(format!(
+                    "Move '{}' to BottomLeft",
+                    panel.panel_name()
+                ))
+                .command(Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::MovePanelToBottomLeft,
+                        ),
+                        data: Some(serde_json::to_value(panel).unwrap()),
+                    },
+                    Target::Auto,
+                ))
+                .enabled(self.position != PanelPosition::BottomLeft),
+            );
+            menu = menu.entry(
+                MenuItem::new(format!(
+                    "Move '{}' to BottomRight",
+                    panel.panel_name()
+                ))
+                .command(Command::new(
+                    LAPCE_COMMAND,
+                    LapceCommand {
+                        kind: CommandKind::Workbench(
+                            LapceWorkbenchCommand::MovePanelToBottomRight,
+                        ),
+                        data: Some(serde_json::to_value(panel).unwrap()),
+                    },
+                    Target::Auto,
+                ))
+                .enabled(self.position != PanelPosition::BottomRight),
+            );
         }
-         
         ctx.show_context_menu::<LapceData>(menu, ctx.to_window(pos));
     }
 
@@ -1040,6 +1205,13 @@ impl PanelSwitcher {
         let mut icons = Vec::new();
         if let Some(order) = data.panel.order.get(&self.position) {
             for kind in order.iter() {
+                if let Some(style) = data.panel.style.get(&self.position) {
+                    let hidden = style.panels.get(kind).unwrap_or(&false);
+                    if *hidden {
+                        continue;
+                    }
+                }
+
                 icons.push(Self::panel_icon(kind, data));
             }
         }
