@@ -894,7 +894,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.7.0"
-source = "git+https://github.com/lapce/cosmic-text?rev=8537081d1faafb01f0d1a5662f8cca3cca23efa2#8537081d1faafb01f0d1a5662f8cca3cca23efa2"
+source = "git+https://github.com/lapce/cosmic-text?rev=5344eab79a6f805a56e4fd3374edc695d9e73bdf#5344eab79a6f805a56e4fd3374edc695d9e73bdf"
 dependencies = [
  "fontdb 0.13.0",
  "libm",
@@ -7004,7 +7004,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.5"
-source = "git+https://github.com/lapce/vger-rs?rev=58e34b0ffdbd5ee7627943b93bf33deb5e6c94bc#58e34b0ffdbd5ee7627943b93bf33deb5e6c94bc"
+source = "git+https://github.com/lapce/vger-rs?rev=44803a328ef12983fb0df446cc901fff897df92d#44803a328ef12983fb0df446cc901fff897df92d"
 dependencies = [
  "cosmic-text",
  "euclid",

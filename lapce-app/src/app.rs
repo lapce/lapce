@@ -487,7 +487,7 @@ fn editor_gutter(
                         .padding_bottom(padding_bottom)
                 })
             })
-            .hide_bar()
+            .hide_bar(cx, || true)
             .on_event(EventListner::MouseWheel, move |event| {
                 if let Event::MouseWheel(wheel) = event {
                     scroll_delta.set(wheel.wheel_delta);
@@ -691,7 +691,7 @@ fn editor_breadcrumbs(
                 editor.with(|_editor| ());
                 Some(Point::new(3000.0, 0.0))
             })
-            .hide_bar()
+            .hide_bar(cx, || true)
             .style(cx, move || {
                 Style::default()
                     .position(Position::Absolute)
@@ -1191,7 +1191,7 @@ fn editor_tab_header(
                         Style::default().height_pct(1.0).items_center()
                     })
                 })
-                .hide_bar()
+                .hide_bar(cx, || true)
                 .style(cx, || {
                     Style::default()
                         .position(Position::Absolute)
@@ -2051,7 +2051,15 @@ fn debug_stack_traces(
 ) -> impl View {
     stack(cx, move |cx| {
         (
-            label(cx, move || thread_id.to_string()),
+            label(cx, move || thread_id.to_string())
+                .style(cx, || Style::BASE.min_width_pct(1.0))
+                .hover_style(cx, move || {
+                    Style::BASE.background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                }),
             list(
                 cx,
                 move || {
@@ -2063,7 +2071,17 @@ fn debug_stack_traces(
                     }
                 },
                 |frame| frame.id,
-                |cx, frame| label(cx, move || frame.name.clone()),
+                move |cx, frame| {
+                    label(cx, move || frame.name.clone())
+                        .style(cx, || Style::BASE.min_width_pct(1.0))
+                        .hover_style(cx, move || {
+                            Style::BASE.background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                        })
+                },
             )
             .style(cx, || {
                 Style::BASE.flex_col().margin_left(20.0).margin_right(10.0)
@@ -2119,6 +2137,7 @@ fn debug_stack_frames(
     .style(cx, || {
         Style::default()
             .width_pct(1.0)
+            .line_height(1.6)
             .flex_grow(1.0)
             .flex_basis_px(0.0)
     })
