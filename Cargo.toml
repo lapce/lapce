@@ -19,7 +19,14 @@ name = "lapce-proxy"
 path = "lapce-proxy/src/bin/lapce-proxy.rs"
 
 [workspace]
-members = ["lapce-app", "lapce-data", "lapce-ui", "lapce-proxy", "lapce-rpc", "lapce-core"]
+members = [
+  "lapce-app",
+  # "lapce-data",
+  # "lapce-ui",
+  "lapce-proxy",
+  "lapce-rpc",
+  "lapce-core",
+]
 
 [workspace.package]
 version = "0.2.6"
