@@ -175,7 +175,7 @@ impl TerminalPanelData {
         }
     }
 
-    fn get_terminal(&self, term_id: &TermId) -> Option<TerminalData> {
+    pub fn get_terminal(&self, term_id: &TermId) -> Option<TerminalData> {
         self.tab_info.with_untracked(|info| {
             for (_, tab) in &info.tabs {
                 let terminal = tab.terminals.with_untracked(|terminals| {

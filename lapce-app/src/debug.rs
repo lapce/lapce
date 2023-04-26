@@ -131,20 +131,20 @@ pub struct DapData {
     pub dap_id: DapId,
     pub stopped: RwSignal<bool>,
     pub thread_id: RwSignal<Option<ThreadId>>,
-    pub stack_frames: RwSignal<BTreeMap<ThreadId, StackTraceData>>,
+    pub stack_traces: RwSignal<BTreeMap<ThreadId, StackTraceData>>,
 }
 
 impl DapData {
     pub fn new(cx: AppContext, dap_id: DapId, term_id: TermId) -> Self {
         let stopped = create_rw_signal(cx.scope, false);
         let thread_id = create_rw_signal(cx.scope, None);
-        let stack_frames = create_rw_signal(cx.scope, BTreeMap::new());
+        let stack_traces = create_rw_signal(cx.scope, BTreeMap::new());
         Self {
             term_id,
             dap_id,
             stopped,
             thread_id,
-            stack_frames,
+            stack_traces,
         }
     }
 
@@ -152,7 +152,7 @@ impl DapData {
         &self,
         cx: Scope,
         stopped: &Stopped,
-        stack_frames: &HashMap<ThreadId, Vec<StackFrame>>,
+        stack_traces: &HashMap<ThreadId, Vec<StackFrame>>,
     ) {
         self.stopped.set(true);
         self.thread_id.update(|thread_id| {
@@ -160,17 +160,17 @@ impl DapData {
         });
 
         let main_thread_id = self.thread_id.get_untracked();
-        self.stack_frames.update(|current_stack_frames| {
-            current_stack_frames.retain(|t, _| stack_frames.contains_key(t));
-            for (thread_id, frames) in stack_frames {
+        self.stack_traces.update(|current_stack_traces| {
+            current_stack_traces.retain(|t, _| stack_traces.contains_key(t));
+            for (thread_id, frames) in stack_traces {
                 let is_main_thread = main_thread_id.as_ref() == Some(thread_id);
-                if let Some(current) = current_stack_frames.get_mut(thread_id) {
+                if let Some(current) = current_stack_traces.get_mut(thread_id) {
                     current.frames.set(frames.into());
                     if is_main_thread {
                         current.expanded.set(true);
                     }
                 } else {
-                    current_stack_frames.insert(
+                    current_stack_traces.insert(
                         *thread_id,
                         StackTraceData {
                             expanded: create_rw_signal(cx, is_main_thread),

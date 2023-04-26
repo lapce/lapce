@@ -40,11 +40,15 @@ use lsp_types::{CompletionItemKind, DiagnosticSeverity};
 
 use crate::{
     code_action::CodeActionStatus,
+    command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     db::LapceDb,
     debug::{RunDebugMode, StackTraceData},
     doc::{DocContent, DocLine, Document, LineExtraStyle},
-    editor::EditorData,
+    editor::{
+        location::{EditorLocation, EditorPosition},
+        EditorData,
+    },
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
@@ -2043,27 +2047,36 @@ fn debug_processes(
     })
 }
 
-fn debug_stack_traces(
+fn debug_stack_frames(
     cx: AppContext,
     thread_id: ThreadId,
     stack_trace: StackTraceData,
+    stopped: RwSignal<bool>,
+    internal_command: RwSignal<Option<InternalCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
+    let expanded = stack_trace.expanded;
     stack(cx, move |cx| {
         (
-            label(cx, move || thread_id.to_string())
-                .style(cx, || Style::BASE.min_width_pct(1.0))
-                .hover_style(cx, move || {
-                    Style::BASE.background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
-                }),
+            click(
+                cx,
+                |cx| label(cx, move || thread_id.to_string()),
+                move || {
+                    expanded.update(|expanded| {
+                        *expanded = !*expanded;
+                    });
+                },
+            )
+            .style(cx, || Style::BASE.padding_horiz(10.0).min_width_pct(1.0))
+            .hover_style(cx, move || {
+                Style::BASE.cursor(CursorStyle::Pointer).background(
+                    *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                )
+            }),
             list(
                 cx,
                 move || {
-                    let expanded = stack_trace.expanded.get();
+                    let expanded = stack_trace.expanded.get() && stopped.get();
                     if expanded {
                         stack_trace.frames.get()
                     } else {
@@ -2072,28 +2085,106 @@ fn debug_stack_traces(
                 },
                 |frame| frame.id,
                 move |cx, frame| {
-                    label(cx, move || frame.name.clone())
-                        .style(cx, || Style::BASE.min_width_pct(1.0))
-                        .hover_style(cx, move || {
-                            Style::BASE.background(
+                    let full_path =
+                        frame.source.as_ref().and_then(|s| s.path.clone());
+                    let line = frame.line.saturating_sub(1);
+                    let col = frame.column.saturating_sub(1);
+
+                    let source_path = frame
+                        .source
+                        .as_ref()
+                        .and_then(|s| s.path.as_ref())
+                        .and_then(|p| p.file_name())
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let has_source = !source_path.is_empty();
+                    let source_path = format!("{source_path}:{}", frame.line);
+
+                    click(
+                        cx,
+                        |cx| {
+                            stack(cx, |cx| {
+                                (
+                                    label(cx, move || frame.name.clone())
+                                        .hover_style(cx, move || {
+                                            Style::BASE
+                                                .background(*config.get().get_color(
+                                                LapceColor::PANEL_HOVERED_BACKGROUND,
+                                            ))
+                                        }),
+                                    label(cx, move || source_path.clone()).style(
+                                        cx,
+                                        move || {
+                                            Style::BASE
+                                                .margin_left(10.0)
+                                                .color(*config.get().get_color(
+                                                    LapceColor::EDITOR_DIM,
+                                                ))
+                                                .font_style(FontStyle::Italic)
+                                                .apply_if(!has_source, |s| {
+                                                    s.display(Display::None)
+                                                })
+                                        },
+                                    ),
+                                )
+                            })
+                        },
+                        move || {
+                            if let Some(path) = full_path.clone() {
+                                internal_command.set(Some(
+                                    InternalCommand::JumpToLocation {
+                                        location: EditorLocation {
+                                            path,
+                                            position: Some(
+                                                EditorPosition::Position(
+                                                    lsp_types::Position {
+                                                        line: line as u32,
+                                                        character: col as u32,
+                                                    },
+                                                ),
+                                            ),
+                                            scroll_offset: None,
+                                            ignore_unconfirmed: false,
+                                            same_editor_tab: false,
+                                        },
+                                    },
+                                ));
+                            }
+                        },
+                    )
+                    .style(cx, move || {
+                        Style::BASE
+                            .padding_left(20.0)
+                            .padding_right(10.0)
+                            .min_width_pct(1.0)
+                            .apply_if(!has_source, |s| {
+                                s.color(
+                                    *config.get().get_color(LapceColor::EDITOR_DIM),
+                                )
+                            })
+                    })
+                    .hover_style(cx, move || {
+                        Style::BASE
+                            .background(
                                 *config
                                     .get()
                                     .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
-                        })
+                            .apply_if(has_source, |s| s.cursor(CursorStyle::Pointer))
+                    })
                 },
             )
-            .style(cx, || {
-                Style::BASE.flex_col().margin_left(20.0).margin_right(10.0)
-            }),
+            .style(cx, || Style::BASE.flex_col().min_width_pct(1.0)),
         )
     })
-    .style(cx, || Style::BASE.flex_col().margin_horiz(10.0))
+    .style(cx, || Style::BASE.flex_col().min_width_pct(1.0))
 }
 
-fn debug_stack_frames(
+fn debug_stack_traces(
     cx: AppContext,
     terminal: TerminalPanelData,
+    internal_command: RwSignal<Option<InternalCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     container(cx, move |cx| {
@@ -2108,26 +2199,45 @@ fn debug_stack_frames(
                         dap.as_ref().map(|dap| dap.dap_id)
                     );
                     if let Some(dap) = dap {
-                        println!("dap is some");
-                        let stack_frames = dap.stack_frames.get();
-                        println!("stack frames len {}", stack_frames.len());
-                        stack_frames
+                        let process_stopped = local_terminal
+                            .get_terminal(&dap.term_id)
+                            .and_then(|t| {
+                                t.run_debug.with(|r| r.as_ref().map(|r| r.stopped))
+                            })
+                            .unwrap_or(true);
+                        if process_stopped {
+                            return Vec::new();
+                        }
+                        let main_thread = dap.thread_id.get();
+                        let stack_traces = dap.stack_traces.get();
+                        let mut traces = stack_traces
                             .into_iter()
                             .map(|(thread_id, stack_trace)| {
-                                (dap.dap_id, thread_id, stack_trace)
+                                (dap.dap_id, dap.stopped, thread_id, stack_trace)
                             })
-                            .collect::<Vec<_>>()
+                            .collect::<Vec<_>>();
+                        traces.sort_by_key(|(_, _, id, _)| main_thread != Some(*id));
+                        traces
                     } else {
                         println!("dap is not there");
                         Vec::new()
                     }
                 },
-                |(dap_id, thread_id, _)| (*dap_id, *thread_id),
-                move |cx, (_, thread_id, stack_trace)| {
-                    debug_stack_traces(cx, thread_id, stack_trace, config)
+                |(dap_id, stopped, thread_id, _)| {
+                    (*dap_id, *thread_id, stopped.get_untracked())
+                },
+                move |cx, (_, stopped, thread_id, stack_trace)| {
+                    debug_stack_frames(
+                        cx,
+                        thread_id,
+                        stack_trace,
+                        stopped,
+                        internal_command,
+                        config,
+                    )
                 },
             )
-            .style(cx, || Style::BASE.flex_col())
+            .style(cx, || Style::BASE.flex_col().min_width_pct(1.0))
         })
         .scroll_bar_color(cx, move || {
             *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
@@ -2150,6 +2260,7 @@ fn debug_panel(
 ) -> impl View {
     let config = window_tab_data.common.config;
     let terminal = window_tab_data.terminal.clone();
+    let internal_command = window_tab_data.common.internal_command;
 
     stack(cx, move |cx| {
         (
@@ -2168,7 +2279,7 @@ fn debug_panel(
             stack(cx, move |cx| {
                 (
                     panel_header(cx, "Stack Frames".to_string(), config),
-                    debug_stack_frames(cx, terminal, config),
+                    debug_stack_traces(cx, terminal, internal_command, config),
                 )
             })
             .style(cx, || {
