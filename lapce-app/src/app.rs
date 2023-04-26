@@ -818,10 +818,7 @@ fn editor_content(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
                 virtual_list(
                     cx,
                     VirtualListDirection::Vertical,
-                    move || {
-                        // println!("editor content update");
-                        editor.get().doc.get()
-                    },
+                    move || editor.get().doc.get(),
                     key_fn,
                     view_fn,
                     VirtualListItemSize::Fixed(line_height as f64),
@@ -1710,9 +1707,13 @@ pub fn clickable_icon(
                     })
                     .disabled(cx, disabled_fn)
                     .disabled_style(cx, move || {
-                        Style::default().color(
-                            *config.get().get_color(LapceColor::LAPCE_ICON_INACTIVE),
-                        )
+                        Style::default()
+                            .color(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::LAPCE_ICON_INACTIVE),
+                            )
+                            .cursor(CursorStyle::Default)
                     })
             },
             on_click,
@@ -1993,54 +1994,85 @@ fn debug_processes(
             |(term_id, p)| (*term_id, p.stopped),
             move |cx, (term_id, p)| {
                 let terminal = terminal.clone();
-                stack(cx, move |cx| {
-                    (
-                        {
-                            let svg_str = match (&p.mode, p.stopped) {
-                                (RunDebugMode::Run, false) => LapceIcons::START,
-                                (RunDebugMode::Run, true) => LapceIcons::RUN_ERRORS,
-                                (RunDebugMode::Debug, false) => LapceIcons::DEBUG,
-                                (RunDebugMode::Debug, true) => {
-                                    LapceIcons::DEBUG_DISCONNECT
-                                }
-                            };
-                            svg(cx, move || config.get().ui_svg(svg_str)).style(
-                                cx,
-                                move || {
-                                    let config = config.get();
-                                    let size = config.ui.icon_size() as f32;
-                                    Style::default()
-                                        .dimension_px(size, size)
-                                        .margin_horiz(10.0)
-                                        .color(*config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ))
+                let is_active =
+                    move || terminal.debug.active_term.get() == Some(term_id);
+                let local_terminal = terminal.clone();
+                click(
+                    cx,
+                    |cx| {
+                        stack(cx, move |cx| {
+                            (
+                                {
+                                    let svg_str = match (&p.mode, p.stopped) {
+                                        (RunDebugMode::Run, false) => {
+                                            LapceIcons::START
+                                        }
+                                        (RunDebugMode::Run, true) => {
+                                            LapceIcons::RUN_ERRORS
+                                        }
+                                        (RunDebugMode::Debug, false) => {
+                                            LapceIcons::DEBUG
+                                        }
+                                        (RunDebugMode::Debug, true) => {
+                                            LapceIcons::DEBUG_DISCONNECT
+                                        }
+                                    };
+                                    svg(cx, move || config.get().ui_svg(svg_str))
+                                        .style(cx, move || {
+                                            let config = config.get();
+                                            let size = config.ui.icon_size() as f32;
+                                            Style::default()
+                                                .dimension_px(size, size)
+                                                .margin_horiz(10.0)
+                                                .color(*config.get_color(
+                                                    LapceColor::LAPCE_ICON_ACTIVE,
+                                                ))
+                                        })
                                 },
+                                label(cx, move || p.config.name.clone()).style(
+                                    cx,
+                                    || {
+                                        Style::default()
+                                            .flex_grow(1.0)
+                                            .flex_basis_px(0.0)
+                                            .min_width_px(0.0)
+                                    },
+                                ),
+                                debug_process_icons(
+                                    cx,
+                                    terminal.clone(),
+                                    term_id,
+                                    p.config.dap_id,
+                                    p.mode,
+                                    p.stopped,
+                                    config,
+                                ),
                             )
-                        },
-                        label(cx, move || p.config.name.clone()).style(cx, || {
+                        })
+                        .style(cx, move || {
                             Style::default()
-                                .flex_grow(1.0)
-                                .flex_basis_px(0.0)
-                                .min_width_px(0.0)
-                        }),
-                        debug_process_icons(
-                            cx,
-                            terminal.clone(),
-                            term_id,
-                            p.config.dap_id,
-                            p.mode,
-                            p.stopped,
-                            config,
-                        ),
-                    )
-                })
-                .style(cx, || {
-                    Style::default()
-                        .padding_vert(6.0)
-                        .width_pct(1.0)
-                        .items_center()
-                })
+                                .padding_vert(6.0)
+                                .width_pct(1.0)
+                                .items_center()
+                                .apply_if(is_active(), |s| {
+                                    s.background(*config.get().get_color(
+                                        LapceColor::PANEL_CURRENT_BACKGROUND,
+                                    ))
+                                })
+                        })
+                        .hover_style(cx, move || {
+                            Style::BASE.cursor(CursorStyle::Pointer).background(
+                                (*config.get().get_color(
+                                    LapceColor::PANEL_HOVERED_BACKGROUND,
+                                ))
+                                .with_alpha_factor(0.3),
+                            )
+                        })
+                    },
+                    move || {
+                        local_terminal.debug.active_term.set(Some(term_id));
+                    },
+                )
             },
         )
         .style(cx, || Style::default().width_pct(1.0).flex_col())
@@ -2194,10 +2226,6 @@ fn debug_stack_traces(
                 cx,
                 move || {
                     let dap = local_terminal.get_active_dap(true);
-                    println!(
-                        "getting active dap is {:?}",
-                        dap.as_ref().map(|dap| dap.dap_id)
-                    );
                     if let Some(dap) = dap {
                         let process_stopped = local_terminal
                             .get_terminal(&dap.term_id)
@@ -2219,7 +2247,6 @@ fn debug_stack_traces(
                         traces.sort_by_key(|(_, _, id, _)| main_thread != Some(*id));
                         traces
                     } else {
-                        println!("dap is not there");
                         Vec::new()
                     }
                 },
@@ -3558,7 +3585,6 @@ fn window(cx: AppContext, window_data: WindowData) -> impl View {
             }
         })
         .on_event(EventListner::WindowClosed, move |_| {
-            println!("window closed");
             let _ = db.save_window(local_window_data.clone());
             true
         })
