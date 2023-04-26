@@ -289,6 +289,7 @@ jobs:
           make CARGO_BUILD_TARGET=aarch64-apple-darwin gz
 
       - name: "Notarize Release Build"
+        if: github.event_name != 'pull_request'
         run: |
           npx notarize-cli --file ./${{ env.RELEASE_DIR }}/${{ env.DMG_NAME }} --bundle-id io.lapce --asc-provider CYSGAZFR8D
 

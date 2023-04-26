@@ -20,6 +20,7 @@ WORKDIR /build
 
 FROM build-base-alpine AS build-alpine
 ENV RUSTC_WRAPPER='sccache'
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL='sparse'
 RUN --mount=type=bind,target=.,ro \
     --mount=type=cache,target=/root/.cargo/git/db \
     --mount=type=cache,target=/root/.cargo/registry/cache \
@@ -28,13 +29,13 @@ RUN --mount=type=bind,target=.,ro \
     cargo fetch --locked
 # Install target dependencies
 ARG TARGETPLATFORM
-# gcc is installed for libgcc only
 RUN xx-apk add --no-cache \
-        zlib-static freetype-static fontconfig-static \
-        libgit2-static libssh2-static openssl-libs-static \
-        libssl3 gtk+3.0-dev http-parser-dev \
-        build-base openssl-dev git lld clang \
-        gcc
+        make clang git lld build-base \
+        rustup http-parser-dev gtk+3.0-dev \
+        libssl3 openssl-dev openssl-libs-static \
+        libssh2-static libgit2-static \
+        fontconfig-static freetype-static \
+        zlib-static gcc gcc-dev
 
 FROM --platform=$BUILDPLATFORM rust:${RUST_VERSION}-${DEBIAN_VERSION} AS build-base-debian
 COPY --from=xx / /
@@ -101,17 +102,32 @@ ENV CARGO_BUILD_INCREMENTAL='false'
 ENV CARGO_TARGET_DIR='/output'
 ENV CC='xx-clang'
 ENV CXX='xx-clang++'
+ENV OPENSSL_STATIC=1
+ENV LIBZ_SYS_STATIC=1
+ENV LIBSSH2_STATIC=1
+ENV LIBGIT2_STATIC=1
+ENV OPENSSL_NO_VENDOR=1
+ENV PKG_CONFIG_ALL_STATIC=1
 RUN --mount=type=bind,target=.,ro \
     --mount=type=cache,target=/root/.cargo/git/db \
     --mount=type=cache,target=/root/.cargo/registry/cache \
     --mount=type=cache,target=/root/.cargo/registry/index \
     --mount=type=cache,target=/root/.cache \
     --mount=from=dockercore/golang-cross:xx-sdk-extras,target=/xx-sdk,src=/xx-sdk \
-    # xx-clang --setup-target-triple \
-    # xx-clang --wrap && \
-    export RUSTFLAGS="-C linker=$(xx-clang --print-prog=lld)" && \
-    export PKG_CONFIG="$(xx-clang --print-prog-name=pkg-config)" && \
+    xx-clang --setup-target-triple \
+    xx-clang --wrap && \
+    # export PKG_CONFIG="$(xx-clang --print-prog-name=pkg-config)" && \
     export CARGO_BUILD_TARGET="$(xx-cargo --print-target-triple)" && \
+    export SYSROOT=/dummy && \
+    export CC="clang" && \
+    export CXX="clang++" && \
+    export PKG_CONFIG_LIBDIR="/$(xx-info triple)/usr/lib/pkgconfig" && \
+    printf '#!/bin/sh\nPKG_CONFIG_SYSROOT_DIR=/%s exec %s "$@"' $(xx-info triple) $(xx-clang --print-prog-name=pkg-config) | install -m755 /dev/stdin /usr/local/bin/pkgconf && \
+    export PKG_CONFIG="/usr/local/bin/pkgconf" && \
+    export OPENSSL_DIR="/$(xx-info triple)/usr" && \
+    export RUSTFLAGS="-C target-feature=+crt-static -C linker=clang -C link-arg=-fuse-ld=/usr/bin/ld.lld" && \
+    export LD="/usr/bin/ld.lld" && \
+    # ls -lahR /$(xx-info triple) && \
     cargo build \
         --profile ${CARGO_BUILD_PROFILE:-release} \
         --bin lapce-proxy

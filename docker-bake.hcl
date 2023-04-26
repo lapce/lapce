@@ -30,7 +30,7 @@ target "_platforms" {
     platforms = [
         // "darwin/amd64",
         // "darwin/arm64",
-        "linux/amd64",
+        // "linux/amd64",
         // "linux/arm/v6",
         // "linux/arm/v7",
         "linux/arm64",
@@ -46,7 +46,7 @@ target "_proxy_platforms" {
     platforms = [
         // "darwin/amd64",
         // "darwin/arm64",
-        "linux/amd64",
+        // "linux/amd64",
         // "linux/arm/v6",
         // "linux/arm/v7",
         "linux/arm64",
@@ -60,6 +60,16 @@ target "_proxy_platforms" {
 
 group "default" {
   targets = ["binary"]
+}
+
+target "build-alpine" {
+    inherits  = ["_common"]
+    target    = "build-alpine"
+    // platforms = ["local"]
+    tags      = ["build-alpine:latest"]
+    args = {
+        BASE_VARIANT = "alpine"
+    }
 }
 
 target "binary" {
