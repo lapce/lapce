@@ -64,8 +64,8 @@ impl KeyPressFocus for CodeActionData {
         &self,
         cx: Scope,
         command: &crate::command::LapceCommand,
-        count: Option<usize>,
-        mods: floem::glazier::Modifiers,
+        _count: Option<usize>,
+        _mods: floem::glazier::Modifiers,
     ) -> crate::command::CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}
@@ -80,7 +80,7 @@ impl KeyPressFocus for CodeActionData {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&self, cx: Scope, c: &str) {}
+    fn receive_char(&self, _cx: Scope, _c: &str) {}
 }
 
 impl CodeActionData {
@@ -172,7 +172,7 @@ impl CodeActionData {
         self.common.focus.set(Focus::CodeAction);
     }
 
-    fn cancel(&self, cx: Scope) {
+    fn cancel(&self, _cx: Scope) {
         self.status.set(CodeActionStatus::Inactive);
         self.common.focus.set(Focus::Workbench);
     }

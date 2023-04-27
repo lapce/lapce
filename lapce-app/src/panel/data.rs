@@ -1,9 +1,6 @@
-use floem::{
-    reactive::{
-        create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked,
-        SignalUpdate, SignalWithUntracked,
-    },
-    AppContext,
+use floem::reactive::{
+    create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalUpdate,
+    SignalWithUntracked,
 };
 use serde::{Deserialize, Serialize};
 
@@ -224,7 +221,7 @@ impl PanelData {
 
     pub fn set_shown(&self, position: &PanelPosition, shown: bool) {
         self.styles.update(|styles| {
-            if let Some(style) = styles.get_mut(&position) {
+            if let Some(style) = styles.get_mut(position) {
                 style.shown = shown;
             }
         });

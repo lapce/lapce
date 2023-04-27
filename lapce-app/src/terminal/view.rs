@@ -9,16 +9,13 @@ use floem::{
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
-        create_effect, ReadSignal, RwSignal, SignalGet, SignalGetUntracked,
-        SignalWith,
+        create_effect, ReadSignal, SignalGet, SignalGetUntracked, SignalWith,
     },
     view::{ChangeFlags, View},
     AppContext, Renderer,
 };
 use lapce_core::mode::Mode;
-use lapce_rpc::{
-    dap_types::RunDebugConfig, proxy::ProxyRpcHandler, terminal::TermId,
-};
+use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 use parking_lot::RwLock;
 use unicode_width::UnicodeWidthChar;
 
@@ -26,15 +23,15 @@ use crate::{
     config::{color::LapceColor, LapceConfig},
     debug::RunDebugProcess,
     panel::kind::PanelKind,
-    window_tab::{CommonData, Focus},
+    window_tab::Focus,
 };
 
 use super::{panel::TerminalPanelData, raw::RawTerminal};
 
 enum TerminalViewState {
-    ConfigChanged,
-    FocusChanged(bool),
-    RawChanged(Arc<RwLock<RawTerminal>>),
+    Config,
+    Focus(bool),
+    Raw(Arc<RwLock<RawTerminal>>),
 }
 
 pub struct TerminalView {
@@ -61,13 +58,13 @@ pub fn terminal_view(
 
     create_effect(cx.scope, move |_| {
         let raw = raw.get();
-        AppContext::update_state(id, TerminalViewState::RawChanged(raw), false);
+        AppContext::update_state(id, TerminalViewState::Raw(raw), false);
     });
 
     let config = terminal_panel_data.common.config;
     create_effect(cx.scope, move |_| {
         config.with(|_c| {});
-        AppContext::update_state(id, TerminalViewState::ConfigChanged, false);
+        AppContext::update_state(id, TerminalViewState::Config, false);
     });
 
     let proxy = terminal_panel_data.common.proxy.clone();
@@ -87,7 +84,7 @@ pub fn terminal_view(
         if last != Some(is_focused) {
             AppContext::update_state(
                 id,
-                TerminalViewState::FocusChanged(is_focused),
+                TerminalViewState::Focus(is_focused),
                 false,
             );
         }
@@ -149,16 +146,16 @@ impl View for TerminalView {
 
     fn update(
         &mut self,
-        cx: &mut floem::context::UpdateCx,
+        _cx: &mut floem::context::UpdateCx,
         state: Box<dyn std::any::Any>,
     ) -> ChangeFlags {
         if let Ok(state) = state.downcast() {
             match *state {
-                TerminalViewState::ConfigChanged => {}
-                TerminalViewState::FocusChanged(is_focused) => {
+                TerminalViewState::Config => {}
+                TerminalViewState::Focus(is_focused) => {
                     self.is_focused = is_focused;
                 }
-                TerminalViewState::RawChanged(raw) => {
+                TerminalViewState::Raw(raw) => {
                     self.raw = raw;
                 }
             }

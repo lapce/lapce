@@ -710,6 +710,6 @@ impl LapceConfig {
                 (LapceColor::TERMINAL_FOREGROUND, 0.66)
             }
         };
-        self.get_color(color).clone().with_alpha_factor(alpha)
+        (*self.get_color(color)).with_alpha_factor(alpha)
     }
 }

@@ -79,21 +79,21 @@ impl KeyPressFocus for DefaultKeyPress {
         Mode::Normal
     }
 
-    fn check_condition(&self, condition: Condition) -> bool {
+    fn check_condition(&self, _condition: Condition) -> bool {
         false
     }
 
     fn run_command(
         &self,
-        cx: Scope,
-        command: &LapceCommand,
-        count: Option<usize>,
-        mods: Modifiers,
+        _cx: Scope,
+        _command: &LapceCommand,
+        _count: Option<usize>,
+        _mods: Modifiers,
     ) -> CommandExecuted {
         CommandExecuted::No
     }
 
-    fn receive_char(&self, cx: Scope, c: &str) {}
+    fn receive_char(&self, _cx: Scope, _c: &str) {}
 }
 
 #[derive(Clone)]

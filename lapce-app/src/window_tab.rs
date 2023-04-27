@@ -142,7 +142,7 @@ impl WindowTabData {
             config.plugins.clone(),
             term_tx.clone(),
         );
-        let (config, set_config) = create_signal(cx, Arc::new(config));
+        let (config, _set_config) = create_signal(cx, Arc::new(config));
 
         let focus = create_rw_signal(cx, Focus::Workbench);
         let completion = create_rw_signal(cx, CompletionData::new(cx, config));
@@ -931,7 +931,7 @@ impl WindowTabData {
             && self.panel.is_panel_visible(&kind)
     }
 
-    fn hide_panel(&self, cx: Scope, kind: PanelKind) {
+    fn hide_panel(&self, _cx: Scope, kind: PanelKind) {
         self.panel.hide_panel(&kind);
         self.common.focus.set(Focus::Workbench);
     }

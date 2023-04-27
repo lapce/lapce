@@ -3,9 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crossbeam_channel::Sender;
 use floem::reactive::Scope;
-use floem::{
-    ext_event::create_signal_from_channel, reactive::ReadSignal, AppContext,
-};
+use floem::{ext_event::create_signal_from_channel, reactive::ReadSignal};
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::plugin::VoltID;
 use lapce_rpc::terminal::TermId;
@@ -73,22 +71,19 @@ pub fn start_proxy(
 
 impl CoreHandler for Proxy {
     fn handle_notification(&mut self, rpc: lapce_rpc::core::CoreNotification) {
-        match &rpc {
-            CoreNotification::UpdateTerminal { term_id, content } => {
-                let _ = self
-                    .term_tx
-                    .send((*term_id, TermEvent::UpdateContent(content.to_vec())));
-                return;
-            }
-            _ => {}
+        if let CoreNotification::UpdateTerminal { term_id, content } = &rpc {
+            let _ = self
+                .term_tx
+                .send((*term_id, TermEvent::UpdateContent(content.to_vec())));
+            return;
         }
-        let result = self.tx.send(rpc);
+        let _ = self.tx.send(rpc);
     }
 
     fn handle_request(
         &mut self,
-        id: lapce_rpc::RequestId,
-        rpc: lapce_rpc::core::CoreRequest,
+        _id: lapce_rpc::RequestId,
+        _rpc: lapce_rpc::core::CoreRequest,
     ) {
     }
 }

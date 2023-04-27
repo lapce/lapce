@@ -105,6 +105,8 @@ impl EditorInfo {
     }
 }
 
+pub type SnippetIndex = Vec<(usize, (usize, usize))>;
+
 #[derive(Clone)]
 pub struct EditorData {
     pub editor_tab_id: Option<EditorTabId>,
@@ -116,7 +118,7 @@ pub struct EditorData {
     pub viewport: RwSignal<Rect>,
     pub scroll_delta: RwSignal<Vec2>,
     pub scroll_to: RwSignal<Option<Vec2>>,
-    pub snippet: RwSignal<Option<Vec<(usize, (usize, usize))>>>,
+    pub snippet: RwSignal<Option<SnippetIndex>>,
     pub find: RwSignal<Find>,
     pub last_movement: RwSignal<Movement>,
     pub inline_find: RwSignal<Option<InlineFindDirection>>,
@@ -184,7 +186,7 @@ impl EditorData {
         Self::new(cx, None, editor_id, doc, common)
     }
 
-    pub fn editor_info(&self, data: &WindowTabData) -> EditorInfo {
+    pub fn editor_info(&self, _data: &WindowTabData) -> EditorInfo {
         // let unsaved = if let BufferContent::Scratch(id, _) = &self.content {
         //     let doc = data.main_split.scratch_docs.get(id).unwrap();
         //     Some(doc.buffer().to_string())
@@ -223,7 +225,7 @@ impl EditorData {
         editor
     }
 
-    fn run_edit_command(&self, cx: Scope, cmd: &EditCommand) -> CommandExecuted {
+    fn run_edit_command(&self, _cx: Scope, cmd: &EditCommand) -> CommandExecuted {
         let modal = self
             .common
             .config
@@ -270,7 +272,7 @@ impl EditorData {
 
     fn run_move_command(
         &self,
-        cx: Scope,
+        _cx: Scope,
         movement: &lapce_core::movement::Movement,
         count: Option<usize>,
         mods: Modifiers,

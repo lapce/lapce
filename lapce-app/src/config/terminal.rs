@@ -4,8 +4,6 @@ use floem::peniko::Color;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 
-use super::color::LapceColor;
-
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct TerminalConfig {

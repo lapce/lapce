@@ -5,12 +5,8 @@ use std::{
     time::Instant,
 };
 
-use floem::{
-    reactive::{
-        create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet,
-        SignalUpdate,
-    },
-    AppContext,
+use floem::reactive::{
+    create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet, SignalUpdate,
 };
 use lapce_rpc::{
     dap_types::{

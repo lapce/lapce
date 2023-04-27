@@ -2,7 +2,6 @@ use std::{
     collections::{BTreeMap, HashMap},
     fmt::Display,
     path::{Path, PathBuf},
-    sync::Arc,
     time::Instant,
 };
 

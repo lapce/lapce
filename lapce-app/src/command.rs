@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use floem::peniko::kurbo::{Point, Vec2};
+use floem::peniko::kurbo::Vec2;
 use indexmap::IndexMap;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,

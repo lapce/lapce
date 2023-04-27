@@ -9,7 +9,6 @@ use floem::{
         SignalWithUntracked,
     },
     views::VirtualListVector,
-    AppContext,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -217,7 +216,7 @@ impl VirtualListVector<DocLine> for Document {
 
 impl Document {
     pub fn new(
-        cx: Scope,
+        _cx: Scope,
         path: PathBuf,
         diagnostics: Option<im::Vector<EditorDiagnostic>>,
         proxy: ProxyRpcHandler,
@@ -243,7 +242,7 @@ impl Document {
     }
 
     pub fn new_local(
-        cx: Scope,
+        _cx: Scope,
         proxy: ProxyRpcHandler,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
@@ -766,7 +765,7 @@ impl Document {
         count: usize,
         modify: bool,
         register: &mut Register,
-        config: &LapceConfig,
+        _config: &LapceConfig,
     ) {
         match cursor.mode {
             CursorMode::Normal(offset) => {
@@ -911,13 +910,13 @@ impl Document {
 
     /// Create a new text layout for the given line.  
     /// Typically you should use [`Document::get_text_layout`] instead.
-    fn new_text_layout(&self, line: usize, font_size: usize) -> TextLayoutLine {
+    fn new_text_layout(&self, line: usize, _font_size: usize) -> TextLayoutLine {
         let config = self.config.get_untracked();
         let line_content_original = self.buffer.line_content(line);
 
         // Get the line content with newline characters replaced with spaces
         // and the content without the newline characters
-        let (line_content, line_content_original) =
+        let (line_content, _line_content_original) =
             if let Some(s) = line_content_original.strip_suffix("\r\n") {
                 (
                     format!("{s}  "),

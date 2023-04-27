@@ -804,7 +804,7 @@ impl PaletteViewData {
                     palette
                         .executed_run_configs
                         .borrow_mut()
-                        .insert((mode.clone(), config.name.clone()), Instant::now());
+                        .insert((*mode, config.name.clone()), Instant::now());
                 }
                 _ => (),
             }

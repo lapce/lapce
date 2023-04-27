@@ -4,7 +4,7 @@ use floem::{
     reactive::{
         ReadSignal, RwSignal, SignalGet, SignalSet, SignalWith, WriteSignal,
     },
-    style::{AlignItems, CursorStyle, Dimension, Display, JustifyContent, Style},
+    style::{AlignItems, Dimension, Display, JustifyContent, Style},
     view::View,
     views::{click, container, stack, Decorators},
     views::{label, svg},
@@ -70,8 +70,7 @@ fn left(
                             )
                         },
                     ),
-                    label(cx, move || branch())
-                        .style(cx, || Style::BASE.margin_left(10.0)),
+                    label(cx, branch).style(cx, || Style::BASE.margin_left(10.0)),
                 )
             })
             .style(cx, move || {

@@ -1,6 +1,6 @@
 use floem::{
     id::Id,
-    peniko::kurbo::{BezPath, Line, Point, QuadBez, Size},
+    peniko::kurbo::{BezPath, Point, Size},
     view::{ChangeFlags, View},
     AppContext, Renderer,
 };

@@ -5,7 +5,6 @@ use floem::{
     reactive::{
         create_rw_signal, ReadSignal, RwSignal, Scope, SignalGetUntracked, SignalSet,
     },
-    AppContext,
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use lapce_core::movement::Movement;

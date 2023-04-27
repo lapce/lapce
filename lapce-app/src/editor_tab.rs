@@ -6,7 +6,6 @@ use floem::{
         create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet,
         SignalUpdate, SignalWithUntracked,
     },
-    AppContext,
 };
 use serde::{Deserialize, Serialize};
 

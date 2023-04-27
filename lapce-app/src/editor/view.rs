@@ -560,7 +560,7 @@ fn editor_cursor(
         list(
             cx,
             cursor,
-            move |(viewport, cursor)| {
+            move |(_viewport, _cursor)| {
                 id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
             },
             move |cx, (viewport, cursor)| {

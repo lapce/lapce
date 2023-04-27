@@ -1,4 +1,4 @@
-use std::{process, sync::Arc, time::Instant};
+use std::{process, sync::Arc};
 
 use druid::{
     kurbo::Line,
@@ -28,7 +28,7 @@ use lapce_data::{
         LapceTabData, LapceWindowData, LapceWorkspace, LapceWorkspaceType,
         WorkProgress,
     },
-    debug::{RunDebugMode, RunDebugProcess},
+    debug::RunDebugMode,
     document::{BufferContent, LocalBufferKind},
     editor::EditorLocation,
     hover::HoverStatus,
@@ -1013,9 +1013,7 @@ impl LapceTab {
                         }
                     }
                     LapceUICommand::DapBreakpointsResp {
-                        dap_id,
-                        path,
-                        breakpoints,
+                        path, breakpoints, ..
                     } => {
                         ctx.set_handled();
                         let terminal = Arc::make_mut(&mut data.terminal);

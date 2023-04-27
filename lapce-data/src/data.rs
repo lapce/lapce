@@ -61,7 +61,7 @@ use crate::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
     },
-    debug::{DapData, RunDebugData, RunDebugMode, RunDebugProcess},
+    debug::{DapData, RunDebugMode, RunDebugProcess},
     document::{BufferContent, Document, LocalBufferKind},
     editor::{EditorLocation, EditorPosition, LapceEditorBufferData, Line, TabRect},
     explorer::FileExplorerData,

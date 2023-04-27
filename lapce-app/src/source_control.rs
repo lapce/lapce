@@ -16,7 +16,7 @@ pub struct SourceControlData {
 }
 
 impl SourceControlData {
-    pub fn new(cx: Scope, common: CommonData) -> Self {
+    pub fn new(_cx: Scope, common: CommonData) -> Self {
         Self {
             file_diffs: IndexMap::new(),
             branch: "".to_string(),

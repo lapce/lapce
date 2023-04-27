@@ -2630,7 +2630,6 @@ fn code_action(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View
 }
 
 fn window_tab(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
-    let proxy_data = window_tab_data.proxy.clone();
     let source_control = window_tab_data.source_control;
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;

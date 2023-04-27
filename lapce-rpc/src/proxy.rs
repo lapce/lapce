@@ -15,7 +15,7 @@ use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
     CompletionItem, Diagnostic, DocumentSymbolResponse, GotoDefinitionResponse,
     Hover, InlayHint, Location, Position, PrepareRenameResponse, SelectionRange,
-    SymbolInformation, TextDocumentItem, TextEdit, Url, WorkspaceEdit,
+    SymbolInformation, TextDocumentItem, TextEdit, WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};

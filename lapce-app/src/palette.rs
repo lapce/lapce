@@ -77,7 +77,6 @@ impl PaletteInput {
 #[derive(Clone)]
 pub struct PaletteData {
     run_id_counter: Arc<AtomicU64>,
-    run_tx: Sender<(u64, String, im::Vector<PaletteItem>)>,
     pub run_id: RwSignal<u64>,
     pub workspace: Arc<LapceWorkspace>,
     pub status: RwSignal<PaletteStatus>,
@@ -133,7 +132,7 @@ impl PaletteData {
             let run_id = run_id.read_only();
             let input = input.read_only();
             let items = items.read_only();
-            let tx = run_tx.clone();
+            let tx = run_tx;
 
             {
                 let tx = tx.clone();
@@ -192,7 +191,6 @@ impl PaletteData {
 
         let palette = Self {
             run_id_counter,
-            run_tx,
             main_split,
             run_id,
             workspace,
@@ -442,16 +440,11 @@ impl PaletteData {
                 .rev()
                 .filter_map(|(key, _)| {
                     keypress.commands.get(key).and_then(|c| {
-                        c.kind.desc().as_ref().map(|m| {
-                            let item = PaletteItem {
-                                content: PaletteItemContent::Command {
-                                    cmd: c.clone(),
-                                },
-                                filter_text: m.to_string(),
-                                score: 0,
-                                indices: vec![],
-                            };
-                            item
+                        c.kind.desc().as_ref().map(|m| PaletteItem {
+                            content: PaletteItemContent::Command { cmd: c.clone() },
+                            filter_text: m.to_string(),
+                            score: 0,
+                            indices: vec![],
                         })
                     })
                 })
@@ -467,14 +460,11 @@ impl PaletteData {
                     return None;
                 }
 
-                c.kind.desc().as_ref().map(|m| {
-                    let item = PaletteItem {
-                        content: PaletteItemContent::Command { cmd: c.clone() },
-                        filter_text: m.to_string(),
-                        score: 0,
-                        indices: vec![],
-                    };
-                    item
+                c.kind.desc().as_ref().map(|m| PaletteItem {
+                    content: PaletteItemContent::Command { cmd: c.clone() },
+                    filter_text: m.to_string(),
+                    score: 0,
+                    indices: vec![],
                 })
             }));
 
@@ -658,7 +648,7 @@ impl PaletteData {
             });
     }
 
-    fn get_run_configs(&self, cx: Scope) {
+    fn get_run_configs(&self, _cx: Scope) {
         let configs = run_configs(self.common.workspace.path.as_deref());
         if configs.is_none() {
             if let Some(path) = self.workspace.path.as_ref() {
@@ -824,8 +814,8 @@ impl PaletteData {
         let items = self.filtered_items.get_untracked();
         if let Some(item) = items.get(index) {
             match &item.content {
-                PaletteItemContent::File { path, full_path } => {}
-                PaletteItemContent::Line { line, content } => {
+                PaletteItemContent::File { .. } => {}
+                PaletteItemContent::Line { line, .. } => {
                     self.has_preview.set(true);
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
@@ -855,10 +845,10 @@ impl PaletteData {
                         None,
                     );
                 }
-                PaletteItemContent::Command { cmd } => {}
-                PaletteItemContent::Workspace { workspace } => {}
-                PaletteItemContent::RunAndDebug { mode, config } => {}
-                PaletteItemContent::Reference { path, location } => {
+                PaletteItemContent::Command { .. } => {}
+                PaletteItemContent::Workspace { .. } => {}
+                PaletteItemContent::RunAndDebug { .. } => {}
+                PaletteItemContent::Reference { location, .. } => {
                     self.has_preview.set(true);
                     let (doc, new_doc) =
                         self.main_split.get_doc(cx, location.path.clone());

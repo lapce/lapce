@@ -471,7 +471,7 @@ impl PluginCatalog {
                 if let Some(dap) = self.daps.get(&dap_id).cloned() {
                     let plugin_rpc = self.plugin_rpc.clone();
                     thread::spawn(move || {
-                        if let Ok(_) = dap.continue_thread(thread_id) {
+                        if dap.continue_thread(thread_id).is_ok() {
                             plugin_rpc.core_rpc.dap_continued(dap_id);
                         }
                     });

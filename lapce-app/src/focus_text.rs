@@ -159,7 +159,7 @@ impl View for FocusText {
         self.id
     }
 
-    fn child(&mut self, id: floem::id::Id) -> Option<&mut dyn View> {
+    fn child(&mut self, _id: floem::id::Id) -> Option<&mut dyn View> {
         None
     }
 
@@ -270,9 +270,9 @@ impl View for FocusText {
 
     fn event(
         &mut self,
-        cx: &mut floem::context::EventCx,
-        id_path: Option<&[floem::id::Id]>,
-        event: floem::event::Event,
+        _cx: &mut floem::context::EventCx,
+        _id_path: Option<&[floem::id::Id]>,
+        _event: floem::event::Event,
     ) -> bool {
         false
     }

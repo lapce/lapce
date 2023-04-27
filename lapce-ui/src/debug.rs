@@ -519,7 +519,7 @@ impl StackTrace {
                 }
                 let text_layout = ctx
                     .text()
-                    .new_text_layout(format!("{}", frame.name))
+                    .new_text_layout(frame.name.to_string())
                     .font(
                         data.config.ui.font_family(),
                         data.config.ui.font_size() as f64,
@@ -551,9 +551,9 @@ impl StackTrace {
 impl Widget<LapceTabData> for StackTrace {
     fn event(
         &mut self,
-        ctx: &mut EventCtx,
-        event: &Event,
-        data: &mut LapceTabData,
+        _ctx: &mut EventCtx,
+        _event: &Event,
+        _data: &mut LapceTabData,
         _env: &Env,
     ) {
     }

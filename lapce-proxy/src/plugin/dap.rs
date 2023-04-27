@@ -40,10 +40,7 @@ pub struct DapClient {
     dap_server: DapServer,
     config: RunDebugConfig,
     breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
-    thread_id: Option<ThreadId>,
     term_id: Option<TermId>,
-    stack_frames: HashMap<ThreadId, Vec<StackFrame>>,
-    active_frame: Option<usize>,
     capabilities: Option<DebuggerCapabilities>,
     terminated: bool,
     disconnected: bool,
@@ -65,10 +62,7 @@ impl DapClient {
             config,
             dap_rpc,
             breakpoints,
-            thread_id: None,
             term_id: None,
-            stack_frames: HashMap::new(),
-            active_frame: None,
             capabilities: None,
             terminated: false,
             disconnected: false,
@@ -269,7 +263,7 @@ impl DapClient {
             DapEvent::Continued(_) => {
                 self.plugin_rpc.core_rpc.dap_continued(self.dap_rpc.dap_id);
             }
-            DapEvent::Exited(exited) => {}
+            DapEvent::Exited(_exited) => {}
             DapEvent::Terminated(_) => {
                 println!("dap process terminated");
                 self.terminated = true;
@@ -277,16 +271,16 @@ impl DapClient {
                 if let Some(term_id) = self.term_id {
                     self.plugin_rpc.proxy_rpc.terminal_close(term_id);
                 }
-                self.check_restart();
+                let _ = self.check_restart();
             }
             DapEvent::Thread { .. } => {}
             DapEvent::Output(_) => todo!(),
             DapEvent::Breakpoint { reason, breakpoint } => {
                 println!("breakpoint  {reason} {breakpoint:?}");
             }
-            DapEvent::Module { reason, module } => todo!(),
-            DapEvent::LoadedSource { reason, source } => todo!(),
-            DapEvent::Process(process) => {}
+            DapEvent::Module { .. } => todo!(),
+            DapEvent::LoadedSource { .. } => todo!(),
+            DapEvent::Process(_) => {}
             DapEvent::Capabilities(_) => todo!(),
             DapEvent::Memory(_) => todo!(),
         }
@@ -323,31 +317,6 @@ impl DapClient {
         Ok(())
     }
 
-    fn select_thread_id(&mut self, thread_id: ThreadId, force: bool) {
-        if !force && self.thread_id.is_some() {
-            return;
-        }
-
-        self.thread_id = Some(thread_id);
-        self.fetch_stack_trace(thread_id);
-
-        let frame = self.stack_frames[&thread_id].get(0).cloned();
-        if let Some(frame) = &frame {
-            self.jump_to_stack_frame(frame);
-        }
-    }
-
-    fn fetch_stack_trace(&mut self, thread_id: ThreadId) {
-        let frames = match self.dap_rpc.stack_trace(thread_id) {
-            Ok(frames) => frames.stack_frames,
-            Err(_) => return,
-        };
-        self.stack_frames.insert(thread_id, frames);
-        self.active_frame = Some(0);
-    }
-
-    fn jump_to_stack_frame(&self, frame: &StackFrame) {}
-
     fn stop(&self) {
         let dap_rpc = self.dap_rpc.clone();
         if self
@@ -358,12 +327,12 @@ impl DapClient {
         {
             println!("terminate");
             thread::spawn(move || {
-                dap_rpc.terminate();
+                let _ = dap_rpc.terminate();
             });
         } else {
             println!("discoonnect");
             thread::spawn(move || {
-                dap_rpc.disconnect();
+                let _ = dap_rpc.disconnect();
             });
         }
     }
@@ -499,7 +468,7 @@ impl DapRpcHandler {
                         dap_client.plugin_rpc.proxy_rpc.terminal_close(term_id);
                     }
                     println!("disconnected");
-                    dap_client.check_restart();
+                    let _ = dap_client.check_restart();
                 }
             }
         }
@@ -616,7 +585,7 @@ impl DapRpcHandler {
             "cwd": config.cwd,
             "runInTerminal": true,
         });
-        let resp = self
+        let _resp = self
             .request::<Launch>(params)
             .map_err(|e| anyhow!(e.message))?;
         Ok(())

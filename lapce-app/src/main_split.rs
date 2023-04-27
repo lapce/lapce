@@ -914,7 +914,7 @@ impl MainSplitData {
         Some(())
     }
 
-    fn split_remove(&self, cx: Scope, split_id: SplitId) -> Option<()> {
+    fn split_remove(&self, split_id: SplitId) -> Option<()> {
         if split_id == self.root_split {
             return Some(());
         }
@@ -936,7 +936,7 @@ impl MainSplitData {
             })
             .unwrap();
         if split_len == 0 {
-            self.split_remove(cx, split_id);
+            self.split_remove(split_id);
         }
 
         Some(())
@@ -1009,7 +1009,7 @@ impl MainSplitData {
         }
 
         if split_children.is_empty() {
-            self.split_remove(cx, split_id);
+            self.split_remove(split_id);
         }
 
         Some(())
@@ -1130,7 +1130,8 @@ impl MainSplitData {
 
     /// Perform a workspace edit, which are from the LSP (such as code actions, or symbol renaming)
     fn apply_workspace_edit(&self, cx: Scope, edit: &WorkspaceEdit) {
-        if let Some(DocumentChanges::Operations(op)) = edit.document_changes.as_ref()
+        if let Some(DocumentChanges::Operations(_op)) =
+            edit.document_changes.as_ref()
         {
             // TODO
         }

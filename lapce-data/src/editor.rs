@@ -2352,21 +2352,6 @@ impl LapceEditorBufferData {
                 let offset = self.editor.cursor.offset();
                 self.update_hover(ctx, offset);
             }
-            JumpLocationBackward => {
-                self.jump_location_backward(ctx);
-            }
-            JumpLocationForward => {
-                self.jump_location_forward(ctx);
-            }
-            NextError => {
-                self.next_error(ctx);
-            }
-            PreviousDiff => {
-                self.prev_diff(ctx);
-            }
-            NextDiff => {
-                self.next_diff(ctx);
-            }
             ToggleCodeLens => {
                 let editor = Arc::make_mut(&mut self.editor);
                 editor.view = match editor.view {
