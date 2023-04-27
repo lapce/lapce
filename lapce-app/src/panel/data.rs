@@ -1,9 +1,9 @@
 use floem::{
-    app::AppContext,
     reactive::{
-        create_rw_signal, RwSignal, SignalGet, SignalGetUntracked, SignalUpdate,
-        SignalWithUntracked,
+        create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked,
+        SignalUpdate, SignalWithUntracked,
     },
+    AppContext,
 };
 use serde::{Deserialize, Serialize};
 
@@ -56,11 +56,11 @@ pub struct PanelData {
 
 impl PanelData {
     pub fn new(
-        cx: AppContext,
+        cx: Scope,
         panels: im::HashMap<PanelPosition, im::Vector<PanelKind>>,
         common: CommonData,
     ) -> Self {
-        let panels = create_rw_signal(cx.scope, panels);
+        let panels = create_rw_signal(cx, panels);
 
         let mut styles = im::HashMap::new();
         styles.insert(
@@ -111,9 +111,9 @@ impl PanelData {
                 maximized: false,
             },
         );
-        let styles = create_rw_signal(cx.scope, styles);
+        let styles = create_rw_signal(cx, styles);
         let size = create_rw_signal(
-            cx.scope,
+            cx,
             PanelSize {
                 left: 250.0,
                 left_split: 0.5,

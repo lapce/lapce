@@ -2,15 +2,15 @@ use std::{sync::Arc, time::Instant};
 
 use crossbeam_channel::Sender;
 use floem::{
-    app::AppContext,
     ext_event::{create_signal_from_channel, open_file_dialog},
     glazier::{FileDialogOptions, KeyEvent},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
         create_effect, create_rw_signal, create_signal, use_context, ReadSignal,
-        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
+        RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
         SignalWith, SignalWithUntracked, WriteSignal,
     },
+    AppContext,
 };
 use itertools::Itertools;
 use lapce_core::{mode::Mode, register::Register};
@@ -75,6 +75,7 @@ pub struct CommonData {
 
 #[derive(Clone)]
 pub struct WindowTabData {
+    pub scope: Scope,
     pub window_tab_id: WindowTabId,
     pub workspace: Arc<LapceWorkspace>,
     pub palette: PaletteData,
@@ -92,11 +93,11 @@ pub struct WindowTabData {
 
 impl WindowTabData {
     pub fn new(
-        cx: AppContext,
+        cx: Scope,
         workspace: Arc<LapceWorkspace>,
         window_command: WriteSignal<Option<WindowCommand>>,
     ) -> Self {
-        let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
+        let db: Arc<LapceDb> = use_context(cx).unwrap();
 
         let disabled_volts = db.get_disabled_volts().unwrap_or_default();
         let workspace_disabled_volts = db
@@ -116,11 +117,11 @@ impl WindowTabData {
         };
 
         let config = LapceConfig::load(&workspace, &all_disabled_volts);
-        let lapce_command = create_rw_signal(cx.scope, None);
-        let workbench_command = create_rw_signal(cx.scope, None);
-        let internal_command = create_rw_signal(cx.scope, None);
+        let lapce_command = create_rw_signal(cx, None);
+        let workbench_command = create_rw_signal(cx, None);
+        let internal_command = create_rw_signal(cx, None);
         let keypress = create_rw_signal(
-            cx.scope,
+            cx,
             KeyPressData::new(&config, workbench_command.write_only()),
         );
 
@@ -141,12 +142,12 @@ impl WindowTabData {
             config.plugins.clone(),
             term_tx.clone(),
         );
-        let (config, set_config) = create_signal(cx.scope, Arc::new(config));
+        let (config, set_config) = create_signal(cx, Arc::new(config));
 
-        let focus = create_rw_signal(cx.scope, Focus::Workbench);
-        let completion = create_rw_signal(cx.scope, CompletionData::new(cx, config));
+        let focus = create_rw_signal(cx, Focus::Workbench);
+        let completion = create_rw_signal(cx, CompletionData::new(cx, config));
 
-        let register = create_rw_signal(cx.scope, Register::default());
+        let register = create_rw_signal(cx, Register::default());
 
         let common = CommonData {
             workspace: workspace.clone(),
@@ -165,9 +166,9 @@ impl WindowTabData {
 
         let main_split = MainSplitData::new(cx, common.clone());
         let code_action =
-            create_rw_signal(cx.scope, CodeActionData::new(cx, common.clone()));
+            create_rw_signal(cx, CodeActionData::new(cx, common.clone()));
         let source_control =
-            create_rw_signal(cx.scope, SourceControlData::new(cx, common.clone()));
+            create_rw_signal(cx, SourceControlData::new(cx, common.clone()));
 
         if let Some(info) = workspace_info {
             let root_split = main_split.root_split;
@@ -183,8 +184,7 @@ impl WindowTabData {
                 layout_rect: Rect::ZERO,
             };
             main_split.splits.update(|splits| {
-                splits
-                    .insert(root_split, create_rw_signal(cx.scope, root_split_data));
+                splits.insert(root_split, create_rw_signal(cx, root_split_data));
             });
         }
 
@@ -201,17 +201,13 @@ impl WindowTabData {
             .unwrap_or_else(|_| default_panel_order());
         let panel = PanelData::new(cx, panel_order, common.clone());
 
-        let terminal = TerminalPanelData::new(
-            cx.scope,
-            workspace.clone(),
-            None,
-            common.clone(),
-        );
+        let terminal =
+            TerminalPanelData::new(cx, workspace.clone(), None, common.clone());
 
         {
             let notification = create_signal_from_channel(cx, term_notification_rx);
             let terminal = terminal.clone();
-            create_effect(cx.scope, move |_| {
+            create_effect(cx, move |_| {
                 notification.with(|notification| {
                     if let Some(notification) = notification.as_ref() {
                         match notification {
@@ -228,6 +224,7 @@ impl WindowTabData {
         }
 
         let window_tab_data = Self {
+            scope: cx,
             window_tab_id: WindowTabId::next(),
             workspace,
             palette,
@@ -237,26 +234,26 @@ impl WindowTabData {
             code_action,
             source_control,
             keypress,
-            window_origin: create_rw_signal(cx.scope, Point::ZERO),
-            layout_rect: create_rw_signal(cx.scope, Rect::ZERO),
+            window_origin: create_rw_signal(cx, Point::ZERO),
+            layout_rect: create_rw_signal(cx, Rect::ZERO),
             proxy,
             common,
         };
 
         {
             let window_tab_data = window_tab_data.clone();
-            create_effect(cx.scope, move |_| {
+            create_effect(cx, move |_| {
                 if let Some(cmd) = window_tab_data.common.lapce_command.get() {
-                    window_tab_data.run_lapce_command(cx, cmd);
+                    window_tab_data.run_lapce_command(cmd);
                 }
             });
         }
 
         {
             let window_tab_data = window_tab_data.clone();
-            create_effect(cx.scope, move |_| {
+            create_effect(cx, move |_| {
                 if let Some(cmd) = window_tab_data.common.workbench_command.get() {
-                    window_tab_data.run_workbench_command(cx, cmd, None);
+                    window_tab_data.run_workbench_command(cmd, None);
                 }
             });
         }
@@ -264,9 +261,9 @@ impl WindowTabData {
         {
             let window_tab_data = window_tab_data.clone();
             let internal_command = window_tab_data.common.internal_command;
-            create_effect(cx.scope, move |_| {
+            create_effect(cx, move |_| {
                 if let Some(cmd) = internal_command.get() {
-                    window_tab_data.run_internal_command(cx, cmd);
+                    window_tab_data.run_internal_command(cmd);
                 }
             });
         }
@@ -274,10 +271,10 @@ impl WindowTabData {
         {
             let window_tab_data = window_tab_data.clone();
             let notification = window_tab_data.proxy.notification;
-            create_effect(cx.scope, move |_| {
+            create_effect(cx, move |_| {
                 notification.with(|rpc| {
                     if let Some(rpc) = rpc.as_ref() {
-                        window_tab_data.handle_core_notification(cx, rpc);
+                        window_tab_data.handle_core_notification(rpc);
                     }
                 });
             });
@@ -286,10 +283,10 @@ impl WindowTabData {
         window_tab_data
     }
 
-    pub fn run_lapce_command(&self, cx: AppContext, cmd: LapceCommand) {
+    pub fn run_lapce_command(&self, cmd: LapceCommand) {
         match cmd.kind {
             CommandKind::Workbench(command) => {
-                self.run_workbench_command(cx, command, cmd.data);
+                self.run_workbench_command(command, cmd.data);
             }
             CommandKind::Edit(_) => {}
             CommandKind::Move(_) => {}
@@ -301,10 +298,10 @@ impl WindowTabData {
 
     pub fn run_workbench_command(
         &self,
-        cx: AppContext,
         cmd: LapceWorkbenchCommand,
         data: Option<Value>,
     ) {
+        let cx = self.scope;
         use LapceWorkbenchCommand::*;
         match cmd {
             EnableModal => {}
@@ -346,8 +343,29 @@ impl WindowTabData {
             OpenProxyDirectory => {}
             OpenThemesDirectory => {}
             OpenPluginsDirectory => {}
-            CloseWindowTab => {}
-            NewWindowTab => {}
+            NewWindowTab => {
+                self.common.window_command.set(Some(
+                    WindowCommand::NewWorkspaceTab {
+                        workspace: LapceWorkspace::default(),
+                        end: false,
+                    },
+                ));
+            }
+            CloseWindowTab => {
+                self.common
+                    .window_command
+                    .set(Some(WindowCommand::CloseWorkspaceTab { index: None }));
+            }
+            NextWindowTab => {
+                self.common
+                    .window_command
+                    .set(Some(WindowCommand::NextWorkspaceTab));
+            }
+            PreviousWindowTab => {
+                self.common
+                    .window_command
+                    .set(Some(WindowCommand::PreviousWorkspaceTab));
+            }
             NewTerminalTab => {
                 self.terminal.new_tab(cx, None);
                 if !self.panel.is_panel_visible(&PanelKind::Terminal) {
@@ -387,8 +405,6 @@ impl WindowTabData {
                 }
                 self.common.focus.set(Focus::Panel(PanelKind::Terminal));
             }
-            NextWindowTab => {}
-            PreviousWindowTab => {}
             ReloadWindow => {}
             NewWindow => {}
             CloseWindow => {}
@@ -533,7 +549,8 @@ impl WindowTabData {
         }
     }
 
-    pub fn run_internal_command(&self, cx: AppContext, cmd: InternalCommand) {
+    pub fn run_internal_command(&self, cmd: InternalCommand) {
+        let cx = self.scope;
         match cmd {
             InternalCommand::OpenFile { path } => {
                 self.main_split.go_to_location(
@@ -618,7 +635,8 @@ impl WindowTabData {
         }
     }
 
-    fn handle_core_notification(&self, cx: AppContext, rpc: &CoreNotification) {
+    fn handle_core_notification(&self, rpc: &CoreNotification) {
+        let cx = self.scope;
         match rpc {
             CoreNotification::DiffInfo { diff } => {
                 self.source_control.update(|source_control| {
@@ -717,7 +735,8 @@ impl WindowTabData {
         }
     }
 
-    pub fn key_down(&self, cx: AppContext, key_event: &KeyEvent) {
+    pub fn key_down(&self, key_event: &KeyEvent) {
+        let cx = self.scope;
         let focus = self.common.focus.get_untracked();
         let mut keypress = self.keypress.get_untracked();
         let executed = match focus {
@@ -781,7 +800,7 @@ impl WindowTabData {
         let (point_above, point_below) =
             doc.with_untracked(|doc| doc.points_of_offset(completion.offset));
 
-        let window_origin = window_origin.get();
+        let window_origin = window_origin.get() - self.window_origin.get().to_vec2();
         let viewport = viewport.get();
         let completion_size = completion.layout_rect.size();
         let tab_size = self.layout_rect.get().size();
@@ -831,7 +850,7 @@ impl WindowTabData {
         let (_point_above, point_below) =
             doc.with_untracked(|doc| doc.points_of_offset(code_action.offset));
 
-        let window_origin = window_origin.get();
+        let window_origin = window_origin.get() - self.window_origin.get().to_vec2();
         let viewport = viewport.get();
 
         let mut origin = window_origin
@@ -876,7 +895,7 @@ impl WindowTabData {
         }
     }
 
-    fn toggle_panel_visual(&self, cx: AppContext, kind: PanelKind) {
+    fn toggle_panel_visual(&self, cx: Scope, kind: PanelKind) {
         if self.panel.is_panel_visible(&kind) {
             self.hide_panel(cx, kind);
         } else {
@@ -884,7 +903,7 @@ impl WindowTabData {
         }
     }
 
-    fn toggle_panel_focus(&self, cx: AppContext, kind: PanelKind) {
+    fn toggle_panel_focus(&self, cx: Scope, kind: PanelKind) {
         let should_hide = match kind {
             PanelKind::FileExplorer
             | PanelKind::Plugin
@@ -912,12 +931,12 @@ impl WindowTabData {
             && self.panel.is_panel_visible(&kind)
     }
 
-    fn hide_panel(&self, cx: AppContext, kind: PanelKind) {
+    fn hide_panel(&self, cx: Scope, kind: PanelKind) {
         self.panel.hide_panel(&kind);
         self.common.focus.set(Focus::Workbench);
     }
 
-    pub fn show_panel(&self, cx: AppContext, kind: PanelKind) {
+    pub fn show_panel(&self, cx: Scope, kind: PanelKind) {
         if kind == PanelKind::Terminal
             && self
                 .terminal
@@ -932,7 +951,7 @@ impl WindowTabData {
 
     fn run_and_debug(
         &self,
-        cx: AppContext,
+        cx: Scope,
         mode: &RunDebugMode,
         config: &RunDebugConfig,
     ) {
@@ -951,7 +970,7 @@ impl WindowTabData {
 
     fn run_in_terminal(
         &self,
-        cx: AppContext,
+        cx: Scope,
         mode: &RunDebugMode,
         config: &RunDebugConfig,
     ) {

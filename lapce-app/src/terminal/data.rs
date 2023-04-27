@@ -8,9 +8,9 @@ use alacritty_terminal::{
     Term,
 };
 use floem::{
-    app::AppContext,
     glazier::{keyboard_types::Key, KeyEvent, Modifiers},
     reactive::{create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet},
+    AppContext,
 };
 use lapce_core::{
     command::{EditCommand, FocusCommand},
@@ -58,7 +58,7 @@ impl KeyPressFocus for TerminalData {
 
     fn run_command(
         &self,
-        cx: AppContext,
+        cx: Scope,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
         mods: floem::glazier::Modifiers,
@@ -282,7 +282,7 @@ impl KeyPressFocus for TerminalData {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&self, cx: AppContext, c: &str) {
+    fn receive_char(&self, cx: Scope, c: &str) {
         if self.mode.get_untracked() == Mode::Terminal {
             self.common
                 .proxy
@@ -377,7 +377,7 @@ impl TerminalData {
         raw
     }
 
-    pub fn send_keypress(&self, cx: AppContext, key: &KeyEvent) {
+    pub fn send_keypress(&self, cx: Scope, key: &KeyEvent) {
         if let Some(command) = Self::resolve_key_event(key) {
             self.receive_char(cx, command);
         }

@@ -10,6 +10,7 @@ use lapce_core::directory::Directory;
 use lapce_rpc::plugin::VoltID;
 
 use crate::{
+    app::{AppData, AppInfo},
     doc::DocInfo,
     panel::{data::PanelOrder, kind::PanelKind, position::PanelPosition},
     window::{WindowData, WindowInfo},
@@ -167,6 +168,37 @@ impl LapceDb {
         Ok(())
     }
 
+    pub fn save_app(&self, data: AppData) -> Result<()> {
+        let windows = data.windows.get_untracked();
+        for window in &windows {
+            for (_, window_tab) in window.window_tabs.get_untracked().into_iter() {
+                let _ = self.save_window_tab(window_tab);
+            }
+        }
+        let info = AppInfo {
+            windows: windows
+                .iter()
+                .map(|window_data| window_data.info())
+                .collect(),
+        };
+        println!("save app info {info:?}");
+        let info = serde_json::to_string(&info)?;
+        let sled_db = self.get_db()?;
+        sled_db.insert("app", info.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
+    pub fn get_app(&self) -> Result<AppInfo> {
+        let sled_db = self.get_db()?;
+        let info = sled_db
+            .get("app")?
+            .ok_or_else(|| anyhow!("can't find app info"))?;
+        let info = std::str::from_utf8(&info)?;
+        let info: AppInfo = serde_json::from_str(info)?;
+        Ok(info)
+    }
+
     pub fn get_window(&self) -> Result<WindowInfo> {
         let sled_db = self.get_db()?;
         let info = sled_db
@@ -178,7 +210,7 @@ impl LapceDb {
     }
 
     pub fn save_window(&self, data: WindowData) -> Result<()> {
-        for window_tab in data.window_tabs.get_untracked().into_iter() {
+        for (_, window_tab) in data.window_tabs.get_untracked().into_iter() {
             let _ = self.save_window_tab(window_tab);
         }
         let info = data.info();

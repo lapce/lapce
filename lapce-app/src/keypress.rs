@@ -8,9 +8,8 @@ use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Result;
 use floem::{
-    app::AppContext,
     glazier::{KbKey, KeyEvent, Modifiers, MouseEvent},
-    reactive::{SignalSet, WriteSignal},
+    reactive::{Scope, SignalSet, WriteSignal},
 };
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
@@ -41,7 +40,7 @@ pub trait KeyPressFocus {
     fn check_condition(&self, condition: Condition) -> bool;
     fn run_command(
         &self,
-        cx: AppContext,
+        cx: Scope,
         command: &LapceCommand,
         count: Option<usize>,
         mods: Modifiers,
@@ -52,7 +51,7 @@ pub trait KeyPressFocus {
     fn focus_only(&self) -> bool {
         false
     }
-    fn receive_char(&self, cx: AppContext, c: &str);
+    fn receive_char(&self, cx: Scope, c: &str);
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -86,7 +85,7 @@ impl KeyPressFocus for DefaultKeyPress {
 
     fn run_command(
         &self,
-        cx: AppContext,
+        cx: Scope,
         command: &LapceCommand,
         count: Option<usize>,
         mods: Modifiers,
@@ -94,7 +93,7 @@ impl KeyPressFocus for DefaultKeyPress {
         CommandExecuted::No
     }
 
-    fn receive_char(&self, cx: AppContext, c: &str) {}
+    fn receive_char(&self, cx: Scope, c: &str) {}
 }
 
 #[derive(Clone)]
@@ -182,7 +181,7 @@ impl KeyPressData {
 
     fn run_command<T: KeyPressFocus>(
         &self,
-        ctx: AppContext,
+        ctx: Scope,
         command: &str,
         count: Option<usize>,
         mods: Modifiers,
@@ -209,7 +208,7 @@ impl KeyPressData {
 
     pub fn key_down<'a, T: KeyPressFocus>(
         &mut self,
-        cx: AppContext,
+        cx: Scope,
         event: impl Into<EventRef<'a>>,
         focus: &T,
     ) -> bool {

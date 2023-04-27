@@ -21,8 +21,8 @@ path = "lapce-proxy/src/bin/lapce-proxy.rs"
 [workspace]
 members = [
   "lapce-app",
-  # "lapce-data",
-  # "lapce-ui",
+  "lapce-data",
+  "lapce-ui",
   "lapce-proxy",
   "lapce-rpc",
   "lapce-core",

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use floem::{
-    app::AppContext,
     reactive::{
         ReadSignal, RwSignal, SignalGet, SignalSet, SignalWith, WriteSignal,
     },
@@ -9,6 +8,7 @@ use floem::{
     view::View,
     views::{click, container, stack, Decorators},
     views::{label, svg},
+    AppContext,
 };
 
 use crate::{

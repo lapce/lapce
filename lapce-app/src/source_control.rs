@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use floem::app::AppContext;
+use floem::reactive::Scope;
 use indexmap::IndexMap;
 use lapce_rpc::source_control::FileDiff;
 
@@ -16,7 +16,7 @@ pub struct SourceControlData {
 }
 
 impl SourceControlData {
-    pub fn new(cx: AppContext, common: CommonData) -> Self {
+    pub fn new(cx: Scope, common: CommonData) -> Self {
         Self {
             file_diffs: IndexMap::new(),
             branch: "".to_string(),

@@ -6,11 +6,11 @@ use std::{
 };
 
 use floem::{
-    app::AppContext,
     reactive::{
         create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWithUntracked,
+        SignalUpdate,
     },
+    AppContext,
 };
 use lapce_rpc::{
     dap_types::{
@@ -135,10 +135,10 @@ pub struct DapData {
 }
 
 impl DapData {
-    pub fn new(cx: AppContext, dap_id: DapId, term_id: TermId) -> Self {
-        let stopped = create_rw_signal(cx.scope, false);
-        let thread_id = create_rw_signal(cx.scope, None);
-        let stack_traces = create_rw_signal(cx.scope, BTreeMap::new());
+    pub fn new(cx: Scope, dap_id: DapId, term_id: TermId) -> Self {
+        let stopped = create_rw_signal(cx, false);
+        let thread_id = create_rw_signal(cx, None);
+        let stack_traces = create_rw_signal(cx, BTreeMap::new());
         Self {
             term_id,
             dap_id,

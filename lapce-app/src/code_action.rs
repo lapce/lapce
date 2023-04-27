@@ -1,11 +1,8 @@
 use std::sync::Arc;
 
 use floem::{
-    app::AppContext,
-    peniko::kurbo::{Point, Rect},
-    reactive::{
-        create_rw_signal, ReadSignal, RwSignal, SignalGetUntracked, SignalSet,
-    },
+    peniko::kurbo::Rect,
+    reactive::{create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet},
 };
 use lapce_core::{command::FocusCommand, mode::Mode, movement::Movement};
 use lapce_rpc::plugin::PluginId;
@@ -65,7 +62,7 @@ impl KeyPressFocus for CodeActionData {
 
     fn run_command(
         &self,
-        cx: AppContext,
+        cx: Scope,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
         mods: floem::glazier::Modifiers,
@@ -83,13 +80,13 @@ impl KeyPressFocus for CodeActionData {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&self, cx: AppContext, c: &str) {}
+    fn receive_char(&self, cx: Scope, c: &str) {}
 }
 
 impl CodeActionData {
-    pub fn new(cx: AppContext, common: CommonData) -> Self {
-        let status = create_rw_signal(cx.scope, CodeActionStatus::Inactive);
-        let active = create_rw_signal(cx.scope, 0);
+    pub fn new(cx: Scope, common: CommonData) -> Self {
+        let status = create_rw_signal(cx, CodeActionStatus::Inactive);
+        let active = create_rw_signal(cx, 0);
         Self {
             status,
             active,
@@ -175,12 +172,12 @@ impl CodeActionData {
         self.common.focus.set(Focus::CodeAction);
     }
 
-    fn cancel(&self, cx: AppContext) {
+    fn cancel(&self, cx: Scope) {
         self.status.set(CodeActionStatus::Inactive);
         self.common.focus.set(Focus::Workbench);
     }
 
-    fn select(&self, cx: AppContext) {
+    fn select(&self, cx: Scope) {
         if let Some(item) = self.filtered_items.get(self.active.get_untracked()) {
             self.common
                 .internal_command
@@ -192,11 +189,7 @@ impl CodeActionData {
         self.cancel(cx);
     }
 
-    fn run_focus_command(
-        &self,
-        cx: AppContext,
-        cmd: &FocusCommand,
-    ) -> CommandExecuted {
+    fn run_focus_command(&self, cx: Scope, cmd: &FocusCommand) -> CommandExecuted {
         match cmd {
             FocusCommand::ModalClose => {
                 self.cancel(cx);

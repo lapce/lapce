@@ -1,11 +1,8 @@
 use std::sync::Arc;
 
-use floem::{
-    app::AppContext,
-    reactive::{
-        create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked,
-        SignalWith, SignalWithUntracked,
-    },
+use floem::reactive::{
+    create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalWith,
+    SignalWithUntracked,
 };
 
 use crate::{

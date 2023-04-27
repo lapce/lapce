@@ -59,7 +59,7 @@ pub enum Condition {
 
 #[cfg(test)]
 mod test {
-    use floem::{app::AppContext, glazier::Modifiers};
+    use floem::{glazier::Modifiers, reactive::Scope};
     use lapce_core::mode::Mode;
 
     use crate::keypress::{condition::CheckCondition, KeyPressData, KeyPressFocus};
@@ -81,7 +81,7 @@ mod test {
 
         fn run_command(
             &self,
-            _ctx: AppContext,
+            _ctx: Scope,
             _command: &crate::command::LapceCommand,
             _count: Option<usize>,
             _mods: Modifiers,
@@ -89,7 +89,7 @@ mod test {
             unimplemented!()
         }
 
-        fn receive_char(&self, _ctx: AppContext, _c: &str) {
+        fn receive_char(&self, _ctx: Scope, _c: &str) {
             unimplemented!()
         }
     }

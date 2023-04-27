@@ -533,5 +533,16 @@ pub enum InternalCommand {
 
 #[derive(Clone)]
 pub enum WindowCommand {
-    SetWorkspace { workspace: LapceWorkspace },
+    SetWorkspace {
+        workspace: LapceWorkspace,
+    },
+    CloseWorkspaceTab {
+        index: Option<usize>,
+    },
+    NewWorkspaceTab {
+        workspace: LapceWorkspace,
+        end: bool,
+    },
+    NextWorkspaceTab,
+    PreviousWorkspaceTab,
 }

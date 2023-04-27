@@ -13,31 +13,24 @@ use std::{
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use floem::{
-    app::AppContext,
     ext_event::{create_ext_action, create_signal_from_channel},
     reactive::{
         create_effect, create_rw_signal, create_signal, use_context, ReadSignal,
-        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalWith, SignalWithUntracked, WriteSignal,
+        RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalWith, SignalWithUntracked,
     },
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lapce_core::{
-    command::FocusCommand, mode::Mode, movement::Movement, register::Register,
-    selection::Selection,
+    command::FocusCommand, mode::Mode, movement::Movement, selection::Selection,
 };
-use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
+use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
 use lsp_types::DocumentSymbolResponse;
 
 use crate::{
-    code_action::CodeActionData,
-    command::{
-        CommandExecuted, CommandKind, InternalCommand, LapceCommand, WindowCommand,
-    },
-    completion::CompletionData,
-    config::LapceConfig,
+    command::{CommandExecuted, CommandKind, InternalCommand, WindowCommand},
     db::LapceDb,
     debug::{run_configs, RunDebugMode},
     editor::{
@@ -108,31 +101,31 @@ pub struct PaletteData {
 
 impl PaletteData {
     pub fn new(
-        cx: AppContext,
+        cx: Scope,
         workspace: Arc<LapceWorkspace>,
         main_split: MainSplitData,
         keypress: ReadSignal<KeyPressData>,
         common: CommonData,
     ) -> Self {
-        let status = create_rw_signal(cx.scope, PaletteStatus::Inactive);
-        let items = create_rw_signal(cx.scope, im::Vector::new());
-        let index = create_rw_signal(cx.scope, 0);
-        let references = create_rw_signal(cx.scope, Vec::new());
+        let status = create_rw_signal(cx, PaletteStatus::Inactive);
+        let items = create_rw_signal(cx, im::Vector::new());
+        let index = create_rw_signal(cx, 0);
+        let references = create_rw_signal(cx, Vec::new());
         let input = create_rw_signal(
-            cx.scope,
+            cx,
             PaletteInput {
                 input: "".to_string(),
                 kind: PaletteKind::File,
             },
         );
-        let kind = create_rw_signal(cx.scope, PaletteKind::File);
+        let kind = create_rw_signal(cx, PaletteKind::File);
         let input_editor =
             EditorData::new_local(cx, EditorId::next(), common.clone());
         let preview_editor =
             EditorData::new_local(cx, EditorId::next(), common.clone());
-        let preview_editor = create_rw_signal(cx.scope, preview_editor);
-        let has_preview = create_rw_signal(cx.scope, false);
-        let run_id = create_rw_signal(cx.scope, 0);
+        let preview_editor = create_rw_signal(cx, preview_editor);
+        let has_preview = create_rw_signal(cx, false);
+        let run_id = create_rw_signal(cx, 0);
         let run_id_counter = Arc::new(AtomicU64::new(0));
 
         let (run_tx, run_rx) = crossbeam_channel::unbounded();
@@ -145,7 +138,7 @@ impl PaletteData {
             {
                 let tx = tx.clone();
                 // this effect only monitors items change
-                create_effect(cx.scope, move |_| {
+                create_effect(cx, move |_| {
                     let items = items.get();
                     let input = input.get_untracked();
                     let run_id = run_id.get_untracked();
@@ -154,7 +147,7 @@ impl PaletteData {
             }
 
             // this effect only monitors input change
-            create_effect(cx.scope, move |last_kind| {
+            create_effect(cx, move |last_kind| {
                 let input = input.get();
                 let kind = input.kind;
                 if last_kind != Some(kind) {
@@ -177,13 +170,13 @@ impl PaletteData {
         }
 
         let (filtered_items, set_filtered_items) =
-            create_signal(cx.scope, im::Vector::new());
+            create_signal(cx, im::Vector::new());
         {
             let resp = create_signal_from_channel(cx, resp_rx);
             let run_id = run_id.read_only();
             let input = input.read_only();
             let index = index.write_only();
-            create_effect(cx.scope, move |_| {
+            create_effect(cx, move |_| {
                 if let Some((filter_run_id, filter_input, items)) = resp.get() {
                     if run_id.get_untracked() == filter_run_id
                         && input.get_untracked().input == filter_input
@@ -195,7 +188,7 @@ impl PaletteData {
             });
         }
 
-        let clicked_index = create_rw_signal(cx.scope, Option::<usize>::None);
+        let clicked_index = create_rw_signal(cx, Option::<usize>::None);
 
         let palette = Self {
             run_id_counter,
@@ -224,7 +217,7 @@ impl PaletteData {
             let palette = palette.clone();
             let clicked_index = clicked_index.read_only();
             let index = index.write_only();
-            create_effect(cx.scope, move |_| {
+            create_effect(cx, move |_| {
                 if let Some(clicked_index) = clicked_index.get() {
                     index.set(clicked_index);
                     palette.select(cx);
@@ -240,7 +233,7 @@ impl PaletteData {
             let preset_kind = palette.kind.read_only();
             // Monitors when the palette's input changes, so that it can update the stored input
             // and kind of palette.
-            create_effect(cx.scope, move |last_input| {
+            create_effect(cx, move |last_input| {
                 // TODO(minor, perf): this could have perf issues if the user accidentally pasted a huge amount of text into the palette.
                 let new_input = doc.with(|doc| doc.buffer().text().to_string());
 
@@ -287,7 +280,7 @@ impl PaletteData {
 
         {
             let palette = palette.clone();
-            create_effect(cx.scope, move |_| {
+            create_effect(cx, move |_| {
                 let _ = palette.index.get();
                 palette.preview(cx);
             });
@@ -295,7 +288,7 @@ impl PaletteData {
 
         {
             let palette = palette.clone();
-            create_effect(cx.scope, move |_| {
+            create_effect(cx, move |_| {
                 let focus = palette.common.focus.get();
                 if focus != Focus::Palette
                     && palette.status.get_untracked() != PaletteStatus::Inactive
@@ -309,7 +302,7 @@ impl PaletteData {
     }
 
     /// Start and focus the palette for the given kind.  
-    pub fn run(&self, _cx: AppContext, kind: PaletteKind) {
+    pub fn run(&self, _cx: Scope, kind: PaletteKind) {
         self.common.focus.set(Focus::Palette);
         self.status.set(PaletteStatus::Started);
         let symbol = kind.symbol();
@@ -325,7 +318,7 @@ impl PaletteData {
 
     /// Execute the internal behavior of the palette for the given kind. This ignores updating and
     /// focusing the palette input.
-    fn run_inner(&self, cx: AppContext, kind: PaletteKind) {
+    fn run_inner(&self, cx: Scope, kind: PaletteKind) {
         self.has_preview.set(false);
 
         let run_id = self.run_id_counter.fetch_add(1, Ordering::Relaxed) + 1;
@@ -360,7 +353,7 @@ impl PaletteData {
     }
 
     /// Initialize the palette with the files in the current workspace.
-    fn get_files(&self, cx: AppContext) {
+    fn get_files(&self, cx: Scope) {
         let workspace = self.workspace.clone();
         let set_items = self.items.write_only();
         let send = create_ext_action(cx, move |items: Vec<PathBuf>| {
@@ -396,7 +389,7 @@ impl PaletteData {
     }
 
     /// Initialize the palette with the lines in the current document.
-    fn get_lines(&self, _cx: AppContext) {
+    fn get_lines(&self, _cx: Scope) {
         let editor = self.main_split.active_editor.get_untracked();
         let doc = match editor {
             Some(editor) => editor.with_untracked(|editor| (editor.doc)),
@@ -435,7 +428,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_commands(&self, _cx: AppContext) {
+    fn get_commands(&self, _cx: Scope) {
         const EXCLUDED_ITEMS: &[&str] = &["palette.command"];
 
         let items = self.keypress.with_untracked(|keypress| {
@@ -492,8 +485,8 @@ impl PaletteData {
     }
 
     /// Initialize the palette with all the available workspaces, local and remote.
-    fn get_workspaces(&self, cx: AppContext) {
-        let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
+    fn get_workspaces(&self, cx: Scope) {
+        let db: Arc<LapceDb> = use_context(cx).unwrap();
         let workspaces = db.recent_workspaces().unwrap_or_default();
 
         let items = workspaces
@@ -522,7 +515,7 @@ impl PaletteData {
     }
 
     /// Initialize the list of references in the file, from the current editor location.
-    fn get_references(&self, cx: AppContext) {
+    fn get_references(&self, cx: Scope) {
         let items = self
             .references
             .get_untracked()
@@ -549,7 +542,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_document_symbols(&self, cx: AppContext) {
+    fn get_document_symbols(&self, cx: Scope) {
         let editor = self.main_split.active_editor.get_untracked();
         let doc = match editor {
             Some(editor) => editor.with_untracked(|editor| (editor.doc)),
@@ -617,7 +610,7 @@ impl PaletteData {
         });
     }
 
-    fn get_workspace_symbols(&self, cx: AppContext) {
+    fn get_workspace_symbols(&self, cx: Scope) {
         let input = self.input.get_untracked().input;
 
         let set_items = self.items.write_only();
@@ -665,7 +658,7 @@ impl PaletteData {
             });
     }
 
-    fn get_run_configs(&self, cx: AppContext) {
+    fn get_run_configs(&self, cx: Scope) {
         let configs = run_configs(self.common.workspace.path.as_deref());
         if configs.is_none() {
             if let Some(path) = self.workspace.path.as_ref() {
@@ -724,7 +717,7 @@ impl PaletteData {
             .set(items.into_iter().map(|(_, item)| item).collect());
     }
 
-    fn select(&self, cx: AppContext) {
+    fn select(&self, cx: Scope) {
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
         self.cancel(cx);
@@ -826,7 +819,7 @@ impl PaletteData {
     }
 
     /// Update the preview for the currently active palette item, if it has one.
-    fn preview(&self, cx: AppContext) {
+    fn preview(&self, cx: Scope) {
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
         if let Some(item) = items.get(index) {
@@ -924,7 +917,7 @@ impl PaletteData {
     }
 
     /// Close the palette, reverting focus back to the workbench.
-    fn cancel(&self, _cx: AppContext) {
+    fn cancel(&self, _cx: Scope) {
         self.status.set(PaletteStatus::Inactive);
         if self.common.focus.get_untracked() == Focus::Palette {
             self.common.focus.set(Focus::Workbench);
@@ -963,11 +956,7 @@ impl PaletteData {
         // TODO: implement
     }
 
-    fn run_focus_command(
-        &self,
-        cx: AppContext,
-        cmd: &FocusCommand,
-    ) -> CommandExecuted {
+    fn run_focus_command(&self, cx: Scope, cmd: &FocusCommand) -> CommandExecuted {
         match cmd {
             FocusCommand::ModalClose => {
                 self.cancel(cx);
@@ -1096,7 +1085,7 @@ impl KeyPressFocus for PaletteData {
 
     fn run_command(
         &self,
-        cx: AppContext,
+        cx: Scope,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
         mods: floem::glazier::Modifiers,
@@ -1118,7 +1107,7 @@ impl KeyPressFocus for PaletteData {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&self, cx: AppContext, c: &str) {
+    fn receive_char(&self, cx: Scope, c: &str) {
         self.input_editor.receive_char(cx, c);
     }
 }

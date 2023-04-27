@@ -2,13 +2,9 @@ use std::path::PathBuf;
 use std::{collections::HashMap, sync::Arc};
 
 use crossbeam_channel::Sender;
+use floem::reactive::Scope;
 use floem::{
-    app::AppContext,
-    ext_event::create_signal_from_channel,
-    reactive::{
-        create_effect, create_signal, ReadSignal, SignalSet, SignalUpdate,
-        SignalWith, WriteSignal,
-    },
+    ext_event::create_signal_from_channel, reactive::ReadSignal, AppContext,
 };
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::plugin::VoltID;
@@ -16,12 +12,11 @@ use lapce_rpc::terminal::TermId;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRpcHandler},
     proxy::ProxyRpcHandler,
-    source_control::DiffInfo,
 };
 use lsp_types::Url;
 
 use crate::terminal::event::TermEvent;
-use crate::{completion::CompletionData, workspace::LapceWorkspace};
+use crate::workspace::LapceWorkspace;
 
 pub struct Proxy {
     pub tx: Sender<CoreNotification>,
@@ -35,7 +30,7 @@ pub struct ProxyData {
 }
 
 pub fn start_proxy(
-    cx: AppContext,
+    cx: Scope,
     workspace: Arc<LapceWorkspace>,
     disabled_volts: Vec<VoltID>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,

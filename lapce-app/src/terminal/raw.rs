@@ -1,10 +1,6 @@
 use alacritty_terminal::{ansi, event::EventListener, term::test::TermSize, Term};
 use crossbeam_channel::Sender;
-use floem::{
-    app::AppContext,
-    ext_event::create_ext_action,
-    reactive::{RwSignal, SignalSet},
-};
+
 use lapce_proxy::terminal::TermConfig;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 

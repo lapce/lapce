@@ -2,13 +2,12 @@ use std::{cmp::Ordering, str::FromStr, sync::Arc};
 
 use anyhow::Result;
 use floem::{
-    app::AppContext,
     ext_event::create_ext_action,
     glazier::Modifiers,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_rw_signal, use_context, RwSignal, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWithUntracked,
+        create_rw_signal, use_context, RwSignal, Scope, SignalGetUntracked,
+        SignalSet, SignalUpdate, SignalWithUntracked,
     },
 };
 use lapce_core::{
@@ -45,6 +44,7 @@ use crate::{
 };
 
 pub mod location;
+pub mod view;
 
 #[derive(Clone, Debug)]
 pub enum InlineFindDirection {
@@ -63,7 +63,7 @@ pub struct EditorInfo {
 impl EditorInfo {
     pub fn to_data(
         &self,
-        cx: AppContext,
+        cx: Scope,
         data: MainSplitData,
         editor_tab_id: EditorTabId,
     ) -> RwSignal<EditorData> {
@@ -97,7 +97,7 @@ impl EditorInfo {
             }
             DocContent::Local => EditorData::new_local(cx, editor_id, data.common),
         };
-        let editor_data = create_rw_signal(cx.scope, editor_data);
+        let editor_data = create_rw_signal(cx, editor_data);
         data.editors.update(|editors| {
             editors.insert(editor_id, editor_data);
         });
@@ -132,7 +132,7 @@ impl PartialEq for EditorData {
 
 impl EditorData {
     pub fn new(
-        cx: AppContext,
+        cx: Scope,
         editor_tab_id: Option<EditorTabId>,
         editor_id: EditorId,
         doc: RwSignal<Document>,
@@ -148,17 +148,17 @@ impl EditorData {
             None,
             None,
         );
-        let cursor = create_rw_signal(cx.scope, cursor);
-        let scroll_delta = create_rw_signal(cx.scope, Vec2::ZERO);
-        let scroll_to = create_rw_signal(cx.scope, None);
-        let snippet = create_rw_signal(cx.scope, None);
-        let window_origin = create_rw_signal(cx.scope, Point::ZERO);
-        let viewport = create_rw_signal(cx.scope, Rect::ZERO);
-        let confirmed = create_rw_signal(cx.scope, false);
-        let find = create_rw_signal(cx.scope, Find::new(0));
-        let last_movement = create_rw_signal(cx.scope, Movement::Left);
-        let inline_find = create_rw_signal(cx.scope, None);
-        let last_inline_find = create_rw_signal(cx.scope, None);
+        let cursor = create_rw_signal(cx, cursor);
+        let scroll_delta = create_rw_signal(cx, Vec2::ZERO);
+        let scroll_to = create_rw_signal(cx, None);
+        let snippet = create_rw_signal(cx, None);
+        let window_origin = create_rw_signal(cx, Point::ZERO);
+        let viewport = create_rw_signal(cx, Rect::ZERO);
+        let confirmed = create_rw_signal(cx, false);
+        let find = create_rw_signal(cx, Find::new(0));
+        let last_movement = create_rw_signal(cx, Movement::Left);
+        let inline_find = create_rw_signal(cx, None);
+        let last_inline_find = create_rw_signal(cx, None);
         Self {
             editor_tab_id,
             editor_id,
@@ -178,13 +178,9 @@ impl EditorData {
         }
     }
 
-    pub fn new_local(
-        cx: AppContext,
-        editor_id: EditorId,
-        common: CommonData,
-    ) -> Self {
+    pub fn new_local(cx: Scope, editor_id: EditorId, common: CommonData) -> Self {
         let doc = Document::new_local(cx, common.proxy.clone(), common.config);
-        let doc = create_rw_signal(cx.scope, doc);
+        let doc = create_rw_signal(cx, doc);
         Self::new(cx, None, editor_id, doc, common)
     }
 
@@ -207,32 +203,27 @@ impl EditorData {
 
     pub fn copy(
         &self,
-        cx: AppContext,
+        cx: Scope,
         editor_tab_id: Option<EditorTabId>,
         editor_id: EditorId,
     ) -> Self {
         let mut editor = self.clone();
-        editor.cursor = create_rw_signal(cx.scope, editor.cursor.get_untracked());
-        editor.viewport =
-            create_rw_signal(cx.scope, editor.viewport.get_untracked());
-        editor.scroll_delta = create_rw_signal(cx.scope, Vec2::ZERO);
+        editor.cursor = create_rw_signal(cx, editor.cursor.get_untracked());
+        editor.viewport = create_rw_signal(cx, editor.viewport.get_untracked());
+        editor.scroll_delta = create_rw_signal(cx, Vec2::ZERO);
         editor.scroll_to = create_rw_signal(
-            cx.scope,
+            cx,
             Some(editor.viewport.get_untracked().origin().to_vec2()),
         );
-        editor.window_origin = create_rw_signal(cx.scope, Point::ZERO);
-        editor.confirmed = create_rw_signal(cx.scope, true);
-        editor.snippet = create_rw_signal(cx.scope, None);
+        editor.window_origin = create_rw_signal(cx, Point::ZERO);
+        editor.confirmed = create_rw_signal(cx, true);
+        editor.snippet = create_rw_signal(cx, None);
         editor.editor_tab_id = editor_tab_id;
         editor.editor_id = editor_id;
         editor
     }
 
-    fn run_edit_command(
-        &self,
-        cx: AppContext,
-        cmd: &EditCommand,
-    ) -> CommandExecuted {
+    fn run_edit_command(&self, cx: Scope, cmd: &EditCommand) -> CommandExecuted {
         let modal = self
             .common
             .config
@@ -279,7 +270,7 @@ impl EditorData {
 
     fn run_move_command(
         &self,
-        cx: AppContext,
+        cx: Scope,
         movement: &lapce_core::movement::Movement,
         count: Option<usize>,
         mods: Modifiers,
@@ -337,7 +328,7 @@ impl EditorData {
 
     fn run_focus_command(
         &self,
-        cx: AppContext,
+        cx: Scope,
         cmd: &FocusCommand,
         count: Option<usize>,
         mods: Modifiers,
@@ -528,7 +519,7 @@ impl EditorData {
                 self.go_to_definition(cx);
             }
             FocusCommand::ShowCodeActions => {
-                self.show_code_actions(cx, false);
+                self.show_code_actions(false);
             }
             FocusCommand::SearchWholeWordForward => {
                 self.search_whole_word_forward(cx, mods);
@@ -559,7 +550,7 @@ impl EditorData {
     }
 
     /// Jump to the next/previous column on the line which matches the given text
-    fn inline_find(&self, cx: AppContext, direction: InlineFindDirection, c: &str) {
+    fn inline_find(&self, cx: Scope, direction: InlineFindDirection, c: &str) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let (line_content, line_start_offset) = self.doc.with_untracked(|doc| {
             let line = doc.buffer().line_of_offset(offset);
@@ -598,7 +589,7 @@ impl EditorData {
         }
     }
 
-    fn go_to_definition(&self, cx: AppContext) {
+    fn go_to_definition(&self, cx: Scope) {
         let path = match self.doc.with_untracked(|doc| {
             if doc.loaded() {
                 doc.content.path().cloned()
@@ -738,7 +729,7 @@ impl EditorData {
         );
     }
 
-    fn page_move(&self, cx: AppContext, down: bool, mods: Modifiers) {
+    fn page_move(&self, cx: Scope, down: bool, mods: Modifiers) {
         let config = self.common.config.get_untracked();
         let viewport = self.viewport.get_untracked();
         let line_height = config.editor.line_height() as f64;
@@ -758,7 +749,7 @@ impl EditorData {
         );
     }
 
-    fn scroll(&self, cx: AppContext, down: bool, count: usize, mods: Modifiers) {
+    fn scroll(&self, cx: Scope, down: bool, count: usize, mods: Modifiers) {
         let config = self.common.config.get_untracked();
         let viewport = self.viewport.get_untracked();
         let line_height = config.editor.line_height() as f64;
@@ -809,7 +800,7 @@ impl EditorData {
         };
     }
 
-    fn select_completion(&self, cx: AppContext) {
+    fn select_completion(&self, cx: Scope) {
         let item = self
             .common
             .completion
@@ -1225,7 +1216,7 @@ impl EditorData {
 
     fn do_go_to_location(
         &self,
-        cx: AppContext,
+        cx: Scope,
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
     ) {
@@ -1234,7 +1225,7 @@ impl EditorData {
         } else if let Some(edits) = edits.as_ref() {
             self.do_text_edit(edits);
         } else {
-            let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
+            let db: Arc<LapceDb> = use_context(cx).unwrap();
             if let Ok(info) = db.get_doc_info(&self.common.workspace, &location.path)
             {
                 self.go_to_position(
@@ -1248,7 +1239,7 @@ impl EditorData {
 
     pub fn go_to_location(
         &self,
-        cx: AppContext,
+        cx: Scope,
         location: EditorLocation,
         new_doc: bool,
         edits: Option<Vec<TextEdit>>,
@@ -1302,7 +1293,7 @@ impl EditorData {
         }
     }
 
-    pub fn get_code_actions(&self, cx: AppContext) {
+    pub fn get_code_actions(&self, cx: Scope) {
         let path = match self.doc.with_untracked(|doc| {
             if doc.loaded() {
                 doc.content.path().cloned()
@@ -1379,7 +1370,7 @@ impl EditorData {
         );
     }
 
-    pub fn show_code_actions(&self, cx: AppContext, mouse_click: bool) {
+    pub fn show_code_actions(&self, mouse_click: bool) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let code_actions = self
             .doc
@@ -1397,7 +1388,7 @@ impl EditorData {
         }
     }
 
-    fn do_save(&self, cx: AppContext) {
+    fn do_save(&self, cx: Scope) {
         let (rev, content) = self
             .doc
             .with_untracked(|doc| (doc.rev(), doc.content.clone()));
@@ -1421,7 +1412,7 @@ impl EditorData {
         }
     }
 
-    fn save(&self, cx: AppContext, exit: bool, allow_formatting: bool) {
+    fn save(&self, cx: Scope, exit: bool, allow_formatting: bool) {
         let (rev, is_pristine, content) = self.doc.with_untracked(|doc| {
             (doc.rev(), doc.buffer().is_pristine(), doc.content.clone())
         });
@@ -1463,7 +1454,7 @@ impl EditorData {
         }
     }
 
-    fn search_whole_word_forward(&self, cx: AppContext, mods: Modifiers) {
+    fn search_whole_word_forward(&self, cx: Scope, mods: Modifiers) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let (word, buffer) = self.doc.with_untracked(|doc| {
             let (start, end) = doc.buffer().select_word(offset);
@@ -1491,7 +1482,7 @@ impl EditorData {
         }
     }
 
-    fn search_forward(&self, cx: AppContext, mods: Modifiers) {
+    fn search_forward(&self, cx: Scope, mods: Modifiers) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let buffer = self.doc.with_untracked(|doc| doc.buffer().clone());
         let next = self
@@ -1512,7 +1503,7 @@ impl EditorData {
         }
     }
 
-    fn search_backward(&self, cx: AppContext, mods: Modifiers) {
+    fn search_backward(&self, cx: Scope, mods: Modifiers) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let buffer = self.doc.with_untracked(|doc| doc.buffer().clone());
         let next = self
@@ -1533,7 +1524,7 @@ impl EditorData {
         }
     }
 
-    pub fn save_doc_position(&self, cx: AppContext) {
+    pub fn save_doc_position(&self, cx: Scope) {
         let path = match self.doc.with_untracked(|doc| {
             if doc.loaded() {
                 doc.content.path().cloned()
@@ -1548,7 +1539,7 @@ impl EditorData {
         let cursor_offset = self.cursor.with_untracked(|c| c.offset());
         let scroll_offset = self.viewport.with_untracked(|v| v.origin().to_vec2());
 
-        let db: Arc<LapceDb> = use_context(cx.scope).unwrap();
+        let db: Arc<LapceDb> = use_context(cx).unwrap();
         db.save_doc_position(
             &self.common.workspace,
             path,
@@ -1580,7 +1571,7 @@ impl KeyPressFocus for EditorData {
 
     fn run_command(
         &self,
-        cx: AppContext,
+        cx: Scope,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
         mods: floem::glazier::Modifiers,
@@ -1604,7 +1595,7 @@ impl KeyPressFocus for EditorData {
         self.inline_find.with_untracked(|f| f.is_some())
     }
 
-    fn receive_char(&self, cx: AppContext, c: &str) {
+    fn receive_char(&self, cx: Scope, c: &str) {
         if self.get_mode() == Mode::Insert {
             let mut cursor = self.cursor.get_untracked();
             let config = self.common.config.get_untracked();

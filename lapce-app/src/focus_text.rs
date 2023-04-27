@@ -1,5 +1,4 @@
 use floem::{
-    app::AppContext,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
     peniko::{kurbo::Point, Color},
@@ -7,7 +6,7 @@ use floem::{
     style::{ComputedStyle, Style},
     taffy::prelude::Node,
     view::{ChangeFlags, View},
-    Renderer,
+    AppContext, Renderer,
 };
 
 enum FocusTextState {

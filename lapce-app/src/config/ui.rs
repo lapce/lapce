@@ -8,7 +8,7 @@ pub struct UIConfig {
     #[field_names(
         desc = "Set the UI font family. If empty, it uses system default."
     )]
-    font_family: String,
+    pub font_family: String,
 
     #[field_names(desc = "Set the UI base font size")]
     font_size: usize,

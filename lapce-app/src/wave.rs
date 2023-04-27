@@ -1,9 +1,8 @@
 use floem::{
-    app::AppContext,
     id::Id,
     peniko::kurbo::{BezPath, Line, Point, QuadBez, Size},
     view::{ChangeFlags, View},
-    Renderer,
+    AppContext, Renderer,
 };
 
 pub fn wave_line(cx: AppContext) -> WaveLine {

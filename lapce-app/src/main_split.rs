@@ -4,13 +4,12 @@ use std::{
 };
 
 use floem::{
-    app::AppContext,
     ext_event::create_ext_action,
     glazier::KeyEvent,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_effect, create_memo, create_rw_signal, Memo, RwSignal, SignalGet,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        create_effect, create_memo, create_rw_signal, Memo, RwSignal, Scope,
+        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
         SignalWithUntracked,
     },
 };
@@ -110,7 +109,7 @@ pub struct SplitInfo {
 impl SplitInfo {
     pub fn to_data(
         &self,
-        cx: AppContext,
+        cx: Scope,
         data: MainSplitData,
         parent_split: Option<SplitId>,
         split_id: SplitId,
@@ -127,7 +126,7 @@ impl SplitInfo {
             window_origin: Point::ZERO,
             layout_rect: Rect::ZERO,
         };
-        let split_data = create_rw_signal(cx.scope, split_data);
+        let split_data = create_rw_signal(cx, split_data);
         data.splits.update(|splits| {
             splits.insert(split_id, split_data);
         });
@@ -144,7 +143,7 @@ pub enum SplitContentInfo {
 impl SplitContentInfo {
     pub fn to_data(
         &self,
-        cx: AppContext,
+        cx: Scope,
         data: MainSplitData,
         parent_split: SplitId,
     ) -> SplitContent {
@@ -180,6 +179,7 @@ impl SplitData {
 
 #[derive(Clone)]
 pub struct MainSplitData {
+    pub scope: Scope,
     pub root_split: SplitId,
     pub active_editor_tab: RwSignal<Option<EditorTabId>>,
     pub splits: RwSignal<im::HashMap<SplitId, RwSignal<SplitData>>>,
@@ -194,20 +194,20 @@ pub struct MainSplitData {
 }
 
 impl MainSplitData {
-    pub fn new(cx: AppContext, common: CommonData) -> Self {
-        let splits = create_rw_signal(cx.scope, im::HashMap::new());
-        let active_editor_tab = create_rw_signal(cx.scope, None);
+    pub fn new(cx: Scope, common: CommonData) -> Self {
+        let splits = create_rw_signal(cx, im::HashMap::new());
+        let active_editor_tab = create_rw_signal(cx, None);
         let editor_tabs: RwSignal<
             im::HashMap<EditorTabId, RwSignal<EditorTabData>>,
-        > = create_rw_signal(cx.scope, im::HashMap::new());
-        let editors = create_rw_signal(cx.scope, im::HashMap::new());
-        let docs = create_rw_signal(cx.scope, im::HashMap::new());
-        let locations = create_rw_signal(cx.scope, im::Vector::new());
-        let current_location = create_rw_signal(cx.scope, 0);
-        let diagnostics = create_rw_signal(cx.scope, im::HashMap::new());
+        > = create_rw_signal(cx, im::HashMap::new());
+        let editors = create_rw_signal(cx, im::HashMap::new());
+        let docs = create_rw_signal(cx, im::HashMap::new());
+        let locations = create_rw_signal(cx, im::Vector::new());
+        let current_location = create_rw_signal(cx, 0);
+        let diagnostics = create_rw_signal(cx, im::HashMap::new());
 
         let active_editor =
-            create_memo(cx.scope, move |_| -> Option<RwSignal<EditorData>> {
+            create_memo(cx, move |_| -> Option<RwSignal<EditorData>> {
                 let active_editor_tab = active_editor_tab.get()?;
                 let editor_tab = editor_tabs.with(|editor_tabs| {
                     editor_tabs.get(&active_editor_tab).copied()
@@ -226,6 +226,7 @@ impl MainSplitData {
             });
 
         Self {
+            scope: cx,
             root_split: SplitId::next(),
             splits,
             active_editor_tab,
@@ -242,7 +243,7 @@ impl MainSplitData {
 
     pub fn key_down(
         &self,
-        cx: AppContext,
+        cx: Scope,
         key_event: &KeyEvent,
         keypress: &mut KeyPressData,
     ) -> Option<()> {
@@ -330,7 +331,7 @@ impl MainSplitData {
 
     pub fn jump_to_location(
         &self,
-        cx: AppContext,
+        cx: Scope,
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
     ) {
@@ -338,11 +339,7 @@ impl MainSplitData {
         self.go_to_location(cx, location, edits);
     }
 
-    pub fn get_doc(
-        &self,
-        cx: AppContext,
-        path: PathBuf,
-    ) -> (RwSignal<Document>, bool) {
+    pub fn get_doc(&self, cx: Scope, path: PathBuf) -> (RwSignal<Document>, bool) {
         let doc = self.docs.with_untracked(|docs| docs.get(&path).cloned());
         if let Some(doc) = doc {
             (doc, false)
@@ -354,14 +351,14 @@ impl MainSplitData {
                 self.common.proxy.clone(),
                 self.common.config,
             );
-            let doc = create_rw_signal(cx.scope, doc);
+            let doc = create_rw_signal(cx, doc);
             self.docs.update(|docs| {
                 docs.insert(path.clone(), doc);
             });
 
             {
                 let proxy = self.common.proxy.clone();
-                create_effect(cx.scope, move |last| {
+                create_effect(cx, move |last| {
                     let rev = doc.with(|doc| doc.buffer().rev());
                     if last == Some(rev) {
                         return rev;
@@ -377,7 +374,7 @@ impl MainSplitData {
 
     pub fn go_to_location(
         &self,
-        cx: AppContext,
+        cx: Scope,
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
     ) {
@@ -385,7 +382,6 @@ impl MainSplitData {
         let (doc, new_doc) = self.get_doc(cx, path.clone());
 
         let editor = self.get_editor_or_new(
-            cx,
             doc,
             &path,
             location.ignore_unconfirmed,
@@ -397,12 +393,12 @@ impl MainSplitData {
 
     fn get_editor_or_new(
         &self,
-        cx: AppContext,
         doc: RwSignal<Document>,
         path: &Path,
         ignore_unconfirmed: bool,
         same_editor_tab: bool,
     ) -> RwSignal<EditorData> {
+        let cx = self.scope;
         let config = self.common.config.get_untracked();
 
         let active_editor_tab_id = self.active_editor_tab.get_untracked();
@@ -499,13 +495,13 @@ impl MainSplitData {
             // create the new editor
             let editor_id = EditorId::next();
             let editor = EditorData::new(
-                cx,
+                self.scope,
                 Some(editor_tab_id),
                 editor_id,
                 doc,
                 self.common.clone(),
             );
-            let editor = create_rw_signal(cx.scope, editor);
+            let editor = create_rw_signal(cx, editor);
             self.editors.update(|editors| {
                 editors.insert(editor_id, editor);
             });
@@ -515,15 +511,15 @@ impl MainSplitData {
                 active: 0,
                 editor_tab_id,
                 children: vec![(
-                    create_rw_signal(cx.scope, 0),
+                    create_rw_signal(cx, 0),
                     EditorTabChild::Editor(editor_id),
                 )],
                 window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
-                locations: create_rw_signal(cx.scope, im::Vector::new()),
-                current_location: create_rw_signal(cx.scope, 0),
+                locations: create_rw_signal(cx, im::Vector::new()),
+                current_location: create_rw_signal(cx, 0),
             };
-            let editor_tab = create_rw_signal(cx.scope, editor_tab);
+            let editor_tab = create_rw_signal(cx, editor_tab);
             self.editor_tabs.update(|editor_tabs| {
                 editor_tabs.insert(editor_tab_id, editor_tab);
             });
@@ -554,7 +550,7 @@ impl MainSplitData {
                 doc,
                 self.common.clone(),
             );
-            let editor = create_rw_signal(cx.scope, editor);
+            let editor = create_rw_signal(cx, editor);
             self.editors.update(|editors| {
                 editors.insert(editor_id, editor);
             });
@@ -565,10 +561,7 @@ impl MainSplitData {
                     .min(editor_tab.children.len().saturating_sub(1));
                 editor_tab.children.insert(
                     active + 1,
-                    (
-                        create_rw_signal(cx.scope, 0),
-                        EditorTabChild::Editor(editor_id),
-                    ),
+                    (create_rw_signal(cx, 0), EditorTabChild::Editor(editor_id)),
                 );
                 editor_tab.active = active + 1;
             });
@@ -578,7 +571,7 @@ impl MainSplitData {
         editor
     }
 
-    pub fn jump_location_backward(&self, cx: AppContext, local: bool) {
+    pub fn jump_location_backward(&self, cx: Scope, local: bool) {
         let (locations, current_location) = if local {
             let active_editor_tab_id = self.active_editor_tab.get_untracked();
             let editor_tabs = self.editor_tabs.get_untracked();
@@ -627,7 +620,7 @@ impl MainSplitData {
         self.go_to_location(cx, location, None);
     }
 
-    pub fn jump_location_forward(&self, cx: AppContext, local: bool) {
+    pub fn jump_location_forward(&self, cx: Scope, local: bool) {
         let (locations, current_location) = if local {
             let active_editor_tab_id = self.active_editor_tab.get_untracked();
             let editor_tabs = self.editor_tabs.get_untracked();
@@ -665,7 +658,7 @@ impl MainSplitData {
 
     pub fn split(
         &self,
-        cx: AppContext,
+        cx: Scope,
         direction: SplitDirection,
         editor_tab_id: EditorTabId,
     ) -> Option<()> {
@@ -731,7 +724,7 @@ impl MainSplitData {
                 window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
             };
-            let new_split = create_rw_signal(cx.scope, new_split);
+            let new_split = create_rw_signal(cx, new_split);
             self.splits.update(|splits| {
                 splits.insert(new_split_id, new_split);
             });
@@ -745,7 +738,7 @@ impl MainSplitData {
 
     fn split_editor_tab(
         &self,
-        cx: AppContext,
+        cx: Scope,
         split_id: SplitId,
         editor_tab: &EditorTabData,
     ) -> Option<RwSignal<EditorTabData>> {
@@ -760,7 +753,7 @@ impl MainSplitData {
                     self.editors.get_untracked().get(editor_id)?.with_untracked(
                         |editor| editor.copy(cx, Some(editor_tab_id), new_editor_id),
                     );
-                let editor = create_rw_signal(cx.scope, editor);
+                let editor = create_rw_signal(cx, editor);
                 self.editors.update(|editors| {
                     editors.insert(new_editor_id, editor);
                 });
@@ -772,19 +765,16 @@ impl MainSplitData {
             split: split_id,
             editor_tab_id,
             active: 0,
-            children: vec![(create_rw_signal(cx.scope, 0), new_child)],
+            children: vec![(create_rw_signal(cx, 0), new_child)],
             window_origin: Point::ZERO,
             layout_rect: Rect::ZERO,
-            locations: create_rw_signal(
-                cx.scope,
-                editor_tab.locations.get_untracked(),
-            ),
+            locations: create_rw_signal(cx, editor_tab.locations.get_untracked()),
             current_location: create_rw_signal(
-                cx.scope,
+                cx,
                 editor_tab.current_location.get_untracked(),
             ),
         };
-        let editor_tab = create_rw_signal(cx.scope, editor_tab);
+        let editor_tab = create_rw_signal(cx, editor_tab);
         self.editor_tabs.update(|editor_tabs| {
             editor_tabs.insert(editor_tab_id, editor_tab);
         });
@@ -793,7 +783,7 @@ impl MainSplitData {
 
     pub fn split_move(
         &self,
-        _cx: AppContext,
+        _cx: Scope,
         direction: SplitMoveDirection,
         editor_tab_id: EditorTabId,
     ) -> Option<()> {
@@ -876,7 +866,7 @@ impl MainSplitData {
 
     pub fn split_exchange(
         &self,
-        cx: AppContext,
+        cx: Scope,
         editor_tab_id: EditorTabId,
     ) -> Option<()> {
         let editor_tabs = self.editor_tabs.get_untracked();
@@ -902,7 +892,7 @@ impl MainSplitData {
         Some(())
     }
 
-    fn split_content_focus(&self, cx: AppContext, content: &SplitContent) {
+    fn split_content_focus(&self, cx: Scope, content: &SplitContent) {
         match content {
             SplitContent::EditorTab(editor_tab_id) => {
                 self.active_editor_tab.set(Some(*editor_tab_id));
@@ -913,7 +903,7 @@ impl MainSplitData {
         }
     }
 
-    fn split_focus(&self, cx: AppContext, split_id: SplitId) -> Option<()> {
+    fn split_focus(&self, cx: Scope, split_id: SplitId) -> Option<()> {
         let splits = self.splits.get_untracked();
         let split = splits.get(&split_id).copied()?;
 
@@ -924,7 +914,7 @@ impl MainSplitData {
         Some(())
     }
 
-    fn split_remove(&self, cx: AppContext, split_id: SplitId) -> Option<()> {
+    fn split_remove(&self, cx: Scope, split_id: SplitId) -> Option<()> {
         if split_id == self.root_split {
             return Some(());
         }
@@ -954,7 +944,7 @@ impl MainSplitData {
 
     fn editor_tab_remove(
         &self,
-        cx: AppContext,
+        cx: Scope,
         editor_tab_id: EditorTabId,
     ) -> Option<()> {
         let editor_tabs = self.editor_tabs.get_untracked();
@@ -1027,7 +1017,7 @@ impl MainSplitData {
 
     pub fn editor_tab_close(
         &self,
-        cx: AppContext,
+        cx: Scope,
         editor_tab_id: EditorTabId,
     ) -> Option<()> {
         let editor_tabs = self.editor_tabs.get_untracked();
@@ -1042,7 +1032,7 @@ impl MainSplitData {
 
     pub fn editor_tab_child_close(
         &self,
-        cx: AppContext,
+        cx: Scope,
         editor_tab_id: EditorTabId,
         child: EditorTabChild,
     ) -> Option<()> {
@@ -1099,7 +1089,7 @@ impl MainSplitData {
 
     pub fn run_code_action(
         &self,
-        cx: AppContext,
+        cx: Scope,
         plugin_id: PluginId,
         action: CodeActionOrCommand,
     ) {
@@ -1118,7 +1108,7 @@ impl MainSplitData {
     /// Resolve a code action and apply its held workspace edit
     fn resolve_code_action(
         &self,
-        cx: AppContext,
+        cx: Scope,
         plugin_id: PluginId,
         action: CodeAction,
     ) {
@@ -1139,7 +1129,7 @@ impl MainSplitData {
     }
 
     /// Perform a workspace edit, which are from the LSP (such as code actions, or symbol renaming)
-    fn apply_workspace_edit(&self, cx: AppContext, edit: &WorkspaceEdit) {
+    fn apply_workspace_edit(&self, cx: Scope, edit: &WorkspaceEdit) {
         if let Some(DocumentChanges::Operations(op)) = edit.document_changes.as_ref()
         {
             // TODO
@@ -1174,7 +1164,7 @@ impl MainSplitData {
         }
     }
 
-    pub fn next_error(&self, cx: AppContext) {
+    pub fn next_error(&self, cx: Scope) {
         let file_diagnostics = self.diagnostics_items(DiagnosticSeverity::ERROR);
         if file_diagnostics.is_empty() {
             return;

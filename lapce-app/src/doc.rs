@@ -1,14 +1,15 @@
 use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
-    app::AppContext,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
     peniko::{kurbo::Point, Color},
     reactive::{
-        ReadSignal, RwSignal, SignalGetUntracked, SignalUpdate, SignalWithUntracked,
+        ReadSignal, RwSignal, Scope, SignalGetUntracked, SignalUpdate,
+        SignalWithUntracked,
     },
     views::VirtualListVector,
+    AppContext,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -216,7 +217,7 @@ impl VirtualListVector<DocLine> for Document {
 
 impl Document {
     pub fn new(
-        cx: AppContext,
+        cx: Scope,
         path: PathBuf,
         diagnostics: Option<im::Vector<EditorDiagnostic>>,
         proxy: ProxyRpcHandler,
@@ -242,7 +243,7 @@ impl Document {
     }
 
     pub fn new_local(
-        cx: AppContext,
+        cx: Scope,
         proxy: ProxyRpcHandler,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
@@ -1155,7 +1156,7 @@ impl Document {
     }
 
     pub fn tigger_proxy_update(
-        cx: AppContext,
+        cx: Scope,
         doc: RwSignal<Document>,
         proxy: &ProxyRpcHandler,
     ) {
@@ -1165,7 +1166,7 @@ impl Document {
 
     /// Request semantic styles for the buffer from the LSP through the proxy.
     fn get_semantic_styles(
-        cx: AppContext,
+        cx: Scope,
         doc: RwSignal<Document>,
         proxy: &ProxyRpcHandler,
     ) {
@@ -1226,11 +1227,7 @@ impl Document {
     }
 
     /// Request inlay hints for the buffer from the LSP through the proxy.
-    fn get_inlay_hints(
-        cx: AppContext,
-        doc: RwSignal<Document>,
-        proxy: &ProxyRpcHandler,
-    ) {
+    fn get_inlay_hints(cx: Scope, doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
         if !doc.with_untracked(|doc| doc.loaded) {
             return;
         }

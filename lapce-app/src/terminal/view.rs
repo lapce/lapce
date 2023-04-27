@@ -2,11 +2,9 @@ use std::sync::Arc;
 
 use alacritty_terminal::{
     grid::Dimensions,
-    index::{Direction, Side},
     term::{cell::Flags, test::TermSize},
 };
 use floem::{
-    app::AppContext,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
@@ -15,7 +13,7 @@ use floem::{
         SignalWith,
     },
     view::{ChangeFlags, View},
-    Renderer,
+    AppContext, Renderer,
 };
 use lapce_core::mode::Mode;
 use lapce_rpc::{

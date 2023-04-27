@@ -1,12 +1,12 @@
 use std::path::Path;
 
 use floem::{
-    app::AppContext,
     peniko::kurbo::{Point, Rect},
     reactive::{
-        create_rw_signal, RwSignal, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalWithUntracked,
+        create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet,
+        SignalUpdate, SignalWithUntracked,
     },
+    AppContext,
 };
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +26,7 @@ pub enum EditorTabChildInfo {
 impl EditorTabChildInfo {
     pub fn to_data(
         &self,
-        cx: AppContext,
+        cx: Scope,
         data: MainSplitData,
         editor_tab_id: EditorTabId,
     ) -> EditorTabChild {
@@ -51,7 +51,7 @@ pub struct EditorTabInfo {
 impl EditorTabInfo {
     pub fn to_data(
         &self,
-        cx: AppContext,
+        cx: Scope,
         data: MainSplitData,
         split: SplitId,
     ) -> RwSignal<EditorTabData> {
@@ -65,17 +65,17 @@ impl EditorTabInfo {
                 .iter()
                 .map(|child| {
                     (
-                        create_rw_signal(cx.scope, 0),
+                        create_rw_signal(cx, 0),
                         child.to_data(cx, data.clone(), editor_tab_id),
                     )
                 })
                 .collect(),
             layout_rect: Rect::ZERO,
             window_origin: Point::ZERO,
-            locations: create_rw_signal(cx.scope, im::Vector::new()),
-            current_location: create_rw_signal(cx.scope, 0),
+            locations: create_rw_signal(cx, im::Vector::new()),
+            current_location: create_rw_signal(cx, 0),
         };
-        let editor_tab_data = create_rw_signal(cx.scope, editor_tab_data);
+        let editor_tab_data = create_rw_signal(cx, editor_tab_data);
         if self.is_focus {
             data.active_editor_tab.set(Some(editor_tab_id));
         }

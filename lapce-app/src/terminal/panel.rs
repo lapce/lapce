@@ -1,7 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use floem::{
-    app::AppContext,
     glazier::KeyEvent,
     reactive::{
         create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
@@ -86,7 +85,7 @@ impl TerminalPanelData {
 
     pub fn key_down(
         &self,
-        cx: AppContext,
+        cx: Scope,
         key_event: &KeyEvent,
         keypress: &mut KeyPressData,
     ) {
@@ -107,11 +106,11 @@ impl TerminalPanelData {
 
     pub fn new_tab(
         &self,
-        cx: AppContext,
+        cx: Scope,
         run_debug: Option<RunDebugProcess>,
     ) -> TerminalTabData {
         let terminal_tab = TerminalTabData::new(
-            cx.scope,
+            cx,
             self.workspace.clone(),
             run_debug,
             self.common.clone(),
@@ -124,7 +123,7 @@ impl TerminalPanelData {
                 } else {
                     (info.active + 1).min(info.tabs.len())
                 },
-                (create_rw_signal(cx.scope, 0), terminal_tab.clone()),
+                (create_rw_signal(cx, 0), terminal_tab.clone()),
             );
             let new_active = (info.active + 1).min(info.tabs.len() - 1);
             info.active = new_active;
@@ -141,6 +140,7 @@ impl TerminalPanelData {
                 info.active += 1;
             }
         });
+        self.update_debug_active_term();
     }
 
     pub fn previous_tab(&self) {
@@ -151,6 +151,7 @@ impl TerminalPanelData {
                 info.active -= 1;
             }
         });
+        self.update_debug_active_term();
     }
 
     pub fn close_tab(&self, terminal_tab_id: Option<TerminalTabId>) {
@@ -167,6 +168,7 @@ impl TerminalPanelData {
             let new_active = info.active.min(info.tabs.len().saturating_sub(1));
             info.active = new_active;
         });
+        self.update_debug_active_term();
     }
 
     pub fn set_title(&self, term_id: &TermId, title: &str) {
@@ -213,47 +215,50 @@ impl TerminalPanelData {
         })
     }
 
-    pub fn split(&self, cx: AppContext, term_id: TermId) {
+    pub fn split(&self, cx: Scope, term_id: TermId) {
         if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
             let terminal_data = TerminalData::new(
-                cx.scope,
+                cx,
                 self.workspace.clone(),
                 None,
                 self.common.clone(),
             );
-            let i = create_rw_signal(cx.scope, 0);
+            let i = create_rw_signal(cx, 0);
             tab.terminals.update(|terminals| {
                 terminals.insert(index + 1, (i, terminal_data));
             });
         }
     }
 
-    pub fn split_next(&self, _cx: AppContext, term_id: TermId) {
+    pub fn split_next(&self, _cx: Scope, term_id: TermId) {
         if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
             let max = tab.terminals.with_untracked(|t| t.len() - 1);
             let new_index = (index + 1).min(max);
             if new_index != index {
                 tab.active.set(new_index);
+                self.update_debug_active_term();
             }
         }
     }
 
-    pub fn split_previous(&self, _cx: AppContext, term_id: TermId) {
+    pub fn split_previous(&self, _cx: Scope, term_id: TermId) {
         if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
             let new_index = index.saturating_sub(1);
             if new_index != index {
                 tab.active.set(new_index);
+                self.update_debug_active_term();
             }
         }
     }
 
-    pub fn split_exchange(&self, _cx: AppContext, term_id: TermId) {
+    pub fn split_exchange(&self, _cx: Scope, term_id: TermId) {
         if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
             let max = tab.terminals.with_untracked(|t| t.len() - 1);
             if index < max {
                 tab.terminals.update(|terminals| {
                     terminals.swap(index, index + 1);
                 });
+                self.update_debug_active_term();
             }
         }
     }
@@ -274,6 +279,7 @@ impl TerminalPanelData {
                 let new_active = active.min(len.saturating_sub(1));
                 if new_active != active {
                     tab.active.set(new_active);
+                    self.update_debug_active_term();
                 }
             }
         }
@@ -380,6 +386,24 @@ impl TerminalPanelData {
             });
             terminal_tab.active.set(index);
             self.common.focus.set(Focus::Panel(PanelKind::Terminal));
+
+            self.update_debug_active_term();
+        }
+    }
+
+    fn update_debug_active_term(&self) {
+        let tab = self.active_tab(false);
+        let terminal = tab.and_then(|tab| tab.active_terminal(false));
+        if let Some(terminal) = terminal {
+            let term_id = terminal.term_id;
+            let is_run_debug =
+                terminal.run_debug.with_untracked(|run| run.is_some());
+            if is_run_debug {
+                let current_active = self.debug.active_term.get_untracked();
+                if current_active != Some(term_id) {
+                    self.debug.active_term.set(Some(term_id));
+                }
+            }
         }
     }
 
@@ -501,7 +525,6 @@ impl TerminalPanelData {
                 .and_then(|dap| dap.thread_id.get_untracked())
         });
         let thread_id = thread_id.unwrap_or_default();
-        println!("dap pause {thread_id:?}");
         self.common.proxy.dap_pause(dap_id, thread_id);
         Some(())
     }
