@@ -48,6 +48,7 @@ pub struct WindowData {
     pub active: RwSignal<usize>,
     pub window_command: RwSignal<Option<WindowCommand>>,
     pub size: RwSignal<Size>,
+    pub position: RwSignal<Point>,
     pub config: RwSignal<Arc<LapceConfig>>,
 }
 
@@ -82,6 +83,7 @@ impl WindowData {
         let window_tabs = create_rw_signal(cx, window_tabs);
         let active = create_rw_signal(cx, active);
         let size = create_rw_signal(cx, Size::ZERO);
+        let position = create_rw_signal(cx, info.pos);
 
         let window_data = Self {
             scope: cx,
@@ -89,6 +91,7 @@ impl WindowData {
             active,
             window_command,
             size,
+            position,
             config,
         };
 
@@ -204,7 +207,6 @@ impl WindowData {
     }
 
     pub fn key_down(&self, key_event: &KeyEvent) {
-        let cx = self.scope;
         let active = self.active.get_untracked();
         let window_tab = self.window_tabs.with_untracked(|window_tabs| {
             window_tabs
@@ -226,7 +228,7 @@ impl WindowData {
             .collect();
         WindowInfo {
             size: self.size.get_untracked(),
-            pos: Point::ZERO,
+            pos: self.position.get_untracked(),
             maximised: false,
             tabs: TabsInfo {
                 active_tab: self.active.get_untracked(),

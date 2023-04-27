@@ -2891,20 +2891,23 @@ fn window(cx: AppContext, window_data: WindowData) -> impl View {
 fn app_view(cx: AppContext, window_data: WindowData) -> impl View {
     // let window_data = WindowData::new(cx);
     let window_size = window_data.size;
+    let position = window_data.position;
     stack(cx, |cx| {
         (
             workspace_tab_header(cx, window_data.clone()),
             window(cx, window_data.clone()),
         )
     })
-    // .on_event(EventListner::WindowClosed, move |_| {
-    //     // let _ = db.save_window(window_data.clone());
-    //     true
-    // })
     .style(cx, || Style::BASE.flex_col().dimension_pct(1.0, 1.0))
     .on_event(EventListner::WindowResized, move |event| {
         if let Event::WindowResized(size) = event {
             window_size.set(*size);
+        }
+        true
+    })
+    .on_event(EventListner::WindowMoved, move |event| {
+        if let Event::WindowMoved(point) = event {
+            position.set(*point);
         }
         true
     })
@@ -2919,7 +2922,6 @@ pub fn launch() {
     let mut windows = im::Vector::new();
 
     if let Ok(app_info) = db.get_app() {
-        println!("get app info {app_info:?}");
         for info in app_info.windows {
             let config = WindowConfig::default().size(info.size).position(info.pos);
             let window_data = WindowData::new(scope, info);
@@ -2950,7 +2952,6 @@ pub fn launch() {
     app.on_event(move |event| match event {
         floem::AppEvent::WillTerminate => {
             let _ = db.save_app(app_data.clone());
-            println!("the app is going to terminate");
         }
     })
     .run();

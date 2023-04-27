@@ -2260,7 +2260,7 @@ dependencies = [
 [[package]]
 name = "glazier"
 version = "0.7.0"
-source = "git+https://github.com/linebender/glazier?rev=83da04db5c14d8f328c246fbe1b89375ee63fbd7#83da04db5c14d8f328c246fbe1b89375ee63fbd7"
+source = "git+https://github.com/linebender/glazier?rev=ab692f5eb10e7511f2e0a6b0a86151df5ae67921#ab692f5eb10e7511f2e0a6b0a86151df5ae67921"
 dependencies = [
  "anyhow",
  "ashpd",

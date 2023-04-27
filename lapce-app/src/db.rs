@@ -181,7 +181,6 @@ impl LapceDb {
                 .map(|window_data| window_data.info())
                 .collect(),
         };
-        println!("save app info {info:?}");
         let info = serde_json::to_string(&info)?;
         let sled_db = self.get_db()?;
         sled_db.insert("app", info.as_str())?;
