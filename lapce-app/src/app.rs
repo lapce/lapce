@@ -26,25 +26,17 @@ use floem::{
     AppContext,
 };
 use lapce_core::mode::Mode;
-use lapce_rpc::{
-    dap_types::{DapId, ThreadId},
-    terminal::TermId,
-};
 use lsp_types::{CompletionItemKind, DiagnosticSeverity};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     code_action::CodeActionStatus,
-    command::{InternalCommand, WindowCommand},
+    command::WindowCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     db::LapceDb,
-    debug::{RunDebugMode, StackTraceData},
+    debug::RunDebugMode,
     doc::DocContent,
-    editor::{
-        location::{EditorLocation, EditorPosition},
-        view::editor_view,
-        EditorData,
-    },
+    editor::{view::editor_view, EditorData},
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
@@ -53,13 +45,7 @@ use crate::{
         item::{PaletteItem, PaletteItemContent},
         PaletteData, PaletteStatus,
     },
-    panel::{
-        kind::PanelKind,
-        position::{PanelContainerPosition, PanelPosition},
-    },
-    terminal::{
-        panel::TerminalPanelData, tab::TerminalTabData, view::terminal_view,
-    },
+    panel::{position::PanelContainerPosition, view::panel_container_view},
     title::title,
     window::{TabsInfo, WindowData, WindowInfo},
     window_tab::{Focus, WindowTabData},
@@ -305,9 +291,9 @@ fn editor_tab_header(
 
     stack(cx, |cx| {
         (
-            clickable_icon(cx, LapceIcons::TAB_PREVIOUS, || {}, || false, config)
-                .style(cx, || Style::BASE.margin_horiz(6.0)),
-            clickable_icon(cx, LapceIcons::TAB_NEXT, || {}, || false, config)
+            clickable_icon(cx, || LapceIcons::TAB_PREVIOUS, || {}, || false, config)
+                .style(cx, || Style::BASE.margin_horiz(6.0).margin_vert(7.0)),
+            clickable_icon(cx, || LapceIcons::TAB_NEXT, || {}, || false, config)
                 .style(cx, || Style::BASE.margin_right(6.0)),
             container(cx, |cx| {
                 scroll(cx, |cx| {
@@ -330,20 +316,19 @@ fn editor_tab_header(
             }),
             clickable_icon(
                 cx,
-                LapceIcons::SPLIT_HORIZONTAL,
+                || LapceIcons::SPLIT_HORIZONTAL,
                 || {},
                 || false,
                 config,
             )
             .style(cx, || Style::BASE.margin_left(6.0)),
-            clickable_icon(cx, LapceIcons::CLOSE, || {}, || false, config)
+            clickable_icon(cx, || LapceIcons::CLOSE, || {}, || false, config)
                 .style(cx, || Style::BASE.margin_horiz(6.0)),
         )
     })
     .style(cx, move || {
         let config = config.get();
         Style::BASE
-            .height_px(config.ui.header_height() as f32)
             .items_center()
             .border_bottom(1.0)
             .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
@@ -646,171 +631,21 @@ fn main_split(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
         window_tab_data.main_split.clone(),
     )
     .style(cx, move || {
+        let config = config.get();
         let is_hidden = panel.panel_bottom_maximized(true)
             && panel.is_container_shown(&PanelContainerPosition::Bottom, true);
         Style::BASE
-            .background(*config.get().get_color(LapceColor::EDITOR_BACKGROUND))
+            .border_bottom(1.0)
+            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+            .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
             .apply_if(is_hidden, |s| s.display(Display::None))
             .flex_grow(1.0)
     })
 }
 
-fn terminal_tab_header(
-    cx: AppContext,
-    window_tab_data: Arc<WindowTabData>,
-) -> impl View {
-    let terminal = window_tab_data.terminal.clone();
-    let config = window_tab_data.common.config;
-    let focus = window_tab_data.common.focus;
-    let active = move || terminal.tab_info.with(|info| info.active);
-
-    list(
-        cx,
-        move || {
-            let tabs = terminal.tab_info.with(|info| info.tabs.clone());
-            for (i, (index, _)) in tabs.iter().enumerate() {
-                if index.get_untracked() != i {
-                    index.set(i);
-                }
-            }
-            tabs
-        },
-        |(_, tab)| tab.terminal_tab_id,
-        move |cx, (index, tab)| {
-            let title = {
-                let tab = tab.clone();
-                move || {
-                    let terminal = tab.active_terminal(true);
-                    let run_debug = terminal.as_ref().map(|t| t.run_debug);
-                    if let Some(run_debug) = run_debug {
-                        if let Some(name) = run_debug.with(|run_debug| {
-                            run_debug.as_ref().map(|r| r.config.name.clone())
-                        }) {
-                            return name;
-                        }
-                    }
-
-                    let title = terminal.map(|t| t.title);
-                    let title = title.map(|t| t.get());
-                    title.unwrap_or_default()
-                }
-            };
-
-            let svg_string = move || {
-                let terminal = tab.active_terminal(true);
-                let run_debug = terminal.as_ref().map(|t| t.run_debug);
-                if let Some(run_debug) = run_debug {
-                    if let Some((mode, stopped)) = run_debug.with(|run_debug| {
-                        run_debug.as_ref().map(|r| (r.mode, r.stopped))
-                    }) {
-                        let svg = match (mode, stopped) {
-                            (RunDebugMode::Run, false) => LapceIcons::START,
-                            (RunDebugMode::Run, true) => LapceIcons::RUN_ERRORS,
-                            (RunDebugMode::Debug, false) => LapceIcons::DEBUG,
-                            (RunDebugMode::Debug, true) => {
-                                LapceIcons::DEBUG_DISCONNECT
-                            }
-                        };
-                        return svg;
-                    }
-                }
-                LapceIcons::TERMINAL
-            };
-            stack(cx, |cx| {
-                (
-                    container(cx, |cx| {
-                        stack(cx, |cx| {
-                            (
-                                container(cx, |cx| {
-                                    svg(cx, move || {
-                                        config.get().ui_svg(svg_string())
-                                    })
-                                    .style(
-                                        cx,
-                                        move || {
-                                            let config = config.get();
-                                            let size = config.ui.icon_size() as f32;
-                                            Style::BASE
-                                                .dimension_px(size, size)
-                                                .color(*config.get_color(
-                                                    LapceColor::LAPCE_ICON_ACTIVE,
-                                                ))
-                                        },
-                                    )
-                                })
-                                .style(cx, || Style::BASE.padding_horiz(10.0)),
-                                label(cx, title).style(cx, || {
-                                    Style::BASE
-                                        .min_width_px(0.0)
-                                        .flex_basis_px(0.0)
-                                        .flex_grow(1.0)
-                                }),
-                                clickable_icon(
-                                    cx,
-                                    LapceIcons::CLOSE,
-                                    || {},
-                                    || false,
-                                    config,
-                                )
-                                .style(cx, || Style::BASE.margin_horiz(6.0)),
-                            )
-                        })
-                        .style(cx, move || {
-                            Style::BASE
-                                .items_center()
-                                .width_px(200.0)
-                                .border_right(1.0)
-                                .border_color(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::LAPCE_BORDER),
-                                )
-                        })
-                    })
-                    .style(cx, || Style::BASE.items_center()),
-                    container(cx, |cx| {
-                        label(cx, || "".to_string()).style(cx, move || {
-                            Style::BASE
-                                .dimension_pct(1.0, 1.0)
-                                .border_bottom(if active() == index.get() {
-                                    2.0
-                                } else {
-                                    0.0
-                                })
-                                .border_color(*config.get().get_color(
-                                    if focus.get()
-                                        == Focus::Panel(PanelKind::Terminal)
-                                    {
-                                        LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE
-                                    } else {
-                                        LapceColor::LAPCE_TAB_INACTIVE_UNDERLINE
-                                    },
-                                ))
-                        })
-                    })
-                    .style(cx, || {
-                        Style::BASE
-                            .position(Position::Absolute)
-                            .padding_horiz(3.0)
-                            .dimension_pct(1.0, 1.0)
-                    }),
-                )
-            })
-        },
-    )
-    .style(cx, move || {
-        let config = config.get();
-        Style::BASE
-            .height_px(config.ui.header_height() as f32)
-            .width_pct(1.0)
-            .border_bottom(1.0)
-            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-    })
-}
-
 pub fn clickable_icon(
     cx: AppContext,
-    icon: &'static str,
+    icon: impl Fn() -> &'static str + 'static,
     on_click: impl Fn() + 'static,
     disabled_fn: impl Fn() -> bool + 'static + Copy,
     config: ReadSignal<Arc<LapceConfig>>,
@@ -819,7 +654,7 @@ pub fn clickable_icon(
         click(
             cx,
             |cx| {
-                svg(cx, move || config.get().ui_svg(icon))
+                svg(cx, move || config.get().ui_svg(icon()))
                     .style(cx, move || {
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
@@ -862,697 +697,6 @@ pub fn clickable_icon(
     })
 }
 
-fn terminal_tab_split(
-    cx: AppContext,
-    terminal_panel_data: TerminalPanelData,
-    terminal_tab_data: TerminalTabData,
-) -> impl View {
-    let config = terminal_panel_data.common.config;
-    list(
-        cx,
-        move || {
-            let terminals = terminal_tab_data.terminals.get();
-            for (i, (index, _)) in terminals.iter().enumerate() {
-                if index.get_untracked() != i {
-                    index.set(i);
-                }
-            }
-            terminals
-        },
-        |(_, terminal)| terminal.term_id,
-        move |cx, (index, terminal)| {
-            let focus = terminal.common.focus;
-            let terminal_panel_data = terminal_panel_data.clone();
-            click(
-                cx,
-                move |cx| {
-                    terminal_view(
-                        cx,
-                        terminal.term_id,
-                        terminal.raw.read_only(),
-                        terminal.mode.read_only(),
-                        terminal.run_debug.read_only(),
-                        terminal_panel_data,
-                    )
-                    .on_event(EventListner::MouseWheel, move |event| {
-                        if let Event::MouseWheel(mouse_event) = event {
-                            terminal.clone().wheel_scroll(mouse_event.wheel_delta.y);
-                            true
-                        } else {
-                            false
-                        }
-                    })
-                    .style(cx, || Style::BASE.dimension_pct(1.0, 1.0))
-                },
-                move || {
-                    focus.set(Focus::Panel(PanelKind::Terminal));
-                },
-            )
-            .style(cx, move || {
-                Style::BASE
-                    .dimension_pct(1.0, 1.0)
-                    .padding_horiz(10.0)
-                    .apply_if(index.get() > 0, |s| {
-                        s.border_left(1.0).border_color(
-                            *config.get().get_color(LapceColor::LAPCE_BORDER),
-                        )
-                    })
-            })
-        },
-    )
-    .style(cx, || Style::BASE.dimension_pct(1.0, 1.0))
-}
-
-fn terminal_tab_content(
-    cx: AppContext,
-    window_tab_data: Arc<WindowTabData>,
-) -> impl View {
-    let terminal = window_tab_data.terminal.clone();
-    tab(
-        cx,
-        move || terminal.tab_info.with(|info| info.active),
-        move || terminal.tab_info.with(|info| info.tabs.clone()),
-        |(_, tab)| tab.terminal_tab_id,
-        move |cx, (_, tab)| terminal_tab_split(cx, terminal.clone(), tab),
-    )
-    .style(cx, || Style::BASE.dimension_pct(1.0, 1.0))
-}
-
-fn blank_panel(cx: AppContext) -> impl View {
-    label(cx, || "blank".to_string())
-}
-
-fn terminal_panel(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
-    stack(cx, |cx| {
-        (
-            terminal_tab_header(cx, window_tab_data.clone()),
-            terminal_tab_content(cx, window_tab_data),
-        )
-    })
-    .style(cx, || Style::BASE.dimension_pct(1.0, 1.0).flex_col())
-}
-
-fn panel_header(
-    cx: AppContext,
-    header: String,
-    config: ReadSignal<Arc<LapceConfig>>,
-) -> impl View {
-    container(cx, |cx| label(cx, move || header.clone())).style(cx, move || {
-        Style::BASE
-            .padding_horiz(10.0)
-            .padding_vert(6.0)
-            .width_pct(1.0)
-            .background(*config.get().get_color(LapceColor::EDITOR_BACKGROUND))
-    })
-}
-
-fn debug_process_icons(
-    cx: AppContext,
-    terminal: TerminalPanelData,
-    term_id: TermId,
-    dap_id: DapId,
-    mode: RunDebugMode,
-    stopped: bool,
-    config: ReadSignal<Arc<LapceConfig>>,
-) -> impl View {
-    let paused = move || {
-        let stopped = terminal
-            .debug
-            .daps
-            .with_untracked(|daps| daps.get(&dap_id).map(|dap| dap.stopped));
-        stopped.map(|stopped| stopped.get()).unwrap_or(false)
-    };
-    match mode {
-        RunDebugMode::Run => container_box(cx, |cx| {
-            Box::new(stack(cx, |cx| {
-                (
-                    {
-                        let terminal = terminal.clone();
-                        clickable_icon(
-                            cx,
-                            LapceIcons::DEBUG_RESTART,
-                            move || {
-                                terminal.restart_run_debug(term_id);
-                            },
-                            || false,
-                            config,
-                        )
-                        .style(cx, || Style::BASE.margin_horiz(6.0))
-                    },
-                    {
-                        let terminal = terminal.clone();
-                        clickable_icon(
-                            cx,
-                            LapceIcons::DEBUG_STOP,
-                            move || {
-                                terminal.stop_run_debug(term_id);
-                            },
-                            move || stopped,
-                            config,
-                        )
-                        .style(cx, || Style::BASE.margin_right(6.0))
-                    },
-                    {
-                        let terminal = terminal.clone();
-                        clickable_icon(
-                            cx,
-                            LapceIcons::CLOSE,
-                            move || {
-                                terminal.close_terminal(&term_id);
-                            },
-                            || false,
-                            config,
-                        )
-                        .style(cx, || Style::BASE.margin_right(6.0))
-                    },
-                )
-            }))
-        }),
-        RunDebugMode::Debug => container_box(cx, |cx| {
-            Box::new(stack(cx, |cx| {
-                (
-                    {
-                        let terminal = terminal.clone();
-                        clickable_icon(
-                            cx,
-                            LapceIcons::DEBUG_CONTINUE,
-                            move || {
-                                terminal.dap_continue(term_id);
-                            },
-                            move || !paused() || stopped,
-                            config,
-                        )
-                        .style(cx, || Style::BASE.margin_horiz(6.0))
-                    },
-                    {
-                        let terminal = terminal.clone();
-                        clickable_icon(
-                            cx,
-                            LapceIcons::DEBUG_PAUSE,
-                            move || {
-                                terminal.dap_pause(term_id);
-                            },
-                            move || paused() || stopped,
-                            config,
-                        )
-                        .style(cx, || Style::BASE.margin_right(6.0))
-                    },
-                    {
-                        let terminal = terminal.clone();
-                        clickable_icon(
-                            cx,
-                            LapceIcons::DEBUG_RESTART,
-                            move || {
-                                terminal.restart_run_debug(term_id);
-                            },
-                            || false,
-                            config,
-                        )
-                        .style(cx, || Style::BASE.margin_right(6.0))
-                    },
-                    {
-                        let terminal = terminal.clone();
-                        clickable_icon(
-                            cx,
-                            LapceIcons::DEBUG_STOP,
-                            move || {
-                                terminal.stop_run_debug(term_id);
-                            },
-                            move || stopped,
-                            config,
-                        )
-                        .style(cx, || Style::BASE.margin_right(6.0))
-                    },
-                    {
-                        let terminal = terminal.clone();
-                        clickable_icon(
-                            cx,
-                            LapceIcons::CLOSE,
-                            move || {
-                                terminal.close_terminal(&term_id);
-                            },
-                            || false,
-                            config,
-                        )
-                        .style(cx, || Style::BASE.margin_right(6.0))
-                    },
-                )
-            }))
-        }),
-    }
-}
-
-fn debug_processes(
-    cx: AppContext,
-    terminal: TerminalPanelData,
-    config: ReadSignal<Arc<LapceConfig>>,
-) -> impl View {
-    scroll(cx, move |cx| {
-        let terminal = terminal.clone();
-        let local_terminal = terminal.clone();
-        list(
-            cx,
-            move || local_terminal.run_debug_process(true),
-            |(term_id, p)| (*term_id, p.stopped),
-            move |cx, (term_id, p)| {
-                let terminal = terminal.clone();
-                let is_active =
-                    move || terminal.debug.active_term.get() == Some(term_id);
-                let local_terminal = terminal.clone();
-                click(
-                    cx,
-                    |cx| {
-                        stack(cx, move |cx| {
-                            (
-                                {
-                                    let svg_str = match (&p.mode, p.stopped) {
-                                        (RunDebugMode::Run, false) => {
-                                            LapceIcons::START
-                                        }
-                                        (RunDebugMode::Run, true) => {
-                                            LapceIcons::RUN_ERRORS
-                                        }
-                                        (RunDebugMode::Debug, false) => {
-                                            LapceIcons::DEBUG
-                                        }
-                                        (RunDebugMode::Debug, true) => {
-                                            LapceIcons::DEBUG_DISCONNECT
-                                        }
-                                    };
-                                    svg(cx, move || config.get().ui_svg(svg_str))
-                                        .style(cx, move || {
-                                            let config = config.get();
-                                            let size = config.ui.icon_size() as f32;
-                                            Style::BASE
-                                                .dimension_px(size, size)
-                                                .margin_horiz(10.0)
-                                                .color(*config.get_color(
-                                                    LapceColor::LAPCE_ICON_ACTIVE,
-                                                ))
-                                        })
-                                },
-                                label(cx, move || p.config.name.clone()).style(
-                                    cx,
-                                    || {
-                                        Style::BASE
-                                            .flex_grow(1.0)
-                                            .flex_basis_px(0.0)
-                                            .min_width_px(0.0)
-                                    },
-                                ),
-                                debug_process_icons(
-                                    cx,
-                                    terminal.clone(),
-                                    term_id,
-                                    p.config.dap_id,
-                                    p.mode,
-                                    p.stopped,
-                                    config,
-                                ),
-                            )
-                        })
-                        .style(cx, move || {
-                            Style::BASE
-                                .padding_vert(6.0)
-                                .width_pct(1.0)
-                                .items_center()
-                                .apply_if(is_active(), |s| {
-                                    s.background(*config.get().get_color(
-                                        LapceColor::PANEL_CURRENT_BACKGROUND,
-                                    ))
-                                })
-                        })
-                        .hover_style(cx, move || {
-                            Style::BASE.cursor(CursorStyle::Pointer).background(
-                                (*config.get().get_color(
-                                    LapceColor::PANEL_HOVERED_BACKGROUND,
-                                ))
-                                .with_alpha_factor(0.3),
-                            )
-                        })
-                    },
-                    move || {
-                        local_terminal.debug.active_term.set(Some(term_id));
-                        local_terminal.focus_terminal(term_id);
-                    },
-                )
-            },
-        )
-        .style(cx, || Style::BASE.width_pct(1.0).flex_col())
-    })
-}
-
-fn debug_stack_frames(
-    cx: AppContext,
-    thread_id: ThreadId,
-    stack_trace: StackTraceData,
-    stopped: RwSignal<bool>,
-    internal_command: RwSignal<Option<InternalCommand>>,
-    config: ReadSignal<Arc<LapceConfig>>,
-) -> impl View {
-    let expanded = stack_trace.expanded;
-    stack(cx, move |cx| {
-        (
-            click(
-                cx,
-                |cx| label(cx, move || thread_id.to_string()),
-                move || {
-                    expanded.update(|expanded| {
-                        *expanded = !*expanded;
-                    });
-                },
-            )
-            .style(cx, || Style::BASE.padding_horiz(10.0).min_width_pct(1.0))
-            .hover_style(cx, move || {
-                Style::BASE.cursor(CursorStyle::Pointer).background(
-                    *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                )
-            }),
-            list(
-                cx,
-                move || {
-                    let expanded = stack_trace.expanded.get() && stopped.get();
-                    if expanded {
-                        stack_trace.frames.get()
-                    } else {
-                        im::Vector::new()
-                    }
-                },
-                |frame| frame.id,
-                move |cx, frame| {
-                    let full_path =
-                        frame.source.as_ref().and_then(|s| s.path.clone());
-                    let line = frame.line.saturating_sub(1);
-                    let col = frame.column.saturating_sub(1);
-
-                    let source_path = frame
-                        .source
-                        .as_ref()
-                        .and_then(|s| s.path.as_ref())
-                        .and_then(|p| p.file_name())
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let has_source = !source_path.is_empty();
-                    let source_path = format!("{source_path}:{}", frame.line);
-
-                    click(
-                        cx,
-                        |cx| {
-                            stack(cx, |cx| {
-                                (
-                                    label(cx, move || frame.name.clone())
-                                        .hover_style(cx, move || {
-                                            Style::BASE
-                                                .background(*config.get().get_color(
-                                                LapceColor::PANEL_HOVERED_BACKGROUND,
-                                            ))
-                                        }),
-                                    label(cx, move || source_path.clone()).style(
-                                        cx,
-                                        move || {
-                                            Style::BASE
-                                                .margin_left(10.0)
-                                                .color(*config.get().get_color(
-                                                    LapceColor::EDITOR_DIM,
-                                                ))
-                                                .font_style(FontStyle::Italic)
-                                                .apply_if(!has_source, |s| {
-                                                    s.display(Display::None)
-                                                })
-                                        },
-                                    ),
-                                )
-                            })
-                        },
-                        move || {
-                            if let Some(path) = full_path.clone() {
-                                internal_command.set(Some(
-                                    InternalCommand::JumpToLocation {
-                                        location: EditorLocation {
-                                            path,
-                                            position: Some(
-                                                EditorPosition::Position(
-                                                    lsp_types::Position {
-                                                        line: line as u32,
-                                                        character: col as u32,
-                                                    },
-                                                ),
-                                            ),
-                                            scroll_offset: None,
-                                            ignore_unconfirmed: false,
-                                            same_editor_tab: false,
-                                        },
-                                    },
-                                ));
-                            }
-                        },
-                    )
-                    .style(cx, move || {
-                        Style::BASE
-                            .padding_left(20.0)
-                            .padding_right(10.0)
-                            .min_width_pct(1.0)
-                            .apply_if(!has_source, |s| {
-                                s.color(
-                                    *config.get().get_color(LapceColor::EDITOR_DIM),
-                                )
-                            })
-                    })
-                    .hover_style(cx, move || {
-                        Style::BASE
-                            .background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
-                            .apply_if(has_source, |s| s.cursor(CursorStyle::Pointer))
-                    })
-                },
-            )
-            .style(cx, || Style::BASE.flex_col().min_width_pct(1.0)),
-        )
-    })
-    .style(cx, || Style::BASE.flex_col().min_width_pct(1.0))
-}
-
-fn debug_stack_traces(
-    cx: AppContext,
-    terminal: TerminalPanelData,
-    internal_command: RwSignal<Option<InternalCommand>>,
-    config: ReadSignal<Arc<LapceConfig>>,
-) -> impl View {
-    container(cx, move |cx| {
-        scroll(cx, move |cx| {
-            let local_terminal = terminal.clone();
-            list(
-                cx,
-                move || {
-                    let dap = local_terminal.get_active_dap(true);
-                    if let Some(dap) = dap {
-                        let process_stopped = local_terminal
-                            .get_terminal(&dap.term_id)
-                            .and_then(|t| {
-                                t.run_debug.with(|r| r.as_ref().map(|r| r.stopped))
-                            })
-                            .unwrap_or(true);
-                        if process_stopped {
-                            return Vec::new();
-                        }
-                        let main_thread = dap.thread_id.get();
-                        let stack_traces = dap.stack_traces.get();
-                        let mut traces = stack_traces
-                            .into_iter()
-                            .map(|(thread_id, stack_trace)| {
-                                (dap.dap_id, dap.stopped, thread_id, stack_trace)
-                            })
-                            .collect::<Vec<_>>();
-                        traces.sort_by_key(|(_, _, id, _)| main_thread != Some(*id));
-                        traces
-                    } else {
-                        Vec::new()
-                    }
-                },
-                |(dap_id, stopped, thread_id, _)| {
-                    (*dap_id, *thread_id, stopped.get_untracked())
-                },
-                move |cx, (_, stopped, thread_id, stack_trace)| {
-                    debug_stack_frames(
-                        cx,
-                        thread_id,
-                        stack_trace,
-                        stopped,
-                        internal_command,
-                        config,
-                    )
-                },
-            )
-            .style(cx, || Style::BASE.flex_col().min_width_pct(1.0))
-        })
-        .scroll_bar_color(cx, move || {
-            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-        })
-        .style(cx, || Style::BASE.absolute().dimension_pct(1.0, 1.0))
-    })
-    .style(cx, || {
-        Style::BASE
-            .width_pct(1.0)
-            .line_height(1.6)
-            .flex_grow(1.0)
-            .flex_basis_px(0.0)
-    })
-}
-
-fn debug_panel(
-    cx: AppContext,
-    window_tab_data: Arc<WindowTabData>,
-    position: PanelPosition,
-) -> impl View {
-    let config = window_tab_data.common.config;
-    let terminal = window_tab_data.terminal.clone();
-    let internal_command = window_tab_data.common.internal_command;
-
-    stack(cx, move |cx| {
-        (
-            {
-                let terminal = terminal.clone();
-                stack(cx, move |cx| {
-                    (
-                        panel_header(cx, "Processes".to_string(), config),
-                        debug_processes(cx, terminal, config),
-                    )
-                })
-                .style(cx, || {
-                    Style::BASE.width_pct(1.0).flex_col().height_px(200.0)
-                })
-            },
-            stack(cx, move |cx| {
-                (
-                    panel_header(cx, "Stack Frames".to_string(), config),
-                    debug_stack_traces(cx, terminal, internal_command, config),
-                )
-            })
-            .style(cx, || {
-                Style::BASE
-                    .width_pct(1.0)
-                    .flex_grow(1.0)
-                    .flex_basis_px(0.0)
-                    .flex_col()
-            }),
-        )
-    })
-    .style(cx, move || {
-        Style::BASE
-            .width_pct(1.0)
-            .apply_if(!position.is_bottom(), |s| s.flex_col())
-    })
-}
-
-fn panel_view(
-    cx: AppContext,
-    window_tab_data: Arc<WindowTabData>,
-    position: PanelPosition,
-) -> impl View {
-    let panel = window_tab_data.panel.clone();
-    let panels = move || {
-        panel
-            .panels
-            .with(|p| p.get(&position).cloned().unwrap_or_default())
-    };
-    let active_fn = move || {
-        panel
-            .styles
-            .with(|s| s.get(&position).map(|s| s.active).unwrap_or(0))
-    };
-    tab(
-        cx,
-        active_fn,
-        panels,
-        |p| *p,
-        move |cx, kind| {
-            let view = match kind {
-                PanelKind::Terminal => container_box(cx, |cx| {
-                    Box::new(terminal_panel(cx, window_tab_data.clone()))
-                }),
-                PanelKind::FileExplorer => container_box(cx, |cx| {
-                    Box::new(debug_panel(cx, window_tab_data.clone(), position))
-                }),
-                PanelKind::SourceControl => {
-                    container_box(cx, |cx| Box::new(blank_panel(cx)))
-                }
-                PanelKind::Plugin => {
-                    container_box(cx, |cx| Box::new(blank_panel(cx)))
-                }
-                PanelKind::Search => {
-                    container_box(cx, |cx| Box::new(blank_panel(cx)))
-                }
-                PanelKind::Problem => {
-                    container_box(cx, |cx| Box::new(blank_panel(cx)))
-                }
-                PanelKind::Debug => container_box(cx, |cx| {
-                    Box::new(debug_panel(cx, window_tab_data.clone(), position))
-                }),
-            };
-            view.style(cx, || Style::BASE.dimension_pct(1.0, 1.0))
-        },
-    )
-    .style(cx, move || {
-        Style::BASE
-            .dimension_pct(1.0, 1.0)
-            .apply_if(!panel.is_position_shown(&position, true), |s| {
-                s.display(Display::None)
-            })
-    })
-}
-
-fn panel_container_view(
-    cx: AppContext,
-    window_tab_data: Arc<WindowTabData>,
-    position: PanelContainerPosition,
-) -> impl View {
-    let panel = window_tab_data.panel.clone();
-    let config = window_tab_data.common.config;
-    stack(cx, |cx| {
-        (
-            panel_view(cx, window_tab_data.clone(), position.first()),
-            panel_view(cx, window_tab_data, position.second()),
-        )
-    })
-    .style(cx, move || {
-        let size = panel.size.with(|s| match position {
-            PanelContainerPosition::Left => s.left,
-            PanelContainerPosition::Bottom => s.bottom,
-            PanelContainerPosition::Right => s.right,
-        });
-        let is_maximized = panel.panel_bottom_maximized(true);
-        let config = config.get();
-        Style::BASE
-            .apply_if(!panel.is_container_shown(&position, true), |s| {
-                s.display(Display::None)
-            })
-            .apply_if(position == PanelContainerPosition::Bottom, |s| {
-                s.border_top(1.0)
-                    .width_pct(1.0)
-                    .apply_if(!is_maximized, |s| s.height_px(size as f32))
-                    .apply_if(is_maximized, |s| s.flex_grow(1.0))
-            })
-            .apply_if(position == PanelContainerPosition::Left, |s| {
-                s.border_right(1.0)
-                    .width_px(size as f32)
-                    .height_pct(1.0)
-                    .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
-            })
-            .apply_if(position == PanelContainerPosition::Right, |s| {
-                s.border_left(1.0)
-                    .width_px(size as f32)
-                    .height_pct(1.0)
-                    .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
-            })
-            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-            .color(*config.get_color(LapceColor::PANEL_FOREGROUND))
-    })
-}
-
 fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let config = window_tab_data.main_split.common.config;
     stack(cx, move |cx| {
@@ -1591,6 +735,7 @@ fn workbench(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
 fn status(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
     let config = window_tab_data.common.config;
     let diagnostics = window_tab_data.main_split.diagnostics;
+    let panel = window_tab_data.panel.clone();
     let diagnostic_count = create_memo(cx.scope, move |_| {
         let mut errors = 0;
         let mut warnings = 0;
@@ -1612,76 +757,183 @@ fn status(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
 
     stack(cx, |cx| {
         (
-            label(cx, move || match mode.get() {
-                Mode::Normal => "Normal".to_string(),
-                Mode::Insert => "Insert".to_string(),
-                Mode::Visual => "Visual".to_string(),
-                Mode::Terminal => "Terminal".to_string(),
+            stack(cx, |cx| {
+                (
+                    label(cx, move || match mode.get() {
+                        Mode::Normal => "Normal".to_string(),
+                        Mode::Insert => "Insert".to_string(),
+                        Mode::Visual => "Visual".to_string(),
+                        Mode::Terminal => "Terminal".to_string(),
+                    })
+                    .style(cx, move || {
+                        let config = config.get();
+                        let display = if config.core.modal {
+                            Display::Flex
+                        } else {
+                            Display::None
+                        };
+
+                        let (bg, fg) = match mode.get() {
+                            Mode::Normal => (
+                                LapceColor::STATUS_MODAL_NORMAL_BACKGROUND,
+                                LapceColor::STATUS_MODAL_NORMAL_FOREGROUND,
+                            ),
+                            Mode::Insert => (
+                                LapceColor::STATUS_MODAL_INSERT_BACKGROUND,
+                                LapceColor::STATUS_MODAL_INSERT_FOREGROUND,
+                            ),
+                            Mode::Visual => (
+                                LapceColor::STATUS_MODAL_VISUAL_BACKGROUND,
+                                LapceColor::STATUS_MODAL_VISUAL_FOREGROUND,
+                            ),
+                            Mode::Terminal => (
+                                LapceColor::STATUS_MODAL_TERMINAL_BACKGROUND,
+                                LapceColor::STATUS_MODAL_TERMINAL_FOREGROUND,
+                            ),
+                        };
+
+                        let bg = *config.get_color(bg);
+                        let fg = *config.get_color(fg);
+
+                        Style::BASE
+                            .display(display)
+                            .padding_horiz(10.0)
+                            .color(fg)
+                            .background(bg)
+                            .height_pct(1.0)
+                            .align_items(Some(AlignItems::Center))
+                    }),
+                    svg(cx, move || config.get().ui_svg(LapceIcons::ERROR)).style(
+                        cx,
+                        move || {
+                            let config = config.get();
+                            let size = config.ui.icon_size() as f32;
+                            Style::BASE
+                                .dimension_px(size, size)
+                                .margin_left(10.0)
+                                .color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                )
+                        },
+                    ),
+                    label(cx, move || diagnostic_count.get().0.to_string())
+                        .style(cx, || Style::BASE.margin_left(5.0)),
+                    svg(cx, move || config.get().ui_svg(LapceIcons::WARNING)).style(
+                        cx,
+                        move || {
+                            let config = config.get();
+                            let size = config.ui.icon_size() as f32;
+                            Style::BASE
+                                .dimension_px(size, size)
+                                .margin_left(5.0)
+                                .color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                )
+                        },
+                    ),
+                    label(cx, move || diagnostic_count.get().1.to_string())
+                        .style(cx, || Style::BASE.margin_left(5.0)),
+                )
             })
-            .style(cx, move || {
-                let config = config.get();
-                let display = if config.core.modal {
-                    Display::Flex
-                } else {
-                    Display::None
-                };
-
-                let (bg, fg) = match mode.get() {
-                    Mode::Normal => (
-                        LapceColor::STATUS_MODAL_NORMAL_BACKGROUND,
-                        LapceColor::STATUS_MODAL_NORMAL_FOREGROUND,
-                    ),
-                    Mode::Insert => (
-                        LapceColor::STATUS_MODAL_INSERT_BACKGROUND,
-                        LapceColor::STATUS_MODAL_INSERT_FOREGROUND,
-                    ),
-                    Mode::Visual => (
-                        LapceColor::STATUS_MODAL_VISUAL_BACKGROUND,
-                        LapceColor::STATUS_MODAL_VISUAL_FOREGROUND,
-                    ),
-                    Mode::Terminal => (
-                        LapceColor::STATUS_MODAL_TERMINAL_BACKGROUND,
-                        LapceColor::STATUS_MODAL_TERMINAL_FOREGROUND,
-                    ),
-                };
-
-                let bg = *config.get_color(bg);
-                let fg = *config.get_color(fg);
-
+            .style(cx, || {
                 Style::BASE
-                    .display(display)
-                    .padding_horiz(10.0)
-                    .color(fg)
-                    .background(bg)
                     .height_pct(1.0)
-                    .align_items(Some(AlignItems::Center))
+                    .flex_basis_px(0.0)
+                    .flex_grow(1.0)
+                    .items_center()
             }),
-            svg(cx, move || config.get().ui_svg(LapceIcons::ERROR)).style(
-                cx,
-                move || {
-                    let config = config.get();
-                    let size = config.ui.icon_size() as f32;
-                    Style::BASE
-                        .dimension_px(size, size)
-                        .margin_left(10.0)
-                        .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
-                },
-            ),
-            label(cx, move || diagnostic_count.get().0.to_string())
-                .style(cx, || Style::BASE.margin_left(5.0)),
-            svg(cx, move || config.get().ui_svg(LapceIcons::WARNING)).style(
-                cx,
-                move || {
-                    let config = config.get();
-                    let size = config.ui.icon_size() as f32;
-                    Style::BASE
-                        .dimension_px(size, size)
-                        .margin_left(5.0)
-                        .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
-                },
-            ),
-            label(cx, move || diagnostic_count.get().1.to_string())
-                .style(cx, || Style::BASE.margin_left(5.0)),
+            stack(cx, move |cx| {
+                (
+                    {
+                        let panel = panel.clone();
+                        let icon = {
+                            let panel = panel.clone();
+                            move || {
+                                if panel.is_container_shown(
+                                    &PanelContainerPosition::Left,
+                                    true,
+                                ) {
+                                    LapceIcons::SIDEBAR_LEFT
+                                } else {
+                                    LapceIcons::SIDEBAR_LEFT_OFF
+                                }
+                            }
+                        };
+                        clickable_icon(
+                            cx,
+                            icon,
+                            move || {
+                                panel.toggle_container_visual(
+                                    &PanelContainerPosition::Left,
+                                )
+                            },
+                            || false,
+                            config,
+                        )
+                    },
+                    {
+                        let panel = panel.clone();
+                        let icon = {
+                            let panel = panel.clone();
+                            move || {
+                                if panel.is_container_shown(
+                                    &PanelContainerPosition::Bottom,
+                                    true,
+                                ) {
+                                    LapceIcons::LAYOUT_PANEL
+                                } else {
+                                    LapceIcons::LAYOUT_PANEL_OFF
+                                }
+                            }
+                        };
+                        clickable_icon(
+                            cx,
+                            icon,
+                            move || {
+                                panel.toggle_container_visual(
+                                    &PanelContainerPosition::Bottom,
+                                )
+                            },
+                            || false,
+                            config,
+                        )
+                    },
+                    {
+                        let panel = panel.clone();
+                        let icon = {
+                            let panel = panel.clone();
+                            move || {
+                                if panel.is_container_shown(
+                                    &PanelContainerPosition::Right,
+                                    true,
+                                ) {
+                                    LapceIcons::SIDEBAR_RIGHT
+                                } else {
+                                    LapceIcons::SIDEBAR_RIGHT_OFF
+                                }
+                            }
+                        };
+                        clickable_icon(
+                            cx,
+                            icon,
+                            move || {
+                                panel.toggle_container_visual(
+                                    &PanelContainerPosition::Right,
+                                )
+                            },
+                            || false,
+                            config,
+                        )
+                    },
+                )
+            })
+            .style(cx, || Style::BASE.height_pct(1.0).items_center()),
+            label(cx, || "".to_string()).style(cx, || {
+                Style::BASE
+                    .height_pct(1.0)
+                    .flex_basis_px(0.0)
+                    .flex_grow(1.0)
+            }),
         )
     })
     .style(cx, move || {
@@ -2742,7 +1994,7 @@ fn workspace_tab_header(cx: AppContext, window_data: WindowData) -> impl View {
                                             }),
                                             clickable_icon(
                                                 cx,
-                                                LapceIcons::WINDOW_CLOSE,
+                                                || LapceIcons::WINDOW_CLOSE,
                                                 move || {
                                                     window_data.run_window_command(
                                                 WindowCommand::CloseWorkspaceTab {
@@ -2816,7 +2068,7 @@ fn workspace_tab_header(cx: AppContext, window_data: WindowData) -> impl View {
             .style(cx, || Style::BASE.height_pct(1.0)),
             clickable_icon(
                 cx,
-                LapceIcons::ADD,
+                || LapceIcons::ADD,
                 move || {
                     window_data.run_window_command(WindowCommand::NewWorkspaceTab {
                         workspace: LapceWorkspace::default(),

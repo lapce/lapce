@@ -1166,7 +1166,8 @@ impl MainSplitData {
     }
 
     pub fn next_error(&self, cx: Scope) {
-        let file_diagnostics = self.diagnostics_items(DiagnosticSeverity::ERROR);
+        let file_diagnostics =
+            self.diagnostics_items(DiagnosticSeverity::ERROR, false);
         if file_diagnostics.is_empty() {
             return;
         }
@@ -1200,10 +1201,19 @@ impl MainSplitData {
     pub fn diagnostics_items(
         &self,
         severity: DiagnosticSeverity,
+        tracked: bool,
     ) -> Vec<(PathBuf, Vec<EditorDiagnostic>)> {
-        let docs = self.docs.get_untracked();
-        self.diagnostics
-            .get_untracked()
+        let docs = if tracked {
+            self.docs.get()
+        } else {
+            self.docs.get_untracked()
+        };
+        let diagnostics = if tracked {
+            self.diagnostics.get()
+        } else {
+            self.diagnostics.get_untracked()
+        };
+        diagnostics
             .into_iter()
             .filter_map(|(path, diagnostic)| {
                 if let Some(doc) = docs.get(&path) {

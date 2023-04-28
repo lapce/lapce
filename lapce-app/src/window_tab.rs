@@ -459,14 +459,14 @@ impl WindowTabData {
             HidePanel => {
                 if let Some(data) = data {
                     if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
-                        self.hide_panel(cx, kind);
+                        self.hide_panel(kind);
                     }
                 }
             }
             ShowPanel => {
                 if let Some(data) = data {
                     if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
-                        self.show_panel(cx, kind);
+                        self.show_panel(kind);
                     }
                 }
             }
@@ -480,7 +480,7 @@ impl WindowTabData {
             TogglePanelVisual => {
                 if let Some(data) = data {
                     if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
-                        self.toggle_panel_visual(cx, kind);
+                        self.toggle_panel_visual(kind);
                     }
                 }
             }
@@ -496,7 +496,7 @@ impl WindowTabData {
             ToggleProblemFocus => {}
             ToggleSearchFocus => {}
             ToggleTerminalVisual => {
-                self.toggle_panel_visual(cx, PanelKind::Terminal);
+                self.toggle_panel_visual(PanelKind::Terminal);
             }
             ToggleSourceControlVisual => {}
             TogglePluginVisual => {}
@@ -895,11 +895,11 @@ impl WindowTabData {
         }
     }
 
-    fn toggle_panel_visual(&self, cx: Scope, kind: PanelKind) {
+    pub fn toggle_panel_visual(&self, kind: PanelKind) {
         if self.panel.is_panel_visible(&kind) {
-            self.hide_panel(cx, kind);
+            self.hide_panel(kind);
         } else {
-            self.show_panel(cx, kind);
+            self.show_panel(kind);
         }
     }
 
@@ -918,9 +918,9 @@ impl WindowTabData {
             }
         };
         if should_hide {
-            self.hide_panel(cx, kind);
+            self.hide_panel(kind);
         } else {
-            self.show_panel(cx, kind);
+            self.show_panel(kind);
         }
     }
 
@@ -931,19 +931,19 @@ impl WindowTabData {
             && self.panel.is_panel_visible(&kind)
     }
 
-    fn hide_panel(&self, _cx: Scope, kind: PanelKind) {
+    fn hide_panel(&self, kind: PanelKind) {
         self.panel.hide_panel(&kind);
         self.common.focus.set(Focus::Workbench);
     }
 
-    pub fn show_panel(&self, cx: Scope, kind: PanelKind) {
+    pub fn show_panel(&self, kind: PanelKind) {
         if kind == PanelKind::Terminal
             && self
                 .terminal
                 .tab_info
                 .with_untracked(|info| info.tabs.is_empty())
         {
-            self.terminal.new_tab(cx, None);
+            self.terminal.new_tab(self.scope, None);
         }
         self.panel.show_panel(&kind);
         self.common.focus.set(Focus::Panel(kind));

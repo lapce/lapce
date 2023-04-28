@@ -15,6 +15,15 @@ impl PanelPosition {
         matches!(self, PanelPosition::BottomLeft | PanelPosition::BottomRight)
     }
 
+    pub fn is_first(&self) -> bool {
+        matches!(
+            self,
+            PanelPosition::LeftTop
+                | PanelPosition::BottomLeft
+                | PanelPosition::RightTop
+        )
+    }
+
     pub fn peer(&self) -> PanelPosition {
         match &self {
             PanelPosition::LeftTop => PanelPosition::LeftBottom,

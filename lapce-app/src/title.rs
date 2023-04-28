@@ -110,7 +110,7 @@ fn middle(
                 (
                     clickable_icon(
                         cx,
-                        LapceIcons::LOCATION_BACKWARD,
+                        || LapceIcons::LOCATION_BACKWARD,
                         || {},
                         || false,
                         config,
@@ -118,7 +118,7 @@ fn middle(
                     .style(cx, move || Style::BASE.margin_horiz(6.0)),
                     clickable_icon(
                         cx,
-                        LapceIcons::LOCATION_FORWARD,
+                        || LapceIcons::LOCATION_FORWARD,
                         || {},
                         || false,
                         config,
@@ -212,7 +212,7 @@ fn middle(
             container(cx, move |cx| {
                 clickable_icon(
                     cx,
-                    LapceIcons::START,
+                    || LapceIcons::START,
                     move || {
                         set_workbench_command
                             .set(Some(LapceWorkbenchCommand::PaletteRunAndDebug))
@@ -241,7 +241,7 @@ fn middle(
 
 fn right(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
     container(cx, move |cx| {
-        clickable_icon(cx, LapceIcons::SETTINGS, || {}, || false, config)
+        clickable_icon(cx, || LapceIcons::SETTINGS, || {}, || false, config)
             .style(cx, move || Style::BASE.margin_horiz(6.0))
     })
     .style(cx, || {

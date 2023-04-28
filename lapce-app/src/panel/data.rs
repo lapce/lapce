@@ -1,6 +1,6 @@
 use floem::reactive::{
     create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalUpdate,
-    SignalWithUntracked,
+    SignalWith, SignalWithUntracked,
 };
 use serde::{Deserialize, Serialize};
 
@@ -184,7 +184,8 @@ impl PanelData {
 
     pub fn hide_panel(&self, kind: &PanelKind) {
         if let Some((_, position)) = self.panel_position(kind) {
-            if let Some((active_panel, _)) = self.active_panel_at_position(&position)
+            if let Some((active_panel, _)) =
+                self.active_panel_at_position(&position, false)
             {
                 if &active_panel == kind {
                     self.set_shown(&position, false);
@@ -205,13 +206,20 @@ impl PanelData {
     pub fn active_panel_at_position(
         &self,
         position: &PanelPosition,
+        tracked: bool,
     ) -> Option<(PanelKind, bool)> {
-        let style = self
-            .styles
-            .with_untracked(|styles| styles.get(position).cloned())?;
-        let order = self
-            .panels
-            .with_untracked(|panels| panels.get(position).cloned())?;
+        let style = if tracked {
+            self.styles.with(|styles| styles.get(position).cloned())?
+        } else {
+            self.styles
+                .with_untracked(|styles| styles.get(position).cloned())?
+        };
+        let order = if tracked {
+            self.panels.with(|panels| panels.get(position).cloned())?
+        } else {
+            self.panels
+                .with_untracked(|panels| panels.get(position).cloned())?
+        };
         order
             .get(style.active)
             .cloned()
@@ -272,6 +280,33 @@ impl PanelData {
                 .get(&PanelPosition::BottomRight)
                 .map(|p| p.maximized)
                 .unwrap_or(false)
+    }
+
+    pub fn toggle_container_visual(&self, position: &PanelContainerPosition) {
+        let shown = !self.is_container_shown(position, false);
+        if shown {
+            if let Some((kind, _)) =
+                self.active_panel_at_position(&position.second(), false)
+            {
+                self.show_panel(&kind);
+            }
+            if let Some((kind, _)) =
+                self.active_panel_at_position(&position.first(), false)
+            {
+                self.show_panel(&kind);
+            }
+        } else {
+            if let Some((kind, _)) =
+                self.active_panel_at_position(&position.second(), false)
+            {
+                self.hide_panel(&kind);
+            }
+            if let Some((kind, _)) =
+                self.active_panel_at_position(&position.first(), false)
+            {
+                self.hide_panel(&kind);
+            }
+        }
     }
 }
 

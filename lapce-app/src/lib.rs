@@ -10,6 +10,7 @@ pub mod editor;
 pub mod editor_tab;
 pub mod find;
 pub mod focus_text;
+pub mod global_search;
 pub mod id;
 pub mod keypress;
 pub mod main_split;
