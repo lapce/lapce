@@ -1991,6 +1991,7 @@ fn workspace_tab_header(cx: AppContext, window_data: WindowData) -> impl View {
                                                     .min_width_px(0.0)
                                                     .flex_basis_px(0.0)
                                                     .flex_grow(1.0)
+                                                    .text_ellipsis()
                                             }),
                                             clickable_icon(
                                                 cx,

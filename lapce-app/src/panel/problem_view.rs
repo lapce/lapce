@@ -1,6 +1,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use floem::{
+    peniko::Color,
     reactive::{create_memo, ReadSignal, SignalGet, SignalWith},
     style::Style,
     view::View,
@@ -88,7 +89,12 @@ fn problem_section(
                     )
                 },
             )
-            .style(cx, || Style::BASE.flex_col().line_height(1.6))
+            .style(cx, || {
+                Style::BASE.flex_col().width_pct(1.0).line_height(1.6)
+            })
+        })
+        .scroll_bar_color(cx, move || {
+            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
         })
         .style(cx, || Style::BASE.absolute().dimension_pct(1.0, 1.0))
     })
@@ -162,7 +168,10 @@ fn file_view(
                     stack(cx, |cx| {
                         (
                             label(cx, move || file_name.clone()).style(cx, || {
-                                Style::BASE.margin_right(6.0).max_width_pct(1.0)
+                                Style::BASE
+                                    .margin_right(6.0)
+                                    .max_width_pct(1.0)
+                                    .text_ellipsis()
                             }),
                             label(cx, move || folder.clone()).style(cx, move || {
                                 Style::BASE
@@ -172,9 +181,11 @@ fn file_view(
                                             .get_color(LapceColor::EDITOR_DIM),
                                     )
                                     .min_width_px(0.0)
+                                    .text_ellipsis()
                             }),
                         )
-                    }),
+                    })
+                    .style(cx, || Style::BASE.width_pct(1.0).min_width_px(0.0)),
                     list(
                         cx,
                         move || diagnostics.clone(),
@@ -204,6 +215,11 @@ fn file_view(
                                         (
                                             label(cx, move || {
                                                 d.diagnostic.message.clone()
+                                            })
+                                            .style(cx, || {
+                                                Style::BASE
+                                                    .width_pct(1.0)
+                                                    .min_width_px(0.0)
                                             }),
                                             stack(cx, |cx| {
                                                 (
@@ -254,17 +270,31 @@ fn file_view(
                                             .style(cx, || Style::BASE.items_start()),
                                         )
                                     })
-                                    .style(cx, || Style::BASE.flex_col()),
+                                    .style(
+                                        cx,
+                                        || {
+                                            Style::BASE
+                                                .width_pct(1.0)
+                                                .min_width_pct(0.0)
+                                                .flex_col()
+                                        },
+                                    ),
                                 )
                             })
                             .style(cx, || Style::BASE.items_start())
                         },
                     )
-                    .style(cx, || Style::BASE.flex_col()),
+                    .style(cx, || {
+                        Style::BASE.flex_col().width_pct(1.0).min_width_pct(0.0)
+                    }),
                 )
             })
-            .style(cx, || Style::BASE.flex_col()),
+            .style(cx, || {
+                Style::BASE.width_pct(1.0).min_width_pct(0.0).flex_col()
+            }),
         )
     })
-    .style(cx, || Style::BASE.items_start().margin_horiz(10.0))
+    .style(cx, || {
+        Style::BASE.width_pct(1.0).items_start().padding_horiz(10.0)
+    })
 }
