@@ -158,7 +158,7 @@ impl Directory {
     }
 
     pub fn grammars_directory() -> Option<PathBuf> {
-        if let Some(dir) = Self::config_directory() {
+        if let Some(dir) = Self::data_local_directory() {
             let dir = dir.join("grammars");
             if !dir.exists() {
                 let _ = std::fs::create_dir(&dir);

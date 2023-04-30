@@ -3,7 +3,10 @@ use std::{collections::HashSet, path::Path, str::FromStr};
 use strum_macros::{Display, EnumString};
 use tree_sitter::TreeCursor;
 
-use crate::{syntax::highlight::{HighlightConfiguration, HighlightIssue}, directory::Directory};
+use crate::{
+    directory::Directory,
+    syntax::highlight::{HighlightConfiguration, HighlightIssue},
+};
 
 ///
 /// To add support for an hypothetical language called Foo, for example, using
@@ -386,7 +389,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_clojure::language,
             highlight: Some(include_str!("../queries/clojure/highlights.scm")),
-        injection: Some(include_str!("../queries/clojure/injections.scm")),
+            injection: Some(include_str!("../queries/clojure/injections.scm")),
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
@@ -988,8 +991,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         #[cfg(feature = "lang-json")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_dart::language,
-            highlight: Some(tree_sitter_dart::HIGHLIGHTS_QUERY),
+            language: tree_sitter_json::language,
+            highlight: None,
             injection: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
@@ -1294,26 +1297,28 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: tree_sitter_php::language,
             highlight: Some(tree_sitter_php::HIGHLIGHT_QUERY),
             injection: Some(tree_sitter_php::INJECTIONS_QUERY),
-            code_lens: (            &[
-                "program",
-                "class_declaration",
-                "trait_declaration",
-                "interface_declaration",
-                "declaration_list",
-                "method_declaration",
-                "function_declaration",
-            ],
-            &[
-                "program",
-                "php_tag",
-                "comment",
-                "namespace_definition",
-                "namespace_use_declaration",
-                "use_declaration",
-                "const_declaration",
-                "property_declaration",
-                "expression_statement",
-            ],),
+            code_lens: (
+                &[
+                    "program",
+                    "class_declaration",
+                    "trait_declaration",
+                    "interface_declaration",
+                    "declaration_list",
+                    "method_declaration",
+                    "function_declaration",
+                ],
+                &[
+                    "program",
+                    "php_tag",
+                    "comment",
+                    "namespace_definition",
+                    "namespace_use_declaration",
+                    "use_declaration",
+                    "const_declaration",
+                    "property_declaration",
+                    "expression_statement",
+                ],
+            ),
             sticky_headers: &[],
         }),
         #[cfg(not(feature = "lang-php"))]
@@ -1908,6 +1913,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
 ];
 
 impl LapceLanguage {
+    const HIGHLIGHTS_QUERY_FILE_NAME: &'static str = "highlights.scm";
+
     pub fn from_path(path: &Path) -> Option<LapceLanguage> {
         let filename = path.file_stem()?.to_str()?.to_lowercase();
         let extension = path.extension()?.to_str()?.to_lowercase();
@@ -1997,14 +2004,19 @@ impl LapceLanguage {
              *
              * Below code is modified from [helix](https://github.com/helix-editor/helix)'s implementation of their tree-sitter loading, which is under the MPL.
              */
-            let mut library_path =
-                grammars_dir.join(props.id.to_string().to_lowercase());
+            let mut library_path = grammars_dir.join(format!(
+                "tree-sitter-{}",
+                props.id.to_string().to_lowercase()
+            ));
             library_path.set_extension(std::env::consts::DLL_EXTENSION);
 
+            log::debug!("Grammars dir: {library_path:?}");
             if library_path.exists() {
+                log::debug!("Loading grammar from user grammar dir");
                 let library =
                     unsafe { libloading::Library::new(&library_path) }.unwrap();
-                let language_fn_name = format!("tree-sitter-{}", props.id);
+                let language_fn_name = format!("tree_sitter_{}", props.id.to_string().to_lowercase().replace('-', "_"));
+                log::debug!("Loading grammar with address: '{language_fn_name}'");
                 language = unsafe {
                     let language_fn: libloading::Symbol<
                         unsafe extern "C" fn() -> tree_sitter::Language,
@@ -2016,10 +2028,13 @@ impl LapceLanguage {
         }
 
         let mut highlight = String::new();
+
+        // Try reading highlights from user config dir
         if let Some(queries_dir) = Directory::queries_directory() {
             let queries_dir = queries_dir.join(props.id.to_string().to_lowercase());
             if queries_dir.exists() {
-                let highlights_file = queries_dir.join("highlights.scm");
+                let highlights_file =
+                    queries_dir.join(Self::HIGHLIGHTS_QUERY_FILE_NAME);
                 if highlights_file.exists() {
                     highlight =
                         std::fs::read_to_string(highlights_file).unwrap_or_default()
@@ -2030,6 +2045,23 @@ impl LapceLanguage {
                     .create(queries_dir);
             }
         }
+
+        // Try reading highlights from system dir
+        if highlight.is_empty() {
+            let queries_dir = Path::new("/usr/share/tree-sitter/queries");
+            if queries_dir
+                .join(props.id.to_string().to_lowercase())
+                .exists()
+            {
+                let highlights_file =
+                    queries_dir.join(Self::HIGHLIGHTS_QUERY_FILE_NAME);
+                if highlights_file.exists() {
+                    highlight =
+                        std::fs::read_to_string(highlights_file).unwrap_or_default()
+                }
+            }
+        }
+
         let query = if !highlight.is_empty() {
             highlight.as_str()
         } else {
