@@ -2573,6 +2573,7 @@ dependencies = [
  "itertools",
  "lapce-rpc",
  "lapce-xi-rope",
+ "libloading",
  "log 0.4.17",
  "lsp-types",
  "once_cell",

@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::Path, str::FromStr};
 use strum_macros::{Display, EnumString};
 use tree_sitter::TreeCursor;
 
-use crate::syntax::highlight::{HighlightConfiguration, HighlightIssue};
+use crate::{syntax::highlight::{HighlightConfiguration, HighlightIssue}, directory::Directory};
 
 ///
 /// To add support for an hypothetical language called Foo, for example, using
@@ -131,11 +131,7 @@ struct TreeSitterProperties {
     /// For most languages, it is `tree_sitter_$crate::INJECTION_QUERY`.  
     /// Though, not all languages have injections.
     injection: Option<&'static str>,
-    /// The comment token.  "#" for python, "//" for rust for example.
-    comment: &'static str,
-    /// The indent unit.  "  " for javascript, "    " for rust, for example.
-    indent: &'static str,
-        /// Lists of tree-sitter node types that control how code lenses are built.
+    /// Lists of tree-sitter node types that control how code lenses are built.
     /// The first is a list of nodes that should be traversed and included in
     /// the lens, along with thier children. The second is a list of nodes that
     /// should be excluded from the lens, though they will still be traversed.
@@ -187,9 +183,11 @@ pub enum LapceLanguage {
     #[strum(serialize = "Plain Text")]
     Plaintext,
 
-    #[strum(serialize = "bash", serialize = "sh")]
+    #[strum(serialize = "Bash", serialize = "Shell")]
     Bash,
+    #[strum(serialize = "C")]
     C,
+    #[strum(serialize = "Clojure")]
     Clojure,
     #[strum(serialize = "CMake")]
     Cmake,
@@ -199,22 +197,35 @@ pub enum LapceLanguage {
     Csharp,
     #[strum(serialize = "CSS")]
     Css,
+    #[strum(serialize = "D")]
     D,
+    #[strum(serialize = "Dart")]
     Dart,
+    #[strum(serialize = "Dockerfile")]
     Dockerfile,
+    #[strum(serialize = "Elixir")]
     Elixir,
+    #[strum(serialize = "Elm")]
     Elm,
+    #[strum(serialize = "Erlang")]
     Erlang,
+    #[strum(serialize = "Glimmer")]
     Glimmer,
+    #[strum(serialize = "GLSL")]
     Glsl,
+    #[strum(serialize = "Go")]
     Go,
+    #[strum(serialize = "Hare")]
     Hare,
+    #[strum(serialize = "Haskell")]
     Haskell,
+    #[strum(serialize = "Haxe")]
     Haxe,
     #[strum(serialize = "HCL")]
     Hcl,
     #[strum(serialize = "HTML")]
     Html,
+    #[strum(serialize = "Java")]
     Java,
     #[strum(serialize = "JavaScript")]
     Javascript,
@@ -222,34 +233,51 @@ pub enum LapceLanguage {
     Json,
     #[strum(serialize = "JavaScript React")]
     Jsx,
+    #[strum(serialize = "Julia")]
     Julia,
+    #[strum(serialize = "Kotlin")]
     Kotlin,
     #[strum(serialize = "LaTeX")]
     Latex,
+    #[strum(serialize = "Lua")]
     Lua,
+    #[strum(serialize = "Markdown")]
     Markdown,
     #[strum(serialize = "markdown.inline")]
     MarkdownInline,
+    #[strum(serialize = "Nix")]
     Nix,
+    #[strum(serialize = "Ocaml")]
     Ocaml,
+    #[strum(serialize = "ocaml.interface")]
     OcamlInterface,
     #[strum(serialize = "PHP")]
     Php,
+    #[strum(serialize = "Prisma")]
     Prisma,
+    #[strum(serialize = "Proto")]
     ProtoBuf,
+    #[strum(serialize = "Python")]
     Python,
+    #[strum(serialize = "QL")]
     Ql,
+    #[strum(serialize = "R")]
     R,
+    #[strum(serialize = "Ruby")]
     Ruby,
+    #[strum(serialize = "Rust")]
     Rust,
+    #[strum(serialize = "Scheme")]
     Scheme,
     #[strum(serialize = "SCSS")]
     Scss,
-    #[strum(serialize = "POSIX Shell")]
+    #[strum(serialize = "Shell (POSIX)")]
     Sh,
     #[strum(serialize = "SQL")]
     Sql,
+    #[strum(serialize = "Svelte")]
     Svelte,
+    #[strum(serialize = "Swift")]
     Swift,
     #[strum(serialize = "TOML")]
     Toml,
@@ -257,6 +285,7 @@ pub enum LapceLanguage {
     Tsx,
     #[strum(serialize = "TypeScript")]
     Typescript,
+    #[strum(serialize = "Vue")]
     Vue,
     #[strum(serialize = "WGSL")]
     Wgsl,
@@ -264,6 +293,7 @@ pub enum LapceLanguage {
     Xml,
     #[strum(serialize = "YAML")]
     Yaml,
+    #[strum(serialize = "Zig")]
     Zig,
 }
 
@@ -289,7 +319,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-bash")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_bash::language,
             highlight: Some(tree_sitter_bash::HIGHLIGHT_QUERY),
@@ -297,7 +327,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-bash"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -316,7 +346,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-c")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_c::language,
             highlight: Some(include_str!("../queries/c/highlights.scm")),
@@ -324,19 +354,14 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &["function_definition", "struct_specifier"],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-c"))]
         tree_sitter: None,
     },
-    #[cfg(feature = "lang-clojure")]
     SyntaxProperties {
         id: LapceLanguage::Clojure,
-        language: tree_sitter_clojure::language,
-        highlight: include_str!("../queries/clojure/highlights.scm"),
-        injection: Some(include_str!("../queries/clojure/injections.scm")),
-        comment: ";",
+
         indent: "  ",
-        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
-        sticky_headers: &[],
+        files: &[],
         extensions: &[
             "clj",
             "edn",
@@ -347,6 +372,26 @@ const LANGUAGES: &[SyntaxProperties] = &[
             "bb",
             "clj_kondo",
         ],
+
+        comment: CommentProperties {
+            single_line_start: ";",
+            single_line_end: "",
+
+            multi_line_start: "",
+            multi_line_prefix: "",
+            multi_line_end: "",
+        },
+
+        #[cfg(feature = "lang-clojure")]
+        tree_sitter: Some(TreeSitterProperties {
+            language: tree_sitter_clojure::language,
+            highlight: Some(include_str!("../queries/clojure/highlights.scm")),
+        injection: Some(include_str!("../queries/clojure/injections.scm")),
+            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+            sticky_headers: &[],
+        }),
+        #[cfg(not(feature = "lang-clojure"))]
+        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Cmake,
@@ -391,7 +436,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-cpp")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_cpp::language,
             highlight: Some(include_str!("../queries/cpp/highlights.scm")),
@@ -403,7 +448,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
                 "struct_specifier",
             ],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-cpp"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -422,7 +467,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-csharp")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_c_sharp::language,
             highlight: Some(tree_sitter_c_sharp::HIGHLIGHT_QUERY),
@@ -441,7 +486,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
                 "method_declaration",
             ],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-csharp"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -460,7 +505,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "*/",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-css")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_css::language,
             highlight: Some(include_str!("../queries/css/highlights.scm")),
@@ -468,7 +513,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-css"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -487,7 +532,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "+/",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-d")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_d::language,
             highlight: Some(tree_sitter_d::HIGHLIGHTS_QUERY),
@@ -495,7 +540,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-d"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -514,7 +559,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "*/",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-dart")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_dart::language,
             highlight: Some(tree_sitter_dart::HIGHLIGHTS_QUERY),
@@ -530,7 +575,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             ),
             sticky_headers: &["class_definition"],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-dart"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -549,7 +594,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-dockerfile")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_dockerfile::language,
             highlight: Some(tree_sitter_dockerfile::HIGHLIGHTS_QUERY),
@@ -557,7 +602,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-dockerfile"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -576,7 +621,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-elixir")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_elixir::language,
             highlight: Some(tree_sitter_elixir::HIGHLIGHTS_QUERY),
@@ -584,7 +629,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &["do_block"],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-elixir"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -603,7 +648,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-elm")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_elm::language,
             highlight: Some(include_str!("../queries/elm/highlights.scm")),
@@ -611,7 +656,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-elm"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -630,7 +675,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-erlang")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_erlang::language,
             highlight: Some(include_str!("../queries/erlang/highlights.scm")),
@@ -638,7 +683,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-erlang"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -657,7 +702,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-glimmer")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_glimmer::language,
             highlight: Some(tree_sitter_glimmer::HIGHLIGHTS_QUERY),
@@ -665,7 +710,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-glimmer"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -689,7 +734,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-glsl")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_glsl::language,
             highlight: Some(tree_sitter_glsl::HIGHLIGHTS_QUERY),
@@ -697,7 +742,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-glsl"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -716,7 +761,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-go")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_go::language,
             highlight: Some(tree_sitter_go::HIGHLIGHT_QUERY),
@@ -733,7 +778,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             ),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-go"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -752,7 +797,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-hare")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_hare::language,
             highlight: Some(tree_sitter_hare::HIGHLIGHT_QUERY),
@@ -760,7 +805,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-hare"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -779,7 +824,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-haskell")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_haskell::language,
             highlight: Some(tree_sitter_haskell::HIGHLIGHTS_QUERY),
@@ -787,7 +832,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-haskell"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -806,7 +851,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-haxe")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_haxe::language,
             highlight: Some(tree_sitter_haxe::HIGHLIGHTS_QUERY),
@@ -814,7 +859,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-haxe"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -833,7 +878,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-hcl")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_hcl::language,
             highlight: Some(tree_sitter_hcl::HIGHLIGHTS_QUERY),
@@ -841,7 +886,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-hcl"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -860,7 +905,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "-->",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-html")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_html::language,
             highlight: Some(tree_sitter_html::HIGHLIGHT_QUERY),
@@ -868,7 +913,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-html"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -887,7 +932,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-java")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_java::language,
             highlight: Some(tree_sitter_java::HIGHLIGHT_QUERY),
@@ -895,7 +940,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-java"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -914,7 +959,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-javascript")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_javascript::language,
             highlight: Some(include_str!("../queries/javascript/highlights.scm")),
@@ -922,7 +967,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-javascript"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -941,7 +986,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-json")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_dart::language,
             highlight: Some(tree_sitter_dart::HIGHLIGHTS_QUERY),
@@ -949,7 +994,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-json"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -968,7 +1013,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-javascript")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_javascript::language,
             highlight: Some(include_str!("../queries/jsx/highlights.scm")),
@@ -977,7 +1022,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-javascript"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -996,7 +1041,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "=#",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-julia")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_julia::language,
             highlight: Some(include_str!("../queries/julia/highlights.scm")),
@@ -1004,7 +1049,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-julia"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1023,7 +1068,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "*/",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-kotlin")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_kotlin::language,
             highlight: Some(include_str!("../queries/kotlin/highlights.scm")),
@@ -1031,7 +1076,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-kotlin"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1050,7 +1095,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-latex")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_latex::language,
             highlight: Some(include_str!("../queries/latex/highlights.scm")),
@@ -1058,7 +1103,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-latex"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1077,7 +1122,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-lua")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_lua::language,
             highlight: Some(include_str!("../queries/lua/highlights.scm")),
@@ -1085,7 +1130,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             sticky_headers: &[],
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-lua"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1104,7 +1149,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-markdown")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_md::language,
             highlight: Some(include_str!("../queries/markdown/highlights.scm")),
@@ -1112,7 +1157,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-markdown"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1132,7 +1177,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-markdown")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_md::inline_language,
             highlight: Some(include_str!(
@@ -1144,7 +1189,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-markdown"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1163,7 +1208,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "*/",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-nix")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_nix::language,
             highlight: Some(tree_sitter_nix::HIGHLIGHTS_QUERY),
@@ -1171,7 +1216,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-nix"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1190,7 +1235,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "*)",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-ocaml")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_ocaml::language_ocaml,
             highlight: Some(tree_sitter_ocaml::HIGHLIGHTS_QUERY),
@@ -1198,7 +1243,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-ocaml"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1217,7 +1262,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-ocaml")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_ocaml::language_ocaml_interface,
             highlight: Some(tree_sitter_ocaml::HIGHLIGHTS_QUERY),
@@ -1225,7 +1270,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-ocaml"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1244,7 +1289,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-php")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_php::language,
             highlight: Some(tree_sitter_php::HIGHLIGHT_QUERY),
@@ -1271,7 +1316,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             ],),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-php"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1290,7 +1335,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-prisma")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_prisma_io::language,
             highlight: Some(include_str!("../queries/prisma/highlights.scm")),
@@ -1298,7 +1343,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-prisma"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1317,7 +1362,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-protobuf")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_protobuf::language,
             highlight: Some(include_str!("../queries/protobuf/highlights.scm")),
@@ -1325,7 +1370,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-protobuf"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1344,7 +1389,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-python")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_python::language,
             highlight: Some(tree_sitter_python::HIGHLIGHT_QUERY),
@@ -1363,7 +1408,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             ),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-python"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1382,7 +1427,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-ql")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_ql::language,
             highlight: Some(tree_sitter_ql::HIGHLIGHTS_QUERY),
@@ -1390,7 +1435,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-ql"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1409,7 +1454,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-r")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_r::language,
             highlight: Some(include_str!("../queries/r/highlights.scm")),
@@ -1417,7 +1462,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-r"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1436,7 +1481,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-ruby")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_ruby::language,
             highlight: Some(tree_sitter_ruby::HIGHLIGHT_QUERY),
@@ -1444,7 +1489,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &["module", "class", "method", "do_block"],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-ruby"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1463,7 +1508,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-rust")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_rust::language,
             highlight: Some(tree_sitter_rust::HIGHLIGHT_QUERY),
@@ -1479,7 +1524,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
                 "impl_item",
             ],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-rust"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1498,7 +1543,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-scheme")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_scheme::language,
             highlight: Some(tree_sitter_scheme::HIGHLIGHTS_QUERY),
@@ -1506,7 +1551,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-scheme"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1525,7 +1570,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-scss")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_scss::language,
             highlight: Some(tree_sitter_scss::HIGHLIGHTS_QUERY),
@@ -1533,7 +1578,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-scss"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1552,7 +1597,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-bash")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_bash::language,
             highlight: Some(tree_sitter_bash::HIGHLIGHT_QUERY),
@@ -1560,7 +1605,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-bash"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1579,7 +1624,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-sql")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_sql::language,
             highlight: Some(tree_sitter_sql::HIGHLIGHTS_QUERY),
@@ -1587,7 +1632,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-sql"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1606,7 +1651,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-svelte")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_svelte::language,
             highlight: Some(include_str!("../queries/svelte/highlights.scm")),
@@ -1614,7 +1659,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-svelte"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1633,7 +1678,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-swift")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_swift::language,
             highlight: Some(tree_sitter_swift::HIGHLIGHTS_QUERY),
@@ -1641,7 +1686,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-swift"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1660,7 +1705,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-toml")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_toml::language,
             highlight: Some(tree_sitter_toml::HIGHLIGHT_QUERY),
@@ -1668,7 +1713,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-toml"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1687,7 +1732,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-typescript")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_typescript::language_tsx,
             highlight: Some(include_str!("../queries/typescript/highlights.scm")),
@@ -1695,7 +1740,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-typescript"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1714,7 +1759,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-typescript")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_typescript::language_typescript,
             highlight: Some(include_str!("../queries/typescript/highlights.scm")),
@@ -1722,7 +1767,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-typescript"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1741,7 +1786,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-vue")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_vue::language,
             highlight: Some(tree_sitter_vue::HIGHLIGHTS_QUERY),
@@ -1749,7 +1794,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-vue"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1768,7 +1813,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-wgsl")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_wgsl::language,
             highlight: Some(tree_sitter_wgsl::HIGHLIGHTS_QUERY),
@@ -1776,7 +1821,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-wgsl"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1795,7 +1840,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-xml")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_xml::language,
             highlight: Some(tree_sitter_xml::HIGHLIGHTS_QUERY),
@@ -1803,7 +1848,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-xml"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1822,7 +1867,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-yaml")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_yaml::language,
             highlight: Some(tree_sitter_yaml::HIGHLIGHTS_QUERY),
@@ -1830,7 +1875,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-yaml"))]
         tree_sitter: None,
     },
     SyntaxProperties {
@@ -1849,7 +1894,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: "",
         },
 
-        #[cfg(feature = "compile-grammars")]
+        #[cfg(feature = "lang-zig")]
         tree_sitter: Some(TreeSitterProperties {
             language: tree_sitter_zig::language,
             highlight: Some(include_str!("../queries/zig/highlights.scm")),
@@ -1857,7 +1902,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "compile-grammars"))]
+        #[cfg(not(feature = "lang-zig"))]
         tree_sitter: None,
     },
 ];

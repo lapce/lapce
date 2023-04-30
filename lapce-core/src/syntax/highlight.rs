@@ -24,7 +24,7 @@ use super::{util::RopeProvider, PARSER};
 use crate::{language::LapceLanguage, style::SCOPES};
 
 macro_rules! declare_language_highlights {
-    ($($name:ident),* $(,)?) => {
+    ($($name:ident: $feature_name:expr),* $(,)?) => {
         mod highlights {
             // We allow non upper case globals to make the macro definition simpler.
             #![allow(unused_imports)]
@@ -34,6 +34,9 @@ macro_rules! declare_language_highlights {
             use std::sync::Arc;
             use super::{HighlightConfiguration, HighlightIssue};
 
+            pub static Plaintext: Lazy<Result<Arc<HighlightConfiguration>, HighlightIssue>> = Lazy::new(|| {
+                LapceLanguage::Plaintext.new_highlight_config().map(Arc::new)
+            });
             // We use Arcs because in the future we may want to load highlight configurations at runtime
             $(
                 #[cfg(feature = $feature_name)]
@@ -46,9 +49,10 @@ macro_rules! declare_language_highlights {
         pub(crate) fn get_highlight_config(lang: LapceLanguage) -> Result<Arc<HighlightConfiguration>, HighlightIssue> {
             match lang {
                 $(
-                    #[cfg(feature = "compile-grammars")]
+                    #[cfg(feature = $feature_name)]
                     LapceLanguage::$name => highlights::$name.clone()
-                ),*
+                ),*,
+                _ => highlights::Plaintext.clone(),
             }
         }
     };
@@ -99,6 +103,7 @@ declare_language_highlights!(
     Rust: "lang-rust",
     Scheme: "lang-scheme",
     Scss: "lang-scss",
+    Sh: "lang-bash",
     Sql: "lang-sql",
     Svelte: "lang-svelte",
     Swift: "lang-swift",
