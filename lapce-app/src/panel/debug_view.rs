@@ -267,6 +267,7 @@ fn debug_processes(
                                             .flex_grow(1.0)
                                             .flex_basis_px(0.0)
                                             .min_width_px(0.0)
+                                            .text_ellipsis()
                                     },
                                 ),
                                 debug_process_icons(
