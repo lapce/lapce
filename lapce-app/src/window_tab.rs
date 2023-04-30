@@ -473,7 +473,7 @@ impl WindowTabData {
             TogglePanelFocus => {
                 if let Some(data) = data {
                     if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
-                        self.toggle_panel_focus(cx, kind);
+                        self.toggle_panel_focus(kind);
                     }
                 }
             }
@@ -488,22 +488,44 @@ impl WindowTabData {
             TogglePanelRightVisual => {}
             TogglePanelBottomVisual => {}
             ToggleTerminalFocus => {
-                self.toggle_panel_focus(cx, PanelKind::Terminal);
+                self.toggle_panel_focus(PanelKind::Terminal);
             }
-            ToggleSourceControlFocus => {}
-            TogglePluginFocus => {}
-            ToggleFileExplorerFocus => {}
-            ToggleProblemFocus => {}
-            ToggleSearchFocus => {}
+            ToggleSourceControlFocus => {
+                self.toggle_panel_focus(PanelKind::SourceControl);
+            }
+            TogglePluginFocus => {
+                self.toggle_panel_focus(PanelKind::Plugin);
+            }
+            ToggleFileExplorerFocus => {
+                self.toggle_panel_focus(PanelKind::FileExplorer);
+            }
+            ToggleProblemFocus => {
+                self.toggle_panel_focus(PanelKind::Problem);
+            }
+            ToggleSearchFocus => {
+                self.toggle_panel_focus(PanelKind::Search);
+            }
             ToggleTerminalVisual => {
                 self.toggle_panel_visual(PanelKind::Terminal);
             }
-            ToggleSourceControlVisual => {}
-            TogglePluginVisual => {}
-            ToggleFileExplorerVisual => {}
-            ToggleProblemVisual => {}
-            ToggleDebugVisual => {}
-            ToggleSearchVisual => {}
+            ToggleSourceControlVisual => {
+                self.toggle_panel_visual(PanelKind::SourceControl);
+            }
+            TogglePluginVisual => {
+                self.toggle_panel_visual(PanelKind::Plugin);
+            }
+            ToggleFileExplorerVisual => {
+                self.toggle_panel_visual(PanelKind::FileExplorer);
+            }
+            ToggleProblemVisual => {
+                self.toggle_panel_visual(PanelKind::Problem);
+            }
+            ToggleDebugVisual => {
+                self.toggle_panel_visual(PanelKind::Debug);
+            }
+            ToggleSearchVisual => {
+                self.toggle_panel_visual(PanelKind::Search);
+            }
             FocusEditor => {
                 self.common.focus.set(Focus::Workbench);
             }
@@ -903,7 +925,7 @@ impl WindowTabData {
         }
     }
 
-    fn toggle_panel_focus(&self, cx: Scope, kind: PanelKind) {
+    fn toggle_panel_focus(&self, kind: PanelKind) {
         let should_hide = match kind {
             PanelKind::FileExplorer
             | PanelKind::Plugin

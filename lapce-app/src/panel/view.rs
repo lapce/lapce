@@ -18,6 +18,7 @@ use super::{
     debug_view::debug_panel,
     kind::PanelKind,
     position::{PanelContainerPosition, PanelPosition},
+    problem_view::problem_panel,
     terminal_view::terminal_panel,
 };
 
@@ -109,9 +110,9 @@ fn panel_view(
                 PanelKind::Search => {
                     container_box(cx, |cx| Box::new(blank_panel(cx)))
                 }
-                PanelKind::Problem => {
-                    container_box(cx, |cx| Box::new(blank_panel(cx)))
-                }
+                PanelKind::Problem => container_box(cx, |cx| {
+                    Box::new(problem_panel(cx, window_tab_data.clone(), position))
+                }),
                 PanelKind::Debug => container_box(cx, |cx| {
                     Box::new(debug_panel(cx, window_tab_data.clone(), position))
                 }),
