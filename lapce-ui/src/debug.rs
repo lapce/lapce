@@ -16,10 +16,7 @@ use lapce_data::{
     },
     panel::PanelKind,
 };
-use lapce_rpc::{
-    dap_types::{DapId, ThreadId},
-    terminal::TermId,
-};
+use lapce_rpc::{dap_types::ThreadId, terminal::TermId};
 
 use crate::{
     panel::{LapcePanel, PanelHeaderKind, PanelSizing},

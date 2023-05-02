@@ -19,7 +19,7 @@ use lapce_rpc::{
         DebuggerCapabilities, Disconnect, Initialize, Launch, Pause, PauseArguments,
         Request, RunDebugConfig, RunInTerminal, RunInTerminalArguments,
         RunInTerminalResponse, SetBreakpoints, SetBreakpointsArguments,
-        SetBreakpointsResponse, Source, SourceBreakpoint, StackFrame, StackTrace,
+        SetBreakpointsResponse, Source, SourceBreakpoint, StackTrace,
         StackTraceArguments, StackTraceResponse, Terminate, ThreadId, Threads,
         ThreadsResponse,
     },

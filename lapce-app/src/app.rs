@@ -740,7 +740,7 @@ fn status(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View {
         let mut errors = 0;
         let mut warnings = 0;
         for (_, diagnostics) in diagnostics.get().iter() {
-            for diagnostic in diagnostics.iter() {
+            for diagnostic in diagnostics.diagnostics.get().iter() {
                 if let Some(severity) = diagnostic.diagnostic.severity {
                     match severity {
                         DiagnosticSeverity::ERROR => errors += 1,
@@ -1416,7 +1416,8 @@ fn palette_input(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl Vi
                     (
                         label(cx, move || {
                             doc.with(|doc| doc.buffer().text().to_string())
-                        }),
+                        })
+                        .style(cx, || Style::BASE.text_clip()),
                         label(cx, move || "".to_string()).style(cx, move || {
                             Style::BASE
                                 .position(Position::Absolute)

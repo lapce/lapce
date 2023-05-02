@@ -61,7 +61,7 @@ impl KeyPressFocus for TerminalData {
         cx: Scope,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        mods: floem::glazier::Modifiers,
+        _mods: floem::glazier::Modifiers,
     ) -> crate::command::CommandExecuted {
         AppContext::request_paint();
         let config = self.common.config.get_untracked();
@@ -282,7 +282,7 @@ impl KeyPressFocus for TerminalData {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&self, cx: Scope, c: &str) {
+    fn receive_char(&self, _cx: Scope, c: &str) {
         if self.mode.get_untracked() == Mode::Terminal {
             self.common
                 .proxy

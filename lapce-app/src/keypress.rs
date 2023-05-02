@@ -72,30 +72,6 @@ impl<'a> From<&'a MouseEvent> for EventRef<'a> {
     }
 }
 
-pub struct DefaultKeyPress {}
-
-impl KeyPressFocus for DefaultKeyPress {
-    fn get_mode(&self) -> Mode {
-        Mode::Normal
-    }
-
-    fn check_condition(&self, _condition: Condition) -> bool {
-        false
-    }
-
-    fn run_command(
-        &self,
-        _cx: Scope,
-        _command: &LapceCommand,
-        _count: Option<usize>,
-        _mods: Modifiers,
-    ) -> CommandExecuted {
-        CommandExecuted::No
-    }
-
-    fn receive_char(&self, _cx: Scope, _c: &str) {}
-}
-
 #[derive(Clone)]
 pub struct KeyPressData {
     count: Option<usize>,

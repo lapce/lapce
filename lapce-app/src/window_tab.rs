@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Instant};
 use crossbeam_channel::Sender;
 use floem::{
     ext_event::{create_signal_from_channel, open_file_dialog},
-    glazier::{FileDialogOptions, KeyEvent},
+    glazier::{FileDialogOptions, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
         create_effect, create_rw_signal, create_signal, use_context, ReadSignal,
@@ -23,8 +23,8 @@ use serde_json::Value;
 use crate::{
     code_action::{CodeActionData, CodeActionStatus},
     command::{
-        CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand,
-        WindowCommand,
+        CommandExecuted, CommandKind, InternalCommand, LapceCommand,
+        LapceWorkbenchCommand, WindowCommand,
     },
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
@@ -33,7 +33,7 @@ use crate::{
     doc::EditorDiagnostic,
     editor::location::EditorLocation,
     id::WindowTabId,
-    keypress::{DefaultKeyPress, KeyPressData},
+    keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     main_split::{MainSplitData, SplitData, SplitDirection},
     palette::{kind::PaletteKind, PaletteData},
     panel::{
@@ -89,6 +89,33 @@ pub struct WindowTabData {
     pub layout_rect: RwSignal<Rect>,
     pub proxy: ProxyData,
     pub common: CommonData,
+}
+
+impl KeyPressFocus for WindowTabData {
+    fn get_mode(&self) -> Mode {
+        Mode::Normal
+    }
+
+    fn check_condition(&self, condition: Condition) -> bool {
+        if let Condition::PanelFocus = condition {
+            if let Focus::Panel(_) = self.common.focus.get_untracked() {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn run_command(
+        &self,
+        _cx: Scope,
+        _command: &LapceCommand,
+        _count: Option<usize>,
+        _mods: Modifiers,
+    ) -> CommandExecuted {
+        CommandExecuted::No
+    }
+
+    fn receive_char(&self, _cx: Scope, _c: &str) {}
 }
 
 impl WindowTabData {
@@ -701,20 +728,19 @@ impl WindowTabData {
                     .sorted_by_key(|d| d.diagnostic.range.start)
                     .collect();
 
+                self.main_split
+                    .get_diagnostic_data(&path)
+                    .diagnostics
+                    .set(diagnostics);
+
                 // inform the document about the diagnostics
                 if let Some(doc) = self
                     .main_split
                     .docs
                     .with_untracked(|docs| docs.get(&path).cloned())
                 {
-                    doc.update(|doc| {
-                        doc.set_diagnostics(diagnostics.clone());
-                    });
+                    doc.update(|doc| doc.init_diagnostics());
                 }
-
-                self.main_split.diagnostics.update(|d| {
-                    d.insert(path, diagnostics);
-                });
             }
             CoreNotification::TerminalProcessStopped { term_id } => {
                 println!("terminal stopped {term_id:?}");
@@ -779,11 +805,11 @@ impl WindowTabData {
                 self.terminal.key_down(cx, key_event, &mut keypress);
                 true
             }
-            _ => true,
+            _ => false,
         };
 
         if !executed {
-            keypress.key_down(cx, key_event, &DefaultKeyPress {});
+            keypress.key_down(cx, key_event, self);
         }
 
         self.keypress.set(keypress);

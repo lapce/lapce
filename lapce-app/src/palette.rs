@@ -505,7 +505,7 @@ impl PaletteData {
     }
 
     /// Initialize the list of references in the file, from the current editor location.
-    fn get_references(&self, cx: Scope) {
+    fn get_references(&self, _cx: Scope) {
         let items = self
             .references
             .get_untracked()

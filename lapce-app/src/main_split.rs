@@ -23,7 +23,7 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    doc::{Document, EditorDiagnostic},
+    doc::{DiagnosticData, Document, EditorDiagnostic},
     editor::{
         location::{EditorLocation, EditorPosition},
         EditorData,
@@ -186,7 +186,7 @@ pub struct MainSplitData {
     pub editor_tabs: RwSignal<im::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
     pub editors: RwSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
     pub docs: RwSignal<im::HashMap<PathBuf, RwSignal<Document>>>,
-    pub diagnostics: RwSignal<im::HashMap<PathBuf, im::Vector<EditorDiagnostic>>>,
+    pub diagnostics: RwSignal<im::HashMap<PathBuf, DiagnosticData>>,
     pub active_editor: Memo<Option<RwSignal<EditorData>>>,
     locations: RwSignal<im::Vector<EditorLocation>>,
     current_location: RwSignal<usize>,
@@ -344,10 +344,12 @@ impl MainSplitData {
         if let Some(doc) = doc {
             (doc, false)
         } else {
+            let diagnostic_data = self.get_diagnostic_data(&path);
+
             let doc = Document::new(
                 cx,
                 path.clone(),
-                self.diagnostics.with_untracked(|d| d.get(&path).cloned()),
+                diagnostic_data,
                 self.common.proxy.clone(),
                 self.common.config,
             );
@@ -1202,12 +1204,7 @@ impl MainSplitData {
         &self,
         severity: DiagnosticSeverity,
         tracked: bool,
-    ) -> Vec<(PathBuf, Vec<EditorDiagnostic>)> {
-        let docs = if tracked {
-            self.docs.get()
-        } else {
-            self.docs.get_untracked()
-        };
+    ) -> Vec<(PathBuf, RwSignal<bool>, Vec<EditorDiagnostic>)> {
         let diagnostics = if tracked {
             self.diagnostics.get()
         } else {
@@ -1216,34 +1213,38 @@ impl MainSplitData {
         diagnostics
             .into_iter()
             .filter_map(|(path, diagnostic)| {
-                if let Some(doc) = docs.get(&path) {
-                    return match doc.with_untracked(|doc| doc.diagnostics.clone()) {
-                        Some(d) => {
-                            let diagnostics: Vec<EditorDiagnostic> = d
-                                .into_iter()
-                                .filter(|d| d.diagnostic.severity == Some(severity))
-                                .collect();
-                            if !diagnostics.is_empty() {
-                                Some((path, diagnostics))
-                            } else {
-                                None
-                            }
-                        }
-                        None => None,
-                    };
-                }
-                let diagnostics: Vec<EditorDiagnostic> = diagnostic
+                let diagnostics = if tracked {
+                    diagnostic.diagnostics.get()
+                } else {
+                    diagnostic.diagnostics.get_untracked()
+                };
+                let diagnostics: Vec<EditorDiagnostic> = diagnostics
                     .into_iter()
                     .filter(|d| d.diagnostic.severity == Some(severity))
                     .collect();
                 if !diagnostics.is_empty() {
-                    Some((path, diagnostics))
+                    Some((path, diagnostic.expanded, diagnostics))
                 } else {
                     None
                 }
             })
-            .sorted_by_key(|(path, _)| path.clone())
+            .sorted_by_key(|(path, _, _)| path.clone())
             .collect()
+    }
+
+    pub fn get_diagnostic_data(&self, path: &Path) -> DiagnosticData {
+        if let Some(d) = self.diagnostics.with_untracked(|d| d.get(path).cloned()) {
+            d
+        } else {
+            let diagnostic_data = DiagnosticData {
+                expanded: create_rw_signal(self.scope, true),
+                diagnostics: create_rw_signal(self.scope, im::Vector::new()),
+            };
+            self.diagnostics.update(|d| {
+                d.insert(path.to_path_buf(), diagnostic_data.clone());
+            });
+            diagnostic_data
+        }
     }
 }
 
@@ -1291,10 +1292,10 @@ fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> 
 
 fn next_in_file_errors_offset(
     active_path: Option<(PathBuf, Position)>,
-    file_diagnostics: &[(PathBuf, Vec<EditorDiagnostic>)],
+    file_diagnostics: &[(PathBuf, RwSignal<bool>, Vec<EditorDiagnostic>)],
 ) -> (PathBuf, Position) {
     if let Some((active_path, position)) = active_path {
-        for (current_path, diagnostics) in file_diagnostics {
+        for (current_path, _, diagnostics) in file_diagnostics {
             if &active_path == current_path {
                 for diagnostic in diagnostics {
                     if diagnostic.diagnostic.range.start.line > position.line
@@ -1320,6 +1321,6 @@ fn next_in_file_errors_offset(
 
     (
         file_diagnostics[0].0.clone(),
-        file_diagnostics[0].1[0].diagnostic.range.start,
+        file_diagnostics[0].2[0].diagnostic.range.start,
     )
 }

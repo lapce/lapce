@@ -1330,19 +1330,16 @@ impl EditorData {
             // what code actions are available (such as fixes for the diagnostics).
             let diagnostics = doc
                 .diagnostics
-                .as_ref()
-                .map(|diagnostics| {
-                    diagnostics
-                        .iter()
-                        .map(|x| &x.diagnostic)
-                        .filter(|x| {
-                            x.range.start.line <= position.line
-                                && x.range.end.line >= position.line
-                        })
-                        .cloned()
-                        .collect()
+                .diagnostics
+                .get_untracked()
+                .iter()
+                .map(|x| &x.diagnostic)
+                .filter(|x| {
+                    x.range.start.line <= position.line
+                        && x.range.end.line >= position.line
                 })
-                .unwrap_or_default();
+                .cloned()
+                .collect();
 
             (position, rev, diagnostics)
         });

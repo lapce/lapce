@@ -3,7 +3,8 @@ use std::{path::PathBuf, sync::Arc};
 use floem::{
     peniko::Color,
     reactive::{
-        create_memo, ReadSignal, SignalGet, SignalSet, SignalWith, WriteSignal,
+        create_memo, create_rw_signal, ReadSignal, SignalGet, SignalSet,
+        SignalUpdate, SignalWith, WriteSignal,
     },
     style::{CursorStyle, Style},
     view::View,
@@ -15,7 +16,7 @@ use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    doc::EditorDiagnostic,
+    doc::{DiagnosticData, EditorDiagnostic},
     editor::location::{EditorLocation, EditorPosition},
     proxy::path_from_url,
     window_tab::WindowTabData,
@@ -33,8 +34,15 @@ pub fn problem_panel(
     let is_bottom = position.is_bottom();
     stack(cx, |cx| {
         (
-            stack(cx, move |cx| {
-                (panel_header(cx, "Errors".to_string(), config),)
+            stack(cx, |cx| {
+                (
+                    panel_header(cx, "Errors".to_string(), config),
+                    problem_section(
+                        cx,
+                        window_tab_data.clone(),
+                        DiagnosticSeverity::ERROR,
+                    ),
+                )
             })
             .style(cx, move || {
                 let config = config.get();
@@ -82,14 +90,14 @@ fn problem_section(
             let workspace = main_split.common.workspace.clone();
             list(
                 cx,
-                move || main_split.diagnostics_items(severity, true),
+                move || main_split.diagnostics.get(),
                 |(p, _)| p.clone(),
-                move |cx, (path, diagnostics)| {
+                move |cx, (path, diagnostic_data)| {
                     file_view(
                         cx,
                         workspace.clone(),
                         path,
-                        diagnostics,
+                        diagnostic_data,
                         severity,
                         internal_command,
                         config,
@@ -112,11 +120,28 @@ fn file_view(
     cx: AppContext,
     workspace: Arc<LapceWorkspace>,
     path: PathBuf,
-    diagnostics: Vec<EditorDiagnostic>,
+    diagnostic_data: DiagnosticData,
     severity: DiagnosticSeverity,
     internal_command: WriteSignal<Option<InternalCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
+    let collpased = create_rw_signal(cx.scope, false);
+
+    let diagnostics = create_memo(cx.scope, move |_| {
+        let diagnostics = diagnostic_data.diagnostics.get();
+        let diagnostics: im::Vector<EditorDiagnostic> = diagnostics
+            .into_iter()
+            .filter_map(|d| {
+                if d.diagnostic.severity == Some(severity) {
+                    Some(d)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        diagnostics
+    });
+
     let full_path = path.clone();
     let path = if let Some(workspace_path) = workspace.path.as_ref() {
         path.strip_prefix(workspace_path)
@@ -155,37 +180,53 @@ fn file_view(
         (
             stack(cx, |cx| {
                 (
-                    stack(cx, |cx| {
-                        (
-                            label(cx, move || file_name.clone()).style(cx, || {
-                                Style::BASE
-                                    .margin_right(6.0)
-                                    .max_width_pct(1.0)
-                                    .text_ellipsis()
-                            }),
-                            label(cx, move || folder.clone()).style(cx, move || {
-                                Style::BASE
-                                    .color(
-                                        *config
-                                            .get()
-                                            .get_color(LapceColor::EDITOR_DIM),
-                                    )
-                                    .min_width_px(0.0)
-                                    .text_ellipsis()
-                            }),
-                        )
-                    })
+                    click(
+                        cx,
+                        |cx| {
+                            stack(cx, |cx| {
+                                (
+                                    label(cx, move || file_name.clone()).style(
+                                        cx,
+                                        || {
+                                            Style::BASE
+                                                .margin_right(6.0)
+                                                .max_width_pct(1.0)
+                                                .text_ellipsis()
+                                        },
+                                    ),
+                                    label(cx, move || folder.clone()).style(
+                                        cx,
+                                        move || {
+                                            Style::BASE
+                                                .color(*config.get().get_color(
+                                                    LapceColor::EDITOR_DIM,
+                                                ))
+                                                .min_width_px(0.0)
+                                                .text_ellipsis()
+                                        },
+                                    ),
+                                )
+                            })
+                            .style(cx, move || {
+                                Style::BASE.width_pct(1.0).min_width_px(0.0)
+                            })
+                        },
+                        move || {
+                            collpased.update(|collpased| *collpased = !*collpased);
+                        },
+                    )
                     .style(cx, move || {
                         Style::BASE
                             .width_pct(1.0)
                             .min_width_px(0.0)
                             .padding_left(
-                                10.0 + config.get().ui.icon_size() as f32 + 6.0,
+                                10.0 + (config.get().ui.icon_size() as f32 + 6.0)
+                                    * 2.0,
                             )
                             .padding_right(10.0)
                     })
                     .hover_style(cx, move || {
-                        Style::BASE.background(
+                        Style::BASE.cursor(CursorStyle::Pointer).background(
                             *config
                                 .get()
                                 .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -193,6 +234,25 @@ fn file_view(
                     }),
                     stack(cx, |cx| {
                         (
+                            svg(cx, move || {
+                                config.get().ui_svg(if collpased.get() {
+                                    LapceIcons::ITEM_CLOSED
+                                } else {
+                                    LapceIcons::ITEM_OPENED
+                                })
+                            })
+                            .style(cx, move || {
+                                let config = config.get();
+                                let size = config.ui.icon_size() as f32;
+                                Style::BASE
+                                    .margin_right(6.0)
+                                    .dimension_px(size, size)
+                                    .color(
+                                        *config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ),
+                                    )
+                            }),
                             svg(cx, move || config.get().file_svg(&path).0).style(
                                 cx,
                                 move || {
@@ -217,7 +277,13 @@ fn file_view(
             .style(cx, move || Style::BASE.width_pct(1.0).min_width_px(0.0)),
             list(
                 cx,
-                move || diagnostics.clone(),
+                move || {
+                    if collpased.get() {
+                        im::Vector::new()
+                    } else {
+                        diagnostics.get()
+                    }
+                },
                 |_| 0,
                 move |cx, d| {
                     item_view(
@@ -236,7 +302,13 @@ fn file_view(
             }),
         )
     })
-    .style(cx, || Style::BASE.width_pct(1.0).items_start().flex_col())
+    .style(cx, move || {
+        Style::BASE
+            .width_pct(1.0)
+            .items_start()
+            .flex_col()
+            .apply_if(diagnostics.with(|d| d.is_empty()), |s| s.hide())
+    })
 }
 
 fn item_view(
@@ -273,7 +345,7 @@ fn item_view(
                                             10.0 + (config.get().ui.icon_size()
                                                 as f32
                                                 + 6.0)
-                                                * 2.0,
+                                                * 3.0,
                                         )
                                         .padding_right(10.0)
                                 },
@@ -293,7 +365,9 @@ fn item_view(
                             })
                             .style(cx, move || {
                                 Style::BASE.absolute().items_center().margin_left(
-                                    10.0 + config.get().ui.icon_size() as f32 + 6.0,
+                                    10.0 + (config.get().ui.icon_size() as f32
+                                        + 6.0)
+                                        * 2.0,
                                 )
                             }),
                         )
@@ -314,7 +388,7 @@ fn item_view(
                 },
             )
             .style(cx, || Style::BASE.width_pct(1.0).min_width_pct(0.0)),
-            related_view(cx, related, config),
+            related_view(cx, related, internal_command, config),
         )
     })
     .style(cx, || {
@@ -325,6 +399,7 @@ fn item_view(
 fn related_view(
     cx: AppContext,
     related: Vec<DiagnosticRelatedInformation>,
+    internal_command: WriteSignal<Option<InternalCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let is_empty = related.is_empty();
@@ -335,7 +410,8 @@ fn related_view(
                 move || related.clone(),
                 |_| 0,
                 move |cx, related| {
-                    let path = path_from_url(&related.location.uri)
+                    let full_path = path_from_url(&related.location.uri);
+                    let path = full_path
                         .file_name()
                         .and_then(|f| f.to_str())
                         .map(|f| {
@@ -346,26 +422,48 @@ fn related_view(
                             )
                         })
                         .unwrap_or_else(|| "".to_string());
+                    let location = EditorLocation {
+                        path: full_path,
+                        position: Some(EditorPosition::Position(
+                            related.location.range.start,
+                        )),
+                        scroll_offset: None,
+                        ignore_unconfirmed: false,
+                        same_editor_tab: false,
+                    };
                     let message = format!("{path}{}", related.message);
-                    label(cx, move || message.clone())
-                        .style(cx, move || {
-                            Style::BASE
-                                .padding_left(
-                                    10.0 + (config.get().ui.icon_size() as f32
-                                        + 6.0)
-                                        * 3.0,
-                                )
-                                .padding_right(10.0)
-                                .width_pct(1.0)
-                                .min_width_px(0.0)
-                        })
-                        .hover_style(cx, move || {
-                            Style::BASE.background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    click(
+                        cx,
+                        |cx| {
+                            label(cx, move || message.clone()).style(cx, move || {
+                                Style::BASE.width_pct(1.0).min_width_px(0.0)
+                            })
+                        },
+                        move || {
+                            internal_command.set(Some(
+                                InternalCommand::JumpToLocation {
+                                    location: location.clone(),
+                                },
+                            ));
+                        },
+                    )
+                    .style(cx, move || {
+                        Style::BASE
+                            .padding_left(
+                                10.0 + (config.get().ui.icon_size() as f32 + 6.0)
+                                    * 4.0,
                             )
-                        })
+                            .padding_right(10.0)
+                            .width_pct(1.0)
+                            .min_width_px(0.0)
+                    })
+                    .hover_style(cx, move || {
+                        Style::BASE.cursor(CursorStyle::Pointer).background(
+                            *config
+                                .get()
+                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        )
+                    })
                 },
             )
             .style(cx, || {
@@ -388,7 +486,7 @@ fn related_view(
             })
             .style(cx, move || {
                 Style::BASE.absolute().items_center().margin_left(
-                    10.0 + (config.get().ui.icon_size() as f32 + 6.0) * 2.0,
+                    10.0 + (config.get().ui.icon_size() as f32 + 6.0) * 3.0,
                 )
             }),
         )

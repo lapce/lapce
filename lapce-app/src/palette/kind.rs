@@ -78,7 +78,7 @@ impl PaletteKind {
     /// [`PaletteKind`] and the current input.
     pub fn get_palette_kind(&self, input: &str) -> PaletteKind {
         if self != &PaletteKind::File && self.symbol() == "" {
-            return self.clone();
+            return *self;
         }
         PaletteKind::from_input(input)
     }
