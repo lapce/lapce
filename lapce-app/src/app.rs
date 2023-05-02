@@ -2122,23 +2122,10 @@ fn window(cx: AppContext, window_data: WindowData) -> impl View {
     };
     let active = move || active.get();
 
-    let window_view = tab(cx, active, items, key, |cx, (_, window_tab_data)| {
+    tab(cx, active, items, key, |cx, (_, window_tab_data)| {
         window_tab(cx, window_tab_data)
     })
     .style(cx, || Style::BASE.dimension_pct(1.0, 1.0))
-    .on_event(EventListner::KeyDown, move |event| {
-        if let Event::KeyDown(key_event) = event {
-            window_data.key_down(key_event);
-            true
-        } else {
-            false
-        }
-    });
-
-    let id = window_view.id();
-    cx.update_focus(id);
-
-    window_view
 }
 
 fn app_view(cx: AppContext, window_data: WindowData) -> impl View {
@@ -2152,6 +2139,14 @@ fn app_view(cx: AppContext, window_data: WindowData) -> impl View {
         )
     })
     .style(cx, || Style::BASE.flex_col().dimension_pct(1.0, 1.0))
+    .on_event(EventListner::KeyDown, move |event| {
+        if let Event::KeyDown(key_event) = event {
+            window_data.key_down(key_event);
+            true
+        } else {
+            false
+        }
+    })
     .on_event(EventListner::WindowResized, move |event| {
         if let Event::WindowResized(size) = event {
             window_size.set(*size);
