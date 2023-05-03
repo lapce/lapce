@@ -32,9 +32,9 @@ use lapce_rpc::{
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionOrCommand,
-    CodeActionResponse, CompletionItem, CompletionTextEdit, DiagnosticSeverity,
-    DocumentChangeOperation, DocumentChanges, GotoDefinitionResponse, Location,
-    OneOf, Position, ResourceOp, TextEdit, Url, WorkspaceEdit,
+    CodeActionResponse, CompletionItem, CompletionTextEdit, DocumentChangeOperation,
+    DocumentChanges, GotoDefinitionResponse, Location, OneOf, Position, ResourceOp,
+    TextEdit, Url, WorkspaceEdit,
 };
 
 use crate::{
