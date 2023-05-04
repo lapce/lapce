@@ -6,7 +6,7 @@ use floem::{
     },
     style::{AlignItems, Dimension, Display, JustifyContent, Style},
     view::View,
-    views::{click, container, stack, Decorators},
+    views::{container, stack, Decorators},
     views::{label, svg},
     AppContext,
 };
@@ -132,68 +132,53 @@ fn middle(
                     .flex_grow(1.0)
                     .justify_content(Some(JustifyContent::FlexEnd))
             }),
-            click(
-                cx,
-                |cx| {
-                    stack(cx, |cx| {
-                        (
-                            svg(cx, move || config.get().ui_svg(LapceIcons::SEARCH))
-                                .style(cx, move || {
-                                    let config = config.get();
-                                    let icon_size = config.ui.icon_size() as f32;
-                                    Style::BASE
-                                        .dimension_px(icon_size, icon_size)
-                                        .color(*config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ))
-                                }),
-                            label(cx, move || {
-                                if let Some(s) = local_workspace.display() {
-                                    s
-                                } else {
-                                    "Open Folder".to_string()
-                                }
-                            })
-                            .style(cx, || {
-                                Style::BASE.padding_left(10.0).padding_right(5.0)
+            container(cx, |cx| {
+                stack(cx, |cx| {
+                    (
+                        svg(cx, move || config.get().ui_svg(LapceIcons::SEARCH))
+                            .style(cx, move || {
+                                let config = config.get();
+                                let icon_size = config.ui.icon_size() as f32;
+                                Style::BASE.dimension_px(icon_size, icon_size).color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                )
                             }),
-                            click(
-                                cx,
-                                move |cx| {
-                                    svg(cx, move || {
-                                        config.get().ui_svg(LapceIcons::PALETTE_MENU)
-                                    })
-                                    .style(
-                                        cx,
-                                        move || {
-                                            let config = config.get();
-                                            let icon_size =
-                                                config.ui.icon_size() as f32;
-                                            Style::BASE
-                                                .dimension_px(icon_size, icon_size)
-                                                .color(*config.get_color(
-                                                    LapceColor::LAPCE_ICON_ACTIVE,
-                                                ))
-                                        },
-                                    )
-                                },
-                                || {},
-                            )
-                            .style(cx, move || Style::BASE.padding(5.0)),
-                        )
-                    })
-                    .style(cx, || Style::BASE.align_items(Some(AlignItems::Center)))
-                },
-                move || {
-                    if workspace.clone().path.is_some() {
-                        set_workbench_command
-                            .set(Some(LapceWorkbenchCommand::Palette));
-                    } else {
-                        set_workbench_command
-                            .set(Some(LapceWorkbenchCommand::PaletteWorkspace));
-                    }
-                },
-            )
+                        label(cx, move || {
+                            if let Some(s) = local_workspace.display() {
+                                s
+                            } else {
+                                "Open Folder".to_string()
+                            }
+                        })
+                        .style(cx, || {
+                            Style::BASE.padding_left(10.0).padding_right(5.0)
+                        }),
+                        container(cx, move |cx| {
+                            svg(cx, move || {
+                                config.get().ui_svg(LapceIcons::PALETTE_MENU)
+                            })
+                            .style(cx, move || {
+                                let config = config.get();
+                                let icon_size = config.ui.icon_size() as f32;
+                                Style::BASE.dimension_px(icon_size, icon_size).color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                )
+                            })
+                        })
+                        .style(cx, move || Style::BASE.padding(5.0)),
+                    )
+                })
+                .style(cx, || Style::BASE.align_items(Some(AlignItems::Center)))
+            })
+            .on_click(move |_| {
+                if workspace.clone().path.is_some() {
+                    set_workbench_command.set(Some(LapceWorkbenchCommand::Palette));
+                } else {
+                    set_workbench_command
+                        .set(Some(LapceWorkbenchCommand::PaletteWorkspace));
+                }
+                true
+            })
             .style(cx, move || {
                 let config = config.get();
                 Style::BASE

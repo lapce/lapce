@@ -2,6 +2,7 @@ use std::sync::{atomic::AtomicU64, Arc};
 
 use floem::{
     event::{Event, EventListner},
+    glazier::PointerType,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
         create_memo, ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
@@ -10,8 +11,8 @@ use floem::{
     style::{CursorStyle, Dimension, Style},
     view::View,
     views::{
-        click, clip, container, label, list, rich_text, scroll, stack, svg,
-        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
+        clip, container, label, list, rich_text, scroll, stack, svg, virtual_list,
+        Decorators, VirtualListDirection, VirtualListItemSize,
     },
     AppContext,
 };
@@ -401,31 +402,29 @@ fn editor_gutter(
                                 ),
                                 container(cx, |cx| {
                                     container(cx, |cx| {
-                                        click(
-                                            cx,
-                                            |cx| {
-                                                svg(cx, move || {
-                                                    config.get().ui_svg(
-                                                        LapceIcons::LIGHTBULB,
-                                                    )
-                                                })
-                                                .style(cx, move || {
-                                                    let config = config.get();
-                                                    let size =
-                                                        config.ui.icon_size() as f32;
-                                                    Style::BASE
-                                                        .dimension_px(size, size)
-                                                        .color(*config.get_color(
-                                                            LapceColor::LAPCE_WARN,
-                                                        ))
-                                                })
-                                            },
-                                            move || {
-                                                editor.with_untracked(|editor| {
-                                                    editor.show_code_actions(true);
-                                                });
-                                            },
-                                        )
+                                        container(cx, |cx| {
+                                            svg(cx, move || {
+                                                config
+                                                    .get()
+                                                    .ui_svg(LapceIcons::LIGHTBULB)
+                                            })
+                                            .style(cx, move || {
+                                                let config = config.get();
+                                                let size =
+                                                    config.ui.icon_size() as f32;
+                                                Style::BASE
+                                                    .dimension_px(size, size)
+                                                    .color(*config.get_color(
+                                                        LapceColor::LAPCE_WARN,
+                                                    ))
+                                            })
+                                        })
+                                        .on_click(move |_| {
+                                            editor.with_untracked(|editor| {
+                                                editor.show_code_actions(true);
+                                            });
+                                            true
+                                        })
                                         .style(cx, move || {
                                             Style::BASE.apply_if(
                                                 code_action_line.get()
@@ -481,9 +480,11 @@ fn editor_gutter(
                 })
             })
             .hide_bar(cx, || true)
-            .on_event(EventListner::MouseWheel, move |event| {
-                if let Event::MouseWheel(wheel) = event {
-                    scroll_delta.set(wheel.wheel_delta);
+            .on_event(EventListner::PointerWheel, move |event| {
+                if let Event::PointerWheel(pointer_event) = event {
+                    if let PointerType::Mouse(info) = &pointer_event.pointer_type {
+                        scroll_delta.set(info.wheel_delta);
+                    }
                 }
                 true
             })
@@ -733,37 +734,35 @@ fn editor_content(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
 
     scroll(cx, |cx| {
         let focus = editor.with_untracked(|e| e.common.focus);
-        click(
-            cx,
-            |cx| {
-                let line_height = config.get_untracked().editor.line_height();
-                virtual_list(
-                    cx,
-                    VirtualListDirection::Vertical,
-                    move || editor.get().doc.get(),
-                    key_fn,
-                    view_fn,
-                    VirtualListItemSize::Fixed(line_height as f64),
-                )
-                .style(cx, move || {
-                    let config = config.get();
-                    let padding_bottom = if config.editor.scroll_beyond_last_line {
-                        viewport.get().height() as f32
-                            - config.editor.line_height() as f32
-                    } else {
-                        0.0
-                    };
-                    Style::BASE
-                        .flex_col()
-                        .padding_bottom(padding_bottom)
-                        .cursor(CursorStyle::Text)
-                        .min_width_pct(1.0)
-                })
-            },
-            move || {
-                focus.set(Focus::Workbench);
-            },
-        )
+        container(cx, |cx| {
+            let line_height = config.get_untracked().editor.line_height();
+            virtual_list(
+                cx,
+                VirtualListDirection::Vertical,
+                move || editor.get().doc.get(),
+                key_fn,
+                view_fn,
+                VirtualListItemSize::Fixed(line_height as f64),
+            )
+            .style(cx, move || {
+                let config = config.get();
+                let padding_bottom = if config.editor.scroll_beyond_last_line {
+                    viewport.get().height() as f32
+                        - config.editor.line_height() as f32
+                } else {
+                    0.0
+                };
+                Style::BASE
+                    .flex_col()
+                    .padding_bottom(padding_bottom)
+                    .cursor(CursorStyle::Text)
+                    .min_width_pct(1.0)
+            })
+        })
+        .on_click(move |_| {
+            focus.set(Focus::Workbench);
+            true
+        })
         .style(cx, || Style::BASE.min_dimension_pct(1.0, 1.0))
     })
     .scroll_bar_color(cx, move || {

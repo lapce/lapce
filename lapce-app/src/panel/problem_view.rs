@@ -8,7 +8,7 @@ use floem::{
     },
     style::{CursorStyle, Style},
     view::View,
-    views::{click, container, label, list, scroll, stack, svg, Decorators},
+    views::{container, label, list, scroll, stack, svg, Decorators},
     AppContext,
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
@@ -180,41 +180,41 @@ fn file_view(
         (
             stack(cx, |cx| {
                 (
-                    click(
-                        cx,
-                        |cx| {
-                            stack(cx, |cx| {
-                                (
-                                    label(cx, move || file_name.clone()).style(
-                                        cx,
-                                        || {
-                                            Style::BASE
-                                                .margin_right(6.0)
-                                                .max_width_pct(1.0)
-                                                .text_ellipsis()
-                                        },
-                                    ),
-                                    label(cx, move || folder.clone()).style(
-                                        cx,
-                                        move || {
-                                            Style::BASE
-                                                .color(*config.get().get_color(
+                    container(cx, |cx| {
+                        stack(cx, |cx| {
+                            (
+                                label(cx, move || file_name.clone()).style(
+                                    cx,
+                                    || {
+                                        Style::BASE
+                                            .margin_right(6.0)
+                                            .max_width_pct(1.0)
+                                            .text_ellipsis()
+                                    },
+                                ),
+                                label(cx, move || folder.clone()).style(
+                                    cx,
+                                    move || {
+                                        Style::BASE
+                                            .color(
+                                                *config.get().get_color(
                                                     LapceColor::EDITOR_DIM,
-                                                ))
-                                                .min_width_px(0.0)
-                                                .text_ellipsis()
-                                        },
-                                    ),
-                                )
-                            })
-                            .style(cx, move || {
-                                Style::BASE.width_pct(1.0).min_width_px(0.0)
-                            })
-                        },
-                        move || {
-                            collpased.update(|collpased| *collpased = !*collpased);
-                        },
-                    )
+                                                ),
+                                            )
+                                            .min_width_px(0.0)
+                                            .text_ellipsis()
+                                    },
+                                ),
+                            )
+                        })
+                        .style(cx, move || {
+                            Style::BASE.width_pct(1.0).min_width_px(0.0)
+                        })
+                    })
+                    .on_click(move |_| {
+                        collpased.update(|collpased| *collpased = !*collpased);
+                        true
+                    })
                     .style(cx, move || {
                         Style::BASE
                             .width_pct(1.0)
@@ -330,63 +330,61 @@ fn item_view(
     };
     stack(cx, |cx| {
         (
-            click(
-                cx,
-                |cx| {
-                    stack(cx, |cx| {
-                        (
-                            label(cx, move || d.diagnostic.message.clone()).style(
-                                cx,
-                                move || {
-                                    Style::BASE
-                                        .width_pct(1.0)
-                                        .min_width_px(0.0)
-                                        .padding_left(
-                                            10.0 + (config.get().ui.icon_size()
-                                                as f32
-                                                + 6.0)
-                                                * 3.0,
-                                        )
-                                        .padding_right(10.0)
-                                },
-                            ),
-                            stack(cx, |cx| {
-                                (
-                                    svg(cx, move || config.get().ui_svg(icon))
-                                        .style(cx, move || {
-                                            let config = config.get();
-                                            let size = config.ui.icon_size() as f32;
-                                            Style::BASE
-                                                .dimension_px(size, size)
-                                                .color(icon_color())
-                                        }),
-                                    label(cx, || " ".to_string()),
-                                )
-                            })
-                            .style(cx, move || {
-                                Style::BASE.absolute().items_center().margin_left(
-                                    10.0 + (config.get().ui.icon_size() as f32
-                                        + 6.0)
-                                        * 2.0,
-                                )
-                            }),
-                        )
-                    })
-                    .style(cx, move || Style::BASE.width_pct(1.0).min_width_px(0.0))
-                    .hover_style(cx, move || {
-                        Style::BASE.cursor(CursorStyle::Pointer).background(
-                            *config
-                                .get()
-                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                        )
-                    })
-                },
-                move || {
-                    internal_command.set(Some(InternalCommand::JumpToLocation {
-                        location: location.clone(),
-                    }));
-                },
-            )
+            container(cx, |cx| {
+                stack(cx, |cx| {
+                    (
+                        label(cx, move || d.diagnostic.message.clone()).style(
+                            cx,
+                            move || {
+                                Style::BASE
+                                    .width_pct(1.0)
+                                    .min_width_px(0.0)
+                                    .padding_left(
+                                        10.0 + (config.get().ui.icon_size() as f32
+                                            + 6.0)
+                                            * 3.0,
+                                    )
+                                    .padding_right(10.0)
+                            },
+                        ),
+                        stack(cx, |cx| {
+                            (
+                                svg(cx, move || config.get().ui_svg(icon)).style(
+                                    cx,
+                                    move || {
+                                        let config = config.get();
+                                        let size = config.ui.icon_size() as f32;
+                                        Style::BASE
+                                            .dimension_px(size, size)
+                                            .color(icon_color())
+                                    },
+                                ),
+                                label(cx, || " ".to_string()),
+                            )
+                        })
+                        .style(cx, move || {
+                            Style::BASE.absolute().items_center().margin_left(
+                                10.0 + (config.get().ui.icon_size() as f32 + 6.0)
+                                    * 2.0,
+                            )
+                        }),
+                    )
+                })
+                .style(cx, move || Style::BASE.width_pct(1.0).min_width_px(0.0))
+                .hover_style(cx, move || {
+                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
+            })
+            .on_click(move |_| {
+                internal_command.set(Some(InternalCommand::JumpToLocation {
+                    location: location.clone(),
+                }));
+                true
+            })
             .style(cx, || Style::BASE.width_pct(1.0).min_width_pct(0.0)),
             related_view(cx, related, internal_command, config),
         )
@@ -432,21 +430,19 @@ fn related_view(
                         same_editor_tab: false,
                     };
                     let message = format!("{path}{}", related.message);
-                    click(
-                        cx,
-                        |cx| {
-                            label(cx, move || message.clone()).style(cx, move || {
-                                Style::BASE.width_pct(1.0).min_width_px(0.0)
-                            })
-                        },
-                        move || {
-                            internal_command.set(Some(
-                                InternalCommand::JumpToLocation {
-                                    location: location.clone(),
-                                },
-                            ));
-                        },
-                    )
+                    container(cx, |cx| {
+                        label(cx, move || message.clone()).style(cx, move || {
+                            Style::BASE.width_pct(1.0).min_width_px(0.0)
+                        })
+                    })
+                    .on_click(move |_| {
+                        internal_command.set(Some(
+                            InternalCommand::JumpToLocation {
+                                location: location.clone(),
+                            },
+                        ));
+                        true
+                    })
                     .style(cx, move || {
                         Style::BASE
                             .padding_left(

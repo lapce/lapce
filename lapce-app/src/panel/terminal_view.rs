@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use floem::{
     event::{Event, EventListner},
+    glazier::PointerType,
     reactive::{SignalGet, SignalGetUntracked, SignalSet, SignalWith},
     style::Style,
     view::View,
-    views::{click, container, label, list, stack, svg, tab, Decorators},
+    views::{container, label, list, stack, svg, tab, Decorators},
     AppContext,
 };
 
@@ -212,31 +213,32 @@ fn terminal_tab_split(
         move |cx, (index, terminal)| {
             let focus = terminal.common.focus;
             let terminal_panel_data = terminal_panel_data.clone();
-            click(
-                cx,
-                move |cx| {
-                    terminal_view(
-                        cx,
-                        terminal.term_id,
-                        terminal.raw.read_only(),
-                        terminal.mode.read_only(),
-                        terminal.run_debug.read_only(),
-                        terminal_panel_data,
-                    )
-                    .on_event(EventListner::MouseWheel, move |event| {
-                        if let Event::MouseWheel(mouse_event) = event {
-                            terminal.clone().wheel_scroll(mouse_event.wheel_delta.y);
-                            true
-                        } else {
-                            false
+            container(cx, move |cx| {
+                terminal_view(
+                    cx,
+                    terminal.term_id,
+                    terminal.raw.read_only(),
+                    terminal.mode.read_only(),
+                    terminal.run_debug.read_only(),
+                    terminal_panel_data,
+                )
+                .on_event(EventListner::PointerWheel, move |event| {
+                    if let Event::PointerWheel(pointer_event) = event {
+                        if let PointerType::Mouse(info) = &pointer_event.pointer_type
+                        {
+                            terminal.clone().wheel_scroll(info.wheel_delta.y);
                         }
-                    })
-                    .style(cx, || Style::BASE.dimension_pct(1.0, 1.0))
-                },
-                move || {
-                    focus.set(Focus::Panel(PanelKind::Terminal));
-                },
-            )
+                        true
+                    } else {
+                        false
+                    }
+                })
+                .style(cx, || Style::BASE.dimension_pct(1.0, 1.0))
+            })
+            .on_click(move |_| {
+                focus.set(Focus::Panel(PanelKind::Terminal));
+                true
+            })
             .style(cx, move || {
                 Style::BASE
                     .dimension_pct(1.0, 1.0)

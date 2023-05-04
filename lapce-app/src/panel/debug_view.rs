@@ -8,9 +8,7 @@ use floem::{
     },
     style::{CursorStyle, Style},
     view::View,
-    views::{
-        click, container, container_box, label, list, scroll, stack, svg, Decorators,
-    },
+    views::{container, container_box, label, list, scroll, stack, svg, Decorators},
     AppContext,
 };
 use lapce_rpc::{
@@ -228,84 +226,75 @@ fn debug_processes(
                 let is_active =
                     move || terminal.debug.active_term.get() == Some(term_id);
                 let local_terminal = terminal.clone();
-                click(
-                    cx,
-                    |cx| {
-                        stack(cx, move |cx| {
-                            (
-                                {
-                                    let svg_str = match (&p.mode, p.stopped) {
-                                        (RunDebugMode::Run, false) => {
-                                            LapceIcons::START
-                                        }
-                                        (RunDebugMode::Run, true) => {
-                                            LapceIcons::RUN_ERRORS
-                                        }
-                                        (RunDebugMode::Debug, false) => {
-                                            LapceIcons::DEBUG
-                                        }
-                                        (RunDebugMode::Debug, true) => {
-                                            LapceIcons::DEBUG_DISCONNECT
-                                        }
-                                    };
-                                    svg(cx, move || config.get().ui_svg(svg_str))
-                                        .style(cx, move || {
-                                            let config = config.get();
-                                            let size = config.ui.icon_size() as f32;
-                                            Style::BASE
-                                                .dimension_px(size, size)
-                                                .margin_horiz(10.0)
-                                                .color(*config.get_color(
-                                                    LapceColor::LAPCE_ICON_ACTIVE,
-                                                ))
-                                        })
+                stack(cx, move |cx| {
+                    (
+                        {
+                            let svg_str = match (&p.mode, p.stopped) {
+                                (RunDebugMode::Run, false) => LapceIcons::START,
+                                (RunDebugMode::Run, true) => LapceIcons::RUN_ERRORS,
+                                (RunDebugMode::Debug, false) => LapceIcons::DEBUG,
+                                (RunDebugMode::Debug, true) => {
+                                    LapceIcons::DEBUG_DISCONNECT
+                                }
+                            };
+                            svg(cx, move || config.get().ui_svg(svg_str)).style(
+                                cx,
+                                move || {
+                                    let config = config.get();
+                                    let size = config.ui.icon_size() as f32;
+                                    Style::BASE
+                                        .dimension_px(size, size)
+                                        .margin_horiz(10.0)
+                                        .color(*config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ))
                                 },
-                                label(cx, move || p.config.name.clone()).style(
-                                    cx,
-                                    || {
-                                        Style::BASE
-                                            .flex_grow(1.0)
-                                            .flex_basis_px(0.0)
-                                            .min_width_px(0.0)
-                                            .text_ellipsis()
-                                    },
-                                ),
-                                debug_process_icons(
-                                    cx,
-                                    terminal.clone(),
-                                    term_id,
-                                    p.config.dap_id,
-                                    p.mode,
-                                    p.stopped,
-                                    config,
-                                ),
                             )
-                        })
-                        .style(cx, move || {
+                        },
+                        label(cx, move || p.config.name.clone()).style(cx, || {
                             Style::BASE
-                                .padding_vert(6.0)
-                                .width_pct(1.0)
-                                .items_center()
-                                .apply_if(is_active(), |s| {
-                                    s.background(*config.get().get_color(
-                                        LapceColor::PANEL_CURRENT_BACKGROUND,
-                                    ))
-                                })
-                        })
-                        .hover_style(cx, move || {
-                            Style::BASE.cursor(CursorStyle::Pointer).background(
-                                (*config.get().get_color(
-                                    LapceColor::PANEL_HOVERED_BACKGROUND,
-                                ))
-                                .with_alpha_factor(0.3),
+                                .flex_grow(1.0)
+                                .flex_basis_px(0.0)
+                                .min_width_px(0.0)
+                                .text_ellipsis()
+                        }),
+                        debug_process_icons(
+                            cx,
+                            terminal.clone(),
+                            term_id,
+                            p.config.dap_id,
+                            p.mode,
+                            p.stopped,
+                            config,
+                        ),
+                    )
+                })
+                .on_click(move |_| {
+                    local_terminal.debug.active_term.set(Some(term_id));
+                    local_terminal.focus_terminal(term_id);
+                    true
+                })
+                .style(cx, move || {
+                    Style::BASE
+                        .padding_vert(6.0)
+                        .width_pct(1.0)
+                        .items_center()
+                        .apply_if(is_active(), |s| {
+                            s.background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
                             )
                         })
-                    },
-                    move || {
-                        local_terminal.debug.active_term.set(Some(term_id));
-                        local_terminal.focus_terminal(term_id);
-                    },
-                )
+                })
+                .hover_style(cx, move || {
+                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                        (*config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND))
+                        .with_alpha_factor(0.3),
+                    )
+                })
             },
         )
         .style(cx, || Style::BASE.width_pct(1.0).flex_col())
@@ -323,21 +312,21 @@ fn debug_stack_frames(
     let expanded = stack_trace.expanded;
     stack(cx, move |cx| {
         (
-            click(
-                cx,
-                |cx| label(cx, move || thread_id.to_string()),
-                move || {
+            container(cx, |cx| label(cx, move || thread_id.to_string()))
+                .on_click(move |_| {
                     expanded.update(|expanded| {
                         *expanded = !*expanded;
                     });
-                },
-            )
-            .style(cx, || Style::BASE.padding_horiz(10.0).min_width_pct(1.0))
-            .hover_style(cx, move || {
-                Style::BASE.cursor(CursorStyle::Pointer).background(
-                    *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                )
-            }),
+                    true
+                })
+                .style(cx, || Style::BASE.padding_horiz(10.0).min_width_pct(1.0))
+                .hover_style(cx, move || {
+                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                }),
             list(
                 cx,
                 move || {
@@ -366,56 +355,57 @@ fn debug_stack_frames(
                     let has_source = !source_path.is_empty();
                     let source_path = format!("{source_path}:{}", frame.line);
 
-                    click(
-                        cx,
-                        |cx| {
-                            stack(cx, |cx| {
-                                (
-                                    label(cx, move || frame.name.clone())
-                                        .hover_style(cx, move || {
-                                            Style::BASE
-                                                .background(*config.get().get_color(
+                    container(cx, |cx| {
+                        stack(cx, |cx| {
+                            (
+                                label(cx, move || frame.name.clone()).hover_style(
+                                    cx,
+                                    move || {
+                                        Style::BASE.background(
+                                            *config.get().get_color(
                                                 LapceColor::PANEL_HOVERED_BACKGROUND,
-                                            ))
-                                        }),
-                                    label(cx, move || source_path.clone()).style(
-                                        cx,
-                                        move || {
-                                            Style::BASE
-                                                .margin_left(10.0)
-                                                .color(*config.get().get_color(
-                                                    LapceColor::EDITOR_DIM,
-                                                ))
-                                                .font_style(FontStyle::Italic)
-                                                .apply_if(!has_source, |s| s.hide())
-                                        },
-                                    ),
-                                )
-                            })
-                        },
-                        move || {
-                            if let Some(path) = full_path.clone() {
-                                internal_command.set(Some(
-                                    InternalCommand::JumpToLocation {
-                                        location: EditorLocation {
-                                            path,
-                                            position: Some(
-                                                EditorPosition::Position(
-                                                    lsp_types::Position {
-                                                        line: line as u32,
-                                                        character: col as u32,
-                                                    },
-                                                ),
                                             ),
-                                            scroll_offset: None,
-                                            ignore_unconfirmed: false,
-                                            same_editor_tab: false,
-                                        },
+                                        )
                                     },
-                                ));
-                            }
-                        },
-                    )
+                                ),
+                                label(cx, move || source_path.clone()).style(
+                                    cx,
+                                    move || {
+                                        Style::BASE
+                                            .margin_left(10.0)
+                                            .color(
+                                                *config.get().get_color(
+                                                    LapceColor::EDITOR_DIM,
+                                                ),
+                                            )
+                                            .font_style(FontStyle::Italic)
+                                            .apply_if(!has_source, |s| s.hide())
+                                    },
+                                ),
+                            )
+                        })
+                    })
+                    .on_click(move |_| {
+                        if let Some(path) = full_path.clone() {
+                            internal_command.set(Some(
+                                InternalCommand::JumpToLocation {
+                                    location: EditorLocation {
+                                        path,
+                                        position: Some(EditorPosition::Position(
+                                            lsp_types::Position {
+                                                line: line as u32,
+                                                character: col as u32,
+                                            },
+                                        )),
+                                        scroll_offset: None,
+                                        ignore_unconfirmed: false,
+                                        same_editor_tab: false,
+                                    },
+                                },
+                            ));
+                        }
+                        true
+                    })
                     .style(cx, move || {
                         Style::BASE
                             .padding_left(20.0)

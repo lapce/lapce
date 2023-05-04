@@ -18,9 +18,9 @@ use floem::{
     },
     view::View,
     views::{
-        click, container, container_box, double_click, label, list, scroll, stack,
-        svg, tab, virtual_list, Decorators, VirtualListDirection,
-        VirtualListItemSize, VirtualListVector,
+        container, container_box, label, list, scroll, stack, svg, tab,
+        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
+        VirtualListVector,
     },
     window::WindowConfig,
     AppContext,
@@ -237,31 +237,24 @@ fn editor_tab_header(
 
         stack(cx, |cx| {
             (
-                click(
-                    cx,
-                    |cx| {
-                        double_click(cx, child_view, move || {
-                            if let Some(confirmed) = confirmed {
-                                confirmed.set(true);
-                            }
-                        })
-                        .style(cx, move || {
-                            Style::BASE
-                                .align_items(Some(AlignItems::Center))
-                                .height_pct(1.0)
-                        })
-                    },
-                    move || {
+                container(cx, child_view)
+                    .on_double_click(move |_| {
+                        if let Some(confirmed) = confirmed {
+                            confirmed.set(true);
+                        }
+                        true
+                    })
+                    .on_click(move |_| {
                         editor_tab.update(|editor_tab| {
                             editor_tab.active = i.get_untracked();
                         });
-                    },
-                )
-                .style(cx, move || {
-                    Style::BASE
-                        .align_items(Some(AlignItems::Center))
-                        .height_pct(1.0)
-                }),
+                        true
+                    })
+                    .style(cx, move || {
+                        Style::BASE
+                            .align_items(Some(AlignItems::Center))
+                            .height_pct(1.0)
+                    }),
                 container(cx, |cx| {
                     label(cx, || "".to_string()).style(cx, move || {
                         Style::BASE
@@ -651,30 +644,28 @@ pub fn clickable_icon(
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     container(cx, |cx| {
-        click(
-            cx,
-            |cx| {
-                svg(cx, move || config.get().ui_svg(icon()))
-                    .style(cx, move || {
-                        let config = config.get();
-                        let size = config.ui.icon_size() as f32;
-                        Style::BASE
-                            .dimension_px(size, size)
-                            .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
-                    })
-                    .disabled(cx, disabled_fn)
-                    .disabled_style(cx, move || {
-                        Style::BASE
-                            .color(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::LAPCE_ICON_INACTIVE),
-                            )
-                            .cursor(CursorStyle::Default)
-                    })
-            },
-            on_click,
-        )
+        container(cx, |cx| {
+            svg(cx, move || config.get().ui_svg(icon()))
+                .style(cx, move || {
+                    let config = config.get();
+                    let size = config.ui.icon_size() as f32;
+                    Style::BASE
+                        .dimension_px(size, size)
+                        .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+                })
+                .disabled(cx, disabled_fn)
+                .disabled_style(cx, move || {
+                    Style::BASE
+                        .color(
+                            *config.get().get_color(LapceColor::LAPCE_ICON_INACTIVE),
+                        )
+                        .cursor(CursorStyle::Default)
+                })
+        })
+        .on_click(move |_| {
+            on_click();
+            true
+        })
         .disabled(cx, disabled_fn)
         .style(cx, || {
             Style::BASE
@@ -1507,23 +1498,21 @@ fn palette_content(
                     },
                     move |cx, (i, item)| {
                         let workspace = workspace.clone();
-                        click(
-                            cx,
-                            move |cx| {
-                                palette_item(
-                                    cx,
-                                    workspace,
-                                    i,
-                                    item,
-                                    index,
-                                    palette_item_height,
-                                    config,
-                                )
-                            },
-                            move || {
-                                clicked_index.set(Some(i));
-                            },
-                        )
+                        container(cx, move |cx| {
+                            palette_item(
+                                cx,
+                                workspace,
+                                i,
+                                item,
+                                index,
+                                palette_item_height,
+                                config,
+                            )
+                        })
+                        .on_click(move |_| {
+                            clicked_index.set(Some(i));
+                            true
+                        })
                         .style(cx, || {
                             Style::BASE.width_pct(1.0).cursor(CursorStyle::Pointer)
                         })
@@ -1972,67 +1961,65 @@ fn workspace_tab_header(cx: AppContext, window_data: WindowData) -> impl View {
                 },
                 |(_, tab)| tab.window_tab_id,
                 move |cx, (index, tab)| {
-                    click(
-                        cx,
-                        |cx| {
-                            stack(cx, |cx| {
-                                (
-                                    stack(cx, |cx| {
-                                        let window_data = local_window_data.clone();
-                                        (
-                                            label(cx, move || {
-                                                workspace_title(&tab.workspace)
-                                                    .unwrap_or_else(|| {
-                                                        String::from("New Tab")
-                                                    })
-                                            })
-                                            .style(cx, || {
-                                                Style::BASE
-                                                    .margin_left(10.0)
-                                                    .min_width_px(0.0)
-                                                    .flex_basis_px(0.0)
-                                                    .flex_grow(1.0)
-                                                    .text_ellipsis()
-                                            }),
-                                            clickable_icon(
-                                                cx,
-                                                || LapceIcons::WINDOW_CLOSE,
-                                                move || {
-                                                    window_data.run_window_command(
+                    container(cx, |cx| {
+                        stack(cx, |cx| {
+                            (
+                                stack(cx, |cx| {
+                                    let window_data = local_window_data.clone();
+                                    (
+                                        label(cx, move || {
+                                            workspace_title(&tab.workspace)
+                                                .unwrap_or_else(|| {
+                                                    String::from("New Tab")
+                                                })
+                                        })
+                                        .style(cx, || {
+                                            Style::BASE
+                                                .margin_left(10.0)
+                                                .min_width_px(0.0)
+                                                .flex_basis_px(0.0)
+                                                .flex_grow(1.0)
+                                                .text_ellipsis()
+                                        }),
+                                        clickable_icon(
+                                            cx,
+                                            || LapceIcons::WINDOW_CLOSE,
+                                            move || {
+                                                window_data.run_window_command(
                                                 WindowCommand::CloseWorkspaceTab {
                                                     index: Some(
                                                         index.get_untracked(),
                                                     ),
                                                 },
                                             );
-                                                },
-                                                || false,
-                                                config.read_only(),
-                                            )
-                                            .style(cx, || {
-                                                Style::BASE.margin_horiz(6.0)
-                                            }),
+                                            },
+                                            || false,
+                                            config.read_only(),
                                         )
-                                    })
-                                    .style(
+                                        .style(cx, || Style::BASE.margin_horiz(6.0)),
+                                    )
+                                })
+                                .style(
+                                    cx,
+                                    move || {
+                                        let config = config.get();
+                                        Style::BASE
+                                            .width_pct(1.0)
+                                            .min_width_px(0.0)
+                                            .items_center()
+                                            .border_right(1.0)
+                                            .border_color(
+                                                *config.get_color(
+                                                    LapceColor::LAPCE_BORDER,
+                                                ),
+                                            )
+                                    },
+                                ),
+                                container(cx, |cx| {
+                                    label(cx, || "".to_string()).style(
                                         cx,
                                         move || {
-                                            let config = config.get();
                                             Style::BASE
-                                                .width_pct(1.0)
-                                                .min_width_px(0.0)
-                                                .items_center()
-                                                .border_right(1.0)
-                                                .border_color(*config.get_color(
-                                                    LapceColor::LAPCE_BORDER,
-                                                ))
-                                        },
-                                    ),
-                                    container(cx, |cx| {
-                                        label(cx, || "".to_string()).style(
-                                            cx,
-                                            move || {
-                                                Style::BASE
                                         .dimension_pct(1.0, 1.0)
                                         .apply_if(active.get() == index.get(), |s| {
                                             s.border_bottom(2.0)
@@ -2040,28 +2027,25 @@ fn workspace_tab_header(cx: AppContext, window_data: WindowData) -> impl View {
                                         .border_color(*config.get().get_color(
                                             LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE,
                                         ))
-                                            },
-                                        )
-                                    })
-                                    .style(
-                                        cx,
-                                        || {
-                                            Style::BASE
-                                                .position(Position::Absolute)
-                                                .padding_horiz(3.0)
-                                                .dimension_pct(1.0, 1.0)
                                         },
-                                    ),
-                                )
-                            })
-                            .style(cx, move || {
-                                Style::BASE.dimension_pct(1.0, 1.0).items_center()
-                            })
-                        },
-                        move || {
-                            active.set(index.get_untracked());
-                        },
-                    )
+                                    )
+                                })
+                                .style(cx, || {
+                                    Style::BASE
+                                        .position(Position::Absolute)
+                                        .padding_horiz(3.0)
+                                        .dimension_pct(1.0, 1.0)
+                                }),
+                            )
+                        })
+                        .style(cx, move || {
+                            Style::BASE.dimension_pct(1.0, 1.0).items_center()
+                        })
+                    })
+                    .on_click(move |_| {
+                        active.set(index.get_untracked());
+                        true
+                    })
                     .style(cx, move || {
                         Style::BASE.height_pct(1.0).width_px(tab_width.get() as f32)
                     })
