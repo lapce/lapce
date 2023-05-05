@@ -304,6 +304,12 @@ impl Document {
         self.apply_deltas(&[delta]);
     }
 
+    pub fn handle_file_changed(&mut self, content: Rope) {
+        if self.buffer.is_pristine() {
+            self.reload(content, true);
+        }
+    }
+
     pub fn do_insert(
         &mut self,
         cursor: &mut Cursor,

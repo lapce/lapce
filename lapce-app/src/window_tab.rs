@@ -32,6 +32,7 @@ use crate::{
     debug::{DapData, RunDebugMode, RunDebugProcess},
     doc::EditorDiagnostic,
     editor::location::EditorLocation,
+    file_explorer::data::FileExplorerData,
     id::WindowTabId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     main_split::{MainSplitData, SplitData, SplitDirection},
@@ -80,6 +81,7 @@ pub struct WindowTabData {
     pub workspace: Arc<LapceWorkspace>,
     pub palette: PaletteData,
     pub main_split: MainSplitData,
+    pub file_explorer: FileExplorerData,
     pub panel: PanelData,
     pub terminal: TerminalPanelData,
     pub code_action: RwSignal<CodeActionData>,
@@ -196,6 +198,7 @@ impl WindowTabData {
             create_rw_signal(cx, CodeActionData::new(cx, common.clone()));
         let source_control =
             create_rw_signal(cx, SourceControlData::new(cx, common.clone()));
+        let file_explorer = FileExplorerData::new(cx, common.clone());
 
         if let Some(info) = workspace_info {
             let root_split = main_split.root_split;
@@ -258,6 +261,7 @@ impl WindowTabData {
             main_split,
             terminal,
             panel,
+            file_explorer,
             code_action,
             source_control,
             keypress,
@@ -778,6 +782,9 @@ impl WindowTabData {
             }
             CoreNotification::DapContinued { dap_id } => {
                 self.terminal.dap_continued(dap_id);
+            }
+            CoreNotification::OpenFileChanged { path, content } => {
+                self.main_split.open_file_changed(path, content);
             }
             _ => {}
         }

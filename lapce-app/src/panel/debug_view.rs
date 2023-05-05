@@ -48,7 +48,7 @@ pub fn debug_panel(
                     )
                 })
                 .style(cx, || {
-                    Style::BASE.width_pct(1.0).flex_col().height_px(200.0)
+                    Style::BASE.width_pct(100.0).flex_col().height_px(150.0)
                 })
             },
             stack(cx, move |cx| {
@@ -59,7 +59,7 @@ pub fn debug_panel(
             })
             .style(cx, || {
                 Style::BASE
-                    .width_pct(1.0)
+                    .width_pct(100.0)
                     .flex_grow(1.0)
                     .flex_basis_px(0.0)
                     .flex_col()
@@ -68,7 +68,7 @@ pub fn debug_panel(
     })
     .style(cx, move || {
         Style::BASE
-            .width_pct(1.0)
+            .width_pct(100.0)
             .apply_if(!position.is_bottom(), |s| s.flex_col())
     })
 }
@@ -104,7 +104,7 @@ fn debug_process_icons(
                             || false,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_horiz(6.0))
+                        .style(cx, || Style::BASE.margin_horiz_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
@@ -117,7 +117,7 @@ fn debug_process_icons(
                             move || stopped,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_right(6.0))
+                        .style(cx, || Style::BASE.margin_right_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
@@ -130,7 +130,7 @@ fn debug_process_icons(
                             || false,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_right(6.0))
+                        .style(cx, || Style::BASE.margin_right_px(6.0))
                     },
                 )
             }))
@@ -149,7 +149,7 @@ fn debug_process_icons(
                             move || !paused() || stopped,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_horiz(6.0))
+                        .style(cx, || Style::BASE.margin_horiz_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
@@ -162,7 +162,7 @@ fn debug_process_icons(
                             move || paused() || stopped,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_right(6.0))
+                        .style(cx, || Style::BASE.margin_right_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
@@ -175,7 +175,7 @@ fn debug_process_icons(
                             || false,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_right(6.0))
+                        .style(cx, || Style::BASE.margin_right_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
@@ -188,7 +188,7 @@ fn debug_process_icons(
                             move || stopped,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_right(6.0))
+                        .style(cx, || Style::BASE.margin_right_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
@@ -201,7 +201,7 @@ fn debug_process_icons(
                             || false,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_right(6.0))
+                        .style(cx, || Style::BASE.margin_right_px(6.0))
                     },
                 )
             }))
@@ -243,8 +243,8 @@ fn debug_processes(
                                     let config = config.get();
                                     let size = config.ui.icon_size() as f32;
                                     Style::BASE
-                                        .dimension_px(size, size)
-                                        .margin_horiz(10.0)
+                                        .size_px(size, size)
+                                        .margin_horiz_px(10.0)
                                         .color(*config.get_color(
                                             LapceColor::LAPCE_ICON_ACTIVE,
                                         ))
@@ -276,8 +276,8 @@ fn debug_processes(
                 })
                 .style(cx, move || {
                     Style::BASE
-                        .padding_vert(6.0)
-                        .width_pct(1.0)
+                        .padding_vert_px(6.0)
+                        .width_pct(100.0)
                         .items_center()
                         .apply_if(is_active(), |s| {
                             s.background(
@@ -297,7 +297,7 @@ fn debug_processes(
                 })
             },
         )
-        .style(cx, || Style::BASE.width_pct(1.0).flex_col())
+        .style(cx, || Style::BASE.width_pct(100.0).flex_col())
     })
 }
 
@@ -319,7 +319,9 @@ fn debug_stack_frames(
                     });
                     true
                 })
-                .style(cx, || Style::BASE.padding_horiz(10.0).min_width_pct(1.0))
+                .style(cx, || {
+                    Style::BASE.padding_horiz_px(10.0).min_width_pct(100.0)
+                })
                 .hover_style(cx, move || {
                     Style::BASE.cursor(CursorStyle::Pointer).background(
                         *config
@@ -372,7 +374,7 @@ fn debug_stack_frames(
                                     cx,
                                     move || {
                                         Style::BASE
-                                            .margin_left(10.0)
+                                            .margin_left_px(10.0)
                                             .color(
                                                 *config.get().get_color(
                                                     LapceColor::EDITOR_DIM,
@@ -408,9 +410,9 @@ fn debug_stack_frames(
                     })
                     .style(cx, move || {
                         Style::BASE
-                            .padding_left(20.0)
-                            .padding_right(10.0)
-                            .min_width_pct(1.0)
+                            .padding_left_px(20.0)
+                            .padding_right_px(10.0)
+                            .min_width_pct(100.0)
                             .apply_if(!has_source, |s| {
                                 s.color(
                                     *config.get().get_color(LapceColor::EDITOR_DIM),
@@ -428,10 +430,10 @@ fn debug_stack_frames(
                     })
                 },
             )
-            .style(cx, || Style::BASE.flex_col().min_width_pct(1.0)),
+            .style(cx, || Style::BASE.flex_col().min_width_pct(100.0)),
         )
     })
-    .style(cx, || Style::BASE.flex_col().min_width_pct(1.0))
+    .style(cx, || Style::BASE.flex_col().min_width_pct(100.0))
 }
 
 fn debug_stack_traces(
@@ -485,16 +487,16 @@ fn debug_stack_traces(
                     )
                 },
             )
-            .style(cx, || Style::BASE.flex_col().min_width_pct(1.0))
+            .style(cx, || Style::BASE.flex_col().min_width_pct(100.0))
         })
         .scroll_bar_color(cx, move || {
             *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
         })
-        .style(cx, || Style::BASE.absolute().dimension_pct(1.0, 1.0))
+        .style(cx, || Style::BASE.absolute().size_pct(100.0, 100.0))
     })
     .style(cx, || {
         Style::BASE
-            .width_pct(1.0)
+            .width_pct(100.0)
             .line_height(1.6)
             .flex_grow(1.0)
             .flex_basis_px(0.0)

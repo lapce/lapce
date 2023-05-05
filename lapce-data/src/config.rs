@@ -213,6 +213,7 @@ impl LapceIcons {
     pub const REMOTE: &str = "remote";
     pub const PROBLEM: &str = "error";
     pub const DEBUG: &str = "debug";
+    pub const DEBUG_ALT: &str = "debug_alt";
     pub const DEBUG_BREAKPOINT: &str = "debug_breakpoint";
     pub const DEBUG_SMALL: &str = "debug_small";
     pub const DEBUG_RESTART: &str = "debug_restart";

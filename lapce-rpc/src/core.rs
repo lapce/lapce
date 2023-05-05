@@ -50,11 +50,6 @@ pub enum CoreNotification {
         resp: SignatureHelp,
         plugin_id: PluginId,
     },
-    ReloadBuffer {
-        path: PathBuf,
-        content: String,
-        rev: u64,
-    },
     OpenPaths {
         window_tab_id: Option<(usize, usize)>,
         folders: Vec<PathBuf>,
@@ -92,12 +87,6 @@ pub enum CoreNotification {
     VoltRemoved {
         volt: VoltInfo,
         only_installing: bool,
-    },
-    ListDir {
-        items: Vec<FileNodeItem>,
-    },
-    DiffFiles {
-        files: Vec<PathBuf>,
     },
     DiffInfo {
         diff: DiffInfo,

@@ -32,7 +32,7 @@ pub fn terminal_panel(
             terminal_tab_content(cx, window_tab_data),
         )
     })
-    .style(cx, || Style::BASE.dimension_pct(1.0, 1.0).flex_col())
+    .style(cx, || Style::BASE.size_pct(100.0, 100.0).flex_col())
 }
 
 fn terminal_tab_header(
@@ -110,18 +110,18 @@ fn terminal_tab_header(
                                         move || {
                                             let config = config.get();
                                             let size = config.ui.icon_size() as f32;
-                                            Style::BASE
-                                                .dimension_px(size, size)
-                                                .color(*config.get_color(
+                                            Style::BASE.size_px(size, size).color(
+                                                *config.get_color(
                                                     LapceColor::LAPCE_ICON_ACTIVE,
-                                                ))
+                                                ),
+                                            )
                                         },
                                     )
                                 })
                                 .style(cx, || {
                                     Style::BASE
-                                        .padding_horiz(10.0)
-                                        .padding_vert(11.0)
+                                        .padding_horiz_px(10.0)
+                                        .padding_vert_px(11.0)
                                 }),
                                 label(cx, title).style(cx, || {
                                     Style::BASE
@@ -137,7 +137,7 @@ fn terminal_tab_header(
                                     || false,
                                     config,
                                 )
-                                .style(cx, || Style::BASE.margin_horiz(6.0)),
+                                .style(cx, || Style::BASE.margin_horiz_px(6.0)),
                             )
                         })
                         .style(cx, move || {
@@ -156,7 +156,7 @@ fn terminal_tab_header(
                     container(cx, |cx| {
                         label(cx, || "".to_string()).style(cx, move || {
                             Style::BASE
-                                .dimension_pct(1.0, 1.0)
+                                .size_pct(100.0, 100.0)
                                 .border_bottom(if active() == index.get() {
                                     2.0
                                 } else {
@@ -176,8 +176,8 @@ fn terminal_tab_header(
                     .style(cx, || {
                         Style::BASE
                             .absolute()
-                            .padding_horiz(3.0)
-                            .dimension_pct(1.0, 1.0)
+                            .padding_horiz_px(3.0)
+                            .size_pct(100.0, 100.0)
                     }),
                 )
             })
@@ -186,7 +186,7 @@ fn terminal_tab_header(
     .style(cx, move || {
         let config = config.get();
         Style::BASE
-            .width_pct(1.0)
+            .width_pct(100.0)
             .border_bottom(1.0)
             .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
     })
@@ -233,7 +233,7 @@ fn terminal_tab_split(
                         false
                     }
                 })
-                .style(cx, || Style::BASE.dimension_pct(1.0, 1.0))
+                .style(cx, || Style::BASE.size_pct(100.0, 100.0))
             })
             .on_click(move |_| {
                 focus.set(Focus::Panel(PanelKind::Terminal));
@@ -241,8 +241,8 @@ fn terminal_tab_split(
             })
             .style(cx, move || {
                 Style::BASE
-                    .dimension_pct(1.0, 1.0)
-                    .padding_horiz(10.0)
+                    .size_pct(100.0, 100.0)
+                    .padding_horiz_px(10.0)
                     .apply_if(index.get() > 0, |s| {
                         s.border_left(1.0).border_color(
                             *config.get().get_color(LapceColor::LAPCE_BORDER),
@@ -251,7 +251,7 @@ fn terminal_tab_split(
             })
         },
     )
-    .style(cx, || Style::BASE.dimension_pct(1.0, 1.0))
+    .style(cx, || Style::BASE.size_pct(100.0, 100.0))
 }
 
 fn terminal_tab_content(
@@ -266,5 +266,5 @@ fn terminal_tab_content(
         |(_, tab)| tab.terminal_tab_id,
         move |cx, (_, tab)| terminal_tab_split(cx, terminal.clone(), tab),
     )
-    .style(cx, || Style::BASE.dimension_pct(1.0, 1.0))
+    .style(cx, || Style::BASE.size_pct(100.0, 100.0))
 }

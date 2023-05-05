@@ -11,6 +11,7 @@ use floem::{
 use crate::{
     app::clickable_icon,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    file_explorer::view::file_explorer_panel,
     window_tab::WindowTabData,
 };
 
@@ -50,20 +51,20 @@ pub fn panel_container_view(
             .apply_if(!panel.is_container_shown(&position, true), |s| s.hide())
             .apply_if(position == PanelContainerPosition::Bottom, |s| {
                 // s.border_top(1.0)
-                s.width_pct(1.0)
+                s.width_pct(100.0)
                     .apply_if(!is_maximized, |s| s.height_px(size as f32))
                     .apply_if(is_maximized, |s| s.flex_grow(1.0))
             })
             .apply_if(position == PanelContainerPosition::Left, |s| {
                 s.border_right(1.0)
                     .width_px(size as f32)
-                    .height_pct(1.0)
+                    .height_pct(100.0)
                     .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             })
             .apply_if(position == PanelContainerPosition::Right, |s| {
                 s.border_left(1.0)
                     .width_px(size as f32)
-                    .height_pct(1.0)
+                    .height_pct(100.0)
                     .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             })
             .apply_if(!is_bottom, |s| s.flex_col())
@@ -99,7 +100,11 @@ fn panel_view(
                     Box::new(terminal_panel(cx, window_tab_data.clone()))
                 }),
                 PanelKind::FileExplorer => container_box(cx, |cx| {
-                    Box::new(debug_panel(cx, window_tab_data.clone(), position))
+                    Box::new(file_explorer_panel(
+                        cx,
+                        window_tab_data.clone(),
+                        position,
+                    ))
                 }),
                 PanelKind::SourceControl => {
                     container_box(cx, |cx| Box::new(blank_panel(cx)))
@@ -117,12 +122,12 @@ fn panel_view(
                     Box::new(debug_panel(cx, window_tab_data.clone(), position))
                 }),
             };
-            view.style(cx, || Style::BASE.dimension_pct(1.0, 1.0))
+            view.style(cx, || Style::BASE.size_pct(100.0, 100.0))
         },
     )
     .style(cx, move || {
         Style::BASE
-            .dimension_pct(1.0, 1.0)
+            .size_pct(100.0, 100.0)
             .apply_if(!panel.is_position_shown(&position, true), |s| s.hide())
     })
 }
@@ -134,9 +139,9 @@ pub fn panel_header(
 ) -> impl View {
     container(cx, |cx| label(cx, move || header.clone())).style(cx, move || {
         Style::BASE
-            .padding_horiz(10.0)
-            .padding_vert(6.0)
-            .width_pct(1.0)
+            .padding_horiz_px(10.0)
+            .padding_vert_px(6.0)
+            .width_pct(100.0)
             .background(*config.get().get_color(LapceColor::EDITOR_BACKGROUND))
     })
 }
@@ -168,7 +173,7 @@ fn panel_picker(
                 PanelKind::Plugin => LapceIcons::EXTENSIONS,
                 PanelKind::Search => LapceIcons::SEARCH,
                 PanelKind::Problem => LapceIcons::PROBLEM,
-                PanelKind::Debug => LapceIcons::DEBUG,
+                PanelKind::Debug => LapceIcons::DEBUG_ALT,
             };
             let is_active = {
                 let window_tab_data = window_tab_data.clone();
@@ -195,22 +200,22 @@ fn panel_picker(
                             || false,
                             config,
                         )
-                        .style(cx, || Style::BASE.padding(1.0)),
+                        .style(cx, || Style::BASE.padding_px(1.0)),
                         label(cx, || "".to_string()).style(cx, move || {
                             Style::BASE
                                 .absolute()
-                                .dimension_pct(1.0, 1.0)
+                                .size_pct(100.0, 100.0)
                                 .apply_if(!is_bottom && is_first, |s| {
-                                    s.margin_top(2.0)
+                                    s.margin_top_px(2.0)
                                 })
                                 .apply_if(!is_bottom && !is_first, |s| {
-                                    s.margin_top(-2.0)
+                                    s.margin_top_px(-2.0)
                                 })
                                 .apply_if(is_bottom && is_first, |s| {
-                                    s.margin_left(-2.0)
+                                    s.margin_left_px(-2.0)
                                 })
                                 .apply_if(is_bottom && !is_first, |s| {
-                                    s.margin_left(2.0)
+                                    s.margin_left_px(2.0)
                                 })
                                 .apply_if(is_active(), |s| {
                                     s.apply_if(!is_bottom && is_first, |s| {
@@ -233,7 +238,7 @@ fn panel_picker(
                     )
                 })
             })
-            .style(cx, || Style::BASE.padding(6.0))
+            .style(cx, || Style::BASE.padding_px(6.0))
         },
     )
     .style(cx, move || {

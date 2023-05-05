@@ -16,6 +16,7 @@ use floem::{
 use itertools::Itertools;
 use lapce_core::cursor::Cursor;
 use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
+use lapce_xi_rope::Rope;
 use lsp_types::{
     CodeAction, CodeActionOrCommand, DiagnosticSeverity, DocumentChangeOperation,
     DocumentChanges, OneOf, Position, TextEdit, Url, WorkspaceEdit,
@@ -1245,6 +1246,18 @@ impl MainSplitData {
             });
             diagnostic_data
         }
+    }
+
+    pub fn open_file_changed(&self, path: &Path, content: &str) {
+        let doc = self.docs.with_untracked(|docs| docs.get(path).copied());
+        let doc = match doc {
+            Some(doc) => doc,
+            None => return,
+        };
+
+        doc.update(|doc| {
+            doc.handle_file_changed(Rope::from(content));
+        });
     }
 }
 

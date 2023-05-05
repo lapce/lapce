@@ -287,7 +287,7 @@ pub enum ProxyResponse {
         content: String,
     },
     ReadDirResponse {
-        items: HashMap<PathBuf, FileNodeItem>,
+        items: Vec<FileNodeItem>,
     },
     CompletionResolveResponse {
         item: Box<CompletionItem>,

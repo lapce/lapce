@@ -8,6 +8,7 @@ pub mod debug;
 pub mod doc;
 pub mod editor;
 pub mod editor_tab;
+pub mod file_explorer;
 pub mod find;
 pub mod focus_text;
 pub mod global_search;

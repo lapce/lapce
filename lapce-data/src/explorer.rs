@@ -289,15 +289,15 @@ impl FileExplorerData {
         proxy.proxy_rpc.read_dir(local_path, move |result| {
             if let Ok(ProxyResponse::ReadDirResponse { items }) = result {
                 let path = path.clone();
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdateExplorerItems {
-                        path,
-                        items,
-                        expand,
-                    },
-                    Target::Widget(tab_id),
-                );
+                // let _ = event_sink.submit_command(
+                //     LAPCE_UI_COMMAND,
+                //     LapceUICommand::UpdateExplorerItems {
+                //         path,
+                //         items,
+                //         expand,
+                //     },
+                //     Target::Widget(tab_id),
+                // );
 
                 if let Some(on_finished) = on_finished {
                     on_finished();

@@ -270,15 +270,15 @@ pub fn editor_view(
                                 editor_content(cx, editor),
                             )
                         })
-                        .style(cx, || Style::BASE.dimension_pct(1.0, 1.0)),
+                        .style(cx, || Style::BASE.size_pct(100.0, 100.0)),
                     )
                 })
-                .style(cx, || Style::BASE.absolute().dimension_pct(1.0, 1.0))
+                .style(cx, || Style::BASE.absolute().size_pct(100.0, 100.0))
             })
-            .style(cx, || Style::BASE.dimension_pct(1.0, 1.0)),
+            .style(cx, || Style::BASE.size_pct(100.0, 100.0)),
         )
     })
-    .style(cx, || Style::BASE.flex_col().dimension_pct(1.0, 1.0))
+    .style(cx, || Style::BASE.flex_col().size_pct(100.0, 100.0))
 }
 
 fn editor_gutter(
@@ -347,7 +347,7 @@ fn editor_gutter(
                         .style(cx, move || Style::BASE.width_px(padding_right)),
                 )
             })
-            .style(cx, || Style::BASE.height_pct(1.0)),
+            .style(cx, || Style::BASE.height_pct(100.0)),
             scroll(cx, |cx| {
                 virtual_list(
                     cx,
@@ -413,7 +413,7 @@ fn editor_gutter(
                                                 let size =
                                                     config.ui.icon_size() as f32;
                                                 Style::BASE
-                                                    .dimension_px(size, size)
+                                                    .size_px(size, size)
                                                     .color(*config.get_color(
                                                         LapceColor::LAPCE_WARN,
                                                     ))
@@ -475,8 +475,8 @@ fn editor_gutter(
                     };
                     Style::BASE
                         .flex_col()
-                        .width_pct(1.0)
-                        .padding_bottom(padding_bottom)
+                        .width_pct(100.0)
+                        .padding_bottom_px(padding_bottom)
                 })
             })
             .hide_bar(cx, || true)
@@ -498,7 +498,7 @@ fn editor_gutter(
                     .background(
                         *config.get().get_color(LapceColor::EDITOR_BACKGROUND),
                     )
-                    .dimension_pct(1.0, 1.0)
+                    .size_pct(100.0, 100.0)
             }),
         )
     })
@@ -594,15 +594,17 @@ fn editor_cursor(
                         .absolute()
                         .width(width)
                         .height_px(line_height as f32)
-                        .margin_left(margin_left)
-                        .margin_top((line * line_height) as f32 - viewport.y0 as f32)
+                        .margin_left_px(margin_left)
+                        .margin_top_px(
+                            (line * line_height) as f32 - viewport.y0 as f32,
+                        )
                         .background(background)
                 })
             },
         )
-        .style(cx, move || Style::BASE.dimension_pct(1.0, 1.0))
+        .style(cx, move || Style::BASE.size_pct(100.0, 100.0))
     })
-    .style(cx, move || Style::BASE.absolute().dimension_pct(1.0, 1.0))
+    .style(cx, move || Style::BASE.absolute().size_pct(100.0, 100.0))
 }
 
 fn editor_breadcrumbs(
@@ -613,7 +615,8 @@ fn editor_breadcrumbs(
 ) -> impl View {
     stack(cx, move |cx| {
         (
-            label(cx, || " ".to_string()).style(cx, || Style::BASE.margin_vert(5.0)),
+            label(cx, || " ".to_string())
+                .style(cx, || Style::BASE.margin_vert_px(5.0)),
             scroll(cx, move |cx| {
                 let workspace = workspace.clone();
                 list(
@@ -658,7 +661,7 @@ fn editor_breadcrumbs(
                                         let size = config.ui.icon_size() as f32;
                                         Style::BASE
                                             .apply_if(i == 0, |s| s.hide())
-                                            .dimension_px(size, size)
+                                            .size_px(size, size)
                                             .color(*config.get_color(
                                                 LapceColor::LAPCE_ICON_ACTIVE,
                                             ))
@@ -670,7 +673,7 @@ fn editor_breadcrumbs(
                         .style(cx, || Style::BASE.items_center())
                     },
                 )
-                .style(cx, || Style::BASE.padding_horiz(10.0))
+                .style(cx, || Style::BASE.padding_horiz_px(10.0))
             })
             .on_scroll_to(cx, move || {
                 editor.with(|_editor| ());
@@ -680,7 +683,7 @@ fn editor_breadcrumbs(
             .style(cx, move || {
                 Style::BASE
                     .absolute()
-                    .dimension_pct(1.0, 1.0)
+                    .size_pct(100.0, 100.0)
                     .border_bottom(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
                     .items_center()
@@ -754,16 +757,16 @@ fn editor_content(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
                 };
                 Style::BASE
                     .flex_col()
-                    .padding_bottom(padding_bottom)
+                    .padding_bottom_px(padding_bottom)
                     .cursor(CursorStyle::Text)
-                    .min_width_pct(1.0)
+                    .min_width_pct(100.0)
             })
         })
         .on_click(move |_| {
             focus.set(Focus::Workbench);
             true
         })
-        .style(cx, || Style::BASE.min_dimension_pct(1.0, 1.0))
+        .style(cx, || Style::BASE.min_size_pct(100.0, 100.0))
     })
     .scroll_bar_color(cx, move || {
         *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
@@ -816,7 +819,7 @@ fn editor_content(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
             Rect::ZERO
         }
     })
-    .style(cx, || Style::BASE.absolute().dimension_pct(1.0, 1.0))
+    .style(cx, || Style::BASE.absolute().size_pct(100.0, 100.0))
 }
 
 fn editor_extra_style(
@@ -837,18 +840,18 @@ fn editor_extra_style(
                             Style::BASE
                                 .font_family(config.editor.font_family.clone())
                                 .font_size(config.editor.font_size as f32)
-                                .width_pct(1.0)
+                                .width_pct(100.0)
                                 .apply_opt(extra.bg_color, Style::background)
                         }),
                         wave_line(cx).style(cx, move || {
                             Style::BASE
                                 .absolute()
-                                .dimension_pct(1.0, 1.0)
+                                .size_pct(100.0, 100.0)
                                 .apply_opt(extra.wave_line, Style::color)
                         }),
                     )
                 })
-                .style(cx, || Style::BASE.width_pct(1.0))
+                .style(cx, || Style::BASE.width_pct(100.0))
             })
             .style(cx, move || {
                 let line_height = config.get().editor.line_height();
@@ -860,11 +863,11 @@ fn editor_extra_style(
                         None => Dimension::Percent(1.0),
                     })
                     .apply_if(extra.width.is_some(), |s| {
-                        s.margin_left(extra.x as f32)
+                        s.margin_left_px(extra.x as f32)
                     })
                     .items_center()
             })
         },
     )
-    .style(cx, || Style::BASE.absolute().dimension_pct(1.0, 1.0))
+    .style(cx, || Style::BASE.absolute().size_pct(100.0, 100.0))
 }

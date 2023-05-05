@@ -143,17 +143,6 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            ReloadBuffer { path, content, rev } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::ReloadBuffer {
-                        path,
-                        rev,
-                        content: Rope::from(content),
-                    },
-                    Target::Widget(self.tab_id),
-                );
-            }
             WorkspaceFileChange {} => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -241,7 +230,6 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            ListDir { .. } | DiffFiles { .. } => {}
             DiffInfo { diff } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,

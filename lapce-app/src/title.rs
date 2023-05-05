@@ -43,7 +43,7 @@ fn left(
                 svg(cx, move || config.get().ui_svg(LapceIcons::REMOTE)).style(
                     cx,
                     move || {
-                        Style::BASE.dimension_px(26.0, 26.0).color(
+                        Style::BASE.size_px(26.0, 26.0).color(
                             *config.get().get_color(LapceColor::LAPCE_REMOTE_ICON),
                         )
                     },
@@ -51,8 +51,8 @@ fn left(
             })
             .style(cx, move || {
                 Style::BASE
-                    .height_pct(1.0)
-                    .padding_horiz(10.0)
+                    .height_pct(100.0)
+                    .padding_horiz_px(10.0)
                     .items_center()
                     .background(
                         *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL),
@@ -65,12 +65,12 @@ fn left(
                         move || {
                             let config = config.get();
                             let icon_size = config.ui.icon_size() as f32;
-                            Style::BASE.dimension_px(icon_size, icon_size).color(
+                            Style::BASE.size_px(icon_size, icon_size).color(
                                 *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                             )
                         },
                     ),
-                    label(cx, branch).style(cx, || Style::BASE.margin_left(10.0)),
+                    label(cx, branch).style(cx, || Style::BASE.margin_left_px(10.0)),
                 )
             })
             .style(cx, move || {
@@ -80,8 +80,8 @@ fn left(
                     } else {
                         Display::Flex
                     })
-                    .height_pct(1.0)
-                    .padding_horiz(10.0)
+                    .height_pct(100.0)
+                    .padding_horiz_px(10.0)
                     .border_right(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
                     .align_items(Some(AlignItems::Center))
@@ -90,7 +90,7 @@ fn left(
     })
     .style(cx, move || {
         Style::BASE
-            .height_pct(1.0)
+            .height_pct(100.0)
             .flex_basis(Dimension::Points(0.0))
             .flex_grow(1.0)
             .items_center()
@@ -115,7 +115,7 @@ fn middle(
                         || false,
                         config,
                     )
-                    .style(cx, move || Style::BASE.margin_horiz(6.0)),
+                    .style(cx, move || Style::BASE.margin_horiz_px(6.0)),
                     clickable_icon(
                         cx,
                         || LapceIcons::LOCATION_FORWARD,
@@ -123,7 +123,7 @@ fn middle(
                         || false,
                         config,
                     )
-                    .style(cx, move || Style::BASE.margin_right(6.0)),
+                    .style(cx, move || Style::BASE.margin_right_px(6.0)),
                 )
             })
             .style(cx, || {
@@ -139,7 +139,7 @@ fn middle(
                             .style(cx, move || {
                                 let config = config.get();
                                 let icon_size = config.ui.icon_size() as f32;
-                                Style::BASE.dimension_px(icon_size, icon_size).color(
+                                Style::BASE.size_px(icon_size, icon_size).color(
                                     *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                                 )
                             }),
@@ -151,7 +151,7 @@ fn middle(
                             }
                         })
                         .style(cx, || {
-                            Style::BASE.padding_left(10.0).padding_right(5.0)
+                            Style::BASE.padding_left_px(10.0).padding_right_px(5.0)
                         }),
                         container(cx, move |cx| {
                             svg(cx, move || {
@@ -160,12 +160,12 @@ fn middle(
                             .style(cx, move || {
                                 let config = config.get();
                                 let icon_size = config.ui.icon_size() as f32;
-                                Style::BASE.dimension_px(icon_size, icon_size).color(
+                                Style::BASE.size_px(icon_size, icon_size).color(
                                     *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                                 )
                             })
                         })
-                        .style(cx, move || Style::BASE.padding(5.0)),
+                        .style(cx, move || Style::BASE.padding_px(5.0)),
                     )
                 })
                 .style(cx, || Style::BASE.align_items(Some(AlignItems::Center)))
@@ -205,7 +205,7 @@ fn middle(
                     || false,
                     config,
                 )
-                .style(cx, move || Style::BASE.margin_horiz(6.0))
+                .style(cx, move || Style::BASE.margin_horiz_px(6.0))
             })
             .style(cx, move || {
                 Style::BASE
@@ -227,7 +227,7 @@ fn middle(
 fn right(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
     container(cx, move |cx| {
         clickable_icon(cx, || LapceIcons::SETTINGS, || {}, || false, config)
-            .style(cx, move || Style::BASE.margin_horiz(6.0))
+            .style(cx, move || Style::BASE.margin_horiz_px(6.0))
     })
     .style(cx, || {
         Style::BASE
@@ -254,7 +254,7 @@ pub fn title(
     .style(cx, move || {
         let config = config.get();
         Style::BASE
-            .width_pct(1.0)
+            .width_pct(100.0)
             .height_px(37.0)
             .items_center()
             .background(*config.get_color(LapceColor::PANEL_BACKGROUND))

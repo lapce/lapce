@@ -691,26 +691,23 @@ impl ProxyHandler for Dispatcher {
                 thread::spawn(move || {
                     let result = fs::read_dir(path)
                         .map(|entries| {
-                            let items = entries
+                            let mut items = entries
                                 .into_iter()
                                 .filter_map(|entry| {
                                     entry
-                                        .map(|e| {
-                                            (
-                                                e.path(),
-                                                FileNodeItem {
-                                                    path_buf: e.path(),
-                                                    is_dir: e.path().is_dir(),
-                                                    open: false,
-                                                    read: false,
-                                                    children: HashMap::new(),
-                                                    children_open_count: 0,
-                                                },
-                                            )
+                                        .map(|e| FileNodeItem {
+                                            path_buf: e.path(),
+                                            is_dir: e.path().is_dir(),
+                                            open: false,
+                                            read: false,
+                                            children: HashMap::new(),
+                                            children_open_count: 0,
                                         })
                                         .ok()
                                 })
-                                .collect::<HashMap<PathBuf, FileNodeItem>>();
+                                .collect::<Vec<FileNodeItem>>();
+
+                            items.sort();
 
                             ProxyResponse::ReadDirResponse { items }
                         })
