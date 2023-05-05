@@ -1486,6 +1486,7 @@ fn palette_content(
                 virtual_list(
                     cx,
                     VirtualListDirection::Vertical,
+                    VirtualListItemSize::Fixed(palette_item_height),
                     move || PaletteItems(items.get()),
                     move |(i, _item)| {
                         (run_id.get_untracked(), *i, input.get_untracked().input)
@@ -1518,7 +1519,6 @@ fn palette_content(
                             )
                         })
                     },
-                    VirtualListItemSize::Fixed(palette_item_height),
                 )
                 .style(cx, || Style::BASE.width_pct(100.0).flex_col())
             })
@@ -1685,6 +1685,7 @@ fn completion(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
         virtual_list(
             cx,
             VirtualListDirection::Vertical,
+            VirtualListItemSize::Fixed(config.get().editor.line_height() as f64),
             move || completion_data.with(|c| VectorItems(c.filtered_items.clone())),
             move |(i, _item)| (request_id(), *i),
             move |cx, (i, item)| {
@@ -1750,7 +1751,6 @@ fn completion(cx: AppContext, window_tab_data: Arc<WindowTabData>) -> impl View 
                         .height_px(config.get().editor.line_height() as f32)
                 })
             },
-            VirtualListItemSize::Fixed(config.get().editor.line_height() as f64),
         )
         .style(cx, || {
             Style::BASE

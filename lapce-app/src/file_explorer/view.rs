@@ -1,11 +1,14 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use floem::{
     peniko::Color,
     reactive::{ReadSignal, SignalGet},
     style::Style,
     view::View,
-    views::{container, container_box, label, list, scroll, stack, svg, Decorators},
+    views::{
+        container, container_box, label, list, scroll, stack, svg, virtual_list,
+        Decorators, VirtualListDirection, VirtualListItemSize, VirtualListVector,
+    },
     AppContext,
 };
 use indexmap::IndexMap;
@@ -77,17 +80,13 @@ fn file_node_view(
     level: usize,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let children = file_node.children;
-    let expanded = file_node.expanded;
-    list(
+    virtual_list(
         cx,
-        move || {
-            if expanded.get() {
-                children.get()
-            } else {
-                IndexMap::new()
-            }
-        },
+        VirtualListDirection::Vertical,
+        VirtualListItemSize::Fn(Box::new(|(_, file_node): &(PathBuf, FileNode)| {
+            file_node.total_size().unwrap_or(0.0)
+        })),
+        move || file_node.clone(),
         |(path, _)| path.to_owned(),
         move |cx, (path, file_node)| {
             let proxy = proxy.clone();
@@ -100,6 +99,34 @@ fn file_node_view(
                         let is_dir = file_node.is_dir;
                         stack(cx, |cx| {
                             (
+                                svg(cx, move || {
+                                    let config = config.get();
+                                    let expanded = expanded.get();
+                                    let svg_str = match expanded {
+                                        true => LapceIcons::ITEM_OPENED,
+                                        false => LapceIcons::ITEM_CLOSED,
+                                    };
+                                    config.ui_svg(svg_str)
+                                })
+                                .style(
+                                    cx,
+                                    move || {
+                                        let config = config.get();
+                                        let size = config.ui.icon_size() as f32;
+
+                                        let color = if is_dir {
+                                            *config.get_color(
+                                                LapceColor::LAPCE_ICON_ACTIVE,
+                                            )
+                                        } else {
+                                            Color::TRANSPARENT
+                                        };
+                                        Style::BASE
+                                            .size_px(size, size)
+                                            .margin_left_px(10.0)
+                                            .color(color)
+                                    },
+                                ),
                                 {
                                     let path = path.clone();
                                     let path_for_style = path.clone();
@@ -124,24 +151,25 @@ fn file_node_view(
                                             let config = config.get();
                                             let size = config.ui.icon_size() as f32;
 
-                                            let color = if is_dir {
-                                                *config.get_color(
-                                                    LapceColor::LAPCE_ICON_ACTIVE,
-                                                )
-                                            } else {
-                                                let color = config
-                                                    .file_svg(&path_for_style)
-                                                    .1;
-                                                color.cloned().unwrap_or_else(|| {
-                                                    *config.get_color(
-                                                    LapceColor::LAPCE_ICON_ACTIVE,
-                                                )
-                                                })
-                                            };
                                             Style::BASE
                                                 .size_px(size, size)
-                                                .margin_horiz_px(10.0)
-                                                .color(color)
+                                                .margin_horiz_px(6.0)
+                                                .apply_if(is_dir, |s| {
+                                                    s.color(*config.get_color(
+                                                    LapceColor::LAPCE_ICON_ACTIVE,
+                                                ))
+                                                })
+                                                .apply_if(!is_dir, |s| {
+                                                    s.apply_opt(
+                                                        config
+                                                            .file_svg(
+                                                                &path_for_style,
+                                                            )
+                                                            .1
+                                                            .cloned(),
+                                                        Style::color,
+                                                    )
+                                                })
                                         },
                                     )
                                 },

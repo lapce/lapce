@@ -352,6 +352,9 @@ fn editor_gutter(
                 virtual_list(
                     cx,
                     VirtualListDirection::Vertical,
+                    VirtualListItemSize::Fixed(
+                        config.get_untracked().editor.line_height() as f64,
+                    ),
                     move || {
                         let editor = editor.get();
                         current_line.get();
@@ -461,9 +464,6 @@ fn editor_gutter(
                             Style::BASE.items_center().height_px(line_height as f32)
                         })
                     },
-                    VirtualListItemSize::Fixed(
-                        config.get_untracked().editor.line_height() as f64,
-                    ),
                 )
                 .style(cx, move || {
                     let config = config.get();
@@ -742,10 +742,10 @@ fn editor_content(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
             virtual_list(
                 cx,
                 VirtualListDirection::Vertical,
+                VirtualListItemSize::Fixed(line_height as f64),
                 move || editor.get().doc.get(),
                 key_fn,
                 view_fn,
-                VirtualListItemSize::Fixed(line_height as f64),
             )
             .style(cx, move || {
                 let config = config.get();
