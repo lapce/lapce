@@ -47,13 +47,13 @@ pub struct TerminalView {
 }
 
 pub fn terminal_view(
-    cx: AppContext,
     term_id: TermId,
     raw: ReadSignal<Arc<RwLock<RawTerminal>>>,
     mode: ReadSignal<Mode>,
     run_config: ReadSignal<Option<RunDebugProcess>>,
     terminal_panel_data: TerminalPanelData,
 ) -> TerminalView {
+    let cx = AppContext::get_current();
     let id = cx.new_id();
 
     create_effect(cx.scope, move |_| {
@@ -142,6 +142,10 @@ impl View for TerminalView {
 
     fn child(&mut self, _id: Id) -> Option<&mut dyn View> {
         None
+    }
+
+    fn children(&mut self) -> Vec<&mut dyn View> {
+        Vec::new()
     }
 
     fn update(

@@ -24,22 +24,21 @@ use super::{
 };
 
 pub fn panel_container_view(
-    cx: AppContext,
     window_tab_data: Arc<WindowTabData>,
     position: PanelContainerPosition,
 ) -> impl View {
     let panel = window_tab_data.panel.clone();
     let config = window_tab_data.common.config;
     let is_bottom = position.is_bottom();
-    stack(cx, |cx| {
+    stack(|| {
         (
-            panel_picker(cx, window_tab_data.clone(), position.first()),
-            panel_view(cx, window_tab_data.clone(), position.first()),
-            panel_view(cx, window_tab_data.clone(), position.second()),
-            panel_picker(cx, window_tab_data.clone(), position.second()),
+            panel_picker(window_tab_data.clone(), position.first()),
+            panel_view(window_tab_data.clone(), position.first()),
+            panel_view(window_tab_data.clone(), position.second()),
+            panel_picker(window_tab_data.clone(), position.second()),
         )
     })
-    .style(cx, move || {
+    .style(move || {
         let size = panel.size.with(|s| match position {
             PanelContainerPosition::Left => s.left,
             PanelContainerPosition::Bottom => s.bottom,
@@ -74,7 +73,6 @@ pub fn panel_container_view(
 }
 
 fn panel_view(
-    cx: AppContext,
     window_tab_data: Arc<WindowTabData>,
     position: PanelPosition,
 ) -> impl View {
@@ -90,42 +88,33 @@ fn panel_view(
             .with(|s| s.get(&position).map(|s| s.active).unwrap_or(0))
     };
     tab(
-        cx,
         active_fn,
         panels,
         |p| *p,
-        move |cx, kind| {
+        move |kind| {
             let view = match kind {
-                PanelKind::Terminal => container_box(cx, |cx| {
-                    Box::new(terminal_panel(cx, window_tab_data.clone()))
+                PanelKind::Terminal => container_box(|| {
+                    Box::new(terminal_panel(window_tab_data.clone()))
                 }),
-                PanelKind::FileExplorer => container_box(cx, |cx| {
-                    Box::new(file_explorer_panel(
-                        cx,
-                        window_tab_data.clone(),
-                        position,
-                    ))
+                PanelKind::FileExplorer => container_box(|| {
+                    Box::new(file_explorer_panel(window_tab_data.clone(), position))
                 }),
                 PanelKind::SourceControl => {
-                    container_box(cx, |cx| Box::new(blank_panel(cx)))
+                    container_box(|| Box::new(blank_panel()))
                 }
-                PanelKind::Plugin => {
-                    container_box(cx, |cx| Box::new(blank_panel(cx)))
-                }
-                PanelKind::Search => {
-                    container_box(cx, |cx| Box::new(blank_panel(cx)))
-                }
-                PanelKind::Problem => container_box(cx, |cx| {
-                    Box::new(problem_panel(cx, window_tab_data.clone(), position))
+                PanelKind::Plugin => container_box(|| Box::new(blank_panel())),
+                PanelKind::Search => container_box(|| Box::new(blank_panel())),
+                PanelKind::Problem => container_box(|| {
+                    Box::new(problem_panel(window_tab_data.clone(), position))
                 }),
-                PanelKind::Debug => container_box(cx, |cx| {
-                    Box::new(debug_panel(cx, window_tab_data.clone(), position))
+                PanelKind::Debug => container_box(|| {
+                    Box::new(debug_panel(window_tab_data.clone(), position))
                 }),
             };
-            view.style(cx, || Style::BASE.size_pct(100.0, 100.0))
+            view.style(|| Style::BASE.size_pct(100.0, 100.0))
         },
     )
-    .style(cx, move || {
+    .style(move || {
         Style::BASE
             .size_pct(100.0, 100.0)
             .apply_if(!panel.is_position_shown(&position, true), |s| s.hide())
@@ -133,11 +122,10 @@ fn panel_view(
 }
 
 pub fn panel_header(
-    cx: AppContext,
     header: String,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    container(cx, |cx| label(cx, move || header.clone())).style(cx, move || {
+    container(|| label(move || header.clone())).style(move || {
         Style::BASE
             .padding_horiz_px(10.0)
             .padding_vert_px(6.0)
@@ -147,7 +135,6 @@ pub fn panel_header(
 }
 
 fn panel_picker(
-    cx: AppContext,
     window_tab_data: Arc<WindowTabData>,
     position: PanelPosition,
 ) -> impl View {
@@ -157,14 +144,13 @@ fn panel_picker(
     let is_bottom = position.is_bottom();
     let is_first = position.is_first();
     list(
-        cx,
         move || {
             panel
                 .panels
                 .with(|panels| panels.get(&position).cloned().unwrap_or_default())
         },
         |p| *p,
-        move |cx, p| {
+        move |p| {
             let window_tab_data = window_tab_data.clone();
             let icon = match p {
                 PanelKind::Terminal => LapceIcons::TERMINAL,
@@ -188,11 +174,10 @@ fn panel_picker(
                     }
                 }
             };
-            container(cx, |cx| {
-                stack(cx, |cx| {
+            container(|| {
+                stack(|| {
                     (
                         clickable_icon(
-                            cx,
                             || icon,
                             move || {
                                 window_tab_data.toggle_panel_visual(p);
@@ -200,8 +185,8 @@ fn panel_picker(
                             || false,
                             config,
                         )
-                        .style(cx, || Style::BASE.padding_px(1.0)),
-                        label(cx, || "".to_string()).style(cx, move || {
+                        .style(|| Style::BASE.padding_px(1.0)),
+                        label(|| "".to_string()).style(move || {
                             Style::BASE
                                 .absolute()
                                 .size_pct(100.0, 100.0)
@@ -238,10 +223,10 @@ fn panel_picker(
                     )
                 })
             })
-            .style(cx, || Style::BASE.padding_px(6.0))
+            .style(|| Style::BASE.padding_px(6.0))
         },
     )
-    .style(cx, move || {
+    .style(move || {
         Style::BASE
             .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
             .apply_if(
@@ -258,6 +243,6 @@ fn panel_picker(
     })
 }
 
-fn blank_panel(cx: AppContext) -> impl View {
-    label(cx, || "blank".to_string())
+fn blank_panel() -> impl View {
+    label(|| "blank".to_string())
 }

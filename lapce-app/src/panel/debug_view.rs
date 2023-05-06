@@ -29,7 +29,6 @@ use crate::{
 use super::{position::PanelPosition, view::panel_header};
 
 pub fn debug_panel(
-    cx: AppContext,
     window_tab_data: Arc<WindowTabData>,
     position: PanelPosition,
 ) -> impl View {
@@ -37,27 +36,25 @@ pub fn debug_panel(
     let terminal = window_tab_data.terminal.clone();
     let internal_command = window_tab_data.common.internal_command;
 
-    stack(cx, move |cx| {
+    stack(move || {
         (
             {
                 let terminal = terminal.clone();
-                stack(cx, move |cx| {
+                stack(move || {
                     (
-                        panel_header(cx, "Processes".to_string(), config),
-                        debug_processes(cx, terminal, config),
+                        panel_header("Processes".to_string(), config),
+                        debug_processes(terminal, config),
                     )
                 })
-                .style(cx, || {
-                    Style::BASE.width_pct(100.0).flex_col().height_px(150.0)
-                })
+                .style(|| Style::BASE.width_pct(100.0).flex_col().height_px(150.0))
             },
-            stack(cx, move |cx| {
+            stack(move || {
                 (
-                    panel_header(cx, "Stack Frames".to_string(), config),
-                    debug_stack_traces(cx, terminal, internal_command, config),
+                    panel_header("Stack Frames".to_string(), config),
+                    debug_stack_traces(terminal, internal_command, config),
                 )
             })
-            .style(cx, || {
+            .style(|| {
                 Style::BASE
                     .width_pct(100.0)
                     .flex_grow(1.0)
@@ -66,7 +63,7 @@ pub fn debug_panel(
             }),
         )
     })
-    .style(cx, move || {
+    .style(move || {
         Style::BASE
             .width_pct(100.0)
             .apply_if(!position.is_bottom(), |s| s.flex_col())
@@ -74,7 +71,6 @@ pub fn debug_panel(
 }
 
 fn debug_process_icons(
-    cx: AppContext,
     terminal: TerminalPanelData,
     term_id: TermId,
     dap_id: DapId,
@@ -90,13 +86,12 @@ fn debug_process_icons(
         stopped.map(|stopped| stopped.get()).unwrap_or(false)
     };
     match mode {
-        RunDebugMode::Run => container_box(cx, |cx| {
-            Box::new(stack(cx, |cx| {
+        RunDebugMode::Run => container_box(|| {
+            Box::new(stack(|| {
                 (
                     {
                         let terminal = terminal.clone();
                         clickable_icon(
-                            cx,
                             || LapceIcons::DEBUG_RESTART,
                             move || {
                                 terminal.restart_run_debug(term_id);
@@ -104,12 +99,11 @@ fn debug_process_icons(
                             || false,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_horiz_px(6.0))
+                        .style(|| Style::BASE.margin_horiz_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
                         clickable_icon(
-                            cx,
                             || LapceIcons::DEBUG_STOP,
                             move || {
                                 terminal.stop_run_debug(term_id);
@@ -117,12 +111,11 @@ fn debug_process_icons(
                             move || stopped,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_right_px(6.0))
+                        .style(|| Style::BASE.margin_right_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
                         clickable_icon(
-                            cx,
                             || LapceIcons::CLOSE,
                             move || {
                                 terminal.close_terminal(&term_id);
@@ -130,18 +123,17 @@ fn debug_process_icons(
                             || false,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_right_px(6.0))
+                        .style(|| Style::BASE.margin_right_px(6.0))
                     },
                 )
             }))
         }),
-        RunDebugMode::Debug => container_box(cx, |cx| {
-            Box::new(stack(cx, |cx| {
+        RunDebugMode::Debug => container_box(|| {
+            Box::new(stack(|| {
                 (
                     {
                         let terminal = terminal.clone();
                         clickable_icon(
-                            cx,
                             || LapceIcons::DEBUG_CONTINUE,
                             move || {
                                 terminal.dap_continue(term_id);
@@ -149,12 +141,11 @@ fn debug_process_icons(
                             move || !paused() || stopped,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_horiz_px(6.0))
+                        .style(|| Style::BASE.margin_horiz_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
                         clickable_icon(
-                            cx,
                             || LapceIcons::DEBUG_PAUSE,
                             move || {
                                 terminal.dap_pause(term_id);
@@ -162,12 +153,11 @@ fn debug_process_icons(
                             move || paused() || stopped,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_right_px(6.0))
+                        .style(|| Style::BASE.margin_right_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
                         clickable_icon(
-                            cx,
                             || LapceIcons::DEBUG_RESTART,
                             move || {
                                 terminal.restart_run_debug(term_id);
@@ -175,12 +165,11 @@ fn debug_process_icons(
                             || false,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_right_px(6.0))
+                        .style(|| Style::BASE.margin_right_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
                         clickable_icon(
-                            cx,
                             || LapceIcons::DEBUG_STOP,
                             move || {
                                 terminal.stop_run_debug(term_id);
@@ -188,12 +177,11 @@ fn debug_process_icons(
                             move || stopped,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_right_px(6.0))
+                        .style(|| Style::BASE.margin_right_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
                         clickable_icon(
-                            cx,
                             || LapceIcons::CLOSE,
                             move || {
                                 terminal.close_terminal(&term_id);
@@ -201,7 +189,7 @@ fn debug_process_icons(
                             || false,
                             config,
                         )
-                        .style(cx, || Style::BASE.margin_right_px(6.0))
+                        .style(|| Style::BASE.margin_right_px(6.0))
                     },
                 )
             }))
@@ -210,23 +198,21 @@ fn debug_process_icons(
 }
 
 fn debug_processes(
-    cx: AppContext,
     terminal: TerminalPanelData,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    scroll(cx, move |cx| {
+    scroll(move || {
         let terminal = terminal.clone();
         let local_terminal = terminal.clone();
         list(
-            cx,
             move || local_terminal.run_debug_process(true),
             |(term_id, p)| (*term_id, p.stopped),
-            move |cx, (term_id, p)| {
+            move |(term_id, p)| {
                 let terminal = terminal.clone();
                 let is_active =
                     move || terminal.debug.active_term.get() == Some(term_id);
                 let local_terminal = terminal.clone();
-                stack(cx, move |cx| {
+                stack(move || {
                     (
                         {
                             let svg_str = match (&p.mode, p.stopped) {
@@ -237,8 +223,7 @@ fn debug_processes(
                                     LapceIcons::DEBUG_DISCONNECT
                                 }
                             };
-                            svg(cx, move || config.get().ui_svg(svg_str)).style(
-                                cx,
+                            svg(move || config.get().ui_svg(svg_str)).style(
                                 move || {
                                     let config = config.get();
                                     let size = config.ui.icon_size() as f32;
@@ -251,7 +236,7 @@ fn debug_processes(
                                 },
                             )
                         },
-                        label(cx, move || p.config.name.clone()).style(cx, || {
+                        label(move || p.config.name.clone()).style(|| {
                             Style::BASE
                                 .flex_grow(1.0)
                                 .flex_basis_px(0.0)
@@ -259,7 +244,6 @@ fn debug_processes(
                                 .text_ellipsis()
                         }),
                         debug_process_icons(
-                            cx,
                             terminal.clone(),
                             term_id,
                             p.config.dap_id,
@@ -274,7 +258,7 @@ fn debug_processes(
                     local_terminal.focus_terminal(term_id);
                     true
                 })
-                .style(cx, move || {
+                .style(move || {
                     Style::BASE
                         .padding_vert_px(6.0)
                         .width_pct(100.0)
@@ -287,7 +271,7 @@ fn debug_processes(
                             )
                         })
                 })
-                .hover_style(cx, move || {
+                .hover_style(move || {
                     Style::BASE.cursor(CursorStyle::Pointer).background(
                         (*config
                             .get()
@@ -297,12 +281,11 @@ fn debug_processes(
                 })
             },
         )
-        .style(cx, || Style::BASE.width_pct(100.0).flex_col())
+        .style(|| Style::BASE.width_pct(100.0).flex_col())
     })
 }
 
 fn debug_stack_frames(
-    cx: AppContext,
     thread_id: ThreadId,
     stack_trace: StackTraceData,
     stopped: RwSignal<bool>,
@@ -310,19 +293,17 @@ fn debug_stack_frames(
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let expanded = stack_trace.expanded;
-    stack(cx, move |cx| {
+    stack(move || {
         (
-            container(cx, |cx| label(cx, move || thread_id.to_string()))
+            container(|| label(move || thread_id.to_string()))
                 .on_click(move |_| {
                     expanded.update(|expanded| {
                         *expanded = !*expanded;
                     });
                     true
                 })
-                .style(cx, || {
-                    Style::BASE.padding_horiz_px(10.0).min_width_pct(100.0)
-                })
-                .hover_style(cx, move || {
+                .style(|| Style::BASE.padding_horiz_px(10.0).min_width_pct(100.0))
+                .hover_style(move || {
                     Style::BASE.cursor(CursorStyle::Pointer).background(
                         *config
                             .get()
@@ -330,7 +311,6 @@ fn debug_stack_frames(
                     )
                 }),
             list(
-                cx,
                 move || {
                     let expanded = stack_trace.expanded.get() && stopped.get();
                     if expanded {
@@ -340,7 +320,7 @@ fn debug_stack_frames(
                     }
                 },
                 |frame| frame.id,
-                move |cx, frame| {
+                move |frame| {
                     let full_path =
                         frame.source.as_ref().and_then(|s| s.path.clone());
                     let line = frame.line.saturating_sub(1);
@@ -357,11 +337,10 @@ fn debug_stack_frames(
                     let has_source = !source_path.is_empty();
                     let source_path = format!("{source_path}:{}", frame.line);
 
-                    container(cx, |cx| {
-                        stack(cx, |cx| {
+                    container(|| {
+                        stack(|| {
                             (
-                                label(cx, move || frame.name.clone()).hover_style(
-                                    cx,
+                                label(move || frame.name.clone()).hover_style(
                                     move || {
                                         Style::BASE.background(
                                             *config.get().get_color(
@@ -370,8 +349,7 @@ fn debug_stack_frames(
                                         )
                                     },
                                 ),
-                                label(cx, move || source_path.clone()).style(
-                                    cx,
+                                label(move || source_path.clone()).style(
                                     move || {
                                         Style::BASE
                                             .margin_left_px(10.0)
@@ -408,7 +386,7 @@ fn debug_stack_frames(
                         }
                         true
                     })
-                    .style(cx, move || {
+                    .style(move || {
                         Style::BASE
                             .padding_left_px(20.0)
                             .padding_right_px(10.0)
@@ -419,7 +397,7 @@ fn debug_stack_frames(
                                 )
                             })
                     })
-                    .hover_style(cx, move || {
+                    .hover_style(move || {
                         Style::BASE
                             .background(
                                 *config
@@ -430,23 +408,21 @@ fn debug_stack_frames(
                     })
                 },
             )
-            .style(cx, || Style::BASE.flex_col().min_width_pct(100.0)),
+            .style(|| Style::BASE.flex_col().min_width_pct(100.0)),
         )
     })
-    .style(cx, || Style::BASE.flex_col().min_width_pct(100.0))
+    .style(|| Style::BASE.flex_col().min_width_pct(100.0))
 }
 
 fn debug_stack_traces(
-    cx: AppContext,
     terminal: TerminalPanelData,
     internal_command: RwSignal<Option<InternalCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    container(cx, move |cx| {
-        scroll(cx, move |cx| {
+    container(move || {
+        scroll(move || {
             let local_terminal = terminal.clone();
             list(
-                cx,
                 move || {
                     let dap = local_terminal.get_active_dap(true);
                     if let Some(dap) = dap {
@@ -476,9 +452,8 @@ fn debug_stack_traces(
                 |(dap_id, stopped, thread_id, _)| {
                     (*dap_id, *thread_id, stopped.get_untracked())
                 },
-                move |cx, (_, stopped, thread_id, stack_trace)| {
+                move |(_, stopped, thread_id, stack_trace)| {
                     debug_stack_frames(
-                        cx,
                         thread_id,
                         stack_trace,
                         stopped,
@@ -487,14 +462,14 @@ fn debug_stack_traces(
                     )
                 },
             )
-            .style(cx, || Style::BASE.flex_col().min_width_pct(100.0))
+            .style(|| Style::BASE.flex_col().min_width_pct(100.0))
         })
-        .scroll_bar_color(cx, move || {
+        .scroll_bar_color(move || {
             *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
         })
-        .style(cx, || Style::BASE.absolute().size_pct(100.0, 100.0))
+        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
     })
-    .style(cx, || {
+    .style(|| {
         Style::BASE
             .width_pct(100.0)
             .line_height(1.6)

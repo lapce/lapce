@@ -16,11 +16,12 @@ enum FocusTextState {
 }
 
 pub fn focus_text(
-    cx: AppContext,
     text: impl Fn() -> String + 'static,
     focus_indices: impl Fn() -> Vec<usize> + 'static,
     focus_color: impl Fn() -> Color + 'static,
 ) -> FocusText {
+    let cx = AppContext::get_current();
+
     let id = cx.new_id();
 
     create_effect(cx.scope, move |_| {
@@ -161,6 +162,10 @@ impl View for FocusText {
 
     fn child(&mut self, _id: floem::id::Id) -> Option<&mut dyn View> {
         None
+    }
+
+    fn children(&mut self) -> Vec<&mut dyn View> {
+        Vec::new()
     }
 
     fn update(

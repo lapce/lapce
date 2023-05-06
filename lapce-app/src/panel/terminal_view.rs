@@ -22,30 +22,23 @@ use crate::{
 
 use super::kind::PanelKind;
 
-pub fn terminal_panel(
-    cx: AppContext,
-    window_tab_data: Arc<WindowTabData>,
-) -> impl View {
-    stack(cx, |cx| {
+pub fn terminal_panel(window_tab_data: Arc<WindowTabData>) -> impl View {
+    stack(|| {
         (
-            terminal_tab_header(cx, window_tab_data.clone()),
-            terminal_tab_content(cx, window_tab_data),
+            terminal_tab_header(window_tab_data.clone()),
+            terminal_tab_content(window_tab_data),
         )
     })
-    .style(cx, || Style::BASE.size_pct(100.0, 100.0).flex_col())
+    .style(|| Style::BASE.size_pct(100.0, 100.0).flex_col())
 }
 
-fn terminal_tab_header(
-    cx: AppContext,
-    window_tab_data: Arc<WindowTabData>,
-) -> impl View {
+fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
     let terminal = window_tab_data.terminal.clone();
     let config = window_tab_data.common.config;
     let focus = window_tab_data.common.focus;
     let active = move || terminal.tab_info.with(|info| info.active);
 
     list(
-        cx,
         move || {
             let tabs = terminal.tab_info.with(|info| info.tabs.clone());
             for (i, (index, _)) in tabs.iter().enumerate() {
@@ -56,7 +49,7 @@ fn terminal_tab_header(
             tabs
         },
         |(_, tab)| tab.terminal_tab_id,
-        move |cx, (index, tab)| {
+        move |(index, tab)| {
             let title = {
                 let tab = tab.clone();
                 move || {
@@ -96,18 +89,14 @@ fn terminal_tab_header(
                 }
                 LapceIcons::TERMINAL
             };
-            stack(cx, |cx| {
+            stack(|| {
                 (
-                    container(cx, |cx| {
-                        stack(cx, |cx| {
+                    container(|| {
+                        stack(|| {
                             (
-                                container(cx, |cx| {
-                                    svg(cx, move || {
-                                        config.get().ui_svg(svg_string())
-                                    })
-                                    .style(
-                                        cx,
-                                        move || {
+                                container(|| {
+                                    svg(move || config.get().ui_svg(svg_string()))
+                                        .style(move || {
                                             let config = config.get();
                                             let size = config.ui.icon_size() as f32;
                                             Style::BASE.size_px(size, size).color(
@@ -115,15 +104,14 @@ fn terminal_tab_header(
                                                     LapceColor::LAPCE_ICON_ACTIVE,
                                                 ),
                                             )
-                                        },
-                                    )
+                                        })
                                 })
-                                .style(cx, || {
+                                .style(|| {
                                     Style::BASE
                                         .padding_horiz_px(10.0)
                                         .padding_vert_px(11.0)
                                 }),
-                                label(cx, title).style(cx, || {
+                                label(title).style(|| {
                                     Style::BASE
                                         .min_width_px(0.0)
                                         .flex_basis_px(0.0)
@@ -131,16 +119,15 @@ fn terminal_tab_header(
                                         .text_ellipsis()
                                 }),
                                 clickable_icon(
-                                    cx,
                                     || LapceIcons::CLOSE,
                                     || {},
                                     || false,
                                     config,
                                 )
-                                .style(cx, || Style::BASE.margin_horiz_px(6.0)),
+                                .style(|| Style::BASE.margin_horiz_px(6.0)),
                             )
                         })
-                        .style(cx, move || {
+                        .style(move || {
                             Style::BASE
                                 .items_center()
                                 .width_px(200.0)
@@ -152,9 +139,9 @@ fn terminal_tab_header(
                                 )
                         })
                     })
-                    .style(cx, || Style::BASE.items_center()),
-                    container(cx, |cx| {
-                        label(cx, || "".to_string()).style(cx, move || {
+                    .style(|| Style::BASE.items_center()),
+                    container(|| {
+                        label(|| "".to_string()).style(move || {
                             Style::BASE
                                 .size_pct(100.0, 100.0)
                                 .border_bottom(if active() == index.get() {
@@ -173,7 +160,7 @@ fn terminal_tab_header(
                                 ))
                         })
                     })
-                    .style(cx, || {
+                    .style(|| {
                         Style::BASE
                             .absolute()
                             .padding_horiz_px(3.0)
@@ -183,7 +170,7 @@ fn terminal_tab_header(
             })
         },
     )
-    .style(cx, move || {
+    .style(move || {
         let config = config.get();
         Style::BASE
             .width_pct(100.0)
@@ -193,13 +180,11 @@ fn terminal_tab_header(
 }
 
 fn terminal_tab_split(
-    cx: AppContext,
     terminal_panel_data: TerminalPanelData,
     terminal_tab_data: TerminalTabData,
 ) -> impl View {
     let config = terminal_panel_data.common.config;
     list(
-        cx,
         move || {
             let terminals = terminal_tab_data.terminals.get();
             for (i, (index, _)) in terminals.iter().enumerate() {
@@ -210,12 +195,11 @@ fn terminal_tab_split(
             terminals
         },
         |(_, terminal)| terminal.term_id,
-        move |cx, (index, terminal)| {
+        move |(index, terminal)| {
             let focus = terminal.common.focus;
             let terminal_panel_data = terminal_panel_data.clone();
-            container(cx, move |cx| {
+            container(move || {
                 terminal_view(
-                    cx,
                     terminal.term_id,
                     terminal.raw.read_only(),
                     terminal.mode.read_only(),
@@ -233,13 +217,13 @@ fn terminal_tab_split(
                         false
                     }
                 })
-                .style(cx, || Style::BASE.size_pct(100.0, 100.0))
+                .style(|| Style::BASE.size_pct(100.0, 100.0))
             })
             .on_click(move |_| {
                 focus.set(Focus::Panel(PanelKind::Terminal));
                 true
             })
-            .style(cx, move || {
+            .style(move || {
                 Style::BASE
                     .size_pct(100.0, 100.0)
                     .padding_horiz_px(10.0)
@@ -251,20 +235,16 @@ fn terminal_tab_split(
             })
         },
     )
-    .style(cx, || Style::BASE.size_pct(100.0, 100.0))
+    .style(|| Style::BASE.size_pct(100.0, 100.0))
 }
 
-fn terminal_tab_content(
-    cx: AppContext,
-    window_tab_data: Arc<WindowTabData>,
-) -> impl View {
+fn terminal_tab_content(window_tab_data: Arc<WindowTabData>) -> impl View {
     let terminal = window_tab_data.terminal.clone();
     tab(
-        cx,
         move || terminal.tab_info.with(|info| info.active),
         move || terminal.tab_info.with(|info| info.tabs.clone()),
         |(_, tab)| tab.terminal_tab_id,
-        move |cx, (_, tab)| terminal_tab_split(cx, terminal.clone(), tab),
+        move |(_, tab)| terminal_tab_split(terminal.clone(), tab),
     )
-    .style(cx, || Style::BASE.size_pct(100.0, 100.0))
+    .style(|| Style::BASE.size_pct(100.0, 100.0))
 }

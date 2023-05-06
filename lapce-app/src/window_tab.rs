@@ -50,7 +50,7 @@ use crate::{
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Focus {
     Workbench,
     Palette,

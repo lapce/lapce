@@ -20,7 +20,6 @@ use crate::{
 };
 
 fn left(
-    cx: AppContext,
     source_control: RwSignal<SourceControlData>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
@@ -37,11 +36,10 @@ fn left(
             )
         })
     };
-    stack(cx, move |cx| {
+    stack(move || {
         (
-            container(cx, move |cx| {
-                svg(cx, move || config.get().ui_svg(LapceIcons::REMOTE)).style(
-                    cx,
+            container(move || {
+                svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(
                     move || {
                         Style::BASE.size_px(26.0, 26.0).color(
                             *config.get().get_color(LapceColor::LAPCE_REMOTE_ICON),
@@ -49,7 +47,7 @@ fn left(
                     },
                 )
             })
-            .style(cx, move || {
+            .style(move || {
                 Style::BASE
                     .height_pct(100.0)
                     .padding_horiz_px(10.0)
@@ -58,10 +56,9 @@ fn left(
                         *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL),
                     )
             }),
-            stack(cx, move |cx| {
+            stack(move || {
                 (
-                    svg(cx, move || config.get().ui_svg(LapceIcons::SCM)).style(
-                        cx,
+                    svg(move || config.get().ui_svg(LapceIcons::SCM)).style(
                         move || {
                             let config = config.get();
                             let icon_size = config.ui.icon_size() as f32;
@@ -70,10 +67,10 @@ fn left(
                             )
                         },
                     ),
-                    label(cx, branch).style(cx, || Style::BASE.margin_left_px(10.0)),
+                    label(branch).style(|| Style::BASE.margin_left_px(10.0)),
                 )
             })
-            .style(cx, move || {
+            .style(move || {
                 Style::BASE
                     .display(if branch().is_empty() {
                         Display::None
@@ -88,7 +85,7 @@ fn left(
             }),
         )
     })
-    .style(cx, move || {
+    .style(move || {
         Style::BASE
             .height_pct(100.0)
             .flex_basis(Dimension::Points(0.0))
@@ -98,66 +95,64 @@ fn left(
 }
 
 fn middle(
-    cx: AppContext,
     workspace: Arc<LapceWorkspace>,
     set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let local_workspace = workspace.clone();
-    stack(cx, move |cx| {
+    stack(move || {
         (
-            stack(cx, move |cx| {
+            stack(move || {
                 (
                     clickable_icon(
-                        cx,
                         || LapceIcons::LOCATION_BACKWARD,
                         || {},
                         || false,
                         config,
                     )
-                    .style(cx, move || Style::BASE.margin_horiz_px(6.0)),
+                    .style(move || Style::BASE.margin_horiz_px(6.0)),
                     clickable_icon(
-                        cx,
                         || LapceIcons::LOCATION_FORWARD,
                         || {},
                         || false,
                         config,
                     )
-                    .style(cx, move || Style::BASE.margin_right_px(6.0)),
+                    .style(move || Style::BASE.margin_right_px(6.0)),
                 )
             })
-            .style(cx, || {
+            .style(|| {
                 Style::BASE
                     .flex_basis(Dimension::Points(0.0))
                     .flex_grow(1.0)
                     .justify_content(Some(JustifyContent::FlexEnd))
             }),
-            container(cx, |cx| {
-                stack(cx, |cx| {
+            container(|| {
+                stack(|| {
                     (
-                        svg(cx, move || config.get().ui_svg(LapceIcons::SEARCH))
-                            .style(cx, move || {
+                        svg(move || config.get().ui_svg(LapceIcons::SEARCH)).style(
+                            move || {
                                 let config = config.get();
                                 let icon_size = config.ui.icon_size() as f32;
                                 Style::BASE.size_px(icon_size, icon_size).color(
                                     *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                                 )
-                            }),
-                        label(cx, move || {
+                            },
+                        ),
+                        label(move || {
                             if let Some(s) = local_workspace.display() {
                                 s
                             } else {
                                 "Open Folder".to_string()
                             }
                         })
-                        .style(cx, || {
+                        .style(|| {
                             Style::BASE.padding_left_px(10.0).padding_right_px(5.0)
                         }),
-                        container(cx, move |cx| {
-                            svg(cx, move || {
+                        container(move || {
+                            svg(move || {
                                 config.get().ui_svg(LapceIcons::PALETTE_MENU)
                             })
-                            .style(cx, move || {
+                            .style(move || {
                                 let config = config.get();
                                 let icon_size = config.ui.icon_size() as f32;
                                 Style::BASE.size_px(icon_size, icon_size).color(
@@ -165,10 +160,10 @@ fn middle(
                                 )
                             })
                         })
-                        .style(cx, move || Style::BASE.padding_px(5.0)),
+                        .style(move || Style::BASE.padding_px(5.0)),
                     )
                 })
-                .style(cx, || Style::BASE.align_items(Some(AlignItems::Center)))
+                .style(|| Style::BASE.align_items(Some(AlignItems::Center)))
             })
             .on_click(move |_| {
                 if workspace.clone().path.is_some() {
@@ -179,7 +174,7 @@ fn middle(
                 }
                 true
             })
-            .style(cx, move || {
+            .style(move || {
                 let config = config.get();
                 Style::BASE
                     .flex_basis(Dimension::Points(0.0))
@@ -194,9 +189,8 @@ fn middle(
                     .border_radius(6.0)
                     .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
             }),
-            container(cx, move |cx| {
+            container(move || {
                 clickable_icon(
-                    cx,
                     || LapceIcons::START,
                     move || {
                         set_workbench_command
@@ -205,9 +199,9 @@ fn middle(
                     || false,
                     config,
                 )
-                .style(cx, move || Style::BASE.margin_horiz_px(6.0))
+                .style(move || Style::BASE.margin_horiz_px(6.0))
             })
-            .style(cx, move || {
+            .style(move || {
                 Style::BASE
                     .flex_basis(Dimension::Points(0.0))
                     .flex_grow(1.0)
@@ -215,7 +209,7 @@ fn middle(
             }),
         )
     })
-    .style(cx, || {
+    .style(|| {
         Style::BASE
             .flex_basis(Dimension::Points(0.0))
             .flex_grow(2.0)
@@ -224,12 +218,12 @@ fn middle(
     })
 }
 
-fn right(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
-    container(cx, move |cx| {
-        clickable_icon(cx, || LapceIcons::SETTINGS, || {}, || false, config)
-            .style(cx, move || Style::BASE.margin_horiz_px(6.0))
+fn right(config: ReadSignal<Arc<LapceConfig>>) -> impl View {
+    container(move || {
+        clickable_icon(|| LapceIcons::SETTINGS, || {}, || false, config)
+            .style(move || Style::BASE.margin_horiz_px(6.0))
     })
-    .style(cx, || {
+    .style(|| {
         Style::BASE
             .flex_basis(Dimension::Points(0.0))
             .flex_grow(1.0)
@@ -238,20 +232,19 @@ fn right(cx: AppContext, config: ReadSignal<Arc<LapceConfig>>) -> impl View {
 }
 
 pub fn title(
-    cx: AppContext,
     workspace: Arc<LapceWorkspace>,
     source_control: RwSignal<SourceControlData>,
     set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    stack(cx, move |cx| {
+    stack(move || {
         (
-            left(cx, source_control, config),
-            middle(cx, workspace, set_workbench_command, config),
-            right(cx, config),
+            left(source_control, config),
+            middle(workspace, set_workbench_command, config),
+            right(config),
         )
     })
-    .style(cx, move || {
+    .style(move || {
         let config = config.get();
         Style::BASE
             .width_pct(100.0)

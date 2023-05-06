@@ -237,7 +237,6 @@ fn insert_cursor(
 }
 
 pub fn editor_view(
-    cx: AppContext,
     workspace: Arc<LapceWorkspace>,
     is_active: impl Fn() -> bool + 'static + Copy,
     editor: RwSignal<EditorData>,
@@ -250,39 +249,37 @@ pub fn editor_view(
         )
     });
 
-    stack(cx, move |cx| {
+    stack(move || {
         (
-            editor_breadcrumbs(cx, workspace, editor, config),
-            container(cx, |cx| {
-                stack(cx, |cx| {
+            editor_breadcrumbs(workspace, editor, config),
+            container(|| {
+                stack(|| {
                     (
-                        editor_gutter(cx, editor, is_active),
-                        stack(cx, move |cx| {
+                        editor_gutter(editor, is_active),
+                        stack(move || {
                             (
                                 editor_cursor(
-                                    cx,
                                     editor,
                                     cursor,
                                     viewport.read_only(),
                                     is_active,
                                     config,
                                 ),
-                                editor_content(cx, editor),
+                                editor_content(editor),
                             )
                         })
-                        .style(cx, || Style::BASE.size_pct(100.0, 100.0)),
+                        .style(|| Style::BASE.size_pct(100.0, 100.0)),
                     )
                 })
-                .style(cx, || Style::BASE.absolute().size_pct(100.0, 100.0))
+                .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
             })
-            .style(cx, || Style::BASE.size_pct(100.0, 100.0)),
+            .style(|| Style::BASE.size_pct(100.0, 100.0)),
         )
     })
-    .style(cx, || Style::BASE.flex_col().size_pct(100.0, 100.0))
+    .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
 }
 
 fn editor_gutter(
-    cx: AppContext,
     editor: RwSignal<EditorData>,
     is_active: impl Fn() -> bool + 'static + Copy,
 ) -> impl View {
@@ -298,6 +295,7 @@ fn editor_gutter(
     let padding_left = 10.0;
     let padding_right = 30.0;
 
+    let cx = AppContext::get_current();
     let code_action_line = create_memo(cx.scope, move |_| {
         if is_active() {
             let doc = editor.with(|editor| editor.doc);
@@ -331,26 +329,25 @@ fn editor_gutter(
         (line, mode)
     });
 
-    stack(cx, |cx| {
+    stack(|| {
         (
-            stack(cx, |cx| {
+            stack(|| {
                 (
-                    label(cx, || "".to_string())
-                        .style(cx, move || Style::BASE.width_px(padding_left)),
-                    label(cx, move || {
+                    label(|| "".to_string())
+                        .style(move || Style::BASE.width_px(padding_left)),
+                    label(move || {
                         editor
                             .get()
                             .doc
                             .with(|doc| (doc.buffer().last_line() + 1).to_string())
                     }),
-                    label(cx, || "".to_string())
-                        .style(cx, move || Style::BASE.width_px(padding_right)),
+                    label(|| "".to_string())
+                        .style(move || Style::BASE.width_px(padding_right)),
                 )
             })
-            .style(cx, || Style::BASE.height_pct(100.0)),
-            scroll(cx, |cx| {
+            .style(|| Style::BASE.height_pct(100.0)),
+            scroll(|| {
                 virtual_list(
-                    cx,
                     VirtualListDirection::Vertical,
                     VirtualListItemSize::Fixed(
                         config.get_untracked().editor.line_height() as f64,
@@ -361,7 +358,7 @@ fn editor_gutter(
                         editor.doc.get()
                     },
                     move |line: &DocLine| (line.line, current_line.get_untracked()),
-                    move |cx, line: DocLine| {
+                    move |line: DocLine| {
                         let line_number = {
                             let config = config.get_untracked();
                             let (current_line, mode) = current_line.get_untracked();
@@ -379,13 +376,12 @@ fn editor_gutter(
                             }
                         };
 
-                        stack(cx, move |cx| {
+                        stack(move || {
                             (
-                                label(cx, || "".to_string()).style(cx, move || {
+                                label(|| "".to_string()).style(move || {
                                     Style::BASE.width_px(padding_left)
                                 }),
-                                label(cx, move || line_number.to_string()).style(
-                                    cx,
+                                label(move || line_number.to_string()).style(
                                     move || {
                                         let config = config.get();
                                         let (current_line, _) =
@@ -403,15 +399,15 @@ fn editor_gutter(
                                             .justify_end()
                                     },
                                 ),
-                                container(cx, |cx| {
-                                    container(cx, |cx| {
-                                        container(cx, |cx| {
-                                            svg(cx, move || {
+                                container(|| {
+                                    container(|| {
+                                        container(|| {
+                                            svg(move || {
                                                 config
                                                     .get()
                                                     .ui_svg(LapceIcons::LIGHTBULB)
                                             })
-                                            .style(cx, move || {
+                                            .style(move || {
                                                 let config = config.get();
                                                 let size =
                                                     config.ui.icon_size() as f32;
@@ -428,7 +424,7 @@ fn editor_gutter(
                                             });
                                             true
                                         })
-                                        .style(cx, move || {
+                                        .style(move || {
                                             Style::BASE.apply_if(
                                                 code_action_line.get()
                                                     != Some(line.line),
@@ -437,7 +433,6 @@ fn editor_gutter(
                                         })
                                     })
                                     .style(
-                                        cx,
                                         move || {
                                             Style::BASE
                                                 .justify_center()
@@ -448,24 +443,19 @@ fn editor_gutter(
                                         },
                                     )
                                 })
-                                .style(
-                                    cx,
-                                    move || {
-                                        Style::BASE
-                                            .justify_end()
-                                            .width_px(padding_right)
-                                    },
-                                ),
+                                .style(move || {
+                                    Style::BASE.justify_end().width_px(padding_right)
+                                }),
                             )
                         })
-                        .style(cx, move || {
+                        .style(move || {
                             let config = config.get_untracked();
                             let line_height = config.editor.line_height();
                             Style::BASE.items_center().height_px(line_height as f32)
                         })
                     },
                 )
-                .style(cx, move || {
+                .style(move || {
                     let config = config.get();
                     let padding_bottom = if config.editor.scroll_beyond_last_line {
                         viewport.get().height() as f32
@@ -479,7 +469,7 @@ fn editor_gutter(
                         .padding_bottom_px(padding_bottom)
                 })
             })
-            .hide_bar(cx, || true)
+            .hide_bar(|| true)
             .on_event(EventListner::PointerWheel, move |event| {
                 if let Event::PointerWheel(pointer_event) = event {
                     if let PointerType::Mouse(info) = &pointer_event.pointer_type {
@@ -488,11 +478,11 @@ fn editor_gutter(
                 }
                 true
             })
-            .on_scroll_to(cx, move || {
+            .on_scroll_to(move || {
                 let viewport = viewport.get();
                 Some(viewport.origin())
             })
-            .style(cx, move || {
+            .style(move || {
                 Style::BASE
                     .absolute()
                     .background(
@@ -502,7 +492,7 @@ fn editor_gutter(
             }),
         )
     })
-    .style(cx, move || {
+    .style(move || {
         let config = config.get();
         Style::BASE
             .font_family(config.editor.font_family.clone())
@@ -511,7 +501,6 @@ fn editor_gutter(
 }
 
 fn editor_cursor(
-    cx: AppContext,
     editor: RwSignal<EditorData>,
     cursor: ReadSignal<Cursor>,
     viewport: ReadSignal<Rect>,
@@ -557,15 +546,14 @@ fn editor_cursor(
         })
     };
     let id = AtomicU64::new(0);
-    clip(cx, |cx| {
+    clip(|| {
         list(
-            cx,
             cursor,
             move |(_viewport, _cursor)| {
                 id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
             },
-            move |cx, (viewport, cursor)| {
-                label(cx, || "".to_string()).style(cx, move || {
+            move |(viewport, cursor)| {
+                label(|| "".to_string()).style(move || {
                     let config = config.get_untracked();
                     let line_height = config.editor.line_height();
 
@@ -602,25 +590,22 @@ fn editor_cursor(
                 })
             },
         )
-        .style(cx, move || Style::BASE.size_pct(100.0, 100.0))
+        .style(move || Style::BASE.size_pct(100.0, 100.0))
     })
-    .style(cx, move || Style::BASE.absolute().size_pct(100.0, 100.0))
+    .style(move || Style::BASE.absolute().size_pct(100.0, 100.0))
 }
 
 fn editor_breadcrumbs(
-    cx: AppContext,
     workspace: Arc<LapceWorkspace>,
     editor: RwSignal<EditorData>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    stack(cx, move |cx| {
+    stack(move || {
         (
-            label(cx, || " ".to_string())
-                .style(cx, || Style::BASE.margin_vert_px(5.0)),
-            scroll(cx, move |cx| {
+            label(|| " ".to_string()).style(|| Style::BASE.margin_vert_px(5.0)),
+            scroll(move || {
                 let workspace = workspace.clone();
                 list(
-                    cx,
                     move || {
                         let doc = editor.with(|editor| editor.doc);
                         let full_path = doc
@@ -646,41 +631,38 @@ fn editor_breadcrumbs(
                             .enumerate()
                     },
                     |(i, section)| (*i, section.to_string()),
-                    move |cx, (i, section)| {
-                        stack(cx, move |cx| {
+                    move |(i, section)| {
+                        stack(move || {
                             (
-                                svg(cx, move || {
+                                svg(move || {
                                     config
                                         .get()
                                         .ui_svg(LapceIcons::BREADCRUMB_SEPARATOR)
                                 })
-                                .style(
-                                    cx,
-                                    move || {
-                                        let config = config.get();
-                                        let size = config.ui.icon_size() as f32;
-                                        Style::BASE
-                                            .apply_if(i == 0, |s| s.hide())
-                                            .size_px(size, size)
-                                            .color(*config.get_color(
-                                                LapceColor::LAPCE_ICON_ACTIVE,
-                                            ))
-                                    },
-                                ),
-                                label(cx, move || section.clone()),
+                                .style(move || {
+                                    let config = config.get();
+                                    let size = config.ui.icon_size() as f32;
+                                    Style::BASE
+                                        .apply_if(i == 0, |s| s.hide())
+                                        .size_px(size, size)
+                                        .color(*config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ))
+                                }),
+                                label(move || section.clone()),
                             )
                         })
-                        .style(cx, || Style::BASE.items_center())
+                        .style(|| Style::BASE.items_center())
                     },
                 )
-                .style(cx, || Style::BASE.padding_horiz_px(10.0))
+                .style(|| Style::BASE.padding_horiz_px(10.0))
             })
-            .on_scroll_to(cx, move || {
+            .on_scroll_to(move || {
                 editor.with(|_editor| ());
                 Some(Point::new(3000.0, 0.0))
             })
-            .hide_bar(cx, || true)
-            .style(cx, move || {
+            .hide_bar(|| true)
+            .style(move || {
                 Style::BASE
                     .absolute()
                     .size_pct(100.0, 100.0)
@@ -690,14 +672,14 @@ fn editor_breadcrumbs(
             }),
         )
     })
-    .style(cx, move || {
+    .style(move || {
         let config = config.get_untracked();
         let line_height = config.editor.line_height();
         Style::BASE.items_center().height_px(line_height as f32)
     })
 }
 
-fn editor_content(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
+fn editor_content(editor: RwSignal<EditorData>) -> impl View {
     let (cursor, scroll_delta, scroll_to, window_origin, viewport, config) = editor
         .with_untracked(|editor| {
             (
@@ -720,34 +702,33 @@ fn editor_content(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
             line.line,
         )
     };
-    let view_fn = move |cx, line: DocLine| {
+    let view_fn = move |line: DocLine| {
         let extra_styles = line.text.extra_style.clone();
-        stack(cx, |cx| {
+        stack(|| {
             (
-                editor_extra_style(cx, extra_styles, config),
-                rich_text(cx, move || line.text.clone().text.clone()),
+                editor_extra_style(extra_styles, config),
+                rich_text(move || line.text.clone().text.clone()),
             )
         })
-        .style(cx, move || {
+        .style(move || {
             let config = config.get_untracked();
             let line_height = config.editor.line_height();
             Style::BASE.items_center().height_px(line_height as f32)
         })
     };
 
-    scroll(cx, |cx| {
+    scroll(|| {
         let focus = editor.with_untracked(|e| e.common.focus);
-        container(cx, |cx| {
+        container(|| {
             let line_height = config.get_untracked().editor.line_height();
             virtual_list(
-                cx,
                 VirtualListDirection::Vertical,
                 VirtualListItemSize::Fixed(line_height as f64),
                 move || editor.get().doc.get(),
                 key_fn,
                 view_fn,
             )
-            .style(cx, move || {
+            .style(move || {
                 let config = config.get();
                 let padding_bottom = if config.editor.scroll_beyond_last_line {
                     viewport.get().height() as f32
@@ -766,20 +747,18 @@ fn editor_content(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
             focus.set(Focus::Workbench);
             true
         })
-        .style(cx, || Style::BASE.min_size_pct(100.0, 100.0))
+        .style(|| Style::BASE.min_size_pct(100.0, 100.0))
     })
-    .scroll_bar_color(cx, move || {
-        *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-    })
+    .scroll_bar_color(move || *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR))
     .on_resize(move |point, _rect| {
         window_origin.set(point);
     })
     .onscroll(move |rect| {
         viewport.set(rect);
     })
-    .on_scroll_to(cx, move || scroll_to.get().map(|s| s.to_point()))
-    .on_scroll_delta(cx, move || scroll_delta.get())
-    .on_ensure_visible(cx, move || {
+    .on_scroll_to(move || scroll_to.get().map(|s| s.to_point()))
+    .on_scroll_delta(move || scroll_delta.get())
+    .on_ensure_visible(move || {
         let cursor = cursor.get();
         let offset = cursor.offset();
         let editor = editor.get_untracked();
@@ -819,23 +798,21 @@ fn editor_content(cx: AppContext, editor: RwSignal<EditorData>) -> impl View {
             Rect::ZERO
         }
     })
-    .style(cx, || Style::BASE.absolute().size_pct(100.0, 100.0))
+    .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
 }
 
 fn editor_extra_style(
-    cx: AppContext,
     extra_styles: Vec<LineExtraStyle>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     list(
-        cx,
         move || extra_styles.clone(),
         |_| 0,
-        move |cx, extra| {
-            container(cx, |cx| {
-                stack(cx, |cx| {
+        move |extra| {
+            container(|| {
+                stack(|| {
                     (
-                        label(cx, || " ".to_string()).style(cx, move || {
+                        label(|| " ".to_string()).style(move || {
                             let config = config.get();
                             Style::BASE
                                 .font_family(config.editor.font_family.clone())
@@ -843,7 +820,7 @@ fn editor_extra_style(
                                 .width_pct(100.0)
                                 .apply_opt(extra.bg_color, Style::background)
                         }),
-                        wave_line(cx).style(cx, move || {
+                        wave_line().style(move || {
                             Style::BASE
                                 .absolute()
                                 .size_pct(100.0, 100.0)
@@ -851,9 +828,9 @@ fn editor_extra_style(
                         }),
                     )
                 })
-                .style(cx, || Style::BASE.width_pct(100.0))
+                .style(|| Style::BASE.width_pct(100.0))
             })
-            .style(cx, move || {
+            .style(move || {
                 let line_height = config.get().editor.line_height();
                 Style::BASE
                     .absolute()
@@ -869,5 +846,5 @@ fn editor_extra_style(
             })
         },
     )
-    .style(cx, || Style::BASE.absolute().size_pct(100.0, 100.0))
+    .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
 }

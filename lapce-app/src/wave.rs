@@ -5,7 +5,8 @@ use floem::{
     AppContext, Renderer,
 };
 
-pub fn wave_line(cx: AppContext) -> WaveLine {
+pub fn wave_line() -> WaveLine {
+    let cx = AppContext::get_current();
     let id = cx.new_id();
     WaveLine { id }
 }
@@ -21,6 +22,10 @@ impl View for WaveLine {
 
     fn child(&mut self, _id: floem::id::Id) -> Option<&mut dyn View> {
         None
+    }
+
+    fn children(&mut self) -> Vec<&mut dyn View> {
+        Vec::new()
     }
 
     fn update(
