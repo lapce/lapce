@@ -3,7 +3,7 @@ use std::{path::PathBuf, sync::Arc};
 use floem::{
     peniko::Color,
     reactive::{ReadSignal, SignalGet},
-    style::Style,
+    style::{CursorStyle, Style},
     view::View,
     views::{
         container, container_box, label, scroll, stack, svg, virtual_list,
@@ -162,7 +162,7 @@ fn file_node_view(
                             )
                         })
                         .on_click(move |_| {
-                            file_node.toggle_expand(&proxy);
+                            file_node.click(&proxy);
                             true
                         })
                         .style(move || {
@@ -170,6 +170,16 @@ fn file_node_view(
                                 .items_center()
                                 .padding_right_px(10.0)
                                 .padding_left_px((level * 10) as f32)
+                                .min_width_pct(100.0)
+                        })
+                        .hover_style(move || {
+                            Style::BASE
+                                .background(
+                                    *config.get().get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
+                                )
+                                .cursor(CursorStyle::Pointer)
                         })
                     },
                     container_box(move || {
@@ -182,8 +192,8 @@ fn file_node_view(
                     }),
                 )
             })
-            .style(|| Style::BASE.flex_col())
+            .style(|| Style::BASE.flex_col().min_width_pct(100.0))
         },
     )
-    .style(|| Style::BASE.flex_col())
+    .style(|| Style::BASE.flex_col().min_width_pct(100.0))
 }

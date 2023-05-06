@@ -48,6 +48,7 @@ impl FileExplorerData {
             children_open_count: create_rw_signal(cx, 0),
             all_files,
             line_height,
+            internal_command: common.internal_command,
         };
         all_files.update(|all_files| {
             all_files.insert(path, root.clone());
