@@ -195,7 +195,6 @@ pub struct DocLine {
     pub style_rev: u64,
     pub line: usize,
     pub text: Arc<TextLayoutLine>,
-    pub code_actions: Option<Arc<(PluginId, CodeActionResponse)>>,
 }
 
 impl VirtualListVector<DocLine> for Document {
@@ -213,7 +212,6 @@ impl VirtualListVector<DocLine> for Document {
                 style_rev: self.style_rev,
                 line,
                 text: self.get_text_layout(line, 12),
-                code_actions: self.code_actions.get(&line).cloned(),
             })
             .collect::<Vec<_>>();
         lines.into_iter()
