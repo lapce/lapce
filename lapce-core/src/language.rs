@@ -960,7 +960,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         indent: "    ",
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
-        extensions: &["xml"],
+        extensions: &["xml", "csproj"],
     },
     #[cfg(feature = "lang-yaml")]
     SyntaxProperties {
