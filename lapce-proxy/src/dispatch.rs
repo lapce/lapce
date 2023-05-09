@@ -1189,7 +1189,11 @@ fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)>
 fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String> {
     let repo = Repository::discover(workspace_path)?;
     let head = repo.head()?;
-    let target_remote = repo.find_remote("origin")?;
+    let target_remote = repo.find_remote(
+        repo.branch_upstream_remote(head.name().unwrap())?
+            .as_str()
+            .unwrap(),
+    )?;
 
     // Grab URL part of remote
     let remote = target_remote
