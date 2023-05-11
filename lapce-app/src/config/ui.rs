@@ -44,7 +44,7 @@ pub struct UIConfig {
     hover_font_size: usize,
 
     #[field_names(desc = "Trim whitespace from search results")]
-    trim_search_results_whitespace: bool,
+    pub trim_search_results_whitespace: bool,
 
     #[field_names(desc = "Set the line height for list items")]
     list_line_height: usize,

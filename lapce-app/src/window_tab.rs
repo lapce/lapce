@@ -849,6 +849,10 @@ impl WindowTabData {
                 self.terminal.key_down(cx, key_event, &mut keypress);
                 true
             }
+            Focus::Panel(PanelKind::Search) => {
+                keypress.key_down(cx, key_event, &self.global_search);
+                true
+            }
             _ => false,
         };
 

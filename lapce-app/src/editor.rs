@@ -139,9 +139,10 @@ impl EditorData {
         doc: RwSignal<Document>,
         common: CommonData,
     ) -> Self {
+        let is_local = doc.with_untracked(|doc| doc.content.is_local());
         let modal = common.config.with_untracked(|c| c.core.modal);
         let cursor = Cursor::new(
-            if modal {
+            if modal && !is_local {
                 CursorMode::Normal(0)
             } else {
                 CursorMode::Insert(Selection::caret(0))

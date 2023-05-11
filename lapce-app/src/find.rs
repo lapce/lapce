@@ -1,7 +1,7 @@
 use std::cmp::{max, min};
 
 use floem::reactive::{
-    create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet,
+    create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
     SignalWithUntracked,
 };
 use lapce_core::{
@@ -577,8 +577,12 @@ impl NewFind {
     }
 
     /// Returns `true` if case sensitive, otherwise `false`
-    pub fn case_sensitive(&self) -> bool {
-        match self.case_matching.get_untracked() {
+    pub fn case_sensitive(&self, tracked: bool) -> bool {
+        match if tracked {
+            self.case_matching.get()
+        } else {
+            self.case_matching.get_untracked()
+        } {
             CaseMatching::Exact => true,
             CaseMatching::CaseInsensitive => false,
         }
@@ -586,7 +590,7 @@ impl NewFind {
 
     /// Sets find case sensitivity.
     pub fn set_case_sensitive(&self, case_sensitive: bool) {
-        if self.case_sensitive() == case_sensitive {
+        if self.case_sensitive(false) == case_sensitive {
             return;
         }
 
@@ -629,7 +633,7 @@ impl NewFind {
             false => None,
             true => RegexBuilder::new(search_string)
                 .size_limit(REGEX_SIZE_LIMIT)
-                .case_insensitive(!self.case_sensitive())
+                .case_insensitive(!self.case_sensitive(false))
                 .build()
                 .ok(),
         };

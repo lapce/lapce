@@ -479,7 +479,7 @@ impl Document {
                             (first.min(), first.max())
                         };
                         let search_str = self.buffer.slice_to_cow(start..end);
-                        let case_sensitive = self.find.case_sensitive();
+                        let case_sensitive = self.find.case_sensitive(false);
                         let config = self.config.get_untracked();
                         let multicursor_case_sensitive =
                             config.editor.multicursor_case_sensitive;
@@ -517,7 +517,7 @@ impl Document {
                             let r = selection.last_inserted().unwrap();
                             let search_str =
                                 self.buffer.slice_to_cow(r.min()..r.max());
-                            let case_sensitive = self.find.case_sensitive();
+                            let case_sensitive = self.find.case_sensitive(false);
                             let config = self.config.get_untracked();
                             let case_sensitive =
                                 config.editor.multicursor_case_sensitive

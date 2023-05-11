@@ -17,6 +17,7 @@ use crate::{
 
 use super::{
     debug_view::debug_panel,
+    global_search_view::global_search_panel,
     kind::PanelKind,
     position::{PanelContainerPosition, PanelPosition},
     problem_view::problem_panel,
@@ -103,7 +104,9 @@ fn panel_view(
                     container_box(|| Box::new(blank_panel()))
                 }
                 PanelKind::Plugin => container_box(|| Box::new(blank_panel())),
-                PanelKind::Search => container_box(|| Box::new(blank_panel())),
+                PanelKind::Search => container_box(|| {
+                    Box::new(global_search_panel(window_tab_data.clone(), position))
+                }),
                 PanelKind::Problem => container_box(|| {
                     Box::new(problem_panel(window_tab_data.clone(), position))
                 }),
