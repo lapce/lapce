@@ -81,188 +81,198 @@ fn search_result(
     internal_command: RwSignal<Option<InternalCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    scroll(move || {
-        list(
-            move || result.get(),
-            move |(path, _)| path.to_owned(),
-            move |(path, match_data)| {
-                let full_path = path.clone();
-                let path = if let Some(workspace_path) = workspace.path.as_ref() {
-                    path.strip_prefix(workspace_path)
-                        .unwrap_or(&full_path)
-                        .to_path_buf()
-                } else {
-                    path
-                };
-                let style_path = path.clone();
+    container(|| {
+        scroll(move || {
+            list(
+                move || result.get(),
+                move |(path, _)| path.to_owned(),
+                move |(path, match_data)| {
+                    let full_path = path.clone();
+                    let path = if let Some(workspace_path) = workspace.path.as_ref()
+                    {
+                        path.strip_prefix(workspace_path)
+                            .unwrap_or(&full_path)
+                            .to_path_buf()
+                    } else {
+                        path
+                    };
+                    let style_path = path.clone();
 
-                let file_name = path
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_string();
+                    let file_name = path
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("")
+                        .to_string();
 
-                let folder = path
-                    .parent()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_string();
+                    let folder = path
+                        .parent()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("")
+                        .to_string();
 
-                let expanded = match_data.expanded;
+                    let expanded = match_data.expanded;
 
-                stack(|| {
-                    (
-                        stack(|| {
-                            (
-                                svg(move || {
-                                    config.get().ui_svg(if expanded.get() {
-                                        LapceIcons::ITEM_OPENED
-                                    } else {
-                                        LapceIcons::ITEM_CLOSED
+                    stack(|| {
+                        (
+                            stack(|| {
+                                (
+                                    svg(move || {
+                                        config.get().ui_svg(if expanded.get() {
+                                            LapceIcons::ITEM_OPENED
+                                        } else {
+                                            LapceIcons::ITEM_CLOSED
+                                        })
                                     })
-                                })
-                                .style(move || {
-                                    let config = config.get();
-                                    let size = config.ui.icon_size() as f32;
-                                    Style::BASE
-                                        .margin_left_px(10.0)
-                                        .margin_right_px(6.0)
-                                        .size_px(size, size)
-                                        .min_size_px(size, size)
-                                        .color(*config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ))
-                                }),
-                                svg(move || config.get().file_svg(&path).0).style(
-                                    move || {
-                                        let config = config.get();
-                                        let size = config.ui.icon_size() as f32;
-                                        let color =
-                                            config.file_svg(&style_path).1.copied();
-                                        Style::BASE
-                                            .margin_right_px(6.0)
-                                            .size_px(size, size)
-                                            .min_size_px(size, size)
-                                            .apply_opt(color, Style::color)
-                                    },
-                                ),
-                                stack(|| {
-                                    (
-                                        label(move || file_name.clone()).style(
-                                            || {
-                                                Style::BASE
-                                                    .margin_right_px(6.0)
-                                                    .max_width_pct(100.0)
-                                                    .text_ellipsis()
-                                            },
-                                        ),
-                                        label(move || folder.clone()).style(
-                                            move || {
-                                                Style::BASE
+                                    .style(
+                                        move || {
+                                            let config = config.get();
+                                            let size = config.ui.icon_size() as f32;
+                                            Style::BASE
+                                                .margin_left_px(10.0)
+                                                .margin_right_px(6.0)
+                                                .size_px(size, size)
+                                                .min_size_px(size, size)
+                                                .color(*config.get_color(
+                                                    LapceColor::LAPCE_ICON_ACTIVE,
+                                                ))
+                                        },
+                                    ),
+                                    svg(move || config.get().file_svg(&path).0)
+                                        .style(move || {
+                                            let config = config.get();
+                                            let size = config.ui.icon_size() as f32;
+                                            let color = config
+                                                .file_svg(&style_path)
+                                                .1
+                                                .copied();
+                                            Style::BASE
+                                                .margin_right_px(6.0)
+                                                .size_px(size, size)
+                                                .min_size_px(size, size)
+                                                .apply_opt(color, Style::color)
+                                        }),
+                                    stack(|| {
+                                        (
+                                            label(move || file_name.clone()).style(
+                                                || {
+                                                    Style::BASE
+                                                        .margin_right_px(6.0)
+                                                        .max_width_pct(100.0)
+                                                        .text_ellipsis()
+                                                },
+                                            ),
+                                            label(move || folder.clone()).style(
+                                                move || {
+                                                    Style::BASE
                                                     .color(*config.get().get_color(
                                                         LapceColor::EDITOR_DIM,
                                                     ))
                                                     .min_width_px(0.0)
                                                     .text_ellipsis()
-                                            },
-                                        ),
-                                    )
-                                })
-                                .style(move || {
-                                    Style::BASE.min_width_px(0.0).items_center()
-                                }),
-                            )
-                        })
-                        .on_click(move |_| {
-                            expanded.update(|expanded| *expanded = !*expanded);
-                            true
-                        })
-                        .style(move || {
-                            Style::BASE
-                                .width_pct(100.0)
-                                .min_width_pct(100.0)
-                                .items_center()
-                        })
-                        .hover_style(move || {
-                            Style::BASE.cursor(CursorStyle::Pointer).background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
-                        }),
-                        list(
-                            move || {
-                                if expanded.get() {
-                                    match_data.matches.get()
-                                } else {
-                                    im::Vector::new()
-                                }
-                            },
-                            |m| m.line,
-                            move |m| {
-                                let path = full_path.clone();
-                                let line_number = m.line;
-                                stack(|| {
-                                    (label(move || {
-                                        let config = config.get();
-                                        let content = if config
-                                            .ui
-                                            .trim_search_results_whitespace
-                                        {
-                                            m.line_content.trim()
-                                        } else {
-                                            &m.line_content
-                                        };
-                                        format!("{}: {content}", m.line + 1,)
+                                                },
+                                            ),
+                                        )
                                     })
                                     .style(
                                         move || {
+                                            Style::BASE
+                                                .min_width_px(0.0)
+                                                .items_center()
+                                        },
+                                    ),
+                                )
+                            })
+                            .on_click(move |_| {
+                                expanded.update(|expanded| *expanded = !*expanded);
+                                true
+                            })
+                            .style(move || {
+                                Style::BASE
+                                    .width_pct(100.0)
+                                    .min_width_pct(100.0)
+                                    .items_center()
+                            })
+                            .hover_style(move || {
+                                Style::BASE.cursor(CursorStyle::Pointer).background(
+                                    *config.get().get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
+                                )
+                            }),
+                            list(
+                                move || {
+                                    if expanded.get() {
+                                        match_data.matches.get()
+                                    } else {
+                                        im::Vector::new()
+                                    }
+                                },
+                                |m| m.line,
+                                move |m| {
+                                    let path = full_path.clone();
+                                    let line_number = m.line;
+                                    stack(|| {
+                                        (label(move || {
+                                            let config = config.get();
+                                            let content = if config
+                                                .ui
+                                                .trim_search_results_whitespace
+                                            {
+                                                m.line_content.trim()
+                                            } else {
+                                                &m.line_content
+                                            };
+                                            format!("{}: {content}", m.line,)
+                                        })
+                                        .style(move || {
                                             let config = config.get();
                                             let icon_size =
                                                 config.ui.icon_size() as f32;
                                             Style::BASE.margin_left_px(
                                                 10.0 + icon_size + 6.0,
                                             )
-                                        },
-                                    ),)
-                                })
-                                .on_click(move |_| {
-                                    internal_command.set(Some(
-                                        InternalCommand::JumpToLocation {
-                                            location: EditorLocation {
-                                                path: path.clone(),
-                                                position: Some(
-                                                    EditorPosition::Line(
-                                                        line_number,
+                                        }),)
+                                    })
+                                    .on_click(move |_| {
+                                        internal_command.set(Some(
+                                            InternalCommand::JumpToLocation {
+                                                location: EditorLocation {
+                                                    path: path.clone(),
+                                                    position: Some(
+                                                        EditorPosition::Line(
+                                                            line_number
+                                                                .saturating_sub(1),
+                                                        ),
                                                     ),
-                                                ),
-                                                scroll_offset: None,
-                                                ignore_unconfirmed: false,
-                                                same_editor_tab: false,
+                                                    scroll_offset: None,
+                                                    ignore_unconfirmed: false,
+                                                    same_editor_tab: false,
+                                                },
                                             },
-                                        },
-                                    ));
-                                    true
-                                })
-                                .hover_style(
-                                    move || {
+                                        ));
+                                        true
+                                    })
+                                    .hover_style(move || {
                                         Style::BASE
                                             .cursor(CursorStyle::Pointer)
                                             .background(*config.get().get_color(
                                                 LapceColor::PANEL_HOVERED_BACKGROUND,
                                             ))
-                                    },
-                                )
-                            },
+                                    })
+                                },
+                            )
+                            .style(|| Style::BASE.flex_col()),
                         )
-                        .style(|| Style::BASE.flex_col()),
-                    )
-                })
-                .style(|| Style::BASE.flex_col())
-            },
-        )
-        .style(|| Style::BASE.flex_col().min_width_pct(100.0).line_height(1.6))
+                    })
+                    .style(|| Style::BASE.flex_col())
+                },
+            )
+            .style(|| Style::BASE.flex_col().min_width_pct(100.0).line_height(1.6))
+        })
+        .scroll_bar_color(move || {
+            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
+        })
+        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
     })
-    .scroll_bar_color(move || *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR))
     .style(|| Style::BASE.size_pct(100.0, 100.0))
 }

@@ -357,7 +357,6 @@ impl WindowTabData {
             EnableModal => {}
             DisableModal => {}
             OpenFolder => {
-                println!("open folder");
                 if !self.workspace.kind.is_remote() {
                     let window_command = self.common.window_command;
                     let options = FileDialogOptions::new().select_directories();
