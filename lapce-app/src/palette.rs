@@ -1082,17 +1082,15 @@ impl KeyPressFocus for PaletteData {
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}
-            CommandKind::Edit(_) => {
-                self.input_editor.run_command(cx, command, count, mods);
-            }
-            CommandKind::Move(_) => {
-                self.input_editor.run_command(cx, command, count, mods);
-            }
             CommandKind::Focus(cmd) => {
                 self.run_focus_command(cx, cmd);
             }
+            CommandKind::Edit(_)
+            | CommandKind::Move(_)
+            | CommandKind::MultiSelection(_) => {
+                self.input_editor.run_command(cx, command, count, mods);
+            }
             CommandKind::MotionMode(_) => {}
-            CommandKind::MultiSelection(_) => {}
         }
         CommandExecuted::Yes
     }

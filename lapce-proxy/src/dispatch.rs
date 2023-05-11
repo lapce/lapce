@@ -23,7 +23,7 @@ use lapce_rpc::{
     file::FileNodeItem,
     proxy::{
         ProxyHandler, ProxyNotification, ProxyRequest, ProxyResponse,
-        ProxyRpcHandler,
+        ProxyRpcHandler, SearchMatch,
     },
     source_control::{DiffInfo, FileDiff},
     style::{LineStyle, SemanticStyles},
@@ -1334,11 +1334,12 @@ fn search_in_path(
                     } else {
                         line.to_string()
                     };
-                    line_matches.push((
-                        lnum as usize,
-                        (mymatch.start(), mymatch.end()),
-                        line,
-                    ));
+                    line_matches.push(SearchMatch {
+                        line: lnum as usize,
+                        start: mymatch.start(),
+                        end: mymatch.end(),
+                        line_content: line,
+                    });
                     Ok(true)
                 }),
             );

@@ -859,14 +859,14 @@ impl LapceTab {
                                         },
                                     ) = result
                                     {
-                                        let _ = event_sink.submit_command(
-                                            LAPCE_UI_COMMAND,
-                                            LapceUICommand::GlobalSearchResult(
-                                                pattern,
-                                                Arc::new(matches),
-                                            ),
-                                            Target::Widget(tab_id),
-                                        );
+                                        // let _ = event_sink.submit_command(
+                                        //     LAPCE_UI_COMMAND,
+                                        //     LapceUICommand::GlobalSearchResult(
+                                        //         pattern,
+                                        //         Arc::new(matches),
+                                        //     ),
+                                        //     Target::Widget(tab_id),
+                                        // );
                                     }
                                 }),
                             )

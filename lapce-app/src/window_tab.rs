@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Instant};
 
 use crossbeam_channel::Sender;
 use floem::{
-    ext_event::{create_signal_from_channel, open_file_dialog},
+    ext_event::create_signal_from_channel,
     glazier::{FileDialogOptions, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
@@ -33,6 +33,8 @@ use crate::{
     doc::EditorDiagnostic,
     editor::location::EditorLocation,
     file_explorer::data::FileExplorerData,
+    find::NewFind,
+    global_search::GlobalSearchData,
     id::WindowTabId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     main_split::{MainSplitData, SplitData, SplitDirection},
@@ -42,6 +44,7 @@ use crate::{
         kind::PanelKind,
     },
     proxy::{path_from_url, start_proxy, ProxyData},
+    rename::RenameData,
     source_control::SourceControlData,
     terminal::{
         event::{terminal_update_process, TermEvent, TermNotification},
@@ -55,15 +58,18 @@ pub enum Focus {
     Workbench,
     Palette,
     CodeAction,
+    Rename,
     Panel(PanelKind),
 }
 
 #[derive(Clone)]
 pub struct CommonData {
     pub workspace: Arc<LapceWorkspace>,
+    pub scope: Scope,
     pub focus: RwSignal<Focus>,
     pub completion: RwSignal<CompletionData>,
     pub register: RwSignal<Register>,
+    pub find: NewFind,
     pub window_command: WriteSignal<Option<WindowCommand>>,
     pub internal_command: RwSignal<Option<InternalCommand>>,
     pub lapce_command: RwSignal<Option<LapceCommand>>,
@@ -71,6 +77,7 @@ pub struct CommonData {
     pub term_tx: Sender<(TermId, TermEvent)>,
     pub term_notification_tx: Sender<TermNotification>,
     pub proxy: ProxyRpcHandler,
+    pub view_id: RwSignal<floem::id::Id>,
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
 
@@ -86,6 +93,8 @@ pub struct WindowTabData {
     pub terminal: TerminalPanelData,
     pub code_action: RwSignal<CodeActionData>,
     pub source_control: RwSignal<SourceControlData>,
+    pub rename: RenameData,
+    pub global_search: GlobalSearchData,
     pub keypress: RwSignal<KeyPressData>,
     pub window_origin: RwSignal<Point>,
     pub layout_rect: RwSignal<Rect>,
@@ -177,12 +186,16 @@ impl WindowTabData {
         let completion = create_rw_signal(cx, CompletionData::new(cx, config));
 
         let register = create_rw_signal(cx, Register::default());
+        let view_id = create_rw_signal(cx, floem::id::Id::next());
+        let find = NewFind::new(cx);
 
         let common = CommonData {
             workspace: workspace.clone(),
+            scope: cx,
             focus,
             completion,
             register,
+            find,
             window_command,
             internal_command,
             lapce_command,
@@ -190,6 +203,7 @@ impl WindowTabData {
             term_tx,
             term_notification_tx,
             proxy: proxy.rpc.clone(),
+            view_id,
             config,
         };
 
@@ -234,6 +248,9 @@ impl WindowTabData {
         let terminal =
             TerminalPanelData::new(cx, workspace.clone(), None, common.clone());
 
+        let rename = RenameData::new(cx, common.clone());
+        let global_search = GlobalSearchData::new(cx, common.clone());
+
         {
             let notification = create_signal_from_channel(cx, term_notification_rx);
             let terminal = terminal.clone();
@@ -245,7 +262,7 @@ impl WindowTabData {
                                 terminal.set_title(term_id, title);
                             }
                             TermNotification::RequestPaint => {
-                                AppContext::request_paint();
+                                view_id.get_untracked().request_paint();
                             }
                         }
                     }
@@ -264,6 +281,8 @@ impl WindowTabData {
             file_explorer,
             code_action,
             source_control,
+            rename,
+            global_search,
             keypress,
             window_origin: create_rw_signal(cx, Point::ZERO),
             layout_rect: create_rw_signal(cx, Rect::ZERO),
@@ -342,21 +361,24 @@ impl WindowTabData {
                 if !self.workspace.kind.is_remote() {
                     let window_command = self.common.window_command;
                     let options = FileDialogOptions::new().select_directories();
-                    open_file_dialog(options, move |file| {
-                        if let Some(file) = file {
-                            let workspace = LapceWorkspace {
-                                kind: LapceWorkspaceType::Local,
-                                path: Some(file.path),
-                                last_open: std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap()
-                                    .as_secs(),
-                            };
-                            window_command.set(Some(WindowCommand::SetWorkspace {
-                                workspace,
-                            }));
-                        }
-                    });
+                    self.common.view_id.get_untracked().open_file(
+                        options,
+                        move |file| {
+                            if let Some(file) = file {
+                                let workspace = LapceWorkspace {
+                                    kind: LapceWorkspaceType::Local,
+                                    path: Some(file.path),
+                                    last_open: std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_secs(),
+                                };
+                                window_command.set(Some(
+                                    WindowCommand::SetWorkspace { workspace },
+                                ));
+                            }
+                        },
+                    );
                 }
             }
             CloseFolder => {}
@@ -662,6 +684,9 @@ impl WindowTabData {
             InternalCommand::RunCodeAction { plugin_id, action } => {
                 self.main_split.run_code_action(cx, plugin_id, action);
             }
+            InternalCommand::ApplyWorkspaceEdit { edit } => {
+                self.main_split.apply_workspace_edit(cx, &edit);
+            }
             InternalCommand::SaveJumpLocation {
                 path,
                 offset,
@@ -684,6 +709,14 @@ impl WindowTabData {
             }
             InternalCommand::RunAndDebug { mode, config } => {
                 self.run_and_debug(cx, &mode, &config);
+            }
+            InternalCommand::StartRename {
+                path,
+                placeholder,
+                position,
+                start,
+            } => {
+                self.rename.start(path, placeholder, start, position);
             }
         }
     }
@@ -808,6 +841,10 @@ impl WindowTabData {
                 keypress.key_down(cx, key_event, &code_action);
                 true
             }
+            Focus::Rename => {
+                keypress.key_down(cx, key_event, &self.rename);
+                true
+            }
             Focus::Panel(PanelKind::Terminal) => {
                 self.terminal.key_down(cx, key_event, &mut keypress);
                 true
@@ -925,6 +962,49 @@ impl WindowTabData {
         }
         if origin.x + code_action_size.width + 1.0 > tab_size.width {
             origin.x = tab_size.width - code_action_size.width - 1.0;
+        }
+        if origin.x <= 0.0 {
+            origin.x = 0.0;
+        }
+
+        origin
+    }
+
+    pub fn rename_origin(&self) -> Point {
+        let config = self.common.config.get();
+        if !self.rename.active.get() {
+            return Point::ZERO;
+        }
+
+        let tab_size = self.layout_rect.get().size();
+        let rename_size = self.rename.layout_rect.get().size();
+
+        let editor =
+            if let Some(editor) = self.main_split.active_editor.get_untracked() {
+                editor
+            } else {
+                return Point::ZERO;
+            };
+
+        let (window_origin, viewport, doc) =
+            editor.with_untracked(|e| (e.window_origin, e.viewport, e.doc));
+
+        let (_point_above, point_below) = doc.with_untracked(|doc| {
+            doc.points_of_offset(self.rename.start.get_untracked())
+        });
+
+        let window_origin = window_origin.get() - self.window_origin.get().to_vec2();
+        let viewport = viewport.get();
+
+        let mut origin = window_origin
+            + Vec2::new(point_below.x - viewport.x0, point_below.y - viewport.y0);
+
+        if origin.y + rename_size.height > tab_size.height {
+            origin.y =
+                origin.y - config.editor.line_height() as f64 - rename_size.height;
+        }
+        if origin.x + rename_size.width + 1.0 > tab_size.width {
+            origin.x = tab_size.width - rename_size.width - 1.0;
         }
         if origin.x <= 0.0 {
             origin.x = 0.0;

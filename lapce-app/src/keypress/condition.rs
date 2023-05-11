@@ -55,6 +55,10 @@ pub enum Condition {
     TerminalFocus,
     #[strum(serialize = "panel_focus")]
     PanelFocus,
+    #[strum(serialize = "rename_focus")]
+    RenameFocus,
+    #[strum(serialize = "search_active")]
+    SearchActive,
 }
 
 #[cfg(test)]

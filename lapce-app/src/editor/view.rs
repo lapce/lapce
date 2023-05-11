@@ -5,8 +5,8 @@ use floem::{
     glazier::PointerType,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
-        create_memo, ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
-        SignalWith, SignalWithUntracked,
+        create_effect, create_memo, ReadSignal, RwSignal, SignalGet,
+        SignalGetUntracked, SignalSet, SignalWith, SignalWithUntracked,
     },
     style::{CursorStyle, Dimension, Style},
     view::View,
@@ -507,6 +507,101 @@ fn editor_cursor(
     is_active: impl Fn() -> bool + 'static,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
+    {
+        let cx = AppContext::get_current();
+        create_effect(cx.scope, move |_| {
+            let (doc, find) = editor.with(|e| (e.doc, e.common.find.clone()));
+            if !find.visual.get() {
+                return;
+            }
+            find.search_string.with(|_| ());
+            find.case_matching.with(|_| ());
+            find.whole_words.with(|_| ());
+            let viewport = viewport.get();
+            let config = config.get();
+            let line_height = config.editor.line_height() as f64;
+            let min_line = (viewport.y0 / line_height).floor() as usize;
+            let max_line = (viewport.y1 / line_height).ceil() as usize;
+            doc.with_untracked(|doc| {
+                doc.update_find(min_line, max_line);
+            });
+        });
+    }
+
+    let search_rects = move || {
+        let visual = editor.with_untracked(|e| e.common.find.visual);
+        if !visual.get() {
+            return Vec::new();
+        }
+
+        let doc = editor.with(|e| e.doc);
+        let occurrences = doc.with_untracked(|doc| doc.find_result.occurrences);
+
+        let viewport = viewport.get();
+        let config = config.get();
+        let line_height = config.editor.line_height() as f64;
+
+        let min_line = (viewport.y0 / line_height).floor() as usize;
+        let max_line = (viewport.y1 / line_height).ceil() as usize;
+        let (start, end) = doc.with_untracked(|doc| {
+            let start = doc.buffer().offset_of_line(min_line);
+            let end = doc.buffer().offset_of_line(max_line + 1);
+            (start, end)
+        });
+        let mut rects = Vec::new();
+        for region in occurrences
+            .with(|selection| selection.regions_in_range(start, end).to_vec())
+        {
+            doc.with_untracked(|doc| {
+                let start = region.min();
+                let end = region.max();
+                let (start_line, start_col) = doc.buffer().offset_to_line_col(start);
+                let (end_line, end_col) = doc.buffer().offset_to_line_col(end);
+                for line in min_line..max_line + 1 {
+                    if line < start_line {
+                        continue;
+                    }
+
+                    if line > end_line {
+                        break;
+                    }
+
+                    let left_col = match line {
+                        _ if line == start_line => start_col,
+                        _ => 0,
+                    };
+                    let (right_col, line_end) = match line {
+                        _ if line == end_line => {
+                            let max_col = doc.buffer().line_end_col(line, true);
+                            (end_col.min(max_col), false)
+                        }
+                        _ => (doc.buffer().line_end_col(line, true), true),
+                    };
+
+                    // Shift it by the inlay hints
+                    let phantom_text = doc.line_phantom_text(line);
+                    let left_col = phantom_text.col_after(left_col, false);
+                    let right_col = phantom_text.col_after(right_col, false);
+
+                    let x0 = doc.line_point_of_line_col(line, left_col, 12).x;
+                    let x1 = doc.line_point_of_line_col(line, right_col, 12).x;
+
+                    if start != end {
+                        rects.push(
+                            Size::new(x1 - x0, line_height).to_rect().with_origin(
+                                Point::new(
+                                    x0 - viewport.x0,
+                                    line_height * line as f64 - viewport.y0,
+                                ),
+                            ),
+                        );
+                    }
+                }
+            })
+        }
+        rects
+    };
+
     let cursor = move || {
         let viewport = viewport.get();
         let config = config.get();
@@ -545,52 +640,88 @@ fn editor_cursor(
             })
         })
     };
+
     let id = AtomicU64::new(0);
     clip(|| {
-        list(
-            cursor,
-            move |(_viewport, _cursor)| {
-                id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-            },
-            move |(viewport, cursor)| {
-                label(|| "".to_string()).style(move || {
-                    let config = config.get_untracked();
-                    let line_height = config.editor.line_height();
+        stack(|| {
+            (
+                list(
+                    cursor,
+                    move |(_viewport, _cursor)| {
+                        id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                    },
+                    move |(viewport, cursor)| {
+                        label(|| "".to_string()).style(move || {
+                            let config = config.get_untracked();
+                            let line_height = config.editor.line_height();
 
-                    let (width, margin_left, line, background) = match &cursor {
-                        CursorRender::CurrentLine { line } => (
-                            Dimension::Percent(1.0),
-                            0.0,
-                            *line,
-                            *config.get_color(LapceColor::EDITOR_CURRENT_LINE),
-                        ),
-                        CursorRender::Selection { x, width, line } => (
-                            Dimension::Points(*width as f32),
-                            (*x - viewport.x0) as f32,
-                            *line,
-                            *config.get_color(LapceColor::EDITOR_SELECTION),
-                        ),
-                        CursorRender::Caret { x, width, line } => (
-                            Dimension::Points(*width as f32),
-                            (*x - viewport.x0) as f32,
-                            *line,
-                            *config.get_color(LapceColor::EDITOR_CARET),
-                        ),
-                    };
+                            let (width, margin_left, line, background) =
+                                match &cursor {
+                                    CursorRender::CurrentLine { line } => (
+                                        Dimension::Percent(1.0),
+                                        0.0,
+                                        *line,
+                                        *config.get_color(
+                                            LapceColor::EDITOR_CURRENT_LINE,
+                                        ),
+                                    ),
+                                    CursorRender::Selection { x, width, line } => (
+                                        Dimension::Points(*width as f32),
+                                        (*x - viewport.x0) as f32,
+                                        *line,
+                                        *config
+                                            .get_color(LapceColor::EDITOR_SELECTION),
+                                    ),
+                                    CursorRender::Caret { x, width, line } => (
+                                        Dimension::Points(*width as f32),
+                                        (*x - viewport.x0) as f32,
+                                        *line,
+                                        *config.get_color(LapceColor::EDITOR_CARET),
+                                    ),
+                                };
 
-                    Style::BASE
-                        .absolute()
-                        .width(width)
-                        .height_px(line_height as f32)
-                        .margin_left_px(margin_left)
-                        .margin_top_px(
-                            (line * line_height) as f32 - viewport.y0 as f32,
-                        )
-                        .background(background)
-                })
-            },
-        )
-        .style(move || Style::BASE.size_pct(100.0, 100.0))
+                            Style::BASE
+                                .absolute()
+                                .width(width)
+                                .height_px(line_height as f32)
+                                .margin_left_px(margin_left)
+                                .margin_top_px(
+                                    (line * line_height) as f32 - viewport.y0 as f32,
+                                )
+                                .background(background)
+                        })
+                    },
+                )
+                .style(move || Style::BASE.absolute().size_pct(100.0, 100.0)),
+                {
+                    let id = AtomicU64::new(0);
+                    list(
+                        search_rects,
+                        move |_| {
+                            id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                        },
+                        move |rect| {
+                            label(|| "".to_string()).style(move || {
+                                Style::BASE
+                                    .absolute()
+                                    .width_px(rect.width() as f32)
+                                    .height_px(rect.height() as f32)
+                                    .margin_left_px(rect.x0 as f32)
+                                    .margin_top_px(rect.y0 as f32)
+                                    .border_color(
+                                        *config.get().get_color(
+                                            LapceColor::EDITOR_FOREGROUND,
+                                        ),
+                                    )
+                                    .border(1.0)
+                            })
+                        },
+                    )
+                    .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+                },
+            )
+        })
+        .style(move || Style::BASE.absolute().size_pct(100.0, 100.0))
     })
     .style(move || Style::BASE.absolute().size_pct(100.0, 100.0))
 }

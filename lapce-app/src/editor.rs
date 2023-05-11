@@ -12,10 +12,10 @@ use floem::{
 };
 use lapce_core::{
     buffer::InvalLines,
-    command::{EditCommand, FocusCommand},
+    command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
     cursor::{Cursor, CursorMode},
     editor::EditType,
-    mode::Mode,
+    mode::{Mode, MotionMode},
     movement::Movement,
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
@@ -119,7 +119,6 @@ pub struct EditorData {
     pub scroll_delta: RwSignal<Vec2>,
     pub scroll_to: RwSignal<Option<Vec2>>,
     pub snippet: RwSignal<Option<SnippetIndex>>,
-    pub find: RwSignal<Find>,
     pub last_movement: RwSignal<Movement>,
     pub inline_find: RwSignal<Option<InlineFindDirection>>,
     pub last_inline_find: RwSignal<Option<(InlineFindDirection, String)>>,
@@ -157,7 +156,6 @@ impl EditorData {
         let window_origin = create_rw_signal(cx, Point::ZERO);
         let viewport = create_rw_signal(cx, Rect::ZERO);
         let confirmed = create_rw_signal(cx, false);
-        let find = create_rw_signal(cx, Find::new(0));
         let last_movement = create_rw_signal(cx, Movement::Left);
         let inline_find = create_rw_signal(cx, None);
         let last_inline_find = create_rw_signal(cx, None);
@@ -172,7 +170,6 @@ impl EditorData {
             viewport,
             scroll_delta,
             scroll_to,
-            find,
             last_movement,
             inline_find,
             last_inline_find,
@@ -181,7 +178,12 @@ impl EditorData {
     }
 
     pub fn new_local(cx: Scope, editor_id: EditorId, common: CommonData) -> Self {
-        let doc = Document::new_local(cx, common.proxy.clone(), common.config);
+        let doc = Document::new_local(
+            cx,
+            common.find.clone(),
+            common.proxy.clone(),
+            common.config,
+        );
         let doc = create_rw_signal(cx, doc);
         Self::new(cx, None, editor_id, doc, common)
     }
@@ -267,6 +269,45 @@ impl EditorData {
             self.snippet.set(None);
         }
 
+        CommandExecuted::Yes
+    }
+
+    fn run_motion_mode_command(
+        &self,
+        _cx: Scope,
+        cmd: &MotionModeCommand,
+    ) -> CommandExecuted {
+        let motion_mode = match cmd {
+            MotionModeCommand::MotionModeDelete => MotionMode::Delete,
+            MotionModeCommand::MotionModeIndent => MotionMode::Indent,
+            MotionModeCommand::MotionModeOutdent => MotionMode::Outdent,
+            MotionModeCommand::MotionModeYank => MotionMode::Yank,
+        };
+        let mut cursor = self.cursor.get_untracked();
+        let mut register = self.common.register.get_untracked();
+
+        self.doc.update(|doc| {
+            doc.do_motion_mode(&mut cursor, motion_mode, &mut register);
+        });
+
+        self.cursor.set(cursor);
+        self.common.register.set(register);
+
+        CommandExecuted::Yes
+    }
+
+    fn run_multi_selection_command(
+        &self,
+        _cx: Scope,
+        cmd: &MultiSelectionCommand,
+    ) -> CommandExecuted {
+        let mut cursor = self.cursor.get_untracked();
+        self.doc.update(|doc| {
+            doc.do_multi_selection(&mut cursor, cmd);
+        });
+        self.cursor.set(cursor);
+        // self.cancel_signature();
+        self.cancel_completion();
         CommandExecuted::Yes
     }
 
@@ -545,6 +586,15 @@ impl EditorData {
                 if let Some((direction, c)) = self.last_inline_find.get_untracked() {
                     self.inline_find(cx, direction, &c);
                 }
+            }
+            FocusCommand::Rename => {
+                self.rename(cx);
+            }
+            FocusCommand::ClearSearch => {
+                self.common.find.visual.set(false);
+            }
+            FocusCommand::Search => {
+                self.search();
             }
             _ => {}
         }
@@ -1462,14 +1512,8 @@ impl EditorData {
                 doc.buffer().clone(),
             )
         });
-        let next = self
-            .find
-            .try_update(|find| {
-                find.visual = true;
-                find.set_find(&word, false, true);
-                find.next(buffer.text(), offset, false, true)
-            })
-            .unwrap();
+        self.common.find.set_find(&word, false, true);
+        let next = self.common.find.next(buffer.text(), offset, false, true);
 
         if let Some((start, _end)) = next {
             self.run_move_command(
@@ -1484,13 +1528,7 @@ impl EditorData {
     fn search_forward(&self, cx: Scope, mods: Modifiers) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let buffer = self.doc.with_untracked(|doc| doc.buffer().clone());
-        let next = self
-            .find
-            .try_update(|find| {
-                find.visual = true;
-                find.next(buffer.text(), offset, false, true)
-            })
-            .unwrap();
+        let next = self.common.find.next(buffer.text(), offset, false, true);
 
         if let Some((start, _end)) = next {
             self.run_move_command(
@@ -1505,13 +1543,7 @@ impl EditorData {
     fn search_backward(&self, cx: Scope, mods: Modifiers) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let buffer = self.doc.with_untracked(|doc| doc.buffer().clone());
-        let next = self
-            .find
-            .try_update(|find| {
-                find.visual = true;
-                find.next(buffer.text(), offset, true, true)
-            })
-            .unwrap();
+        let next = self.common.find.next(buffer.text(), offset, true, true);
 
         if let Some((start, _end)) = next {
             self.run_move_command(
@@ -1546,6 +1578,131 @@ impl EditorData {
             scroll_offset,
         );
     }
+
+    fn rename(&self, cx: Scope) {
+        let path = match self.doc.with_untracked(|doc| {
+            if doc.loaded() {
+                doc.content.path().cloned()
+            } else {
+                None
+            }
+        }) {
+            Some(path) => path,
+            None => return,
+        };
+
+        let offset = self.cursor.with_untracked(|c| c.offset());
+        let (position, rev) = self.doc.with_untracked(|doc| {
+            (doc.buffer().offset_to_position(offset), doc.rev())
+        });
+
+        let cursor = self.cursor;
+        let doc = self.doc;
+        let internal_command = self.common.internal_command;
+        let local_path = path.clone();
+        let send = create_ext_action(cx, move |result| {
+            if let Ok(ProxyResponse::PrepareRename { resp }) = result {
+                if doc.with_untracked(|doc| doc.rev()) != rev {
+                    return;
+                }
+
+                if cursor.with_untracked(|c| c.offset()) != offset {
+                    return;
+                }
+
+                let (start, end, position, placeholder) =
+                    doc.with_untracked(|doc| match resp {
+                        lsp_types::PrepareRenameResponse::Range(range) => (
+                            doc.buffer().offset_of_position(&range.start),
+                            doc.buffer().offset_of_position(&range.end),
+                            range.start,
+                            None,
+                        ),
+                        lsp_types::PrepareRenameResponse::RangeWithPlaceholder {
+                            range,
+                            placeholder,
+                        } => (
+                            doc.buffer().offset_of_position(&range.start),
+                            doc.buffer().offset_of_position(&range.end),
+                            range.start,
+                            Some(placeholder),
+                        ),
+                        lsp_types::PrepareRenameResponse::DefaultBehavior {
+                            ..
+                        } => {
+                            let start = doc.buffer().prev_code_boundary(offset);
+                            let position = doc.buffer().offset_to_position(start);
+                            (
+                                start,
+                                doc.buffer().next_code_boundary(offset),
+                                position,
+                                None,
+                            )
+                        }
+                    });
+                let placeholder = placeholder.unwrap_or_else(|| {
+                    doc.with_untracked(|doc| {
+                        let (start, end) = doc.buffer().select_word(offset);
+                        doc.buffer().slice_to_cow(start..end).to_string()
+                    })
+                });
+                internal_command.set(Some(InternalCommand::StartRename {
+                    path: local_path.clone(),
+                    placeholder,
+                    start,
+                    position,
+                }));
+            }
+        });
+        self.common
+            .proxy
+            .prepare_rename(path, position, move |result| {
+                send(result);
+            });
+    }
+
+    fn search(&self) {
+        let region = self.cursor.with_untracked(|c| match &c.mode {
+            lapce_core::cursor::CursorMode::Normal(offset) => {
+                lapce_core::selection::SelRegion::caret(*offset)
+            }
+            lapce_core::cursor::CursorMode::Visual {
+                start,
+                end,
+                mode: _,
+            } => lapce_core::selection::SelRegion::new(
+                *start.min(end),
+                self.doc.with_untracked(|doc| {
+                    doc.buffer().next_grapheme_offset(
+                        *start.max(end),
+                        1,
+                        doc.buffer().len(),
+                    )
+                }),
+                None,
+            ),
+            lapce_core::cursor::CursorMode::Insert(selection) => {
+                *selection.last_inserted().unwrap()
+            }
+        });
+
+        let pattern = if region.is_caret() {
+            self.doc.with_untracked(|doc| {
+                let (start, end) = doc.buffer().select_word(region.start);
+                doc.buffer().slice_to_cow(start..end).to_string()
+            })
+        } else {
+            self.doc.with_untracked(|doc| {
+                doc.buffer()
+                    .slice_to_cow(region.min()..region.max())
+                    .to_string()
+            })
+        };
+
+        if !pattern.contains('\n') {
+            self.common.find.set_find(&pattern, false, false);
+        }
+    }
 }
 
 impl KeyPressFocus for EditorData {
@@ -1563,6 +1720,15 @@ impl KeyPressFocus for EditorData {
             Condition::InSnippet => self.snippet.with_untracked(|s| s.is_some()),
             Condition::EditorFocus => {
                 self.doc.with_untracked(|doc| !doc.content.is_local())
+            }
+            Condition::SearchActive => {
+                if self.common.config.get_untracked().core.modal
+                    && self.cursor.with_untracked(|c| !c.is_normal())
+                {
+                    false
+                } else {
+                    self.common.find.visual.get_untracked()
+                }
             }
             _ => false,
         }
@@ -1585,8 +1751,12 @@ impl KeyPressFocus for EditorData {
             crate::command::CommandKind::Focus(cmd) => {
                 self.run_focus_command(cx, cmd, count, mods)
             }
-            crate::command::CommandKind::MotionMode(_) => CommandExecuted::No,
-            crate::command::CommandKind::MultiSelection(_) => CommandExecuted::No,
+            crate::command::CommandKind::MotionMode(cmd) => {
+                self.run_motion_mode_command(cx, cmd)
+            }
+            crate::command::CommandKind::MultiSelection(cmd) => {
+                self.run_multi_selection_command(cx, cmd)
+            }
         }
     }
 

@@ -49,6 +49,7 @@ pub struct WindowData {
     pub window_command: RwSignal<Option<WindowCommand>>,
     pub size: RwSignal<Size>,
     pub position: RwSignal<Point>,
+    pub root_view_id: RwSignal<floem::id::Id>,
     pub config: RwSignal<Arc<LapceConfig>>,
 }
 
@@ -56,6 +57,7 @@ impl WindowData {
     pub fn new(cx: Scope, info: WindowInfo) -> Self {
         let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
         let config = create_rw_signal(cx, Arc::new(config));
+        let root_view_id = create_rw_signal(cx, floem::id::Id::next());
 
         let mut window_tabs = im::Vector::new();
         let active = info.tabs.active_tab;
@@ -92,6 +94,7 @@ impl WindowData {
             window_command,
             size,
             position,
+            root_view_id,
             config,
         };
 

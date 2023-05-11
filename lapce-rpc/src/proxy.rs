@@ -39,6 +39,14 @@ pub enum ProxyRpc {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchMatch {
+    pub line: usize,
+    pub start: usize,
+    pub end: usize,
+    pub line_content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum ProxyRequest {
@@ -345,8 +353,7 @@ pub enum ProxyResponse {
         items: Vec<TextDocumentItem>,
     },
     GlobalSearchResponse {
-        #[allow(clippy::type_complexity)]
-        matches: IndexMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
+        matches: IndexMap<PathBuf, Vec<SearchMatch>>,
     },
     Success {},
     SaveResponse {},

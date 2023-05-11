@@ -13,9 +13,13 @@ use floem::{
         SignalWithUntracked,
     },
 };
+use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::cursor::Cursor;
-use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
+use lapce_rpc::{
+    plugin::PluginId,
+    proxy::{ProxyResponse, SearchMatch},
+};
 use lapce_xi_rope::Rope;
 use lsp_types::{
     CodeAction, CodeActionOrCommand, DiagnosticSeverity, DocumentChangeOperation,
@@ -30,6 +34,7 @@ use crate::{
         EditorData,
     },
     editor_tab::{EditorTabChild, EditorTabData, EditorTabInfo},
+    global_search::GlobalSearchData,
     id::{EditorId, EditorTabId, SplitId},
     keypress::KeyPressData,
     window_tab::{CommonData, WindowTabData},
@@ -351,6 +356,7 @@ impl MainSplitData {
                 cx,
                 path.clone(),
                 diagnostic_data,
+                self.common.find.clone(),
                 self.common.proxy.clone(),
                 self.common.config,
             );
@@ -1132,7 +1138,7 @@ impl MainSplitData {
     }
 
     /// Perform a workspace edit, which are from the LSP (such as code actions, or symbol renaming)
-    fn apply_workspace_edit(&self, cx: Scope, edit: &WorkspaceEdit) {
+    pub fn apply_workspace_edit(&self, cx: Scope, edit: &WorkspaceEdit) {
         if let Some(DocumentChanges::Operations(_op)) =
             edit.document_changes.as_ref()
         {

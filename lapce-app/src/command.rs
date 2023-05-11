@@ -6,7 +6,7 @@ use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
 use lapce_rpc::{dap_types::RunDebugConfig, plugin::PluginId, terminal::TermId};
-use lsp_types::CodeActionOrCommand;
+use lsp_types::{CodeActionOrCommand, Position, WorkspaceEdit};
 use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
@@ -525,9 +525,18 @@ pub enum InternalCommand {
         plugin_id: PluginId,
         action: CodeActionOrCommand,
     },
+    ApplyWorkspaceEdit {
+        edit: WorkspaceEdit,
+    },
     RunAndDebug {
         mode: RunDebugMode,
         config: RunDebugConfig,
+    },
+    StartRename {
+        path: PathBuf,
+        placeholder: String,
+        start: usize,
+        position: Position,
     },
 }
 

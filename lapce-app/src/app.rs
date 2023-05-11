@@ -46,6 +46,7 @@ use crate::{
         PaletteData, PaletteStatus,
     },
     panel::{position::PanelContainerPosition, view::panel_container_view},
+    text_input::text_input,
     title::title,
     window::{TabsInfo, WindowData, WindowInfo},
     window_tab::{Focus, WindowTabData},
@@ -1325,51 +1326,16 @@ fn palette_item(
 }
 
 fn palette_input(window_tab_data: Arc<WindowTabData>) -> impl View {
-    let doc = window_tab_data.palette.input_editor.doc.read_only();
-    let cursor = window_tab_data.palette.input_editor.cursor.read_only();
+    let doc = window_tab_data.palette.input_editor.doc;
+    let cursor = window_tab_data.palette.input_editor.cursor;
     let config = window_tab_data.common.config;
     let cx = AppContext::get_current();
-    let cursor_x = create_memo(cx.scope, move |_| {
-        let offset = cursor.get().offset();
-        let config = config.get();
-        doc.with(|doc| {
-            let (_, col) = doc.buffer().offset_to_line_col(offset);
-
-            let line_content = doc.buffer().line_content(0);
-
-            let families = config.ui.font_family();
-            let attrs = Attrs::new()
-                .font_size(config.ui.font_size() as f32)
-                .family(&families);
-            let attrs_list = AttrsList::new(attrs);
-            let mut text_layout = TextLayout::new();
-            text_layout.set_text(&line_content[..col], attrs_list);
-
-            text_layout.size().width as f32
-        })
-    });
+    let cursor_x = create_rw_signal(cx.scope, 0.0);
     container(move || {
         container(move || {
             scroll(move || {
-                stack(move || {
-                    (
-                        label(move || {
-                            doc.with(|doc| doc.buffer().text().to_string())
-                        })
-                        .style(|| Style::BASE.text_clip()),
-                        label(move || "".to_string()).style(move || {
-                            Style::BASE
-                                .position(Position::Absolute)
-                                .width_px(2.0)
-                                .height_pct(100.0)
-                                .margin_left_px(cursor_x.get() - 0.5)
-                                .background(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::EDITOR_CARET),
-                                )
-                        }),
-                    )
+                text_input(doc, cursor, config).on_cursor_pos(move |point| {
+                    cursor_x.set(point.x);
                 })
             })
             .scroll_bar_color(move || {
@@ -1378,7 +1344,7 @@ fn palette_input(window_tab_data: Arc<WindowTabData>) -> impl View {
             .on_ensure_visible(move || {
                 Size::new(20.0, 0.0)
                     .to_rect()
-                    .with_origin(Point::new(cursor_x.get() as f64 - 10.0, 0.0))
+                    .with_origin(Point::new(cursor_x.get() - 10.0, 0.0))
             })
             .style(|| Style::BASE.min_width_px(0.0).height_px(24.0).items_center())
         })
@@ -1809,6 +1775,58 @@ fn code_action(window_tab_data: Arc<WindowTabData>) -> impl View {
     })
 }
 
+fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
+    let doc = window_tab_data.rename.editor.doc;
+    let cursor = window_tab_data.rename.editor.cursor;
+    let active = window_tab_data.rename.active;
+    let layout_rect = window_tab_data.rename.layout_rect;
+    let config = window_tab_data.common.config;
+    let cx = AppContext::get_current();
+    let cursor_x = create_rw_signal(cx.scope, 0.0);
+
+    container(|| {
+        container(move || {
+            scroll(move || {
+                text_input(doc, cursor, config).on_cursor_pos(move |point| {
+                    cursor_x.set(point.x);
+                })
+            })
+            .hide_bar(|| true)
+            .on_ensure_visible(move || {
+                Size::new(20.0, 0.0)
+                    .to_rect()
+                    .with_origin(Point::new(cursor_x.get() - 10.0, 0.0))
+            })
+            .style(|| Style::BASE.width_px(150.0))
+        })
+        .style(move || {
+            let config = config.get();
+            Style::BASE
+                .font_family(config.editor.font_family.clone())
+                .font_size(config.editor.font_size as f32)
+                .padding_px(6.0)
+                .border(1.0)
+                .border_radius(6.0)
+                .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+        })
+    })
+    .on_resize(move |_, rect| {
+        layout_rect.set(rect);
+    })
+    .style(move || {
+        let origin = window_tab_data.rename_origin();
+        Style::BASE
+            .position(Position::Absolute)
+            .apply_if(!active.get(), |s| s.hide())
+            .margin_left_px(origin.x as f32)
+            .margin_top_px(origin.y as f32)
+            .background(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
+            .border_radius(6.0)
+            .padding_px(6.0)
+    })
+}
+
 fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let source_control = window_tab_data.source_control;
     let window_origin = window_tab_data.window_origin;
@@ -1818,7 +1836,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let set_workbench_command =
         window_tab_data.common.workbench_command.write_only();
 
-    stack(|| {
+    let view = stack(|| {
         (
             stack(|| {
                 (
@@ -1834,6 +1852,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
             .style(|| Style::BASE.size_pct(100.0, 100.0).flex_col()),
             completion(window_tab_data.clone()),
             code_action(window_tab_data.clone()),
+            rename(window_tab_data.clone()),
             palette(window_tab_data.clone()),
         )
     })
@@ -1847,7 +1866,10 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
             .apply_if(!config.ui.font_family.is_empty(), |s| {
                 s.font_family(config.ui.font_family.clone())
             })
-    })
+    });
+    let view_id = view.id();
+    window_tab_data.common.view_id.set(view_id);
+    view
 }
 
 fn workspace_title(workspace: &LapceWorkspace) -> Option<String> {

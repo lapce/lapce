@@ -1,4 +1,10 @@
-use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    rc::Rc,
+    sync::Arc,
+};
 
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
@@ -6,7 +12,7 @@ use floem::{
     peniko::{kurbo::Point, Color},
     reactive::{
         create_rw_signal, ReadSignal, RwSignal, Scope, SignalGetUntracked,
-        SignalUpdate, SignalWithUntracked,
+        SignalSet, SignalUpdate, SignalWithUntracked,
     },
     views::VirtualListVector,
 };
@@ -14,10 +20,10 @@ use itertools::Itertools;
 use lapce_core::{
     buffer::{Buffer, InvalLines},
     char_buffer::CharBuffer,
-    command::EditCommand,
+    command::{EditCommand, MultiSelectionCommand},
     cursor::{ColPosition, Cursor, CursorMode},
     editor::{EditType, Editor},
-    mode::Mode,
+    mode::{Mode, MotionMode},
     movement::{LinePosition, Movement},
     register::{Clipboard, Register},
     selection::{SelRegion, Selection},
@@ -44,6 +50,7 @@ use smallvec::SmallVec;
 
 use crate::{
     config::{color::LapceColor, LapceConfig},
+    find::{FindProgress, FindResult, NewFind},
     workspace::LapceWorkspace,
 };
 
@@ -188,6 +195,8 @@ pub struct Document {
     pub text_layouts: Rc<RefCell<TextLayoutCache>>,
     proxy: ProxyRpcHandler,
     config: ReadSignal<Arc<LapceConfig>>,
+    find: NewFind,
+    pub find_result: FindResult,
 }
 
 pub struct DocLine {
@@ -220,9 +229,10 @@ impl VirtualListVector<DocLine> for Document {
 
 impl Document {
     pub fn new(
-        _cx: Scope,
+        cx: Scope,
         path: PathBuf,
         diagnostics: DiagnosticData,
+        find: NewFind,
         proxy: ProxyRpcHandler,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
@@ -242,11 +252,14 @@ impl Document {
             code_actions: im::HashMap::new(),
             proxy,
             config,
+            find,
+            find_result: FindResult::new(cx),
         }
     }
 
     pub fn new_local(
         cx: Scope,
+        find: NewFind,
         proxy: ProxyRpcHandler,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
@@ -268,6 +281,8 @@ impl Document {
             code_actions: im::HashMap::new(),
             proxy,
             config,
+            find,
+            find_result: FindResult::new(cx),
         }
     }
 
@@ -365,6 +380,258 @@ impl Document {
 
         self.apply_deltas(&deltas);
         deltas
+    }
+
+    pub fn do_multi_selection(
+        &self,
+        cursor: &mut Cursor,
+        cmd: &MultiSelectionCommand,
+    ) {
+        use MultiSelectionCommand::*;
+        match cmd {
+            SelectUndo => {
+                if let CursorMode::Insert(_) = cursor.mode.clone() {
+                    if let Some(selection) =
+                        cursor.history_selections.last().cloned()
+                    {
+                        cursor.mode = CursorMode::Insert(selection);
+                    }
+                    cursor.history_selections.pop();
+                }
+            }
+            InsertCursorAbove => {
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                    let offset = selection.first().map(|s| s.end).unwrap_or(0);
+                    let (new_offset, _) = self.move_offset(
+                        offset,
+                        cursor.horiz.as_ref(),
+                        1,
+                        &Movement::Up,
+                        Mode::Insert,
+                    );
+                    if new_offset != offset {
+                        selection.add_region(SelRegion::new(
+                            new_offset, new_offset, None,
+                        ));
+                    }
+                    cursor.set_insert(selection);
+                }
+            }
+            InsertCursorBelow => {
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                    let offset = selection.last().map(|s| s.end).unwrap_or(0);
+                    let (new_offset, _) = self.move_offset(
+                        offset,
+                        cursor.horiz.as_ref(),
+                        1,
+                        &Movement::Down,
+                        Mode::Insert,
+                    );
+                    if new_offset != offset {
+                        selection.add_region(SelRegion::new(
+                            new_offset, new_offset, None,
+                        ));
+                    }
+                    cursor.set_insert(selection);
+                }
+            }
+            InsertCursorEndOfLine => {
+                if let CursorMode::Insert(selection) = cursor.mode.clone() {
+                    let mut new_selection = Selection::new();
+                    for region in selection.regions() {
+                        let (start_line, _) =
+                            self.buffer.offset_to_line_col(region.min());
+                        let (end_line, end_col) =
+                            self.buffer.offset_to_line_col(region.max());
+                        for line in start_line..end_line + 1 {
+                            let offset = if line == end_line {
+                                self.buffer.offset_of_line_col(line, end_col)
+                            } else {
+                                self.buffer.line_end_offset(line, true)
+                            };
+                            new_selection
+                                .add_region(SelRegion::new(offset, offset, None));
+                        }
+                    }
+                    cursor.set_insert(new_selection);
+                }
+            }
+            SelectCurrentLine => {
+                if let CursorMode::Insert(selection) = cursor.mode.clone() {
+                    let mut new_selection = Selection::new();
+                    for region in selection.regions() {
+                        let start_line = self.buffer.line_of_offset(region.min());
+                        let start = self.buffer.offset_of_line(start_line);
+                        let end_line = self.buffer.line_of_offset(region.max());
+                        let end = self.buffer.offset_of_line(end_line + 1);
+                        new_selection.add_region(SelRegion::new(start, end, None));
+                    }
+                    cursor.set_insert(new_selection);
+                }
+            }
+            SelectAllCurrent => {
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                    if !selection.is_empty() {
+                        let first = selection.first().unwrap();
+                        let (start, end) = if first.is_caret() {
+                            self.buffer.select_word(first.start)
+                        } else {
+                            (first.min(), first.max())
+                        };
+                        let search_str = self.buffer.slice_to_cow(start..end);
+                        let case_sensitive = self.find.case_sensitive();
+                        let config = self.config.get_untracked();
+                        let multicursor_case_sensitive =
+                            config.editor.multicursor_case_sensitive;
+                        let case_sensitive =
+                            multicursor_case_sensitive || case_sensitive;
+                        let search_whole_word =
+                            config.editor.multicursor_whole_words;
+                        self.find.set_case_sensitive(case_sensitive);
+                        self.find.set_find(&search_str, false, search_whole_word);
+                        let mut offset = 0;
+                        while let Some((start, end)) =
+                            self.find.next(self.buffer.text(), offset, false, false)
+                        {
+                            offset = end;
+                            selection.add_region(SelRegion::new(start, end, None));
+                        }
+                    }
+                    cursor.set_insert(selection);
+                }
+            }
+            SelectNextCurrent => {
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                    if !selection.is_empty() {
+                        let mut had_caret = false;
+                        for region in selection.regions_mut() {
+                            if region.is_caret() {
+                                had_caret = true;
+                                let (start, end) =
+                                    self.buffer.select_word(region.start);
+                                region.start = start;
+                                region.end = end;
+                            }
+                        }
+                        if !had_caret {
+                            let r = selection.last_inserted().unwrap();
+                            let search_str =
+                                self.buffer.slice_to_cow(r.min()..r.max());
+                            let case_sensitive = self.find.case_sensitive();
+                            let config = self.config.get_untracked();
+                            let case_sensitive =
+                                config.editor.multicursor_case_sensitive
+                                    || case_sensitive;
+                            let search_whole_word =
+                                config.editor.multicursor_whole_words;
+                            self.find.set_case_sensitive(case_sensitive);
+                            self.find.set_find(
+                                &search_str,
+                                false,
+                                search_whole_word,
+                            );
+                            let mut offset = r.max();
+                            let mut seen = HashSet::new();
+                            while let Some((start, end)) = self.find.next(
+                                self.buffer.text(),
+                                offset,
+                                false,
+                                true,
+                            ) {
+                                if !selection
+                                    .regions()
+                                    .iter()
+                                    .any(|r| r.min() == start && r.max() == end)
+                                {
+                                    selection.add_region(SelRegion::new(
+                                        start, end, None,
+                                    ));
+                                    break;
+                                }
+                                if seen.contains(&end) {
+                                    break;
+                                }
+                                offset = end;
+                                seen.insert(offset);
+                            }
+                        }
+                    }
+                    cursor.set_insert(selection);
+                }
+            }
+            SelectSkipCurrent => {
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                    if !selection.is_empty() {
+                        let r = selection.last_inserted().unwrap();
+                        if r.is_caret() {
+                            let (start, end) = self.buffer.select_word(r.start);
+                            selection.replace_last_inserted_region(SelRegion::new(
+                                start, end, None,
+                            ));
+                        } else {
+                            let search_str =
+                                self.buffer.slice_to_cow(r.min()..r.max());
+                            self.find.set_find(&search_str, false, false);
+                            let mut offset = r.max();
+                            let mut seen = HashSet::new();
+                            while let Some((start, end)) = self.find.next(
+                                self.buffer.text(),
+                                offset,
+                                false,
+                                true,
+                            ) {
+                                if !selection
+                                    .regions()
+                                    .iter()
+                                    .any(|r| r.min() == start && r.max() == end)
+                                {
+                                    selection.replace_last_inserted_region(
+                                        SelRegion::new(start, end, None),
+                                    );
+                                    break;
+                                }
+                                if seen.contains(&end) {
+                                    break;
+                                }
+                                offset = end;
+                                seen.insert(offset);
+                            }
+                        }
+                    }
+                    cursor.set_insert(selection);
+                }
+            }
+            SelectAll => {
+                let new_selection = Selection::region(0, self.buffer.len());
+                cursor.set_insert(new_selection);
+            }
+        }
+    }
+
+    pub fn do_motion_mode(
+        &mut self,
+        cursor: &mut Cursor,
+        motion_mode: MotionMode,
+        register: &mut Register,
+    ) {
+        if let Some(m) = &cursor.motion_mode {
+            if m == &motion_mode {
+                let offset = cursor.offset();
+                let deltas = Editor::execute_motion_mode(
+                    cursor,
+                    &mut self.buffer,
+                    motion_mode,
+                    offset,
+                    offset,
+                    true,
+                    register,
+                );
+                self.apply_deltas(&deltas);
+            }
+            cursor.motion_mode = None;
+        } else {
+            cursor.motion_mode = Some(motion_mode);
+        }
     }
 
     fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
@@ -1495,5 +1762,117 @@ impl Document {
                 diagnostic.range = (start, end);
             }
         });
+    }
+
+    pub fn update_find(&self, start_line: usize, end_line: usize) {
+        let search_string_same =
+            self.find_result
+                .search_string
+                .with_untracked(|current_search_string| {
+                    self.find.search_string.with_untracked(|search_string| {
+                        match (current_search_string, search_string) {
+                            (Some(old), Some(new)) => {
+                                old.content == new.content
+                                    && old.regex.is_some() == new.regex.is_some()
+                            }
+                            (None, None) => true,
+                            (None, Some(_)) => false,
+                            (Some(_), None) => false,
+                        }
+                    })
+                });
+        if !search_string_same {
+            self.find_result
+                .search_string
+                .set(self.find.search_string.get_untracked());
+        }
+        let case_matching_same = self.find_result.case_matching.get_untracked()
+            == self.find.case_matching.get_untracked();
+        if !case_matching_same {
+            self.find_result
+                .case_matching
+                .set(self.find.case_matching.get_untracked());
+        }
+        let whole_words_same = self.find_result.whole_words.get_untracked()
+            == self.find.whole_words.get_untracked();
+        if !whole_words_same {
+            self.find_result
+                .whole_words
+                .set(self.find.whole_words.get_untracked())
+        }
+
+        if !search_string_same || !case_matching_same || !whole_words_same {
+            self.find_result.progress.set(FindProgress::Started);
+            self.find_result.occurrences.set(Selection::new());
+        }
+
+        let mut find_progress = self.find_result.progress.get_untracked();
+        let search_range = match &find_progress {
+            FindProgress::Started => {
+                // start incremental find on visible region
+                let start = self.buffer.offset_of_line(start_line);
+                let end = self.buffer.offset_of_line(end_line + 1);
+                find_progress =
+                    FindProgress::InProgress(Selection::region(start, end));
+                Some((start, end))
+            }
+            FindProgress::InProgress(searched_range) => {
+                if searched_range.regions().len() == 1
+                    && searched_range.min_offset() == 0
+                    && searched_range.max_offset() >= self.buffer.len()
+                {
+                    // the entire text has been searched
+                    // end find by executing multi-line regex queries on entire text
+                    // stop incremental find
+                    find_progress = FindProgress::Ready;
+                    Some((0, self.buffer.len()))
+                } else {
+                    let start = self.buffer.offset_of_line(start_line);
+                    let end = self.buffer.offset_of_line(end_line + 1);
+                    let mut range = Some((start, end));
+                    for region in searched_range.regions() {
+                        if region.min() <= start && region.max() >= end {
+                            range = None;
+                            break;
+                        }
+                    }
+                    if range.is_some() {
+                        let mut new_range = searched_range.clone();
+                        new_range.add_region(SelRegion::new(start, end, None));
+                        find_progress = FindProgress::InProgress(new_range);
+                    }
+                    range
+                }
+            }
+            FindProgress::Ready => None,
+        };
+        if search_range.is_some() {
+            self.find_result.progress.set(find_progress);
+        }
+
+        if let Some((search_range_start, search_range_end)) = search_range {
+            let mut occurrences = self.find_result.occurrences.get_untracked();
+            if !self.find.is_multiline_regex() {
+                self.find.update_find(
+                    self.buffer.text(),
+                    search_range_start,
+                    search_range_end,
+                    true,
+                    &mut occurrences,
+                );
+            } else {
+                // only execute multi-line regex queries if we are searching the entire text (last step)
+                if search_range_start == 0 && search_range_end == self.buffer.len() {
+                    self.find.update_find(
+                        self.buffer.text(),
+                        search_range_start,
+                        search_range_end,
+                        true,
+                        &mut occurrences,
+                    );
+                }
+            }
+            self.find_result.occurrences.set(occurrences);
+        }
     }
 }

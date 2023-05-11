@@ -63,7 +63,7 @@ impl KeyPressFocus for TerminalData {
         count: Option<usize>,
         _mods: floem::glazier::Modifiers,
     ) -> crate::command::CommandExecuted {
-        AppContext::request_paint();
+        self.common.view_id.get_untracked().request_paint();
         let config = self.common.config.get_untracked();
         match &command.kind {
             CommandKind::Move(cmd) => {
