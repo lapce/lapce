@@ -17,7 +17,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     dap_types::{self, DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
-    file::FileNodeItem,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::DiffInfo,
     terminal::TermId,

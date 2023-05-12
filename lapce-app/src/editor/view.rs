@@ -349,9 +349,9 @@ fn editor_gutter(
             scroll(|| {
                 virtual_list(
                     VirtualListDirection::Vertical,
-                    VirtualListItemSize::Fixed(
-                        config.get_untracked().editor.line_height() as f64,
-                    ),
+                    VirtualListItemSize::Fixed(Box::new(move || {
+                        config.get_untracked().editor.line_height() as f64
+                    })),
                     move || {
                         let editor = editor.get();
                         current_line.get();
@@ -570,7 +570,7 @@ fn editor_cursor(
                         _ if line == start_line => start_col,
                         _ => 0,
                     };
-                    let (right_col, line_end) = match line {
+                    let (right_col, _line_end) = match line {
                         _ if line == end_line => {
                             let max_col = doc.buffer().line_end_col(line, true);
                             (end_col.min(max_col), false)
@@ -851,10 +851,11 @@ fn editor_content(editor: RwSignal<EditorData>) -> impl View {
     scroll(|| {
         let focus = editor.with_untracked(|e| e.common.focus);
         container(|| {
-            let line_height = config.get_untracked().editor.line_height();
             virtual_list(
                 VirtualListDirection::Vertical,
-                VirtualListItemSize::Fixed(line_height as f64),
+                VirtualListItemSize::Fixed(Box::new(move || {
+                    config.get_untracked().editor.line_height() as f64
+                })),
                 move || editor.get().doc.get(),
                 key_fn,
                 view_fn,

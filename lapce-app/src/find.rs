@@ -56,7 +56,7 @@ pub struct FindStatus {
 }
 
 #[derive(Clone)]
-pub struct Find {
+pub struct OldFind {
     /// Uniquely identifies this search query.
     id: usize,
 
@@ -81,9 +81,9 @@ pub struct Find {
     occurrences: Selection,
 }
 
-impl Find {
-    pub fn new(id: usize) -> Find {
-        Find {
+impl OldFind {
+    pub fn new(id: usize) -> OldFind {
+        OldFind {
             id,
             hls_dirty: true,
             search_string: None,
@@ -555,7 +555,7 @@ pub struct FindSearchString {
 }
 
 #[derive(Clone)]
-pub struct NewFind {
+pub struct Find {
     /// If the find is shown
     pub visual: RwSignal<bool>,
     /// The currently active search string.
@@ -564,15 +564,18 @@ pub struct NewFind {
     pub case_matching: RwSignal<CaseMatching>,
     /// Query matches only whole words.
     pub whole_words: RwSignal<bool>,
+    /// The search query should be considered as regular expression.
+    pub is_regex: RwSignal<bool>,
 }
 
-impl NewFind {
+impl Find {
     pub fn new(cx: Scope) -> Self {
         Self {
             visual: create_rw_signal(cx, false),
             search_string: create_rw_signal(cx, None),
             case_matching: create_rw_signal(cx, CaseMatching::Exact),
             whole_words: create_rw_signal(cx, false),
+            is_regex: create_rw_signal(cx, false),
         }
     }
 
@@ -602,19 +605,19 @@ impl NewFind {
         self.case_matching.set(case_matching);
     }
 
-    pub fn set_find(&self, search_string: &str, is_regex: bool, whole_words: bool) {
+    pub fn set_find(&self, search_string: &str) {
         if search_string.is_empty() {
             self.search_string.set(None);
             return;
         }
 
+        let is_regex = self.is_regex.get_untracked();
+
         if !self.visual.get_untracked() {
             self.visual.set(true);
         }
 
-        if self.whole_words.get_untracked() != whole_words {
-            self.whole_words.set(whole_words);
-        }
+        let whole_words = self.whole_words.get_untracked();
 
         let search_string_unchanged = self.search_string.with_untracked(|search| {
             if let Some(ref s) = search {

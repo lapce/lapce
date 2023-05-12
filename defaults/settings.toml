@@ -325,6 +325,8 @@ name = ""
 "search.forward" = "arrow-down.svg"
 "search.backward" = "arrow-up.svg"
 "search.case_sensitive" = "case-sensitive.svg"
+"search.whole_word" = "whole-word.svg"
+"search.regex" = "regex.svg"
 
 "symbol_kind.array" = "symbol-array.svg"
 "symbol_kind.boolean" = "symbol-boolean.svg"

@@ -9,7 +9,6 @@ use floem::{
     style::{CursorStyle, Style},
     view::View,
     views::{container, container_box, label, list, scroll, stack, svg, Decorators},
-    AppContext,
 };
 use lapce_rpc::{
     dap_types::{DapId, ThreadId},
@@ -97,6 +96,7 @@ fn debug_process_icons(
                                 terminal.restart_run_debug(term_id);
                             },
                             || false,
+                            || false,
                             config,
                         )
                         .style(|| Style::BASE.margin_horiz_px(6.0))
@@ -108,6 +108,7 @@ fn debug_process_icons(
                             move || {
                                 terminal.stop_run_debug(term_id);
                             },
+                            || false,
                             move || stopped,
                             config,
                         )
@@ -120,6 +121,7 @@ fn debug_process_icons(
                             move || {
                                 terminal.close_terminal(&term_id);
                             },
+                            || false,
                             || false,
                             config,
                         )
@@ -138,6 +140,7 @@ fn debug_process_icons(
                             move || {
                                 terminal.dap_continue(term_id);
                             },
+                            || false,
                             move || !paused() || stopped,
                             config,
                         )
@@ -150,6 +153,7 @@ fn debug_process_icons(
                             move || {
                                 terminal.dap_pause(term_id);
                             },
+                            || false,
                             move || paused() || stopped,
                             config,
                         )
@@ -163,6 +167,7 @@ fn debug_process_icons(
                                 terminal.restart_run_debug(term_id);
                             },
                             || false,
+                            || false,
                             config,
                         )
                         .style(|| Style::BASE.margin_right_px(6.0))
@@ -174,6 +179,7 @@ fn debug_process_icons(
                             move || {
                                 terminal.stop_run_debug(term_id);
                             },
+                            || false,
                             move || stopped,
                             config,
                         )
@@ -186,6 +192,7 @@ fn debug_process_icons(
                             move || {
                                 terminal.close_terminal(&term_id);
                             },
+                            || false,
                             || false,
                             config,
                         )

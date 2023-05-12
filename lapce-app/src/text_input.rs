@@ -15,7 +15,7 @@ use floem::{
         SignalWith,
     },
     style::{ComputedStyle, Style},
-    taffy::{self, prelude::Node},
+    taffy::prelude::Node,
     view::{ChangeFlags, View},
     AppContext, Renderer,
 };
@@ -255,11 +255,18 @@ impl View for TextInput {
         cx.draw_text(text_layout, point);
 
         let offset = self.cursor.offset();
-        let cursor_point = text_layout.hit_position(offset).point + point.to_vec2();
+        let hit_position = text_layout.hit_position(offset);
+        let cursor_point = hit_position.point + point.to_vec2();
         cx.stroke(
             &Line::new(
-                Point::new(cursor_point.x, point.y),
-                Point::new(cursor_point.x, point.y + height),
+                Point::new(
+                    cursor_point.x,
+                    cursor_point.y - hit_position.glyph_ascent,
+                ),
+                Point::new(
+                    cursor_point.x,
+                    cursor_point.y + hit_position.glyph_descent,
+                ),
             ),
             *self
                 .config

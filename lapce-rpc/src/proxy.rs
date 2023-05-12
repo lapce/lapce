@@ -60,6 +60,7 @@ pub enum ProxyRequest {
     GlobalSearch {
         pattern: String,
         case_sensitive: bool,
+        whole_word: bool,
     },
     CompletionResolve {
         plugin_id: PluginId,
@@ -664,12 +665,14 @@ impl ProxyRpcHandler {
         &self,
         pattern: String,
         case_sensitive: bool,
+        whole_word: bool,
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(
             ProxyRequest::GlobalSearch {
                 pattern,
                 case_sensitive,
+                whole_word,
             },
             f,
         );

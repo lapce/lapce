@@ -24,20 +24,6 @@ impl FileExplorerData {
         let path = common.workspace.path.clone().unwrap_or_default();
         let config = common.config;
         let all_files = create_rw_signal(cx, im::HashMap::new());
-        let line_height = create_memo(cx, move |_| {
-            let config = config.get();
-            let mut text_layout = TextLayout::new();
-
-            let family: Vec<FamilyOwned> =
-                FamilyOwned::parse_list(&config.ui.font_family).collect();
-            let attrs = Attrs::new()
-                .family(&family)
-                .font_size(config.ui.font_size() as f32)
-                .line_height(LineHeightValue::Normal(1.6));
-            let attrs_list = AttrsList::new(attrs);
-            text_layout.set_text("W", attrs_list);
-            text_layout.size().height
-        });
         let root = FileNode {
             scope: cx,
             path: path.clone(),
@@ -47,7 +33,7 @@ impl FileExplorerData {
             children: create_rw_signal(cx, IndexMap::new()),
             children_open_count: create_rw_signal(cx, 0),
             all_files,
-            line_height,
+            line_height: common.ui_line_height,
             internal_command: common.internal_command,
         };
         all_files.update(|all_files| {

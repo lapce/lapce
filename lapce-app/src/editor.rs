@@ -34,7 +34,6 @@ use crate::{
     doc::{DocContent, Document},
     editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
-    find::Find,
     id::{EditorId, EditorTabId},
     keypress::{condition::Condition, KeyPressFocus},
     main_split::{MainSplitData, SplitDirection, SplitMoveDirection},
@@ -1513,7 +1512,8 @@ impl EditorData {
                 doc.buffer().clone(),
             )
         });
-        self.common.find.set_find(&word, false, true);
+        self.common.find.whole_words.set(true);
+        self.common.find.set_find(&word);
         let next = self.common.find.next(buffer.text(), offset, false, true);
 
         if let Some((start, _end)) = next {
@@ -1611,7 +1611,7 @@ impl EditorData {
                     return;
                 }
 
-                let (start, end, position, placeholder) =
+                let (start, _end, position, placeholder) =
                     doc.with_untracked(|doc| match resp {
                         lsp_types::PrepareRenameResponse::Range(range) => (
                             doc.buffer().offset_of_position(&range.start),
@@ -1701,7 +1701,7 @@ impl EditorData {
         };
 
         if !pattern.contains('\n') {
-            self.common.find.set_find(&pattern, false, false);
+            self.common.find.set_find(&pattern);
         }
     }
 }

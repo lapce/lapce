@@ -852,6 +852,7 @@ impl LapceTab {
                             data.proxy.proxy_rpc.global_search(
                                 pattern.clone(),
                                 find.case_sensitive(),
+                                false,
                                 Box::new(move |result| {
                                     if let Ok(
                                         ProxyResponse::GlobalSearchResponse {

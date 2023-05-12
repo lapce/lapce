@@ -2,15 +2,15 @@ use std::{sync::Arc, time::Instant};
 
 use crossbeam_channel::Sender;
 use floem::{
+    cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::create_signal_from_channel,
     glazier::{FileDialogOptions, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_effect, create_rw_signal, create_signal, use_context, ReadSignal,
-        RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalWith, SignalWithUntracked, WriteSignal,
+        create_effect, create_memo, create_rw_signal, create_signal, use_context,
+        Memo, ReadSignal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
+        SignalUpdate, SignalWith, SignalWithUntracked, WriteSignal,
     },
-    AppContext,
 };
 use itertools::Itertools;
 use lapce_core::{mode::Mode, register::Register};
@@ -33,7 +33,7 @@ use crate::{
     doc::EditorDiagnostic,
     editor::location::EditorLocation,
     file_explorer::data::FileExplorerData,
-    find::NewFind,
+    find::Find,
     global_search::GlobalSearchData,
     id::WindowTabId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
@@ -69,7 +69,7 @@ pub struct CommonData {
     pub focus: RwSignal<Focus>,
     pub completion: RwSignal<CompletionData>,
     pub register: RwSignal<Register>,
-    pub find: NewFind,
+    pub find: Find,
     pub window_command: WriteSignal<Option<WindowCommand>>,
     pub internal_command: RwSignal<Option<InternalCommand>>,
     pub lapce_command: RwSignal<Option<LapceCommand>>,
@@ -78,6 +78,7 @@ pub struct CommonData {
     pub term_notification_tx: Sender<TermNotification>,
     pub proxy: ProxyRpcHandler,
     pub view_id: RwSignal<floem::id::Id>,
+    pub ui_line_height: Memo<f64>,
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
 
@@ -187,7 +188,22 @@ impl WindowTabData {
 
         let register = create_rw_signal(cx, Register::default());
         let view_id = create_rw_signal(cx, floem::id::Id::next());
-        let find = NewFind::new(cx);
+        let find = Find::new(cx);
+
+        let ui_line_height = create_memo(cx, move |_| {
+            let config = config.get();
+            let mut text_layout = TextLayout::new();
+
+            let family: Vec<FamilyOwned> =
+                FamilyOwned::parse_list(&config.ui.font_family).collect();
+            let attrs = Attrs::new()
+                .family(&family)
+                .font_size(config.ui.font_size() as f32)
+                .line_height(LineHeightValue::Normal(1.6));
+            let attrs_list = AttrsList::new(attrs);
+            text_layout.set_text("W", attrs_list);
+            text_layout.size().height
+        });
 
         let common = CommonData {
             workspace: workspace.clone(),
@@ -204,6 +220,7 @@ impl WindowTabData {
             term_notification_tx,
             proxy: proxy.rpc.clone(),
             view_id,
+            ui_line_height,
             config,
         };
 

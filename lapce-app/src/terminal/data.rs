@@ -10,7 +10,6 @@ use alacritty_terminal::{
 use floem::{
     glazier::{keyboard_types::Key, KeyEvent, Modifiers},
     reactive::{create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet},
-    AppContext,
 };
 use lapce_core::{
     command::{EditCommand, FocusCommand},

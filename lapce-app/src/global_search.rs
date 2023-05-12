@@ -1,11 +1,12 @@
-use std::path::PathBuf;
+use std::{ops::Range, path::PathBuf};
 
 use floem::{
     ext_event::create_ext_action,
     reactive::{
-        create_effect, create_rw_signal, RwSignal, Scope, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWith,
+        create_effect, create_rw_signal, Memo, RwSignal, Scope, SignalGet,
+        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
     },
+    views::VirtualListVector,
 };
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
@@ -23,6 +24,19 @@ use crate::{
 pub struct SearchMatchData {
     pub expanded: RwSignal<bool>,
     pub matches: RwSignal<im::Vector<SearchMatch>>,
+    pub line_height: Memo<f64>,
+}
+
+impl SearchMatchData {
+    pub fn height(&self) -> f64 {
+        let line_height = self.line_height.get();
+        let count = if self.expanded.get() {
+            self.matches.with(|m| m.len()) + 1
+        } else {
+            1
+        };
+        line_height * count as f64
+    }
 }
 
 #[derive(Clone)]
@@ -66,6 +80,35 @@ impl KeyPressFocus for GlobalSearchData {
     }
 }
 
+impl VirtualListVector<(PathBuf, SearchMatchData)> for GlobalSearchData {
+    type ItemIterator = Box<dyn Iterator<Item = (PathBuf, SearchMatchData)>>;
+
+    fn total_len(&self) -> usize {
+        0
+    }
+
+    fn total_size(&self) -> Option<f64> {
+        let line_height = self.common.ui_line_height.get();
+        let count: usize = self.search_result.with(|result| {
+            result
+                .iter()
+                .map(|(_, data)| {
+                    if data.expanded.get() {
+                        data.matches.with(|m| m.len()) + 1
+                    } else {
+                        1
+                    }
+                })
+                .sum()
+        });
+        Some(line_height * count as f64)
+    }
+
+    fn slice(&mut self, _range: Range<usize>) -> Self::ItemIterator {
+        Box::new(self.search_result.get().into_iter())
+    }
+}
+
 impl GlobalSearchData {
     pub fn new(cx: Scope, common: CommonData) -> Self {
         let editor = EditorData::new_local(cx, EditorId::next(), common.clone());
@@ -89,6 +132,7 @@ impl GlobalSearchData {
                     return;
                 }
                 let case_sensitive = global_search.common.find.case_sensitive(true);
+                let whole_word = global_search.common.find.whole_words.get();
                 let send = {
                     let global_search = global_search.clone();
                     create_ext_action(cx, move |result| {
@@ -102,6 +146,7 @@ impl GlobalSearchData {
                 global_search.common.proxy.global_search(
                     pattern,
                     case_sensitive,
+                    whole_word,
                     move |result| {
                         send(result);
                     },
@@ -127,6 +172,7 @@ impl GlobalSearchData {
                                     self.common.scope,
                                     im::Vector::new(),
                                 ),
+                                line_height: self.common.ui_line_height,
                             }
                         });
 

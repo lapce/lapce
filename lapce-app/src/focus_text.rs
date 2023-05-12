@@ -1,5 +1,7 @@
 use floem::{
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
+    cosmic_text::{
+        Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout, Weight,
+    },
     id::Id,
     peniko::{kurbo::Point, Color},
     reactive::create_effect,
@@ -49,6 +51,7 @@ pub fn focus_text(
         text_node: None,
         font_size: None,
         font_family: None,
+        line_height: None,
         available_text: None,
         available_width: None,
         available_text_layout: None,
@@ -64,6 +67,7 @@ pub struct FocusText {
     focus_indices: Vec<usize>,
     font_size: Option<f32>,
     font_family: Option<String>,
+    line_height: Option<LineHeightValue>,
     text_node: Option<Node>,
     available_text: Option<String>,
     available_width: Option<f32>,
@@ -83,6 +87,9 @@ impl FocusText {
         });
         if let Some(font_family) = font_family.as_ref() {
             attrs = attrs.family(font_family);
+        }
+        if let Some(line_height) = self.line_height {
+            attrs = attrs.line_height(line_height);
         }
 
         let mut attrs_list = AttrsList::new(attrs);
@@ -196,9 +203,11 @@ impl View for FocusText {
         cx.layout_node(self.id, true, |cx| {
             if self.font_size != cx.current_font_size()
                 || self.font_family.as_deref() != cx.current_font_family()
+                || self.line_height != cx.current_line_height()
             {
                 self.font_size = cx.current_font_size();
                 self.font_family = cx.current_font_family().map(|s| s.to_string());
+                self.line_height = cx.current_line_height();
                 self.set_text_layout();
             }
             if self.text_layout.is_none() {

@@ -8,16 +8,21 @@ use floem::{
     },
     style::{CursorStyle, Style},
     view::View,
-    views::{container, label, list, scroll, stack, svg, Decorators},
+    views::{
+        container, label, list, scroll, stack, svg, virtual_list, Decorators,
+        VirtualListDirection, VirtualListItemSize,
+    },
     AppContext,
 };
-use indexmap::IndexMap;
+use lapce_xi_rope::find::CaseMatching;
 
 use crate::{
+    app::clickable_icon,
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     editor::location::{EditorLocation, EditorPosition},
-    global_search::SearchMatchData,
+    focus_text::focus_text,
+    global_search::{GlobalSearchData, SearchMatchData},
     text_input::text_input,
     window_tab::WindowTabData,
     workspace::LapceWorkspace,
@@ -34,8 +39,10 @@ pub fn global_search_panel(
     let cursor = global_search.editor.cursor;
     let config = global_search.common.config;
     let workspace = global_search.common.workspace.clone();
-    let result = global_search.search_result;
     let internal_command = global_search.common.internal_command;
+    let case_matching = global_search.common.find.case_matching;
+    let whole_word = global_search.common.find.whole_words;
+    let is_regex = global_search.common.find.is_regex;
 
     let cx = AppContext::get_current();
     let cursor_x = create_rw_signal(cx.scope, 0.0);
@@ -43,19 +50,75 @@ pub fn global_search_panel(
     stack(|| {
         (
             container(|| {
-                container(|| {
-                    scroll(|| {
-                        text_input(doc, cursor, config).on_cursor_pos(move |point| {
-                            cursor_x.set(point.x);
+                stack(|| {
+                    (
+                        container(|| {
+                            scroll(|| {
+                                text_input(doc, cursor, config)
+                                    .on_cursor_pos(move |point| {
+                                        cursor_x.set(point.x);
+                                    })
+                                    .style(|| Style::BASE.padding_horiz_px(1.0))
+                            })
+                            .hide_bar(|| true)
+                            .on_ensure_visible(move || {
+                                Size::new(20.0, 0.0).to_rect().with_origin(
+                                    Point::new(cursor_x.get() - 10.0, 0.0),
+                                )
+                            })
+                            .style(|| {
+                                Style::BASE
+                                    .absolute()
+                                    .size_pct(100.0, 100.0)
+                                    .items_center()
+                            })
                         })
-                    })
-                    .hide_bar(|| true)
-                    .on_ensure_visible(move || {
-                        Size::new(20.0, 0.0)
-                            .to_rect()
-                            .with_origin(Point::new(cursor_x.get() - 10.0, 0.0))
-                    })
-                    .style(|| Style::BASE.width_pct(100.0))
+                        .style(|| Style::BASE.size_pct(100.0, 100.0)),
+                        clickable_icon(
+                            || LapceIcons::SEARCH_CASE_SENSITIVE,
+                            move || {
+                                let new = match case_matching.get_untracked() {
+                                    CaseMatching::Exact => {
+                                        CaseMatching::CaseInsensitive
+                                    }
+                                    CaseMatching::CaseInsensitive => {
+                                        CaseMatching::Exact
+                                    }
+                                };
+                                case_matching.set(new);
+                            },
+                            move || {
+                                case_matching.get() == CaseMatching::CaseInsensitive
+                            },
+                            || false,
+                            config,
+                        )
+                        .style(|| Style::BASE.padding_left_px(6.0)),
+                        clickable_icon(
+                            || LapceIcons::SEARCH_WHOLE_WORD,
+                            move || {
+                                whole_word.update(|whole_word| {
+                                    *whole_word = !*whole_word;
+                                });
+                            },
+                            move || whole_word.get(),
+                            || false,
+                            config,
+                        )
+                        .style(|| Style::BASE.padding_left_px(6.0)),
+                        clickable_icon(
+                            || LapceIcons::SEARCH_REGEX,
+                            move || {
+                                is_regex.update(|is_regex| {
+                                    *is_regex = !*is_regex;
+                                });
+                            },
+                            move || is_regex.get(),
+                            || false,
+                            config,
+                        )
+                        .style(|| Style::BASE.padding_left_px(6.0)),
+                    )
                 })
                 .style(move || {
                     Style::BASE
@@ -69,7 +132,7 @@ pub fn global_search_panel(
                 })
             })
             .style(|| Style::BASE.width_pct(100.0).padding_px(10.0)),
-            search_result(workspace, result, internal_command, config),
+            search_result(workspace, global_search, internal_command, config),
         )
     })
     .style(|| Style::BASE.absolute().size_pct(100.0, 100.0).flex_col())
@@ -77,14 +140,21 @@ pub fn global_search_panel(
 
 fn search_result(
     workspace: Arc<LapceWorkspace>,
-    result: RwSignal<IndexMap<PathBuf, SearchMatchData>>,
+    global_search_data: GlobalSearchData,
     internal_command: RwSignal<Option<InternalCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
+    let ui_line_height = global_search_data.common.ui_line_height;
     container(|| {
         scroll(move || {
-            list(
-                move || result.get(),
+            virtual_list(
+                VirtualListDirection::Vertical,
+                VirtualListItemSize::Fn(Box::new(
+                    |(_, match_data): &(PathBuf, SearchMatchData)| {
+                        match_data.height()
+                    },
+                )),
+                move || global_search_data.clone(),
                 move |(path, _)| path.to_owned(),
                 move |(path, match_data)| {
                     let full_path = path.clone();
@@ -199,7 +269,11 @@ fn search_result(
                                     ),
                                 )
                             }),
-                            list(
+                            virtual_list(
+                                VirtualListDirection::Vertical,
+                                VirtualListItemSize::Fixed(Box::new(move || {
+                                    ui_line_height.get()
+                                })),
                                 move || {
                                     if expanded.get() {
                                         match_data.matches.get()
@@ -207,12 +281,16 @@ fn search_result(
                                         im::Vector::new()
                                     }
                                 },
-                                |m| m.line,
+                                |m| (m.line, m.start, m.end),
                                 move |m| {
                                     let path = full_path.clone();
                                     let line_number = m.line;
-                                    stack(|| {
-                                        (label(move || {
+                                    let start = m.start;
+                                    let end = m.end;
+                                    let line_content = m.line_content.clone();
+
+                                    focus_text(
+                                        move || {
                                             let config = config.get();
                                             let content = if config
                                                 .ui
@@ -223,15 +301,39 @@ fn search_result(
                                                 &m.line_content
                                             };
                                             format!("{}: {content}", m.line,)
-                                        })
-                                        .style(move || {
+                                        },
+                                        move || {
                                             let config = config.get();
-                                            let icon_size =
-                                                config.ui.icon_size() as f32;
-                                            Style::BASE.margin_left_px(
-                                                10.0 + icon_size + 6.0,
-                                            )
-                                        }),)
+                                            let mut offset = if config
+                                                .ui
+                                                .trim_search_results_whitespace
+                                            {
+                                                line_content.trim_start().len()
+                                                    as i32
+                                                    - line_content.len() as i32
+                                            } else {
+                                                0
+                                            };
+                                            offset += line_number.to_string().len()
+                                                as i32
+                                                + 2;
+
+                                            ((start as i32 + offset) as usize
+                                                ..(end as i32 + offset) as usize)
+                                                .into_iter()
+                                                .collect()
+                                        },
+                                        move || {
+                                            *config
+                                                .get()
+                                                .get_color(LapceColor::EDITOR_FOCUS)
+                                        },
+                                    )
+                                    .style(move || {
+                                        let config = config.get();
+                                        let icon_size = config.ui.icon_size() as f32;
+                                        Style::BASE
+                                            .margin_left_px(10.0 + icon_size + 6.0)
                                     })
                                     .on_click(move |_| {
                                         internal_command.set(Some(

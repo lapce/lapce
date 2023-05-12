@@ -13,13 +13,9 @@ use floem::{
         SignalWithUntracked,
     },
 };
-use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::cursor::Cursor;
-use lapce_rpc::{
-    plugin::PluginId,
-    proxy::{ProxyResponse, SearchMatch},
-};
+use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::Rope;
 use lsp_types::{
     CodeAction, CodeActionOrCommand, DiagnosticSeverity, DocumentChangeOperation,
@@ -34,7 +30,6 @@ use crate::{
         EditorData,
     },
     editor_tab::{EditorTabChild, EditorTabData, EditorTabInfo},
-    global_search::GlobalSearchData,
     id::{EditorId, EditorTabId, SplitId},
     keypress::KeyPressData,
     window_tab::{CommonData, WindowTabData},

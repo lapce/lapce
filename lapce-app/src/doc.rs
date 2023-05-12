@@ -50,7 +50,7 @@ use smallvec::SmallVec;
 
 use crate::{
     config::{color::LapceColor, LapceConfig},
-    find::{FindProgress, FindResult, NewFind},
+    find::{Find, FindProgress, FindResult},
     workspace::LapceWorkspace,
 };
 
@@ -195,7 +195,7 @@ pub struct Document {
     pub text_layouts: Rc<RefCell<TextLayoutCache>>,
     proxy: ProxyRpcHandler,
     config: ReadSignal<Arc<LapceConfig>>,
-    find: NewFind,
+    find: Find,
     pub find_result: FindResult,
 }
 
@@ -232,7 +232,7 @@ impl Document {
         cx: Scope,
         path: PathBuf,
         diagnostics: DiagnosticData,
-        find: NewFind,
+        find: Find,
         proxy: ProxyRpcHandler,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
@@ -259,7 +259,7 @@ impl Document {
 
     pub fn new_local(
         cx: Scope,
-        find: NewFind,
+        find: Find,
         proxy: ProxyRpcHandler,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
@@ -488,7 +488,7 @@ impl Document {
                         let search_whole_word =
                             config.editor.multicursor_whole_words;
                         self.find.set_case_sensitive(case_sensitive);
-                        self.find.set_find(&search_str, false, search_whole_word);
+                        self.find.set_find(&search_str);
                         let mut offset = 0;
                         while let Some((start, end)) =
                             self.find.next(self.buffer.text(), offset, false, false)
@@ -525,11 +525,7 @@ impl Document {
                             let search_whole_word =
                                 config.editor.multicursor_whole_words;
                             self.find.set_case_sensitive(case_sensitive);
-                            self.find.set_find(
-                                &search_str,
-                                false,
-                                search_whole_word,
-                            );
+                            self.find.set_find(&search_str);
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) = self.find.next(
@@ -571,7 +567,7 @@ impl Document {
                         } else {
                             let search_str =
                                 self.buffer.slice_to_cow(r.min()..r.max());
-                            self.find.set_find(&search_str, false, false);
+                            self.find.set_find(&search_str);
                             let mut offset = r.max();
                             let mut seen = HashSet::new();
                             while let Some((start, end)) = self.find.next(

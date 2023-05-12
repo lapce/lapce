@@ -5,7 +5,6 @@ use floem::{
     style::Style,
     view::View,
     views::{container, container_box, label, list, stack, tab, Decorators},
-    AppContext,
 };
 
 use crate::{
@@ -185,6 +184,7 @@ fn panel_picker(
                             move || {
                                 window_tab_data.toggle_panel_visual(p);
                             },
+                            || false,
                             || false,
                             config,
                         )

@@ -1,7 +1,7 @@
 use std::{ops::Range, sync::Arc};
 
 use floem::{
-    cosmic_text::{Attrs, AttrsList, Style as FontStyle, TextLayout, Weight},
+    cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListner},
     peniko::{
         kurbo::{Point, Rect, Size},
@@ -287,10 +287,22 @@ fn editor_tab_header(
 
     stack(|| {
         (
-            clickable_icon(|| LapceIcons::TAB_PREVIOUS, || {}, || false, config)
-                .style(|| Style::BASE.margin_horiz_px(6.0).margin_vert_px(7.0)),
-            clickable_icon(|| LapceIcons::TAB_NEXT, || {}, || false, config)
-                .style(|| Style::BASE.margin_right_px(6.0)),
+            clickable_icon(
+                || LapceIcons::TAB_PREVIOUS,
+                || {},
+                || false,
+                || false,
+                config,
+            )
+            .style(|| Style::BASE.margin_horiz_px(6.0).margin_vert_px(7.0)),
+            clickable_icon(
+                || LapceIcons::TAB_NEXT,
+                || {},
+                || false,
+                || false,
+                config,
+            )
+            .style(|| Style::BASE.margin_right_px(6.0)),
             container(|| {
                 scroll(|| {
                     list(items, key, view_fn)
@@ -310,9 +322,15 @@ fn editor_tab_header(
                     .flex_grow(1.0)
                     .flex_basis_px(0.0)
             }),
-            clickable_icon(|| LapceIcons::SPLIT_HORIZONTAL, || {}, || false, config)
-                .style(|| Style::BASE.margin_left_px(6.0)),
-            clickable_icon(|| LapceIcons::CLOSE, || {}, || false, config)
+            clickable_icon(
+                || LapceIcons::SPLIT_HORIZONTAL,
+                || {},
+                || false,
+                || false,
+                config,
+            )
+            .style(|| Style::BASE.margin_left_px(6.0)),
+            clickable_icon(|| LapceIcons::CLOSE, || {}, || false, || false, config)
                 .style(|| Style::BASE.margin_horiz_px(6.0)),
         )
     })
@@ -611,6 +629,7 @@ fn main_split(window_tab_data: Arc<WindowTabData>) -> impl View {
 pub fn clickable_icon(
     icon: impl Fn() -> &'static str + 'static,
     on_click: impl Fn() + 'static,
+    active_fn: impl Fn() -> bool + 'static + Copy,
     disabled_fn: impl Fn() -> bool + 'static + Copy,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
@@ -638,11 +657,16 @@ pub fn clickable_icon(
             true
         })
         .disabled(disabled_fn)
-        .style(|| {
+        .style(move || {
             Style::BASE
                 .padding_px(4.0)
                 .border_radius(6.0)
                 .cursor(CursorStyle::Pointer)
+                .border(1.0)
+                .border_color(Color::TRANSPARENT)
+                .apply_if(active_fn(), |s| {
+                    s.border_color(*config.get().get_color(LapceColor::EDITOR_CARET))
+                })
         })
         .hover_style(move || {
             Style::BASE.background(
@@ -660,7 +684,6 @@ pub fn clickable_icon(
 }
 
 fn workbench(window_tab_data: Arc<WindowTabData>) -> impl View {
-    let config = window_tab_data.main_split.common.config;
     stack(move || {
         (
             panel_container_view(
@@ -820,6 +843,7 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                                 )
                             },
                             || false,
+                            || false,
                             config,
                         )
                     },
@@ -846,6 +870,7 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                                 )
                             },
                             || false,
+                            || false,
                             config,
                         )
                     },
@@ -871,6 +896,7 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                                     &PanelContainerPosition::Right,
                                 )
                             },
+                            || false,
                             || false,
                             config,
                         )
@@ -1346,7 +1372,13 @@ fn palette_input(window_tab_data: Arc<WindowTabData>) -> impl View {
                     .to_rect()
                     .with_origin(Point::new(cursor_x.get() - 10.0, 0.0))
             })
-            .style(|| Style::BASE.min_width_px(0.0).height_px(24.0).items_center())
+            .style(|| {
+                Style::BASE
+                    .min_width_px(0.0)
+                    .height_px(24.0)
+                    .padding_horiz_px(1.0)
+                    .items_center()
+            })
         })
         .style(move || {
             let config = config.get();
@@ -1402,7 +1434,9 @@ fn palette_content(
                 let workspace = workspace.clone();
                 virtual_list(
                     VirtualListDirection::Vertical,
-                    VirtualListItemSize::Fixed(palette_item_height),
+                    VirtualListItemSize::Fixed(Box::new(move || {
+                        palette_item_height
+                    })),
                     move || PaletteItems(items.get()),
                     move |(i, _item)| {
                         (run_id.get_untracked(), *i, input.get_untracked().input)
@@ -1600,7 +1634,9 @@ fn completion(window_tab_data: Arc<WindowTabData>) -> impl View {
     scroll(move || {
         virtual_list(
             VirtualListDirection::Vertical,
-            VirtualListItemSize::Fixed(config.get().editor.line_height() as f64),
+            VirtualListItemSize::Fixed(Box::new(move || {
+                config.get().editor.line_height() as f64
+            })),
             move || completion_data.with(|c| VectorItems(c.filtered_items.clone())),
             move |(i, _item)| (request_id(), *i),
             move |(i, item)| {
@@ -1947,6 +1983,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                                             );
                                             },
                                             || false,
+                                            || false,
                                             config.read_only(),
                                         )
                                         .style(|| Style::BASE.margin_horiz_px(6.0)),
@@ -2008,6 +2045,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                         end: true,
                     });
                 },
+                || false,
                 || false,
                 config.read_only(),
             )

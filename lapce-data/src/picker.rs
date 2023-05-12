@@ -3,13 +3,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use druid::{ExtEventSink, Target, WidgetId};
+use druid::{ExtEventSink, WidgetId};
 use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
 
-use crate::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
-    proxy::LapceProxy,
-};
+use crate::proxy::LapceProxy;
 
 #[derive(Clone)]
 pub struct FilePickerData {

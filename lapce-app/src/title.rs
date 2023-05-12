@@ -8,7 +8,6 @@ use floem::{
     view::View,
     views::{container, stack, Decorators},
     views::{label, svg},
-    AppContext,
 };
 
 use crate::{
@@ -108,12 +107,14 @@ fn middle(
                         || LapceIcons::LOCATION_BACKWARD,
                         || {},
                         || false,
+                        || false,
                         config,
                     )
                     .style(move || Style::BASE.margin_horiz_px(6.0)),
                     clickable_icon(
                         || LapceIcons::LOCATION_FORWARD,
                         || {},
+                        || false,
                         || false,
                         config,
                     )
@@ -197,6 +198,7 @@ fn middle(
                             .set(Some(LapceWorkbenchCommand::PaletteRunAndDebug))
                     },
                     || false,
+                    || false,
                     config,
                 )
                 .style(move || Style::BASE.margin_horiz_px(6.0))
@@ -220,7 +222,7 @@ fn middle(
 
 fn right(config: ReadSignal<Arc<LapceConfig>>) -> impl View {
     container(move || {
-        clickable_icon(|| LapceIcons::SETTINGS, || {}, || false, config)
+        clickable_icon(|| LapceIcons::SETTINGS, || {}, || false, || false, config)
             .style(move || Style::BASE.margin_horiz_px(6.0))
     })
     .style(|| {

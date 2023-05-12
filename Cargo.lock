@@ -900,7 +900,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.7.0"
-source = "git+https://github.com/lapce/cosmic-text?rev=67e910c3e02a1dbf7a5e9ec5652b2e69c95d28c7#67e910c3e02a1dbf7a5e9ec5652b2e69c95d28c7"
+source = "git+https://github.com/lapce/cosmic-text?rev=5cbf0621f6052412701ad16c5095dfe39227cb4e#5cbf0621f6052412701ad16c5095dfe39227cb4e"
 dependencies = [
  "fontdb 0.13.0",
  "libm",
@@ -1615,7 +1615,7 @@ dependencies = [
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=624ea0166b19d4555ddd588f1d35f7abc1693b12#624ea0166b19d4555ddd588f1d35f7abc1693b12"
+source = "git+https://github.com/lapce/floem?rev=ae543ba93f15648d5db7d1be019de84db20ebc53#ae543ba93f15648d5db7d1be019de84db20ebc53"
 dependencies = [
  "bitflags 2.2.1",
  "crossbeam-channel",
@@ -1643,7 +1643,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=624ea0166b19d4555ddd588f1d35f7abc1693b12#624ea0166b19d4555ddd588f1d35f7abc1693b12"
+source = "git+https://github.com/lapce/floem?rev=ae543ba93f15648d5db7d1be019de84db20ebc53#ae543ba93f15648d5db7d1be019de84db20ebc53"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1653,7 +1653,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=624ea0166b19d4555ddd588f1d35f7abc1693b12#624ea0166b19d4555ddd588f1d35f7abc1693b12"
+source = "git+https://github.com/lapce/floem?rev=ae543ba93f15648d5db7d1be019de84db20ebc53#ae543ba93f15648d5db7d1be019de84db20ebc53"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -7018,7 +7018,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.5"
-source = "git+https://github.com/lapce/vger-rs?rev=30c8d18ec900dcbd8dcf6bc6e2a726ae135f89d5#30c8d18ec900dcbd8dcf6bc6e2a726ae135f89d5"
+source = "git+https://github.com/lapce/vger-rs?rev=663a9e16c50be941370c23c99302b3de2db215c4#663a9e16c50be941370c23c99302b3de2db215c4"
 dependencies = [
  "cosmic-text",
  "euclid",

@@ -7,7 +7,6 @@ use floem::{
     style::Style,
     view::View,
     views::{container, label, list, stack, svg, tab, Decorators},
-    AppContext,
 };
 
 use crate::{
@@ -121,6 +120,7 @@ fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
                                 clickable_icon(
                                     || LapceIcons::CLOSE,
                                     || {},
+                                    || false,
                                     || false,
                                     config,
                                 )

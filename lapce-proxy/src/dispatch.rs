@@ -363,6 +363,7 @@ impl ProxyHandler for Dispatcher {
             GlobalSearch {
                 pattern,
                 case_sensitive,
+                whole_word,
             } => {
                 static WORKER_ID: AtomicU64 = AtomicU64::new(0);
                 let our_id = WORKER_ID.fetch_add(1, Ordering::SeqCst) + 1;
@@ -394,6 +395,7 @@ impl ProxyHandler for Dispatcher {
                                 .map(|p| p.into_path()),
                             &pattern,
                             case_sensitive,
+                            whole_word,
                         ),
                     );
                 });
@@ -1281,11 +1283,13 @@ fn search_in_path(
     paths: impl Iterator<Item = PathBuf>,
     pattern: &str,
     case_sensitive: bool,
+    whole_word: bool,
 ) -> Result<ProxyResponse, RpcError> {
     let mut matches = IndexMap::new();
     let pattern = regex::escape(pattern);
     let matcher = RegexMatcherBuilder::new()
         .case_insensitive(!case_sensitive)
+        .word(whole_word)
         .build_literals(&[&pattern])
         .map_err(|_| RpcError {
             code: 0,
