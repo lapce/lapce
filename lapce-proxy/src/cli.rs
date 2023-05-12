@@ -7,46 +7,82 @@ use lapce_rpc::{
 };
 use std::{
     fs,
-    path::{Component, PathBuf},
+    path::{self, Component, PathBuf},
 };
+
+#[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PathObjectType {
+    #[default]
+    Directory,
+    File,
+}
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PathObject {
     pub path: PathBuf,
     pub linecol: Option<LineCol>,
+    pub r#type: PathObjectType,
 }
 
 impl PathObject {
-    pub fn new(path: PathBuf, line: usize, column: usize) -> PathObject {
+    pub fn new(
+        path: PathBuf,
+        r#type: PathObjectType,
+        line: usize,
+        column: usize,
+    ) -> PathObject {
         PathObject {
             path,
+            r#type,
             linecol: Some(LineCol { line, column }),
         }
     }
 
-    pub fn from_path(path: PathBuf) -> PathObject {
+    pub fn from_path(path: PathBuf, r#type: PathObjectType) -> PathObject {
         PathObject {
             path,
+            r#type,
             linecol: None,
         }
     }
 }
 
+fn canonicalize_or_return(path: PathBuf) -> PathBuf {
+    if let Ok(p) = fs::canonicalize(&path) {
+        p
+    } else {
+        path
+    }
+}
+
 pub fn parse_file_line_column(path: &str) -> Result<PathObject, Error> {
     let path = PathBuf::from(path);
-    // Bail out quickly on existing path
-    if let Ok(meta) = fs::metadata(&path) {
-        if meta.is_file() || meta.is_dir() {
-            return Ok(PathObject::from_path(path));
-        }
-    };
+    if path::is_separator(path.to_string_lossy().chars().last().unwrap_or(' ')) {
+        return Ok(PathObject::from_path(
+            canonicalize_or_return(path),
+            PathObjectType::Directory,
+        ));
+    }
     let components = path.components();
     // Verify that last component is what could be a filename
     // otherwise bail out since it's an actual path
     match components.last() {
         Some(Component::Normal(_)) => {}
         _ => {
-            return Ok(PathObject::from_path(path));
+            return Ok(PathObject::from_path(
+                canonicalize_or_return(path),
+                PathObjectType::Directory,
+            ));
+        }
+    };
+    // Bail out quickly on existing path
+    if let Ok(meta) = fs::metadata(&path) {
+        let path = canonicalize_or_return(path.clone());
+        if meta.is_dir() {
+            return Ok(PathObject::from_path(path, PathObjectType::Directory));
+        }
+        if meta.is_file() {
+            return Ok(PathObject::from_path(path, PathObjectType::File));
         }
     };
     if let Some(str) = path.to_str() {
@@ -63,6 +99,7 @@ pub fn parse_file_line_column(path: &str) -> Result<PathObject, Error> {
                         if left_path.is_file() {
                             return Ok(PathObject::new(
                                 left_path,
+                                PathObjectType::File,
                                 second_rhs_num,
                                 first_rhs_num,
                             ));
@@ -71,9 +108,17 @@ pub fn parse_file_line_column(path: &str) -> Result<PathObject, Error> {
                         str.push_str(second_rhs);
                         let left_path = PathBuf::from(&str);
                         if left_path.is_file() {
-                            return Ok(PathObject::new(left_path, first_rhs_num, 1));
+                            return Ok(PathObject::new(
+                                left_path,
+                                PathObjectType::File,
+                                first_rhs_num,
+                                1,
+                            ));
                         } else if path.is_file() {
-                            return Ok(PathObject::from_path(path));
+                            return Ok(PathObject::from_path(
+                                path,
+                                PathObjectType::File,
+                            ));
                         }
                     } else {
                         let mut str = String::new();
@@ -83,19 +128,20 @@ pub fn parse_file_line_column(path: &str) -> Result<PathObject, Error> {
 
                         return Ok(PathObject::new(
                             PathBuf::from(str),
+                            PathObjectType::File,
                             first_rhs_num,
                             1,
                         ));
                     }
                 } else {
-                    return Ok(PathObject::from_path(path));
+                    return Ok(PathObject::from_path(path, PathObjectType::File));
                 }
             } else {
-                return Ok(PathObject::from_path(path));
+                return Ok(PathObject::from_path(path, PathObjectType::File));
             }
         }
     }
-    Ok(PathObject::from_path(path))
+    Ok(PathObject::from_path(path, PathObjectType::File))
 }
 
 // FIXME: Unfortunately the last element will be ":", we need to think about how to handle
@@ -140,9 +186,9 @@ pub fn try_open_in_existing_process(paths: &[PathObject]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{env, fs, path::PathBuf};
 
-    use crate::cli::PathObject;
+    use crate::cli::{PathObject, PathObjectType};
 
     use super::parse_file_line_column;
 
@@ -151,7 +197,12 @@ mod tests {
     fn test_absolute_path() {
         assert_eq!(
             parse_file_line_column("C:\\Cargo.toml:55").unwrap(),
-            PathObject::new(PathBuf::from("C:\\Cargo.toml"), 55, 1),
+            PathObject::new(
+                PathBuf::from("C:\\Cargo.toml"),
+                PathObjectType::File,
+                55,
+                1
+            ),
         );
     }
 
@@ -160,7 +211,24 @@ mod tests {
     fn test_relative_path() {
         assert_eq!(
             parse_file_line_column(".\\..\\Cargo.toml:55").unwrap(),
-            PathObject::new(PathBuf::from(".\\..\\Cargo.toml"), 55, 1),
+            PathObject::new(
+                PathBuf::from(".\\..\\Cargo.toml"),
+                PathObjectType::File,
+                55,
+                1
+            ),
+        );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_directory_looking_like_file() {
+        assert_eq!(
+            parse_file_line_column(".\\Cargo.toml\\").unwrap(),
+            PathObject::from_path(
+                PathBuf::from(".\\Cargo.toml\\"),
+                PathObjectType::Directory
+            ),
         );
     }
 
@@ -169,7 +237,12 @@ mod tests {
     fn test_absolute_path() {
         assert_eq!(
             parse_file_line_column("/tmp/Cargo.toml:55").unwrap(),
-            PathObject::new(PathBuf::from("/tmp/Cargo.toml"), 55, 1),
+            PathObject::new(
+                PathBuf::from("/tmp/Cargo.toml"),
+                PathObjectType::File,
+                55,
+                1
+            ),
         );
     }
 
@@ -178,7 +251,35 @@ mod tests {
     fn test_relative_path() {
         assert_eq!(
             parse_file_line_column("./lapce-core/../Cargo.toml").unwrap(),
-            PathObject::from_path(PathBuf::from("./lapce-core/../Cargo.toml")),
+            PathObject::from_path(
+                PathBuf::from("./lapce-core/../Cargo.toml"),
+                PathObjectType::File
+            ),
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_directory_looking_like_file() {
+        assert_eq!(
+            parse_file_line_column("./Cargo.toml/").unwrap(),
+            PathObject::from_path(
+                PathBuf::from(env::current_dir().unwrap().join("Cargo.toml")),
+                PathObjectType::Directory
+            ),
+        );
+    }
+
+    #[test]
+    fn test_current_dir() {
+        assert_eq!(
+            parse_file_line_column(".").unwrap(),
+            PathObject::from_path(
+                PathBuf::from(
+                    fs::canonicalize(env::current_dir().unwrap()).unwrap()
+                ),
+                PathObjectType::Directory
+            ),
         );
     }
 
@@ -186,7 +287,12 @@ mod tests {
     fn test_relative_path_with_line() {
         assert_eq!(
             parse_file_line_column("Cargo.toml:55").unwrap(),
-            PathObject::new(PathBuf::from("Cargo.toml"), 55, 1),
+            PathObject::new(
+                PathBuf::from("Cargo.toml"),
+                PathObjectType::File,
+                55,
+                1
+            ),
         );
     }
 
@@ -194,7 +300,12 @@ mod tests {
     fn test_relative_path_with_linecol() {
         assert_eq!(
             parse_file_line_column("Cargo.toml:55:3").unwrap(),
-            PathObject::new(PathBuf::from("Cargo.toml"), 55, 3),
+            PathObject::new(
+                PathBuf::from("Cargo.toml"),
+                PathObjectType::File,
+                55,
+                3
+            ),
         );
     }
 
@@ -202,7 +313,10 @@ mod tests {
     fn test_relative_path_with_none() {
         assert_eq!(
             parse_file_line_column("Cargo.toml:12:623:352").unwrap(),
-            PathObject::from_path(PathBuf::from("Cargo.toml:12:623:352")),
+            PathObject::from_path(
+                PathBuf::from("Cargo.toml:12:623:352"),
+                PathObjectType::File
+            ),
         );
     }
 }
