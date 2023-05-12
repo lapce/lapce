@@ -7,7 +7,7 @@ use lapce_rpc::{
 };
 use std::{
     fs,
-    path::{Component, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -19,14 +19,14 @@ pub struct PathObject {
 impl PathObject {
     pub fn new(path: PathBuf, line: usize, column: usize) -> PathObject {
         PathObject {
-            path,
+            path: to_lexical_absolute(&path).unwrap(),
             linecol: Some(LineCol { line, column }),
         }
     }
 
     pub fn from_path(path: PathBuf) -> PathObject {
         PathObject {
-            path,
+            path: to_lexical_absolute(&path).unwrap(),
             linecol: None,
         }
     }
@@ -205,4 +205,22 @@ mod tests {
             PathObject::from_path(PathBuf::from("Cargo.toml:12:623:352")),
         );
     }
+}
+
+pub fn to_lexical_absolute(path: &Path) -> std::io::Result<PathBuf> {
+    let mut absolute = if path.is_absolute() {
+        PathBuf::new()
+    } else {
+        std::env::current_dir()?
+    };
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                absolute.pop();
+            }
+            component @ _ => absolute.push(component.as_os_str()),
+        }
+    }
+    Ok(absolute)
 }

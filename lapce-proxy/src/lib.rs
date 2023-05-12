@@ -27,7 +27,7 @@ use lapce_rpc::{
     RpcMessage,
 };
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[clap(name = "Lapce")]
 #[clap(version=*meta::VERSION)]
 struct Cli {
