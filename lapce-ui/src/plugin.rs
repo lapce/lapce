@@ -508,7 +508,9 @@ impl Plugin {
             PluginLoadStatus::Success => {
                 let rect = ctx.region().bounding_box();
                 if rect.y1 + 30.0 > self.height {
-                    data.plugin.volts.load_more();
+                    data.plugin
+                        .volts
+                        .load_more(data.config.core.web_proxy.clone());
                 }
 
                 let height = 3.0 * self.line_height + self.gap;
@@ -567,7 +569,10 @@ impl Widget<LapceTabData> for Plugin {
                 let editor_data =
                     data.editor_view_content(data.plugin.search_editor);
                 let query = editor_data.doc.buffer().text().to_string();
-                Arc::make_mut(&mut data.plugin).volts.update_query(query);
+                let web_proxy = data.config.core.web_proxy.clone();
+                Arc::make_mut(&mut data.plugin)
+                    .volts
+                    .update_query(query, web_proxy);
             }
             Event::MouseMove(mouse_event) => {
                 if mouse_event.pos.y <= self.height {
@@ -1235,6 +1240,7 @@ fn status_on_click(
     pos: Point,
 ) {
     let status = data.plugin.plugin_status(id);
+    let web_proxy = data.config.core.web_proxy.clone();
     if let Some(meta) = data.plugin.installed.get(id) {
         let mut menu = druid::Menu::<LapceData>::new("Plugin");
 
@@ -1244,7 +1250,11 @@ fn status_on_click(
             let proxy = data.proxy.clone();
             let item = druid::MenuItem::new("Upgrade Plugin").on_activate(
                 move |_ctx, _data, _env| {
-                    let _ = PluginData::install_volt(proxy.clone(), info.clone());
+                    let _ = PluginData::install_volt(
+                        proxy.clone(),
+                        info.clone(),
+                        web_proxy.clone(),
+                    );
                 },
             );
             menu = menu.entry(item);
@@ -1356,6 +1366,7 @@ fn status_on_click(
         menu = menu.separator().entry(item);
         ctx.show_context_menu::<LapceData>(menu, ctx.to_window(pos))
     } else if let Some(volt) = data.plugin.volts.volts.get(id) {
-        let _ = PluginData::install_volt(data.proxy.clone(), volt.clone());
+        let _ =
+            PluginData::install_volt(data.proxy.clone(), volt.clone(), web_proxy);
     }
 }

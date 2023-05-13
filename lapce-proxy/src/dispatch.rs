@@ -199,9 +199,9 @@ impl ProxyHandler for Dispatcher {
                     let _ = tx.send(Msg::Shutdown);
                 }
             }
-            InstallVolt { volt } => {
+            InstallVolt { volt, web_proxy } => {
                 let catalog_rpc = self.catalog_rpc.clone();
-                let _ = catalog_rpc.install_volt(volt);
+                let _ = catalog_rpc.install_volt(volt, web_proxy);
             }
             ReloadVolt { volt } => {
                 let _ = self.catalog_rpc.reload_volt(volt);

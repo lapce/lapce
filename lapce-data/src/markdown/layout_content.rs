@@ -38,6 +38,7 @@ impl LayoutContent {
         images: &mut ImageCache,
         base_url: Option<&Url>,
         content: &Content,
+        proxy: String,
     ) -> LayoutContent {
         match content {
             Content::Text(text) => {
@@ -47,7 +48,7 @@ impl LayoutContent {
             }
             Content::Image { url, .. } => {
                 if let Ok(url) = Url::options().base_url(base_url).parse(url) {
-                    images.load_url_cmd(url.clone(), event_sink);
+                    images.load_url_cmd(url.clone(), event_sink, proxy);
 
                     LayoutContent::Image {
                         url,
@@ -253,6 +254,7 @@ pub fn layouts_from_contents<'a>(
         .and_then(|p| Url::from_directory_path(p).ok());
     let base_url = base_url.as_ref();
     let mut layouts = Vec::new();
+    let web_proxy = data.config.core.web_proxy.clone();
 
     for content in items {
         layouts.push(LayoutContent::from_content(
@@ -260,6 +262,7 @@ pub fn layouts_from_contents<'a>(
             images,
             base_url,
             content,
+            web_proxy.clone(),
         ));
     }
 

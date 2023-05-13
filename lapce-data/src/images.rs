@@ -44,20 +44,30 @@ pub struct ImageCache {
 impl ImageCache {
     /// Loads the given url, and submits the `ImageLoaded` event to the event sink when it's done.  
     /// You can use [`ImageCache::get`] to get the image's status, and content once it is finished.
-    pub fn load_url_cmd(&mut self, url: Url, event_sink: ExtEventSink) {
-        self.load_url_cb(url.clone(), move |image| {
-            let _ = event_sink.submit_command(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::ImageLoaded { url, image },
-                Target::Auto,
-            );
-        });
+    pub fn load_url_cmd(
+        &mut self,
+        url: Url,
+        event_sink: ExtEventSink,
+        web_proxy: String,
+    ) {
+        self.load_url_cb(
+            url.clone(),
+            move |image| {
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::ImageLoaded { url, image },
+                    Target::Auto,
+                );
+            },
+            web_proxy,
+        );
     }
 
     fn load_url_cb(
         &mut self,
         url: Url,
         cb: impl FnOnce(anyhow::Result<Image>) + Send + 'static,
+        web_proxy: String,
     ) {
         let has_img = self.images.contains_key(&url);
         let img =
@@ -77,7 +87,7 @@ impl ImageCache {
             return;
         }
 
-        std::thread::spawn(move || cb(get_image(url)));
+        std::thread::spawn(move || cb(get_image(url, web_proxy)));
     }
 
     pub fn load_finished(
@@ -112,7 +122,7 @@ impl ImageCache {
     }
 }
 
-fn get_image(url: Url) -> Result<Image, anyhow::Error> {
+fn get_image(url: Url, web_proxy: String) -> Result<Image, anyhow::Error> {
     // Load the image's raw bytes
     let content = if url.scheme() == "file" {
         // If it's a file, then we can just load it directly rather than
@@ -134,7 +144,8 @@ fn get_image(url: Url) -> Result<Image, anyhow::Error> {
         match cache_content {
             Some(content) => content,
             None => {
-                let resp = reqwest::blocking::get(url.clone())?;
+                let client = lapce_proxy::net::Client::new(web_proxy)?;
+                let resp = client.get(url.clone()).send()?;
                 if !resp.status().is_success() {
                     return Err(anyhow::anyhow!("can't download icon"));
                 }

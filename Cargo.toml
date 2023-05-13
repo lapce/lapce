@@ -9,6 +9,7 @@ default-run = "lapce"
 [dependencies]
 lapce-ui = { path = "./lapce-ui" }
 lapce-proxy = { path = "./lapce-proxy" }
+url.workspace = true
 
 [[bin]]
 name = "lapce"
@@ -57,6 +58,7 @@ strum_macros = "0.21.1" # ditto
 tar = "0.4"
 thiserror = "1.0"
 toml_edit = { version = "0.14.4", features = ["easy"] }
+url = { version = "2.3.1", features = [] }
 
 lsp-types = { version = "0.93", features = ["proposed"] }
 psp-types = { git = "https://github.com/lapce/psp-types" }
@@ -65,9 +67,9 @@ psp-types = { git = "https://github.com/lapce/psp-types" }
 lapce-xi-rope = { version = "0.3.1", features = ["serde"] }
 
 lapce-core = { path = "./lapce-core" }
-lapce-rpc = { path = "./lapce-rpc" }
 lapce-data = { path = "./lapce-data" }
 lapce-proxy = { path = "./lapce-proxy" }
+lapce-rpc = { path = "./lapce-rpc" }
 
 [workspace.dependencies.druid]
 git = "https://github.com/lapce/druid"

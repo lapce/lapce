@@ -53,15 +53,15 @@ use lsp_types::{
     SignatureHelpClientCapabilities, SignatureHelpParams,
     SignatureInformationSettings, SymbolInformation, TextDocumentClientCapabilities,
     TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams,
-    TextDocumentSyncClientCapabilities, TextEdit, Url,
-    VersionedTextDocumentIdentifier, WindowClientCapabilities,
-    WorkDoneProgressParams, WorkspaceClientCapabilities, WorkspaceEdit,
-    WorkspaceSymbolClientCapabilities, WorkspaceSymbolParams,
+    TextDocumentSyncClientCapabilities, TextEdit, VersionedTextDocumentIdentifier,
+    WindowClientCapabilities, WorkDoneProgressParams, WorkspaceClientCapabilities,
+    WorkspaceEdit, WorkspaceSymbolClientCapabilities, WorkspaceSymbolParams,
 };
 use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 use tar::Archive;
+use url::Url;
 
 use self::{
     catalog::PluginCatalog,
@@ -120,7 +120,7 @@ pub enum PluginCatalogNotification {
     UpdatePluginConfigs(HashMap<String, HashMap<String, serde_json::Value>>),
     UnactivatedVolts(Vec<VoltMetadata>),
     PluginServerLoaded(PluginServerRpcHandler),
-    InstallVolt(VoltInfo),
+    InstallVolt(VoltInfo, String),
     StopVolt(VoltInfo),
     EnableVolt(VoltInfo),
     ReloadVolt(VoltMetadata),
@@ -946,8 +946,10 @@ impl PluginCatalogRpcHandler {
         ))
     }
 
-    pub fn install_volt(&self, volt: VoltInfo) -> Result<()> {
-        self.catalog_notification(PluginCatalogNotification::InstallVolt(volt))
+    pub fn install_volt(&self, volt: VoltInfo, web_proxy: String) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::InstallVolt(
+            volt, web_proxy,
+        ))
     }
 
     pub fn stop_volt(&self, volt: VoltInfo) -> Result<()> {
@@ -991,13 +993,14 @@ pub fn volt_icon(volt: &VoltMetadata) -> Option<Vec<u8>> {
     std::fs::read(icon).ok()
 }
 
-pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
+pub fn download_volt(volt: &VoltInfo, web_proxy: String) -> Result<VoltMetadata> {
     let url = format!(
         "https://plugins.lapce.dev/api/v1/plugins/{}/{}/{}/download",
         volt.author, volt.name, volt.version
     );
 
-    let resp = reqwest::blocking::get(url)?;
+    let client = crate::net::Client::new(web_proxy)?;
+    let resp = client.get(url).send()?;
     if !resp.status().is_success() {
         return Err(anyhow!("can't download plugin"));
     }
@@ -1005,7 +1008,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
     // this is the s3 url
     let url = resp.text()?;
 
-    let mut resp = reqwest::blocking::get(url)?;
+    let mut resp = client.get(url).send()?;
     if !resp.status().is_success() {
         return Err(anyhow!("can't download plugin"));
     }
@@ -1042,8 +1045,9 @@ pub fn install_volt(
     workspace: Option<PathBuf>,
     configurations: Option<HashMap<String, serde_json::Value>>,
     volt: VoltInfo,
+    web_proxy: String,
 ) -> Result<()> {
-    let download_volt_result = download_volt(&volt);
+    let download_volt_result = download_volt(&volt, web_proxy);
     if download_volt_result.is_err() {
         catalog_rpc
             .core_rpc
