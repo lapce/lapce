@@ -33,7 +33,7 @@ use crate::{
     },
     config::LapceConfig,
     data::{
-        FocusArea, LapceMainSplitData, LapceTabData, LapceWorkspace,
+        CustomHost, FocusArea, LapceMainSplitData, LapceTabData, LapceWorkspace,
         LapceWorkspaceType, SshHost,
     },
     db::LapceDb,
@@ -61,6 +61,7 @@ pub enum PaletteType {
     ColorTheme,
     IconTheme,
     SshHost,
+    CustomHost,
     Language,
 }
 
@@ -78,6 +79,7 @@ impl PaletteType {
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::SshHost
+            | PaletteType::CustomHost
             | PaletteType::Language => "".to_string(),
         }
     }
@@ -99,6 +101,7 @@ impl PaletteType {
         match current_type {
             PaletteType::Reference
             | PaletteType::SshHost
+            | PaletteType::CustomHost
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::Language => {
@@ -155,6 +158,7 @@ pub enum PaletteItemContent {
     ReferenceLocation(PathBuf, EditorLocation<Position>),
     Workspace(LapceWorkspace),
     SshHost(SshHost),
+    CustomHost(CustomHost),
     Command(LapceCommand),
     ColorTheme(String),
     IconTheme(String),
@@ -298,6 +302,19 @@ impl PaletteItemContent {
                         LAPCE_UI_COMMAND,
                         LapceUICommand::SetWorkspace(LapceWorkspace {
                             kind: LapceWorkspaceType::RemoteSSH(ssh.clone()),
+                            path: None,
+                            last_open: 0,
+                        }),
+                        Target::Auto,
+                    ));
+                }
+            }
+            PaletteItemContent::CustomHost(custom) => {
+                if !preview {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::SetWorkspace(LapceWorkspace {
+                            kind: LapceWorkspaceType::RemoteCustom(custom.clone()),
                             path: None,
                             last_open: 0,
                         }),
@@ -521,7 +538,8 @@ impl PaletteData {
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::Language
-            | PaletteType::SshHost => &self.input,
+            | PaletteType::SshHost
+            | PaletteType::CustomHost => &self.input,
             PaletteType::Line
             | PaletteType::DocumentSymbol
             | PaletteType::WorkspaceSymbol
@@ -659,6 +677,9 @@ impl PaletteViewData {
             PaletteType::SshHost => {
                 self.get_ssh_hosts(ctx);
             }
+            PaletteType::CustomHost => {
+                self.get_custom_hosts(ctx);
+            }
             PaletteType::GlobalSearch => {
                 self.get_global_search(ctx);
             }
@@ -721,7 +742,8 @@ impl PaletteViewData {
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::Language
-            | PaletteType::SshHost => 0,
+            | PaletteType::SshHost
+            | PaletteType::CustomHost => 0,
             PaletteType::Line
             | PaletteType::DocumentSymbol
             | PaletteType::WorkspaceSymbol
@@ -927,6 +949,31 @@ impl PaletteViewData {
             .collect();
     }
 
+    fn get_custom_hosts(&mut self, _ctx: &mut EventCtx) {
+        let mut hosts = HashSet::new();
+        for (name, entry) in &self.config.remote.entries {
+            hosts.insert(CustomHost {
+                name: name.clone(),
+                program: entry.program.clone(),
+                copy_args: entry.copy_args.clone(),
+                exec_args: entry.exec_args.clone(),
+                start_args: entry.start_args.clone(),
+                stop_args: entry.stop_args.clone(),
+            });
+        }
+
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.total_items = hosts
+            .iter()
+            .map(|custom| PaletteItem {
+                content: PaletteItemContent::CustomHost(custom.clone()),
+                filter_text: custom.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+    }
+
     fn get_workspaces(&mut self, _ctx: &mut EventCtx) {
         let workspaces = self.db.recent_workspaces().unwrap_or_default();
         let palette = Arc::make_mut(&mut self.palette);
@@ -938,6 +985,9 @@ impl PaletteViewData {
                     LapceWorkspaceType::Local => text,
                     LapceWorkspaceType::RemoteSSH(ssh) => {
                         format!("[{ssh}] {text}")
+                    }
+                    LapceWorkspaceType::RemoteCustom(custom) => {
+                        format!("[{custom}] {text}")
                     }
                     #[cfg(windows)]
                     LapceWorkspaceType::RemoteWSL => {

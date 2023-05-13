@@ -1911,6 +1911,13 @@ impl LapceTabData {
                     Target::Widget(self.palette.widget_id),
                 ));
             }
+            LapceWorkbenchCommand::ConnectCustomHost => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::CustomHost)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
             #[cfg(windows)]
             LapceWorkbenchCommand::ConnectWsl => ctx.submit_command(Command::new(
                 LAPCE_UI_COMMAND,
@@ -4666,10 +4673,34 @@ impl Display for SshHost {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct CustomHost {
+    pub name: String,
+    pub program: String,
+    pub copy_args: Vec<String>,
+    pub exec_args: Vec<String>,
+    pub start_args: Option<Vec<String>>,
+    pub stop_args: Option<Vec<String>>,
+}
+
+impl CustomHost {
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+}
+
+impl Display for CustomHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name)?;
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(SshHost),
+    RemoteCustom(CustomHost),
     #[cfg(windows)]
     RemoteWSL,
 }
@@ -4679,13 +4710,18 @@ impl LapceWorkspaceType {
     pub fn is_remote(&self) -> bool {
         matches!(
             self,
-            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL
+            LapceWorkspaceType::RemoteSSH(_)
+                | LapceWorkspaceType::RemoteCustom(_)
+                | LapceWorkspaceType::RemoteWSL
         )
     }
 
     #[cfg(not(windows))]
     pub fn is_remote(&self) -> bool {
-        matches!(self, LapceWorkspaceType::RemoteSSH(_))
+        matches!(
+            self,
+            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteCustom(_)
+        )
     }
 }
 
@@ -4695,6 +4731,9 @@ impl std::fmt::Display for LapceWorkspaceType {
             LapceWorkspaceType::Local => f.write_str("Local"),
             LapceWorkspaceType::RemoteSSH(ssh) => {
                 write!(f, "ssh://{ssh}")
+            }
+            LapceWorkspaceType::RemoteCustom(custom) => {
+                write!(f, "{custom}")
             }
             #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),

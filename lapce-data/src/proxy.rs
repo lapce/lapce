@@ -32,7 +32,7 @@ use thiserror::Error;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
-    data::{LapceWorkspace, LapceWorkspaceType, SshHost},
+    data::{CustomHost, LapceWorkspace, LapceWorkspaceType, SshHost},
     terminal::RawTerminal,
 };
 
@@ -333,13 +333,23 @@ impl LapceProxy {
                 LapceUICommand::ProxyUpdateStatus(ProxyStatus::Connecting),
                 Target::Widget(tab_id),
             );
-            let _ = local_proxy.start(
+            if let Err(e) = local_proxy.start(
                 workspace.clone(),
                 disabled_volts,
                 plugin_configurations,
                 window_id.to_usize(),
                 tab_id.to_usize(),
-            );
+            ) {
+                let _ = event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::NewMessage {
+                        kind: MessageType::ERROR,
+                        title: String::from("Failed to connect to remote host"),
+                        message: e.to_string(),
+                    },
+                    Target::Widget(tab_id),
+                );
+            };
             let _ = event_sink.submit_command(
                 LAPCE_UI_COMMAND,
                 LapceUICommand::ProxyUpdateStatus(ProxyStatus::Disconnected),
@@ -379,6 +389,10 @@ impl LapceProxy {
             LapceWorkspaceType::RemoteSSH(ssh) => {
                 self.start_remote(SshRemote { ssh })?;
             }
+            LapceWorkspaceType::RemoteCustom(custom) => {
+                let output = custom.start_command()?;
+                self.start_remote(CustomRemote { custom, output })?;
+            }
             #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL => {
                 let distro = WslDistro::all()?
@@ -401,20 +415,6 @@ impl LapceProxy {
             "Debug" | "Nightly" => "nightly".to_string(),
             _ => format!("v{}", *meta::VERSION),
         };
-
-        // start ssh CM connection in case where it doesn't handle
-        // executing command properly on remote host
-        // also print ssh debug output when used with LAPCE_DEBUG env
-        match remote.command_builder().arg("lapce-no-command").output() {
-            Ok(cmd) => {
-                log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stderr));
-                log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stdout));
-            }
-            Err(err) => {
-                log::error!(target: "lapce_data::proxy::start_remote::first_try", "{err}");
-                return Err(anyhow!(err));
-            }
-        }
 
         // Note about platforms:
         // Windows can use either cmd.exe, powershell.exe or pwsh.exe as
@@ -442,11 +442,16 @@ impl LapceProxy {
                 *meta::NAME
             ),
             Darwin => format!(
-                "~/Library/Application\\ Support/dev.lapce.{}/proxy",
+                "{}/Library/Application\\ Support/dev.lapce.{}/proxy",
+                remote.home_dir().unwrap_or(String::from("~")).trim(),
                 *meta::NAME
             ),
             _ => {
-                format!("~/.local/share/{}/proxy", (*meta::NAME).to_lowercase())
+                format!(
+                    "{}/.local/share/{}/proxy",
+                    remote.home_dir().unwrap_or(String::from("~")).trim(),
+                    (*meta::NAME).to_lowercase()
+                )
             }
         };
 
@@ -784,7 +789,7 @@ impl LapceProxy {
 fn new_command(program: &str) -> Command {
     #[allow(unused_mut)]
     let mut cmd = Command::new(program);
-    #[cfg(target_os = "windows")]
+    #[cfg(windows)]
     cmd.creation_flags(0x08000000);
     cmd
 }
@@ -805,6 +810,9 @@ trait Remote: Sized {
     fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()>;
 
     fn command_builder(&self) -> Command;
+
+    // fn start_command(&mut self) -> Result<()>;
+    // fn stop_command(&self) -> Result<()>;
 }
 
 struct SshRemote {
@@ -865,6 +873,103 @@ impl Remote for SshRemote {
 
         cmd
     }
+
+    // fn start_command(&mut self) -> Result<()> {
+    //     Ok(())
+    // }
+
+    // fn stop_command(&self) -> Result<()> {
+    //     Ok(())
+    // }
+}
+
+struct CustomRemote {
+    custom: CustomHost,
+    output: Option<String>,
+}
+
+impl CustomHost {
+    fn start_command(&self) -> Result<Option<String>> {
+        if let Some(start_args) = &self.start_args {
+            let mut cmd = new_command(&self.program);
+
+            for arg in start_args {
+                cmd.arg(arg);
+            }
+
+            log::debug!(target: "lapce_data::proxy::start_command", "{:?}", cmd.get_args());
+
+            let output = cmd.output()?;
+
+            log::debug!(target: "lapce_data::proxy::start_command", "{}", String::from_utf8_lossy(&output.stderr));
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            log::debug!(target: "lapce_data::proxy::start_command", "{}", stdout);
+            return Ok(Some(stdout.trim().to_string()));
+        }
+
+        Ok(None)
+    }
+}
+
+impl Remote for CustomRemote {
+    fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
+        let mut cmd = new_command(dbg!(&self.custom.program));
+
+        for arg in &self.custom.copy_args {
+            cmd.arg(dbg!(arg
+                .replace("{local}", &local.as_ref().display().to_string())
+                .replace("{remote}", remote)
+                .replace(
+                    "{output}",
+                    self.output.as_deref().unwrap_or_default()
+                )));
+        }
+
+        _ = dbg!(cmd.get_args());
+
+        let output = cmd.output()?;
+
+        log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stderr));
+        log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stdout));
+
+        Ok(())
+    }
+
+    fn command_builder(&self) -> Command {
+        let mut cmd = new_command(dbg!(&self.custom.program));
+
+        for arg in &self.custom.exec_args {
+            cmd.arg(
+                arg.replace("{output}", self.output.as_deref().unwrap_or_default()),
+            );
+        }
+
+        _ = dbg!(cmd.get_args());
+
+        cmd
+    }
+
+    // fn stop_command(&self) -> Result<()> {
+    //     if let Some(start_args) = &self.custom.stop_args {
+    //         let mut cmd = new_command(&self.custom.program);
+
+    //         for arg in start_args {
+    //             cmd.arg(arg.replace(
+    //                 "{output}",
+    //                 self.output.as_deref().unwrap_or_default(),
+    //             ));
+    //         }
+
+    //         log::debug!(target: "lapce_data::proxy::stop_command", "{:?}", cmd.get_args());
+
+    //         let output = cmd.output()?;
+
+    //         log::debug!(target: "lapce_data::proxy::stop_command", "{}", String::from_utf8_lossy(&output.stderr));
+    //         log::debug!(target: "lapce_data::proxy::stop_command", "{}", String::from_utf8_lossy(&output.stdout));
+    //     }
+
+    //     Ok(())
+    // }
 }
 
 #[cfg(windows)]
@@ -936,6 +1041,14 @@ impl Remote for WslRemote {
         cmd.arg("-d").arg(&self.distro).arg("--");
         cmd
     }
+
+    // fn start_command(&mut self) -> Result<()> {
+    //     Ok(())
+    // }
+
+    // fn stop_command(&self) -> Result<()> {
+    //     Ok(())
+    // }
 }
 
 // Rust-analyzer returns paths in the form of "file:///<drive>:/...", which gets parsed into URL
