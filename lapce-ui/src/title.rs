@@ -1,5 +1,4 @@
-use std::sync::Arc;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use druid::{
     kurbo::{Circle, Line},
@@ -25,10 +24,9 @@ use lapce_data::{
 };
 use lapce_xi_rope::Rope;
 
-use crate::editor::view::LapceEditorView;
 #[cfg(not(target_os = "macos"))]
 use crate::window::window_controls;
-use crate::{list::List, palette::Palette};
+use crate::{editor::view::LapceEditorView, list::List, palette::Palette};
 
 pub struct Title {
     widget_id: WidgetId,

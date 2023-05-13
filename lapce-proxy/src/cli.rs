@@ -1,13 +1,14 @@
-use anyhow::{anyhow, Error, Result};
 use core::fmt;
+use std::{
+    fs,
+    path::{Component, PathBuf},
+};
+
+use anyhow::{anyhow, Error, Result};
 use lapce_core::{directory::Directory, movement::LineCol};
 use lapce_rpc::{
     proxy::{ProxyMessage, ProxyNotification},
     RpcMessage,
-};
-use std::{
-    fs,
-    path::{Component, PathBuf},
 };
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -142,9 +143,8 @@ pub fn try_open_in_existing_process(paths: &[PathObject]) -> Result<()> {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::cli::PathObject;
-
     use super::parse_file_line_column;
+    use crate::cli::PathObject;
 
     #[test]
     #[cfg(windows)]

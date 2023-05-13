@@ -1,7 +1,7 @@
+use core::fmt;
 use std::{borrow::Cow, fmt::Display, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::Error;
-use core::fmt;
 use druid::{EventCtx, Size, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use lapce_core::command::FocusCommand;

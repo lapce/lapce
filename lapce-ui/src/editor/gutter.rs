@@ -5,13 +5,13 @@ use druid::{
     Widget, WidgetId,
 };
 use lapce_core::buffer::DiffLines;
-use lapce_data::document::BufferContent;
-use lapce_data::history::DocumentHistory;
 use lapce_data::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
     config::{LapceIcons, LapceTheme},
     data::{EditorView, LapceTabData},
+    document::BufferContent,
     editor::{LapceEditorBufferData, Syntax},
+    history::DocumentHistory,
 };
 
 pub struct LapceEditorGutter {

@@ -8,14 +8,13 @@ use druid::{
 };
 use lsp_types::Url;
 
+use super::Content;
 use crate::{
     config::{LapceConfig, LapceIcons, LapceTheme},
     data::LapceTabData,
     images::{Image, ImageCache, ImageStatus},
     rich_text::RichText,
 };
-
-use super::Content;
 
 #[derive(Clone)]
 pub enum LayoutContent {

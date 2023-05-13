@@ -9,12 +9,11 @@ use druid::{
     Modifiers, PaintCtx, Point, Rect,
 };
 
+use super::KeyPressData;
 use crate::{
     config::{LapceConfig, LapceTheme},
     keypress::paint_key,
 };
-
-use super::KeyPressData;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KeyPress {
