@@ -341,6 +341,9 @@
                 },
                 "trim-search-results-whitespace": {
                     "type": "boolean"
+                },
+                "remote-connection-icon": {
+                    "type": "boolean"
                 }
             },
             "required": [],
