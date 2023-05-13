@@ -364,6 +364,7 @@ impl ProxyHandler for Dispatcher {
                 pattern,
                 case_sensitive,
                 whole_word,
+                is_regex,
             } => {
                 static WORKER_ID: AtomicU64 = AtomicU64::new(0);
                 let our_id = WORKER_ID.fetch_add(1, Ordering::SeqCst) + 1;
@@ -396,6 +397,7 @@ impl ProxyHandler for Dispatcher {
                             &pattern,
                             case_sensitive,
                             whole_word,
+                            is_regex,
                         ),
                     );
                 });
@@ -1284,17 +1286,20 @@ fn search_in_path(
     pattern: &str,
     case_sensitive: bool,
     whole_word: bool,
+    is_regex: bool,
 ) -> Result<ProxyResponse, RpcError> {
     let mut matches = IndexMap::new();
-    let pattern = regex::escape(pattern);
-    let matcher = RegexMatcherBuilder::new()
-        .case_insensitive(!case_sensitive)
-        .word(whole_word)
-        .build_literals(&[&pattern])
-        .map_err(|_| RpcError {
-            code: 0,
-            message: "can't build matcher".to_string(),
-        })?;
+    let mut matcher = RegexMatcherBuilder::new();
+    let matcher = matcher.case_insensitive(!case_sensitive).word(whole_word);
+    let matcher = if is_regex {
+        matcher.build(pattern)
+    } else {
+        matcher.build_literals(&[&regex::escape(pattern)])
+    };
+    let matcher = matcher.map_err(|_| RpcError {
+        code: 0,
+        message: "can't build matcher".to_string(),
+    })?;
     let mut searcher = SearcherBuilder::new().build();
 
     for path in paths {

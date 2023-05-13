@@ -853,6 +853,7 @@ impl LapceTab {
                                 pattern.clone(),
                                 find.case_sensitive(),
                                 false,
+                                false,
                                 Box::new(move |result| {
                                     if let Ok(
                                         ProxyResponse::GlobalSearchResponse {

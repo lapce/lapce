@@ -1,8 +1,8 @@
 use std::cmp::{max, min};
 
 use floem::reactive::{
-    create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
-    SignalWithUntracked,
+    create_effect, create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked,
+    SignalSet, SignalUpdate, SignalWith, SignalWithUntracked,
 };
 use lapce_core::{
     selection::{InsertDrift, SelRegion, Selection},
@@ -570,13 +570,32 @@ pub struct Find {
 
 impl Find {
     pub fn new(cx: Scope) -> Self {
-        Self {
+        let find = Self {
             visual: create_rw_signal(cx, false),
             search_string: create_rw_signal(cx, None),
             case_matching: create_rw_signal(cx, CaseMatching::Exact),
             whole_words: create_rw_signal(cx, false),
             is_regex: create_rw_signal(cx, false),
+        };
+
+        {
+            let find = find.clone();
+            create_effect(cx, move |_| {
+                find.is_regex.with(|_| ());
+                let s = find.search_string.with_untracked(|s| {
+                    if let Some(s) = s.as_ref() {
+                        s.content.clone()
+                    } else {
+                        "".to_string()
+                    }
+                });
+                if !s.is_empty() {
+                    find.set_find(&s);
+                }
+            });
         }
+
+        find
     }
 
     /// Returns `true` if case sensitive, otherwise `false`
@@ -616,8 +635,6 @@ impl Find {
         if !self.visual.get_untracked() {
             self.visual.set(true);
         }
-
-        let whole_words = self.whole_words.get_untracked();
 
         let search_string_unchanged = self.search_string.with_untracked(|search| {
             if let Some(ref s) = search {
@@ -852,6 +869,7 @@ impl Find {
             search_string,
             search.regex.as_ref(),
         ) {
+            println!("find start {start}");
             let end = find_cursor.pos();
 
             if whole_words && !self.is_matching_whole_words(text, start, end) {
@@ -860,31 +878,31 @@ impl Find {
             }
 
             let region = SelRegion::new(start, end, None);
-            occurrences.add_region(region);
+            let (_, e) = occurrences.add_range_distinct(region);
             // in case of ambiguous search results (e.g. search "aba" in "ababa"),
             // the search result closer to the beginning of the file wins
-            //             if e != end {
-            //                 // Skip the search result and keep the occurrence that is closer to
-            //                 // the beginning of the file. Re-align the cursor to the kept
-            //                 // occurrence
-            //                 find_cursor.set(e);
-            //                 raw_lines = text.lines_raw(find_cursor.pos()..to);
-            //                 continue;
-            //             }
-            //
-            //             // in case current cursor matches search result (for example query a* matches)
-            //             // all cursor positions, then cursor needs to be increased so that search
-            //             // continues at next position. Otherwise, search will result in overflow since
-            //             // search will always repeat at current cursor position.
-            //             if start == end {
-            //                 // determine whether end of text is reached and stop search or increase
-            //                 // cursor manually
-            //                 if end + 1 >= text.len() {
-            //                     break;
-            //                 } else {
-            //                     find_cursor.set(end + 1);
-            //                 }
-            //             }
+            if e != end {
+                // Skip the search result and keep the occurrence that is closer to
+                // the beginning of the file. Re-align the cursor to the kept
+                // occurrence
+                find_cursor.set(e);
+                raw_lines = text.lines_raw(find_cursor.pos()..to);
+                continue;
+            }
+
+            // in case current cursor matches search result (for example query a* matches)
+            // all cursor positions, then cursor needs to be increased so that search
+            // continues at next position. Otherwise, search will result in overflow since
+            // search will always repeat at current cursor position.
+            if start == end {
+                // determine whether end of text is reached and stop search or increase
+                // cursor manually
+                if end + 1 >= text.len() {
+                    break;
+                } else {
+                    find_cursor.set(end + 1);
+                }
+            }
 
             // update line iterator so that line starts at current cursor position
             raw_lines = text.lines_raw(find_cursor.pos()..to);
@@ -899,6 +917,7 @@ pub struct FindResult {
     pub search_string: RwSignal<Option<FindSearchString>>,
     pub case_matching: RwSignal<CaseMatching>,
     pub whole_words: RwSignal<bool>,
+    pub is_regex: RwSignal<bool>,
 }
 
 impl FindResult {
@@ -909,6 +928,12 @@ impl FindResult {
             search_string: create_rw_signal(cx, None),
             case_matching: create_rw_signal(cx, CaseMatching::Exact),
             whole_words: create_rw_signal(cx, false),
+            is_regex: create_rw_signal(cx, false),
         }
+    }
+
+    pub fn reset(&self) {
+        self.progress.set(FindProgress::Started);
+        self.occurrences.set(Selection::new());
     }
 }

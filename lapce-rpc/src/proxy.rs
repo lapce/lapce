@@ -61,6 +61,7 @@ pub enum ProxyRequest {
         pattern: String,
         case_sensitive: bool,
         whole_word: bool,
+        is_regex: bool,
     },
     CompletionResolve {
         plugin_id: PluginId,
@@ -666,6 +667,7 @@ impl ProxyRpcHandler {
         pattern: String,
         case_sensitive: bool,
         whole_word: bool,
+        is_regex: bool,
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(
@@ -673,6 +675,7 @@ impl ProxyRpcHandler {
                 pattern,
                 case_sensitive,
                 whole_word,
+                is_regex,
             },
             f,
         );

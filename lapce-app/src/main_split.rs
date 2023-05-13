@@ -367,6 +367,9 @@ impl MainSplitData {
                     if last == Some(rev) {
                         return rev;
                     }
+                    let find_result =
+                        doc.with_untracked(|doc| doc.find_result.clone());
+                    find_result.reset();
                     Document::tigger_proxy_update(cx, doc, &proxy);
                     rev
                 });

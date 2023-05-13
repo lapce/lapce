@@ -662,6 +662,7 @@ impl Document {
         // self.get_inlay_hints();
         self.clear_style_cache();
         self.trigger_syntax_change(edits);
+        // self.find_result.reset();
         // self.clear_sticky_headers_cache();
         // self.trigger_head_change();
         // self.notify_special();
@@ -1782,6 +1783,13 @@ impl Document {
                 .search_string
                 .set(self.find.search_string.get_untracked());
         }
+        let is_regex_same = self.find_result.is_regex.get_untracked()
+            == self.find.is_regex.get_untracked();
+        if !is_regex_same {
+            self.find_result
+                .is_regex
+                .set(self.find.is_regex.get_untracked());
+        }
         let case_matching_same = self.find_result.case_matching.get_untracked()
             == self.find.case_matching.get_untracked();
         if !case_matching_same {
@@ -1797,9 +1805,12 @@ impl Document {
                 .set(self.find.whole_words.get_untracked())
         }
 
-        if !search_string_same || !case_matching_same || !whole_words_same {
-            self.find_result.progress.set(FindProgress::Started);
-            self.find_result.occurrences.set(Selection::new());
+        if !search_string_same
+            || !case_matching_same
+            || !whole_words_same
+            || !is_regex_same
+        {
+            self.find_result.reset();
         }
 
         let mut find_progress = self.find_result.progress.get_untracked();

@@ -522,7 +522,7 @@ fn editor_cursor(
             let line_height = config.editor.line_height() as f64;
             let min_line = (viewport.y0 / line_height).floor() as usize;
             let max_line = (viewport.y1 / line_height).ceil() as usize;
-            doc.with_untracked(|doc| {
+            doc.with(|doc| {
                 doc.update_find(min_line, max_line);
             });
         });

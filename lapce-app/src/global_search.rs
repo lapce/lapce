@@ -133,6 +133,7 @@ impl GlobalSearchData {
                 }
                 let case_sensitive = global_search.common.find.case_sensitive(true);
                 let whole_word = global_search.common.find.whole_words.get();
+                let is_regex = global_search.common.find.is_regex.get();
                 let send = {
                     let global_search = global_search.clone();
                     create_ext_action(cx, move |result| {
@@ -147,6 +148,7 @@ impl GlobalSearchData {
                     pattern,
                     case_sensitive,
                     whole_word,
+                    is_regex,
                     move |result| {
                         send(result);
                     },
