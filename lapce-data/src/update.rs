@@ -20,14 +20,16 @@ pub struct ReleaseAsset {
 }
 
 pub fn get_latest_release() -> Result<ReleaseInfo> {
-    let url = match *meta::RELEASE {
-        "Debug" => {
+    let url = match meta::RELEASE {
+        meta::ReleaseType::Debug => {
             return Err(anyhow!("no release for debug"));
         }
-        "Nightly" => {
+        meta::ReleaseType::Nightly => {
             "https://api.github.com/repos/lapce/lapce/releases/tags/nightly"
         }
-        _ => "https://api.github.com/repos/lapce/lapce/releases/latest",
+        meta::ReleaseType::Stable => {
+            "https://api.github.com/repos/lapce/lapce/releases/latest"
+        }
     };
 
     let resp = reqwest::blocking::ClientBuilder::new()
