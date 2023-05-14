@@ -141,3 +141,6 @@ lang-wgsl = ["dep:tree-sitter-wgsl"]
 lang-yaml = ["dep:tree-sitter-yaml"]
 lang-xml = ["dep:tree-sitter-xml"]
 lang-zig = ["dep:tree-sitter-zig"]
+
+[build-dependencies]
+anyhow.workspace = true

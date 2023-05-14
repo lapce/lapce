@@ -509,7 +509,7 @@ impl Widget<LapceTabData> for LapceEditorTabHeaderContent {
                     }
                 }
                 EditorTabChild::Settings { .. } => {
-                    text = format!("Settings (ver. {})", *meta::VERSION);
+                    text = format!("Settings (ver. {})", meta::VERSION);
                     svg = data.config.ui_svg(LapceIcons::SETTINGS);
                 }
                 EditorTabChild::Plugin { volt_name, .. } => {

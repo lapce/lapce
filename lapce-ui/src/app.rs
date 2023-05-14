@@ -30,8 +30,8 @@ use crate::{
 };
 
 #[derive(Parser)]
-#[clap(name = "Lapce")]
-#[clap(version=*meta::VERSION)]
+#[clap(name = meta::NAME)]
+#[clap(version = meta::VERSION)]
 #[derive(Debug)]
 struct Cli {
     /// Launch new window even if Lapce is already running
