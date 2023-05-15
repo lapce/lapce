@@ -208,6 +208,14 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Disable Modal Editing")]
     DisableModal,
 
+    #[strum(serialize = "increase_editor_font_size")]
+    #[strum(message = "Increase Editor Font Size")]
+    IncreaseEditorFontSize,
+
+    #[strum(serialize = "decrease_editor_font_size")]
+    #[strum(message = "Decrease Editor Font Size")]
+    DecreaseEditorFontSize,
+
     #[strum(serialize = "open_folder")]
     #[strum(message = "Open Folder")]
     OpenFolder,
@@ -790,6 +798,10 @@ pub enum LapceUICommand {
     PreviousTab,
     /// Switch to the next editor tab (in terms of order, not usage)
     NextEditorTab,
+    /// Increase font size of the editor
+    IncreaseEditorFontSize,
+    /// Decrease font size of the editor
+    DecreaseEditorFontSize,
     /// Switch to the previous editor tab (in terms of order, not usage)
     PreviousEditorTab,
     /// Restart Lapce at the given path so that we can apply the update
