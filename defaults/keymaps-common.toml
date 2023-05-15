@@ -78,6 +78,14 @@ command = "next_editor_tab"
 key = "ctrl+shift+tab"
 command = "previous_editor_tab"
 
+[[keymaps]]
+key = "ctrl+shift+="
+command = "increase_editor_font_size"
+
+[[keymaps]]
+key = "ctrl+shift+_"
+command = "decrease_editor_font_size"
+
 # --------------------------------- Rich Language Editing ----------------------------
 
 [[keymaps]]
