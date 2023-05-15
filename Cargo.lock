@@ -3172,6 +3172,7 @@ version = "0.2.6"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
+ "clap",
  "config",
  "crossbeam-channel",
  "directories",

@@ -6,6 +6,7 @@ edition.workspace = true
 
 [dependencies]
 alacritty_terminal.workspace = true
+clap.workspace = true
 rayon.workspace = true
 lapce-core.workspace = true
 lapce-rpc.workspace = true
