@@ -1485,6 +1485,29 @@ impl LapceTabData {
                     toml_edit::Value::from(false),
                 );
             }
+            
+            LapceWorkbenchCommand::IncreaseEditorFontSize => {
+                let config = Arc::make_mut(&mut self.config);
+                config.editor.font_size += 1; // ou config.terminal.font_size += 1;
+                let font_size_value = config.editor.font_size.to_string(); // ou config.terminal.font_size.to_string()
+                LapceConfig::update_file(
+                    "editor",
+                    "font-size",
+                    toml_edit::Value::from(font_size_value),
+                );
+            }
+
+            LapceWorkbenchCommand::DecreaseEditorFontSize => {
+                let config = Arc::make_mut(&mut self.config);
+                config.editor.font_size -= 1; // ou config.terminal.font_size += 1;
+                let font_size_value = config.editor.font_size.to_string(); // ou config.terminal.font_size.to_string()
+                LapceConfig::update_file(
+                    "editor",
+                    "font-size",
+                    toml_edit::Value::from(font_size_value),
+                );
+            }
+            
             LapceWorkbenchCommand::ChangeColorTheme => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
