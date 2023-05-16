@@ -1,5 +1,6 @@
-use std::{ops::Range, sync::Arc};
+use std::{ops::Range, path::PathBuf, process::Stdio, sync::Arc};
 
+use clap::Parser;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListner},
@@ -25,18 +26,18 @@ use floem::{
     window::WindowConfig,
     AppContext,
 };
-use lapce_core::mode::Mode;
+use lapce_core::{meta, mode::Mode};
 use lsp_types::{CompletionItemKind, DiagnosticSeverity};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     code_action::CodeActionStatus,
-    command::WindowCommand,
+    command::{InternalCommand, WindowCommand},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     db::LapceDb,
     debug::RunDebugMode,
     doc::DocContent,
-    editor::{view::editor_view, EditorData},
+    editor::{location::EditorLocation, view::editor_view, EditorData},
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
@@ -52,6 +53,17 @@ use crate::{
     window_tab::{Focus, WindowTabData},
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
+
+#[derive(Parser)]
+#[clap(name = "Lapce")]
+#[clap(version=*meta::VERSION)]
+#[derive(Debug)]
+struct Cli {
+    /// Don't return instantly when opened in a terminal
+    #[clap(short, long, action)]
+    wait: bool,
+    paths: Vec<PathBuf>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppInfo {
@@ -2142,6 +2154,44 @@ fn app_view(cx: AppContext, window_data: WindowData) -> impl View {
 }
 
 pub fn launch() {
+    // if PWD is not set, then we are not being launched via a terminal
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    if std::env::var("PWD").is_err() {
+        load_shell_env();
+    }
+
+    let cli = Cli::parse();
+
+    // small hack to unblock terminal if launched from it
+    // launch it as a separate process that waits
+    if !cli.wait {
+        let mut args = std::env::args().collect::<Vec<_>>();
+        args.push("--wait".to_string());
+        let mut cmd = std::process::Command::new(&args[0]);
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        if let Err(why) = cmd
+            .args(&args[1..])
+            .stderr(Stdio::null())
+            .stdout(Stdio::null())
+            .spawn()
+        {
+            eprintln!("Failed to launch lapce: {why}");
+        };
+        return;
+    }
+
+    let pwd = std::env::current_dir().unwrap_or_default();
+    let paths: Vec<PathBuf> = cli
+        .paths
+        .iter()
+        .map(|p| pwd.join(p).canonicalize().unwrap_or_default())
+        .collect();
+
+    // TODO: open in existing window
+
+    // TODO: lapce updater cleanup?
+
     let db = Arc::new(LapceDb::new().unwrap());
     let mut app = floem::Application::new();
     let scope = app.scope();
@@ -2149,12 +2199,82 @@ pub fn launch() {
 
     let mut windows = im::Vector::new();
 
-    if let Ok(app_info) = db.get_app() {
-        for info in app_info.windows {
+    app = create_windows(scope, db.clone(), app, paths, &mut windows);
+
+    let windows = create_rw_signal(scope, windows);
+    let app_data = AppData { windows };
+
+    app.on_event(move |event| match event {
+        floem::AppEvent::WillTerminate => {
+            let _ = db.save_app(app_data.clone());
+        }
+    })
+    .run();
+}
+
+fn create_windows(
+    scope: floem::reactive::Scope,
+    db: Arc<LapceDb>,
+    mut app: floem::Application,
+    paths: Vec<PathBuf>,
+    windows: &mut im::Vector<WindowData>,
+) -> floem::Application {
+    let dirs: Vec<&PathBuf> = paths.iter().filter(|p| p.is_dir()).collect();
+    let files: Vec<&PathBuf> = paths.iter().filter(|p| p.is_file()).collect();
+
+    if !dirs.is_empty() {
+        // There were directories specified, so we'll load those as windows
+
+        // Use the last opened window's size and position as the default
+        let (size, mut pos) = db
+            .get_window()
+            .map(|i| (i.size, i.pos))
+            .unwrap_or_else(|_| (Size::new(800.0, 600.0), Point::new(0.0, 0.0)));
+
+        for dir in dirs {
+            #[cfg(windows)]
+            let workspace_type =
+                if !env::var("WSL_DISTRO_NAME").unwrap_or_default().is_empty()
+                    || !env::var("WSL_INTEROP").unwrap_or_default().is_empty()
+                {
+                    LapceWorkspaceType::RemoteWSL
+                } else {
+                    LapceWorkspaceType::Local
+                };
+            #[cfg(not(windows))]
+            let workspace_type = LapceWorkspaceType::Local;
+
+            let info = WindowInfo {
+                size,
+                pos,
+                maximised: false,
+                tabs: TabsInfo {
+                    active_tab: 0,
+                    workspaces: vec![LapceWorkspace {
+                        kind: workspace_type,
+                        path: Some(dir.to_path_buf()),
+                        last_open: 0,
+                    }],
+                },
+            };
+
+            pos += (50.0, 50.0);
+
             let config = WindowConfig::default().size(info.size).position(info.pos);
             let window_data = WindowData::new(scope, info);
             windows.push_back(window_data.clone());
             app = app.window(move |cx| app_view(cx, window_data), Some(config));
+        }
+    } else if files.is_empty() {
+        // There were no dirs and no files specified, so we'll load the last windows
+        if let Ok(app_info) = db.get_app() {
+            for info in app_info.windows {
+                let config =
+                    WindowConfig::default().size(info.size).position(info.pos);
+                let window_data = WindowData::new(scope, info);
+                windows.push_back(window_data.clone());
+                app = app.window(move |cx| app_view(cx, window_data), Some(config));
+            }
         }
     }
 
@@ -2174,13 +2294,58 @@ pub fn launch() {
         app = app.window(|cx| app_view(cx, window_data), Some(config));
     }
 
-    let windows = create_rw_signal(scope, windows);
-    let app_data = AppData { windows };
-
-    app.on_event(move |event| match event {
-        floem::AppEvent::WillTerminate => {
-            let _ = db.save_app(app_data.clone());
+    // Open any listed files in the first window
+    if let Some(window) = windows.iter().next() {
+        let cur_window_tab = window.active.get_untracked();
+        let (_, window_tab) = &window.window_tabs.get_untracked()[cur_window_tab];
+        for file in files {
+            window_tab.run_internal_command(InternalCommand::GoToLocation {
+                location: EditorLocation {
+                    path: file.clone(),
+                    position: None,
+                    scroll_offset: None,
+                    // Create a new editor for the file, so we don't change any current unconfirmed
+                    // editor
+                    ignore_unconfirmed: true,
+                    same_editor_tab: false,
+                },
+            });
         }
-    })
-    .run();
+    }
+
+    app
+}
+
+/// Uses a login shell to load the correct shell environment for the current user.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn load_shell_env() {
+    use std::process::Command;
+
+    let shell = match std::env::var("SHELL") {
+        Ok(s) => s,
+        Err(_) => {
+            // Shell variable is not set, so we can't determine the correct shell executable.
+            // Silently failing, since logger is not set up yet.
+            return;
+        }
+    };
+
+    let mut command = Command::new(shell);
+
+    command.args(["--login"]).args(["-c", "printenv"]);
+
+    let env = match command.output() {
+        Ok(output) => String::from_utf8(output.stdout).unwrap_or_default(),
+
+        Err(_) => {
+            // sliently ignoring since logger is not yet available
+            return;
+        }
+    };
+
+    env.split('\n')
+        .filter_map(|line| line.split_once('='))
+        .for_each(|(key, value)| {
+            std::env::set_var(key, value);
+        })
 }
