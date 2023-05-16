@@ -24,7 +24,7 @@ fn version() -> &'static str {
         .unwrap_or("")
         .starts_with("nightly")
     {
-        option_env!("RELEASE_TAG_NAME").unwrap()
+        option_env!("RELEASE_TAG_NAME").unwrap_or("")
     } else {
         env!("CARGO_PKG_VERSION")
     }

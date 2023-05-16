@@ -9,14 +9,16 @@ use floem::{
     views::VirtualListVector,
 };
 use indexmap::IndexMap;
-use lapce_core::mode::Mode;
+use lapce_core::{mode::Mode, selection::Selection};
 use lapce_rpc::proxy::{ProxyResponse, SearchMatch};
+use lapce_xi_rope::Rope;
 
 use crate::{
     command::{CommandExecuted, CommandKind},
     editor::EditorData,
     id::EditorId,
     keypress::{condition::Condition, KeyPressFocus},
+    main_split::MainSplitData,
     window_tab::CommonData,
 };
 
@@ -43,6 +45,7 @@ impl SearchMatchData {
 pub struct GlobalSearchData {
     pub editor: EditorData,
     pub search_result: RwSignal<IndexMap<PathBuf, SearchMatchData>>,
+    pub main_split: MainSplitData,
     pub common: CommonData,
 }
 
@@ -110,13 +113,14 @@ impl VirtualListVector<(PathBuf, SearchMatchData)> for GlobalSearchData {
 }
 
 impl GlobalSearchData {
-    pub fn new(cx: Scope, common: CommonData) -> Self {
+    pub fn new(cx: Scope, main_split: MainSplitData, common: CommonData) -> Self {
         let editor = EditorData::new_local(cx, EditorId::next(), common.clone());
         let search_result = create_rw_signal(cx, IndexMap::new());
 
         let global_search = Self {
             editor,
             search_result,
+            main_split,
             common,
         };
 
@@ -156,6 +160,15 @@ impl GlobalSearchData {
             });
         }
 
+        {
+            let global_search_doc = global_search.editor.doc;
+            let main_split = global_search.main_split.clone();
+            create_effect(cx, move |_| {
+                let content = global_search_doc.with(|doc| doc.buffer().to_string());
+                main_split.set_find_pattern(content);
+            });
+        }
+
         global_search
     }
 
@@ -184,5 +197,15 @@ impl GlobalSearchData {
                 })
                 .collect(),
         );
+    }
+
+    pub fn set_pattern(&self, pattern: String) {
+        let pattern_len = pattern.len();
+        self.editor
+            .doc
+            .update(|doc| doc.reload(Rope::from(pattern), true));
+        self.editor
+            .cursor
+            .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));
     }
 }

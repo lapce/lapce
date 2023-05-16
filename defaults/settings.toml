@@ -327,6 +327,8 @@ name = ""
 "search.case_sensitive" = "case-sensitive.svg"
 "search.whole_word" = "whole-word.svg"
 "search.regex" = "regex.svg"
+"search.replace" = "replace.svg"
+"search.replace_all" = "replace-all.svg"
 
 "symbol_kind.array" = "symbol-array.svg"
 "symbol_kind.boolean" = "symbol-boolean.svg"

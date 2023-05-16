@@ -345,6 +345,7 @@ fn editor_tab_header(
 }
 
 fn editor_tab_content(
+    main_split: MainSplitData,
     workspace: Arc<LapceWorkspace>,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
@@ -378,6 +379,7 @@ fn editor_tab_content(
                     };
                     container_box(|| {
                         Box::new(editor_view(
+                            main_split.clone(),
                             workspace.clone(),
                             is_active,
                             editor_data,
@@ -396,6 +398,7 @@ fn editor_tab_content(
 }
 
 fn editor_tab(
+    main_split: MainSplitData,
     workspace: Arc<LapceWorkspace>,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
@@ -407,6 +410,7 @@ fn editor_tab(
         (
             editor_tab_header(active_editor_tab, editor_tab, editors, focus, config),
             editor_tab_content(
+                main_split.clone(),
                 workspace.clone(),
                 active_editor_tab,
                 editor_tab,
@@ -522,6 +526,7 @@ fn split_list(
                 if let Some(editor_tab_data) = editor_tab_data {
                     container_box(|| {
                         Box::new(editor_tab(
+                            main_split.clone(),
                             workspace.clone(),
                             active_editor_tab,
                             editor_tab_data,
@@ -1355,14 +1360,18 @@ fn palette_input(window_tab_data: Arc<WindowTabData>) -> impl View {
     let doc = window_tab_data.palette.input_editor.doc;
     let cursor = window_tab_data.palette.input_editor.cursor;
     let config = window_tab_data.common.config;
+    let focus = window_tab_data.common.focus;
     let cx = AppContext::get_current();
     let cursor_x = create_rw_signal(cx.scope, 0.0);
+    let is_focused = move || focus.get() == Focus::Palette;
     container(move || {
         container(move || {
             scroll(move || {
-                text_input(doc, cursor, config).on_cursor_pos(move |point| {
-                    cursor_x.set(point.x);
-                })
+                text_input(doc, cursor, is_focused, config).on_cursor_pos(
+                    move |point| {
+                        cursor_x.set(point.x);
+                    },
+                )
             })
             .scroll_bar_color(move || {
                 *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
@@ -1509,9 +1518,10 @@ fn palette_preview(palette_data: PaletteData) -> impl View {
     let preview_editor = palette_data.preview_editor;
     let has_preview = palette_data.has_preview;
     let config = palette_data.common.config;
+    let main_split = palette_data.main_split;
     container(|| {
-        container(|| editor_view(workspace, || true, preview_editor)).style(
-            move || {
+        container(|| editor_view(main_split, workspace, || true, preview_editor))
+            .style(move || {
                 let config = config.get();
                 Style::BASE
                     .position(Position::Absolute)
@@ -1519,8 +1529,7 @@ fn palette_preview(palette_data: PaletteData) -> impl View {
                     .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                     .size_pct(100.0, 100.0)
                     .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
-            },
-        )
+            })
     })
     .style(move || {
         Style::BASE
@@ -1823,9 +1832,11 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
     container(|| {
         container(move || {
             scroll(move || {
-                text_input(doc, cursor, config).on_cursor_pos(move |point| {
-                    cursor_x.set(point.x);
-                })
+                text_input(doc, cursor, move || active.get(), config).on_cursor_pos(
+                    move |point| {
+                        cursor_x.set(point.x);
+                    },
+                )
             })
             .hide_bar(|| true)
             .on_ensure_visible(move || {

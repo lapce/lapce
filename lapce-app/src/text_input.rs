@@ -29,6 +29,7 @@ use crate::{
 pub fn text_input(
     doc: RwSignal<Document>,
     cursor: RwSignal<Cursor>,
+    is_focused: impl Fn() -> bool + 'static,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> TextInput {
     let cx = AppContext::get_current();
@@ -44,10 +45,16 @@ pub fn text_input(
         id.update_state(TextInputState::Cursor(cursor), false);
     });
 
+    create_effect(cx.scope, move |_| {
+        let focus = is_focused();
+        id.update_state(TextInputState::Focus(focus), false);
+    });
+
     TextInput {
         id,
         config,
         content: "".to_string(),
+        focus: false,
         text_node: None,
         text_layout: None,
         cursor: Cursor::origin(false),
@@ -65,12 +72,14 @@ pub fn text_input(
 enum TextInputState {
     Content(String),
     Cursor(Cursor),
+    Focus(bool),
 }
 
 pub struct TextInput {
     id: Id,
     content: String,
     cursor: Cursor,
+    focus: bool,
     text_node: Option<Node>,
     text_layout: Option<TextLayout>,
     color: Option<Color>,
@@ -151,6 +160,9 @@ impl View for TextInput {
                 }
                 TextInputState::Cursor(cursor) => {
                     self.cursor = cursor;
+                }
+                TextInputState::Focus(focus) => {
+                    self.focus = focus;
                 }
             }
             cx.request_layout(self.id);
@@ -254,25 +266,27 @@ impl View for TextInput {
 
         cx.draw_text(text_layout, point);
 
-        let offset = self.cursor.offset();
-        let hit_position = text_layout.hit_position(offset);
-        let cursor_point = hit_position.point + point.to_vec2();
-        cx.stroke(
-            &Line::new(
-                Point::new(
-                    cursor_point.x,
-                    cursor_point.y - hit_position.glyph_ascent,
+        if self.focus {
+            let offset = self.cursor.offset();
+            let hit_position = text_layout.hit_position(offset);
+            let cursor_point = hit_position.point + point.to_vec2();
+            cx.stroke(
+                &Line::new(
+                    Point::new(
+                        cursor_point.x,
+                        cursor_point.y - hit_position.glyph_ascent,
+                    ),
+                    Point::new(
+                        cursor_point.x,
+                        cursor_point.y + hit_position.glyph_descent,
+                    ),
                 ),
-                Point::new(
-                    cursor_point.x,
-                    cursor_point.y + hit_position.glyph_descent,
-                ),
-            ),
-            *self
-                .config
-                .get_untracked()
-                .get_color(LapceColor::EDITOR_CARET),
-            2.0,
-        );
+                *self
+                    .config
+                    .get_untracked()
+                    .get_color(LapceColor::EDITOR_CARET),
+                2.0,
+            );
+        }
     }
 }

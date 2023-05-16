@@ -266,7 +266,8 @@ impl WindowTabData {
             TerminalPanelData::new(cx, workspace.clone(), None, common.clone());
 
         let rename = RenameData::new(cx, common.clone());
-        let global_search = GlobalSearchData::new(cx, common.clone());
+        let global_search =
+            GlobalSearchData::new(cx, main_split.clone(), common.clone());
 
         {
             let notification = create_signal_from_channel(cx, term_notification_rx);
@@ -734,6 +735,9 @@ impl WindowTabData {
             } => {
                 self.rename.start(path, placeholder, start, position);
             }
+            InternalCommand::Search { pattern } => {
+                self.main_split.set_find_pattern(pattern);
+            }
         }
     }
 
@@ -1101,6 +1105,19 @@ impl WindowTabData {
             self.terminal.new_tab(self.scope, None);
         }
         self.panel.show_panel(&kind);
+        if kind == PanelKind::Search
+            && self.common.focus.get_untracked() == Focus::Workbench
+        {
+            let active_editor = self.main_split.active_editor.get_untracked();
+            let word = active_editor.map(|editor| {
+                editor.with_untracked(|editor| editor.word_at_cursor())
+            });
+            if let Some(word) = word {
+                if !word.is_empty() {
+                    self.global_search.set_pattern(word);
+                }
+            }
+        }
         self.common.focus.set(Focus::Panel(kind));
     }
 

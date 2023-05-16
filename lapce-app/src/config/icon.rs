@@ -83,6 +83,8 @@ impl LapceIcons {
     pub const SEARCH_CASE_SENSITIVE: &'static str = "search.case_sensitive";
     pub const SEARCH_WHOLE_WORD: &'static str = "search.whole_word";
     pub const SEARCH_REGEX: &'static str = "search.regex";
+    pub const SEARCH_REPLACE: &'static str = "search.replace";
+    pub const SEARCH_REPLACE_ALL: &'static str = "search.replace_all";
 
     pub const FILE_TYPE_CODE: &str = "file-code";
     pub const FILE_TYPE_MEDIA: &str = "file-media";

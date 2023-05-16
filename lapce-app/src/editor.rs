@@ -121,6 +121,7 @@ pub struct EditorData {
     pub last_movement: RwSignal<Movement>,
     pub inline_find: RwSignal<Option<InlineFindDirection>>,
     pub last_inline_find: RwSignal<Option<(InlineFindDirection, String)>>,
+    pub find_focus: RwSignal<bool>,
     pub common: CommonData,
 }
 
@@ -159,6 +160,7 @@ impl EditorData {
         let last_movement = create_rw_signal(cx, Movement::Left);
         let inline_find = create_rw_signal(cx, None);
         let last_inline_find = create_rw_signal(cx, None);
+        let find_focus = create_rw_signal(cx, false);
         Self {
             editor_tab_id,
             editor_id,
@@ -173,6 +175,7 @@ impl EditorData {
             last_movement,
             inline_find,
             last_inline_find,
+            find_focus,
             common,
         }
     }
@@ -222,6 +225,7 @@ impl EditorData {
         editor.window_origin = create_rw_signal(cx, Point::ZERO);
         editor.confirmed = create_rw_signal(cx, true);
         editor.snippet = create_rw_signal(cx, None);
+        editor.find_focus = create_rw_signal(cx, false);
         editor.editor_tab_id = editor_tab_id;
         editor.editor_id = editor_id;
         editor
@@ -592,6 +596,7 @@ impl EditorData {
             }
             FocusCommand::ClearSearch => {
                 self.common.find.visual.set(false);
+                self.find_focus.set(false);
             }
             FocusCommand::Search => {
                 self.search();
@@ -1513,7 +1518,9 @@ impl EditorData {
             )
         });
         self.common.find.whole_words.set(true);
-        self.common.find.set_find(&word);
+        self.common
+            .internal_command
+            .set(Some(InternalCommand::Search { pattern: word }));
         let next = self.common.find.next(buffer.text(), offset, false, true);
 
         if let Some((start, _end)) = next {
@@ -1662,7 +1669,7 @@ impl EditorData {
             });
     }
 
-    fn search(&self) {
+    pub fn word_at_cursor(&self) -> String {
         let region = self.cursor.with_untracked(|c| match &c.mode {
             lapce_core::cursor::CursorMode::Normal(offset) => {
                 lapce_core::selection::SelRegion::caret(*offset)
@@ -1687,7 +1694,7 @@ impl EditorData {
             }
         });
 
-        let pattern = if region.is_caret() {
+        if region.is_caret() {
             self.doc.with_untracked(|doc| {
                 let (start, end) = doc.buffer().select_word(region.start);
                 doc.buffer().slice_to_cow(start..end).to_string()
@@ -1698,10 +1705,17 @@ impl EditorData {
                     .slice_to_cow(region.min()..region.max())
                     .to_string()
             })
-        };
+        }
+    }
+
+    fn search(&self) {
+        let pattern = self.word_at_cursor();
 
         if !pattern.contains('\n') {
-            self.common.find.set_find(&pattern);
+            self.common
+                .internal_command
+                .set(Some(InternalCommand::Search { pattern }));
+            self.find_focus.set(true);
         }
     }
 }

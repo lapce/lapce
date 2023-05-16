@@ -5,14 +5,15 @@ use floem::{
     glazier::PointerType,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
-        create_effect, create_memo, ReadSignal, RwSignal, SignalGet,
-        SignalGetUntracked, SignalSet, SignalWith, SignalWithUntracked,
+        create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal,
+        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        SignalWithUntracked,
     },
     style::{CursorStyle, Dimension, Style},
     view::View,
     views::{
-        clip, container, label, list, rich_text, scroll, stack, svg, virtual_list,
-        Decorators, VirtualListDirection, VirtualListItemSize,
+        clip, container, empty, label, list, rich_text, scroll, stack, svg,
+        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
     },
     AppContext,
 };
@@ -21,10 +22,14 @@ use lapce_core::{
     mode::{Mode, VisualMode},
     selection::Selection,
 };
+use lapce_xi_rope::find::CaseMatching;
 
 use crate::{
+    app::clickable_icon,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     doc::{DocLine, Document, LineExtraStyle},
+    main_split::MainSplitData,
+    text_input::text_input,
     wave::wave_line,
     window_tab::Focus,
     workspace::LapceWorkspace,
@@ -237,17 +242,24 @@ fn insert_cursor(
 }
 
 pub fn editor_view(
+    main_split: MainSplitData,
     workspace: Arc<LapceWorkspace>,
     is_active: impl Fn() -> bool + 'static + Copy,
     editor: RwSignal<EditorData>,
 ) -> impl View {
-    let (cursor, viewport, config) = editor.with_untracked(|editor| {
+    let (cursor, viewport, find_focus, config) = editor.with_untracked(|editor| {
         (
             editor.cursor.read_only(),
             editor.viewport,
+            editor.find_focus,
             editor.common.config,
         )
     });
+
+    let find_editor = main_split.find_editor;
+    let replace_editor = main_split.replace_editor;
+    let replace_active = main_split.replace_active;
+    let replace_focus = main_split.replace_focus;
 
     stack(move || {
         (
@@ -269,6 +281,14 @@ pub fn editor_view(
                             )
                         })
                         .style(|| Style::BASE.size_pct(100.0, 100.0)),
+                        find_view(
+                            find_editor,
+                            find_focus,
+                            replace_editor,
+                            replace_active,
+                            replace_focus,
+                            is_active,
+                        ),
                     )
                 })
                 .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
@@ -850,8 +870,8 @@ fn editor_content(editor: RwSignal<EditorData>) -> impl View {
 
     scroll(|| {
         let focus = editor.with_untracked(|e| e.common.focus);
-        container(|| {
-            virtual_list(
+        stack(|| {
+            (virtual_list(
                 VirtualListDirection::Vertical,
                 VirtualListItemSize::Fixed(Box::new(move || {
                     config.get_untracked().editor.line_height() as f64
@@ -873,13 +893,13 @@ fn editor_content(editor: RwSignal<EditorData>) -> impl View {
                     .padding_bottom_px(padding_bottom)
                     .cursor(CursorStyle::Text)
                     .min_width_pct(100.0)
-            })
+            }),)
         })
         .on_click(move |_| {
             focus.set(Focus::Workbench);
             true
         })
-        .style(|| Style::BASE.min_size_pct(100.0, 100.0))
+        .style(|| Style::BASE.min_size_pct(100.0, 100.0).flex_col())
     })
     .scroll_bar_color(move || *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR))
     .on_resize(move |point, _rect| {
@@ -979,4 +999,287 @@ fn editor_extra_style(
         },
     )
     .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+}
+
+fn search_editor_view(
+    find_editor: EditorData,
+    find_focus: RwSignal<bool>,
+    is_active: impl Fn() -> bool + 'static + Copy,
+) -> impl View {
+    let cx = AppContext::get_current();
+    let cursor_x = create_rw_signal(cx.scope, 0.0);
+
+    let doc = find_editor.doc;
+    let cursor = find_editor.cursor;
+    let config = find_editor.common.config;
+
+    let case_matching = find_editor.common.find.case_matching;
+    let whole_word = find_editor.common.find.whole_words;
+    let is_regex = find_editor.common.find.is_regex;
+    let visual = find_editor.common.find.visual;
+
+    stack(|| {
+        (
+            container(|| {
+                scroll(|| {
+                    text_input(
+                        doc,
+                        cursor,
+                        move || is_active() && visual.get() && find_focus.get(),
+                        config,
+                    )
+                    .on_cursor_pos(move |point| {
+                        cursor_x.set(point.x);
+                    })
+                    .style(|| Style::BASE.padding_horiz_px(1.0))
+                })
+                .hide_bar(|| true)
+                .on_ensure_visible(move || {
+                    Size::new(20.0, 0.0)
+                        .to_rect()
+                        .with_origin(Point::new(cursor_x.get() - 10.0, 0.0))
+                })
+                .style(|| {
+                    Style::BASE.absolute().size_pct(100.0, 100.0).items_center()
+                })
+            })
+            .style(|| Style::BASE.size_pct(100.0, 100.0)),
+            clickable_icon(
+                || LapceIcons::SEARCH_CASE_SENSITIVE,
+                move || {
+                    let new = match case_matching.get_untracked() {
+                        CaseMatching::Exact => CaseMatching::CaseInsensitive,
+                        CaseMatching::CaseInsensitive => CaseMatching::Exact,
+                    };
+                    case_matching.set(new);
+                },
+                move || case_matching.get() == CaseMatching::CaseInsensitive,
+                || false,
+                config,
+            )
+            .style(|| Style::BASE.padding_left_px(6.0)),
+            clickable_icon(
+                || LapceIcons::SEARCH_WHOLE_WORD,
+                move || {
+                    whole_word.update(|whole_word| {
+                        *whole_word = !*whole_word;
+                    });
+                },
+                move || whole_word.get(),
+                || false,
+                config,
+            )
+            .style(|| Style::BASE.padding_left_px(6.0)),
+            clickable_icon(
+                || LapceIcons::SEARCH_REGEX,
+                move || {
+                    is_regex.update(|is_regex| {
+                        *is_regex = !*is_regex;
+                    });
+                },
+                move || is_regex.get(),
+                || false,
+                config,
+            )
+            .style(|| Style::BASE.padding_left_px(6.0)),
+        )
+    })
+    .on_click(move |_| {
+        find_focus.set(true);
+        true
+    })
+    .style(move || {
+        let config = config.get();
+        Style::BASE
+            .width_px(200.0)
+            .padding_horiz_px(6.0)
+            .padding_vert_px(4.0)
+            .border(1.0)
+            .border_radius(6.0)
+            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+            .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+    })
+}
+
+fn replace_editor_view(
+    replace_editor: EditorData,
+    replace_active: RwSignal<bool>,
+    replace_focus: RwSignal<bool>,
+    is_active: impl Fn() -> bool + 'static + Copy,
+) -> impl View {
+    let cx = AppContext::get_current();
+    let cursor_x = create_rw_signal(cx.scope, 0.0);
+
+    let doc = replace_editor.doc;
+    let cursor = replace_editor.cursor;
+    let config = replace_editor.common.config;
+    let visual = replace_editor.common.find.visual;
+
+    stack(|| {
+        (
+            container(|| {
+                scroll(|| {
+                    text_input(
+                        doc,
+                        cursor,
+                        move || {
+                            is_active()
+                                && visual.get()
+                                && replace_active.get()
+                                && replace_focus.get()
+                        },
+                        config,
+                    )
+                    .on_cursor_pos(move |point| {
+                        cursor_x.set(point.x);
+                    })
+                    .style(|| Style::BASE.padding_horiz_px(1.0))
+                })
+                .hide_bar(|| true)
+                .on_ensure_visible(move || {
+                    Size::new(20.0, 0.0)
+                        .to_rect()
+                        .with_origin(Point::new(cursor_x.get() - 10.0, 0.0))
+                })
+                .style(|| {
+                    Style::BASE.absolute().size_pct(100.0, 100.0).items_center()
+                })
+            })
+            .style(|| Style::BASE.size_pct(100.0, 100.0)),
+            empty().style(move || {
+                let config = config.get();
+                let size = config.ui.icon_size() as f32 + 10.0;
+                Style::BASE.size_px(0.0, size)
+            }),
+        )
+    })
+    .style(move || {
+        let config = config.get();
+        Style::BASE
+            .width_px(200.0)
+            .padding_horiz_px(6.0)
+            .padding_vert_px(4.0)
+            .border(1.0)
+            .border_radius(6.0)
+            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+            .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+    })
+}
+
+fn find_view(
+    find_editor: EditorData,
+    find_focus: RwSignal<bool>,
+    replace_editor: EditorData,
+    replace_active: RwSignal<bool>,
+    replace_focus: RwSignal<bool>,
+    is_active: impl Fn() -> bool + 'static + Copy,
+) -> impl View {
+    let config = find_editor.common.config;
+    let find_visual = find_editor.common.find.visual;
+
+    container(|| {
+        stack(|| {
+            (
+                stack(|| {
+                    (
+                        clickable_icon(
+                            move || {
+                                if replace_active.get() {
+                                    LapceIcons::ITEM_OPENED
+                                } else {
+                                    LapceIcons::ITEM_CLOSED
+                                }
+                            },
+                            move || {
+                                replace_active.update(|active| *active = !*active);
+                            },
+                            move || false,
+                            || false,
+                            config,
+                        )
+                        .style(|| Style::BASE.padding_horiz_px(6.0)),
+                        search_editor_view(find_editor, find_focus, is_active),
+                        clickable_icon(
+                            || LapceIcons::SEARCH_BACKWARD,
+                            move || {},
+                            move || false,
+                            || false,
+                            config,
+                        )
+                        .style(|| Style::BASE.padding_left_px(6.0)),
+                        clickable_icon(
+                            || LapceIcons::SEARCH_FORWARD,
+                            move || {},
+                            move || false,
+                            || false,
+                            config,
+                        )
+                        .style(|| Style::BASE.padding_left_px(6.0)),
+                        clickable_icon(
+                            || LapceIcons::CLOSE,
+                            move || {},
+                            move || false,
+                            || false,
+                            config,
+                        )
+                        .style(|| Style::BASE.padding_horiz_px(6.0)),
+                    )
+                })
+                .style(|| Style::BASE.items_center()),
+                stack(|| {
+                    (
+                        empty().style(move || {
+                            let config = config.get();
+                            let width =
+                                config.ui.icon_size() as f32 + 10.0 + 6.0 * 2.0;
+                            Style::BASE.width_px(width)
+                        }),
+                        replace_editor_view(
+                            replace_editor,
+                            replace_active,
+                            replace_focus,
+                            is_active,
+                        ),
+                        clickable_icon(
+                            || LapceIcons::SEARCH_REPLACE,
+                            move || {},
+                            move || false,
+                            || false,
+                            config,
+                        )
+                        .style(|| Style::BASE.padding_left_px(6.0)),
+                        clickable_icon(
+                            || LapceIcons::SEARCH_REPLACE_ALL,
+                            move || {},
+                            move || false,
+                            || false,
+                            config,
+                        )
+                        .style(|| Style::BASE.padding_left_px(6.0)),
+                    )
+                })
+                .style(move || {
+                    Style::BASE
+                        .items_center()
+                        .margin_top_px(4.0)
+                        .apply_if(!replace_active.get(), |s| s.hide())
+                }),
+            )
+        })
+        .style(move || {
+            Style::BASE
+                .margin_right_px(50.0)
+                .background(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
+                .border_radius(6.0)
+                .padding_vert_px(4.0)
+                .flex_col()
+        })
+    })
+    .style(move || {
+        Style::BASE
+            .absolute()
+            .width_pct(100.0)
+            .justify_end()
+            .apply_if(!find_visual.get(), |s| s.hide())
+    })
 }

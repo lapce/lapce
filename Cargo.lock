@@ -1615,7 +1615,6 @@ dependencies = [
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=8f00e4d530441982627dd62cbf20f2e3f0efac6d#8f00e4d530441982627dd62cbf20f2e3f0efac6d"
 dependencies = [
  "bitflags 2.2.1",
  "crossbeam-channel",
@@ -1643,7 +1642,6 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=8f00e4d530441982627dd62cbf20f2e3f0efac6d#8f00e4d530441982627dd62cbf20f2e3f0efac6d"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1653,7 +1651,6 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=8f00e4d530441982627dd62cbf20f2e3f0efac6d#8f00e4d530441982627dd62cbf20f2e3f0efac6d"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -3439,9 +3436,9 @@ dependencies = [
 
 [[package]]
 name = "lapce-xi-rope"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08ae23edb8cf91f01edd9a87c88623eae3977c8d647a31c57cb12f1a125ca10a"
+checksum = "6516aaa99c5059dc1a1bc02ed782d5e524699c1b4330028a6bed8259f9d9ff0a"
 dependencies = [
  "bytecount",
  "memchr",

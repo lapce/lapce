@@ -14,7 +14,7 @@ use floem::{
     },
 };
 use itertools::Itertools;
-use lapce_core::cursor::Cursor;
+use lapce_core::{cursor::Cursor, selection::Selection};
 use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::Rope;
 use lsp_types::{
@@ -189,6 +189,10 @@ pub struct MainSplitData {
     pub docs: RwSignal<im::HashMap<PathBuf, RwSignal<Document>>>,
     pub diagnostics: RwSignal<im::HashMap<PathBuf, DiagnosticData>>,
     pub active_editor: Memo<Option<RwSignal<EditorData>>>,
+    pub find_editor: EditorData,
+    pub replace_editor: EditorData,
+    pub replace_active: RwSignal<bool>,
+    pub replace_focus: RwSignal<bool>,
     locations: RwSignal<im::Vector<EditorLocation>>,
     current_location: RwSignal<usize>,
     pub common: CommonData,
@@ -206,6 +210,12 @@ impl MainSplitData {
         let locations = create_rw_signal(cx, im::Vector::new());
         let current_location = create_rw_signal(cx, 0);
         let diagnostics = create_rw_signal(cx, im::HashMap::new());
+        let find_editor =
+            EditorData::new_local(cx, EditorId::next(), common.clone());
+        let replace_editor =
+            EditorData::new_local(cx, EditorId::next(), common.clone());
+        let replace_active = create_rw_signal(cx, false);
+        let replace_focus = create_rw_signal(cx, false);
 
         let active_editor =
             create_memo(cx, move |_| -> Option<RwSignal<EditorData>> {
@@ -226,6 +236,15 @@ impl MainSplitData {
                 Some(editor)
             });
 
+        {
+            let find_editor_doc = find_editor.doc;
+            let find = common.find.clone();
+            create_effect(cx, move |_| {
+                let content = find_editor_doc.with(|doc| doc.buffer().to_string());
+                find.set_find(&content);
+            });
+        }
+
         Self {
             scope: cx,
             root_split: SplitId::next(),
@@ -235,6 +254,10 @@ impl MainSplitData {
             editors,
             docs,
             active_editor,
+            find_editor,
+            replace_editor,
+            replace_active,
+            replace_focus,
             diagnostics,
             locations,
             current_location,
@@ -1262,6 +1285,16 @@ impl MainSplitData {
         doc.update(|doc| {
             doc.handle_file_changed(Rope::from(content));
         });
+    }
+
+    pub fn set_find_pattern(&self, pattern: String) {
+        let pattern_len = pattern.len();
+        self.find_editor
+            .doc
+            .update(|doc| doc.reload(Rope::from(pattern), true));
+        self.find_editor
+            .cursor
+            .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));
     }
 }
 

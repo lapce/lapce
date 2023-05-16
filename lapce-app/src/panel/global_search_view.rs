@@ -24,11 +24,11 @@ use crate::{
     focus_text::focus_text,
     global_search::{GlobalSearchData, SearchMatchData},
     text_input::text_input,
-    window_tab::WindowTabData,
+    window_tab::{Focus, WindowTabData},
     workspace::LapceWorkspace,
 };
 
-use super::position::PanelPosition;
+use super::{kind::PanelKind, position::PanelPosition};
 
 pub fn global_search_panel(
     window_tab_data: Arc<WindowTabData>,
@@ -47,6 +47,9 @@ pub fn global_search_panel(
     let cx = AppContext::get_current();
     let cursor_x = create_rw_signal(cx.scope, 0.0);
 
+    let focus = global_search.common.focus;
+    let is_focused = move || focus.get() == Focus::Panel(PanelKind::Search);
+
     stack(|| {
         (
             container(|| {
@@ -54,7 +57,7 @@ pub fn global_search_panel(
                     (
                         container(|| {
                             scroll(|| {
-                                text_input(doc, cursor, config)
+                                text_input(doc, cursor, is_focused, config)
                                     .on_cursor_pos(move |point| {
                                         cursor_x.set(point.x);
                                     })
@@ -123,7 +126,8 @@ pub fn global_search_panel(
                 .style(move || {
                     Style::BASE
                         .width_pct(100.0)
-                        .padding_px(6.0)
+                        .padding_horiz_px(6.0)
+                        .padding_vert_px(4.0)
                         .border(1.0)
                         .border_radius(6.0)
                         .border_color(

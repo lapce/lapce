@@ -93,7 +93,7 @@ pub struct PaletteData {
     pub clicked_index: RwSignal<Option<usize>>,
     pub executed_commands: Rc<RefCell<HashMap<String, Instant>>>,
     pub executed_run_configs: Rc<RefCell<HashMap<(RunDebugMode, String), Instant>>>,
-    main_split: MainSplitData,
+    pub main_split: MainSplitData,
     pub references: RwSignal<Vec<EditorLocation>>,
     pub common: CommonData,
 }

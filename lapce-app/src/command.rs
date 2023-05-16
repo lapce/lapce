@@ -538,6 +538,9 @@ pub enum InternalCommand {
         start: usize,
         position: Position,
     },
+    Search {
+        pattern: String,
+    },
 }
 
 #[derive(Clone)]

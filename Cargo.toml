@@ -69,7 +69,7 @@ lsp-types = { version = "0.93", features = ["proposed"] }
 psp-types = { git = "https://github.com/lapce/psp-types" }
 
 
-lapce-xi-rope = { version = "0.3.1", features = ["serde"] }
+lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
 
 lapce-core = { path = "./lapce-core" }
 lapce-rpc = { path = "./lapce-rpc" }
