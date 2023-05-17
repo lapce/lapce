@@ -1,6 +1,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use floem::{
+    event::EventListner,
     peniko::kurbo::{Point, Size},
     reactive::{
         create_rw_signal, ReadSignal, RwSignal, SignalGet, SignalGetUntracked,
@@ -72,6 +73,7 @@ pub fn global_search_panel(
                             .style(|| {
                                 Style::BASE
                                     .absolute()
+                                    .cursor(CursorStyle::Text)
                                     .size_pct(100.0, 100.0)
                                     .items_center()
                             })
@@ -90,9 +92,7 @@ pub fn global_search_panel(
                                 };
                                 case_matching.set(new);
                             },
-                            move || {
-                                case_matching.get() == CaseMatching::CaseInsensitive
-                            },
+                            move || case_matching.get() == CaseMatching::Exact,
                             || false,
                             config,
                         )
@@ -122,6 +122,10 @@ pub fn global_search_panel(
                         )
                         .style(|| Style::BASE.padding_left_px(6.0)),
                     )
+                })
+                .on_event(EventListner::PointerDown, move |_| {
+                    focus.set(Focus::Panel(PanelKind::Search));
+                    false
                 })
                 .style(move || {
                     Style::BASE

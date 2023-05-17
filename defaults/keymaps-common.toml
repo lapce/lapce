@@ -251,6 +251,16 @@ when = "!list_focus && !input_focus"
 mode = "i"
 
 [[keymaps]]
+key = "tab"
+command = "focus_replace_editor"
+when = "search_focus"
+
+[[keymaps]]
+key = "tab"
+command = "focus_find_editor"
+when = "replace_focus"
+
+[[keymaps]]
 key = "shift+enter"
 command = "search_backward"
 when = "search_focus"
@@ -277,7 +287,7 @@ mode = "i"
 [[keymaps]]
 key = "tab"
 command = "insert_tab"
-when = "!in_snippet && !completion_focus"
+when = "!in_snippet && !completion_focus && !search_focus && !replace_focus"
 mode = "i"
 
 [[keymaps]]

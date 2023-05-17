@@ -2,7 +2,7 @@ use std::sync::{atomic::AtomicU64, Arc};
 
 use floem::{
     event::{Event, EventListner},
-    glazier::PointerType,
+    glazier::{Modifiers, PointerType},
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
         create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal,
@@ -18,6 +18,7 @@ use floem::{
     AppContext,
 };
 use lapce_core::{
+    command::FocusCommand,
     cursor::{ColPosition, Cursor, CursorMode},
     mode::{Mode, VisualMode},
     selection::Selection,
@@ -26,6 +27,7 @@ use lapce_xi_rope::find::CaseMatching;
 
 use crate::{
     app::clickable_icon,
+    command::{CommandKind, InternalCommand, LapceCommand},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     doc::{DocLine, Document, LineExtraStyle},
     main_split::MainSplitData,
@@ -258,8 +260,8 @@ pub fn editor_view(
 
     let find_editor = main_split.find_editor;
     let replace_editor = main_split.replace_editor;
-    let replace_active = main_split.replace_active;
-    let replace_focus = main_split.replace_focus;
+    let replace_active = main_split.common.find.replace_active;
+    let replace_focus = main_split.common.find.replace_focus;
 
     stack(move || {
         (
@@ -282,6 +284,7 @@ pub fn editor_view(
                         })
                         .style(|| Style::BASE.size_pct(100.0, 100.0)),
                         find_view(
+                            editor,
                             find_editor,
                             find_focus,
                             replace_editor,
@@ -516,7 +519,7 @@ fn editor_gutter(
         let config = config.get();
         Style::BASE
             .font_family(config.editor.font_family.clone())
-            .font_size(config.editor.font_size as f32)
+            .font_size(config.editor.font_size() as f32)
     })
 }
 
@@ -630,8 +633,9 @@ fn editor_cursor(
         let min_line = (viewport.y0 / line_height).floor() as usize;
         let max_line = (viewport.y1 / line_height).ceil() as usize;
 
-        let is_active = is_active();
-        let doc = editor.get().doc;
+        let editor = editor.get();
+        let is_active = is_active() && !editor.find_focus.get();
+        let doc = editor.doc;
         doc.with(|doc| {
             cursor.with(|cursor| match &cursor.mode {
                 CursorMode::Normal(offset) => {
@@ -869,8 +873,7 @@ fn editor_content(editor: RwSignal<EditorData>) -> impl View {
     };
 
     scroll(|| {
-        let focus = editor.with_untracked(|e| e.common.focus);
-        stack(|| {
+        let editor_view = stack(|| {
             (virtual_list(
                 VirtualListDirection::Vertical,
                 VirtualListItemSize::Fixed(Box::new(move || {
@@ -894,12 +897,32 @@ fn editor_content(editor: RwSignal<EditorData>) -> impl View {
                     .cursor(CursorStyle::Text)
                     .min_width_pct(100.0)
             }),)
-        })
-        .on_click(move |_| {
-            focus.set(Focus::Workbench);
-            true
-        })
-        .style(|| Style::BASE.min_size_pct(100.0, 100.0).flex_col())
+        });
+        let id = editor_view.id();
+        editor_view
+            .on_event(EventListner::PointerDown, move |event| {
+                if let Event::PointerDown(pointer_event) = event {
+                    id.request_active();
+                    let editor = editor.get_untracked();
+                    editor.pointer_down(pointer_event);
+                }
+                true
+            })
+            .on_event(EventListner::PointerMove, move |event| {
+                if let Event::PointerMove(pointer_event) = event {
+                    let editor = editor.get_untracked();
+                    editor.pointer_move(pointer_event);
+                }
+                true
+            })
+            .on_event(EventListner::PointerUp, move |event| {
+                if let Event::PointerUp(pointer_event) = event {
+                    let editor = editor.get_untracked();
+                    editor.pointer_up(pointer_event);
+                }
+                true
+            })
+            .style(|| Style::BASE.min_size_pct(100.0, 100.0).flex_col())
     })
     .scroll_bar_color(move || *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR))
     .on_resize(move |point, _rect| {
@@ -968,7 +991,7 @@ fn editor_extra_style(
                             let config = config.get();
                             Style::BASE
                                 .font_family(config.editor.font_family.clone())
-                                .font_size(config.editor.font_size as f32)
+                                .font_size(config.editor.font_size() as f32)
                                 .width_pct(100.0)
                                 .apply_opt(extra.bg_color, Style::background)
                         }),
@@ -1005,6 +1028,7 @@ fn search_editor_view(
     find_editor: EditorData,
     find_focus: RwSignal<bool>,
     is_active: impl Fn() -> bool + 'static + Copy,
+    replace_focus: RwSignal<bool>,
 ) -> impl View {
     let cx = AppContext::get_current();
     let cursor_x = create_rw_signal(cx.scope, 0.0);
@@ -1025,13 +1049,23 @@ fn search_editor_view(
                     text_input(
                         doc,
                         cursor,
-                        move || is_active() && visual.get() && find_focus.get(),
+                        move || {
+                            is_active()
+                                && visual.get()
+                                && find_focus.get()
+                                && !replace_focus.get()
+                        },
                         config,
                     )
                     .on_cursor_pos(move |point| {
                         cursor_x.set(point.x);
                     })
                     .style(|| Style::BASE.padding_horiz_px(1.0))
+                })
+                .on_event(EventListner::PointerDown, move |_| {
+                    find_focus.set(true);
+                    replace_focus.set(false);
+                    false
                 })
                 .hide_bar(|| true)
                 .on_ensure_visible(move || {
@@ -1040,7 +1074,11 @@ fn search_editor_view(
                         .with_origin(Point::new(cursor_x.get() - 10.0, 0.0))
                 })
                 .style(|| {
-                    Style::BASE.absolute().size_pct(100.0, 100.0).items_center()
+                    Style::BASE
+                        .absolute()
+                        .cursor(CursorStyle::Text)
+                        .size_pct(100.0, 100.0)
+                        .items_center()
                 })
             })
             .style(|| Style::BASE.size_pct(100.0, 100.0)),
@@ -1053,7 +1091,7 @@ fn search_editor_view(
                     };
                     case_matching.set(new);
                 },
-                move || case_matching.get() == CaseMatching::CaseInsensitive,
+                move || case_matching.get() == CaseMatching::Exact,
                 || false,
                 config,
             )
@@ -1084,10 +1122,6 @@ fn search_editor_view(
             .style(|| Style::BASE.padding_left_px(6.0)),
         )
     })
-    .on_click(move |_| {
-        find_focus.set(true);
-        true
-    })
     .style(move || {
         let config = config.get();
         Style::BASE
@@ -1106,6 +1140,7 @@ fn replace_editor_view(
     replace_active: RwSignal<bool>,
     replace_focus: RwSignal<bool>,
     is_active: impl Fn() -> bool + 'static + Copy,
+    find_focus: RwSignal<bool>,
 ) -> impl View {
     let cx = AppContext::get_current();
     let cursor_x = create_rw_signal(cx.scope, 0.0);
@@ -1125,6 +1160,7 @@ fn replace_editor_view(
                         move || {
                             is_active()
                                 && visual.get()
+                                && find_focus.get()
                                 && replace_active.get()
                                 && replace_focus.get()
                         },
@@ -1135,6 +1171,11 @@ fn replace_editor_view(
                     })
                     .style(|| Style::BASE.padding_horiz_px(1.0))
                 })
+                .on_event(EventListner::PointerDown, move |_| {
+                    find_focus.set(true);
+                    replace_focus.set(true);
+                    false
+                })
                 .hide_bar(|| true)
                 .on_ensure_visible(move || {
                     Size::new(20.0, 0.0)
@@ -1142,7 +1183,11 @@ fn replace_editor_view(
                         .with_origin(Point::new(cursor_x.get() - 10.0, 0.0))
                 })
                 .style(|| {
-                    Style::BASE.absolute().size_pct(100.0, 100.0).items_center()
+                    Style::BASE
+                        .absolute()
+                        .cursor(CursorStyle::Text)
+                        .size_pct(100.0, 100.0)
+                        .items_center()
                 })
             })
             .style(|| Style::BASE.size_pct(100.0, 100.0)),
@@ -1167,6 +1212,7 @@ fn replace_editor_view(
 }
 
 fn find_view(
+    editor: RwSignal<EditorData>,
     find_editor: EditorData,
     find_focus: RwSignal<bool>,
     replace_editor: EditorData,
@@ -1198,10 +1244,19 @@ fn find_view(
                             config,
                         )
                         .style(|| Style::BASE.padding_horiz_px(6.0)),
-                        search_editor_view(find_editor, find_focus, is_active),
+                        search_editor_view(
+                            find_editor,
+                            find_focus,
+                            is_active,
+                            replace_focus,
+                        ),
                         clickable_icon(
                             || LapceIcons::SEARCH_BACKWARD,
-                            move || {},
+                            move || {
+                                editor
+                                    .get_untracked()
+                                    .search_backward(Modifiers::empty());
+                            },
                             move || false,
                             || false,
                             config,
@@ -1209,7 +1264,11 @@ fn find_view(
                         .style(|| Style::BASE.padding_left_px(6.0)),
                         clickable_icon(
                             || LapceIcons::SEARCH_FORWARD,
-                            move || {},
+                            move || {
+                                editor
+                                    .get_untracked()
+                                    .search_forward(Modifiers::empty());
+                            },
                             move || false,
                             || false,
                             config,
@@ -1217,7 +1276,9 @@ fn find_view(
                         .style(|| Style::BASE.padding_left_px(6.0)),
                         clickable_icon(
                             || LapceIcons::CLOSE,
-                            move || {},
+                            move || {
+                                editor.get_untracked().clear_search();
+                            },
                             move || false,
                             || false,
                             config,
@@ -1239,6 +1300,7 @@ fn find_view(
                             replace_active,
                             replace_focus,
                             is_active,
+                            find_focus,
                         ),
                         clickable_icon(
                             || LapceIcons::SEARCH_REPLACE,
@@ -1272,7 +1334,18 @@ fn find_view(
                 .background(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
                 .border_radius(6.0)
                 .padding_vert_px(4.0)
+                .cursor(CursorStyle::Default)
                 .flex_col()
+        })
+        .on_event(EventListner::PointerDown, move |_| {
+            let editor = editor.get_untracked();
+            if let Some(editor_tab_id) = editor.editor_tab_id {
+                editor
+                    .common
+                    .internal_command
+                    .set(Some(InternalCommand::FocusEditorTab { editor_tab_id }));
+            }
+            true
         })
     })
     .style(move || {

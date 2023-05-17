@@ -900,7 +900,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.7.0"
-source = "git+https://github.com/lapce/cosmic-text?rev=5cbf0621f6052412701ad16c5095dfe39227cb4e#5cbf0621f6052412701ad16c5095dfe39227cb4e"
+source = "git+https://github.com/lapce/cosmic-text?rev=88bda037195ed21402eba66d85602728d99cbb48#88bda037195ed21402eba66d85602728d99cbb48"
 dependencies = [
  "fontdb 0.13.0",
  "libm",
@@ -1615,6 +1615,7 @@ dependencies = [
 [[package]]
 name = "floem"
 version = "0.1.0"
+source = "git+https://github.com/lapce/floem?rev=f4d6c0a9721f306bbee58bbbb3b1148d6043b8e0#f4d6c0a9721f306bbee58bbbb3b1148d6043b8e0"
 dependencies = [
  "bitflags 2.2.1",
  "crossbeam-channel",
@@ -1642,6 +1643,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
+source = "git+https://github.com/lapce/floem?rev=f4d6c0a9721f306bbee58bbbb3b1148d6043b8e0#f4d6c0a9721f306bbee58bbbb3b1148d6043b8e0"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1651,6 +1653,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
+source = "git+https://github.com/lapce/floem?rev=f4d6c0a9721f306bbee58bbbb3b1148d6043b8e0#f4d6c0a9721f306bbee58bbbb3b1148d6043b8e0"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -7016,7 +7019,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.5"
-source = "git+https://github.com/lapce/vger-rs?rev=663a9e16c50be941370c23c99302b3de2db215c4#663a9e16c50be941370c23c99302b3de2db215c4"
+source = "git+https://github.com/lapce/vger-rs?rev=aa84d85c9f7df9da6ef47a2b6d43fe6909023b9b#aa84d85c9f7df9da6ef47a2b6d43fe6909023b9b"
 dependencies = [
  "cosmic-text",
  "euclid",

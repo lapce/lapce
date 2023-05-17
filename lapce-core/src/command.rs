@@ -306,6 +306,10 @@ pub enum FocusCommand {
     FormatDocument,
     #[strum(serialize = "search")]
     Search,
+    #[strum(serialize = "focus_replace_editor")]
+    FocusReplaceEditor,
+    #[strum(serialize = "focus_find_editor")]
+    FocusFindEditor,
     #[strum(serialize = "inline_find_right")]
     InlineFindRight,
     #[strum(serialize = "inline_find_left")]

@@ -539,7 +539,26 @@ pub enum InternalCommand {
         position: Position,
     },
     Search {
-        pattern: String,
+        pattern: Option<String>,
+    },
+    FindEditorReceiveChar {
+        s: String,
+    },
+    ReplaceEditorReceiveChar {
+        s: String,
+    },
+    FindEditorCommand {
+        command: LapceCommand,
+        count: Option<usize>,
+        mods: floem::glazier::Modifiers,
+    },
+    ReplaceEditorCommand {
+        command: LapceCommand,
+        count: Option<usize>,
+        mods: floem::glazier::Modifiers,
+    },
+    FocusEditorTab {
+        editor_tab_id: EditorTabId,
     },
 }
 

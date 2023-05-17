@@ -165,7 +165,7 @@ impl GlobalSearchData {
             let main_split = global_search.main_split.clone();
             create_effect(cx, move |_| {
                 let content = global_search_doc.with(|doc| doc.buffer().to_string());
-                main_split.set_find_pattern(content);
+                main_split.set_find_pattern(Some(content));
             });
         }
 

@@ -3,7 +3,7 @@ use std::{cmp::Ordering, str::FromStr, sync::Arc};
 use anyhow::Result;
 use floem::{
     ext_event::create_ext_action,
-    glazier::Modifiers,
+    glazier::{Modifiers, PointerButton, PointerEvent},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
         create_rw_signal, use_context, RwSignal, Scope, SignalGetUntracked,
@@ -28,7 +28,7 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::{CommandExecuted, InternalCommand},
+    command::{CommandExecuted, CommandKind, InternalCommand},
     completion::CompletionStatus,
     db::LapceDb,
     doc::{DocContent, Document},
@@ -39,7 +39,7 @@ use crate::{
     main_split::{MainSplitData, SplitDirection, SplitMoveDirection},
     proxy::path_from_url,
     snippet::Snippet,
-    window_tab::{CommonData, WindowTabData},
+    window_tab::{CommonData, Focus, WindowTabData},
 };
 
 pub mod location;
@@ -122,6 +122,7 @@ pub struct EditorData {
     pub inline_find: RwSignal<Option<InlineFindDirection>>,
     pub last_inline_find: RwSignal<Option<(InlineFindDirection, String)>>,
     pub find_focus: RwSignal<bool>,
+    pub active: RwSignal<bool>,
     pub common: CommonData,
 }
 
@@ -161,6 +162,7 @@ impl EditorData {
         let inline_find = create_rw_signal(cx, None);
         let last_inline_find = create_rw_signal(cx, None);
         let find_focus = create_rw_signal(cx, false);
+        let active = create_rw_signal(cx, false);
         Self {
             editor_tab_id,
             editor_id,
@@ -176,6 +178,7 @@ impl EditorData {
             inline_find,
             last_inline_find,
             find_focus,
+            active,
             common,
         }
     }
@@ -226,6 +229,7 @@ impl EditorData {
         editor.confirmed = create_rw_signal(cx, true);
         editor.snippet = create_rw_signal(cx, None);
         editor.find_focus = create_rw_signal(cx, false);
+        editor.active = create_rw_signal(cx, false);
         editor.editor_tab_id = editor_tab_id;
         editor.editor_id = editor_id;
         editor
@@ -317,7 +321,6 @@ impl EditorData {
 
     fn run_move_command(
         &self,
-        _cx: Scope,
         movement: &lapce_core::movement::Movement,
         count: Option<usize>,
         mods: Modifiers,
@@ -569,13 +572,13 @@ impl EditorData {
                 self.show_code_actions(false);
             }
             FocusCommand::SearchWholeWordForward => {
-                self.search_whole_word_forward(cx, mods);
+                self.search_whole_word_forward(mods);
             }
             FocusCommand::SearchForward => {
-                self.search_forward(cx, mods);
+                self.search_forward(mods);
             }
             FocusCommand::SearchBackward => {
-                self.search_backward(cx, mods);
+                self.search_backward(mods);
             }
             FocusCommand::Save => {
                 self.save(cx, false, true);
@@ -595,11 +598,18 @@ impl EditorData {
                 self.rename(cx);
             }
             FocusCommand::ClearSearch => {
-                self.common.find.visual.set(false);
-                self.find_focus.set(false);
+                self.clear_search();
             }
             FocusCommand::Search => {
                 self.search();
+            }
+            FocusCommand::FocusFindEditor => {
+                self.common.find.replace_focus.set(false);
+            }
+            FocusCommand::FocusReplaceEditor => {
+                if self.common.find.replace_active.get_untracked() {
+                    self.common.find.replace_focus.set(true);
+                }
             }
             _ => {}
         }
@@ -636,7 +646,6 @@ impl EditorData {
             }
         } {
             self.run_move_command(
-                cx,
                 &lapce_core::movement::Movement::Offset(
                     new_index + line_start_offset,
                 ),
@@ -795,7 +804,6 @@ impl EditorData {
         self.scroll_delta
             .set(Vec2::new(0.0, if down { distance } else { -distance }));
         self.run_move_command(
-            cx,
             if down {
                 &lapce_core::movement::Movement::Down
             } else {
@@ -839,7 +847,6 @@ impl EditorData {
         match new_line.cmp(&line) {
             Ordering::Greater => {
                 self.run_move_command(
-                    cx,
                     &lapce_core::movement::Movement::Down,
                     Some(new_line - line),
                     mods,
@@ -847,7 +854,6 @@ impl EditorData {
             }
             Ordering::Less => {
                 self.run_move_command(
-                    cx,
                     &lapce_core::movement::Movement::Up,
                     Some(line - new_line),
                     mods,
@@ -1508,7 +1514,7 @@ impl EditorData {
         }
     }
 
-    fn search_whole_word_forward(&self, cx: Scope, mods: Modifiers) {
+    fn search_whole_word_forward(&self, mods: Modifiers) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let (word, buffer) = self.doc.with_untracked(|doc| {
             let (start, end) = doc.buffer().select_word(offset);
@@ -1520,12 +1526,13 @@ impl EditorData {
         self.common.find.whole_words.set(true);
         self.common
             .internal_command
-            .set(Some(InternalCommand::Search { pattern: word }));
+            .set(Some(InternalCommand::Search {
+                pattern: Some(word),
+            }));
         let next = self.common.find.next(buffer.text(), offset, false, true);
 
         if let Some((start, _end)) = next {
             self.run_move_command(
-                cx,
                 &lapce_core::movement::Movement::Offset(start),
                 None,
                 mods,
@@ -1533,14 +1540,13 @@ impl EditorData {
         }
     }
 
-    fn search_forward(&self, cx: Scope, mods: Modifiers) {
+    fn search_forward(&self, mods: Modifiers) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let buffer = self.doc.with_untracked(|doc| doc.buffer().clone());
         let next = self.common.find.next(buffer.text(), offset, false, true);
 
         if let Some((start, _end)) = next {
             self.run_move_command(
-                cx,
                 &lapce_core::movement::Movement::Offset(start),
                 None,
                 mods,
@@ -1548,14 +1554,13 @@ impl EditorData {
         }
     }
 
-    fn search_backward(&self, cx: Scope, mods: Modifiers) {
+    fn search_backward(&self, mods: Modifiers) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let buffer = self.doc.with_untracked(|doc| doc.buffer().clone());
         let next = self.common.find.next(buffer.text(), offset, true, true);
 
         if let Some((start, _end)) = next {
             self.run_move_command(
-                cx,
                 &lapce_core::movement::Movement::Offset(start),
                 None,
                 mods,
@@ -1708,33 +1713,160 @@ impl EditorData {
         }
     }
 
+    pub fn clear_search(&self) {
+        self.common.find.visual.set(false);
+        self.find_focus.set(false);
+    }
+
     fn search(&self) {
         let pattern = self.word_at_cursor();
 
-        if !pattern.contains('\n') {
+        let pattern = if pattern.contains('\n') || pattern.is_empty() {
+            None
+        } else {
+            Some(pattern)
+        };
+
+        self.common
+            .internal_command
+            .set(Some(InternalCommand::Search { pattern }));
+        self.common.find.visual.set(true);
+        self.find_focus.set(true);
+        self.common.find.replace_focus.set(false);
+    }
+
+    pub fn pointer_down(&self, pointer_event: &PointerEvent) {
+        if let Some(editor_tab_id) = self.editor_tab_id {
             self.common
                 .internal_command
-                .set(Some(InternalCommand::Search { pattern }));
-            self.find_focus.set(true);
+                .set(Some(InternalCommand::FocusEditorTab { editor_tab_id }));
         }
+        self.common.focus.set(Focus::Workbench);
+        self.find_focus.set(false);
+        match pointer_event.button {
+            PointerButton::Left => {
+                self.active.set(true);
+                self.left_click(pointer_event);
+            }
+            PointerButton::Right => {}
+            _ => {}
+        }
+    }
+
+    fn left_click(&self, pointer_event: &PointerEvent) {
+        match pointer_event.count {
+            1 => {
+                self.single_click(pointer_event);
+            }
+            2 => {
+                self.double_click(pointer_event);
+            }
+            3 => {
+                self.triple_click(pointer_event);
+            }
+            _ => {}
+        }
+    }
+
+    fn single_click(&self, pointer_event: &PointerEvent) {
+        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let (new_offset, _) = self
+            .doc
+            .with_untracked(|doc| doc.offset_of_point(mode, pointer_event.pos));
+        self.cursor.update(|cursor| {
+            cursor.set_offset(
+                new_offset,
+                pointer_event.modifiers.shift(),
+                pointer_event.modifiers.alt(),
+            )
+        });
+    }
+
+    fn double_click(&self, pointer_event: &PointerEvent) {
+        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let (start, end) = self.doc.with_untracked(|doc| {
+            let (mouse_offset, _) = doc.offset_of_point(mode, pointer_event.pos);
+            doc.buffer().select_word(mouse_offset)
+        });
+        self.cursor.update(|cursor| {
+            cursor.add_region(
+                start,
+                end,
+                pointer_event.modifiers.shift(),
+                pointer_event.modifiers.alt(),
+            )
+        });
+    }
+
+    fn triple_click(&self, pointer_event: &PointerEvent) {
+        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let (start, end) = self.doc.with_untracked(|doc| {
+            let (mouse_offset, _) = doc.offset_of_point(mode, pointer_event.pos);
+            let line = doc.buffer().line_of_offset(mouse_offset);
+            let start = doc.buffer().offset_of_line(line);
+            let end = doc.buffer().offset_of_line(line + 1);
+            (start, end)
+        });
+        self.cursor.update(|cursor| {
+            cursor.add_region(
+                start,
+                end,
+                pointer_event.modifiers.shift(),
+                pointer_event.modifiers.alt(),
+            )
+        });
+    }
+
+    pub fn pointer_move(&self, pointer_event: &PointerEvent) {
+        if !self.active.get_untracked() {
+            return;
+        }
+
+        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let (new_offset, _) = self
+            .doc
+            .with_untracked(|doc| doc.offset_of_point(mode, pointer_event.pos));
+        self.cursor.update(|cursor| {
+            cursor.set_offset(new_offset, true, pointer_event.modifiers.alt())
+        });
+    }
+
+    pub fn pointer_up(&self, _pointer_event: &PointerEvent) {
+        self.active.set(false);
     }
 }
 
 impl KeyPressFocus for EditorData {
-    fn get_mode(&self) -> lapce_core::mode::Mode {
-        self.cursor.with_untracked(|c| c.get_mode())
+    fn get_mode(&self) -> Mode {
+        if self.common.find.visual.get_untracked() && self.find_focus.get_untracked()
+        {
+            Mode::Insert
+        } else {
+            self.cursor.with_untracked(|c| c.get_mode())
+        }
     }
 
-    fn check_condition(
-        &self,
-        condition: crate::keypress::condition::Condition,
-    ) -> bool {
+    fn check_condition(&self, condition: Condition) -> bool {
         match condition {
+            Condition::InputFocus => {
+                self.common.find.visual.get_untracked()
+                    && self.find_focus.get_untracked()
+            }
             Condition::ListFocus => self.has_completions(),
             Condition::CompletionFocus => self.has_completions(),
             Condition::InSnippet => self.snippet.with_untracked(|s| s.is_some()),
             Condition::EditorFocus => {
                 self.doc.with_untracked(|doc| !doc.content.is_local())
+            }
+            Condition::SearchFocus => {
+                self.common.find.visual.get_untracked()
+                    && self.find_focus.get_untracked()
+                    && !self.common.find.replace_focus.get_untracked()
+            }
+            Condition::ReplaceFocus => {
+                self.common.find.visual.get_untracked()
+                    && self.find_focus.get_untracked()
+                    && self.common.find.replace_focus.get_untracked()
             }
             Condition::SearchActive => {
                 if self.common.config.get_untracked().core.modal
@@ -1756,12 +1888,41 @@ impl KeyPressFocus for EditorData {
         count: Option<usize>,
         mods: floem::glazier::Modifiers,
     ) -> crate::command::CommandExecuted {
+        if self.common.find.visual.get_untracked() && self.find_focus.get_untracked()
+        {
+            match &command.kind {
+                CommandKind::Edit(_)
+                | CommandKind::Move(_)
+                | CommandKind::MultiSelection(_) => {
+                    if self.common.find.replace_focus.get_untracked() {
+                        self.common.internal_command.set(Some(
+                            InternalCommand::ReplaceEditorCommand {
+                                command: command.clone(),
+                                count,
+                                mods,
+                            },
+                        ));
+                    } else {
+                        self.common.internal_command.set(Some(
+                            InternalCommand::FindEditorCommand {
+                                command: command.clone(),
+                                count,
+                                mods,
+                            },
+                        ));
+                    }
+                    return CommandExecuted::Yes;
+                }
+                _ => {}
+            }
+        }
+
         match &command.kind {
             crate::command::CommandKind::Workbench(_) => CommandExecuted::No,
             crate::command::CommandKind::Edit(cmd) => self.run_edit_command(cx, cmd),
             crate::command::CommandKind::Move(cmd) => {
                 let movement = cmd.to_movement(count);
-                self.run_move_command(cx, &movement, count, mods)
+                self.run_move_command(&movement, count, mods)
             }
             crate::command::CommandKind::Focus(cmd) => {
                 self.run_focus_command(cx, cmd, count, mods)
@@ -1776,32 +1937,52 @@ impl KeyPressFocus for EditorData {
     }
 
     fn expect_char(&self) -> bool {
-        self.inline_find.with_untracked(|f| f.is_some())
+        if self.common.find.visual.get_untracked() && self.find_focus.get_untracked()
+        {
+            false
+        } else {
+            self.inline_find.with_untracked(|f| f.is_some())
+        }
     }
 
     fn receive_char(&self, cx: Scope, c: &str) {
-        if self.get_mode() == Mode::Insert {
-            let mut cursor = self.cursor.get_untracked();
-            let config = self.common.config.get_untracked();
-            let deltas = self
-                .doc
-                .try_update(|doc| doc.do_insert(&mut cursor, c, &config))
-                .unwrap();
-            self.cursor.set(cursor);
-
-            if !c
-                .chars()
-                .all(|c| c.is_whitespace() || c.is_ascii_whitespace())
-            {
-                self.update_completion(false);
+        if self.common.find.visual.get_untracked() && self.find_focus.get_untracked()
+        {
+            // find/relace editor receive char
+            if self.common.find.replace_focus.get_untracked() {
+                self.common.internal_command.set(Some(
+                    InternalCommand::ReplaceEditorReceiveChar { s: c.to_string() },
+                ));
             } else {
-                self.cancel_completion();
+                self.common.internal_command.set(Some(
+                    InternalCommand::FindEditorReceiveChar { s: c.to_string() },
+                ));
             }
-            self.apply_deltas(&deltas);
-        } else if let Some(direction) = self.inline_find.get_untracked() {
-            self.inline_find(cx, direction.clone(), c);
-            self.last_inline_find.set(Some((direction, c.to_string())));
-            self.inline_find.set(None);
+        } else {
+            // normal editor receive char
+            if self.get_mode() == Mode::Insert {
+                let mut cursor = self.cursor.get_untracked();
+                let config = self.common.config.get_untracked();
+                let deltas = self
+                    .doc
+                    .try_update(|doc| doc.do_insert(&mut cursor, c, &config))
+                    .unwrap();
+                self.cursor.set(cursor);
+
+                if !c
+                    .chars()
+                    .all(|c| c.is_whitespace() || c.is_ascii_whitespace())
+                {
+                    self.update_completion(false);
+                } else {
+                    self.cancel_completion();
+                }
+                self.apply_deltas(&deltas);
+            } else if let Some(direction) = self.inline_find.get_untracked() {
+                self.inline_find(cx, direction.clone(), c);
+                self.last_inline_find.set(Some((direction, c.to_string())));
+                self.inline_find.set(None);
+            }
         }
     }
 }

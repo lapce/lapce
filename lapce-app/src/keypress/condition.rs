@@ -41,6 +41,8 @@ impl<'a> CheckCondition<'a> {
 pub enum Condition {
     #[strum(serialize = "editor_focus")]
     EditorFocus,
+    #[strum(serialize = "input_focus")]
+    InputFocus,
     #[strum(serialize = "list_focus")]
     ListFocus,
     #[strum(serialize = "palette_focus")]
@@ -59,6 +61,10 @@ pub enum Condition {
     RenameFocus,
     #[strum(serialize = "search_active")]
     SearchActive,
+    #[strum(serialize = "search_focus")]
+    SearchFocus,
+    #[strum(serialize = "replace_focus")]
+    ReplaceFocus,
 }
 
 #[cfg(test)]

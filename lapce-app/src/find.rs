@@ -72,6 +72,10 @@ pub struct Find {
     pub whole_words: RwSignal<bool>,
     /// The search query should be considered as regular expression.
     pub is_regex: RwSignal<bool>,
+    /// replace editor is shown
+    pub replace_active: RwSignal<bool>,
+    /// replace editor is focused
+    pub replace_focus: RwSignal<bool>,
 }
 
 impl Find {
@@ -79,9 +83,11 @@ impl Find {
         let find = Self {
             visual: create_rw_signal(cx, false),
             search_string: create_rw_signal(cx, None),
-            case_matching: create_rw_signal(cx, CaseMatching::Exact),
+            case_matching: create_rw_signal(cx, CaseMatching::CaseInsensitive),
             whole_words: create_rw_signal(cx, false),
             is_regex: create_rw_signal(cx, false),
+            replace_active: create_rw_signal(cx, false),
+            replace_focus: create_rw_signal(cx, false),
         };
 
         {
@@ -136,11 +142,11 @@ impl Find {
             return;
         }
 
-        let is_regex = self.is_regex.get_untracked();
-
         if !self.visual.get_untracked() {
             self.visual.set(true);
         }
+
+        let is_regex = self.is_regex.get_untracked();
 
         let search_string_unchanged = self.search_string.with_untracked(|search| {
             if let Some(ref s) = search {

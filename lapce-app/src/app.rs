@@ -50,7 +50,7 @@ use crate::{
     text_input::text_input,
     title::title,
     window::{TabsInfo, WindowData, WindowInfo},
-    window_tab::{Focus, WindowTabData},
+    window_tab::{CommonData, Focus, WindowTabData},
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
@@ -79,9 +79,12 @@ fn editor_tab_header(
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
-    focus: ReadSignal<Focus>,
-    config: ReadSignal<Arc<LapceConfig>>,
+    common: CommonData,
 ) -> impl View {
+    let focus = common.focus;
+    let config = common.config;
+    let internal_command = common.internal_command;
+
     let items = move || {
         let editor_tab = editor_tab.get();
         for (i, (index, _)) in editor_tab.children.iter().enumerate() {
@@ -336,7 +339,14 @@ fn editor_tab_header(
             }),
             clickable_icon(
                 || LapceIcons::SPLIT_HORIZONTAL,
-                || {},
+                move || {
+                    let editor_tab_id =
+                        editor_tab.with_untracked(|t| t.editor_tab_id);
+                    internal_command.set(Some(InternalCommand::Split {
+                        direction: SplitDirection::Vertical,
+                        editor_tab_id,
+                    }));
+                },
                 || false,
                 || false,
                 config,
@@ -418,9 +428,11 @@ fn editor_tab(
     focus: ReadSignal<Focus>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
+    let common = main_split.common.clone();
+    let internal_command = main_split.common.internal_command;
     stack(|| {
         (
-            editor_tab_header(active_editor_tab, editor_tab, editors, focus, config),
+            editor_tab_header(active_editor_tab, editor_tab, editors, common),
             editor_tab_content(
                 main_split.clone(),
                 workspace.clone(),
@@ -430,6 +442,12 @@ fn editor_tab(
                 focus,
             ),
         )
+    })
+    .on_event(EventListner::PointerDown, move |_| {
+        let editor_tab_id = editor_tab.with_untracked(|t| t.editor_tab_id);
+        internal_command
+            .set(Some(InternalCommand::FocusEditorTab { editor_tab_id }));
+        false
     })
     .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
 }
@@ -1568,6 +1586,7 @@ fn palette(window_tab_data: Arc<WindowTabData>) -> impl View {
                 palette_preview(palette_data),
             )
         })
+        .on_event(EventListner::PointerDown, move |_| true)
         .style(move || {
             let config = config.get();
             Style::BASE
@@ -1757,7 +1776,7 @@ fn completion(window_tab_data: Arc<WindowTabData>) -> impl View {
             .margin_top_px(origin.y as f32)
             .background(*config.get_color(LapceColor::COMPLETION_BACKGROUND))
             .font_family(config.editor.font_family.clone())
-            .font_size(config.editor.font_size as f32)
+            .font_size(config.editor.font_size() as f32)
             .border_radius(6.0)
     })
 }
@@ -1862,7 +1881,7 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
             let config = config.get();
             Style::BASE
                 .font_family(config.editor.font_family.clone())
-                .font_size(config.editor.font_size as f32)
+                .font_size(config.editor.font_size() as f32)
                 .padding_px(6.0)
                 .border(1.0)
                 .border_radius(6.0)

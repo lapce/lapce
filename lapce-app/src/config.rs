@@ -562,7 +562,7 @@ impl LapceConfig {
         if self.terminal.font_size > 0 {
             self.terminal.font_size
         } else {
-            self.editor.font_size
+            self.editor.font_size()
         }
     }
 

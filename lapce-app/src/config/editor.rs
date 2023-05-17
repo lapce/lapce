@@ -18,7 +18,7 @@ pub struct EditorConfig {
     #[field_names(desc = "Set the editor font family")]
     pub font_family: String,
     #[field_names(desc = "Set the editor font size")]
-    pub font_size: usize,
+    font_size: usize,
     #[field_names(desc = "Set the font size in the code lens")]
     pub code_lens_font_size: usize,
     #[field_names(
@@ -156,6 +156,10 @@ pub struct EditorConfig {
 }
 
 impl EditorConfig {
+    pub fn font_size(&self) -> usize {
+        self.font_size.max(6).min(32)
+    }
+
     pub fn line_height(&self) -> usize {
         const SCALE_OR_SIZE_LIMIT: f64 = 5.0;
 

@@ -5,6 +5,7 @@ use floem::{
         Attrs, AttrsList, FamilyOwned, LineHeightValue, Style as FontStyle,
         TextLayout, Weight,
     },
+    event::Event,
     id::Id,
     peniko::{
         kurbo::{Line, Point, Rect, Size},
@@ -12,14 +13,17 @@ use floem::{
     },
     reactive::{
         create_effect, ReadSignal, RwSignal, SignalGet, SignalGetUntracked,
-        SignalWith,
+        SignalUpdate, SignalWith, SignalWithUntracked,
     },
     style::{ComputedStyle, Style},
     taffy::prelude::Node,
     view::{ChangeFlags, View},
     AppContext, Renderer,
 };
-use lapce_core::cursor::{Cursor, CursorMode};
+use lapce_core::{
+    cursor::{Cursor, CursorMode},
+    selection::Selection,
+};
 
 use crate::{
     config::{color::LapceColor, LapceConfig},
@@ -41,8 +45,8 @@ pub fn text_input(
     });
 
     create_effect(cx.scope, move |_| {
-        let cursor = cursor.get();
-        id.update_state(TextInputState::Cursor(cursor), false);
+        cursor.with(|_| ());
+        id.request_paint();
     });
 
     create_effect(cx.scope, move |_| {
@@ -57,7 +61,8 @@ pub fn text_input(
         focus: false,
         text_node: None,
         text_layout: None,
-        cursor: Cursor::origin(false),
+        cursor,
+        doc,
         color: None,
         font_size: None,
         font_family: None,
@@ -71,14 +76,14 @@ pub fn text_input(
 
 enum TextInputState {
     Content(String),
-    Cursor(Cursor),
     Focus(bool),
 }
 
 pub struct TextInput {
     id: Id,
     content: String,
-    cursor: Cursor,
+    doc: RwSignal<Document>,
+    cursor: RwSignal<Cursor>,
     focus: bool,
     text_node: Option<Node>,
     text_layout: Option<TextLayout>,
@@ -132,6 +137,15 @@ impl TextInput {
         );
         self.text_layout = Some(text_layout);
     }
+
+    fn hit_index(&self, point: Point) -> usize {
+        if let Some(text_layout) = self.text_layout.as_ref() {
+            let hit = text_layout.hit_point(Point::new(point.x, 0.0));
+            hit.index.min(self.content.len())
+        } else {
+            0
+        }
+    }
 }
 
 impl View for TextInput {
@@ -157,9 +171,6 @@ impl View for TextInput {
                 TextInputState::Content(content) => {
                     self.content = content;
                     self.text_layout = None;
-                }
-                TextInputState::Cursor(cursor) => {
-                    self.cursor = cursor;
                 }
                 TextInputState::Focus(focus) => {
                     self.focus = focus;
@@ -197,7 +208,7 @@ impl View for TextInput {
             let text_layout = self.text_layout.as_ref().unwrap();
 
             if let Some(on_cursor_pos) = self.on_cursor_pos.as_ref() {
-                let offset = self.cursor.offset();
+                let offset = self.cursor.get_untracked().offset();
                 let cursor_point = text_layout.hit_position(offset).point;
                 if cursor_point != self.cursor_pos {
                     self.cursor_pos = cursor_point;
@@ -229,10 +240,41 @@ impl View for TextInput {
 
     fn event(
         &mut self,
-        _cx: &mut floem::context::EventCx,
+        cx: &mut floem::context::EventCx,
         _id_path: Option<&[Id]>,
-        _event: floem::event::Event,
+        event: floem::event::Event,
     ) -> bool {
+        match event {
+            Event::PointerDown(pointer) => {
+                let offset = self.hit_index(pointer.pos);
+                self.cursor.update(|cursor| {
+                    cursor.set_insert(Selection::caret(offset));
+                });
+                if pointer.button.is_left() && pointer.count == 2 {
+                    let offset = self.hit_index(pointer.pos);
+                    let (start, end) = self
+                        .doc
+                        .with_untracked(|doc| doc.buffer().select_word(offset));
+                    self.cursor.update(|cursor| {
+                        cursor.set_insert(Selection::region(start, end));
+                    });
+                } else if pointer.button.is_left() && pointer.count == 3 {
+                    self.cursor.update(|cursor| {
+                        cursor.set_insert(Selection::region(0, self.content.len()));
+                    });
+                }
+                cx.update_active(self.id);
+            }
+            Event::PointerMove(pointer) => {
+                if cx.is_active(self.id) {
+                    let offset = self.hit_index(pointer.pos);
+                    self.cursor.update(|cursor| {
+                        cursor.set_offset(offset, true, false);
+                    });
+                }
+            }
+            _ => {}
+        }
         false
     }
 
@@ -249,7 +291,9 @@ impl View for TextInput {
         let height = text_layout.size().height;
         let config = self.config.get_untracked();
 
-        if let CursorMode::Insert(selection) = &self.cursor.mode {
+        let cursor = self.cursor.get_untracked();
+
+        if let CursorMode::Insert(selection) = &cursor.mode {
             for region in selection.regions() {
                 if !region.is_caret() {
                     let min = text_layout.hit_position(region.min()).point.x;
@@ -267,7 +311,7 @@ impl View for TextInput {
         cx.draw_text(text_layout, point);
 
         if self.focus {
-            let offset = self.cursor.offset();
+            let offset = cursor.offset();
             let hit_position = text_layout.hit_position(offset);
             let cursor_point = hit_position.point + point.to_vec2();
             cx.stroke(

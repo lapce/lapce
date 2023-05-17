@@ -27,7 +27,7 @@ use lapce_core::{
     movement::{LinePosition, Movement},
     register::{Clipboard, Register},
     selection::{SelRegion, Selection},
-    soft_tab::{snap_to_soft_tab, SnapDirection},
+    soft_tab::{snap_to_soft_tab, snap_to_soft_tab_line_col, SnapDirection},
     style::line_styles,
     syntax::{edit::SyntaxEdit, Syntax},
     word::WordCursor,
@@ -842,7 +842,7 @@ impl Document {
                 (new_offset, None)
             }
             Movement::Up => {
-                let font_size = config.editor.font_size;
+                let font_size = config.editor.font_size();
 
                 let line = self.buffer.line_of_offset(offset);
                 if line == 0 {
@@ -871,7 +871,7 @@ impl Document {
                 (new_offset, Some(horiz))
             }
             Movement::Down => {
-                let font_size = config.editor.font_size;
+                let font_size = config.editor.font_size();
 
                 let last_line = self.buffer.last_line();
                 let line = self.buffer.line_of_offset(offset);
@@ -945,7 +945,7 @@ impl Document {
                     LinePosition::First => 0,
                     LinePosition::Last => self.buffer.last_line(),
                 };
-                let font_size = config.editor.font_size;
+                let font_size = config.editor.font_size();
                 let horiz = horiz.cloned().unwrap_or_else(|| {
                     ColPosition::Col(self.line_point_of_offset(offset, font_size).x)
                 });
@@ -1149,7 +1149,7 @@ impl Document {
         let (y, line_height, font_size) = (
             config.editor.line_height() * line,
             config.editor.line_height(),
-            config.editor.font_size,
+            config.editor.font_size(),
         );
 
         let line = line.min(self.buffer.last_line());
@@ -1158,7 +1158,7 @@ impl Document {
         let col = phantom_text.col_after(col, false);
 
         let mut x_shift = 0.0;
-        if font_size < config.editor.font_size {
+        if font_size < config.editor.font_size() {
             let line_content = self.buffer.line_content(line);
             let mut col = 0usize;
             for ch in line_content.chars() {
@@ -1171,7 +1171,7 @@ impl Document {
 
             if col > 0 {
                 let normal_text_layout =
-                    self.get_text_layout(line, config.editor.font_size);
+                    self.get_text_layout(line, config.editor.font_size());
                 let small_text_layout = self.get_text_layout(line, font_size);
                 x_shift = normal_text_layout.text.hit_position(col).point.x
                     - small_text_layout.text.hit_position(col).point.x;
@@ -1220,7 +1220,7 @@ impl Document {
         let attrs = Attrs::new()
             .color(*color)
             .family(&family)
-            .font_size(config.editor.font_size as f32);
+            .font_size(config.editor.font_size() as f32);
         let mut attrs_list = AttrsList::new(attrs);
 
         // Apply various styles to the line's text based on our semantic/syntax highlighting
@@ -1235,7 +1235,7 @@ impl Document {
             }
         }
 
-        let font_size = config.editor.font_size;
+        let font_size = config.editor.font_size();
 
         // Apply phantom text specific styling
         for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
@@ -1881,5 +1881,52 @@ impl Document {
             }
             self.find_result.occurrences.set(occurrences);
         }
+    }
+
+    /// Get the offset of a particular point within the editor.  
+    /// The boolean indicates whether the point is inside the text or not
+    /// Points outside of vertical bounds will return the last line.
+    /// Points outside of horizontal bounds will return the last column on the line.
+    pub fn offset_of_point(&self, mode: Mode, point: Point) -> (usize, bool) {
+        let ((line, col), is_inside) = self.line_col_of_point(mode, point);
+        (self.buffer.offset_of_line_col(line, col), is_inside)
+    }
+
+    /// Get the (line, col) of a particular point within the editor.
+    /// The boolean indicates whether the point is within the text bounds.  
+    /// Points outside of vertical bounds will return the last line.
+    /// Points outside of horizontal bounds will return the last column on the line.
+    pub fn line_col_of_point(
+        &self,
+        mode: Mode,
+        point: Point,
+    ) -> ((usize, usize), bool) {
+        let config = self.config.get_untracked();
+
+        let line = (point.y / config.editor.line_height() as f64).floor() as usize;
+        let line = line.min(self.buffer.last_line());
+        let font_size = config.editor.font_size();
+        let text_layout = self.get_text_layout(line, font_size);
+        let hit_point = text_layout.text.hit_point(Point::new(point.x, 0.0));
+        // We have to unapply the phantom text shifting in order to get back to the column in
+        // the actual buffer
+        let phantom_text = self.line_phantom_text(line);
+        let col = phantom_text.before_col(hit_point.index);
+        // Ensure that the column doesn't end up out of bounds, so things like clicking on the far
+        // right end will just go to the end of the line.
+        let max_col = self.buffer.line_end_col(line, mode != Mode::Normal);
+        let mut col = col.min(max_col);
+
+        if config.editor.atomic_soft_tabs && config.editor.tab_width > 1 {
+            col = snap_to_soft_tab_line_col(
+                &self.buffer,
+                line,
+                col,
+                SnapDirection::Nearest,
+                config.editor.tab_width,
+            );
+        }
+
+        ((line, col), hit_point.is_inside)
     }
 }

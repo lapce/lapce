@@ -191,8 +191,6 @@ pub struct MainSplitData {
     pub active_editor: Memo<Option<RwSignal<EditorData>>>,
     pub find_editor: EditorData,
     pub replace_editor: EditorData,
-    pub replace_active: RwSignal<bool>,
-    pub replace_focus: RwSignal<bool>,
     locations: RwSignal<im::Vector<EditorLocation>>,
     current_location: RwSignal<usize>,
     pub common: CommonData,
@@ -214,8 +212,6 @@ impl MainSplitData {
             EditorData::new_local(cx, EditorId::next(), common.clone());
         let replace_editor =
             EditorData::new_local(cx, EditorId::next(), common.clone());
-        let replace_active = create_rw_signal(cx, false);
-        let replace_focus = create_rw_signal(cx, false);
 
         let active_editor =
             create_memo(cx, move |_| -> Option<RwSignal<EditorData>> {
@@ -256,8 +252,6 @@ impl MainSplitData {
             active_editor,
             find_editor,
             replace_editor,
-            replace_active,
-            replace_focus,
             diagnostics,
             locations,
             current_location,
@@ -291,7 +285,7 @@ impl MainSplitData {
         Some(())
     }
 
-    fn save_current_jump_locatoin(&self) -> bool {
+    fn save_current_jump_location(&self) -> bool {
         if let Some(editor) = self.active_editor.get_untracked() {
             let (doc, cursor, viewport) = editor.with_untracked(|editor| {
                 (editor.doc, editor.cursor, editor.viewport)
@@ -359,7 +353,7 @@ impl MainSplitData {
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
     ) {
-        self.save_current_jump_locatoin();
+        self.save_current_jump_location();
         self.go_to_location(cx, location, edits);
     }
 
@@ -630,7 +624,7 @@ impl MainSplitData {
         if current_location_value >= locations_value.len() {
             // if we are at the head of the locations, save the current location
             // before jump back
-            if self.save_current_jump_locatoin() {
+            if self.save_current_jump_location() {
                 current_location.update(|l| {
                     *l -= 1;
                 });
@@ -1287,11 +1281,16 @@ impl MainSplitData {
         });
     }
 
-    pub fn set_find_pattern(&self, pattern: String) {
-        let pattern_len = pattern.len();
-        self.find_editor
+    pub fn set_find_pattern(&self, pattern: Option<String>) {
+        if let Some(pattern) = pattern {
+            self.find_editor
+                .doc
+                .update(|doc| doc.reload(Rope::from(pattern), true));
+        }
+        let pattern_len = self
+            .find_editor
             .doc
-            .update(|doc| doc.reload(Rope::from(pattern), true));
+            .with_untracked(|doc| doc.buffer().len());
         self.find_editor
             .cursor
             .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));

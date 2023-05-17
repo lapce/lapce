@@ -738,6 +738,33 @@ impl WindowTabData {
             InternalCommand::Search { pattern } => {
                 self.main_split.set_find_pattern(pattern);
             }
+            InternalCommand::FindEditorReceiveChar { s } => {
+                self.main_split.find_editor.receive_char(cx, &s);
+            }
+            InternalCommand::ReplaceEditorReceiveChar { s } => {
+                self.main_split.replace_editor.receive_char(cx, &s);
+            }
+            InternalCommand::FindEditorCommand {
+                command,
+                count,
+                mods,
+            } => {
+                self.main_split
+                    .find_editor
+                    .run_command(cx, &command, count, mods);
+            }
+            InternalCommand::ReplaceEditorCommand {
+                command,
+                count,
+                mods,
+            } => {
+                self.main_split
+                    .replace_editor
+                    .run_command(cx, &command, count, mods);
+            }
+            InternalCommand::FocusEditorTab { editor_tab_id } => {
+                self.main_split.active_editor_tab.set(Some(editor_tab_id));
+            }
         }
     }
 
