@@ -37,7 +37,7 @@ fuzzy-matcher = "0.3.7"
 sled = "0.34.7"
 tokio = { version = "1.21", features = ["full"] }
 futures = "0.3.26"
-floem = { git = "https://github.com/lapce/floem", rev = "f4d6c0a9721f306bbee58bbbb3b1148d6043b8e0" }
+floem = { git = "https://github.com/lapce/floem", rev = "dfc4191e4860859b2da77693362bc08e027f4877" }
 # floem = { path = "../../workspaces/floem" }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }

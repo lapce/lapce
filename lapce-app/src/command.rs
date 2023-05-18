@@ -204,6 +204,18 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open Plugins Directory")]
     OpenPluginsDirectory,
 
+    #[strum(serialize = "zoom_in")]
+    #[strum(message = "Zoom In")]
+    ZoomIn,
+
+    #[strum(serialize = "zoom_out")]
+    #[strum(message = "Zoom Out")]
+    ZoomOut,
+
+    #[strum(serialize = "zoom_reset")]
+    #[strum(message = "Reset Zoom")]
+    ZoomReset,
+
     #[strum(serialize = "close_window_tab")]
     #[strum(message = "Close Current Window Tab")]
     CloseWindowTab,
@@ -511,6 +523,9 @@ pub enum InternalCommand {
     },
     SplitTerminalExchange {
         term_id: TermId,
+    },
+    EditorTabClose {
+        editor_tab_id: EditorTabId,
     },
     EditorTabChildClose {
         editor_tab_id: EditorTabId,

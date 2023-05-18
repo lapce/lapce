@@ -50,11 +50,12 @@ pub struct WindowData {
     pub size: RwSignal<Size>,
     pub position: RwSignal<Point>,
     pub root_view_id: RwSignal<floem::id::Id>,
+    pub window_scale: RwSignal<f64>,
     pub config: RwSignal<Arc<LapceConfig>>,
 }
 
 impl WindowData {
-    pub fn new(cx: Scope, info: WindowInfo) -> Self {
+    pub fn new(cx: Scope, info: WindowInfo, window_scale: RwSignal<f64>) -> Self {
         let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
         let config = create_rw_signal(cx, Arc::new(config));
         let root_view_id = create_rw_signal(cx, floem::id::Id::next());
@@ -69,6 +70,7 @@ impl WindowData {
                 cx,
                 Arc::new(w),
                 window_command.write_only(),
+                window_scale,
             ));
             window_tabs.push_back((create_rw_signal(cx, 0), window_tab));
         }
@@ -78,6 +80,7 @@ impl WindowData {
                 cx,
                 Arc::new(LapceWorkspace::default()),
                 window_command.write_only(),
+                window_scale,
             ));
             window_tabs.push_back((create_rw_signal(cx, 0), window_tab));
         }
@@ -95,6 +98,7 @@ impl WindowData {
             size,
             position,
             root_view_id,
+            window_scale,
             config,
         };
 
@@ -118,6 +122,7 @@ impl WindowData {
                     self.scope,
                     Arc::new(workspace),
                     self.window_command.write_only(),
+                    self.window_scale,
                 ));
                 let active = self.active.get_untracked();
                 self.window_tabs.update(|window_tabs| {
@@ -138,6 +143,7 @@ impl WindowData {
                     self.scope,
                     Arc::new(workspace),
                     self.window_command.write_only(),
+                    self.window_scale,
                 ));
                 let active = self.active.get_untracked();
                 let active = self

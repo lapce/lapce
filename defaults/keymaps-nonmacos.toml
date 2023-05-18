@@ -27,6 +27,14 @@ command = "open_settings"
 key = "ctrl+k ctrl+s"
 command = "open_keyboard_shortcuts"
 
+[[keymaps]]
+key = "ctrl+="
+command = "zoom_in"
+
+[[keymaps]]
+key = "ctrl+-"
+command = "zoom_out"
+
 # --------------------------------- Terminal copy/paste ---------------------------------
 
 [[keymaps]]

@@ -100,6 +100,7 @@ pub struct WindowTabData {
     pub window_origin: RwSignal<Point>,
     pub layout_rect: RwSignal<Rect>,
     pub proxy: ProxyData,
+    pub window_scale: RwSignal<f64>,
     pub common: CommonData,
 }
 
@@ -135,6 +136,7 @@ impl WindowTabData {
         cx: Scope,
         workspace: Arc<LapceWorkspace>,
         window_command: WriteSignal<Option<WindowCommand>>,
+        window_scale: RwSignal<f64>,
     ) -> Self {
         let db: Arc<LapceDb> = use_context(cx).unwrap();
 
@@ -305,6 +307,7 @@ impl WindowTabData {
             window_origin: create_rw_signal(cx, Point::ZERO),
             layout_rect: create_rw_signal(cx, Rect::ZERO),
             proxy,
+            window_scale,
             common,
         };
 
@@ -413,6 +416,25 @@ impl WindowTabData {
             OpenProxyDirectory => {}
             OpenThemesDirectory => {}
             OpenPluginsDirectory => {}
+            ZoomIn => {
+                let mut scale = self.window_scale.get_untracked();
+                scale += 0.1;
+                if scale > 4.0 {
+                    scale = 4.0
+                }
+                self.window_scale.set(scale);
+            }
+            ZoomOut => {
+                let mut scale = self.window_scale.get_untracked();
+                scale -= 0.1;
+                if scale < 0.1 {
+                    scale = 0.1
+                }
+                self.window_scale.set(scale);
+            }
+            ZoomReset => {
+                self.window_scale.set(1.0);
+            }
             NewWindowTab => {
                 self.common.window_command.set(Some(
                     WindowCommand::NewWorkspaceTab {
@@ -681,6 +703,9 @@ impl WindowTabData {
             }
             InternalCommand::SplitExchange { editor_tab_id } => {
                 self.main_split.split_exchange(cx, editor_tab_id);
+            }
+            InternalCommand::EditorTabClose { editor_tab_id } => {
+                self.main_split.editor_tab_close(cx, editor_tab_id);
             }
             InternalCommand::EditorTabChildClose {
                 editor_tab_id,

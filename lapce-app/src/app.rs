@@ -19,7 +19,7 @@ use floem::{
     },
     view::View,
     views::{
-        container, container_box, label, list, scroll, stack, svg, tab,
+        container, container_box, empty, label, list, scroll, stack, svg, tab,
         virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
         VirtualListVector,
     },
@@ -73,6 +73,7 @@ pub struct AppInfo {
 #[derive(Clone)]
 pub struct AppData {
     pub windows: RwSignal<im::Vector<WindowData>>,
+    pub window_scale: RwSignal<f64>,
 }
 
 fn editor_tab_header(
@@ -107,6 +108,7 @@ fn editor_tab_header(
 
     let view_fn = move |(i, child): (RwSignal<usize>, EditorTabChild)| {
         let local_child = child.clone();
+        let child_for_close = child.clone();
         let child_view = move || match child {
             EditorTabChild::Editor(editor_id) => {
                 #[derive(PartialEq)]
@@ -199,38 +201,30 @@ fn editor_tab_header(
                                 )
                             },
                         ),
-                        container(|| {
-                            svg(move || {
-                                config.get().ui_svg(
-                                    if info.with(|info| info.is_pristine) {
-                                        LapceIcons::CLOSE
-                                    } else {
-                                        LapceIcons::UNSAVED
+                        clickable_icon(
+                            move || {
+                                if info.with(|info| info.is_pristine) {
+                                    LapceIcons::CLOSE
+                                } else {
+                                    LapceIcons::UNSAVED
+                                }
+                            },
+                            move || {
+                                let editor_tab_id =
+                                    editor_tab.with_untracked(|t| t.editor_tab_id);
+                                internal_command.set(Some(
+                                    InternalCommand::EditorTabChildClose {
+                                        editor_tab_id,
+                                        child: child_for_close.clone(),
                                     },
-                                )
-                            })
-                            .style(move || {
-                                let config = config.get();
-                                let size = config.ui.icon_size() as f32;
-                                Style::BASE.size_px(size, size).color(
-                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                                )
-                            })
-                        })
-                        .style(|| {
-                            Style::BASE
-                                .border_radius(6.0)
-                                .padding_px(4.0)
-                                .margin_horiz_px(6.0)
-                                .cursor(CursorStyle::Pointer)
-                        })
-                        .hover_style(move || {
-                            Style::BASE.background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
-                        }),
+                                ));
+                            },
+                            || false,
+                            || false,
+                            config,
+                        )
+                        .on_event(EventListner::PointerDown, |_| true)
+                        .style(|| Style::BASE.margin_horiz_px(6.0)),
                     )
                 })
                 .style(move || {
@@ -262,7 +256,7 @@ fn editor_tab_header(
                         }
                         true
                     })
-                    .on_click(move |_| {
+                    .on_event(EventListner::PointerDown, move |_| {
                         editor_tab.update(|editor_tab| {
                             editor_tab.active = i.get_untracked();
                         });
@@ -274,7 +268,7 @@ fn editor_tab_header(
                             .height_pct(100.0)
                     }),
                 container(|| {
-                    label(|| "".to_string()).style(move || {
+                    empty().style(move || {
                         Style::BASE
                             .size_pct(100.0, 100.0)
                             .border_bottom(if active() == i.get() {
@@ -352,8 +346,20 @@ fn editor_tab_header(
                 config,
             )
             .style(|| Style::BASE.margin_left_px(6.0)),
-            clickable_icon(|| LapceIcons::CLOSE, || {}, || false, || false, config)
-                .style(|| Style::BASE.margin_horiz_px(6.0)),
+            clickable_icon(
+                || LapceIcons::CLOSE,
+                move || {
+                    let editor_tab_id =
+                        editor_tab.with_untracked(|t| t.editor_tab_id);
+                    internal_command.set(Some(InternalCommand::EditorTabClose {
+                        editor_tab_id,
+                    }));
+                },
+                || false,
+                || false,
+                config,
+            )
+            .style(|| Style::BASE.margin_horiz_px(6.0)),
         )
     })
     .style(move || {
@@ -2143,6 +2149,7 @@ fn app_view(cx: AppContext, window_data: WindowData) -> impl View {
     // let window_data = WindowData::new(cx);
     let window_size = window_data.size;
     let position = window_data.position;
+    let window_scale = window_data.window_scale;
     stack(|| {
         (
             workspace_tab_header(window_data.clone()),
@@ -2150,6 +2157,7 @@ fn app_view(cx: AppContext, window_data: WindowData) -> impl View {
         )
     })
     .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
+    .window_scale(move || window_scale.get())
     .on_event(EventListner::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             window_data.key_down(key_event);
@@ -2216,12 +2224,17 @@ pub fn launch() {
     let scope = app.scope();
     provide_context(scope, db.clone());
 
+    let window_scale = create_rw_signal(scope, 1.0);
+
     let mut windows = im::Vector::new();
 
-    app = create_windows(scope, db.clone(), app, paths, &mut windows);
+    app = create_windows(scope, db.clone(), app, paths, &mut windows, window_scale);
 
     let windows = create_rw_signal(scope, windows);
-    let app_data = AppData { windows };
+    let app_data = AppData {
+        windows,
+        window_scale,
+    };
 
     app.on_event(move |event| match event {
         floem::AppEvent::WillTerminate => {
@@ -2237,6 +2250,7 @@ fn create_windows(
     mut app: floem::Application,
     paths: Vec<PathBuf>,
     windows: &mut im::Vector<WindowData>,
+    window_scale: RwSignal<f64>,
 ) -> floem::Application {
     let dirs: Vec<&PathBuf> = paths.iter().filter(|p| p.is_dir()).collect();
     let files: Vec<&PathBuf> = paths.iter().filter(|p| p.is_file()).collect();
@@ -2280,7 +2294,7 @@ fn create_windows(
             pos += (50.0, 50.0);
 
             let config = WindowConfig::default().size(info.size).position(info.pos);
-            let window_data = WindowData::new(scope, info);
+            let window_data = WindowData::new(scope, info, window_scale);
             windows.push_back(window_data.clone());
             app = app.window(move |cx| app_view(cx, window_data), Some(config));
         }
@@ -2290,7 +2304,7 @@ fn create_windows(
             for info in app_info.windows {
                 let config =
                     WindowConfig::default().size(info.size).position(info.pos);
-                let window_data = WindowData::new(scope, info);
+                let window_data = WindowData::new(scope, info, window_scale);
                 windows.push_back(window_data.clone());
                 app = app.window(move |cx| app_view(cx, window_data), Some(config));
             }
@@ -2308,7 +2322,7 @@ fn create_windows(
             },
         });
         let config = WindowConfig::default().size(info.size).position(info.pos);
-        let window_data = WindowData::new(scope, info);
+        let window_data = WindowData::new(scope, info, window_scale);
         windows.push_back(window_data.clone());
         app = app.window(|cx| app_view(cx, window_data), Some(config));
     }

@@ -31,6 +31,14 @@ command = "open_keyboard_shortcuts"
 # key = "meta+q"
 # command = "quit"
 
+[[keymaps]]
+key = "meta+="
+command = "zoom_in"
+
+[[keymaps]]
+key = "meta+-"
+command = "zoom_out"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
