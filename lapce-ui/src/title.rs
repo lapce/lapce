@@ -184,17 +184,14 @@ impl Title {
         let remote_svg = data.config.ui_svg(LapceIcons::REMOTE);
         self.svgs.push((
             remote_svg,
-            Size::new(size.height, size.height)
-                .to_rect()
-                .with_origin(Point::new(x + 5.0, 0.0))
-                .inflate(-5.0, -5.0),
+            remote_rect,
             Some(
                 data.config
                     .get_color_unchecked(LapceTheme::LAPCE_REMOTE_ICON)
                     .clone(),
             ),
             None,
-        ));
+        ));     
         let x = x + remote_rect.width();
         let command_rect =
             command_rect.with_size(Size::new(x - command_rect.x0, size.height));
