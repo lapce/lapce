@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::{collections::HashSet, sync::Arc, time::Instant};
 
 use crossbeam_channel::Sender;
 use floem::{
@@ -43,6 +43,7 @@ use crate::{
         data::{default_panel_order, PanelData},
         kind::PanelKind,
     },
+    plugin::PluginData,
     proxy::{path_from_url, start_proxy, ProxyData},
     rename::RenameData,
     source_control::SourceControlData,
@@ -92,6 +93,7 @@ pub struct WindowTabData {
     pub file_explorer: FileExplorerData,
     pub panel: PanelData,
     pub terminal: TerminalPanelData,
+    pub plugin: PluginData,
     pub code_action: RwSignal<CodeActionData>,
     pub source_control: RwSignal<SourceControlData>,
     pub rename: RenameData,
@@ -144,8 +146,8 @@ impl WindowTabData {
         let workspace_disabled_volts = db
             .get_workspace_disabled_volts(&workspace)
             .unwrap_or_default();
-        let mut all_disabled_volts = disabled_volts;
-        all_disabled_volts.extend(workspace_disabled_volts.into_iter());
+        let mut all_disabled_volts = disabled_volts.clone();
+        all_disabled_volts.extend(workspace_disabled_volts.clone());
 
         let workspace_info = if workspace.path.is_some() {
             db.get_workspace_info(&workspace).ok()
@@ -271,6 +273,13 @@ impl WindowTabData {
         let global_search =
             GlobalSearchData::new(cx, main_split.clone(), common.clone());
 
+        let plugin = PluginData::new(
+            cx,
+            HashSet::from_iter(disabled_volts),
+            HashSet::from_iter(workspace_disabled_volts),
+            common.clone(),
+        );
+
         {
             let notification = create_signal_from_channel(cx, term_notification_rx);
             let terminal = terminal.clone();
@@ -301,6 +310,7 @@ impl WindowTabData {
             file_explorer,
             code_action,
             source_control,
+            plugin,
             rename,
             global_search,
             keypress,
@@ -667,7 +677,7 @@ impl WindowTabData {
         let cx = self.scope;
         match cmd {
             InternalCommand::OpenFile { path } => {
-                self.main_split.go_to_location(
+                self.main_split.jump_to_location(
                     cx,
                     EditorLocation {
                         path,
@@ -891,6 +901,15 @@ impl WindowTabData {
             CoreNotification::OpenFileChanged { path, content } => {
                 self.main_split.open_file_changed(path, content);
             }
+            CoreNotification::VoltInstalled { volt, icon } => {
+                self.plugin.volt_installed(volt, icon);
+            }
+            CoreNotification::VoltRemoved {
+                volt,
+                only_installing,
+            } => {
+                self.plugin.volt_removed(volt);
+            }
             _ => {}
         }
     }
@@ -923,6 +942,10 @@ impl WindowTabData {
             }
             Focus::Panel(PanelKind::Search) => {
                 keypress.key_down(cx, key_event, &self.global_search);
+                true
+            }
+            Focus::Panel(PanelKind::Plugin) => {
+                keypress.key_down(cx, key_event, &self.plugin);
                 true
             }
             _ => false,

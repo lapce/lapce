@@ -21,6 +21,8 @@ use crate::{
 pub enum SaveEvent {
     RecentWorkspace(LapceWorkspace),
     Doc(DocInfo),
+    DisabledVolts(Vec<VoltID>),
+    WorkspaceDisabledVolts(Arc<LapceWorkspace>, Vec<VoltID>),
 }
 
 #[derive(Clone)]
@@ -54,6 +56,13 @@ impl LapceDb {
                     SaveEvent::Doc(info) => {
                         let _ = local_db.insert_doc(&info);
                     }
+                    SaveEvent::DisabledVolts(volts) => {
+                        let _ = local_db.insert_disabled_volts(volts);
+                    }
+                    SaveEvent::WorkspaceDisabledVolts(workspace, volts) => {
+                        let _ = local_db
+                            .insert_workspace_disabled_volts(workspace, volts);
+                    }
                 }
             }
         });
@@ -74,6 +83,40 @@ impl LapceDb {
         let volts = std::str::from_utf8(&volts)?;
         let volts: Vec<VoltID> = serde_json::from_str(volts)?;
         Ok(volts)
+    }
+
+    pub fn save_disabled_volts(&self, volts: Vec<VoltID>) {
+        let _ = self.save_tx.send(SaveEvent::DisabledVolts(volts));
+    }
+
+    pub fn save_workspace_disabled_volts(
+        &self,
+        workspace: Arc<LapceWorkspace>,
+        volts: Vec<VoltID>,
+    ) {
+        let _ = self
+            .save_tx
+            .send(SaveEvent::WorkspaceDisabledVolts(workspace, volts));
+    }
+
+    pub fn insert_disabled_volts(&self, volts: Vec<VoltID>) -> Result<()> {
+        let sled_db = self.get_db()?;
+        let volts = serde_json::to_string(&volts)?;
+        sled_db.insert(b"disabled_volts", volts.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
+    pub fn insert_workspace_disabled_volts(
+        &self,
+        workspace: Arc<LapceWorkspace>,
+        volts: Vec<VoltID>,
+    ) -> Result<()> {
+        let sled_db = self.get_db()?;
+        let volts = serde_json::to_string(&volts)?;
+        sled_db.insert(format!("disabled_volts:{workspace}"), volts.as_str())?;
+        sled_db.flush()?;
+        Ok(())
     }
 
     pub fn get_workspace_disabled_volts(

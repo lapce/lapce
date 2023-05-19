@@ -17,6 +17,7 @@ pub mod keypress;
 pub mod main_split;
 pub mod palette;
 pub mod panel;
+pub mod plugin;
 pub mod proxy;
 pub mod rename;
 pub mod snippet;

@@ -658,7 +658,6 @@ fn main_split(window_tab_data: Arc<WindowTabData>) -> impl View {
             let is_hidden = panel.panel_bottom_maximized(true)
                 && panel.is_container_shown(&PanelContainerPosition::Bottom, true);
             Style::BASE
-                .border_bottom(1.0)
                 .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                 .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
                 .apply_if(is_hidden, |s| s.display(Display::None))
@@ -1803,23 +1802,24 @@ fn code_action(window_tab_data: Arc<WindowTabData>) -> impl View {
             },
             move |(i, _item)| (request_id(), *i),
             move |(i, item)| {
-                container(move || label(move || item.title().to_string())).style(
-                    move || {
-                        let config = config.get();
-                        Style::BASE
-                            .padding_horiz_px(10.0)
-                            .align_items(Some(AlignItems::Center))
-                            .min_width_px(0.0)
-                            .width_pct(100.0)
-                            .height_px(config.editor.line_height() as f32)
-                            .apply_if(active.get() == i, |s| {
-                                s.background(
-                                    *config
-                                        .get_color(LapceColor::COMPLETION_CURRENT),
-                                )
-                            })
-                    },
-                )
+                container(move || {
+                    label(move || item.title().to_string())
+                        .style(|| Style::BASE.text_ellipsis().min_width_px(0.0))
+                })
+                .style(move || {
+                    let config = config.get();
+                    Style::BASE
+                        .padding_horiz_px(10.0)
+                        .align_items(Some(AlignItems::Center))
+                        .min_width_px(0.0)
+                        .width_pct(100.0)
+                        .height_px(config.editor.line_height() as f32)
+                        .apply_if(active.get() == i, |s| {
+                            s.background(
+                                *config.get_color(LapceColor::COMPLETION_CURRENT),
+                            )
+                        })
+                })
             },
         )
         .style(|| Style::BASE.width_pct(100.0).flex_col())

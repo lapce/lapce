@@ -928,7 +928,7 @@ fn editor_content(editor: RwSignal<EditorData>) -> impl View {
     .on_resize(move |point, _rect| {
         window_origin.set(point);
     })
-    .onscroll(move |rect| {
+    .on_scroll(move |rect| {
         viewport.set(rect);
     })
     .on_scroll_to(move || scroll_to.get().map(|s| s.to_point()))
@@ -1329,10 +1329,13 @@ fn find_view(
             )
         })
         .style(move || {
+            let config = config.get();
             Style::BASE
                 .margin_right_px(50.0)
-                .background(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
+                .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
                 .border_radius(6.0)
+                .border(1.0)
+                .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                 .padding_vert_px(4.0)
                 .cursor(CursorStyle::Default)
                 .flex_col()
@@ -1351,6 +1354,7 @@ fn find_view(
     .style(move || {
         Style::BASE
             .absolute()
+            .margin_top_px(-1.0)
             .width_pct(100.0)
             .justify_end()
             .apply_if(!find_visual.get(), |s| s.hide())

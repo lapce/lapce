@@ -22,6 +22,7 @@ indexmap.workspace = true
 log.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
+reqwest.workspace = true
 directories.workspace = true
 notify.workspace = true
 toml_edit.workspace = true
@@ -37,7 +38,7 @@ fuzzy-matcher = "0.3.7"
 sled = "0.34.7"
 tokio = { version = "1.21", features = ["full"] }
 futures = "0.3.26"
-floem = { git = "https://github.com/lapce/floem", rev = "dfc4191e4860859b2da77693362bc08e027f4877" }
+floem = { git = "https://github.com/lapce/floem", rev = "1a9899d0463120d01d5a22eb96f3dc3249f76aab" }
 # floem = { path = "../../workspaces/floem" }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }

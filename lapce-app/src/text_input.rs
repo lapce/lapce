@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use floem::{
+    context::EventCx,
     cosmic_text::{
         Attrs, AttrsList, FamilyOwned, LineHeightValue, Style as FontStyle,
         TextLayout, Weight,
@@ -138,9 +139,19 @@ impl TextInput {
         self.text_layout = Some(text_layout);
     }
 
-    fn hit_index(&self, point: Point) -> usize {
+    fn hit_index(&self, cx: &mut EventCx, point: Point) -> usize {
         if let Some(text_layout) = self.text_layout.as_ref() {
-            let hit = text_layout.hit_point(Point::new(point.x, 0.0));
+            let padding_left = cx
+                .get_computed_style(self.id)
+                .map(|s| match s.padding_left {
+                    floem::taffy::style::LengthPercentage::Points(v) => v,
+                    floem::taffy::style::LengthPercentage::Percent(pct) => {
+                        let layout = cx.get_layout(self.id()).unwrap();
+                        pct * layout.size.width
+                    }
+                })
+                .unwrap_or(0.0) as f64;
+            let hit = text_layout.hit_point(Point::new(point.x - padding_left, 0.0));
             hit.index.min(self.content.len())
         } else {
             0
@@ -246,12 +257,12 @@ impl View for TextInput {
     ) -> bool {
         match event {
             Event::PointerDown(pointer) => {
-                let offset = self.hit_index(pointer.pos);
+                let offset = self.hit_index(cx, pointer.pos);
                 self.cursor.update(|cursor| {
                     cursor.set_insert(Selection::caret(offset));
                 });
                 if pointer.button.is_left() && pointer.count == 2 {
-                    let offset = self.hit_index(pointer.pos);
+                    let offset = self.hit_index(cx, pointer.pos);
                     let (start, end) = self
                         .doc
                         .with_untracked(|doc| doc.buffer().select_word(offset));
@@ -267,7 +278,7 @@ impl View for TextInput {
             }
             Event::PointerMove(pointer) => {
                 if cx.is_active(self.id) {
-                    let offset = self.hit_index(pointer.pos);
+                    let offset = self.hit_index(cx, pointer.pos);
                     self.cursor.update(|cursor| {
                         cursor.set_offset(offset, true, false);
                     });

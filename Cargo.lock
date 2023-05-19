@@ -1615,7 +1615,7 @@ dependencies = [
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=dfc4191e4860859b2da77693362bc08e027f4877#dfc4191e4860859b2da77693362bc08e027f4877"
+source = "git+https://github.com/lapce/floem?rev=1a9899d0463120d01d5a22eb96f3dc3249f76aab#1a9899d0463120d01d5a22eb96f3dc3249f76aab"
 dependencies = [
  "bitflags 2.2.1",
  "crossbeam-channel",
@@ -1643,7 +1643,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=dfc4191e4860859b2da77693362bc08e027f4877#dfc4191e4860859b2da77693362bc08e027f4877"
+source = "git+https://github.com/lapce/floem?rev=1a9899d0463120d01d5a22eb96f3dc3249f76aab#1a9899d0463120d01d5a22eb96f3dc3249f76aab"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1653,7 +1653,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=dfc4191e4860859b2da77693362bc08e027f4877#dfc4191e4860859b2da77693362bc08e027f4877"
+source = "git+https://github.com/lapce/floem?rev=1a9899d0463120d01d5a22eb96f3dc3249f76aab#1a9899d0463120d01d5a22eb96f3dc3249f76aab"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -3194,6 +3194,7 @@ dependencies = [
  "parking_lot 0.11.2",
  "rayon",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
  "sled",

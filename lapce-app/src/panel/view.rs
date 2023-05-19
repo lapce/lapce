@@ -18,6 +18,7 @@ use super::{
     debug_view::debug_panel,
     global_search_view::global_search_panel,
     kind::PanelKind,
+    plugin_view::plugin_panel,
     position::{PanelContainerPosition, PanelPosition},
     problem_view::problem_panel,
     terminal_view::terminal_panel,
@@ -49,9 +50,10 @@ pub fn panel_container_view(
         Style::BASE
             .apply_if(!panel.is_container_shown(&position, true), |s| s.hide())
             .apply_if(position == PanelContainerPosition::Bottom, |s| {
-                // s.border_top(1.0)
                 s.width_pct(100.0)
-                    .apply_if(!is_maximized, |s| s.height_px(size as f32))
+                    .apply_if(!is_maximized, |s| {
+                        s.border_top(1.0).height_px(size as f32)
+                    })
                     .apply_if(is_maximized, |s| s.flex_grow(1.0))
             })
             .apply_if(position == PanelContainerPosition::Left, |s| {
@@ -102,7 +104,9 @@ fn panel_view(
                 PanelKind::SourceControl => {
                     container_box(|| Box::new(blank_panel()))
                 }
-                PanelKind::Plugin => container_box(|| Box::new(blank_panel())),
+                PanelKind::Plugin => container_box(|| {
+                    Box::new(plugin_panel(window_tab_data.clone(), position))
+                }),
                 PanelKind::Search => container_box(|| {
                     Box::new(global_search_panel(window_tab_data.clone(), position))
                 }),
