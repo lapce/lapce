@@ -123,6 +123,7 @@ pub struct EditorData {
     pub last_inline_find: RwSignal<Option<(InlineFindDirection, String)>>,
     pub find_focus: RwSignal<bool>,
     pub active: RwSignal<bool>,
+    pub sticky_header_height: RwSignal<f64>,
     pub common: CommonData,
 }
 
@@ -163,6 +164,7 @@ impl EditorData {
         let last_inline_find = create_rw_signal(cx, None);
         let find_focus = create_rw_signal(cx, false);
         let active = create_rw_signal(cx, false);
+        let sticky_header_height = create_rw_signal(cx, 0.0);
         Self {
             editor_tab_id,
             editor_id,
@@ -179,6 +181,7 @@ impl EditorData {
             last_inline_find,
             find_focus,
             active,
+            sticky_header_height,
             common,
         }
     }
@@ -230,6 +233,7 @@ impl EditorData {
         editor.snippet = create_rw_signal(cx, None);
         editor.find_focus = create_rw_signal(cx, false);
         editor.active = create_rw_signal(cx, false);
+        editor.sticky_header_height = create_rw_signal(cx, 0.0);
         editor.editor_tab_id = editor_tab_id;
         editor.editor_id = editor_id;
         editor

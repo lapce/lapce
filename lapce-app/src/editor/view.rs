@@ -1,24 +1,29 @@
 use std::sync::{atomic::AtomicU64, Arc};
 
 use floem::{
+    context::PaintCx,
     event::{Event, EventListner},
     glazier::{Modifiers, PointerType},
-    peniko::kurbo::{Point, Rect, Size},
+    id::Id,
+    peniko::{
+        kurbo::{BezPath, Point, Rect, Size},
+        Color,
+    },
     reactive::{
         create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal,
         SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
         SignalWithUntracked,
     },
-    style::{CursorStyle, Dimension, Style},
-    view::View,
+    style::{ComputedStyle, CursorStyle, Dimension, Style},
+    taffy::prelude::Node,
+    view::{ChangeFlags, View},
     views::{
         clip, container, empty, label, list, rich_text, scroll, stack, svg,
         virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
     },
-    AppContext,
+    AppContext, Renderer,
 };
 use lapce_core::{
-    command::FocusCommand,
     cursor::{ColPosition, Cursor, CursorMode},
     mode::{Mode, VisualMode},
     selection::Selection,
@@ -27,17 +32,758 @@ use lapce_xi_rope::find::CaseMatching;
 
 use crate::{
     app::clickable_icon,
-    command::{CommandKind, InternalCommand, LapceCommand},
+    command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    doc::{DocLine, Document, LineExtraStyle},
+    doc::{DocContent, DocLine, Document, LineExtraStyle},
     main_split::MainSplitData,
     text_input::text_input,
     wave::wave_line,
-    window_tab::Focus,
     workspace::LapceWorkspace,
 };
 
 use super::EditorData;
+
+struct StickyHeaderInfo {
+    sticky_lines: Vec<usize>,
+    last_sticky_should_scroll: bool,
+    y_diff: f64,
+}
+
+pub struct EditorContentView {
+    id: Id,
+    editor: RwSignal<EditorData>,
+    is_active: Box<dyn Fn() -> bool + 'static>,
+    inner_node: Option<Node>,
+    viewport: RwSignal<Rect>,
+    sticky_header_info: StickyHeaderInfo,
+}
+
+pub fn editor_content_view(
+    editor: RwSignal<EditorData>,
+    is_active: impl Fn() -> bool + 'static + Copy,
+) -> EditorContentView {
+    let cx = AppContext::get_current();
+    let id = cx.new_id();
+
+    let viewport = create_rw_signal(cx.scope, Rect::ZERO);
+
+    create_effect(cx.scope, move |last_rev| {
+        let (doc, sticky_header_height_signal, config) =
+            editor.with_untracked(|editor| {
+                (
+                    editor.doc,
+                    editor.sticky_header_height,
+                    editor.common.config,
+                )
+            });
+        let config = config.get();
+        if !config.editor.sticky_header {
+            return (DocContent::Local, 0, 0, Rect::ZERO);
+        }
+
+        let rect = viewport.get();
+        let rev = doc.with(|doc| {
+            (doc.content.clone(), doc.buffer().rev(), doc.style_rev, rect)
+        });
+        if last_rev.as_ref() == Some(&rev) {
+            return rev;
+        }
+
+        let sticky_header_info = get_sticky_header_info(
+            doc,
+            viewport,
+            sticky_header_height_signal,
+            &config,
+        );
+
+        id.update_state(sticky_header_info, false);
+
+        rev
+    });
+
+    EditorContentView {
+        id,
+        editor,
+        is_active: Box::new(is_active),
+        inner_node: None,
+        viewport,
+        sticky_header_info: StickyHeaderInfo {
+            sticky_lines: Vec::new(),
+            last_sticky_should_scroll: false,
+            y_diff: 0.0,
+        },
+    }
+}
+
+impl EditorContentView {
+    fn paint_cursor(&self, cx: &mut PaintCx, min_line: usize, max_line: usize) {
+        let (doc, cursor, find_focus, config) =
+            self.editor.with_untracked(|editor| {
+                (
+                    editor.doc,
+                    editor.cursor,
+                    editor.find_focus,
+                    editor.common.config,
+                )
+            });
+
+        let config = config.get_untracked();
+        let line_height = config.editor.line_height() as f64;
+        let viewport = self.viewport.get_untracked();
+        let is_active = (*self.is_active)() && !find_focus.get_untracked();
+
+        let renders = doc.with(|doc| {
+            cursor.with(|cursor| match &cursor.mode {
+                CursorMode::Normal(offset) => {
+                    let line = doc.buffer().line_of_offset(*offset);
+                    let mut renders = vec![CursorRender::CurrentLine { line }];
+                    if is_active {
+                        let caret = cursor_caret(doc, *offset, true);
+                        renders.push(caret);
+                    }
+                    renders
+                }
+                CursorMode::Visual { start, end, mode } => visual_cursor(
+                    doc,
+                    *start,
+                    *end,
+                    mode,
+                    cursor.horiz.as_ref(),
+                    min_line,
+                    max_line,
+                    7.5,
+                    is_active,
+                ),
+                CursorMode::Insert(selection) => {
+                    insert_cursor(doc, selection, min_line, max_line, 7.5, is_active)
+                }
+            })
+        });
+
+        for render in renders {
+            match render {
+                CursorRender::CurrentLine { line } => {
+                    cx.fill(
+                        &Rect::ZERO
+                            .with_size(Size::new(viewport.width(), line_height))
+                            .with_origin(Point::new(
+                                viewport.x0,
+                                line_height * line as f64,
+                            )),
+                        config.get_color(LapceColor::EDITOR_CURRENT_LINE),
+                    );
+                }
+                CursorRender::Selection { x, width, line } => {
+                    cx.fill(
+                        &Rect::ZERO
+                            .with_size(Size::new(width, line_height))
+                            .with_origin(Point::new(x, line_height * line as f64)),
+                        config.get_color(LapceColor::EDITOR_SELECTION),
+                    );
+                }
+                CursorRender::Caret { x, width, line } => {
+                    cx.fill(
+                        &Rect::ZERO
+                            .with_size(Size::new(width, line_height))
+                            .with_origin(Point::new(x, line_height * line as f64)),
+                        config.get_color(LapceColor::EDITOR_CARET),
+                    );
+                }
+            }
+        }
+    }
+
+    fn paint_wave_line(
+        &self,
+        cx: &mut PaintCx,
+        width: f64,
+        point: Point,
+        color: Color,
+    ) {
+        let radius = 2.0;
+        let origin = Point::new(point.x, point.y + radius);
+        let mut path = BezPath::new();
+        path.move_to(origin);
+
+        let mut x = 0.0;
+        let mut direction = -1.0;
+        while x < width {
+            let point = origin + (x, 0.0);
+            let p1 = point + (radius, -radius * direction);
+            let p2 = point + (radius * 2.0, 0.0);
+            path.quad_to(p1, p2);
+            x += radius * 2.0;
+            direction *= -1.0;
+        }
+
+        cx.stroke(&path, color, 1.0);
+    }
+
+    fn paint_extra_style(
+        &self,
+        cx: &mut PaintCx,
+        extra_styles: &[LineExtraStyle],
+        y: f64,
+        height: f64,
+        line_height: f64,
+        viewport: Rect,
+    ) {
+        for style in extra_styles {
+            if let Some(bg) = style.bg_color {
+                let width = style.width.unwrap_or_else(|| viewport.width());
+                cx.fill(
+                    &Rect::ZERO.with_size(Size::new(width, height)).with_origin(
+                        Point::new(style.x, y + (line_height - height) / 2.0),
+                    ),
+                    bg,
+                );
+            }
+
+            if let Some(color) = style.wave_line {
+                let width = style.width.unwrap_or_else(|| viewport.width());
+                self.paint_wave_line(
+                    cx,
+                    width,
+                    Point::new(style.x, y + (line_height - height) / 2.0 + height),
+                    color,
+                );
+            }
+        }
+    }
+
+    fn paint_text(
+        &self,
+        cx: &mut PaintCx,
+        min_line: usize,
+        max_line: usize,
+        viewport: Rect,
+    ) {
+        let (doc, config) = self
+            .editor
+            .with_untracked(|editor| (editor.doc, editor.common.config));
+
+        let config = config.get_untracked();
+        let line_height = config.editor.line_height() as f64;
+        let font_size = config.editor.font_size();
+
+        doc.with_untracked(|doc| {
+            let last_line = doc.buffer().last_line();
+
+            for line in min_line..max_line + 1 {
+                if line > last_line {
+                    break;
+                }
+
+                let text_layout = doc.get_text_layout(line, font_size);
+                let height = text_layout.text.size().height;
+                let y = line as f64 * line_height;
+
+                self.paint_extra_style(
+                    cx,
+                    &text_layout.extra_style,
+                    y,
+                    height,
+                    line_height,
+                    viewport,
+                );
+
+                cx.draw_text(
+                    &text_layout.text,
+                    Point::new(0.0, y + (line_height - height) / 2.0),
+                );
+            }
+        });
+    }
+
+    fn paint_find(&self, cx: &mut PaintCx, min_line: usize, max_line: usize) {
+        let visual = self.editor.with_untracked(|e| e.common.find.visual);
+        if !visual.get_untracked() {
+            return;
+        }
+
+        let (doc, config) = self
+            .editor
+            .with_untracked(|editor| (editor.doc, editor.common.config));
+        let occurrences = doc.with_untracked(|doc| doc.find_result.occurrences);
+
+        let config = config.get_untracked();
+        let line_height = config.editor.line_height() as f64;
+
+        let (start, end) = doc.with_untracked(|doc| {
+            doc.update_find(min_line, max_line);
+            let start = doc.buffer().offset_of_line(min_line);
+            let end = doc.buffer().offset_of_line(max_line + 1);
+            (start, end)
+        });
+
+        let mut rects = Vec::new();
+        for region in occurrences
+            .with(|selection| selection.regions_in_range(start, end).to_vec())
+        {
+            doc.with_untracked(|doc| {
+                let start = region.min();
+                let end = region.max();
+                let (start_line, start_col) = doc.buffer().offset_to_line_col(start);
+                let (end_line, end_col) = doc.buffer().offset_to_line_col(end);
+                for line in min_line..max_line + 1 {
+                    if line < start_line {
+                        continue;
+                    }
+
+                    if line > end_line {
+                        break;
+                    }
+
+                    let left_col = match line {
+                        _ if line == start_line => start_col,
+                        _ => 0,
+                    };
+                    let (right_col, _line_end) = match line {
+                        _ if line == end_line => {
+                            let max_col = doc.buffer().line_end_col(line, true);
+                            (end_col.min(max_col), false)
+                        }
+                        _ => (doc.buffer().line_end_col(line, true), true),
+                    };
+
+                    // Shift it by the inlay hints
+                    let phantom_text = doc.line_phantom_text(line);
+                    let left_col = phantom_text.col_after(left_col, false);
+                    let right_col = phantom_text.col_after(right_col, false);
+
+                    let x0 = doc.line_point_of_line_col(line, left_col, 12).x;
+                    let x1 = doc.line_point_of_line_col(line, right_col, 12).x;
+
+                    if start != end {
+                        rects.push(
+                            Size::new(x1 - x0, line_height).to_rect().with_origin(
+                                Point::new(x0, line_height * line as f64),
+                            ),
+                        );
+                    }
+                }
+            })
+        }
+
+        let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
+        for rect in rects {
+            cx.stroke(&rect, color, 1.0);
+        }
+    }
+
+    fn new_paint_sticky_headers(
+        &self,
+        cx: &mut PaintCx,
+        start_line: usize,
+        viewport: Rect,
+    ) {
+        let (doc, config) = self
+            .editor
+            .with_untracked(|editor| (editor.doc, editor.common.config));
+        let config = config.get_untracked();
+        if !config.editor.sticky_header {
+            return;
+        }
+
+        let line_height = config.editor.line_height() as f64;
+
+        let total_sticky_lines = self.sticky_header_info.sticky_lines.len();
+
+        let paint_last_line = total_sticky_lines > 0
+            && (self.sticky_header_info.last_sticky_should_scroll
+                || self.sticky_header_info.y_diff != 0.0
+                || start_line + total_sticky_lines - 1
+                    != *self.sticky_header_info.sticky_lines.last().unwrap());
+
+        let total_sticky_lines = if paint_last_line {
+            total_sticky_lines
+        } else {
+            total_sticky_lines.saturating_sub(1)
+        };
+
+        if total_sticky_lines == 0 {
+            return;
+        }
+
+        let scroll_offset = if self.sticky_header_info.last_sticky_should_scroll {
+            self.sticky_header_info.y_diff
+        } else {
+            0.0
+        };
+
+        // Clear background
+        let area_height =
+            total_sticky_lines as f64 * line_height - scroll_offset + 1.0;
+        let sticky_area_rect = Size::new(viewport.width(), area_height)
+            .to_rect()
+            .with_origin(Point::new(0.0, viewport.y0));
+
+        cx.fill(
+            &sticky_area_rect,
+            config.get_color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
+        );
+
+        doc.with_untracked(|doc| {
+            // Paint lines
+            for (i, line) in self
+                .sticky_header_info
+                .sticky_lines
+                .iter()
+                .copied()
+                .enumerate()
+            {
+                let y_diff = if i == total_sticky_lines - 1 {
+                    scroll_offset
+                } else {
+                    0.0
+                };
+
+                cx.save();
+
+                let line_area_rect =
+                    Size::new(viewport.width(), line_height - y_diff)
+                        .to_rect()
+                        .with_origin(Point::new(
+                            viewport.x0,
+                            viewport.y0 + line_height * i as f64,
+                        ));
+
+                cx.clip(&line_area_rect);
+
+                let text_layout =
+                    doc.get_text_layout(line, config.editor.font_size());
+                let y = viewport.y0
+                    + line_height * i as f64
+                    + (line_height - text_layout.text.size().height) / 2.0
+                    - y_diff;
+                cx.draw_text(&text_layout.text, Point::new(viewport.x0, y));
+
+                cx.restore();
+            }
+        });
+    }
+
+    fn paint_sticky_headers(
+        &self,
+        cx: &mut PaintCx,
+        start_line: usize,
+        viewport: Rect,
+    ) {
+        let (doc, sticky_header_height_signal, config) =
+            self.editor.with_untracked(|editor| {
+                (
+                    editor.doc,
+                    editor.sticky_header_height,
+                    editor.common.config,
+                )
+            });
+        let config = config.get_untracked();
+        if !config.editor.sticky_header {
+            return;
+        }
+
+        let line_height = config.editor.line_height() as f64;
+
+        let y_diff = viewport.y0 - start_line as f64 * line_height;
+
+        let mut last_sticky_should_scroll = false;
+        let mut sticky_lines = Vec::new();
+        doc.with_untracked(|doc| {
+            if let Some(lines) = doc.sticky_headers(start_line) {
+                let total_lines = lines.len();
+                if total_lines > 0 {
+                    let line = start_line + total_lines;
+                    if let Some(new_lines) = doc.sticky_headers(line) {
+                        if new_lines.len() > total_lines {
+                            sticky_lines = new_lines;
+                        } else {
+                            sticky_lines = lines;
+                            last_sticky_should_scroll =
+                                new_lines.len() < total_lines;
+                            if new_lines.len() < total_lines {
+                                if let Some(new_new_lines) =
+                                    doc.sticky_headers(start_line + total_lines - 1)
+                                {
+                                    if new_new_lines.len() < total_lines {
+                                        sticky_lines.pop();
+                                        last_sticky_should_scroll = false;
+                                    }
+                                } else {
+                                    sticky_lines.pop();
+                                    last_sticky_should_scroll = false;
+                                }
+                            }
+                        }
+                    } else {
+                        sticky_lines = lines;
+                        last_sticky_should_scroll = true;
+                    }
+                }
+            }
+        });
+
+        let total_sticky_lines = sticky_lines.len();
+
+        let paint_last_line = total_sticky_lines > 0
+            && (last_sticky_should_scroll
+                || y_diff != 0.0
+                || start_line + total_sticky_lines - 1
+                    != *sticky_lines.last().unwrap());
+
+        // Fix up the line count in case we don't need to paint the last one.
+        let total_sticky_lines = if paint_last_line {
+            total_sticky_lines
+        } else {
+            total_sticky_lines.saturating_sub(1)
+        };
+
+        if total_sticky_lines == 0 {
+            sticky_header_height_signal.set(0.0);
+            return;
+        }
+
+        let scroll_offset = if last_sticky_should_scroll {
+            y_diff
+        } else {
+            0.0
+        };
+
+        // Clear background
+        let area_height =
+            total_sticky_lines as f64 * line_height - scroll_offset + 1.0;
+        let sticky_area_rect = Size::new(viewport.width(), area_height)
+            .to_rect()
+            .with_origin(Point::new(0.0, viewport.y0));
+
+        cx.fill(
+            &sticky_area_rect,
+            config.get_color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
+        );
+
+        let mut sticky_header_height = 0.0;
+        doc.with_untracked(|doc| {
+            // Paint lines
+            for (i, line) in sticky_lines.iter().copied().enumerate() {
+                let y_diff = if i == total_sticky_lines - 1 {
+                    scroll_offset
+                } else {
+                    0.0
+                };
+
+                sticky_header_height += line_height - y_diff;
+
+                cx.save();
+
+                let line_area_rect =
+                    Size::new(viewport.width(), line_height - y_diff)
+                        .to_rect()
+                        .with_origin(Point::new(
+                            0.0,
+                            viewport.y0 + line_height * i as f64,
+                        ));
+
+                cx.clip(&line_area_rect);
+
+                let text_layout =
+                    doc.get_text_layout(line, config.editor.font_size());
+                let y = viewport.y0
+                    + line_height * i as f64
+                    + (line_height - text_layout.text.size().height) / 2.0
+                    - y_diff;
+                cx.draw_text(&text_layout.text, Point::new(viewport.x0, y));
+
+                cx.restore();
+            }
+        });
+        sticky_header_height_signal.set(sticky_header_height);
+    }
+}
+
+impl View for EditorContentView {
+    fn id(&self) -> Id {
+        self.id
+    }
+
+    fn child(&mut self, _id: floem::id::Id) -> Option<&mut dyn View> {
+        None
+    }
+
+    fn children(&mut self) -> Vec<&mut dyn View> {
+        Vec::new()
+    }
+
+    fn update(
+        &mut self,
+        cx: &mut floem::context::UpdateCx,
+        state: Box<dyn std::any::Any>,
+    ) -> floem::view::ChangeFlags {
+        if let Ok(state) = state.downcast() {
+            self.sticky_header_info = *state;
+            cx.request_layout(self.id);
+            ChangeFlags::LAYOUT
+        } else {
+            ChangeFlags::default()
+        }
+    }
+
+    fn layout(
+        &mut self,
+        cx: &mut floem::context::LayoutCx,
+    ) -> floem::taffy::prelude::Node {
+        cx.layout_node(self.id, true, |cx| {
+            if self.inner_node.is_none() {
+                self.inner_node = Some(cx.new_node());
+            }
+            let inner_node = self.inner_node.unwrap();
+
+            let (doc, config) = self
+                .editor
+                .with_untracked(|editor| (editor.doc, editor.common.config));
+            let config = config.get_untracked();
+            let line_height = config.editor.line_height() as f64;
+            let (width, height) = doc.with_untracked(|doc| {
+                let width = doc.max_width.get_untracked();
+                let height = line_height * doc.buffer().num_lines() as f64;
+                (width as f32, height as f32)
+            });
+
+            let style = Style::BASE
+                .width_px(width)
+                .height_px(height)
+                .compute(&ComputedStyle::default())
+                .to_taffy_style();
+            cx.set_style(inner_node, style);
+
+            vec![inner_node]
+        })
+    }
+
+    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) {
+        let viewport = cx.current_viewport().unwrap_or_default();
+        if self.viewport.with_untracked(|v| v != &viewport) {
+            self.viewport.set(viewport);
+        }
+    }
+
+    fn event(
+        &mut self,
+        _cx: &mut floem::context::EventCx,
+        _id_path: Option<&[floem::id::Id]>,
+        _event: Event,
+    ) -> bool {
+        false
+    }
+
+    fn paint(&mut self, cx: &mut PaintCx) {
+        let viewport = self.viewport.get_untracked();
+        let config = self.editor.with_untracked(|e| e.common.config);
+        let config = config.get_untracked();
+        let line_height = config.editor.line_height() as f64;
+
+        let min_line = (viewport.y0 / line_height).floor() as usize;
+        let max_line = (viewport.y1 / line_height).ceil() as usize;
+
+        self.paint_cursor(cx, min_line, max_line);
+        self.paint_find(cx, min_line, max_line);
+        self.paint_text(cx, min_line, max_line, viewport);
+        self.new_paint_sticky_headers(cx, min_line, viewport);
+    }
+}
+
+fn get_sticky_header_info(
+    doc: RwSignal<Document>,
+    viewport: RwSignal<Rect>,
+    sticky_header_height_signal: RwSignal<f64>,
+    config: &LapceConfig,
+) -> StickyHeaderInfo {
+    let viewport = viewport.get();
+    let line_height = config.editor.line_height() as f64;
+    let start_line = (viewport.y0 / line_height).floor() as usize;
+
+    let y_diff = viewport.y0 - start_line as f64 * line_height;
+
+    let mut last_sticky_should_scroll = false;
+    let mut sticky_lines = Vec::new();
+    doc.with_untracked(|doc| {
+        if let Some(lines) = doc.sticky_headers(start_line) {
+            let total_lines = lines.len();
+            if total_lines > 0 {
+                let line = start_line + total_lines;
+                if let Some(new_lines) = doc.sticky_headers(line) {
+                    if new_lines.len() > total_lines {
+                        sticky_lines = new_lines;
+                    } else {
+                        sticky_lines = lines;
+                        last_sticky_should_scroll = new_lines.len() < total_lines;
+                        if new_lines.len() < total_lines {
+                            if let Some(new_new_lines) =
+                                doc.sticky_headers(start_line + total_lines - 1)
+                            {
+                                if new_new_lines.len() < total_lines {
+                                    sticky_lines.pop();
+                                    last_sticky_should_scroll = false;
+                                }
+                            } else {
+                                sticky_lines.pop();
+                                last_sticky_should_scroll = false;
+                            }
+                        }
+                    }
+                } else {
+                    sticky_lines = lines;
+                    last_sticky_should_scroll = true;
+                }
+            }
+        }
+    });
+
+    let total_sticky_lines = sticky_lines.len();
+
+    let paint_last_line = total_sticky_lines > 0
+        && (last_sticky_should_scroll
+            || y_diff != 0.0
+            || start_line + total_sticky_lines - 1 != *sticky_lines.last().unwrap());
+
+    // Fix up the line count in case we don't need to paint the last one.
+    let total_sticky_lines = if paint_last_line {
+        total_sticky_lines
+    } else {
+        total_sticky_lines.saturating_sub(1)
+    };
+
+    if total_sticky_lines == 0 {
+        sticky_header_height_signal.set(0.0);
+        return StickyHeaderInfo {
+            sticky_lines: Vec::new(),
+            last_sticky_should_scroll: false,
+            y_diff: 0.0,
+        };
+    }
+
+    let scroll_offset = if last_sticky_should_scroll {
+        y_diff
+    } else {
+        0.0
+    };
+
+    let mut sticky_header_height = 0.0;
+    for (i, _line) in sticky_lines.iter().enumerate() {
+        let y_diff = if i == total_sticky_lines - 1 {
+            scroll_offset
+        } else {
+            0.0
+        };
+
+        sticky_header_height += line_height - y_diff;
+    }
+
+    sticky_header_height_signal.set(sticky_header_height);
+    StickyHeaderInfo {
+        sticky_lines,
+        last_sticky_should_scroll,
+        y_diff,
+    }
+}
 
 #[derive(Clone, Debug)]
 enum CursorRender {
@@ -249,19 +995,25 @@ pub fn editor_view(
     is_active: impl Fn() -> bool + 'static + Copy,
     editor: RwSignal<EditorData>,
 ) -> impl View {
-    let (cursor, viewport, find_focus, config) = editor.with_untracked(|editor| {
-        (
-            editor.cursor.read_only(),
-            editor.viewport,
-            editor.find_focus,
-            editor.common.config,
-        )
-    });
+    let (cursor, viewport, find_focus, sticky_header_height, config) = editor
+        .with_untracked(|editor| {
+            (
+                editor.cursor.read_only(),
+                editor.viewport,
+                editor.find_focus,
+                editor.sticky_header_height,
+                editor.common.config,
+            )
+        });
 
     let find_editor = main_split.find_editor;
     let replace_editor = main_split.replace_editor;
     let replace_active = main_split.common.find.replace_active;
     let replace_focus = main_split.common.find.replace_focus;
+
+    let cx = AppContext::get_current();
+    let editor_rect = create_rw_signal(cx.scope, Rect::ZERO);
+    let gutter_rect = create_rw_signal(cx.scope, Rect::ZERO);
 
     stack(move || {
         (
@@ -269,20 +1021,28 @@ pub fn editor_view(
             container(|| {
                 stack(|| {
                     (
-                        editor_gutter(editor, is_active),
-                        stack(move || {
-                            (
-                                editor_cursor(
-                                    editor,
-                                    cursor,
-                                    viewport.read_only(),
-                                    is_active,
-                                    config,
-                                ),
-                                editor_content(editor),
-                            )
-                        })
-                        .style(|| Style::BASE.size_pct(100.0, 100.0)),
+                        editor_gutter(editor, is_active, gutter_rect),
+                        editor_content(editor, is_active).style(move || {
+                            let width = editor_rect.get().width()
+                                - gutter_rect.get().width();
+                            Style::BASE.height_pct(100.0).width_px(width as f32)
+                        }),
+                        empty().style(move || {
+                            let config = config.get();
+                            Style::BASE
+                                .absolute()
+                                .width_pct(100.0)
+                                .height_px(sticky_header_height.get() as f32)
+                                .border_bottom(1.0)
+                                .border_color(
+                                    *config.get_color(LapceColor::LAPCE_BORDER),
+                                )
+                                .apply_if(
+                                    !config.editor.sticky_header
+                                        || sticky_header_height.get() == 0.0,
+                                    |s| s.hide(),
+                                )
+                        }),
                         find_view(
                             editor,
                             find_editor,
@@ -293,6 +1053,9 @@ pub fn editor_view(
                             is_active,
                         ),
                     )
+                })
+                .on_resize(move |_, rect| {
+                    editor_rect.set(rect);
                 })
                 .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
             })
@@ -305,6 +1068,7 @@ pub fn editor_view(
 fn editor_gutter(
     editor: RwSignal<EditorData>,
     is_active: impl Fn() -> bool + 'static + Copy,
+    gutter_rect: RwSignal<Rect>,
 ) -> impl View {
     let (cursor, viewport, scroll_delta, config) = editor.with(|editor| {
         (
@@ -514,6 +1278,9 @@ fn editor_gutter(
                     .size_pct(100.0, 100.0)
             }),
         )
+    })
+    .on_resize(move |_, rect| {
+        gutter_rect.set(rect);
     })
     .style(move || {
         let config = config.get();
@@ -834,7 +1601,10 @@ fn editor_breadcrumbs(
     })
 }
 
-fn editor_content(editor: RwSignal<EditorData>) -> impl View {
+fn editor_content(
+    editor: RwSignal<EditorData>,
+    is_active: impl Fn() -> bool + 'static + Copy,
+) -> impl View {
     let (cursor, scroll_delta, scroll_to, window_origin, viewport, config) = editor
         .with_untracked(|editor| {
             (
@@ -847,43 +1617,9 @@ fn editor_content(editor: RwSignal<EditorData>) -> impl View {
             )
         });
 
-    let key_fn = move |line: &DocLine| {
-        (
-            editor
-                .with_untracked(|editor| editor.doc)
-                .with_untracked(|doc| doc.content.clone()),
-            line.rev,
-            line.style_rev,
-            line.line,
-        )
-    };
-    let view_fn = move |line: DocLine| {
-        let extra_styles = line.text.extra_style.clone();
-        stack(|| {
-            (
-                editor_extra_style(extra_styles, config),
-                rich_text(move || line.text.clone().text.clone()),
-            )
-        })
-        .style(move || {
-            let config = config.get_untracked();
-            let line_height = config.editor.line_height();
-            Style::BASE.items_center().height_px(line_height as f32)
-        })
-    };
-
     scroll(|| {
-        let editor_view = stack(|| {
-            (virtual_list(
-                VirtualListDirection::Vertical,
-                VirtualListItemSize::Fixed(Box::new(move || {
-                    config.get_untracked().editor.line_height() as f64
-                })),
-                move || editor.get().doc.get(),
-                key_fn,
-                view_fn,
-            )
-            .style(move || {
+        let editor_content_view =
+            editor_content_view(editor, is_active).style(move || {
                 let config = config.get();
                 let padding_bottom = if config.editor.scroll_beyond_last_line {
                     viewport.get().height() as f32
@@ -892,14 +1628,12 @@ fn editor_content(editor: RwSignal<EditorData>) -> impl View {
                     0.0
                 };
                 Style::BASE
-                    .flex_col()
                     .padding_bottom_px(padding_bottom)
                     .cursor(CursorStyle::Text)
-                    .min_width_pct(100.0)
-            }),)
-        });
-        let id = editor_view.id();
-        editor_view
+                    .min_size_pct(100.0, 100.0)
+            });
+        let id = editor_content_view.id();
+        editor_content_view
             .on_event(EventListner::PointerDown, move |event| {
                 if let Event::PointerDown(pointer_event) = event {
                     id.request_active();
@@ -922,7 +1656,6 @@ fn editor_content(editor: RwSignal<EditorData>) -> impl View {
                 }
                 true
             })
-            .style(|| Style::BASE.min_size_pct(100.0, 100.0).flex_col())
     })
     .scroll_bar_color(move || *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR))
     .on_resize(move |point, _rect| {

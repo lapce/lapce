@@ -174,7 +174,7 @@ pub struct DocInfo {
 pub struct Document {
     pub content: DocContent,
     pub buffer_id: BufferId,
-    style_rev: u64,
+    pub style_rev: u64,
     buffer: Buffer,
     syntax: Option<Syntax>,
     line_styles: Rc<RefCell<LineStyles>>,
@@ -193,10 +193,13 @@ pub struct Document {
     /// This is an `Rc<RefCell<_>>` due to needing to access it even when the document is borrowed,
     /// since we may need to fill it with constructed text layouts.
     pub text_layouts: Rc<RefCell<TextLayoutCache>>,
+    /// A cache for the sticky headers which maps a line to the lines it should show in the header.
+    pub sticky_headers: Rc<RefCell<HashMap<usize, Option<Vec<usize>>>>>,
     proxy: ProxyRpcHandler,
     config: ReadSignal<Arc<LapceConfig>>,
     find: Find,
     pub find_result: FindResult,
+    pub max_width: RwSignal<f64>,
 }
 
 pub struct DocLine {
@@ -249,11 +252,13 @@ impl Document {
             content: DocContent::File(path),
             loaded: false,
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             code_actions: im::HashMap::new(),
             proxy,
             config,
             find,
             find_result: FindResult::new(cx),
+            max_width: create_rw_signal(cx, 0.0),
         }
     }
 
@@ -270,6 +275,7 @@ impl Document {
             content: DocContent::Local,
             syntax: None,
             line_styles: Rc::new(RefCell::new(HashMap::new())),
+            sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
             inlay_hints: None,
             diagnostics: DiagnosticData {
@@ -283,6 +289,7 @@ impl Document {
             config,
             find,
             find_result: FindResult::new(cx),
+            max_width: create_rw_signal(cx, 0.0),
         }
     }
 
@@ -662,6 +669,7 @@ impl Document {
         // self.get_inlay_hints();
         self.clear_style_cache();
         self.trigger_syntax_change(edits);
+        self.clear_sticky_headers_cache();
         // self.find_result.reset();
         // self.clear_sticky_headers_cache();
         // self.trigger_head_change();
@@ -709,6 +717,11 @@ impl Document {
     fn clear_text_layout_cache(&mut self) {
         self.text_layouts.borrow_mut().clear();
         self.style_rev += 1;
+        self.max_width.set(0.0);
+    }
+
+    fn clear_sticky_headers_cache(&self) {
+        self.sticky_headers.borrow_mut().clear();
     }
 
     fn clear_code_actions(&mut self) {
@@ -1345,6 +1358,12 @@ impl Document {
             }
         });
 
+        let text_layout_width = text_layout.size().width;
+        let max_width = self.max_width.get_untracked();
+        if text_layout_width > max_width {
+            self.max_width.set(text_layout_width);
+        }
+
         TextLayoutLine {
             text: text_layout,
             extra_style,
@@ -1928,5 +1947,30 @@ impl Document {
         }
 
         ((line, col), hit_point.is_inside)
+    }
+
+    /// Get the sticky headers for a particular line, creating them if necessary.
+    pub fn sticky_headers(&self, line: usize) -> Option<Vec<usize>> {
+        if let Some(lines) = self.sticky_headers.borrow().get(&line) {
+            return lines.clone();
+        }
+        let offset = self.buffer.offset_of_line(line + 1);
+        let lines = self.syntax.as_ref()?.sticky_headers(offset).map(|offsets| {
+            offsets
+                .iter()
+                .filter_map(|offset| {
+                    let l = self.buffer.line_of_offset(*offset);
+                    if l <= line {
+                        Some(l)
+                    } else {
+                        None
+                    }
+                })
+                .dedup()
+                .sorted()
+                .collect()
+        });
+        self.sticky_headers.borrow_mut().insert(line, lines.clone());
+        lines
     }
 }

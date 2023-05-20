@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use floem::{
     peniko::kurbo::Rect,
-    reactive::{create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet},
+    reactive::{
+        create_effect, create_rw_signal, RwSignal, Scope, SignalGet,
+        SignalGetUntracked, SignalSet,
+    },
 };
 use lapce_core::{command::FocusCommand, mode::Mode, movement::Movement};
 use lapce_rpc::plugin::PluginId;
@@ -87,7 +90,8 @@ impl CodeActionData {
     pub fn new(cx: Scope, common: CommonData) -> Self {
         let status = create_rw_signal(cx, CodeActionStatus::Inactive);
         let active = create_rw_signal(cx, 0);
-        Self {
+
+        let code_action = Self {
             status,
             active,
             request_id: 0,
@@ -98,7 +102,22 @@ impl CodeActionData {
             layout_rect: Rect::ZERO,
             mouse_click: false,
             common,
+        };
+
+        {
+            let code_action = code_action.clone();
+            create_effect(cx, move |_| {
+                let focus = code_action.common.focus.get();
+                if focus != Focus::CodeAction
+                    && code_action.status.get_untracked()
+                        != CodeActionStatus::Inactive
+                {
+                    code_action.cancel();
+                }
+            })
         }
+
+        code_action
     }
 
     pub fn next(&self) {
@@ -172,7 +191,7 @@ impl CodeActionData {
         self.common.focus.set(Focus::CodeAction);
     }
 
-    fn cancel(&self, _cx: Scope) {
+    fn cancel(&self) {
         self.status.set(CodeActionStatus::Inactive);
         self.common.focus.set(Focus::Workbench);
     }
@@ -186,13 +205,13 @@ impl CodeActionData {
                     action: item.item.clone(),
                 }));
         }
-        self.cancel(cx);
+        self.cancel();
     }
 
     fn run_focus_command(&self, cx: Scope, cmd: &FocusCommand) -> CommandExecuted {
         match cmd {
             FocusCommand::ModalClose => {
-                self.cancel(cx);
+                self.cancel();
             }
             FocusCommand::ListNext => {
                 self.next();
