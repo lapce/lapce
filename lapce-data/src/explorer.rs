@@ -278,17 +278,17 @@ impl FileExplorerData {
 
     pub fn read_dir_cb<F: FnOnce() + Send + 'static>(
         path: &Path,
-        expand: bool,
-        tab_id: WidgetId,
+        _expand: bool,
+        _tab_id: WidgetId,
         proxy: &LapceProxy,
-        event_sink: ExtEventSink,
+        _event_sink: ExtEventSink,
         on_finished: Option<F>,
     ) {
         let path = PathBuf::from(path);
-        let local_path = path.clone();
+        let local_path = path;
         proxy.proxy_rpc.read_dir(local_path, move |result| {
-            if let Ok(ProxyResponse::ReadDirResponse { items }) = result {
-                let path = path.clone();
+            if let Ok(ProxyResponse::ReadDirResponse { items: _ }) = result {
+                // let path = path.clone();
                 // let _ = event_sink.submit_command(
                 //     LAPCE_UI_COMMAND,
                 //     LapceUICommand::UpdateExplorerItems {

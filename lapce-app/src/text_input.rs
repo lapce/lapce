@@ -13,8 +13,8 @@ use floem::{
         Color,
     },
     reactive::{
-        create_effect, ReadSignal, RwSignal, SignalGet, SignalGetUntracked,
-        SignalUpdate, SignalWith, SignalWithUntracked,
+        create_effect, ReadSignal, RwSignal, SignalGetUntracked, SignalUpdate,
+        SignalWith, SignalWithUntracked,
     },
     style::{ComputedStyle, Style},
     taffy::prelude::Node,

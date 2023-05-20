@@ -50,8 +50,6 @@ impl PluginCatalog {
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
         {
-            let workspace = workspace.clone();
-            let core_rpc = plugin_rpc.core_rpc.clone();
             thread::spawn(move || {
                 // let mut dap = DapClient::new(
                 //     workspace,

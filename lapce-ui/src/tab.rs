@@ -847,17 +847,15 @@ impl LapceTab {
                                 }
                             }
                             let pattern = pattern.to_string();
-                            let event_sink = ctx.get_external_handle();
-                            let tab_id = data.id;
                             data.proxy.proxy_rpc.global_search(
-                                pattern.clone(),
+                                pattern,
                                 find.case_sensitive(),
                                 false,
                                 false,
                                 Box::new(move |result| {
                                     if let Ok(
                                         ProxyResponse::GlobalSearchResponse {
-                                            matches,
+                                            matches: _,
                                         },
                                     ) = result
                                     {

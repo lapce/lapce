@@ -432,7 +432,7 @@ fn editor_tab(
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
     focus: ReadSignal<Focus>,
-    config: ReadSignal<Arc<LapceConfig>>,
+    _config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let common = main_split.common.clone();
     let internal_command = main_split.common.internal_command;
@@ -2145,7 +2145,7 @@ fn window(window_data: WindowData) -> impl View {
     .style(|| Style::BASE.size_pct(100.0, 100.0))
 }
 
-fn app_view(cx: AppContext, window_data: WindowData) -> impl View {
+fn app_view(_cx: AppContext, window_data: WindowData) -> impl View {
     // let window_data = WindowData::new(cx);
     let window_size = window_data.size;
     let position = window_data.position;

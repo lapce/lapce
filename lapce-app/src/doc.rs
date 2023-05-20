@@ -492,8 +492,8 @@ impl Document {
                             config.editor.multicursor_case_sensitive;
                         let case_sensitive =
                             multicursor_case_sensitive || case_sensitive;
-                        let search_whole_word =
-                            config.editor.multicursor_whole_words;
+                        // let search_whole_word =
+                        //     config.editor.multicursor_whole_words;
                         self.find.set_case_sensitive(case_sensitive);
                         self.find.set_find(&search_str);
                         let mut offset = 0;
@@ -529,8 +529,8 @@ impl Document {
                             let case_sensitive =
                                 config.editor.multicursor_case_sensitive
                                     || case_sensitive;
-                            let search_whole_word =
-                                config.editor.multicursor_whole_words;
+                            // let search_whole_word =
+                            //     config.editor.multicursor_whole_words;
                             self.find.set_case_sensitive(case_sensitive);
                             self.find.set_find(&search_str);
                             let mut offset = r.max();
@@ -1364,11 +1364,34 @@ impl Document {
             self.max_width.set(text_layout_width);
         }
 
+        let indent_line = if line_content_original.trim().is_empty() {
+            let offset = self.buffer.offset_of_line(line);
+            if let Some(offset) = self
+                .syntax
+                .as_ref()
+                .and_then(|syntax| syntax.parent_offset(offset))
+            {
+                self.buffer.line_of_offset(offset)
+            } else {
+                line
+            }
+        } else {
+            line
+        };
+
+        let indent = if indent_line != line {
+            self.get_text_layout(indent_line, font_size).indent + 1.0
+        } else {
+            let offset = self.buffer.first_non_blank_character_on_line(indent_line);
+            let (_, col) = self.buffer.offset_to_line_col(offset);
+            text_layout.hit_position(col).point.x
+        };
+
         TextLayoutLine {
             text: text_layout,
             extra_style,
             whitespaces: None,
-            indent: 0.0,
+            indent,
         }
     }
 

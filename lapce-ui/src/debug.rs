@@ -445,6 +445,7 @@ impl StackTrace {
         data.terminal.debug.daps.get(dap_id)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn paint_stack(
         &self,
         ctx: &mut PaintCtx,

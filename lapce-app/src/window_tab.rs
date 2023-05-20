@@ -904,10 +904,7 @@ impl WindowTabData {
             CoreNotification::VoltInstalled { volt, icon } => {
                 self.plugin.volt_installed(volt, icon);
             }
-            CoreNotification::VoltRemoved {
-                volt,
-                only_installing,
-            } => {
+            CoreNotification::VoltRemoved { volt, .. } => {
                 self.plugin.volt_removed(volt);
             }
             _ => {}

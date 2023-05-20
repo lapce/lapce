@@ -621,7 +621,7 @@ impl EditorData {
     }
 
     /// Jump to the next/previous column on the line which matches the given text
-    fn inline_find(&self, cx: Scope, direction: InlineFindDirection, c: &str) {
+    fn inline_find(&self, _cx: Scope, direction: InlineFindDirection, c: &str) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let (line_content, line_start_offset) = self.doc.with_untracked(|doc| {
             let line = doc.buffer().line_of_offset(offset);
@@ -799,7 +799,7 @@ impl EditorData {
         );
     }
 
-    fn page_move(&self, cx: Scope, down: bool, mods: Modifiers) {
+    fn page_move(&self, _cx: Scope, down: bool, mods: Modifiers) {
         let config = self.common.config.get_untracked();
         let viewport = self.viewport.get_untracked();
         let line_height = config.editor.line_height() as f64;
@@ -818,7 +818,7 @@ impl EditorData {
         );
     }
 
-    fn scroll(&self, cx: Scope, down: bool, count: usize, mods: Modifiers) {
+    fn scroll(&self, _cx: Scope, down: bool, count: usize, mods: Modifiers) {
         let config = self.common.config.get_untracked();
         let viewport = self.viewport.get_untracked();
         let line_height = config.editor.line_height() as f64;

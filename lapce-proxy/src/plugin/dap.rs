@@ -101,7 +101,7 @@ impl DapClient {
         )?;
         let stdin = process.stdin.take().unwrap();
         let stdout = process.stdout.take().unwrap();
-        let stderr = process.stderr.take().unwrap();
+        // let stderr = process.stderr.take().unwrap();
 
         let dap_rpc = self.dap_rpc.clone();
         let io_rx = self.dap_rpc.io_rx.clone();
@@ -218,7 +218,7 @@ impl DapClient {
                     }
                 }
                 // send dap configurations here
-                let result = self.dap_rpc.request::<ConfigurationDone>(());
+                let _ = self.dap_rpc.request::<ConfigurationDone>(());
             }
             DapEvent::Stopped(stopped) => {
                 // println!("stopped {stopped:?}");

@@ -10,7 +10,7 @@ use floem::{
     style::{CursorStyle, Style},
     view::View,
     views::{
-        container, label, list, scroll, stack, svg, virtual_list, Decorators,
+        container, label, scroll, stack, svg, virtual_list, Decorators,
         VirtualListDirection, VirtualListItemSize,
     },
     AppContext,
