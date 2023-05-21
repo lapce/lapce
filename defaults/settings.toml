@@ -29,6 +29,7 @@ highlight-selection-occurrences = true
 highlight-scope-lines = false
 autosave-interval = 0
 format-on-autosave = true
+hide-gitignored-files = false
 enable-inlay-hints = true
 inlay-hint-font-family = ""
 inlay-hint-font-size = 0

@@ -5,12 +5,14 @@ use std::{
 };
 
 use druid::{Command, EventCtx, ExtEventSink, Target, WidgetId};
+use ignore::gitignore::Gitignore;
 use lapce_core::{cursor::CursorMode, selection::Selection};
 use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
 use lapce_xi_rope::Rope;
 
 use crate::{
     command::{LapceUICommand, LAPCE_UI_COMMAND},
+    config::LapceConfig,
     data::{LapceMainSplitData, LapceWorkspace},
     document::LocalBufferKind,
     proxy::LapceProxy,
@@ -66,6 +68,7 @@ pub struct FileExplorerData {
     pub tab_id: WidgetId,
     pub widget_id: WidgetId,
     pub workspace: Option<FileNodeItem>,
+    pub gitignore: Option<Gitignore>,
     pub active_selected: Option<PathBuf>,
     /// The status of renaming/naming a file/directory
     pub naming: Option<Naming>,
@@ -81,6 +84,7 @@ impl FileExplorerData {
         workspace: LapceWorkspace,
         proxy: Arc<LapceProxy>,
         event_sink: ExtEventSink,
+        config: &LapceConfig,
     ) -> Self {
         let mut items = Vec::new();
         let widget_id = WidgetId::next();
@@ -107,6 +111,22 @@ impl FileExplorerData {
                 children: HashMap::new(),
                 children_open_count: 0,
             }),
+            gitignore: if config.editor.hide_gitignored_files
+                && workspace.path.is_some()
+            {
+                let gitignore_path = workspace.path.unwrap().join(".gitignore");
+                if gitignore_path.exists() {
+                    let (gitignore, err) = Gitignore::new(gitignore_path);
+                    if let Some(e) = err {
+                        log::warn!("Problem parsing gitignore: {}", e);
+                    }
+                    Some(gitignore)
+                } else {
+                    None
+                }
+            } else {
+                None
+            },
             active_selected: None,
             naming: None,
             renaming_editor_view_id: WidgetId::next(),
@@ -203,13 +223,24 @@ impl FileExplorerData {
     pub fn update_children(
         &mut self,
         path: &Path,
-        children: HashMap<PathBuf, FileNodeItem>,
+        all_children: HashMap<PathBuf, FileNodeItem>,
         expand: bool,
     ) -> Option<()> {
         // Ignore updates while naming a file
         if self.naming.is_some() {
             return None;
         }
+        let children: HashMap<PathBuf, FileNodeItem> = all_children
+            .into_iter()
+            .filter(|(path, _)| {
+                self.gitignore
+                    .as_ref()
+                    .map(|gitignore| {
+                        !gitignore.matched(path, path.is_dir()).is_ignore()
+                    })
+                    .unwrap_or(true)
+            })
+            .collect();
 
         let node = self.workspace.as_mut()?.get_file_node_mut(path)?;
 

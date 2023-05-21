@@ -796,6 +796,7 @@ impl LapceTabData {
             workspace.clone(),
             proxy.clone(),
             event_sink.clone(),
+            &config,
         ));
         let search = Arc::new(SearchData::new());
         let file_picker = Arc::new(FilePickerData::new());

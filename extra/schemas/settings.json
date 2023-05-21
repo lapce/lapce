@@ -230,6 +230,9 @@
                 "format-on-save": {
                     "type": "boolean"
                 },
+                "hide-gitignored-files": {
+                    "type": "boolean"
+                },
                 "highlight-matching-brackets": {
                     "type": "boolean"
                 },

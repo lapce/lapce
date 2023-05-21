@@ -5,6 +5,7 @@
 ### Features/Changes
 
 - [#1964](https://github.com/lapce/lapce/pull/1964): Add option to open files at line/column
+- [#2388](https://github.com/lapce/lapce/pull/2388): Add option to hide gitignored files
 
 ### Bug Fixes
 

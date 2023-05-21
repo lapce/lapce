@@ -478,6 +478,10 @@ pub struct EditorConfig {
     )]
     pub format_on_autosave: bool,
     #[field_names(
+        desc = "Whether to hide files based on the .gitignore at the project root"
+    )]
+    pub hide_gitignored_files: bool,
+    #[field_names(
         desc = "If enabled the cursor treats leading soft tabs as if they are hard tabs."
     )]
     pub atomic_soft_tabs: bool,
