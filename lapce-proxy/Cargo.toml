@@ -11,6 +11,7 @@ clap.workspace = true
 crossbeam-channel.workspace = true
 directories.workspace = true
 flate2.workspace = true
+git2.workspace = true
 indexmap.workspace = true
 interprocess.workspace = true
 log.workspace = true
@@ -47,9 +48,6 @@ jsonrpc-lite = "0.6.0"
 
 # finding terminal shell
 which = "4.2.5"
-
-# git
-git2 = { version = "0.16.1", features = ["vendored-openssl"] }
 
 # deleting files
 trash = "2.1.5"

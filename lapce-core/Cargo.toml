@@ -144,3 +144,4 @@ lang-zig = ["dep:tree-sitter-zig"]
 
 [build-dependencies]
 anyhow.workspace = true
+git2.workspace = true

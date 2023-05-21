@@ -2570,6 +2570,7 @@ dependencies = [
  "arc-swap",
  "bitflags",
  "directories",
+ "git2",
  "itertools",
  "lapce-rpc",
  "lapce-xi-rope",
