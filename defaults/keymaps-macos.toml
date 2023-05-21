@@ -126,11 +126,11 @@ key = "meta+/"
 command = "toggle_line_comment"
 
 [[keymaps]]
-key = "meta+]"
+key = "tab"
 command = "indent_line"
 
 [[keymaps]]
-key = "meta+["
+key = "shift+tab"
 command = "outdent_line"
 
 [[keymaps]]

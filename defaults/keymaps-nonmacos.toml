@@ -121,11 +121,11 @@ key = "ctrl+/"
 command = "toggle_line_comment"
 
 [[keymaps]]
-key = "ctrl+]"
+key = "tab"
 command = "indent_line"
 
 [[keymaps]]
-key = "ctrl+["
+key = "shift+tab"
 command = "outdent_line"
 
 [[keymaps]]
