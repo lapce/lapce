@@ -297,9 +297,7 @@ impl Find {
         end: usize,
         include_slop: bool,
     ) {
-        let search_string = if let Some(s) = self.search_string.as_ref() {
-            s
-        } else {
+        let Some(search_string) = self.search_string.as_ref() else {
             return;
         };
 
