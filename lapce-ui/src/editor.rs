@@ -2729,14 +2729,14 @@ impl Widget<LapceTabData> for LapceEditor {
             - time since last blink is exact to blink_interval
         */
         let is_focused = is_focused
-            && (data.config.editor.blink_interval == 0
+            && (data.config.editor.blink_interval() == 0
                 || (data
                     .editor
                     .last_cursor_instant
                     .borrow()
                     .elapsed()
                     .as_millis()
-                    / data.config.editor.blink_interval as u128)
+                    / data.config.editor.blink_interval() as u128)
                     % 2
                     == 0);
         self.paint_content(&data, ctx, is_focused, env);
