@@ -160,7 +160,7 @@ jobs:
       PACKAGES: >
         zlib-static freetype-static fontconfig-static
         libgit2-static libssh2-static openssl-libs-static
-        libssl3 gtk+3.0-dev http-parser-dev rustup-init
+        libssl3 gtk+3.0-dev http-parser-dev rustup
         build-base openssl-dev git lld clang
     strategy:
       fail-fast: false
