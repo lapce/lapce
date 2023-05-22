@@ -160,15 +160,15 @@ jobs:
       PACKAGES: >
         zlib-static freetype-static fontconfig-static
         libgit2-static libssh2-static openssl-libs-static
-        libssl3 gtk+3.0-dev http-parser-dev rustup
+        libssl3 gtk+3.0-dev http-parser-dev cargo
         build-base openssl-dev git lld clang
     strategy:
       fail-fast: false
       matrix:
         include:
-          - triple: x86_64-unknown-linux-musl
+          - triple: x86_64-alpine-linux-musl
             platform: x86_64
-          - triple: aarch64-unknown-linux-musl
+          - triple: aarch64-alpine-linux-musl
             platform: aarch64
     steps:
       - uses: actions/checkout@v3
@@ -191,9 +191,9 @@ jobs:
           volumes: ${{ steps.alpine-target.outputs.root-path }}:${{ env.CROSS_SYSROOT }}
           shell-name: alpine.sh
 
-      - name: Install Rust stable toolchain via rustup
-        run: rustup-init --target ${{ matrix.triple }} --default-toolchain stable --profile minimal -y
-        shell: alpine.sh {0}
+#       - name: Install Rust stable toolchain via rustup
+#         run: rustup-init --target ${{ matrix.triple }} --default-toolchain stable --profile minimal -y
+#         shell: alpine.sh {0}
 
       - name: Build ${{ matrix.triple }}
         shell: alpine.sh {0}
