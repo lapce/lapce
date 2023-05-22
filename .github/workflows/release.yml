@@ -155,6 +155,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: tagname
     env:
+      ALPINE_BRANCH: latest-stable
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
       CROSS_SYSROOT: /mnt/alpine-${{ matrix.platform }}
       PACKAGES: >
@@ -178,7 +179,7 @@ jobs:
         uses: jirutka/setup-alpine@v1
         with:
           arch: ${{ matrix.platform }}
-          branch: 3.18
+          branch: ${{ env.ALPINE_BRANCH }}
           packages: ${{ env.PACKAGES }}
           shell-name: alpine-target.sh
 
@@ -186,7 +187,7 @@ jobs:
         uses: jirutka/setup-alpine@v1
         with:
           arch: x86_64
-          branch: 3.18
+          branch: ${{ env.ALPINE_BRANCH }}
           packages: ${{ env.PACKAGES }}
           volumes: ${{ steps.alpine-target.outputs.root-path }}:${{ env.CROSS_SYSROOT }}
           shell-name: alpine.sh
