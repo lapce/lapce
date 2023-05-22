@@ -29,7 +29,7 @@ use lapce_rpc::{
 
 #[derive(Parser)]
 #[clap(name = meta::NAME)]
-#[clap(version = meta::FULL_VERSION)]
+#[clap(version = meta::VERSION)]
 struct Cli {
     #[clap(short, long, action, hide = true)]
     proxy: bool,

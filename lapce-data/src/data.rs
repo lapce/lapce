@@ -1365,7 +1365,7 @@ impl LapceTabData {
         match command {
             LapceWorkbenchCommand::RestartToUpdate => {
                 if let Some(release) = (*self.latest_release).clone() {
-                    if release.version != *meta::TAG {
+                    if release.version != *meta::VERSION {
                         if let Ok(process_path) = env::current_exe() {
                             ctx.submit_command(Command::new(
                                 LAPCE_UI_COMMAND,
