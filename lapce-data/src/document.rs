@@ -472,8 +472,10 @@ impl Document {
         let mut selection_find = Find::new(0);
         selection_find.case_matching = CaseMatching::Exact;
         let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
-        let parser =
-            BracketParser::new("".to_string(), config.editor.colorize_brackets);
+        let parser = BracketParser::new(
+            "".to_string(),
+            config.editor.bracket_pair_colorization,
+        );
         Self {
             id,
             tab_id,
@@ -2249,14 +2251,16 @@ impl Document {
                     } else {
                         let fg_color = match fg_color.as_str() {
                             "bracket.color1" => {
-                                config.get_color_unchecked(LapceTheme::TERMINAL_BLUE)
+                                config.get_base_color("blue").unwrap()
                             }
-                            "bracket.color2" => config
-                                .get_color_unchecked(LapceTheme::TERMINAL_YELLOW),
-                            "bracket.color3" => config
-                                .get_color_unchecked(LapceTheme::TERMINAL_MAGENTA),
+                            "bracket.color2" => {
+                                config.get_base_color("yellow").unwrap()
+                            }
+                            "bracket.color3" => {
+                                config.get_base_color("magenta").unwrap()
+                            }
                             "bracket.unpaired" => {
-                                config.get_color_unchecked(LapceTheme::TERMINAL_RED)
+                                config.get_base_color("red").unwrap()
                             }
                             _ => unreachable!(),
                         };

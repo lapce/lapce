@@ -496,7 +496,7 @@ pub struct EditorConfig {
     )]
     pub scroll_speed_modifier: f64,
     #[field_names(desc = "Whether the editor colorizes brackets")]
-    pub colorize_brackets: bool,
+    pub bracket_pair_colorization: bool,
 }
 
 impl EditorConfig {
@@ -1573,6 +1573,10 @@ impl LapceConfig {
     /// Retrieve a color value whose key starts with "style."
     pub fn get_style_color(&self, name: &str) -> Option<&Color> {
         self.color.syntax.get(name)
+    }
+
+    pub fn get_base_color(&self, name: &str) -> Option<&Color> {
+        self.color.base.get(name)
     }
 
     /// Calculate the width of the character "W" (being the widest character)
