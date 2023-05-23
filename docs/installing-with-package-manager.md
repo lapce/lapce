@@ -64,16 +64,6 @@ nix-env -iA nixpkgs.lapce
 nix profile install nixpkgs#hello
 ```
 
-If you want to globally install Lapce as part of your NixOS system configuration (usually in `/etc/nixos/configuration`,
-append your `environment.systemPackages`:
-
-```diff
-   environment.systemPackages = [
-     # any other packages here
-+    pkgs.lapce
-   ];
-```
-
 ### Scoop
 
 ```bash
