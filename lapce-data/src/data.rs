@@ -1492,10 +1492,17 @@ impl LapceTabData {
                     Target::Widget(self.palette.widget_id),
                 ));
             }
-            LapceWorkbenchCommand::ChangeIconTheme => {
+            LapceWorkbenchCommand::ChangeProductIconTheme => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::RunPalette(Some(PaletteType::IconTheme)),
+                    LapceUICommand::RunPalette(Some(PaletteType::ProductIconTheme)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
+            LapceWorkbenchCommand::ChangeFileIconTheme => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::FileIconTheme)),
                     Target::Widget(self.palette.widget_id),
                 ));
             }

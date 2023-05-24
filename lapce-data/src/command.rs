@@ -115,7 +115,8 @@ impl LapceCommand {
                 | LapceWorkbenchCommand::PaletteCommand
                 | LapceWorkbenchCommand::ChangeFileLanguage
                 | LapceWorkbenchCommand::ChangeColorTheme
-                | LapceWorkbenchCommand::ChangeIconTheme
+                | LapceWorkbenchCommand::ChangeProductIconTheme
+                | LapceWorkbenchCommand::ChangeFileIconTheme
                 | LapceWorkbenchCommand::ConnectSshHost
                 | LapceWorkbenchCommand::PaletteWorkspace => return true,
                 #[cfg(windows)]
@@ -232,9 +233,13 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Change Color Theme")]
     ChangeColorTheme,
 
-    #[strum(serialize = "change_icon_theme")]
-    #[strum(message = "Change Icon Theme")]
-    ChangeIconTheme,
+    #[strum(serialize = "change_product_icon_theme")]
+    #[strum(message = "Change Product Icon Theme")]
+    ChangeProductIconTheme,
+
+    #[strum(serialize = "change_file_icon_theme")]
+    #[strum(message = "Change File Icon Theme")]
+    ChangeFileIconTheme,
 
     #[strum(serialize = "open_settings")]
     #[strum(message = "Open Settings")]
@@ -586,7 +591,12 @@ pub enum LapceUICommand {
         /// Whether the changes are temporary, and thus whether we should update the config file
         preview: bool,
     },
-    SetIconTheme {
+    SetProductIconTheme {
+        theme: String,
+        /// Whether the changes are temporary, and thus whether we should update the config file
+        preview: bool,
+    },
+    SetFileIconTheme {
         theme: String,
         /// Whether the changes are temporary, and thus whether we should update the config file
         preview: bool,

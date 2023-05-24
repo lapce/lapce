@@ -3,7 +3,8 @@
 [core]
 modal = false
 color-theme = "Lapce Dark"
-icon-theme = "Lapce Codicons"
+product-icon-theme = "Lapce Codicons"
+file-icon-theme = "Lapce Seti"
 custom-titlebar = true
 
 [editor]
@@ -237,10 +238,10 @@ magenta = "#C678DD"
 "terminal.bright_magenta" = "$magenta"
 "terminal.bright_black" = "#545862"
 
-[icon-theme]
+[product-icon-theme]
 name = ""
 
-[icon-theme.ui]
+[product-icon-theme.ui]
 "logo" = "lapce_logo.svg"
 "link" = "link.svg"
 "error" = "error.svg"
@@ -350,8 +351,20 @@ name = ""
 "completion_item_kind.struct" = "symbol-structure.svg"
 "completion_item_kind.variable" = "symbol-variable.svg"
 
-[icon-theme.foldername]
+[file-icon-theme]
+name = ""
 
-[icon-theme.filename]
+[file-icon-theme.foldername]
 
-[icon-theme.extension]
+[file-icon-theme.filename]
+
+[file-icon-theme.extension]
+rs = "rust.svg"
+docx = "word.svg"
+xls = "xls.svg"
+xaml = "xml.svg"
+xml = "xml.svg"
+yaml = "yml.svg"
+yml = "yml.svg"
+zig = "zig.svg"
+zip = "zip.svg"
