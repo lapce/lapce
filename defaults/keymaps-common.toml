@@ -547,6 +547,16 @@ command = "delete_forward"
 mode = "v"
 
 [[keymaps]]
+key = "m"
+command = "create_mark"
+mode = "nv"
+
+[[keymaps]]
+key = "'"
+command = "go_to_mark"
+mode = "nv"
+
+[[keymaps]]
 key = "f"
 command = "inline_find_right"
 mode = "nv"
