@@ -4,6 +4,7 @@ use std::{
     collections::{HashMap, HashSet},
     env,
     fmt::Display,
+    hash::Hash,
     io::{BufReader, Read, Write},
     path::{Path, PathBuf},
     rc::Rc,
@@ -994,10 +995,10 @@ impl LapceTabData {
         }
     }
 
-    /// Get information about the specific editor, with various data so that it can provide useful  
-    /// utility functions for the editor buffer.  
+    /// Get information about the specific editor, with various data so that it can provide useful
+    /// utility functions for the editor buffer.
     /// Note that if you edit the editor buffer or related fields, then you'll have to 'give it
-    /// back' to [`LapceTabData`] so that it can update the internals.  
+    /// back' to [`LapceTabData`] so that it can update the internals.
     /// ```rust,ignore
     /// // Get the editor before it may be modified by the `editor_data`
     /// let editor = data.main_split.editors.get(&view_id).unwrap().clone();
@@ -1088,7 +1089,7 @@ impl LapceTabData {
         }
     }
 
-    /// Update the stored information with the changed editor buffer data.  
+    /// Update the stored information with the changed editor buffer data.
     /// ```rust,ignore
     /// // Get the editor before it may be modified by the `editor_data`
     /// let editor = data.main_split.editors.get(&view_id).unwrap().clone();
@@ -3007,9 +3008,9 @@ impl LapceMainSplitData {
         return Arc::make_mut(self.editors.get_mut(&new_editor.view_id).unwrap());
     }
 
-    /// If the supplied `editor_view_id` is some, then this simply returns the editor data for it.  
+    /// If the supplied `editor_view_id` is some, then this simply returns the editor data for it.
     /// Otherwise, we check the active tab (and friends if `same_tab` is false) to see if there is
-    /// an existing editor that matches the parameters. If not, we create a new editor.  
+    /// an existing editor that matches the parameters. If not, we create a new editor.
     /// Note that this does not load the file into the editor. See
     /// [`LapceMainSplitData::jump_to_location`] or [`LapceMainSplitData::go_to_location`] for
     /// creating the editor and loading the file.
@@ -3217,7 +3218,7 @@ impl LapceMainSplitData {
         )
     }
 
-    /// Jump to a specific location, getting/creating the editor as needed.  
+    /// Jump to a specific location, getting/creating the editor as needed.
     /// This version allows a callback which will be called once the buffer is loaded.
     pub fn jump_to_location_cb<
         P: EditorPosition + Send + 'static,
@@ -4367,6 +4368,13 @@ pub enum InlineFindDirection {
     Right,
 }
 
+#[derive(Clone, Debug)]
+pub enum ModalCommand {
+    InlineFind(InlineFindDirection),
+    CreateMark,
+    GoToMark,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorTabChild {
     Editor(WidgetId, WidgetId, Option<(WidgetId, WidgetId)>),
@@ -4509,8 +4517,9 @@ pub struct LapceEditorData {
     pub snippet: Option<Vec<(usize, (usize, usize))>>,
     pub last_movement_new: Movement,
     pub last_inline_find: Option<(InlineFindDirection, String)>,
-    pub inline_find: Option<InlineFindDirection>,
     pub motion_mode: Option<MotionMode>,
+    pub next_modal_command: Option<ModalCommand>,
+    pub marks: HashMap<String, Position>,
 }
 
 impl LapceEditorData {
@@ -4552,9 +4561,10 @@ impl LapceEditorData {
             window_origin: Rc::new(RefCell::new(Point::ZERO)),
             snippet: None,
             last_movement_new: Movement::Left,
-            inline_find: None,
             last_inline_find: None,
             motion_mode: None,
+            next_modal_command: None,
+            marks: HashMap::new(),
         }
     }
 

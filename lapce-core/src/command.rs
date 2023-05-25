@@ -319,6 +319,10 @@ pub enum FocusCommand {
     InlineFindRight,
     #[strum(serialize = "inline_find_left")]
     InlineFindLeft,
+    #[strum(serialize = "create_mark")]
+    CreateMark,
+    #[strum(serialize = "go_to_mark")]
+    GoToMark,
     #[strum(serialize = "repeat_last_inline_find")]
     RepeatLastInlineFind,
     #[strum(message = "Save")]
