@@ -2248,28 +2248,6 @@ impl Document {
                             start..end,
                             TextAttribute::TextColor(fg_color.clone()),
                         );
-                    } else {
-                        let fg_color = match fg_color.as_str() {
-                            "bracket.color1" => {
-                                config.get_base_color("blue").unwrap()
-                            }
-                            "bracket.color2" => {
-                                config.get_base_color("yellow").unwrap()
-                            }
-                            "bracket.color3" => {
-                                config.get_base_color("magenta").unwrap()
-                            }
-                            "bracket.unpaired" => {
-                                config.get_base_color("red").unwrap()
-                            }
-                            _ => unreachable!(),
-                        };
-                        let start = phantom_text.col_at(bracket_style.start);
-                        let end = phantom_text.col_at(bracket_style.end);
-                        layout_builder = layout_builder.range_attribute(
-                            start..end,
-                            TextAttribute::TextColor(fg_color.clone()),
-                        );
                     }
                 }
             }

@@ -170,9 +170,9 @@ impl BracketParser {
         syntax: Option<Syntax>,
     ) {
         let palette = vec![
-            "bracket.color1".to_string(),
-            "bracket.color2".to_string(),
-            "bracket.color3".to_string(),
+            "bracket.color.1".to_string(),
+            "bracket.color.2".to_string(),
+            "bracket.color.3".to_string(),
         ];
         if self.active {
             self.bracket_pos = HashMap::new();
