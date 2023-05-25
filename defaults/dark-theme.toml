@@ -61,9 +61,9 @@ yellow = "#E5C07B"
 "variable.other.member" = "$red"
 "tag" = "$blue"
 
-"bracket.color1" = "$blue"
-"bracket.color2" = "$yellow"
-"bracket.color3" = "$purple"
+"bracket.color.1" = "$blue"
+"bracket.color.2" = "$yellow"
+"bracket.color.3" = "$purple"
 "bracket.unpaired" = "$red"
 
 [color-theme.ui]
