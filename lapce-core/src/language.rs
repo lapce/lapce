@@ -205,6 +205,8 @@ pub enum LapceLanguage {
     Scheme,
     #[cfg(feature = "lang-scss")]
     Scss,
+    #[cfg(feature = "lang-slint")]
+    Slint,
     #[cfg(feature = "lang-sql")]
     Sql,
     #[cfg(feature = "lang-svelte")]
@@ -853,6 +855,18 @@ const LANGUAGES: &[SyntaxProperties] = &[
         code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
         sticky_headers: &[],
         extensions: &["scss"],
+    },
+    #[cfg(feature = "lang-slint")]
+    SyntaxProperties {
+        id: LapceLanguage::Slint,
+        language: tree_sitter_slint::language,
+        highlight: tree_sitter_slint::HIGHLIGHTS_QUERY,
+        injection: None,
+        comment: "//",
+        indent: "  ",
+        code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+        sticky_headers: &[],
+        extensions: &["slint"],
     },
     #[cfg(feature = "lang-sql")]
     SyntaxProperties {

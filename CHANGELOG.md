@@ -4,6 +4,7 @@
 
 ### Features/Changes
 - [#2425](https://github.com/lapce/lapce/pull/2425): Reimplement completion lens
+- [2407](https://github.com/lapce/lapce/pull/2407): Add support for slint UI language
 
 ### Bug Fixes
 

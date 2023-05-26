@@ -3284,6 +3284,7 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-scheme",
  "tree-sitter-scss",
+ "tree-sitter-slint",
  "tree-sitter-sql",
  "tree-sitter-svelte",
  "tree-sitter-swift",
@@ -6535,6 +6536,15 @@ dependencies = [
 name = "tree-sitter-scss"
 version = "0.0.1"
 source = "git+https://github.com/VixieTSQ/tree-sitter-scss?rev=3aac3391ede5098edbf4cc8a9f6d0cfdfe28e5dc#3aac3391ede5098edbf4cc8a9f6d0cfdfe28e5dc"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-slint"
+version = "0.0.1"
+source = "git+https://github.com/jrmoulton/tree-sitter-slint.git?rev=00c8a2d3645766f68c0d0460086c0a994e5b0d85#00c8a2d3645766f68c0d0460086c0a994e5b0d85"
 dependencies = [
  "cc",
  "tree-sitter",

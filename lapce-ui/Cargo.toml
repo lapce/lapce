@@ -98,6 +98,7 @@ all-languages = [
     "lang-rust",
     "lang-scheme",
     "lang-scss",
+    "lang-slint",
     "lang-sql",
     "lang-svelte",
     "lang-swift",
@@ -151,6 +152,7 @@ lang-ruby = ["lapce-core/lang-ruby"]
 lang-rust = ["lapce-core/lang-rust"]
 lang-scheme = ["lapce-core/lang-scheme"]
 lang-scss = ["lapce-core/lang-scss"]
+lang-slint = ["lapce-core/lang-slint"]
 lang-sql = ["lapce-core/lang-sql"]
 lang-svelte = ["lapce-core/lang-svelte"]
 lang-swift = ["lapce-core/lang-swift"]

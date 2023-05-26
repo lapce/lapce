@@ -98,6 +98,7 @@ declare_language_highlights!(
     Rust: "lang-rust",
     Scheme: "lang-scheme",
     Scss: "lang-scss",
+    Slint: "lang-slint",
     Sql: "lang-sql",
     Svelte: "lang-svelte",
     Swift: "lang-swift",
