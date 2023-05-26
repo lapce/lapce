@@ -258,6 +258,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "scss" | "sass" => "scss",
                     "sc" | "scala" => "scala",
                     "sh" | "bash" | "zsh" => "shellscript",
+                    "slint" => "slint",
                     "sql" => "sql",
                     "swift" => "swift",
                     "svelte" => "svelte",

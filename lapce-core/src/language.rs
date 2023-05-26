@@ -69,19 +69,19 @@ macro_rules! comment_properties {
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, PartialOrd, Ord, Default)]
 pub struct SyntaxProperties {
-    /// An extra check to make sure that the array elements are in the correct order.  
+    /// An extra check to make sure that the array elements are in the correct order.
     /// If this id does not match the enum value, a panic will happen with a debug assertion message.
     id: LapceLanguage,
 
     /// All tokens that can be used for comments in language
     comment: CommentProperties,
-    /// The indent unit.  
+    /// The indent unit.
     /// "  " for bash, "    " for rust, for example.
     indent: &'static str,
-    /// Filenames that belong to this language  
+    /// Filenames that belong to this language
     /// `["Dockerfile"]` for Dockerfile, `[".editorconfig"]` for EditorConfig
     files: &'static [&'static str],
-    /// File name extensions to determine the language.  
+    /// File name extensions to determine the language.
     /// `["py"]` for python, `["rs"]` for rust, for example.
     extensions: &'static [&'static str],
     /// Tree-sitter properties
@@ -90,7 +90,7 @@ pub struct SyntaxProperties {
 
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, PartialOrd, Ord)]
 struct TreeSitterProperties {
-    /// This is the factory function defined in the tree-sitter crate that creates the language parser.  
+    /// This is the factory function defined in the tree-sitter crate that creates the language parser.
     /// For most languages, it is `tree_sitter_$crate::language`.
     language: Option<fn() -> tree_sitter::Language>,
     /// the grammar name that's in the grammars folder
@@ -246,6 +246,8 @@ pub enum LapceLanguage {
     Scss,
     #[strum(message = "Shell (POSIX)")]
     Sh,
+    #[strum(message = "Slint")]
+    Slint,
     #[strum(message = "SQL")]
     Sql,
     #[strum(message = "Svelte")]
@@ -1301,6 +1303,26 @@ const LANGUAGES: &[SyntaxProperties] = &[
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
+    },
+    SyntaxProperties {
+        id: LapceLanguage::Slint,
+
+        indent: "  ",
+        files: &[],
+        extensions: &["slint"],
+
+        comment: comment_properties!("//"),
+
+        #[cfg(feature = "lang-slint")]
+        tree_sitter: Some(TreeSitterProperties {
+            language: Some(tree_sitter_slint::language),
+            grammar: Some("slint"),
+            query: Some("slint"),
+            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+            sticky_headers: &[],
+        }),
+        #[cfg(not(feature = "lang-slint"))]
+        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Sql,

@@ -3132,6 +3132,7 @@ dependencies = [
  "tree-sitter-md",
  "tree-sitter-python",
  "tree-sitter-rust",
+ "tree-sitter-slint",
  "tree-sitter-toml",
  "tree-sitter-yaml",
 ]
@@ -5869,6 +5870,15 @@ name = "tree-sitter-rust"
 version = "0.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0832309b0b2b6d33760ce5c0e818cb47e1d72b468516bfe4134408926fa7594"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-slint"
+version = "0.0.1"
+source = "git+https://github.com/jrmoulton/tree-sitter-slint.git?rev=00c8a2d3645766f68c0d0460086c0a994e5b0d85#00c8a2d3645766f68c0d0460086c0a994e5b0d85"
 dependencies = [
  "cc",
  "tree-sitter",

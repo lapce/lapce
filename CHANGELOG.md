@@ -11,6 +11,7 @@
 - [#3026](https://github.com/lapce/lapce/pull/3026): Add missing file explorer context menu entries
 - [#3047](https://github.com/lapce/lapce/pull/3047): Add support for different CrLf/Lf line endings per-file
 - [#3053](https://github.com/lapce/lapce/pull/3053): Add tooltips to various places
+- [2407](https://github.com/lapce/lapce/pull/2407): Add support for slint UI language
 
 ### Bug Fixes
 - [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository
