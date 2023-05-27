@@ -72,7 +72,6 @@ impl KeyPressFocus for PluginData {
 
     fn run_command(
         &self,
-        cx: Scope,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
         mods: floem::glazier::Modifiers,
@@ -83,15 +82,15 @@ impl KeyPressFocus for PluginData {
             CommandKind::Edit(_)
             | CommandKind::Move(_)
             | CommandKind::MultiSelection(_) => {
-                self.all.query_editor.run_command(cx, command, count, mods);
+                self.all.query_editor.run_command(command, count, mods);
             }
             CommandKind::MotionMode(_) => {}
         }
         CommandExecuted::Yes
     }
 
-    fn receive_char(&self, cx: Scope, c: &str) {
-        self.all.query_editor.receive_char(cx, c);
+    fn receive_char(&self, c: &str) {
+        self.all.query_editor.receive_char(c);
     }
 }
 

@@ -239,7 +239,7 @@ impl EditorData {
         editor
     }
 
-    fn run_edit_command(&self, _cx: Scope, cmd: &EditCommand) -> CommandExecuted {
+    fn run_edit_command(&self, cmd: &EditCommand) -> CommandExecuted {
         let modal = self
             .common
             .config
@@ -284,11 +284,7 @@ impl EditorData {
         CommandExecuted::Yes
     }
 
-    fn run_motion_mode_command(
-        &self,
-        _cx: Scope,
-        cmd: &MotionModeCommand,
-    ) -> CommandExecuted {
+    fn run_motion_mode_command(&self, cmd: &MotionModeCommand) -> CommandExecuted {
         let motion_mode = match cmd {
             MotionModeCommand::MotionModeDelete => MotionMode::Delete,
             MotionModeCommand::MotionModeIndent => MotionMode::Indent,
@@ -310,7 +306,6 @@ impl EditorData {
 
     fn run_multi_selection_command(
         &self,
-        _cx: Scope,
         cmd: &MultiSelectionCommand,
     ) -> CommandExecuted {
         let mut cursor = self.cursor.get_untracked();
@@ -382,7 +377,6 @@ impl EditorData {
 
     fn run_focus_command(
         &self,
-        cx: Scope,
         cmd: &FocusCommand,
         count: Option<usize>,
         mods: Modifiers,
@@ -466,16 +460,16 @@ impl EditorData {
                 }
             }
             FocusCommand::PageUp => {
-                self.page_move(cx, false, mods);
+                self.page_move(false, mods);
             }
             FocusCommand::PageDown => {
-                self.page_move(cx, true, mods);
+                self.page_move(true, mods);
             }
             FocusCommand::ScrollUp => {
-                self.scroll(cx, false, count.unwrap_or(1), mods);
+                self.scroll(false, count.unwrap_or(1), mods);
             }
             FocusCommand::ScrollDown => {
-                self.scroll(cx, true, count.unwrap_or(1), mods);
+                self.scroll(true, count.unwrap_or(1), mods);
             }
             FocusCommand::ListNext => {
                 self.common.completion.update(|c| {
@@ -498,7 +492,7 @@ impl EditorData {
                 });
             }
             FocusCommand::ListSelect => {
-                self.select_completion(cx);
+                self.select_completion();
             }
             FocusCommand::JumpToNextSnippetPlaceholder => {
                 self.snippet.update(|snippet| {
@@ -570,7 +564,7 @@ impl EditorData {
                 });
             }
             FocusCommand::GotoDefinition => {
-                self.go_to_definition(cx);
+                self.go_to_definition();
             }
             FocusCommand::ShowCodeActions => {
                 self.show_code_actions(false);
@@ -585,7 +579,7 @@ impl EditorData {
                 self.search_backward(mods);
             }
             FocusCommand::Save => {
-                self.save(cx, false, true);
+                self.save(false, true);
             }
             FocusCommand::InlineFindLeft => {
                 self.inline_find.set(Some(InlineFindDirection::Left));
@@ -595,11 +589,11 @@ impl EditorData {
             }
             FocusCommand::RepeatLastInlineFind => {
                 if let Some((direction, c)) = self.last_inline_find.get_untracked() {
-                    self.inline_find(cx, direction, &c);
+                    self.inline_find(direction, &c);
                 }
             }
             FocusCommand::Rename => {
-                self.rename(cx);
+                self.rename();
             }
             FocusCommand::ClearSearch => {
                 self.clear_search();
@@ -621,7 +615,7 @@ impl EditorData {
     }
 
     /// Jump to the next/previous column on the line which matches the given text
-    fn inline_find(&self, _cx: Scope, direction: InlineFindDirection, c: &str) {
+    fn inline_find(&self, direction: InlineFindDirection, c: &str) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let (line_content, line_start_offset) = self.doc.with_untracked(|doc| {
             let line = doc.buffer().line_of_offset(offset);
@@ -659,7 +653,7 @@ impl EditorData {
         }
     }
 
-    fn go_to_definition(&self, cx: Scope) {
+    fn go_to_definition(&self) {
         let path = match self.doc.with_untracked(|doc| {
             if doc.loaded() {
                 doc.content.path().cloned()
@@ -686,7 +680,7 @@ impl EditorData {
 
         let internal_command = self.common.internal_command;
         let cursor = self.cursor.read_only();
-        let send = create_ext_action(cx, move |d| {
+        let send = create_ext_action(self.common.scope, move |d| {
             let current_offset = cursor.with_untracked(|c| c.offset());
             if current_offset != offset {
                 return;
@@ -799,7 +793,7 @@ impl EditorData {
         );
     }
 
-    fn page_move(&self, _cx: Scope, down: bool, mods: Modifiers) {
+    fn page_move(&self, down: bool, mods: Modifiers) {
         let config = self.common.config.get_untracked();
         let viewport = self.viewport.get_untracked();
         let line_height = config.editor.line_height() as f64;
@@ -818,7 +812,7 @@ impl EditorData {
         );
     }
 
-    fn scroll(&self, _cx: Scope, down: bool, count: usize, mods: Modifiers) {
+    fn scroll(&self, down: bool, count: usize, mods: Modifiers) {
         let config = self.common.config.get_untracked();
         let viewport = self.viewport.get_untracked();
         let line_height = config.editor.line_height() as f64;
@@ -867,7 +861,7 @@ impl EditorData {
         };
     }
 
-    fn select_completion(&self, cx: Scope) {
+    fn select_completion(&self) {
         let item = self
             .common
             .completion
@@ -880,7 +874,7 @@ impl EditorData {
                     .doc
                     .with_untracked(|doc| (doc.rev(), doc.content.path().cloned()));
                 let offset = self.cursor.with_untracked(|c| c.offset());
-                let send = create_ext_action(cx, move |item| {
+                let send = create_ext_action(self.common.scope, move |item| {
                     if editor.cursor.with_untracked(|c| c.offset() != offset) {
                         return;
                     }
@@ -1360,7 +1354,7 @@ impl EditorData {
         }
     }
 
-    pub fn get_code_actions(&self, cx: Scope) {
+    pub fn get_code_actions(&self) {
         let path = match self.doc.with_untracked(|doc| {
             if doc.loaded() {
                 doc.content.path().cloned()
@@ -1410,7 +1404,7 @@ impl EditorData {
         });
 
         let doc = self.doc;
-        let send = create_ext_action(cx, move |resp| {
+        let send = create_ext_action(self.common.scope, move |resp| {
             if doc.with_untracked(|doc| doc.rev() == rev) {
                 doc.update(|doc| {
                     doc.code_actions.insert(offset, Arc::new(resp));
@@ -1452,13 +1446,13 @@ impl EditorData {
         }
     }
 
-    fn do_save(&self, cx: Scope) {
+    fn do_save(&self) {
         let (rev, content) = self
             .doc
             .with_untracked(|doc| (doc.rev(), doc.content.clone()));
 
         let doc = self.doc;
-        let send = create_ext_action(cx, move |result| {
+        let send = create_ext_action(self.common.scope, move |result| {
             if let Ok(ProxyResponse::SaveResponse {}) = result {
                 let current_rev = doc.with_untracked(|doc| doc.rev());
                 if current_rev == rev {
@@ -1476,7 +1470,7 @@ impl EditorData {
         }
     }
 
-    fn save(&self, cx: Scope, exit: bool, allow_formatting: bool) {
+    fn save(&self, exit: bool, allow_formatting: bool) {
         let (rev, is_pristine, content) = self.doc.with_untracked(|doc| {
             (doc.rev(), doc.buffer().is_pristine(), doc.content.clone())
         });
@@ -1491,7 +1485,7 @@ impl EditorData {
             let format_on_save = allow_formatting && config.editor.format_on_save;
             if format_on_save {
                 let editor = self.clone();
-                let send = create_ext_action(cx, move |result| {
+                let send = create_ext_action(self.common.scope, move |result| {
                     if let Ok(Ok(ProxyResponse::GetDocumentFormatting { edits })) =
                         result
                     {
@@ -1500,7 +1494,7 @@ impl EditorData {
                             editor.do_text_edit(&edits);
                         }
                     }
-                    editor.do_save(cx);
+                    editor.do_save();
                 });
 
                 let (tx, rx) = crossbeam_channel::bounded(1);
@@ -1513,7 +1507,7 @@ impl EditorData {
                     send(result);
                 });
             } else {
-                self.do_save(cx);
+                self.do_save();
             }
         }
     }
@@ -1596,7 +1590,7 @@ impl EditorData {
         );
     }
 
-    fn rename(&self, cx: Scope) {
+    fn rename(&self) {
         let path = match self.doc.with_untracked(|doc| {
             if doc.loaded() {
                 doc.content.path().cloned()
@@ -1617,7 +1611,7 @@ impl EditorData {
         let doc = self.doc;
         let internal_command = self.common.internal_command;
         let local_path = path.clone();
-        let send = create_ext_action(cx, move |result| {
+        let send = create_ext_action(self.common.scope, move |result| {
             if let Ok(ProxyResponse::PrepareRename { resp }) = result {
                 if doc.with_untracked(|doc| doc.rev()) != rev {
                     return;
@@ -1887,7 +1881,6 @@ impl KeyPressFocus for EditorData {
 
     fn run_command(
         &self,
-        cx: Scope,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
         mods: floem::glazier::Modifiers,
@@ -1923,19 +1916,22 @@ impl KeyPressFocus for EditorData {
 
         match &command.kind {
             crate::command::CommandKind::Workbench(_) => CommandExecuted::No,
-            crate::command::CommandKind::Edit(cmd) => self.run_edit_command(cx, cmd),
+            crate::command::CommandKind::Edit(cmd) => self.run_edit_command(cmd),
             crate::command::CommandKind::Move(cmd) => {
                 let movement = cmd.to_movement(count);
                 self.run_move_command(&movement, count, mods)
             }
             crate::command::CommandKind::Focus(cmd) => {
-                self.run_focus_command(cx, cmd, count, mods)
+                if self.doc.with_untracked(|doc| doc.content.is_local()) {
+                    return CommandExecuted::No;
+                }
+                self.run_focus_command(cmd, count, mods)
             }
             crate::command::CommandKind::MotionMode(cmd) => {
-                self.run_motion_mode_command(cx, cmd)
+                self.run_motion_mode_command(cmd)
             }
             crate::command::CommandKind::MultiSelection(cmd) => {
-                self.run_multi_selection_command(cx, cmd)
+                self.run_multi_selection_command(cmd)
             }
         }
     }
@@ -1949,7 +1945,7 @@ impl KeyPressFocus for EditorData {
         }
     }
 
-    fn receive_char(&self, cx: Scope, c: &str) {
+    fn receive_char(&self, c: &str) {
         if self.common.find.visual.get_untracked() && self.find_focus.get_untracked()
         {
             // find/relace editor receive char
@@ -1983,7 +1979,7 @@ impl KeyPressFocus for EditorData {
                 }
                 self.apply_deltas(&deltas);
             } else if let Some(direction) = self.inline_find.get_untracked() {
-                self.inline_find(cx, direction.clone(), c);
+                self.inline_find(direction.clone(), c);
                 self.last_inline_find.set(Some((direction, c.to_string())));
                 self.inline_find.set(None);
             }

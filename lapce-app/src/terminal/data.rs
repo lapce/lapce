@@ -57,7 +57,6 @@ impl KeyPressFocus for TerminalData {
 
     fn run_command(
         &self,
-        cx: Scope,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
         _mods: floem::glazier::Modifiers,
@@ -182,11 +181,11 @@ impl KeyPressFocus for TerminalData {
                     }
                     if let Some(s) = clipboard.get_string() {
                         if check_bracketed_paste {
-                            self.receive_char(cx, "\x1b[200~");
-                            self.receive_char(cx, &s.replace('\x1b', ""));
-                            self.receive_char(cx, "\x1b[201~");
+                            self.receive_char("\x1b[200~");
+                            self.receive_char(&s.replace('\x1b', ""));
+                            self.receive_char("\x1b[201~");
                         } else {
-                            self.receive_char(cx, &s);
+                            self.receive_char(&s);
                         }
                     }
                 }
@@ -281,7 +280,7 @@ impl KeyPressFocus for TerminalData {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&self, _cx: Scope, c: &str) {
+    fn receive_char(&self, c: &str) {
         if self.mode.get_untracked() == Mode::Terminal {
             self.common
                 .proxy
@@ -376,9 +375,9 @@ impl TerminalData {
         raw
     }
 
-    pub fn send_keypress(&self, cx: Scope, key: &KeyEvent) {
+    pub fn send_keypress(&self, key: &KeyEvent) {
         if let Some(command) = Self::resolve_key_event(key) {
-            self.receive_char(cx, command);
+            self.receive_char(command);
         }
     }
 

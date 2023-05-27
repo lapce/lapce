@@ -40,13 +40,14 @@ pub struct TerminalPanelData {
 
 impl TerminalPanelData {
     pub fn new(
-        cx: Scope,
         workspace: Arc<LapceWorkspace>,
         run_debug: Option<RunDebugProcess>,
         common: CommonData,
     ) -> Self {
         let terminal_tab =
-            TerminalTabData::new(cx, workspace.clone(), run_debug, common.clone());
+            TerminalTabData::new(workspace.clone(), run_debug, common.clone());
+
+        let cx = common.scope;
 
         let tabs = im::vector![(create_rw_signal(cx, 0), terminal_tab)];
         let tab_info = TerminalTabInfo { active: 0, tabs };
@@ -83,34 +84,24 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn key_down(
-        &self,
-        cx: Scope,
-        key_event: &KeyEvent,
-        keypress: &mut KeyPressData,
-    ) {
+    pub fn key_down(&self, key_event: &KeyEvent, keypress: &mut KeyPressData) {
         if self.tab_info.with_untracked(|info| info.tabs.is_empty()) {
-            self.new_tab(cx, None);
+            self.new_tab(None);
         }
 
         let tab = self.active_tab(false);
         let terminal = tab.and_then(|tab| tab.active_terminal(false));
         if let Some(terminal) = terminal {
-            let executed = keypress.key_down(cx, key_event, &terminal);
+            let executed = keypress.key_down(key_event, &terminal);
             let mode = terminal.get_mode();
             if !executed && mode == Mode::Terminal {
-                terminal.send_keypress(cx, key_event);
+                terminal.send_keypress(key_event);
             }
         }
     }
 
-    pub fn new_tab(
-        &self,
-        cx: Scope,
-        run_debug: Option<RunDebugProcess>,
-    ) -> TerminalTabData {
+    pub fn new_tab(&self, run_debug: Option<RunDebugProcess>) -> TerminalTabData {
         let terminal_tab = TerminalTabData::new(
-            cx,
             self.workspace.clone(),
             run_debug,
             self.common.clone(),
@@ -123,7 +114,7 @@ impl TerminalPanelData {
                 } else {
                     (info.active + 1).min(info.tabs.len())
                 },
-                (create_rw_signal(cx, 0), terminal_tab.clone()),
+                (create_rw_signal(self.common.scope, 0), terminal_tab.clone()),
             );
             let new_active = (info.active + 1).min(info.tabs.len() - 1);
             info.active = new_active;

@@ -91,7 +91,6 @@ mod test {
 
         fn run_command(
             &self,
-            _ctx: Scope,
             _command: &crate::command::LapceCommand,
             _count: Option<usize>,
             _mods: Modifiers,
@@ -99,7 +98,7 @@ mod test {
             unimplemented!()
         }
 
-        fn receive_char(&self, _ctx: Scope, _c: &str) {
+        fn receive_char(&self, _c: &str) {
             unimplemented!()
         }
     }

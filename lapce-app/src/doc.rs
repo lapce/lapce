@@ -154,6 +154,10 @@ impl DocContent {
         matches!(self, DocContent::Local)
     }
 
+    pub fn is_file(&self) -> bool {
+        matches!(self, DocContent::File(_))
+    }
+
     pub fn path(&self) -> Option<&PathBuf> {
         match self {
             DocContent::File(path) => Some(path),

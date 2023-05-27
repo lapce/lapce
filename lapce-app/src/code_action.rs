@@ -65,7 +65,6 @@ impl KeyPressFocus for CodeActionData {
 
     fn run_command(
         &self,
-        cx: Scope,
         command: &crate::command::LapceCommand,
         _count: Option<usize>,
         _mods: floem::glazier::Modifiers,
@@ -75,7 +74,7 @@ impl KeyPressFocus for CodeActionData {
             CommandKind::Edit(_) => {}
             CommandKind::Move(_) => {}
             CommandKind::Focus(cmd) => {
-                self.run_focus_command(cx, cmd);
+                self.run_focus_command(cmd);
             }
             CommandKind::MotionMode(_) => {}
             CommandKind::MultiSelection(_) => {}
@@ -83,7 +82,7 @@ impl KeyPressFocus for CodeActionData {
         CommandExecuted::Yes
     }
 
-    fn receive_char(&self, _cx: Scope, _c: &str) {}
+    fn receive_char(&self, _c: &str) {}
 }
 
 impl CodeActionData {
@@ -196,7 +195,7 @@ impl CodeActionData {
         self.common.focus.set(Focus::Workbench);
     }
 
-    fn select(&self, _cx: Scope) {
+    fn select(&self) {
         if let Some(item) = self.filtered_items.get(self.active.get_untracked()) {
             self.common
                 .internal_command
@@ -208,7 +207,7 @@ impl CodeActionData {
         self.cancel();
     }
 
-    fn run_focus_command(&self, cx: Scope, cmd: &FocusCommand) -> CommandExecuted {
+    fn run_focus_command(&self, cmd: &FocusCommand) -> CommandExecuted {
         match cmd {
             FocusCommand::ModalClose => {
                 self.cancel();
@@ -226,7 +225,7 @@ impl CodeActionData {
                 self.previous_page();
             }
             FocusCommand::ListSelect => {
-                self.select(cx);
+                self.select();
             }
             _ => return CommandExecuted::No,
         }

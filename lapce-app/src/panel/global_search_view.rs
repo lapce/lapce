@@ -36,6 +36,7 @@ pub fn global_search_panel(
     _position: PanelPosition,
 ) -> impl View {
     let global_search = window_tab_data.global_search.clone();
+    let editor = global_search.editor.clone();
     let doc = global_search.editor.doc;
     let cursor = global_search.editor.cursor;
     let config = global_search.common.config;
@@ -56,29 +57,8 @@ pub fn global_search_panel(
             container(|| {
                 stack(|| {
                     (
-                        container(|| {
-                            scroll(|| {
-                                text_input(doc, cursor, is_focused, config)
-                                    .on_cursor_pos(move |point| {
-                                        cursor_x.set(point.x);
-                                    })
-                                    .style(|| Style::BASE.padding_horiz_px(1.0))
-                            })
-                            .hide_bar(|| true)
-                            .on_ensure_visible(move || {
-                                Size::new(20.0, 0.0).to_rect().with_origin(
-                                    Point::new(cursor_x.get() - 10.0, 0.0),
-                                )
-                            })
-                            .style(|| {
-                                Style::BASE
-                                    .absolute()
-                                    .cursor(CursorStyle::Text)
-                                    .size_pct(100.0, 100.0)
-                                    .items_center()
-                            })
-                        })
-                        .style(|| Style::BASE.size_pct(100.0, 100.0)),
+                        text_input(editor, is_focused)
+                            .style(|| Style::BASE.width_pct(100.0)),
                         clickable_icon(
                             || LapceIcons::SEARCH_CASE_SENSITIVE,
                             move || {
@@ -96,7 +76,7 @@ pub fn global_search_panel(
                             || false,
                             config,
                         )
-                        .style(|| Style::BASE.padding_left_px(6.0)),
+                        .style(|| Style::BASE.padding_vert_px(4.0)),
                         clickable_icon(
                             || LapceIcons::SEARCH_WHOLE_WORD,
                             move || {
@@ -130,8 +110,8 @@ pub fn global_search_panel(
                 .style(move || {
                     Style::BASE
                         .width_pct(100.0)
-                        .padding_horiz_px(6.0)
-                        .padding_vert_px(4.0)
+                        .padding_right_px(6.0)
+                        .items_center()
                         .border(1.0)
                         .border_radius(6.0)
                         .border_color(

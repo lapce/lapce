@@ -37,21 +37,25 @@ const DEFAULT_KEYMAPS_NONMACOS: &str =
 
 pub trait KeyPressFocus {
     fn get_mode(&self) -> Mode;
+
     fn check_condition(&self, condition: Condition) -> bool;
+
     fn run_command(
         &self,
-        cx: Scope,
         command: &LapceCommand,
         count: Option<usize>,
         mods: Modifiers,
     ) -> CommandExecuted;
+
     fn expect_char(&self) -> bool {
         false
     }
+
     fn focus_only(&self) -> bool {
         false
     }
-    fn receive_char(&self, cx: Scope, c: &str);
+
+    fn receive_char(&self, c: &str);
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -157,7 +161,6 @@ impl KeyPressData {
 
     fn run_command<T: KeyPressFocus>(
         &self,
-        ctx: Scope,
         command: &str,
         count: Option<usize>,
         mods: Modifiers,
@@ -174,7 +177,7 @@ impl KeyPressData {
                 | CommandKind::Focus(_)
                 | CommandKind::MotionMode(_)
                 | CommandKind::MultiSelection(_) => {
-                    focus.run_command(ctx, cmd, count, mods)
+                    focus.run_command(cmd, count, mods)
                 }
             }
         } else {
@@ -184,7 +187,6 @@ impl KeyPressData {
 
     pub fn key_down<'a, T: KeyPressFocus>(
         &mut self,
-        cx: Scope,
         event: impl Into<EventRef<'a>>,
         focus: &T,
     ) -> bool {
@@ -221,14 +223,14 @@ impl KeyPressData {
             KeymapMatch::Full(command) => {
                 self.pending_keypress.clear();
                 let count = self.count.take();
-                self.run_command(cx, &command, count, mods, focus);
+                self.run_command(&command, count, mods, focus);
                 return true;
             }
             KeymapMatch::Multiple(commands) => {
                 self.pending_keypress.clear();
                 let count = self.count.take();
                 for command in commands {
-                    if self.run_command(cx, &command, count, mods, focus)
+                    if self.run_command(&command, count, mods, focus)
                         == CommandExecuted::Yes
                     {
                         return true;
@@ -252,7 +254,7 @@ impl KeyPressData {
                     {
                         if let Some(cmd) = self.commands.get(&command) {
                             if let CommandKind::Move(_) = cmd.kind {
-                                focus.run_command(cx, cmd, None, mods);
+                                focus.run_command(cmd, None, mods);
                                 return true;
                             }
                         }
@@ -289,7 +291,7 @@ impl KeyPressData {
             mods.set(Modifiers::ALT, false);
             if mods.is_empty() {
                 if let Key::Keyboard(KbKey::Character(c)) = &keypress.key {
-                    focus.receive_char(cx, c);
+                    focus.receive_char(c);
                     return true;
                 }
             }

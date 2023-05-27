@@ -23,6 +23,7 @@ pub struct TerminalConfig {
     pub shell: String,
 
     #[serde(skip)]
+    #[field_names(skip)]
     pub indexed_colors: Arc<HashMap<u8, Color>>,
 }
 

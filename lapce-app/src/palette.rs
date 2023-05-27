@@ -218,7 +218,7 @@ impl PaletteData {
             create_effect(cx, move |_| {
                 if let Some(clicked_index) = clicked_index.get() {
                     index.set(clicked_index);
-                    palette.select(cx);
+                    palette.select();
                 }
             });
         }
@@ -291,7 +291,7 @@ impl PaletteData {
                 if focus != Focus::Palette
                     && palette.status.get_untracked() != PaletteStatus::Inactive
                 {
-                    palette.cancel(cx);
+                    palette.cancel();
                 }
             });
         }
@@ -707,10 +707,10 @@ impl PaletteData {
             .set(items.into_iter().map(|(_, item)| item).collect());
     }
 
-    fn select(&self, cx: Scope) {
+    fn select(&self) {
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
-        self.cancel(cx);
+        self.cancel();
         if let Some(item) = items.get(index) {
             match &item.content {
                 PaletteItemContent::File { full_path, .. } => {
@@ -907,7 +907,7 @@ impl PaletteData {
     }
 
     /// Close the palette, reverting focus back to the workbench.
-    fn cancel(&self, _cx: Scope) {
+    fn cancel(&self) {
         self.status.set(PaletteStatus::Inactive);
         if self.common.focus.get_untracked() == Focus::Palette {
             self.common.focus.set(Focus::Workbench);
@@ -946,10 +946,10 @@ impl PaletteData {
         // TODO: implement
     }
 
-    fn run_focus_command(&self, cx: Scope, cmd: &FocusCommand) -> CommandExecuted {
+    fn run_focus_command(&self, cmd: &FocusCommand) -> CommandExecuted {
         match cmd {
             FocusCommand::ModalClose => {
-                self.cancel(cx);
+                self.cancel();
             }
             FocusCommand::ListNext => {
                 self.next();
@@ -964,7 +964,7 @@ impl PaletteData {
                 self.previous_page();
             }
             FocusCommand::ListSelect => {
-                self.select(cx);
+                self.select();
             }
             _ => return CommandExecuted::No,
         }
@@ -1075,7 +1075,6 @@ impl KeyPressFocus for PaletteData {
 
     fn run_command(
         &self,
-        cx: Scope,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
         mods: floem::glazier::Modifiers,
@@ -1083,19 +1082,19 @@ impl KeyPressFocus for PaletteData {
         match &command.kind {
             CommandKind::Workbench(_) => {}
             CommandKind::Focus(cmd) => {
-                self.run_focus_command(cx, cmd);
+                self.run_focus_command(cmd);
             }
             CommandKind::Edit(_)
             | CommandKind::Move(_)
             | CommandKind::MultiSelection(_) => {
-                self.input_editor.run_command(cx, command, count, mods);
+                self.input_editor.run_command(command, count, mods);
             }
             CommandKind::MotionMode(_) => {}
         }
         CommandExecuted::Yes
     }
 
-    fn receive_char(&self, cx: Scope, c: &str) {
-        self.input_editor.receive_char(cx, c);
+    fn receive_char(&self, c: &str) {
+        self.input_editor.receive_char(c);
     }
 }

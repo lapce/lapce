@@ -427,8 +427,7 @@ fn available_view(plugin: PluginData) -> impl View {
     let cx = AppContext::get_current();
     let content_rect = create_rw_signal(cx.scope, Rect::ZERO);
 
-    let doc = plugin.all.query_editor.doc;
-    let cursor = plugin.all.query_editor.cursor;
+    let editor = plugin.all.query_editor.clone();
     let focus = plugin.common.focus;
     let is_focused = move || focus.get() == Focus::Panel(PanelKind::Plugin);
     let cursor_x = create_rw_signal(cx.scope, 0.0);
@@ -437,7 +436,7 @@ fn available_view(plugin: PluginData) -> impl View {
         (
             container(|| {
                 scroll(|| {
-                    text_input(doc, cursor, is_focused, config)
+                    text_input(editor, is_focused)
                         .on_cursor_pos(move |point| {
                             cursor_x.set(point.x);
                         })

@@ -47,6 +47,7 @@ use crate::{
         PaletteData, PaletteStatus,
     },
     panel::{position::PanelContainerPosition, view::panel_container_view},
+    settings::settings_view,
     text_input::text_input,
     title::title,
     window::{TabsInfo, WindowData, WindowInfo},
@@ -109,134 +110,152 @@ fn editor_tab_header(
     let view_fn = move |(i, child): (RwSignal<usize>, EditorTabChild)| {
         let local_child = child.clone();
         let child_for_close = child.clone();
-        let child_view = move || match child {
-            EditorTabChild::Editor(editor_id) => {
-                #[derive(PartialEq)]
-                struct Info {
-                    icon: String,
-                    color: Option<Color>,
-                    path: String,
-                    confirmed: RwSignal<bool>,
-                    is_pristine: bool,
-                }
-
-                let cx = AppContext::get_current();
-                let info = create_memo(cx.scope, move |_| {
-                    let config = config.get();
-                    let editor_data =
-                        editors.with(|editors| editors.get(&editor_id).cloned());
-                    let path = if let Some(editor_data) = editor_data {
-                        let ((content, is_pristine), confirmed) =
-                            editor_data.with(|editor_data| {
-                                (
-                                    editor_data.doc.with(|doc| {
-                                        (
-                                            doc.content.clone(),
-                                            doc.buffer().is_pristine(),
-                                        )
-                                    }),
-                                    editor_data.confirmed,
-                                )
-                            });
-                        match content {
-                            DocContent::File(path) => {
-                                Some((path, confirmed, is_pristine))
-                            }
-                            DocContent::Local => None,
-                        }
-                    } else {
-                        None
-                    };
-                    let (icon, color, path, confirmed, is_pristine) = match path {
-                        Some((path, confirmed, is_pritine)) => {
-                            let (svg, color) = config.file_svg(&path);
-                            (
-                                svg,
-                                color.cloned(),
-                                path.file_name()
-                                    .unwrap_or_default()
-                                    .to_str()
-                                    .unwrap_or_default()
-                                    .to_string(),
-                                confirmed,
-                                is_pritine,
-                            )
-                        }
-                        None => (
-                            config.ui_svg(LapceIcons::FILE),
-                            Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
-                            "local".to_string(),
-                            create_rw_signal(cx.scope, true),
-                            true,
-                        ),
-                    };
-                    Info {
-                        icon,
-                        color,
-                        path,
-                        confirmed,
-                        is_pristine,
-                    }
-                });
-
-                stack(|| {
-                    (
-                        container(|| {
-                            svg(move || info.with(|info| info.icon.clone())).style(
-                                move || {
-                                    let size = config.get().ui.icon_size() as f32;
-                                    Style::BASE.size_px(size, size).apply_opt(
-                                        info.with(|info| info.color),
-                                        |s, c| s.color(c),
-                                    )
-                                },
-                            )
-                        })
-                        .style(|| Style::BASE.padding_horiz_px(10.0)),
-                        label(move || info.with(|info| info.path.clone())).style(
-                            move || {
-                                Style::BASE.apply_if(
-                                    !info.with(|info| info.confirmed).get(),
-                                    |s| s.font_style(FontStyle::Italic),
-                                )
-                            },
-                        ),
-                        clickable_icon(
-                            move || {
-                                if info.with(|info| info.is_pristine) {
-                                    LapceIcons::CLOSE
-                                } else {
-                                    LapceIcons::UNSAVED
-                                }
-                            },
-                            move || {
-                                let editor_tab_id =
-                                    editor_tab.with_untracked(|t| t.editor_tab_id);
-                                internal_command.set(Some(
-                                    InternalCommand::EditorTabChildClose {
-                                        editor_tab_id,
-                                        child: child_for_close.clone(),
-                                    },
-                                ));
-                            },
-                            || false,
-                            || false,
-                            config,
-                        )
-                        .on_event(EventListner::PointerDown, |_| true)
-                        .style(|| Style::BASE.margin_horiz_px(6.0)),
-                    )
-                })
-                .style(move || {
-                    Style::BASE
-                        .align_items(Some(AlignItems::Center))
-                        .border_left(if i.get() == 0 { 1.0 } else { 0.0 })
-                        .border_right(1.0)
-                        .border_color(
-                            *config.get().get_color(LapceColor::LAPCE_BORDER),
-                        )
-                })
+        let child_view = move || {
+            #[derive(PartialEq)]
+            struct Info {
+                icon: String,
+                color: Option<Color>,
+                path: String,
+                confirmed: Option<RwSignal<bool>>,
+                is_pristine: bool,
             }
+
+            let cx = AppContext::get_current();
+            let info = match child {
+                EditorTabChild::Editor(editor_id) => {
+                    create_memo(cx.scope, move |_| {
+                        let config = config.get();
+                        let editor_data =
+                            editors.with(|editors| editors.get(&editor_id).cloned());
+                        let path = if let Some(editor_data) = editor_data {
+                            let ((content, is_pristine), confirmed) = editor_data
+                                .with(|editor_data| {
+                                    (
+                                        editor_data.doc.with(|doc| {
+                                            (
+                                                doc.content.clone(),
+                                                doc.buffer().is_pristine(),
+                                            )
+                                        }),
+                                        editor_data.confirmed,
+                                    )
+                                });
+                            match content {
+                                DocContent::File(path) => {
+                                    Some((path, confirmed, is_pristine))
+                                }
+                                DocContent::Local => None,
+                            }
+                        } else {
+                            None
+                        };
+                        let (icon, color, path, confirmed, is_pristine) = match path
+                        {
+                            Some((path, confirmed, is_pritine)) => {
+                                let (svg, color) = config.file_svg(&path);
+                                (
+                                    svg,
+                                    color.cloned(),
+                                    path.file_name()
+                                        .unwrap_or_default()
+                                        .to_str()
+                                        .unwrap_or_default()
+                                        .to_string(),
+                                    confirmed,
+                                    is_pritine,
+                                )
+                            }
+                            None => (
+                                config.ui_svg(LapceIcons::FILE),
+                                Some(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                ),
+                                "local".to_string(),
+                                create_rw_signal(cx.scope, true),
+                                true,
+                            ),
+                        };
+                        Info {
+                            icon,
+                            color,
+                            path,
+                            confirmed: Some(confirmed),
+                            is_pristine,
+                        }
+                    })
+                }
+                EditorTabChild::Settings(_) => create_memo(cx.scope, move |_| {
+                    let config = config.get();
+                    Info {
+                        icon: config.ui_svg(LapceIcons::SETTINGS),
+                        color: Some(
+                            *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                        ),
+                        path: "Settings".to_string(),
+                        confirmed: None,
+                        is_pristine: true,
+                    }
+                }),
+            };
+
+            stack(|| {
+                (
+                    container(|| {
+                        svg(move || info.with(|info| info.icon.clone())).style(
+                            move || {
+                                let size = config.get().ui.icon_size() as f32;
+                                Style::BASE.size_px(size, size).apply_opt(
+                                    info.with(|info| info.color),
+                                    |s, c| s.color(c),
+                                )
+                            },
+                        )
+                    })
+                    .style(|| Style::BASE.padding_horiz_px(10.0)),
+                    label(move || info.with(|info| info.path.clone())).style(
+                        move || {
+                            Style::BASE.apply_if(
+                                !info
+                                    .with(|info| info.confirmed)
+                                    .map(|confirmed| confirmed.get())
+                                    .unwrap_or(true),
+                                |s| s.font_style(FontStyle::Italic),
+                            )
+                        },
+                    ),
+                    clickable_icon(
+                        move || {
+                            if info.with(|info| info.is_pristine) {
+                                LapceIcons::CLOSE
+                            } else {
+                                LapceIcons::UNSAVED
+                            }
+                        },
+                        move || {
+                            let editor_tab_id =
+                                editor_tab.with_untracked(|t| t.editor_tab_id);
+                            internal_command.set(Some(
+                                InternalCommand::EditorTabChildClose {
+                                    editor_tab_id,
+                                    child: child_for_close.clone(),
+                                },
+                            ));
+                        },
+                        || false,
+                        || false,
+                        config,
+                    )
+                    .on_event(EventListner::PointerDown, |_| true)
+                    .style(|| Style::BASE.margin_horiz_px(6.0)),
+                )
+            })
+            .style(move || {
+                Style::BASE
+                    .align_items(Some(AlignItems::Center))
+                    .border_left(if i.get() == 0 { 1.0 } else { 0.0 })
+                    .border_right(1.0)
+                    .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+            })
         };
 
         let confirmed = match local_child {
@@ -245,6 +264,7 @@ fn editor_tab_header(
                     editors.with(|editors| editors.get(&editor_id).cloned());
                 editor_data.map(|editor_data| editor_data.get().confirmed)
             }
+            _ => None,
         };
 
         stack(|| {
@@ -260,7 +280,7 @@ fn editor_tab_header(
                         editor_tab.update(|editor_tab| {
                             editor_tab.active = i.get_untracked();
                         });
-                        true
+                        false
                     })
                     .style(move || {
                         Style::BASE
@@ -378,8 +398,9 @@ fn editor_tab_content(
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
-    focus: ReadSignal<Focus>,
 ) -> impl View {
+    let common = main_split.common.clone();
+    let focus = common.focus;
     let items = move || {
         editor_tab
             .get()
@@ -389,6 +410,7 @@ fn editor_tab_content(
     };
     let key = |child: &EditorTabChild| child.id();
     let view_fn = move |child| {
+        let common = common.clone();
         let child = match child {
             EditorTabChild::Editor(editor_id) => {
                 let editor_data =
@@ -417,6 +439,9 @@ fn editor_tab_content(
                     container_box(|| Box::new(label(|| "emtpy editor".to_string())))
                 }
             }
+            EditorTabChild::Settings(_) => {
+                container_box(move || Box::new(settings_view(common)))
+            }
         };
         child.style(|| Style::BASE.size_pct(100.0, 100.0))
     };
@@ -431,10 +456,9 @@ fn editor_tab(
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
-    focus: ReadSignal<Focus>,
-    _config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let common = main_split.common.clone();
+    let focus = common.focus;
     let internal_command = main_split.common.internal_command;
     stack(|| {
         (
@@ -445,11 +469,13 @@ fn editor_tab(
                 active_editor_tab,
                 editor_tab,
                 editors,
-                focus,
             ),
         )
     })
     .on_event(EventListner::PointerDown, move |_| {
+        if focus.get_untracked() != Focus::Workbench {
+            focus.set(Focus::Workbench);
+        }
         let editor_tab_id = editor_tab.with_untracked(|t| t.editor_tab_id);
         internal_command
             .set(Some(InternalCommand::FocusEditorTab { editor_tab_id }));
@@ -549,7 +575,6 @@ fn split_list(
     let editors = main_split.editors.read_only();
     let splits = main_split.splits.read_only();
     let config = main_split.common.config;
-    let focus = main_split.common.focus.read_only();
 
     let direction = move || split.with(|split| split.direction);
     let items = move || split.get().children.into_iter().enumerate();
@@ -567,8 +592,6 @@ fn split_list(
                             active_editor_tab,
                             editor_tab_data,
                             editors,
-                            focus,
-                            config,
                         ))
                     })
                 } else {
@@ -1392,48 +1415,23 @@ fn palette_item(
 }
 
 fn palette_input(window_tab_data: Arc<WindowTabData>) -> impl View {
-    let doc = window_tab_data.palette.input_editor.doc;
-    let cursor = window_tab_data.palette.input_editor.cursor;
+    let editor = window_tab_data.palette.input_editor.clone();
     let config = window_tab_data.common.config;
     let focus = window_tab_data.common.focus;
-    let cx = AppContext::get_current();
-    let cursor_x = create_rw_signal(cx.scope, 0.0);
     let is_focused = move || focus.get() == Focus::Palette;
     container(move || {
         container(move || {
-            scroll(move || {
-                text_input(doc, cursor, is_focused, config).on_cursor_pos(
-                    move |point| {
-                        cursor_x.set(point.x);
-                    },
-                )
-            })
-            .scroll_bar_color(move || {
-                *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-            })
-            .on_ensure_visible(move || {
-                Size::new(20.0, 0.0)
-                    .to_rect()
-                    .with_origin(Point::new(cursor_x.get() - 10.0, 0.0))
-            })
-            .style(|| {
-                Style::BASE
-                    .min_width_px(0.0)
-                    .height_px(24.0)
-                    .padding_horiz_px(1.0)
-                    .items_center()
-            })
+            text_input(editor, is_focused).style(|| Style::BASE.width_pct(100.0))
         })
         .style(move || {
             let config = config.get();
             Style::BASE
                 .width_pct(100.0)
-                .min_width_px(0.0)
+                .height_px(25.0)
+                .items_center()
                 .border_bottom(1.0)
                 .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                 .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
-                .padding_horiz_px(10.0)
-                .cursor(CursorStyle::Text)
         })
     })
     .style(|| Style::BASE.padding_bottom_px(5.0))
@@ -1858,8 +1856,7 @@ fn code_action(window_tab_data: Arc<WindowTabData>) -> impl View {
 }
 
 fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
-    let doc = window_tab_data.rename.editor.doc;
-    let cursor = window_tab_data.rename.editor.cursor;
+    let editor = window_tab_data.rename.editor.clone();
     let active = window_tab_data.rename.active;
     let layout_rect = window_tab_data.rename.layout_rect;
     let config = window_tab_data.common.config;
@@ -1869,7 +1866,7 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
     container(|| {
         container(move || {
             scroll(move || {
-                text_input(doc, cursor, move || active.get(), config).on_cursor_pos(
+                text_input(editor, move || active.get()).on_cursor_pos(
                     move |point| {
                         cursor_x.set(point.x);
                     },
@@ -2145,7 +2142,7 @@ fn window(window_data: WindowData) -> impl View {
     .style(|| Style::BASE.size_pct(100.0, 100.0))
 }
 
-fn app_view(_cx: AppContext, window_data: WindowData) -> impl View {
+fn app_view(window_data: WindowData) -> impl View {
     // let window_data = WindowData::new(cx);
     let window_size = window_data.size;
     let position = window_data.position;
@@ -2158,6 +2155,7 @@ fn app_view(_cx: AppContext, window_data: WindowData) -> impl View {
     })
     .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
     .window_scale(move || window_scale.get())
+    .keyboard_navigatable()
     .on_event(EventListner::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             window_data.key_down(key_event);
@@ -2296,7 +2294,7 @@ fn create_windows(
             let config = WindowConfig::default().size(info.size).position(info.pos);
             let window_data = WindowData::new(scope, info, window_scale);
             windows.push_back(window_data.clone());
-            app = app.window(move |cx| app_view(cx, window_data), Some(config));
+            app = app.window(move || app_view(window_data), Some(config));
         }
     } else if files.is_empty() {
         // There were no dirs and no files specified, so we'll load the last windows
@@ -2306,7 +2304,7 @@ fn create_windows(
                     WindowConfig::default().size(info.size).position(info.pos);
                 let window_data = WindowData::new(scope, info, window_scale);
                 windows.push_back(window_data.clone());
-                app = app.window(move |cx| app_view(cx, window_data), Some(config));
+                app = app.window(move || app_view(window_data), Some(config));
             }
         }
     }
@@ -2324,7 +2322,7 @@ fn create_windows(
         let config = WindowConfig::default().size(info.size).position(info.pos);
         let window_data = WindowData::new(scope, info, window_scale);
         windows.push_back(window_data.clone());
-        app = app.window(|cx| app_view(cx, window_data), Some(config));
+        app = app.window(|| app_view(window_data), Some(config));
     }
 
     // Open any listed files in the first window

@@ -68,6 +68,7 @@ pub struct CommonData {
     pub workspace: Arc<LapceWorkspace>,
     pub scope: Scope,
     pub focus: RwSignal<Focus>,
+    pub keypress: RwSignal<KeyPressData>,
     pub completion: RwSignal<CompletionData>,
     pub register: RwSignal<Register>,
     pub find: Find,
@@ -98,7 +99,6 @@ pub struct WindowTabData {
     pub source_control: RwSignal<SourceControlData>,
     pub rename: RenameData,
     pub global_search: GlobalSearchData,
-    pub keypress: RwSignal<KeyPressData>,
     pub window_origin: RwSignal<Point>,
     pub layout_rect: RwSignal<Rect>,
     pub proxy: ProxyData,
@@ -122,7 +122,6 @@ impl KeyPressFocus for WindowTabData {
 
     fn run_command(
         &self,
-        _cx: Scope,
         _command: &LapceCommand,
         _count: Option<usize>,
         _mods: Modifiers,
@@ -130,7 +129,7 @@ impl KeyPressFocus for WindowTabData {
         CommandExecuted::No
     }
 
-    fn receive_char(&self, _cx: Scope, _c: &str) {}
+    fn receive_char(&self, _c: &str) {}
 }
 
 impl WindowTabData {
@@ -212,6 +211,7 @@ impl WindowTabData {
         let common = CommonData {
             workspace: workspace.clone(),
             scope: cx,
+            keypress,
             focus,
             completion,
             register,
@@ -267,7 +267,7 @@ impl WindowTabData {
         let panel = PanelData::new(cx, panel_order, common.clone());
 
         let terminal =
-            TerminalPanelData::new(cx, workspace.clone(), None, common.clone());
+            TerminalPanelData::new(workspace.clone(), None, common.clone());
 
         let rename = RenameData::new(cx, common.clone());
         let global_search =
@@ -313,7 +313,6 @@ impl WindowTabData {
             plugin,
             rename,
             global_search,
-            keypress,
             window_origin: create_rw_signal(cx, Point::ZERO),
             layout_rect: create_rw_signal(cx, Rect::ZERO),
             proxy,
@@ -416,7 +415,9 @@ impl WindowTabData {
             RevealActiveFileInFileExplorer => {}
             ChangeColorTheme => {}
             ChangeIconTheme => {}
-            OpenSettings => {}
+            OpenSettings => {
+                self.main_split.open_settings();
+            }
             OpenSettingsFile => {}
             OpenSettingsDirectory => {}
             OpenKeyboardShortcuts => {}
@@ -469,7 +470,7 @@ impl WindowTabData {
                     .set(Some(WindowCommand::PreviousWorkspaceTab));
             }
             NewTerminalTab => {
-                self.terminal.new_tab(cx, None);
+                self.terminal.new_tab(None);
                 if !self.panel.is_panel_visible(&PanelKind::Terminal) {
                     self.panel.show_panel(&PanelKind::Terminal);
                 }
@@ -774,10 +775,10 @@ impl WindowTabData {
                 self.main_split.set_find_pattern(pattern);
             }
             InternalCommand::FindEditorReceiveChar { s } => {
-                self.main_split.find_editor.receive_char(cx, &s);
+                self.main_split.find_editor.receive_char(&s);
             }
             InternalCommand::ReplaceEditorReceiveChar { s } => {
-                self.main_split.replace_editor.receive_char(cx, &s);
+                self.main_split.replace_editor.receive_char(&s);
             }
             InternalCommand::FindEditorCommand {
                 command,
@@ -786,7 +787,7 @@ impl WindowTabData {
             } => {
                 self.main_split
                     .find_editor
-                    .run_command(cx, &command, count, mods);
+                    .run_command(&command, count, mods);
             }
             InternalCommand::ReplaceEditorCommand {
                 command,
@@ -795,7 +796,7 @@ impl WindowTabData {
             } => {
                 self.main_split
                     .replace_editor
-                    .run_command(cx, &command, count, mods);
+                    .run_command(&command, count, mods);
             }
             InternalCommand::FocusEditorTab { editor_tab_id } => {
                 self.main_split.active_editor_tab.set(Some(editor_tab_id));
@@ -912,47 +913,45 @@ impl WindowTabData {
     }
 
     pub fn key_down(&self, key_event: &KeyEvent) {
-        let cx = self.scope;
         let focus = self.common.focus.get_untracked();
-        let mut keypress = self.keypress.get_untracked();
+        let mut keypress = self.common.keypress.get_untracked();
         let executed = match focus {
-            Focus::Workbench => self
-                .main_split
-                .key_down(cx, key_event, &mut keypress)
-                .is_some(),
+            Focus::Workbench => {
+                self.main_split.key_down(key_event, &mut keypress).is_some()
+            }
             Focus::Palette => {
-                keypress.key_down(cx, key_event, &self.palette);
+                keypress.key_down(key_event, &self.palette);
                 true
             }
             Focus::CodeAction => {
                 let code_action = self.code_action.get_untracked();
-                keypress.key_down(cx, key_event, &code_action);
+                keypress.key_down(key_event, &code_action);
                 true
             }
             Focus::Rename => {
-                keypress.key_down(cx, key_event, &self.rename);
+                keypress.key_down(key_event, &self.rename);
                 true
             }
             Focus::Panel(PanelKind::Terminal) => {
-                self.terminal.key_down(cx, key_event, &mut keypress);
+                self.terminal.key_down(key_event, &mut keypress);
                 true
             }
             Focus::Panel(PanelKind::Search) => {
-                keypress.key_down(cx, key_event, &self.global_search);
+                keypress.key_down(key_event, &self.global_search);
                 true
             }
             Focus::Panel(PanelKind::Plugin) => {
-                keypress.key_down(cx, key_event, &self.plugin);
+                keypress.key_down(key_event, &self.plugin);
                 true
             }
             _ => false,
         };
 
         if !executed {
-            keypress.key_down(cx, key_event, self);
+            keypress.key_down(key_event, self);
         }
 
-        self.keypress.set(keypress);
+        self.common.keypress.set(keypress);
     }
 
     pub fn workspace_info(&self) -> WorkspaceInfo {
@@ -1174,7 +1173,7 @@ impl WindowTabData {
                 .tab_info
                 .with_untracked(|info| info.tabs.is_empty())
         {
-            self.terminal.new_tab(self.scope, None);
+            self.terminal.new_tab(None);
         }
         self.panel.show_panel(&kind);
         if kind == PanelKind::Search
@@ -1235,15 +1234,12 @@ impl WindowTabData {
             // );
             terminal.term_id
         } else {
-            let new_terminal_tab = self.terminal.new_tab(
-                cx,
-                Some(RunDebugProcess {
-                    mode: *mode,
-                    config: config.clone(),
-                    stopped: false,
-                    created: Instant::now(),
-                }),
-            );
+            let new_terminal_tab = self.terminal.new_tab(Some(RunDebugProcess {
+                mode: *mode,
+                config: config.clone(),
+                stopped: false,
+                created: Instant::now(),
+            }));
             new_terminal_tab.active_terminal(false).unwrap().term_id
         };
         self.common.focus.set(Focus::Panel(PanelKind::Terminal));

@@ -20,6 +20,7 @@ pub mod panel;
 pub mod plugin;
 pub mod proxy;
 pub mod rename;
+pub mod settings;
 pub mod snippet;
 pub mod source_control;
 pub mod terminal;

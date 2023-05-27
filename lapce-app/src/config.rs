@@ -28,15 +28,15 @@ use self::{
 };
 
 pub mod color;
-mod color_theme;
-mod core;
-mod editor;
+pub mod color_theme;
+pub mod core;
+pub mod editor;
 pub mod icon;
-mod icon_theme;
+pub mod icon_theme;
 pub mod svg;
-mod terminal;
-mod ui;
-mod watcher;
+pub mod terminal;
+pub mod ui;
+pub mod watcher;
 
 pub const LOGO: &str = include_str!("../../extra/images/logo.svg");
 const DEFAULT_SETTINGS: &str = include_str!("../../defaults/settings.toml");

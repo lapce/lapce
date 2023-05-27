@@ -30,8 +30,9 @@ use crate::{
         EditorData,
     },
     editor_tab::{EditorTabChild, EditorTabData, EditorTabInfo},
-    id::{EditorId, EditorTabId, SplitId},
+    id::{EditorId, EditorTabId, SettingsId, SplitId},
     keypress::KeyPressData,
+    panel::position,
     window_tab::{CommonData, WindowTabData},
 };
 
@@ -227,6 +228,7 @@ impl MainSplitData {
                     EditorTabChild::Editor(editor_id) => {
                         editors.with(|editors| editors.get(&editor_id).copied())?
                     }
+                    _ => return None,
                 };
 
                 Some(editor)
@@ -261,7 +263,6 @@ impl MainSplitData {
 
     pub fn key_down(
         &self,
-        cx: Scope,
         key_event: &KeyEvent,
         keypress: &mut KeyPressData,
     ) -> Option<()> {
@@ -278,8 +279,11 @@ impl MainSplitData {
                     .editors
                     .with_untracked(|editors| editors.get(&editor_id).copied())?;
                 let editor = editor.get_untracked();
-                keypress.key_down(cx, key_event, &editor);
-                editor.get_code_actions(cx);
+                keypress.key_down(key_event, &editor);
+                editor.get_code_actions();
+            }
+            EditorTabChild::Settings(_) => {
+                return None;
             }
         }
         Some(())
@@ -413,6 +417,30 @@ impl MainSplitData {
         );
         let editor = editor.get_untracked();
         editor.go_to_location(cx, location, new_doc, edits);
+    }
+
+    fn new_editor_tab(
+        &self,
+        editor_tab_id: EditorTabId,
+        split_id: SplitId,
+    ) -> RwSignal<EditorTabData> {
+        let cx = self.scope;
+
+        let editor_tab = EditorTabData {
+            split: split_id,
+            active: 0,
+            editor_tab_id,
+            children: vec![],
+            window_origin: Point::ZERO,
+            layout_rect: Rect::ZERO,
+            locations: create_rw_signal(cx, im::Vector::new()),
+            current_location: create_rw_signal(cx, 0),
+        };
+        let editor_tab = create_rw_signal(cx, editor_tab);
+        self.editor_tabs.update(|editor_tabs| {
+            editor_tabs.insert(editor_tab_id, editor_tab);
+        });
+        editor_tab
     }
 
     fn get_editor_or_new(
@@ -783,6 +811,9 @@ impl MainSplitData {
                 });
                 EditorTabChild::Editor(new_editor_id)
             }
+            EditorTabChild::Settings(_) => {
+                EditorTabChild::Settings(SettingsId::next())
+            }
         };
 
         let editor_tab = EditorTabData {
@@ -1087,6 +1118,7 @@ impl MainSplitData {
                     editor.save_doc_position(cx);
                 }
             }
+            EditorTabChild::Settings(_) => {}
         }
 
         if editor_tab_children_len == 0 {
@@ -1294,6 +1326,58 @@ impl MainSplitData {
         self.find_editor
             .cursor
             .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));
+    }
+
+    pub fn open_settings(&self) {
+        let active_editor_tab_id = self.active_editor_tab.get_untracked();
+        let editor_tabs = self.editor_tabs.get_untracked();
+        let active_editor_tab = active_editor_tab_id
+            .and_then(|id| editor_tabs.get(&id))
+            .cloned();
+
+        let editor_tab = if let Some(editor_tab) = active_editor_tab {
+            editor_tab
+        } else if editor_tabs.is_empty() {
+            let editor_tab_id = EditorTabId::next();
+            let editor_tab = self.new_editor_tab(editor_tab_id, self.root_split);
+            let root_split = self.splits.with_untracked(|splits| {
+                splits.get(&self.root_split).cloned().unwrap()
+            });
+            root_split.update(|root_split| {
+                root_split.children = vec![SplitContent::EditorTab(editor_tab_id)];
+            });
+            self.active_editor_tab.set(Some(editor_tab_id));
+            editor_tab
+        } else {
+            let (editor_tab_id, editor_tab) = editor_tabs.iter().next().unwrap();
+            self.active_editor_tab.set(Some(*editor_tab_id));
+            *editor_tab
+        };
+
+        let position = editor_tab.with_untracked(|editor_tab| {
+            editor_tab
+                .children
+                .iter()
+                .position(|(_, child)| child.is_settings())
+        });
+        if let Some(position) = position {
+            editor_tab.update(|editor_tab| {
+                editor_tab.active = position;
+            });
+            return;
+        }
+
+        editor_tab.update(|editor_tab| {
+            let new_active = (editor_tab.active + 1).min(editor_tab.children.len());
+            editor_tab.children.insert(
+                new_active,
+                (
+                    create_rw_signal(self.scope, 0),
+                    EditorTabChild::Settings(SettingsId::next()),
+                ),
+            );
+            editor_tab.active = new_active;
+        });
     }
 }
 

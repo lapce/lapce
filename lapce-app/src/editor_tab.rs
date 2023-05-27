@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     doc::DocContent,
     editor::{location::EditorLocation, EditorData, EditorInfo},
-    id::{EditorId, EditorTabId, SplitId},
+    id::{EditorId, EditorTabId, SettingsId, SplitId},
     main_split::MainSplitData,
     window_tab::WindowTabData,
 };
@@ -20,6 +20,7 @@ use crate::{
 #[derive(Clone, Serialize, Deserialize)]
 pub enum EditorTabChildInfo {
     Editor(EditorInfo),
+    Settings,
 }
 
 impl EditorTabChildInfo {
@@ -35,6 +36,9 @@ impl EditorTabChildInfo {
                 EditorTabChild::Editor(
                     editor_data.with_untracked(|editor_data| editor_data.editor_id),
                 )
+            }
+            EditorTabChildInfo::Settings => {
+                EditorTabChild::Settings(SettingsId::next())
             }
         }
     }
@@ -88,13 +92,19 @@ impl EditorTabInfo {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorTabChild {
     Editor(EditorId),
+    Settings(SettingsId),
 }
 
 impl EditorTabChild {
     pub fn id(&self) -> u64 {
         match self {
             EditorTabChild::Editor(id) => id.to_raw(),
+            EditorTabChild::Settings(id) => id.to_raw(),
         }
+    }
+
+    pub fn is_settings(&self) -> bool {
+        matches!(self, EditorTabChild::Settings(_))
     }
 
     pub fn child_info(&self, data: &WindowTabData) -> EditorTabChildInfo {
@@ -111,6 +121,7 @@ impl EditorTabChild {
                     editor_data.get_untracked().editor_info(data),
                 )
             }
+            EditorTabChild::Settings(_) => EditorTabChildInfo::Settings,
         }
     }
 }

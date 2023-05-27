@@ -43,7 +43,6 @@ impl KeyPressFocus for RenameData {
 
     fn run_command(
         &self,
-        cx: Scope,
         command: &LapceCommand,
         count: Option<usize>,
         mods: floem::glazier::Modifiers,
@@ -51,20 +50,20 @@ impl KeyPressFocus for RenameData {
         match &command.kind {
             CommandKind::Workbench(_) => {}
             CommandKind::Focus(cmd) => {
-                self.run_focus_command(cx, cmd);
+                self.run_focus_command(cmd);
             }
             CommandKind::Edit(_)
             | CommandKind::Move(_)
             | CommandKind::MultiSelection(_) => {
-                self.editor.run_command(cx, command, count, mods);
+                self.editor.run_command(command, count, mods);
             }
             CommandKind::MotionMode(_) => {}
         }
         CommandExecuted::Yes
     }
 
-    fn receive_char(&self, cx: Scope, c: &str) {
-        self.editor.receive_char(cx, c);
+    fn receive_char(&self, c: &str) {
+        self.editor.receive_char(c);
     }
 }
 
@@ -107,7 +106,7 @@ impl RenameData {
         self.common.focus.set(Focus::Rename);
     }
 
-    fn run_focus_command(&self, _cx: Scope, cmd: &FocusCommand) -> CommandExecuted {
+    fn run_focus_command(&self, cmd: &FocusCommand) -> CommandExecuted {
         match cmd {
             FocusCommand::ModalClose => {
                 self.cancel();

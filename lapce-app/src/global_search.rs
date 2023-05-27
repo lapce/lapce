@@ -60,7 +60,6 @@ impl KeyPressFocus for GlobalSearchData {
 
     fn run_command(
         &self,
-        cx: Scope,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
         mods: floem::glazier::Modifiers,
@@ -71,15 +70,15 @@ impl KeyPressFocus for GlobalSearchData {
             CommandKind::Edit(_)
             | CommandKind::Move(_)
             | CommandKind::MultiSelection(_) => {
-                self.editor.run_command(cx, command, count, mods);
+                self.editor.run_command(command, count, mods);
             }
             CommandKind::MotionMode(_) => {}
         }
         CommandExecuted::Yes
     }
 
-    fn receive_char(&self, cx: Scope, c: &str) {
-        self.editor.receive_char(cx, c);
+    fn receive_char(&self, c: &str) {
+        self.editor.receive_char(c);
     }
 }
 

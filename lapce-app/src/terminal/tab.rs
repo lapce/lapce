@@ -21,11 +21,11 @@ pub struct TerminalTabData {
 
 impl TerminalTabData {
     pub fn new(
-        cx: Scope,
         workspace: Arc<LapceWorkspace>,
         run_debug: Option<RunDebugProcess>,
         common: CommonData,
     ) -> Self {
+        let cx = common.scope;
         let terminal_data = TerminalData::new(cx, workspace, run_debug, common);
         let terminals = im::vector![(create_rw_signal(cx, 0), terminal_data)];
         let terminals = create_rw_signal(cx, terminals);
