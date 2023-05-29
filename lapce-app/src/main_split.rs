@@ -478,7 +478,7 @@ impl MainSplitData {
                         editor.save_doc_position(cx);
                     });
                     editor.update(|editor| {
-                        editor.doc = doc;
+                        editor.update_doc(doc);
                     });
                     editor.with_untracked(|editor| {
                         editor.cursor.set(Cursor::origin(

@@ -982,11 +982,10 @@ impl WindowTabData {
                 return Point::ZERO;
             };
 
-        let (window_origin, viewport, doc) =
-            editor.with_untracked(|e| (e.window_origin, e.viewport, e.doc));
+        let (window_origin, viewport, view) =
+            editor.with_untracked(|e| (e.window_origin, e.viewport, e.view.clone()));
 
-        let (point_above, point_below) =
-            doc.with_untracked(|doc| doc.points_of_offset(completion.offset));
+        let (point_above, point_below) = view.points_of_offset(completion.offset);
 
         let window_origin = window_origin.get() - self.window_origin.get().to_vec2();
         let viewport = viewport.get();
@@ -1032,11 +1031,10 @@ impl WindowTabData {
                 return Point::ZERO;
             };
 
-        let (window_origin, viewport, doc) =
-            editor.with_untracked(|e| (e.window_origin, e.viewport, e.doc));
+        let (window_origin, viewport, view) =
+            editor.with_untracked(|e| (e.window_origin, e.viewport, e.view.clone()));
 
-        let (_point_above, point_below) =
-            doc.with_untracked(|doc| doc.points_of_offset(code_action.offset));
+        let (_point_above, point_below) = view.points_of_offset(code_action.offset);
 
         let window_origin = window_origin.get() - self.window_origin.get().to_vec2();
         let viewport = viewport.get();
@@ -1082,12 +1080,11 @@ impl WindowTabData {
                 return Point::ZERO;
             };
 
-        let (window_origin, viewport, doc) =
-            editor.with_untracked(|e| (e.window_origin, e.viewport, e.doc));
+        let (window_origin, viewport, view) =
+            editor.with_untracked(|e| (e.window_origin, e.viewport, e.view.clone()));
 
-        let (_point_above, point_below) = doc.with_untracked(|doc| {
-            doc.points_of_offset(self.rename.start.get_untracked())
-        });
+        let (_point_above, point_below) =
+            view.points_of_offset(self.rename.start.get_untracked());
 
         let window_origin = window_origin.get() - self.window_origin.get().to_vec2();
         let viewport = viewport.get();

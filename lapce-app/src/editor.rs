@@ -42,7 +42,10 @@ use crate::{
     window_tab::{CommonData, Focus, WindowTabData},
 };
 
+use self::view::EditorViewData;
+
 pub mod location;
+pub mod movement;
 pub mod view;
 
 #[derive(Clone, Debug)]
@@ -110,7 +113,10 @@ pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 pub struct EditorData {
     pub editor_tab_id: Option<EditorTabId>,
     pub editor_id: EditorId,
+    /// The document this editor is for.  
+    /// To change out the current document, use [`EditorData::update_doc`].
     pub doc: RwSignal<Document>,
+    pub view: EditorViewData,
     pub confirmed: RwSignal<bool>,
     pub cursor: RwSignal<Cursor>,
     pub window_origin: RwSignal<Point>,
@@ -165,10 +171,12 @@ impl EditorData {
         let find_focus = create_rw_signal(cx, false);
         let active = create_rw_signal(cx, false);
         let sticky_header_height = create_rw_signal(cx, 0.0);
+        let view = EditorViewData::new(doc, common.config);
         Self {
             editor_tab_id,
             editor_id,
             doc,
+            view,
             cursor,
             confirmed,
             snippet,
@@ -214,6 +222,12 @@ impl EditorData {
         }
     }
 
+    /// Swap out the document this editor is for.
+    pub fn update_doc(&mut self, doc: RwSignal<Document>) {
+        self.doc = doc;
+        self.view.update_doc(doc);
+    }
+
     pub fn copy(
         &self,
         cx: Scope,
@@ -221,6 +235,7 @@ impl EditorData {
         editor_id: EditorId,
     ) -> Self {
         let mut editor = self.clone();
+        editor.view = self.view.duplicate();
         editor.cursor = create_rw_signal(cx, editor.cursor.get_untracked());
         editor.viewport = create_rw_signal(cx, editor.viewport.get_untracked());
         editor.scroll_delta = create_rw_signal(cx, Vec2::ZERO);
@@ -299,7 +314,7 @@ impl EditorData {
         let mut register = self.common.register.get_untracked();
 
         self.doc.update(|doc| {
-            doc.do_motion_mode(&mut cursor, motion_mode, &mut register);
+            movement::do_motion_mode(doc, &mut cursor, motion_mode, &mut register);
         });
 
         self.cursor.set(cursor);
@@ -314,9 +329,7 @@ impl EditorData {
         cmd: &MultiSelectionCommand,
     ) -> CommandExecuted {
         let mut cursor = self.cursor.get_untracked();
-        self.doc.update(|doc| {
-            doc.do_multi_selection(&mut cursor, cmd);
-        });
+        movement::do_multi_selection(&self.view, &mut cursor, cmd);
         self.cursor.set(cursor);
         // self.cancel_signature();
         self.cancel_completion();
@@ -346,19 +359,17 @@ impl EditorData {
         self.last_movement.set(movement.clone());
 
         let mut cursor = self.cursor.get_untracked();
-        let config = self.common.config.get_untracked();
-        self.doc.update(|doc| {
-            self.common.register.update(|register| {
-                doc.move_cursor(
-                    &mut cursor,
-                    movement,
-                    count.unwrap_or(1),
-                    mods.shift(),
-                    register,
-                    &config,
-                );
-            });
+        self.common.register.update(|register| {
+            movement::move_cursor(
+                &self.view,
+                &mut cursor,
+                movement,
+                count.unwrap_or(1),
+                mods.shift(),
+                register,
+            )
         });
+
         self.cursor.set(cursor);
 
         if self.snippet.with_untracked(|s| s.is_some()) {
@@ -1774,9 +1785,7 @@ impl EditorData {
 
     fn single_click(&self, pointer_event: &PointerEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
-        let (new_offset, _) = self
-            .doc
-            .with_untracked(|doc| doc.offset_of_point(mode, pointer_event.pos));
+        let (new_offset, _) = self.view.offset_of_point(mode, pointer_event.pos);
         self.cursor.update(|cursor| {
             cursor.set_offset(
                 new_offset,
@@ -1788,10 +1797,9 @@ impl EditorData {
 
     fn double_click(&self, pointer_event: &PointerEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
-        let (start, end) = self.doc.with_untracked(|doc| {
-            let (mouse_offset, _) = doc.offset_of_point(mode, pointer_event.pos);
-            doc.buffer().select_word(mouse_offset)
-        });
+        let (mouse_offset, _) = self.view.offset_of_point(mode, pointer_event.pos);
+        let (start, end) = self.view.select_word(mouse_offset);
+
         self.cursor.update(|cursor| {
             cursor.add_region(
                 start,
@@ -1804,13 +1812,11 @@ impl EditorData {
 
     fn triple_click(&self, pointer_event: &PointerEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
-        let (start, end) = self.doc.with_untracked(|doc| {
-            let (mouse_offset, _) = doc.offset_of_point(mode, pointer_event.pos);
-            let line = doc.buffer().line_of_offset(mouse_offset);
-            let start = doc.buffer().offset_of_line(line);
-            let end = doc.buffer().offset_of_line(line + 1);
-            (start, end)
-        });
+        let (mouse_offset, _) = self.view.offset_of_point(mode, pointer_event.pos);
+        let line = self.view.line_of_offset(mouse_offset);
+        let start = self.view.offset_of_line(line);
+        let end = self.view.offset_of_line(line + 1);
+
         self.cursor.update(|cursor| {
             cursor.add_region(
                 start,
@@ -1827,9 +1833,7 @@ impl EditorData {
         }
 
         let mode = self.cursor.with_untracked(|c| c.get_mode());
-        let (new_offset, _) = self
-            .doc
-            .with_untracked(|doc| doc.offset_of_point(mode, pointer_event.pos));
+        let (new_offset, _) = self.view.offset_of_point(mode, pointer_event.pos);
         self.cursor.update(|cursor| {
             cursor.set_offset(new_offset, true, pointer_event.modifiers.alt())
         });

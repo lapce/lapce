@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use floem::{
     context::PaintCx,
@@ -12,30 +12,39 @@ use floem::{
     },
     reactive::{
         create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal,
-        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked,
+        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalUpdateUntracked, SignalWith, SignalWithUntracked,
     },
     style::{ComputedStyle, CursorStyle, Style},
     taffy::prelude::Node,
     view::{ChangeFlags, View},
     views::{
         container, empty, label, list, scroll, stack, svg, virtual_list, Decorators,
-        VirtualListDirection, VirtualListItemSize,
+        VirtualListDirection, VirtualListItemSize, VirtualListVector,
     },
     AppContext, Renderer,
 };
 use lapce_core::{
+    char_buffer::CharBuffer,
     cursor::{ColPosition, CursorMode},
     mode::{Mode, VisualMode},
     selection::Selection,
+    soft_tab::{snap_to_soft_tab_line_col, SnapDirection},
+    word::WordCursor,
 };
-use lapce_xi_rope::find::CaseMatching;
+use lapce_rpc::style::LineStyle;
+use lapce_xi_rope::{find::CaseMatching, Rope};
+use lsp_types::DiagnosticSeverity;
 
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    doc::{DocContent, DocLine, Document, LineExtraStyle},
+    doc::{
+        phantom_text::PhantomTextLine, DocContent, Document, EditorDiagnostic,
+        TextCacheListener,
+    },
+    find::{Find, FindResult},
     main_split::MainSplitData,
     text_input::text_input,
     workspace::LapceWorkspace,
@@ -49,7 +58,7 @@ struct StickyHeaderInfo {
     y_diff: f64,
 }
 
-pub struct EditorContentView {
+pub struct EditorView {
     id: Id,
     editor: RwSignal<EditorData>,
     is_active: Box<dyn Fn() -> bool + 'static>,
@@ -61,7 +70,7 @@ pub struct EditorContentView {
 pub fn editor_content_view(
     editor: RwSignal<EditorData>,
     is_active: impl Fn() -> bool + 'static + Copy,
-) -> EditorContentView {
+) -> EditorView {
     let cx = AppContext::get_current();
     let id = cx.new_id();
 
@@ -83,7 +92,12 @@ pub fn editor_content_view(
 
         let rect = viewport.get();
         let rev = doc.with(|doc| {
-            (doc.content.clone(), doc.buffer().rev(), doc.style_rev, rect)
+            (
+                doc.content.clone(),
+                doc.buffer().rev(),
+                doc.style_rev(),
+                rect,
+            )
         });
         if last_rev.as_ref() == Some(&rev) {
             return rev;
@@ -101,7 +115,7 @@ pub fn editor_content_view(
         rev
     });
 
-    EditorContentView {
+    EditorView {
         id,
         editor,
         is_active: Box::new(is_active),
@@ -115,12 +129,12 @@ pub fn editor_content_view(
     }
 }
 
-impl EditorContentView {
+impl EditorView {
     fn paint_cursor(&self, cx: &mut PaintCx, min_line: usize, max_line: usize) {
-        let (doc, cursor, find_focus, config) =
+        let (view, cursor, find_focus, config) =
             self.editor.with_untracked(|editor| {
                 (
-                    editor.doc,
+                    editor.view.clone(),
                     editor.cursor,
                     editor.find_focus,
                     editor.common.config,
@@ -132,32 +146,31 @@ impl EditorContentView {
         let viewport = self.viewport.get_untracked();
         let is_active = (*self.is_active)() && !find_focus.get_untracked();
 
-        let renders = doc.with(|doc| {
-            cursor.with(|cursor| match &cursor.mode {
-                CursorMode::Normal(offset) => {
-                    let line = doc.buffer().line_of_offset(*offset);
-                    let mut renders = vec![CursorRender::CurrentLine { line }];
-                    if is_active {
-                        let caret = cursor_caret(doc, *offset, true);
-                        renders.push(caret);
-                    }
-                    renders
+        view.track_doc();
+        let renders = cursor.with(|cursor| match &cursor.mode {
+            CursorMode::Normal(offset) => {
+                let line = view.line_of_offset(*offset);
+                let mut renders = vec![CursorRender::CurrentLine { line }];
+                if is_active {
+                    let caret = cursor_caret(&view, *offset, true);
+                    renders.push(caret);
                 }
-                CursorMode::Visual { start, end, mode } => visual_cursor(
-                    doc,
-                    *start,
-                    *end,
-                    mode,
-                    cursor.horiz.as_ref(),
-                    min_line,
-                    max_line,
-                    7.5,
-                    is_active,
-                ),
-                CursorMode::Insert(selection) => {
-                    insert_cursor(doc, selection, min_line, max_line, 7.5, is_active)
-                }
-            })
+                renders
+            }
+            CursorMode::Visual { start, end, mode } => visual_cursor(
+                &view,
+                *start,
+                *end,
+                mode,
+                cursor.horiz.as_ref(),
+                min_line,
+                max_line,
+                7.5,
+                is_active,
+            ),
+            CursorMode::Insert(selection) => {
+                insert_cursor(&view, selection, min_line, max_line, 7.5, is_active)
+            }
         });
 
         for render in renders {
@@ -258,69 +271,63 @@ impl EditorContentView {
         max_line: usize,
         viewport: Rect,
     ) {
-        let (doc, config) = self
+        let (view, config) = self
             .editor
-            .with_untracked(|editor| (editor.doc, editor.common.config));
+            .with_untracked(|editor| (editor.view.clone(), editor.common.config));
 
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
         let font_size = config.editor.font_size();
 
-        doc.with_untracked(|doc| {
-            let indent_unit = doc.buffer().indent_unit();
-            let family: Vec<FamilyOwned> =
-                FamilyOwned::parse_list(&config.editor.font_family).collect();
-            let attrs = Attrs::new()
-                .family(&family)
-                .font_size(config.editor.font_size() as f32);
-            let attrs_list = AttrsList::new(attrs);
+        let indent_unit = view.indent_unit();
+        let family: Vec<FamilyOwned> =
+            FamilyOwned::parse_list(&config.editor.font_family).collect();
+        let attrs = Attrs::new()
+            .family(&family)
+            .font_size(config.editor.font_size() as f32);
+        let attrs_list = AttrsList::new(attrs);
 
-            let mut indent_text = TextLayout::new();
-            indent_text.set_text(&format!("{indent_unit}a"), attrs_list);
-            let indent_text_width =
-                indent_text.hit_position(indent_unit.len()).point.x;
+        let mut indent_text = TextLayout::new();
+        indent_text.set_text(&format!("{indent_unit}a"), attrs_list);
+        let indent_text_width = indent_text.hit_position(indent_unit.len()).point.x;
 
-            let last_line = doc.buffer().last_line();
+        let last_line = view.last_line();
 
-            for line in min_line..max_line + 1 {
-                if line > last_line {
-                    break;
-                }
-
-                let text_layout = doc.get_text_layout(line, font_size);
-                let height = text_layout.text.size().height;
-                let y = line as f64 * line_height;
-
-                self.paint_extra_style(
-                    cx,
-                    &text_layout.extra_style,
-                    y,
-                    height,
-                    line_height,
-                    viewport,
-                );
-
-                if config.editor.show_indent_guide {
-                    let mut x = 0.0;
-                    while x + 1.0 < text_layout.indent {
-                        cx.stroke(
-                            &Line::new(
-                                Point::new(x, y),
-                                Point::new(x, y + line_height),
-                            ),
-                            config.get_color(LapceColor::EDITOR_INDENT_GUIDE),
-                            1.0,
-                        );
-                        x += indent_text_width;
-                    }
-                }
-
-                cx.draw_text(
-                    &text_layout.text,
-                    Point::new(0.0, y + (line_height - height) / 2.0),
-                );
+        for line in min_line..max_line + 1 {
+            if line > last_line {
+                break;
             }
-        });
+
+            let text_layout = view.get_text_layout(line, font_size);
+            let height = text_layout.text.size().height;
+            let y = line as f64 * line_height;
+
+            self.paint_extra_style(
+                cx,
+                &text_layout.extra_style,
+                y,
+                height,
+                line_height,
+                viewport,
+            );
+
+            if config.editor.show_indent_guide {
+                let mut x = 0.0;
+                while x + 1.0 < text_layout.indent {
+                    cx.stroke(
+                        &Line::new(Point::new(x, y), Point::new(x, y + line_height)),
+                        config.get_color(LapceColor::EDITOR_INDENT_GUIDE),
+                        1.0,
+                    );
+                    x += indent_text_width;
+                }
+            }
+
+            cx.draw_text(
+                &text_layout.text,
+                Point::new(0.0, y + (line_height - height) / 2.0),
+            );
+        }
     }
 
     fn paint_find(&self, cx: &mut PaintCx, min_line: usize, max_line: usize) {
@@ -329,68 +336,63 @@ impl EditorContentView {
             return;
         }
 
-        let (doc, config) = self
+        let (view, config) = self
             .editor
-            .with_untracked(|editor| (editor.doc, editor.common.config));
-        let occurrences = doc.with_untracked(|doc| doc.find_result.occurrences);
+            .with_untracked(|editor| (editor.view.clone(), editor.common.config));
+        let occurrences = view.find_result().occurrences;
 
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
 
-        let (start, end) = doc.with_untracked(|doc| {
-            doc.update_find(min_line, max_line);
-            let start = doc.buffer().offset_of_line(min_line);
-            let end = doc.buffer().offset_of_line(max_line + 1);
-            (start, end)
-        });
+        view.update_find(min_line, max_line);
+        let start = view.offset_of_line(min_line);
+        let end = view.offset_of_line(max_line + 1);
 
         let mut rects = Vec::new();
         for region in occurrences
             .with(|selection| selection.regions_in_range(start, end).to_vec())
         {
-            doc.with_untracked(|doc| {
-                let start = region.min();
-                let end = region.max();
-                let (start_line, start_col) = doc.buffer().offset_to_line_col(start);
-                let (end_line, end_col) = doc.buffer().offset_to_line_col(end);
-                for line in min_line..max_line + 1 {
-                    if line < start_line {
-                        continue;
-                    }
-
-                    if line > end_line {
-                        break;
-                    }
-
-                    let left_col = match line {
-                        _ if line == start_line => start_col,
-                        _ => 0,
-                    };
-                    let (right_col, _line_end) = match line {
-                        _ if line == end_line => {
-                            let max_col = doc.buffer().line_end_col(line, true);
-                            (end_col.min(max_col), false)
-                        }
-                        _ => (doc.buffer().line_end_col(line, true), true),
-                    };
-
-                    // Shift it by the inlay hints
-                    let phantom_text = doc.line_phantom_text(line);
-                    let left_col = phantom_text.col_after(left_col, false);
-                    let right_col = phantom_text.col_after(right_col, false);
-
-                    let x0 = doc.line_point_of_line_col(line, left_col, 12).x;
-                    let x1 = doc.line_point_of_line_col(line, right_col, 12).x;
-
-                    if start != end {
-                        rects.push(
-                            Size::new(x1 - x0, line_height).to_rect().with_origin(
-                                Point::new(x0, line_height * line as f64),
-                            ),
-                        );
-                    }
+            let start = region.min();
+            let end = region.max();
+            let (start_line, start_col) = view.offset_to_line_col(start);
+            let (end_line, end_col) = view.offset_to_line_col(end);
+            for line in min_line..max_line + 1 {
+                if line < start_line {
+                    continue;
                 }
-            })
+
+                if line > end_line {
+                    break;
+                }
+
+                let left_col = match line {
+                    _ if line == start_line => start_col,
+                    _ => 0,
+                };
+                let (right_col, _line_end) = match line {
+                    _ if line == end_line => {
+                        let max_col = view.line_end_col(line, true);
+                        (end_col.min(max_col), false)
+                    }
+                    _ => (view.line_end_col(line, true), true),
+                };
+
+                // Shift it by the inlay hints
+                let phantom_text = view.line_phantom_text(line);
+                let left_col = phantom_text.col_after(left_col, false);
+                let right_col = phantom_text.col_after(right_col, false);
+
+                let x0 = view.line_point_of_line_col(line, left_col, 12).x;
+                let x1 = view.line_point_of_line_col(line, right_col, 12).x;
+
+                if start != end {
+                    rects.push(
+                        Size::new(x1 - x0, line_height)
+                            .to_rect()
+                            .with_origin(Point::new(x0, line_height * line as f64)),
+                    );
+                }
+            }
         }
 
         let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
@@ -405,9 +407,9 @@ impl EditorContentView {
         start_line: usize,
         viewport: Rect,
     ) {
-        let (doc, config) = self
+        let (view, config) = self
             .editor
-            .with_untracked(|editor| (editor.doc, editor.common.config));
+            .with_untracked(|editor| (editor.view.clone(), editor.common.config));
         let config = config.get_untracked();
         if !config.editor.sticky_header {
             return;
@@ -451,48 +453,44 @@ impl EditorContentView {
             config.get_color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
         );
 
-        doc.with_untracked(|doc| {
-            // Paint lines
-            for (i, line) in self
-                .sticky_header_info
-                .sticky_lines
-                .iter()
-                .copied()
-                .enumerate()
-            {
-                let y_diff = if i == total_sticky_lines - 1 {
-                    scroll_offset
-                } else {
-                    0.0
-                };
+        // Paint lines
+        for (i, line) in self
+            .sticky_header_info
+            .sticky_lines
+            .iter()
+            .copied()
+            .enumerate()
+        {
+            let y_diff = if i == total_sticky_lines - 1 {
+                scroll_offset
+            } else {
+                0.0
+            };
 
-                cx.save();
+            cx.save();
 
-                let line_area_rect =
-                    Size::new(viewport.width(), line_height - y_diff)
-                        .to_rect()
-                        .with_origin(Point::new(
-                            viewport.x0,
-                            viewport.y0 + line_height * i as f64,
-                        ));
+            let line_area_rect = Size::new(viewport.width(), line_height - y_diff)
+                .to_rect()
+                .with_origin(Point::new(
+                    viewport.x0,
+                    viewport.y0 + line_height * i as f64,
+                ));
 
-                cx.clip(&line_area_rect);
+            cx.clip(&line_area_rect);
 
-                let text_layout =
-                    doc.get_text_layout(line, config.editor.font_size());
-                let y = viewport.y0
-                    + line_height * i as f64
-                    + (line_height - text_layout.text.size().height) / 2.0
-                    - y_diff;
-                cx.draw_text(&text_layout.text, Point::new(viewport.x0, y));
+            let text_layout = view.get_text_layout(line, config.editor.font_size());
+            let y = viewport.y0
+                + line_height * i as f64
+                + (line_height - text_layout.text.size().height) / 2.0
+                - y_diff;
+            cx.draw_text(&text_layout.text, Point::new(viewport.x0, y));
 
-                cx.restore();
-            }
-        });
+            cx.restore();
+        }
     }
 }
 
-impl View for EditorContentView {
+impl View for EditorView {
     fn id(&self) -> Id {
         self.id
     }
@@ -685,15 +683,15 @@ enum CursorRender {
     Caret { x: f64, width: f64, line: usize },
 }
 
-fn cursor_caret(doc: &Document, offset: usize, block: bool) -> CursorRender {
-    let (line, col) = doc.buffer().offset_to_line_col(offset);
-    let phantom_text = doc.line_phantom_text(line);
+fn cursor_caret(view: &EditorViewData, offset: usize, block: bool) -> CursorRender {
+    let (line, col) = view.offset_to_line_col(offset);
+    let phantom_text = view.line_phantom_text(line);
     let col = phantom_text.col_after(col, block);
-    let x0 = doc.line_point_of_line_col(line, col, 12).x;
+    let x0 = view.line_point_of_line_col(line, col, 12).x;
     if block {
-        let right_offset = doc.buffer().move_right(offset, Mode::Insert, 1);
-        let (_, right_col) = doc.buffer().offset_to_line_col(right_offset);
-        let x1 = doc.line_point_of_line_col(line, right_col, 12).x;
+        let right_offset = view.move_right(offset, Mode::Insert, 1);
+        let (_, right_col) = view.offset_to_line_col(right_offset);
+        let x1 = view.line_point_of_line_col(line, right_col, 12).x;
 
         let width = if x1 > x0 { x1 - x0 } else { 7.0 };
         CursorRender::Caret { x: x0, width, line }
@@ -708,7 +706,7 @@ fn cursor_caret(doc: &Document, offset: usize, block: bool) -> CursorRender {
 
 #[allow(clippy::too_many_arguments)]
 fn visual_cursor(
-    doc: &Document,
+    view: &EditorViewData,
     start: usize,
     end: usize,
     mode: &VisualMode,
@@ -718,9 +716,9 @@ fn visual_cursor(
     char_width: f64,
     is_active: bool,
 ) -> Vec<CursorRender> {
-    let (start_line, start_col) = doc.buffer().offset_to_line_col(start.min(end));
-    let (end_line, end_col) = doc.buffer().offset_to_line_col(start.max(end));
-    let (cursor_line, _) = doc.buffer().offset_to_line_col(end);
+    let (start_line, start_col) = view.offset_to_line_col(start.min(end));
+    let (end_line, end_col) = view.offset_to_line_col(start.max(end));
+    let (cursor_line, _) = view.offset_to_line_col(end);
 
     let mut renders = Vec::new();
 
@@ -743,7 +741,7 @@ fn visual_cursor(
             }
             VisualMode::Linewise => 0,
             VisualMode::Blockwise => {
-                let max_col = doc.buffer().line_end_col(line, false);
+                let max_col = view.line_end_col(line, false);
                 let left = start_col.min(end_col);
                 if left > max_col {
                     continue;
@@ -755,27 +753,26 @@ fn visual_cursor(
         let (right_col, line_end) = match mode {
             VisualMode::Normal => {
                 if line == end_line {
-                    let max_col = doc.buffer().line_end_col(line, true);
+                    let max_col = view.line_end_col(line, true);
 
                     let end_offset =
-                        doc.buffer().move_right(start.max(end), Mode::Visual, 1);
-                    let (_, end_col) = doc.buffer().offset_to_line_col(end_offset);
+                        view.move_right(start.max(end), Mode::Visual, 1);
+                    let (_, end_col) = view.offset_to_line_col(end_offset);
 
                     (end_col.min(max_col), false)
                 } else {
-                    (doc.buffer().line_end_col(line, true), true)
+                    (view.line_end_col(line, true), true)
                 }
             }
-            VisualMode::Linewise => (doc.buffer().line_end_col(line, true), true),
+            VisualMode::Linewise => (view.line_end_col(line, true), true),
             VisualMode::Blockwise => {
-                let max_col = doc.buffer().line_end_col(line, true);
+                let max_col = view.line_end_col(line, true);
                 let right = match horiz.as_ref() {
                     Some(&ColPosition::End) => max_col,
                     _ => {
                         let end_offset =
-                            doc.buffer().move_right(start.max(end), Mode::Visual, 1);
-                        let (_, end_col) =
-                            doc.buffer().offset_to_line_col(end_offset);
+                            view.move_right(start.max(end), Mode::Visual, 1);
+                        let (_, end_col) = view.offset_to_line_col(end_offset);
                         end_col.max(start_col).min(max_col)
                     }
                 };
@@ -783,11 +780,11 @@ fn visual_cursor(
             }
         };
 
-        let phantom_text = doc.line_phantom_text(line);
+        let phantom_text = view.line_phantom_text(line);
         let left_col = phantom_text.col_after(left_col, false);
         let right_col = phantom_text.col_after(right_col, false);
-        let x0 = doc.line_point_of_line_col(line, left_col, 12).x;
-        let mut x1 = doc.line_point_of_line_col(line, right_col, 12).x;
+        let x0 = view.line_point_of_line_col(line, left_col, 12).x;
+        let mut x1 = view.line_point_of_line_col(line, right_col, 12).x;
         if line_end {
             x1 += char_width;
         }
@@ -799,7 +796,7 @@ fn visual_cursor(
         });
 
         if is_active && line == cursor_line {
-            let caret = cursor_caret(doc, end, true);
+            let caret = cursor_caret(view, end, true);
             renders.push(caret);
         }
     }
@@ -808,27 +805,26 @@ fn visual_cursor(
 }
 
 fn insert_cursor(
-    doc: &Document,
+    view: &EditorViewData,
     selection: &Selection,
     min_line: usize,
     max_line: usize,
     char_width: f64,
     is_active: bool,
 ) -> Vec<CursorRender> {
-    let start = doc.buffer().offset_of_line(min_line);
-    let end = doc.buffer().offset_of_line(max_line + 1);
+    let start = view.offset_of_line(min_line);
+    let end = view.offset_of_line(max_line + 1);
     let regions = selection.regions_in_range(start, end);
 
     let mut renders = Vec::new();
 
     for region in regions {
         let cursor_offset = region.end;
-        let (cursor_line, _) = doc.buffer().offset_to_line_col(cursor_offset);
+        let (cursor_line, _) = view.offset_to_line_col(cursor_offset);
         let start = region.start;
         let end = region.end;
-        let (start_line, start_col) =
-            doc.buffer().offset_to_line_col(start.min(end));
-        let (end_line, end_col) = doc.buffer().offset_to_line_col(start.max(end));
+        let (start_line, start_col) = view.offset_to_line_col(start.min(end));
+        let (end_line, end_col) = view.offset_to_line_col(start.max(end));
         for line in min_line..max_line + 1 {
             if line < start_line {
                 continue;
@@ -844,19 +840,19 @@ fn insert_cursor(
             };
             let (right_col, line_end) = match line {
                 _ if line == end_line => {
-                    let max_col = doc.buffer().line_end_col(line, true);
+                    let max_col = view.line_end_col(line, true);
                     (end_col.min(max_col), false)
                 }
-                _ => (doc.buffer().line_end_col(line, true), true),
+                _ => (view.line_end_col(line, true), true),
             };
 
             // Shift it by the inlay hints
-            let phantom_text = doc.line_phantom_text(line);
+            let phantom_text = view.line_phantom_text(line);
             let left_col = phantom_text.col_after(left_col, false);
             let right_col = phantom_text.col_after(right_col, false);
 
-            let x0 = doc.line_point_of_line_col(line, left_col, 12).x;
-            let mut x1 = doc.line_point_of_line_col(line, right_col, 12).x;
+            let x0 = view.line_point_of_line_col(line, left_col, 12).x;
+            let mut x1 = view.line_point_of_line_col(line, right_col, 12).x;
             if line_end {
                 x1 += char_width;
             }
@@ -874,7 +870,7 @@ fn insert_cursor(
             }
 
             if is_active && line == cursor_line {
-                let caret = cursor_caret(doc, cursor_offset, false);
+                let caret = cursor_caret(view, cursor_offset, false);
                 renders.push(caret);
             }
         }
@@ -1033,7 +1029,8 @@ fn editor_gutter(
                     move || {
                         let editor = editor.get();
                         current_line.get();
-                        editor.doc.get()
+                        editor.view.track_doc();
+                        editor.view.clone()
                     },
                     move |line: &DocLine| (line.line, current_line.get_untracked()),
                     move |line: DocLine| {
@@ -1334,9 +1331,7 @@ fn editor_content(
         let cursor = cursor.get();
         let offset = cursor.offset();
         let editor = editor.get_untracked();
-        let doc = editor.doc;
-        let caret =
-            doc.with_untracked(|doc| cursor_caret(doc, offset, !cursor.is_insert()));
+        let caret = cursor_caret(&editor.view, offset, !cursor.is_insert());
         let config = config.get_untracked();
         let line_height = config.editor.line_height();
         if let CursorRender::Caret { x, width, line } = caret {
@@ -1708,4 +1703,682 @@ fn find_view(
             .justify_end()
             .apply_if(!find_visual.get(), |s| s.hide())
     })
+}
+
+#[derive(Clone)]
+pub struct LineExtraStyle {
+    pub x: f64,
+    pub width: Option<f64>,
+    pub bg_color: Option<Color>,
+    pub under_line: Option<Color>,
+    pub wave_line: Option<Color>,
+}
+
+#[derive(Clone)]
+pub struct TextLayoutLine {
+    /// Extra styling that should be applied to the text
+    /// (x0, x1 or line display end, style)
+    pub extra_style: Vec<LineExtraStyle>,
+    pub text: TextLayout,
+    pub whitespaces: Option<Vec<(char, (f64, f64))>>,
+    pub indent: f64,
+}
+
+/// Keeps track of the text layouts so that we can efficiently reuse them.
+#[derive(Clone, Default)]
+pub struct TextLayoutCache {
+    /// The id of the last config, which lets us know when the config changes so we can update
+    /// the cache.
+    config_id: u64,
+    /// (Font Size -> (Line Number -> Text Layout))  
+    /// Different font-sizes are cached separately, which is useful for features like code lens
+    /// where the text becomes small but you may wish to revert quickly.
+    pub layouts: HashMap<usize, HashMap<usize, Arc<TextLayoutLine>>>,
+    pub max_width: f64,
+}
+
+impl TextLayoutCache {
+    pub fn new() -> Self {
+        Self {
+            config_id: 0,
+            layouts: HashMap::new(),
+            max_width: 0.0,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.layouts.clear();
+    }
+
+    pub fn check_attributes(&mut self, config_id: u64) {
+        if self.config_id != config_id {
+            self.clear();
+            self.config_id = config_id;
+        }
+    }
+}
+
+pub struct DocLine {
+    pub rev: u64,
+    pub style_rev: u64,
+    pub line: usize,
+    pub text: Arc<TextLayoutLine>,
+}
+
+impl VirtualListVector<DocLine> for EditorViewData {
+    type ItemIterator = std::vec::IntoIter<DocLine>;
+
+    fn total_len(&self) -> usize {
+        self.num_lines()
+    }
+
+    fn slice(&mut self, range: std::ops::Range<usize>) -> Self::ItemIterator {
+        let lines = range
+            .into_iter()
+            .map(|line| DocLine {
+                rev: self.rev(),
+                style_rev: self.style_rev(),
+                line,
+                text: self.get_text_layout(line, 12),
+            })
+            .collect::<Vec<_>>();
+        lines.into_iter()
+    }
+}
+
+// TODO(minor): Should this go in another file? It doesn't really need to be with the drawing code for editor views
+/// Data specific to the rendering of a view.  
+/// This has various helper methods that may dispatch to the held [`Document`] signal, but are
+/// untracked by default. If you need your signal to depend on the document,
+/// then you should call [`EditorViewData::track_doc`].  
+/// Note: This should be cheap to clone.
+#[derive(Clone)]
+pub struct EditorViewData {
+    /// Equivalent to the `EditorData::doc` that contains this view.
+    pub doc: RwSignal<Document>,
+    /// The text layouts for the document. This may be shared with other views.
+    text_layouts: Rc<RefCell<TextLayoutCache>>,
+
+    pub config: ReadSignal<Arc<LapceConfig>>,
+}
+impl EditorViewData {
+    pub fn new(
+        doc: RwSignal<Document>,
+        config: ReadSignal<Arc<LapceConfig>>,
+    ) -> EditorViewData {
+        let view = EditorViewData {
+            doc,
+            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            config,
+        };
+
+        let listener = view.text_layouts.clone();
+        doc.update(|doc| {
+            doc.add_text_cache_listener(listener);
+        });
+
+        view
+    }
+
+    // Note: There is no document / buffer function as that would require cloning it
+    // since we can't get a reference out of the RwSignal document.
+
+    /// Subscribe to the doc signal, since the getter functions use `with_untracked` by default.
+    pub fn track_doc(&self) {
+        self.doc.track();
+    }
+
+    /// Return the underlying `Rope` of the document.
+    pub fn text(&self) -> Rope {
+        self.doc.with_untracked(|doc| doc.buffer().text().clone())
+    }
+
+    /// Return the [`Document`]'s [`Find`] instance. Find uses signals, and so can be updated.
+    pub fn find(&self) -> Find {
+        self.doc.with_untracked(|doc| doc.find().clone())
+    }
+
+    pub fn find_result(&self) -> FindResult {
+        self.doc.with_untracked(|doc| doc.find_result.clone())
+    }
+
+    pub fn update_find(&self, min_line: usize, max_line: usize) {
+        self.doc
+            .with_untracked(|doc| doc.update_find(min_line, max_line));
+    }
+
+    /// The current revision of the underlying buffer. This is used to track when the buffer has
+    /// changed.
+    pub fn rev(&self) -> u64 {
+        self.doc.with_untracked(|doc| doc.rev())
+    }
+
+    // TODO: Should the editor view handle the style information?
+    // It does not need to, since we can just get that information from the document,
+    // but it might be nicer? It would let us make the document more strictly about the
+    // data and the view more about the rendering.
+    // but you could also consider it as the document managing the syntax it should apply
+    // Though. There is the question of whether we'd want to allow different syntax highlighting in
+    // different views. However, we probably wouldn't.
+
+    pub fn style_rev(&self) -> u64 {
+        self.doc.with_untracked(|doc| doc.style_rev())
+    }
+
+    /// The document for the given view was swapped out.
+    pub fn update_doc(&mut self, doc: RwSignal<Document>) {
+        let old_doc = self.doc;
+
+        // Just recreate the view. This is simpler than trying to reuse the text layout cache in the cases where it is possible.
+        *self = Self::new(doc, self.config);
+
+        old_doc.update_untracked(|doc| {
+            doc.clean_text_cache_listeners();
+        });
+    }
+
+    /// Duplicate as a new view which refers to the same document.
+    pub fn duplicate(&self) -> Self {
+        // TODO: This is correct right now, as it has the views share the same text layout cache.
+        // However, once we have line wrapping or other view-specific rendering changes, this should check for whether they're different.
+        // This will likely require more information to be passed into duplicate,
+        // like whether the wrap width will be the editor's width, and so it is unlikely to be exactly the same as the current view.
+        self.clone()
+    }
+
+    fn line_phantom_text(&self, line: usize) -> PhantomTextLine {
+        self.doc.with_untracked(|doc| doc.line_phantom_text(line))
+    }
+
+    fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
+        self.doc.with_untracked(|doc| doc.line_style(line))
+    }
+
+    fn diagnostics(&self) -> im::Vector<EditorDiagnostic> {
+        self.doc
+            .with_untracked(|doc| doc.diagnostics.diagnostics.get_untracked())
+    }
+
+    /// Create a new text layout for the given line.  
+    /// Typically you should use [`EditorViewData::get_text_layout`] instead.
+    fn new_text_layout(&self, line: usize, _font_size: usize) -> TextLayoutLine {
+        let config = self.config.get_untracked();
+        // let buffer = self.doc.with_untracked(|doc| doc.buffer().clone());
+        // let line_content_original = buffer.line_content(line);
+        // let line_content_original = doc.buffer().line_content(line);
+        let line_content = self.doc.with_untracked(|doc| {
+            let line_content_original = doc.buffer().line_content(line);
+
+            // Get the line content with newline characters replaced with spaces
+            // and the content without the newline characters
+            let (line_content, _line_content_original) =
+                if let Some(s) = line_content_original.strip_suffix("\r\n") {
+                    (
+                        format!("{s}  "),
+                        &line_content_original[..line_content_original.len() - 2],
+                    )
+                } else if let Some(s) = line_content_original.strip_suffix('\n') {
+                    (
+                        format!("{s} ",),
+                        &line_content_original[..line_content_original.len() - 1],
+                    )
+                } else {
+                    (
+                        line_content_original.to_string(),
+                        &line_content_original[..],
+                    )
+                };
+
+            line_content
+        });
+
+        // Combine the phantom text with the line content
+        let phantom_text = self.line_phantom_text(line);
+        let line_content = phantom_text.combine_with_text(line_content);
+
+        let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
+        let family: Vec<FamilyOwned> =
+            FamilyOwned::parse_list(&config.editor.font_family).collect();
+        let attrs = Attrs::new()
+            .color(*color)
+            .family(&family)
+            .font_size(config.editor.font_size() as f32);
+        let mut attrs_list = AttrsList::new(attrs);
+
+        // Apply various styles to the line's text based on our semantic/syntax highlighting
+        let styles = self.line_style(line);
+        for line_style in styles.iter() {
+            if let Some(fg_color) = line_style.style.fg_color.as_ref() {
+                if let Some(fg_color) = config.get_style_color(fg_color) {
+                    let start = phantom_text.col_at(line_style.start);
+                    let end = phantom_text.col_at(line_style.end);
+                    attrs_list.add_span(start..end, attrs.color(*fg_color));
+                }
+            }
+        }
+
+        let font_size = config.editor.font_size();
+
+        // Apply phantom text specific styling
+        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
+            let start = col + offset;
+            let end = start + size;
+
+            let mut attrs = attrs;
+            if let Some(fg) = phantom.fg {
+                attrs = attrs.color(fg);
+            }
+            if let Some(phantom_font_size) = phantom.font_size {
+                attrs = attrs.font_size(phantom_font_size.min(font_size) as f32);
+            }
+            attrs_list.add_span(start..end, attrs);
+            // if let Some(font_family) = phantom.font_family.clone() {
+            //     layout_builder = layout_builder.range_attribute(
+            //         start..end,
+            //         TextAttribute::FontFamily(font_family),
+            //     );
+            // }
+        }
+
+        let mut text_layout = TextLayout::new();
+        text_layout.set_text(&line_content, attrs_list);
+
+        // Keep track of background styling from phantom text, which is done separately
+        // from the text layout attributes
+        let mut extra_style = Vec::new();
+        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
+            if phantom.bg.is_some() || phantom.under_line.is_some() {
+                let start = col + offset;
+                let end = start + size;
+                let x0 = text_layout.hit_position(start).point.x;
+                let x1 = text_layout.hit_position(end).point.x;
+                extra_style.push(LineExtraStyle {
+                    x: x0,
+                    width: Some(x1 - x0),
+                    bg_color: phantom.bg,
+                    under_line: phantom.under_line,
+                    wave_line: None,
+                });
+            }
+        }
+
+        // Add the styling for the diagnostic severity, if applicable
+        if let Some(max_severity) = phantom_text.max_severity {
+            let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
+                LapceColor::ERROR_LENS_ERROR_BACKGROUND
+            } else if max_severity == DiagnosticSeverity::WARNING {
+                LapceColor::ERROR_LENS_WARNING_BACKGROUND
+            } else {
+                LapceColor::ERROR_LENS_OTHER_BACKGROUND
+            };
+
+            let x1 = (!config.editor.error_lens_end_of_line)
+                .then(|| text_layout.hit_position(line_content.len()).point.x);
+
+            extra_style.push(LineExtraStyle {
+                x: 0.0,
+                width: x1,
+                bg_color: Some(*config.get_color(theme_prop)),
+                under_line: None,
+                wave_line: None,
+            });
+        }
+
+        for diag in self.diagnostics().iter() {
+            if diag.diagnostic.range.start.line as usize <= line
+                && line <= diag.diagnostic.range.end.line as usize
+            {
+                let start = if diag.diagnostic.range.start.line as usize == line {
+                    let (_, col) = self.offset_to_line_col(diag.range.0);
+                    col
+                } else {
+                    let offset = self.first_non_blank_character_on_line(line);
+                    let (_, col) = self.offset_to_line_col(offset);
+                    col
+                };
+                let start = phantom_text.col_after(start, true);
+
+                let end = if diag.diagnostic.range.end.line as usize == line {
+                    let (_, col) = self.offset_to_line_col(diag.range.1);
+                    col
+                } else {
+                    self.line_end_col(line, true)
+                };
+                let end = phantom_text.col_after(end, false);
+
+                let x0 = text_layout.hit_position(start).point.x;
+                let x1 = text_layout.hit_position(end).point.x;
+                let color_name = match diag.diagnostic.severity {
+                    Some(DiagnosticSeverity::ERROR) => LapceColor::LAPCE_ERROR,
+                    _ => LapceColor::LAPCE_WARN,
+                };
+                let color = *config.get_color(color_name);
+                extra_style.push(LineExtraStyle {
+                    x: x0,
+                    width: Some(x1 - x0),
+                    bg_color: None,
+                    under_line: None,
+                    wave_line: Some(color),
+                });
+            }
+        }
+
+        TextLayoutLine {
+            text: text_layout,
+            extra_style,
+            whitespaces: None,
+            indent: 0.0,
+        }
+    }
+
+    /// Get the text layout for the given line.  
+    /// If the text layout is not cached, it will be created and cached.
+    pub fn get_text_layout(
+        &self,
+        line: usize,
+        font_size: usize,
+    ) -> Arc<TextLayoutLine> {
+        // TODO: Should we just move the config cache check into `check_cache`?
+        let config = self.config.get_untracked();
+        // Check if the text layout needs to update due to the config being changed
+        self.text_layouts.borrow_mut().check_attributes(config.id);
+        // If we don't have a second layer of the hashmap initialized for this specific font size,
+        // do it now
+        if self.text_layouts.borrow().layouts.get(&font_size).is_none() {
+            let mut cache = self.text_layouts.borrow_mut();
+            cache.layouts.insert(font_size, HashMap::new());
+        }
+
+        // Get whether there's an entry for this specific font size and line
+        let cache_exists = self
+            .text_layouts
+            .borrow()
+            .layouts
+            .get(&font_size)
+            .unwrap()
+            .get(&line)
+            .is_some();
+        // If there isn't an entry then we actually have to create it
+        if !cache_exists {
+            let text_layout = Arc::new(self.new_text_layout(line, font_size));
+            let mut cache = self.text_layouts.borrow_mut();
+            let width = text_layout.text.size().width;
+            if width > cache.max_width {
+                cache.max_width = width;
+            }
+            cache
+                .layouts
+                .get_mut(&font_size)
+                .unwrap()
+                .insert(line, text_layout);
+        }
+
+        // Just get the entry, assuming it has been created because we initialize it above.
+        self.text_layouts
+            .borrow()
+            .layouts
+            .get(&font_size)
+            .unwrap()
+            .get(&line)
+            .cloned()
+            .unwrap()
+    }
+
+    pub fn indent_unit(&self) -> &'static str {
+        self.doc.with_untracked(|doc| doc.buffer().indent_unit())
+    }
+
+    // ==== Position Information ====
+
+    /// The number of visual lines in the document.
+    pub fn num_lines(&self) -> usize {
+        self.doc.with_untracked(|doc| doc.buffer().num_lines())
+    }
+
+    /// The last allowed line in the document.
+    pub fn last_line(&self) -> usize {
+        self.doc.with_untracked(|doc| doc.buffer().last_line())
+    }
+
+    // ==== Line/Column Positioning ====
+
+    /// Convert an offset into the buffer into a line and column.
+    pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
+        self.doc
+            .with_untracked(|doc| doc.buffer().offset_to_line_col(offset))
+    }
+
+    pub fn offset_of_line(&self, offset: usize) -> usize {
+        self.doc
+            .with_untracked(|doc| doc.buffer().offset_of_line(offset))
+    }
+
+    pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
+        self.doc
+            .with_untracked(|doc| doc.buffer().offset_of_line_col(line, col))
+    }
+
+    pub fn line_of_offset(&self, offset: usize) -> usize {
+        self.doc
+            .with_untracked(|doc| doc.buffer().line_of_offset(offset))
+    }
+
+    /// Returns the offset into the buffer of the first non blank character on the given line.
+    pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
+        self.doc.with_untracked(|doc| {
+            doc.buffer().first_non_blank_character_on_line(line)
+        })
+    }
+
+    pub fn line_end_col(&self, line: usize, caret: bool) -> usize {
+        self.doc
+            .with_untracked(|doc| doc.buffer().line_end_col(line, caret))
+    }
+
+    pub fn select_word(&self, offset: usize) -> (usize, usize) {
+        self.doc
+            .with_untracked(|doc| doc.buffer().select_word(offset))
+    }
+
+    // ==== Points of locations ====
+
+    /// Returns the point into the text layout of the line at the given offset.
+    /// `x` being the leading edge of the character, and `y` being the baseline.
+    pub fn line_point_of_offset(&self, offset: usize, font_size: usize) -> Point {
+        let (line, col) = self.offset_to_line_col(offset);
+        self.line_point_of_line_col(line, col, font_size)
+    }
+
+    /// Returns the point into the text layout of the line at the given line and column.
+    /// `x` being the leading edge of the character, and `y` being the baseline.
+    pub fn line_point_of_line_col(
+        &self,
+        line: usize,
+        col: usize,
+        font_size: usize,
+    ) -> Point {
+        let text_layout = self.get_text_layout(line, font_size);
+        text_layout.text.hit_position(col).point
+    }
+
+    /// Get the (point above, point below) of a particular offset within the editor.
+    pub fn points_of_offset(&self, offset: usize) -> (Point, Point) {
+        let (line, col) = self.offset_to_line_col(offset);
+        self.points_of_line_col(line, col)
+    }
+
+    /// Get the (point above, point below) of a particular (line, col) within the editor.
+    pub fn points_of_line_col(&self, line: usize, col: usize) -> (Point, Point) {
+        let config = self.config.get_untracked();
+        let (y, line_height, font_size) = (
+            config.editor.line_height() * line,
+            config.editor.line_height(),
+            config.editor.font_size(),
+        );
+
+        let line = line.min(self.last_line());
+
+        let phantom_text = self.line_phantom_text(line);
+        let col = phantom_text.col_after(col, false);
+
+        let mut x_shift = 0.0;
+        if font_size < config.editor.font_size() {
+            let mut col = 0usize;
+            self.doc.with_untracked(|doc| {
+                let line_content = doc.buffer().line_content(line);
+                for ch in line_content.chars() {
+                    if ch == ' ' || ch == '\t' {
+                        col += 1;
+                    } else {
+                        break;
+                    }
+                }
+            });
+
+            if col > 0 {
+                let normal_text_layout =
+                    self.get_text_layout(line, config.editor.font_size());
+                let small_text_layout = self.get_text_layout(line, font_size);
+                x_shift = normal_text_layout.text.hit_position(col).point.x
+                    - small_text_layout.text.hit_position(col).point.x;
+            }
+        }
+
+        let x = self.line_point_of_line_col(line, col, font_size).x + x_shift;
+        (
+            Point::new(x, y as f64),
+            Point::new(x, (y + line_height) as f64),
+        )
+    }
+
+    /// Get the offset of a particular point within the editor.  
+    /// The boolean indicates whether the point is inside the text or not
+    /// Points outside of vertical bounds will return the last line.
+    /// Points outside of horizontal bounds will return the last column on the line.
+    pub fn offset_of_point(&self, mode: Mode, point: Point) -> (usize, bool) {
+        let ((line, col), is_inside) = self.line_col_of_point(mode, point);
+        (self.offset_of_line_col(line, col), is_inside)
+    }
+
+    /// Get the (line, col) of a particular point within the editor.
+    /// The boolean indicates whether the point is within the text bounds.  
+    /// Points outside of vertical bounds will return the last line.
+    /// Points outside of horizontal bounds will return the last column on the line.
+    pub fn line_col_of_point(
+        &self,
+        mode: Mode,
+        point: Point,
+    ) -> ((usize, usize), bool) {
+        let config = self.config.get_untracked();
+
+        let line = (point.y / config.editor.line_height() as f64).floor() as usize;
+        let line = line.min(self.last_line());
+        let font_size = config.editor.font_size();
+        let text_layout = self.get_text_layout(line, font_size);
+        let hit_point = text_layout.text.hit_point(Point::new(point.x, 0.0));
+        // We have to unapply the phantom text shifting in order to get back to the column in
+        // the actual buffer
+        let phantom_text = self.line_phantom_text(line);
+        let col = phantom_text.before_col(hit_point.index);
+        // Ensure that the column doesn't end up out of bounds, so things like clicking on the far
+        // right end will just go to the end of the line.
+        let max_col = self.line_end_col(line, mode != Mode::Normal);
+        let mut col = col.min(max_col);
+
+        if config.editor.atomic_soft_tabs && config.editor.tab_width > 1 {
+            col = snap_to_soft_tab_line_col(
+                &self.text(),
+                line,
+                col,
+                SnapDirection::Nearest,
+                config.editor.tab_width,
+            );
+        }
+
+        ((line, col), hit_point.is_inside)
+    }
+
+    pub fn line_horiz_col(
+        &self,
+        line: usize,
+        font_size: usize,
+        horiz: &ColPosition,
+        caret: bool,
+    ) -> usize {
+        match *horiz {
+            ColPosition::Col(x) => {
+                let text_layout = self.get_text_layout(line, font_size);
+                let hit_point = text_layout.text.hit_point(Point::new(x, 0.0));
+                let n = hit_point.index;
+
+                n.min(self.line_end_col(line, caret))
+            }
+            ColPosition::End => self.line_end_col(line, caret),
+            ColPosition::Start => 0,
+            ColPosition::FirstNonBlank => {
+                self.first_non_blank_character_on_line(line)
+            }
+        }
+    }
+
+    /// Advance to the right in the manner of the given mode.  
+    /// This is not the same as the [`Movement::Right`] command.
+    pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
+        self.doc
+            .with_untracked(|doc| doc.buffer().move_right(offset, mode, count))
+    }
+
+    /// Advance to the left in the manner of the given mode.
+    /// This is not the same as the [`Movement::Left`] command.
+    pub fn move_left(&self, offset: usize, mode: Mode, count: usize) -> usize {
+        self.doc
+            .with_untracked(|doc| doc.buffer().move_left(offset, mode, count))
+    }
+
+    /// Find the next/previous offset of the match of the given character.
+    /// This is intended for use by the [`Movement::NextUnmatched`] and
+    /// [`Movement::PreviousUnmatched`] commands.
+    pub fn find_unmatched(&self, offset: usize, previous: bool, ch: char) -> usize {
+        // This needs the doc's syntax, but it isn't cheap to clone
+        // so this has to be a method on view for now.
+        self.doc.with_untracked(|doc| {
+            if let Some(syntax) = doc.syntax() {
+                syntax
+                    .find_tag(offset, previous, &CharBuffer::from(ch))
+                    .unwrap_or(offset)
+            } else {
+                let text = self.text();
+                let mut cursor = WordCursor::new(&text, offset);
+                let new_offset = if previous {
+                    cursor.previous_unmatched(ch)
+                } else {
+                    cursor.next_unmatched(ch)
+                };
+
+                new_offset.unwrap_or(offset)
+            }
+        })
+    }
+
+    /// Find the offset of the matching pair character.  
+    /// This is intended for use by the [`Movement::MatchPairs`] command.
+    pub fn find_matching_pair(&self, offset: usize) -> usize {
+        // This needs the doc's syntax, but it isn't cheap to clone
+        // so this has to be a method on view for now.
+        self.doc.with_untracked(|doc| {
+            if let Some(syntax) = doc.syntax() {
+                syntax.find_matching_pair(offset).unwrap_or(offset)
+            } else {
+                WordCursor::new(&self.text(), offset)
+                    .match_pairs()
+                    .unwrap_or(offset)
+            }
+        })
+    }
+}
+
+impl TextCacheListener for RefCell<TextLayoutCache> {
+    fn clear(&self) {
+        self.borrow_mut().clear();
+    }
 }
