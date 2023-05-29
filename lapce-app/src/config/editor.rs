@@ -190,4 +190,13 @@ impl EditorConfig {
             self.error_lens_font_size
         }
     }
+
+    /// Returns the tab width if atomic soft tabs are enabled.
+    pub fn atomic_soft_tab_width(&self) -> Option<usize> {
+        if self.atomic_soft_tabs {
+            Some(self.tab_width)
+        } else {
+            None
+        }
+    }
 }

@@ -830,7 +830,7 @@ impl PaletteData {
                         None => return,
                     };
                     self.preview_editor.update(|preview_editor| {
-                        preview_editor.doc = doc;
+                        preview_editor.update_doc(doc);
                     });
                     self.preview_editor.get_untracked().go_to_location(
                         cx,
@@ -853,7 +853,7 @@ impl PaletteData {
                     let (doc, new_doc) =
                         self.main_split.get_doc(cx, location.path.clone());
                     self.preview_editor.update(|preview_editor| {
-                        preview_editor.doc = doc;
+                        preview_editor.update_doc(doc);
                     });
                     self.preview_editor.get_untracked().go_to_location(
                         cx,
@@ -877,7 +877,7 @@ impl PaletteData {
                         None => return,
                     };
                     self.preview_editor.update(|preview_editor| {
-                        preview_editor.doc = doc;
+                        preview_editor.update_doc(doc);
                     });
                     self.preview_editor.get_untracked().go_to_location(
                         cx,
@@ -897,7 +897,7 @@ impl PaletteData {
                     let (doc, new_doc) =
                         self.main_split.get_doc(cx, location.path.clone());
                     self.preview_editor.update(|preview_editor| {
-                        preview_editor.doc = doc;
+                        preview_editor.update_doc(doc);
                     });
                     let editor = self.preview_editor.get_untracked();
                     editor.go_to_location(cx, location.clone(), new_doc, None);

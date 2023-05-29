@@ -1,4 +1,4 @@
-use crate::buffer::Buffer;
+use lapce_xi_rope::Rope;
 
 /// The direction to snap. Left is used when moving left, Right when moving right.
 /// Nearest is used for mouse selection.
@@ -11,21 +11,21 @@ pub enum SnapDirection {
 /// If the cursor is inside a soft tab at the start of the line, snap it to the
 /// nearest, left or right edge. This version takes an offset and returns an offset.
 pub fn snap_to_soft_tab(
-    buffer: &Buffer,
+    text: &Rope,
     offset: usize,
     direction: SnapDirection,
     tab_width: usize,
 ) -> usize {
     // Fine which line we're on.
-    let line = buffer.line_of_offset(offset);
+    let line = text.line_of_offset(offset);
     // Get the offset to the start of the line.
-    let start_line_offset = buffer.offset_of_line(line);
+    let start_line_offset = text.offset_of_line(line);
     // And the offset within the lint.
     let offset_within_line = offset - start_line_offset;
 
     start_line_offset
         + snap_to_soft_tab_logic(
-            buffer,
+            text,
             offset_within_line,
             start_line_offset,
             direction,
@@ -36,16 +36,16 @@ pub fn snap_to_soft_tab(
 /// If the cursor is inside a soft tab at the start of the line, snap it to the
 /// nearest, left or right edge. This version takes a line/column and returns a column.
 pub fn snap_to_soft_tab_line_col(
-    buffer: &Buffer,
+    text: &Rope,
     line: usize,
     col: usize,
     direction: SnapDirection,
     tab_width: usize,
 ) -> usize {
     // Get the offset to the start of the line.
-    let start_line_offset = buffer.offset_of_line(line);
+    let start_line_offset = text.offset_of_line(line);
 
-    snap_to_soft_tab_logic(buffer, col, start_line_offset, direction, tab_width)
+    snap_to_soft_tab_logic(text, col, start_line_offset, direction, tab_width)
 }
 
 /// Internal shared logic that performs the actual snapping. It can be passed
@@ -53,7 +53,7 @@ pub fn snap_to_soft_tab_line_col(
 /// difference which is used (since they're equal for spaces).
 /// It returns the column or offset within the line (depending on what you passed in).
 fn snap_to_soft_tab_logic(
-    buffer: &Buffer,
+    text: &Rope,
     offset_or_col: usize,
     start_line_offset: usize,
     direction: SnapDirection,
@@ -63,7 +63,7 @@ fn snap_to_soft_tab_logic(
 
     // Number of spaces, ignoring incomplete soft tabs.
     let space_count =
-        (count_spaces_from(buffer, start_line_offset) / tab_width) * tab_width;
+        (count_spaces_from(text, start_line_offset) / tab_width) * tab_width;
 
     // If we're past the soft tabs, we don't need to snap.
     if offset_or_col >= space_count {
@@ -80,8 +80,8 @@ fn snap_to_soft_tab_logic(
 }
 
 /// Count the number of spaces found after a certain offset.
-fn count_spaces_from(buffer: &Buffer, from_offset: usize) -> usize {
-    let mut cursor = lapce_xi_rope::Cursor::new(buffer.text(), from_offset);
+fn count_spaces_from(text: &Rope, from_offset: usize) -> usize {
+    let mut cursor = lapce_xi_rope::Cursor::new(text, from_offset);
     let mut space_count = 0usize;
     while let Some(next) = cursor.next_codepoint() {
         if next != ' ' {
@@ -98,24 +98,23 @@ mod tests {
 
     #[test]
     fn test_count_spaces_from() {
-        let buffer = Buffer::new("     abc\n   def\nghi\n");
-        assert_eq!(count_spaces_from(&buffer, 0), 5);
-        assert_eq!(count_spaces_from(&buffer, 1), 4);
-        assert_eq!(count_spaces_from(&buffer, 5), 0);
-        assert_eq!(count_spaces_from(&buffer, 6), 0);
+        let text = Rope::from("     abc\n   def\nghi\n");
+        assert_eq!(count_spaces_from(&text, 0), 5);
+        assert_eq!(count_spaces_from(&text, 1), 4);
+        assert_eq!(count_spaces_from(&text, 5), 0);
+        assert_eq!(count_spaces_from(&text, 6), 0);
 
-        assert_eq!(count_spaces_from(&buffer, 8), 0);
-        assert_eq!(count_spaces_from(&buffer, 9), 3);
-        assert_eq!(count_spaces_from(&buffer, 10), 2);
+        assert_eq!(count_spaces_from(&text, 8), 0);
+        assert_eq!(count_spaces_from(&text, 9), 3);
+        assert_eq!(count_spaces_from(&text, 10), 2);
 
-        assert_eq!(count_spaces_from(&buffer, 16), 0);
-        assert_eq!(count_spaces_from(&buffer, 17), 0);
+        assert_eq!(count_spaces_from(&text, 16), 0);
+        assert_eq!(count_spaces_from(&text, 17), 0);
     }
 
     #[test]
     fn test_snap_to_soft_tab() {
-        let buffer =
-            Buffer::new("          abc\n      def\n    ghi\nklm\n        opq");
+        let text = Rope::from("          abc\n      def\n    ghi\nklm\n        opq");
 
         let tab_width = 4;
 
@@ -147,17 +146,12 @@ mod tests {
 
         for test_case in test_cases {
             assert_eq!(
-                snap_to_soft_tab(
-                    &buffer,
-                    test_case.0,
-                    SnapDirection::Left,
-                    tab_width
-                ),
+                snap_to_soft_tab(&text, test_case.0, SnapDirection::Left, tab_width),
                 test_case.1
             );
             assert_eq!(
                 snap_to_soft_tab(
-                    &buffer,
+                    &text,
                     test_case.0,
                     SnapDirection::Nearest,
                     tab_width
@@ -166,7 +160,7 @@ mod tests {
             );
             assert_eq!(
                 snap_to_soft_tab(
-                    &buffer,
+                    &text,
                     test_case.0,
                     SnapDirection::Right,
                     tab_width
@@ -178,8 +172,7 @@ mod tests {
 
     #[test]
     fn test_snap_to_soft_tab_line_col() {
-        let buffer =
-            Buffer::new("          abc\n      def\n    ghi\nklm\n        opq");
+        let text = Rope::from("          abc\n      def\n    ghi\nklm\n        opq");
 
         let tab_width = 4;
 
@@ -222,7 +215,7 @@ mod tests {
         for test_case in test_cases {
             assert_eq!(
                 snap_to_soft_tab_line_col(
-                    &buffer,
+                    &text,
                     test_case.0,
                     test_case.1,
                     SnapDirection::Left,
@@ -232,7 +225,7 @@ mod tests {
             );
             assert_eq!(
                 snap_to_soft_tab_line_col(
-                    &buffer,
+                    &text,
                     test_case.0,
                     test_case.1,
                     SnapDirection::Nearest,
@@ -242,7 +235,7 @@ mod tests {
             );
             assert_eq!(
                 snap_to_soft_tab_line_col(
-                    &buffer,
+                    &text,
                     test_case.0,
                     test_case.1,
                     SnapDirection::Right,
