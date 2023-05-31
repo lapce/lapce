@@ -378,8 +378,8 @@ impl SearchContent {
 }
 
 impl Default for SearchContent {
-    fn default() -> Self {
-        Self::new()
+    fn default() -> SearchContent {
+        SearchContent::new()
     }
 }
 

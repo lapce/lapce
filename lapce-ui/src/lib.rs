@@ -15,6 +15,7 @@ pub mod ime;
 pub mod keymap;
 pub mod list;
 mod logging;
+pub mod lsp_stdio;
 pub mod message;
 pub mod palette;
 pub mod panel;

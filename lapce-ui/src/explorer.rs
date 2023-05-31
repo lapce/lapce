@@ -367,11 +367,10 @@ impl FileExplorer {
     }
 
     pub fn new_panel(data: &mut LapceTabData) -> LapcePanel {
-        let split_id = WidgetId::next();
         LapcePanel::new(
             PanelKind::FileExplorer,
             data.file_explorer.widget_id,
-            split_id,
+            WidgetId::next(),
             vec![
                 (
                     WidgetId::next(),
@@ -380,7 +379,7 @@ impl FileExplorer {
                     PanelSizing::Size(200.0),
                 ),
                 (
-                    split_id,
+                    WidgetId::next(),
                     PanelHeaderKind::Simple(
                         data.workspace
                             .path
@@ -391,7 +390,7 @@ impl FileExplorer {
                             .unwrap_or_else(|| "No Folder Open".to_string())
                             .into(),
                     ),
-                    Self::new(data).boxed(),
+                    FileExplorer::new(data).boxed(),
                     PanelSizing::Flex(true),
                 ),
             ],

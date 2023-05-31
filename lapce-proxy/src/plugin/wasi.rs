@@ -13,7 +13,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
-use jsonrpc_lite::{Id, Params};
+use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::directory::Directory;
 use lapce_rpc::{
     plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
@@ -441,16 +441,40 @@ pub fn start_volt(
     let (io_tx, io_rx) = crossbeam_channel::unbounded();
     let rpc = PluginServerRpcHandler::new(meta.id(), io_tx);
 
-    let local_rpc = rpc.clone();
+    let local_server_rpc = rpc.clone();
     let local_stdin = stdin.clone();
+    let local_core_rpc = plugin_rpc.core_rpc.clone();
+    let local_display_name = meta.display_name.clone();
     linker.func_wrap("lapce", "host_handle_rpc", move || {
-        if let Ok(msg) = wasi_read_string(&stdout) {
-            if let Some(resp) = handle_plugin_server_message(&local_rpc, &msg) {
-                if let Ok(msg) = serde_json::to_string(&resp) {
-                    let _ = writeln!(local_stdin.write().unwrap(), "{msg}");
+        match wasi_read_string(&stdout).ok() {
+            Some(msg) => match JsonRpc::parse(&msg) {
+                Ok(req) => {
+                    local_core_rpc
+                        .publish_lsp_stdio(None, serde_json::to_value(&req).ok());
+
+                    if let Some(resp) =
+                        handle_plugin_server_message(&local_server_rpc, &req)
+                    {
+                        if let Ok(msg) = serde_json::to_string(&resp) {
+                            let _ = writeln!(local_stdin.write().unwrap(), "{msg}");
+                        }
+                    }
                 }
+                Err(err) => {
+                    local_core_rpc.log(
+                        log::Level::Debug,
+                        format!("received bad JSON-RPC stdout from PSP server '{local_display_name}' because '{err}'"),
+                    );
+                }
+            },
+            None => {
+                local_core_rpc.log(
+                    log::Level::Debug,
+                    format!("PSP server '{local_display_name}' stopped!"),
+                );
+                return;
             }
-        }
+        };
     })?;
     linker.func_wrap("lapce", "host_handle_stderr", move || {
         if let Ok(msg) = wasi_read_string(&stderr) {
@@ -461,10 +485,7 @@ pub fn start_volt(
     thread::spawn(move || {
         let instance = linker.instantiate(&mut store, &module).unwrap();
         let handle_rpc = instance
-            .get_func(&mut store, "handle_rpc")
-            .ok_or_else(|| anyhow!("can't convet to function"))
-            .unwrap()
-            .typed::<(), (), _>(&mut store)
+            .get_typed_func::<(), (), _>(&mut store, "handle_rpc")
             .unwrap();
         for msg in io_rx {
             if let Ok(msg) = serde_json::to_string(&msg) {

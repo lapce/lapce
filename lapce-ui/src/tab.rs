@@ -49,9 +49,9 @@ use lsp_types::DiagnosticSeverity;
 use crate::{
     about::AboutBox, alert::AlertBox, completion::CompletionContainer,
     editor::view::LapceEditorView, explorer::FileExplorer, hover::HoverContainer,
-    message::LapceMessage, panel::PanelContainer, picker::FilePicker,
-    plugin::Plugin, problem::new_problem_panel, scroll::LapceScroll,
-    search::new_search_panel, signature::SignatureContainer,
+    lsp_stdio::new_output_panel, message::LapceMessage, panel::PanelContainer,
+    picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
+    scroll::LapceScroll, search::new_search_panel, signature::SignatureContainer,
     source_control::new_source_control_panel, split::split_data_widget,
     status::LapceStatus, terminal::TerminalPanel, title::Title,
 };
@@ -188,6 +188,12 @@ impl LapceTab {
                         panel.insert_panel(
                             *kind,
                             WidgetPod::new(new_problem_panel(&data.problem).boxed()),
+                        );
+                    }
+                    PanelKind::LspStdio => {
+                        panel.insert_panel(
+                            *kind,
+                            WidgetPod::new(new_output_panel(&data).boxed()),
                         );
                     }
                 }
@@ -861,6 +867,15 @@ impl LapceTab {
                                     }
                                 }),
                             )
+                        }
+                    }
+                    LapceUICommand::PublishLspStdio { stdin, stdout } => {
+                        let stdio = Arc::make_mut(&mut data.lsp_stdio);
+                        if let Some(stdin) = stdin {
+                            stdio.lsp_request.push_back(stdin.clone());
+                        }
+                        if let Some(stdout) = stdout {
+                            stdio.lsp_response.push_back(stdout.clone());
                         }
                     }
                     LapceUICommand::OpenPluginInfo(volt) => {

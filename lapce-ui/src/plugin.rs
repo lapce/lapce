@@ -63,11 +63,10 @@ impl Plugin {
     }
 
     pub fn new_panel(data: &LapceTabData) -> LapcePanel {
-        let split_id = WidgetId::next();
         LapcePanel::new(
             PanelKind::Plugin,
             data.plugin.widget_id,
-            split_id,
+            WidgetId::next(),
             vec![
                 (
                     data.plugin.installed_id,

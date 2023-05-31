@@ -1062,6 +1062,7 @@ impl PanelSwitcher {
             PanelKind::Terminal => LapceWorkbenchCommand::ToggleTerminalVisual,
             PanelKind::Search => LapceWorkbenchCommand::ToggleSearchVisual,
             PanelKind::Problem => LapceWorkbenchCommand::ToggleProblemVisual,
+            PanelKind::LspStdio => LapceWorkbenchCommand::ToggleLspStdioVisual,
         };
         (
             *kind,

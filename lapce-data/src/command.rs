@@ -407,6 +407,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "toggle_problem_focus")]
     ToggleProblemFocus,
 
+    #[strum(message = "Toggle Output Focus")]
+    #[strum(serialize = "toggle_output_focus")]
+    ToggleLspStdioFocus,
+
     #[strum(message = "Toggle Search Focus")]
     #[strum(serialize = "toggle_search_focus")]
     ToggleSearchFocus,
@@ -426,6 +430,9 @@ pub enum LapceWorkbenchCommand {
 
     #[strum(serialize = "toggle_problem_visual")]
     ToggleProblemVisual,
+
+    #[strum(serialize = "toggle_output_visual")]
+    ToggleLspStdioVisual,
 
     #[strum(serialize = "toggle_search_visual")]
     ToggleSearchVisual,
@@ -575,6 +582,10 @@ pub enum LapceUICommand {
         // If present, will update the case-sensitivity
         Option<bool>,
     ),
+    PublishLspStdio {
+        stdin: Option<Value>,
+        stdout: Option<Value>,
+    },
     /// Informs the editor of the results from the global search, this is caused by the
     /// `UpdateSearch{,WithCaseSensitivity}` commands
     GlobalSearchResult(String, Arc<IndexMap<PathBuf, Vec<Match>>>),

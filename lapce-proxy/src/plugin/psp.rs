@@ -470,10 +470,10 @@ impl PluginServerRpcHandler {
 
 pub fn handle_plugin_server_message(
     server_rpc: &PluginServerRpcHandler,
-    message: &str,
+    message: &JsonRpc,
 ) -> Option<JsonRpc> {
-    match JsonRpc::parse(message) {
-        Ok(value @ JsonRpc::Request(_)) => {
+    match message {
+        value @ JsonRpc::Request(_) => {
             let (tx, rx) = crossbeam_channel::bounded(1);
             let id = value.get_id().unwrap();
             let rpc = PluginServerRpc::HostRequest {
@@ -497,7 +497,7 @@ pub fn handle_plugin_server_message(
             };
             Some(resp)
         }
-        Ok(value @ JsonRpc::Notification(_)) => {
+        value @ JsonRpc::Notification(_) => {
             let rpc = PluginServerRpc::HostNotification {
                 method: value.get_method().unwrap().to_string(),
                 params: value.get_params().unwrap(),
@@ -505,12 +505,12 @@ pub fn handle_plugin_server_message(
             server_rpc.handle_rpc(rpc);
             None
         }
-        Ok(value @ JsonRpc::Success(_)) => {
+        value @ JsonRpc::Success(_) => {
             let result = value.get_result().unwrap().clone();
             server_rpc.handle_server_response(value.get_id().unwrap(), Ok(result));
             None
         }
-        Ok(value @ JsonRpc::Error(_)) => {
+        value @ JsonRpc::Error(_) => {
             let error = value.get_error().unwrap();
             server_rpc.handle_server_response(
                 value.get_id().unwrap(),
@@ -519,10 +519,6 @@ pub fn handle_plugin_server_message(
                     message: error.message.clone(),
                 }),
             );
-            None
-        }
-        Err(err) => {
-            eprintln!("parse error {err} message {message}");
             None
         }
     }
