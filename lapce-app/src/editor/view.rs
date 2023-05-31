@@ -12,8 +12,8 @@ use floem::{
     },
     reactive::{
         create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal,
-        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalUpdateUntracked, SignalWith, SignalWithUntracked,
+        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        SignalWithUntracked,
     },
     style::{ComputedStyle, CursorStyle, Style},
     taffy::prelude::Node,
@@ -67,7 +67,7 @@ pub struct EditorView {
     sticky_header_info: StickyHeaderInfo,
 }
 
-pub fn editor_content_view(
+pub fn editor_view(
     editor: RwSignal<EditorData>,
     is_active: impl Fn() -> bool + 'static + Copy,
 ) -> EditorView {
@@ -527,13 +527,13 @@ impl View for EditorView {
             }
             let inner_node = self.inner_node.unwrap();
 
-            let (doc, config) = self
-                .editor
-                .with_untracked(|editor| (editor.doc, editor.common.config));
+            let (doc, view, config) = self.editor.with_untracked(|editor| {
+                (editor.doc, editor.view.clone(), editor.common.config)
+            });
             let config = config.get_untracked();
             let line_height = config.editor.line_height() as f64;
             let (width, height) = doc.with_untracked(|doc| {
-                let width = doc.max_width.get_untracked();
+                let width = view.text_layouts.borrow().max_width;
                 let height = line_height * doc.buffer().num_lines() as f64;
                 (width as f32, height as f32)
             });
@@ -549,11 +549,12 @@ impl View for EditorView {
         })
     }
 
-    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) {
+    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) -> Option<Rect> {
         let viewport = cx.current_viewport().unwrap_or_default();
         if self.viewport.with_untracked(|v| v != &viewport) {
             self.viewport.set(viewport);
         }
+        None
     }
 
     fn event(
@@ -878,7 +879,7 @@ fn insert_cursor(
     renders
 }
 
-pub fn editor_view(
+pub fn editor_container_view(
     main_split: MainSplitData,
     workspace: Arc<LapceWorkspace>,
     is_active: impl Fn() -> bool + 'static + Copy,
@@ -1030,7 +1031,7 @@ fn editor_gutter(
                         let editor = editor.get();
                         current_line.get();
                         editor.view.track_doc();
-                        editor.view.clone()
+                        editor.view
                     },
                     move |line: &DocLine| (line.line, current_line.get_untracked()),
                     move |line: DocLine| {
@@ -1287,20 +1288,18 @@ fn editor_content(
     });
 
     scroll(|| {
-        let editor_content_view =
-            editor_content_view(editor, is_active).style(move || {
-                let config = config.get();
-                let padding_bottom = if config.editor.scroll_beyond_last_line {
-                    viewport.get().height() as f32
-                        - config.editor.line_height() as f32
-                } else {
-                    0.0
-                };
-                Style::BASE
-                    .padding_bottom_px(padding_bottom)
-                    .cursor(CursorStyle::Text)
-                    .min_size_pct(100.0, 100.0)
-            });
+        let editor_content_view = editor_view(editor, is_active).style(move || {
+            let config = config.get();
+            let padding_bottom = if config.editor.scroll_beyond_last_line {
+                viewport.get().height() as f32 - config.editor.line_height() as f32
+            } else {
+                0.0
+            };
+            Style::BASE
+                .padding_bottom_px(padding_bottom)
+                .cursor(CursorStyle::Text)
+                .min_size_pct(100.0, 100.0)
+        });
         let id = editor_content_view.id();
         editor_content_view
             .on_event(EventListner::PointerDown, move |event| {
@@ -1465,11 +1464,6 @@ fn replace_editor_view(
     is_active: impl Fn() -> bool + 'static + Copy,
     find_focus: RwSignal<bool>,
 ) -> impl View {
-    let cx = AppContext::get_current();
-    let cursor_x = create_rw_signal(cx.scope, 0.0);
-
-    let doc = replace_editor.doc;
-    let cursor = replace_editor.cursor;
     let config = replace_editor.common.config;
     let visual = replace_editor.common.find.visual;
 
@@ -1700,6 +1694,7 @@ impl TextLayoutCache {
 
     fn clear(&mut self) {
         self.layouts.clear();
+        self.max_width = 0.0;
     }
 
     pub fn check_attributes(&mut self, config_id: u64) {
@@ -1753,6 +1748,7 @@ pub struct EditorViewData {
 
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
+
 impl EditorViewData {
     pub fn new(
         doc: RwSignal<Document>,
@@ -1765,7 +1761,7 @@ impl EditorViewData {
         };
 
         let listener = view.text_layouts.clone();
-        doc.update(|doc| {
+        doc.with_untracked(|doc| {
             doc.add_text_cache_listener(listener);
         });
 
@@ -1824,7 +1820,7 @@ impl EditorViewData {
         // Just recreate the view. This is simpler than trying to reuse the text layout cache in the cases where it is possible.
         *self = Self::new(doc, self.config);
 
-        old_doc.update_untracked(|doc| {
+        old_doc.with_untracked(|doc| {
             doc.clean_text_cache_listeners();
         });
     }

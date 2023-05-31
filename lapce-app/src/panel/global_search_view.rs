@@ -2,10 +2,8 @@ use std::{path::PathBuf, sync::Arc};
 
 use floem::{
     event::EventListner,
-    peniko::kurbo::{Point, Size},
     reactive::{
-        create_rw_signal, ReadSignal, RwSignal, SignalGet, SignalGetUntracked,
-        SignalSet, SignalUpdate,
+        ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
     },
     style::{CursorStyle, Style},
     view::View,
@@ -13,7 +11,6 @@ use floem::{
         container, label, scroll, stack, svg, virtual_list, Decorators,
         VirtualListDirection, VirtualListItemSize,
     },
-    AppContext,
 };
 use lapce_xi_rope::find::CaseMatching;
 
@@ -37,17 +34,12 @@ pub fn global_search_panel(
 ) -> impl View {
     let global_search = window_tab_data.global_search.clone();
     let editor = global_search.editor.clone();
-    let doc = global_search.editor.doc;
-    let cursor = global_search.editor.cursor;
     let config = global_search.common.config;
     let workspace = global_search.common.workspace.clone();
     let internal_command = global_search.common.internal_command;
     let case_matching = global_search.common.find.case_matching;
     let whole_word = global_search.common.find.whole_words;
     let is_regex = global_search.common.find.is_regex;
-
-    let cx = AppContext::get_current();
-    let cursor_x = create_rw_signal(cx.scope, 0.0);
 
     let focus = global_search.common.focus;
     let is_focused = move || focus.get() == Focus::Panel(PanelKind::Search);

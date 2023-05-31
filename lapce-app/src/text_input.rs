@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use floem::{
-    context::{AppState, EventCx},
+    context::EventCx,
     cosmic_text::{
         Attrs, AttrsList, FamilyOwned, LineHeightValue, Style as FontStyle,
         TextLayout, Weight,
@@ -14,9 +14,8 @@ use floem::{
         Color,
     },
     reactive::{
-        create_effect, create_rw_signal, ReadSignal, RwSignal, SignalGet,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked,
+        create_effect, ReadSignal, RwSignal, SignalGetUntracked, SignalSet,
+        SignalUpdate, SignalWith, SignalWithUntracked,
     },
     style::{ComputedStyle, CursorStyle, Style},
     taffy::{self, prelude::Node},
@@ -54,7 +53,7 @@ pub fn text_input(
 
     create_effect(cx.scope, move |_| {
         cursor.with(|_| ());
-        id.request_paint();
+        id.request_layout();
     });
 
     create_effect(cx.scope, move |_| {
@@ -92,7 +91,6 @@ pub fn text_input(
     })
     .on_event(EventListner::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
-            println!("text input key down");
             let mut press = keypress.get_untracked();
             let executed = press.key_down(key_event, &editor);
             keypress.set(press);
@@ -378,7 +376,7 @@ impl View for TextInput {
         })
     }
 
-    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) {
+    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) -> Option<Rect> {
         let layout = cx.get_layout(self.id).unwrap();
 
         let style = cx.get_computed_style(self.id);
@@ -408,6 +406,8 @@ impl View for TextInput {
         self.text_rect = text_rect;
 
         self.clamp_text_viewport(self.text_viewport);
+
+        None
     }
 
     fn event(

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use floem::reactive::{
-    create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalWith,
+    create_rw_signal, RwSignal, SignalGet, SignalGetUntracked, SignalWith,
     SignalWithUntracked,
 };
 

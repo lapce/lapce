@@ -9,7 +9,7 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::Result;
 use floem::{
     glazier::{KbKey, KeyEvent, Modifiers, MouseEvent},
-    reactive::{Scope, SignalSet, WriteSignal},
+    reactive::{SignalSet, WriteSignal},
 };
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;

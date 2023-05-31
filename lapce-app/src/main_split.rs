@@ -32,7 +32,6 @@ use crate::{
     editor_tab::{EditorTabChild, EditorTabData, EditorTabInfo},
     id::{EditorId, EditorTabId, SettingsId, SplitId},
     keypress::KeyPressData,
-    panel::position,
     window_tab::{CommonData, WindowTabData},
 };
 

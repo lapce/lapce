@@ -115,6 +115,15 @@ impl WindowData {
         window_data
     }
 
+    pub fn reload_config(&self) {
+        let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
+        self.config.set(Arc::new(config));
+        let window_tabs = self.window_tabs.get_untracked();
+        for (_, window_tab) in window_tabs {
+            window_tab.reload_config();
+        }
+    }
+
     pub fn run_window_command(&self, cmd: WindowCommand) {
         match cmd {
             WindowCommand::SetWorkspace { workspace } => {

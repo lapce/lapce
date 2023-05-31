@@ -69,7 +69,7 @@ pub enum Condition {
 
 #[cfg(test)]
 mod test {
-    use floem::{glazier::Modifiers, reactive::Scope};
+    use floem::glazier::Modifiers;
     use lapce_core::mode::Mode;
 
     use crate::keypress::{condition::CheckCondition, KeyPressData, KeyPressFocus};

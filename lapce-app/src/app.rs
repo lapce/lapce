@@ -4,14 +4,15 @@ use clap::Parser;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListner},
+    ext_event::create_signal_from_channel,
     peniko::{
         kurbo::{Point, Rect, Size},
         Color,
     },
     reactive::{
-        create_memo, create_rw_signal, provide_context, ReadSignal, RwSignal,
-        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked,
+        create_effect, create_memo, create_rw_signal, provide_context, ReadSignal,
+        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalWith, SignalWithUntracked,
     },
     style::{
         AlignItems, CursorStyle, Dimension, Display, FlexDirection, JustifyContent,
@@ -26,18 +27,21 @@ use floem::{
     window::WindowConfig,
     AppContext,
 };
-use lapce_core::{meta, mode::Mode};
+use lapce_core::{directory::Directory, meta, mode::Mode};
 use lsp_types::{CompletionItemKind, DiagnosticSeverity};
+use notify::Watcher;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     code_action::CodeActionStatus,
     command::{InternalCommand, WindowCommand},
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    config::{
+        color::LapceColor, icon::LapceIcons, watcher::ConfigWatcher, LapceConfig,
+    },
     db::LapceDb,
     debug::RunDebugMode,
     doc::DocContent,
-    editor::{location::EditorLocation, view::editor_view, EditorData},
+    editor::{location::EditorLocation, view::editor_container_view, EditorData},
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
@@ -75,6 +79,16 @@ pub struct AppInfo {
 pub struct AppData {
     pub windows: RwSignal<im::Vector<WindowData>>,
     pub window_scale: RwSignal<f64>,
+    pub watcher: Arc<notify::RecommendedWatcher>,
+}
+
+impl AppData {
+    pub fn reload_config(&self) {
+        let windows = self.windows.get_untracked();
+        for window in windows {
+            window.reload_config();
+        }
+    }
 }
 
 fn editor_tab_header(
@@ -428,7 +442,7 @@ fn editor_tab_content(
                         }
                     };
                     container_box(|| {
-                        Box::new(editor_view(
+                        Box::new(editor_container_view(
                             main_split.clone(),
                             workspace.clone(),
                             is_active,
@@ -1553,16 +1567,18 @@ fn palette_preview(palette_data: PaletteData) -> impl View {
     let config = palette_data.common.config;
     let main_split = palette_data.main_split;
     container(|| {
-        container(|| editor_view(main_split, workspace, || true, preview_editor))
-            .style(move || {
-                let config = config.get();
-                Style::BASE
-                    .position(Position::Absolute)
-                    .border_top(1.0)
-                    .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-                    .size_pct(100.0, 100.0)
-                    .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
-            })
+        container(|| {
+            editor_container_view(main_split, workspace, || true, preview_editor)
+        })
+        .style(move || {
+            let config = config.get();
+            Style::BASE
+                .position(Position::Absolute)
+                .border_top(1.0)
+                .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                .size_pct(100.0, 100.0)
+                .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+        })
     })
     .style(move || {
         Style::BASE
@@ -1860,32 +1876,17 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
     let active = window_tab_data.rename.active;
     let layout_rect = window_tab_data.rename.layout_rect;
     let config = window_tab_data.common.config;
-    let cx = AppContext::get_current();
-    let cursor_x = create_rw_signal(cx.scope, 0.0);
 
     container(|| {
         container(move || {
-            scroll(move || {
-                text_input(editor, move || active.get()).on_cursor_pos(
-                    move |point| {
-                        cursor_x.set(point.x);
-                    },
-                )
-            })
-            .hide_bar(|| true)
-            .on_ensure_visible(move || {
-                Size::new(20.0, 0.0)
-                    .to_rect()
-                    .with_origin(Point::new(cursor_x.get() - 10.0, 0.0))
-            })
-            .style(|| Style::BASE.width_px(150.0))
+            text_input(editor, move || active.get())
+                .style(|| Style::BASE.width_px(150.0))
         })
         .style(move || {
             let config = config.get();
             Style::BASE
                 .font_family(config.editor.font_family.clone())
                 .font_size(config.editor.font_size() as f32)
-                .padding_px(6.0)
                 .border(1.0)
                 .border_radius(6.0)
                 .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
@@ -2228,11 +2229,37 @@ pub fn launch() {
 
     app = create_windows(scope, db.clone(), app, paths, &mut windows, window_scale);
 
+    let (tx, rx) = crossbeam_channel::bounded(1);
+    let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx)).unwrap();
+    if let Some(path) = LapceConfig::settings_file() {
+        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+    }
+    if let Some(path) = Directory::themes_directory() {
+        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+    }
+    if let Some(path) = LapceConfig::keymaps_file() {
+        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+    }
+    if let Some(path) = Directory::plugins_directory() {
+        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+    }
+
     let windows = create_rw_signal(scope, windows);
     let app_data = AppData {
         windows,
         window_scale,
+        watcher: Arc::new(watcher),
     };
+
+    {
+        let app_data = app_data.clone();
+        let notification = create_signal_from_channel(scope, rx);
+        create_effect(scope, move |_| {
+            if notification.get().is_some() {
+                app_data.reload_config();
+            }
+        });
+    }
 
     app.on_event(move |event| match event {
         floem::AppEvent::WillTerminate => {

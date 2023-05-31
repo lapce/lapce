@@ -200,7 +200,7 @@ impl<'a> RopeText<'a> {
         } else {
             offset
         };
-        let mut cursor = Cursor::new(&self.text, offset);
+        let mut cursor = Cursor::new(self.text, offset);
         let mut new_offset = offset;
         for _i in 0..count {
             if let Some(next_offset) = cursor.next_grapheme() {

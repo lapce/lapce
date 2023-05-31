@@ -648,7 +648,7 @@ pub fn do_multi_selection(
                             config.editor.multicursor_case_sensitive
                                 || case_sensitive;
                         // let search_whole_word =
-                        config.editor.multicursor_whole_words;
+                        // config.editor.multicursor_whole_words;
                         find.set_case_sensitive(case_sensitive);
                         find.set_find(&search_str);
                         let mut offset = r.max();

@@ -103,6 +103,7 @@ pub struct WindowTabData {
     pub layout_rect: RwSignal<Rect>,
     pub proxy: ProxyData,
     pub window_scale: RwSignal<f64>,
+    pub set_config: WriteSignal<Arc<LapceConfig>>,
     pub common: CommonData,
 }
 
@@ -184,7 +185,7 @@ impl WindowTabData {
             config.plugins.clone(),
             term_tx.clone(),
         );
-        let (config, _set_config) = create_signal(cx, Arc::new(config));
+        let (config, set_config) = create_signal(cx, Arc::new(config));
 
         let focus = create_rw_signal(cx, Focus::Workbench);
         let completion = create_rw_signal(cx, CompletionData::new(cx, config));
@@ -317,6 +318,7 @@ impl WindowTabData {
             layout_rect: create_rw_signal(cx, Rect::ZERO),
             proxy,
             window_scale,
+            set_config,
             common,
         };
 
@@ -361,6 +363,20 @@ impl WindowTabData {
         }
 
         window_tab_data
+    }
+
+    pub fn reload_config(&self) {
+        let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+
+        let disabled_volts = db.get_disabled_volts().unwrap_or_default();
+        let workspace_disabled_volts = db
+            .get_workspace_disabled_volts(&self.workspace)
+            .unwrap_or_default();
+        let mut all_disabled_volts = disabled_volts;
+        all_disabled_volts.extend(workspace_disabled_volts);
+
+        let config = LapceConfig::load(&self.workspace, &all_disabled_volts);
+        self.set_config.set(Arc::new(config));
     }
 
     pub fn run_lapce_command(&self, cmd: LapceCommand) {

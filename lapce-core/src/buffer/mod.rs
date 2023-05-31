@@ -15,7 +15,7 @@ use lapce_xi_rope::{
     interval::IntervalBounds,
     multiset::{CountMatcher, Subset},
     tree::{Node, NodeInfo},
-    Cursor, Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta, RopeInfo,
+    Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta, RopeInfo,
 };
 use lsp_types::Position;
 
@@ -25,7 +25,6 @@ use crate::{
     editor::EditType,
     indent::{auto_detect_indent_style, IndentStyle},
     mode::Mode,
-    paragraph::ParagraphCursor,
     selection::Selection,
     syntax::{self, edit::SyntaxEdit, Syntax},
     word::WordCursor,

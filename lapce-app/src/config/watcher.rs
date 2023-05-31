@@ -41,3 +41,12 @@ impl notify::EventHandler for ConfigWatcher {
         }
     }
 }
+
+impl ConfigWatcher {
+    pub fn new(tx: Sender<()>) -> Self {
+        Self {
+            tx,
+            delay_handler: Arc::new(AtomicBool::new(false)),
+        }
+    }
+}

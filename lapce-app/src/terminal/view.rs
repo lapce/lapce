@@ -172,12 +172,12 @@ impl View for TerminalView {
         cx.layout_node(self.id, false, |_cx| Vec::new())
     }
 
-    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) {
+    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) -> Option<Rect> {
         let layout = cx.get_layout(self.id).unwrap();
         let size = layout.size;
         let size = Size::new(size.width as f64, size.height as f64);
         if size.is_empty() {
-            return;
+            return None;
         }
         if size != self.size {
             self.size = size;
@@ -186,6 +186,8 @@ impl View for TerminalView {
             self.raw.write().term.resize(term_size);
             self.proxy.terminal_resize(self.term_id, width, height);
         }
+
+        None
     }
 
     fn event(

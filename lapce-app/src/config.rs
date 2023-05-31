@@ -48,6 +48,14 @@ static DEFAULT_CONFIG: Lazy<config::Config> = Lazy::new(LapceConfig::default_con
 static DEFAULT_LAPCE_CONFIG: Lazy<LapceConfig> =
     Lazy::new(LapceConfig::default_lapce_config);
 
+/// Used for creating a `DropdownData` for a setting
+#[derive(Debug, Clone)]
+pub struct DropdownInfo {
+    /// The currently selected item.
+    pub active_index: usize,
+    pub items: im::Vector<String>,
+}
+
 #[derive(Clone, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct LapceConfig {
@@ -711,5 +719,66 @@ impl LapceConfig {
             }
         };
         (*self.get_color(color)).with_alpha_factor(alpha)
+    }
+
+    /// Get the dropdown information for the specific setting, used for the settings UI.
+    /// This should aim to efficiently return the data, because it is used to determine whether to
+    /// update the dropdown items.
+    pub fn get_dropdown_info(&self, kind: &str, key: &str) -> Option<DropdownInfo> {
+        match (kind, key) {
+            ("core", "color-theme") => Some(DropdownInfo {
+                active_index: self
+                    .color_theme_list
+                    .iter()
+                    .position(|s| s == &self.color_theme.name)
+                    .unwrap_or(0),
+                items: self.color_theme_list.clone().into(),
+            }),
+            ("core", "icon-theme") => Some(DropdownInfo {
+                active_index: self
+                    .icon_theme_list
+                    .iter()
+                    .position(|s| s == &self.icon_theme.name)
+                    .unwrap_or(0),
+                items: self.icon_theme_list.clone().into(),
+            }),
+            _ => None,
+        }
+    }
+
+    fn get_file_table() -> Option<toml_edit::Document> {
+        let path = Self::settings_file()?;
+        let content = std::fs::read_to_string(path).ok()?;
+        let document: toml_edit::Document = content.parse().ok()?;
+        Some(document)
+    }
+
+    pub fn update_file(
+        parent: &str,
+        key: &str,
+        value: toml_edit::Value,
+    ) -> Option<()> {
+        let mut main_table = Self::get_file_table().unwrap_or_default();
+
+        // Find the container table
+        let mut table = main_table.as_table_mut();
+        for key in parent.split('.') {
+            if !table.contains_key(key) {
+                table.insert(
+                    key,
+                    toml_edit::Item::Table(toml_edit::Table::default()),
+                );
+            }
+            table = table.get_mut(key)?.as_table_mut()?;
+        }
+
+        // Update key
+        table.insert(key, toml_edit::Item::Value(value));
+
+        // Store
+        let path = Self::settings_file()?;
+        std::fs::write(path, main_table.to_string().as_bytes()).ok()?;
+
+        Some(())
     }
 }

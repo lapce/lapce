@@ -3,7 +3,10 @@ use floem::{
         Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout, Weight,
     },
     id::Id,
-    peniko::{kurbo::Point, Color},
+    peniko::{
+        kurbo::{Point, Rect},
+        Color,
+    },
     reactive::create_effect,
     style::{ComputedStyle, Style},
     taffy::prelude::Node,
@@ -232,7 +235,7 @@ impl View for FocusText {
         })
     }
 
-    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) {
+    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) -> Option<Rect> {
         let text_node = self.text_node.unwrap();
         let layout = cx.layout(text_node).unwrap();
         let text_layout = self.text_layout.as_ref().unwrap();
@@ -276,6 +279,8 @@ impl View for FocusText {
             self.available_width = None;
             self.available_text_layout = None;
         }
+
+        None
     }
 
     fn event(

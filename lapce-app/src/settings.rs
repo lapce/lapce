@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use floem::{
+    event::EventListner,
     glazier::KeyEvent,
-    peniko::kurbo::Size,
+    peniko::{kurbo::Size, Color},
     reactive::{
         create_effect, create_rw_signal, ReadSignal, RwSignal, Scope, SignalGet,
         SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
@@ -11,8 +12,8 @@ use floem::{
     style::{CursorStyle, Style},
     view::View,
     views::{
-        container, container_box, empty, label, scroll, stack, svg, virtual_list,
-        Decorators, VirtualListDirection, VirtualListVector,
+        container, container_box, empty, label, list, scroll, stack, svg,
+        virtual_list, Decorators, VirtualListDirection, VirtualListVector,
     },
     AppContext,
 };
@@ -24,8 +25,8 @@ use serde::Serialize;
 use crate::{
     command::CommandExecuted,
     config::{
-        color::LapceColor, core::CoreConfig, editor::EditorConfig,
-        terminal::TerminalConfig, ui::UIConfig, LapceConfig,
+        color::LapceColor, core::CoreConfig, editor::EditorConfig, icon::LapceIcons,
+        terminal::TerminalConfig, ui::UIConfig, DropdownInfo, LapceConfig,
     },
     editor::EditorData,
     id::EditorId,
@@ -40,6 +41,7 @@ pub enum SettingsValue {
     Integer(i64),
     String(String),
     Bool(bool),
+    Dropdown(DropdownInfo),
     Empty,
 }
 
@@ -64,6 +66,7 @@ impl From<serde_json::Value> for SettingsValue {
 struct SettingsItem {
     kind: String,
     name: String,
+    field: String,
     description: String,
     filter_text: String,
     value: SettingsValue,
@@ -84,21 +87,21 @@ impl KeyPressFocus for SettingsData {
 
     fn check_condition(
         &self,
-        condition: crate::keypress::condition::Condition,
+        _condition: crate::keypress::condition::Condition,
     ) -> bool {
         false
     }
 
     fn run_command(
         &self,
-        command: &crate::command::LapceCommand,
-        count: Option<usize>,
-        mods: floem::glazier::Modifiers,
+        _command: &crate::command::LapceCommand,
+        _count: Option<usize>,
+        _mods: floem::glazier::Modifiers,
     ) -> crate::command::CommandExecuted {
         CommandExecuted::No
     }
 
-    fn receive_char(&self, c: &str) {}
+    fn receive_char(&self, _c: &str) {}
 }
 
 impl VirtualListVector<SettingsItem> for SettingsData {
@@ -127,88 +130,56 @@ impl SettingsData {
         let config = common.config.get_untracked();
         let mut items = im::Vector::new();
 
-        let mut settings_map = into_settings_map(&config.core);
-        for (name, desc) in CoreConfig::FIELDS
-            .into_iter()
-            .zip(CoreConfig::DESCS.into_iter())
-        {
-            let field = name.replace('_', "-");
-            let value = settings_map.remove(&field).unwrap();
-            let value = SettingsValue::from(value);
-            let kind = "core".to_string();
-            let name = name.replace('_', " ").to_title_case();
-            let filter_text = format!("{kind}\n{name}").to_lowercase();
-            items.push_back(SettingsItem {
-                kind,
-                name,
-                filter_text,
-                description: desc.to_string(),
-                value,
-                size: create_rw_signal(cx, Size::ZERO),
-            });
-        }
+        for (kind, fields, descs, mut settings_map) in [
+            (
+                "core",
+                &CoreConfig::FIELDS[..],
+                &CoreConfig::DESCS[..],
+                into_settings_map(&config.core),
+            ),
+            (
+                "editor",
+                &EditorConfig::FIELDS[..],
+                &EditorConfig::DESCS[..],
+                into_settings_map(&config.editor),
+            ),
+            (
+                "ui",
+                &UIConfig::FIELDS[..],
+                &UIConfig::DESCS[..],
+                into_settings_map(&config.ui),
+            ),
+            (
+                "terminal",
+                &TerminalConfig::FIELDS[..],
+                &TerminalConfig::DESCS[..],
+                into_settings_map(&config.terminal),
+            ),
+        ] {
+            for (name, desc) in fields.iter().zip(descs.iter()) {
+                let field = name.replace('_', "-");
 
-        let mut settings_map = into_settings_map(&config.editor);
-        for (name, desc) in EditorConfig::FIELDS
-            .into_iter()
-            .zip(EditorConfig::DESCS.into_iter())
-        {
-            let field = name.replace('_', "-");
-            let value = settings_map.remove(&field).unwrap();
-            let value = SettingsValue::from(value);
-            let kind = "editor".to_string();
-            let name = name.replace('_', " ").to_title_case();
-            let filter_text = format!("{kind}\n{name}").to_lowercase();
-            items.push_back(SettingsItem {
-                kind,
-                name,
-                filter_text,
-                description: desc.to_string(),
-                value,
-                size: create_rw_signal(cx, Size::ZERO),
-            });
-        }
+                let value =
+                    if let Some(dropdown) = config.get_dropdown_info(kind, &field) {
+                        SettingsValue::Dropdown(dropdown)
+                    } else {
+                        let value = settings_map.remove(&field).unwrap();
+                        SettingsValue::from(value)
+                    };
 
-        let mut settings_map = into_settings_map(&config.ui);
-        for (name, desc) in UIConfig::FIELDS
-            .into_iter()
-            .zip(UIConfig::DESCS.into_iter())
-        {
-            let field = name.replace('_', "-");
-            let value = settings_map.remove(&field).unwrap();
-            let value = SettingsValue::from(value);
-            let kind = "ui".to_string();
-            let name = name.replace('_', " ").to_title_case();
-            let filter_text = format!("{kind}\n{name}").to_lowercase();
-            items.push_back(SettingsItem {
-                kind,
-                name,
-                filter_text,
-                description: desc.to_string(),
-                value,
-                size: create_rw_signal(cx, Size::ZERO),
-            });
-        }
-
-        let mut settings_map = into_settings_map(&config.terminal);
-        for (name, desc) in TerminalConfig::FIELDS
-            .into_iter()
-            .zip(TerminalConfig::DESCS.into_iter())
-        {
-            let field = name.replace('_', "-");
-            let value = settings_map.remove(&field).unwrap();
-            let value = SettingsValue::from(value);
-            let kind = "terminal".to_string();
-            let name = name.replace('_', " ").to_title_case();
-            let filter_text = format!("{kind}\n{name}").to_lowercase();
-            items.push_back(SettingsItem {
-                kind,
-                name,
-                filter_text,
-                description: desc.to_string(),
-                value,
-                size: create_rw_signal(cx, Size::ZERO),
-            });
+                let kind = kind.to_string();
+                let name = name.replace('_', " ").to_title_case();
+                let filter_text = format!("{kind}\n{name}").to_lowercase();
+                items.push_back(SettingsItem {
+                    kind,
+                    name,
+                    field,
+                    filter_text,
+                    description: desc.to_string(),
+                    value,
+                    size: create_rw_signal(cx, Size::ZERO),
+                });
+            }
         }
 
         Self {
@@ -296,11 +267,16 @@ pub fn settings_view(common: CommonData) -> impl View {
                         text_input(search_editor, || false)
                             .placeholder(|| "Search Settings".to_string())
                             .keyboard_navigatable()
-                            .style(|| {
+                            .style(move || {
                                 Style::BASE
                                     .width_pct(100.0)
                                     .border_radius(6.0)
                                     .border(1.0)
+                                    .border_color(
+                                        *config
+                                            .get()
+                                            .get_color(LapceColor::LAPCE_BORDER),
+                                    )
                             })
                     })
                     .style(|| {
@@ -355,40 +331,231 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
         None
     };
 
-    let editor_value = match item.value {
+    let editor_value = match &item.value {
         SettingsValue::Float(n) => Some(n.to_string()),
         SettingsValue::Integer(n) => Some(n.to_string()),
-        SettingsValue::String(s) => Some(s),
+        SettingsValue::String(s) => Some(s.to_string()),
         SettingsValue::Bool(_) => None,
+        SettingsValue::Dropdown(_) => None,
         SettingsValue::Empty => None,
     };
 
-    let view = || {
-        let cx = AppContext::get_current();
-        if let Some(editor_value) = editor_value {
-            let editor = EditorData::new_local(
-                cx.scope,
-                EditorId::next(),
-                settings_data.common,
-            );
-            editor
-                .doc
-                .update(|doc| doc.reload(Rope::from(editor_value), true));
-            container_box(move || {
-                Box::new(text_input(editor, || false).keyboard_navigatable().style(
-                    move || {
-                        Style::BASE
-                            .width_px(300.0)
-                            .border(1.0)
-                            .border_radius(6.0)
-                            .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+    let view = {
+        let item = item.clone();
+        move || {
+            let cx = AppContext::get_current();
+            if let Some(editor_value) = editor_value {
+                let editor = EditorData::new_local(
+                    cx.scope,
+                    EditorId::next(),
+                    settings_data.common,
+                );
+                let doc = editor.doc;
+
+                let kind = item.kind.clone();
+                let field = item.field.clone();
+                create_effect(cx.scope, move |last| {
+                    let rev = doc.with(|doc| doc.buffer().rev());
+                    if last == Some(rev) {
+                        return rev;
+                    }
+                    let value = doc.with_untracked(|doc| doc.buffer().to_string());
+
+                    if let Some(value) = toml_edit::ser::to_item(&value)
+                        .ok()
+                        .and_then(|i| i.into_value().ok())
+                    {
+                        LapceConfig::update_file(&kind, &field, value);
+                    }
+
+                    rev
+                });
+
+                editor
+                    .doc
+                    .update(|doc| doc.reload(Rope::from(editor_value), true));
+                container_box(move || {
+                    Box::new(
+                        text_input(editor, || false).keyboard_navigatable().style(
+                            move || {
+                                Style::BASE
+                                    .width_px(300.0)
+                                    .border(1.0)
+                                    .border_radius(6.0)
+                                    .border_color(
+                                        *config
+                                            .get()
+                                            .get_color(LapceColor::LAPCE_BORDER),
+                                    )
+                            },
+                        ),
+                    )
+                })
+            } else if let SettingsValue::Dropdown(dropdown) = item.value {
+                let cx = AppContext::get_current();
+                let expanded = create_rw_signal(cx.scope, false);
+                let current_value = dropdown
+                    .items
+                    .get(dropdown.active_index)
+                    .or_else(|| dropdown.items.last())
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+
+                let kind = item.kind.clone();
+                let field = item.field.clone();
+                let view_fn = move |item_string: String| {
+                    let kind = kind.clone();
+                    let field = field.clone();
+                    let local_item_string = item_string.clone();
+                    label(move || local_item_string.clone())
+                        .on_click(move |_| {
+                            if let Some(value) =
+                                toml_edit::ser::to_item(&item_string)
+                                    .ok()
+                                    .and_then(|i| i.into_value().ok())
+                            {
+                                LapceConfig::update_file(&kind, &field, value);
+                            }
+                            expanded.set(false);
+                            true
+                        })
+                        .style(|| Style::BASE.text_ellipsis().padding_horiz_px(10.0))
+                        .hover_style(move || {
+                            Style::BASE.cursor(CursorStyle::Pointer).background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
-                    },
-                ))
-            })
-        } else {
-            container_box(|| Box::new(empty()))
+                        })
+                };
+                container_box(move || {
+                    Box::new(
+                        stack(move || {
+                            (
+                                stack(|| {
+                                    (
+                                        label(move || current_value.clone()).style(
+                                            move || {
+                                                Style::BASE
+                                                    .text_ellipsis()
+                                                    .width_pct(100.0)
+                                                    .padding_horiz_px(10.0)
+                                            },
+                                        ),
+                                        container(|| {
+                                            svg(move || {
+                                                config.get().ui_svg(
+                                                    LapceIcons::DROPDOWN_ARROW,
+                                                )
+                                            })
+                                            .style(move || {
+                                                let config = config.get();
+                                                let size =
+                                                    config.ui.icon_size() as f32;
+                                                Style::BASE
+                                                    .size_px(size, size)
+                                                    .color(*config.get_color(
+                                                    LapceColor::LAPCE_ICON_ACTIVE,
+                                                ))
+                                            })
+                                        })
+                                        .style(|| Style::BASE.padding_right_px(4.0)),
+                                    )
+                                })
+                                .on_click(move |_| {
+                                    expanded.update(|expanded| {
+                                        *expanded = !*expanded;
+                                    });
+                                    true
+                                })
+                                .style(move || {
+                                    Style::BASE
+                                        .items_center()
+                                        .width_pct(100.0)
+                                        .cursor(CursorStyle::Pointer)
+                                        .border_color(Color::TRANSPARENT)
+                                        .border(1.0)
+                                        .border_radius(6.0)
+                                        .apply_if(!expanded.get(), |s| {
+                                            s.border_color(
+                                                *config.get().get_color(
+                                                    LapceColor::LAPCE_BORDER,
+                                                ),
+                                            )
+                                        })
+                                }),
+                                stack(move || {
+                                    (
+                                        label(|| " ".to_string()),
+                                        scroll(|| {
+                                            list(
+                                                move || dropdown.items.clone(),
+                                                |item| item.to_string(),
+                                                view_fn,
+                                            )
+                                            .style(|| {
+                                                Style::BASE
+                                                    .flex_col()
+                                                    .width_pct(100.0)
+                                                    .cursor(CursorStyle::Pointer)
+                                            })
+                                        })
+                                        .scroll_bar_color(move || {
+                                            *config.get().get_color(
+                                                LapceColor::LAPCE_SCROLL_BAR,
+                                            )
+                                        })
+                                        .style(move || {
+                                            let config = config.get();
+                                            Style::BASE
+                                                .background(*config.get_color(
+                                                    LapceColor::EDITOR_BACKGROUND,
+                                                ))
+                                                .width_pct(100.0)
+                                                .max_height_px(300.0)
+                                                .z_index(1)
+                                                .border_top(1.0)
+                                                .border_radius(6.0)
+                                                .border_color(*config.get_color(
+                                                    LapceColor::LAPCE_BORDER,
+                                                ))
+                                                .apply_if(!expanded.get(), |s| {
+                                                    s.hide()
+                                                })
+                                        }),
+                                    )
+                                })
+                                .keyboard_navigatable()
+                                .on_event(EventListner::FocusLost, move |_| {
+                                    if expanded.get_untracked() {
+                                        expanded.set(false);
+                                    }
+                                    true
+                                })
+                                .style(move || {
+                                    Style::BASE
+                                        .absolute()
+                                        .flex_col()
+                                        .width_pct(100.0)
+                                        .border(1.0)
+                                        .border_radius(6.0)
+                                        .border_color(
+                                            *config
+                                                .get()
+                                                .get_color(LapceColor::LAPCE_BORDER),
+                                        )
+                                        .apply_if(!expanded.get(), |s| {
+                                            s.border_color(Color::TRANSPARENT)
+                                        })
+                                }),
+                            )
+                        })
+                        .style(move || Style::BASE.width_px(250.0).line_height(1.8)),
+                    )
+                })
+            } else {
+                container_box(|| Box::new(empty()))
+            }
         }
     };
 
@@ -419,6 +586,19 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     if let Some(is_ticked) = is_ticked {
                         let cx = AppContext::get_current();
                         let checked = create_rw_signal(cx.scope, is_ticked);
+
+                        let kind = item.kind.clone();
+                        let field = item.field.clone();
+                        create_effect(cx.scope, move |_| {
+                            let checked = checked.get();
+                            if let Some(value) = toml_edit::ser::to_item(&checked)
+                                .ok()
+                                .and_then(|i| i.into_value().ok())
+                            {
+                                LapceConfig::update_file(&kind, &field, value);
+                            }
+                        });
+
                         container_box(|| {
                             Box::new(
                                 stack(|| {

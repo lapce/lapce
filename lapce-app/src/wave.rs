@@ -43,8 +43,6 @@ impl View for WaveLine {
         cx.layout_node(self.id, false, |_cx| Vec::new())
     }
 
-    fn compute_layout(&mut self, _cx: &mut floem::context::LayoutCx) {}
-
     fn event(
         &mut self,
         _cx: &mut floem::context::EventCx,
