@@ -2556,7 +2556,7 @@ dependencies = [
 
 [[package]]
 name = "lapce"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "lapce-proxy",
  "lapce-ui",
@@ -2564,7 +2564,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-core"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2637,7 +2637,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-data"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -2689,7 +2689,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-proxy"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -2742,7 +2742,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-rpc"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -2758,7 +2758,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-ui"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "Inflector",
  "alacritty_terminal",
