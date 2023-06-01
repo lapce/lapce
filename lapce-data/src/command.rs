@@ -16,6 +16,7 @@ use lapce_core::{
 };
 use lapce_rpc::{
     buffer::BufferId,
+    dap_types::{self, DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
     file::FileNodeItem,
     plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     source_control::DiffInfo,
@@ -39,6 +40,7 @@ use crate::{
         EditorTabChild, LapceMainSplitData, LapceTabData, LapceWorkspace,
         SplitContent,
     },
+    debug::RunDebugMode,
     document::BufferContent,
     editor::{EditorLocation, EditorPosition, Line},
     images,
@@ -117,7 +119,8 @@ impl LapceCommand {
                 | LapceWorkbenchCommand::ChangeColorTheme
                 | LapceWorkbenchCommand::ChangeIconTheme
                 | LapceWorkbenchCommand::ConnectSshHost
-                | LapceWorkbenchCommand::PaletteWorkspace => return true,
+                | LapceWorkbenchCommand::PaletteWorkspace
+                | LapceWorkbenchCommand::PaletteRunAndDebug => return true,
                 #[cfg(windows)]
                 LapceWorkbenchCommand::ConnectWsl => return true,
                 _ => {}
@@ -358,6 +361,18 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "palette.workspace")]
     PaletteWorkspace,
 
+    #[strum(message = "Run and Debug")]
+    #[strum(serialize = "palette.run_and_debug")]
+    PaletteRunAndDebug,
+
+    #[strum(message = "Run and Debug Restart Current Running")]
+    #[strum(serialize = "palette.run_and_debug_restart")]
+    RunAndDebugRestart,
+
+    #[strum(message = "Run and Debug Stop Current Running")]
+    #[strum(serialize = "palette.run_and_debug_stop")]
+    RunAndDebugStop,
+
     #[strum(serialize = "source_control.checkout_branch")]
     CheckoutBranch,
 
@@ -426,6 +441,9 @@ pub enum LapceWorkbenchCommand {
 
     #[strum(serialize = "toggle_problem_visual")]
     ToggleProblemVisual,
+
+    #[strum(serialize = "toggle_debug_visual")]
+    ToggleDebugVisual,
 
     #[strum(serialize = "toggle_search_visual")]
     ToggleSearchVisual,
@@ -894,6 +912,16 @@ pub enum LapceUICommand {
     /// updating the file explorer.
     WorkspaceFileChange,
     ProxyUpdateStatus(ProxyStatus),
+    RunAndDebug {
+        mode: RunDebugMode,
+        config: RunDebugConfig,
+    },
+    RunInTerminal(RunDebugConfig),
+    TerminalProcessStopped(TermId),
+    TerminalProcessId {
+        term_id: TermId,
+        process_id: Option<u32>,
+    },
     CloseTerminal(TermId),
     OpenPluginInfo(VoltInfo),
     SplitTerminal(bool, WidgetId),
@@ -1034,6 +1062,19 @@ pub enum LapceUICommand {
         url: Url,
         image: Result<images::Image, anyhow::Error>,
     },
+    DapStopped {
+        dap_id: DapId,
+        stopped: Stopped,
+        stack_frames: HashMap<ThreadId, Vec<StackFrame>>,
+    },
+    DapContinued {
+        dap_id: DapId,
+    },
+    DapBreakpointsResp {
+        dap_id: DapId,
+        path: PathBuf,
+        breakpoints: Vec<dap_types::Breakpoint>,
+    },
 }
 
 /// This can't be an `FnOnce` because we only ever get a reference to
@@ -1065,6 +1106,15 @@ impl<P: EditorPosition + Clone + Send + 'static> InitBufferContent<P> {
             doc.reload(rope.clone(), false);
         }
         if let BufferContent::File(path) = doc.content() {
+            if data.terminal.debug.breakpoints.get(path).is_some() {
+                let terminal = Arc::make_mut(&mut data.terminal);
+                let debug = Arc::make_mut(&mut terminal.debug);
+                if let Some(breakpints) = debug.breakpoints.get_mut(path) {
+                    for b in breakpints {
+                        b.offset = doc.buffer().offset_of_line(b.line);
+                    }
+                }
+            }
             if let Some(d) = data.main_split.diagnostics.get(path) {
                 doc.set_diagnostics(d);
             }

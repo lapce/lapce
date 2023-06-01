@@ -143,17 +143,6 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            ReloadBuffer { path, content, rev } => {
-                let _ = self.event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::ReloadBuffer {
-                        path,
-                        rev,
-                        content: Rope::from(content),
-                    },
-                    Target::Widget(self.tab_id),
-                );
-            }
             WorkspaceFileChange {} => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -241,7 +230,6 @@ impl CoreHandler for LapceProxy {
                     Target::Widget(self.tab_id),
                 );
             }
-            ListDir { .. } | DiffFiles { .. } => {}
             DiffInfo { diff } => {
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
@@ -254,11 +242,31 @@ impl CoreHandler for LapceProxy {
                     .term_tx
                     .send((term_id, TermEvent::UpdateContent(content)));
             }
-            CloseTerminal { term_id } => {
+            TerminalProcessStopped { term_id } => {
                 let _ = self.term_tx.send((term_id, TermEvent::CloseTerminal));
                 let _ = self.event_sink.submit_command(
                     LAPCE_UI_COMMAND,
-                    LapceUICommand::CloseTerminal(term_id),
+                    LapceUICommand::TerminalProcessStopped(term_id),
+                    Target::Widget(self.tab_id),
+                );
+            }
+            TerminalProcessId {
+                term_id,
+                process_id,
+            } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::TerminalProcessId {
+                        term_id,
+                        process_id,
+                    },
+                    Target::Widget(self.tab_id),
+                );
+            }
+            RunInTerminal { config } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunInTerminal(config),
                     Target::Widget(self.tab_id),
                 );
             }
@@ -298,6 +306,43 @@ impl CoreHandler for LapceProxy {
                 if let Ok(level) = log::Level::from_str(&level) {
                     log::log!(level, "{}", message);
                 }
+            }
+            DapStopped {
+                dap_id,
+                stopped,
+                stack_frames,
+            } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::DapStopped {
+                        dap_id,
+                        stopped,
+                        stack_frames,
+                    },
+                    Target::Widget(self.tab_id),
+                );
+            }
+            DapContinued { dap_id } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::DapContinued { dap_id },
+                    Target::Widget(self.tab_id),
+                );
+            }
+            DapBreakpointsResp {
+                dap_id,
+                path,
+                breakpoints,
+            } => {
+                let _ = self.event_sink.submit_command(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::DapBreakpointsResp {
+                        dap_id,
+                        path,
+                        breakpoints,
+                    },
+                    Target::Widget(self.tab_id),
+                );
             }
         }
     }

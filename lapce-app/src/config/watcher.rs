@@ -1,0 +1,52 @@
+use std::sync::{atomic::AtomicBool, Arc};
+
+use crossbeam_channel::Sender;
+
+pub struct ConfigWatcher {
+    tx: Sender<()>,
+    delay_handler: Arc<AtomicBool>,
+}
+
+impl notify::EventHandler for ConfigWatcher {
+    fn handle_event(&mut self, event: notify::Result<notify::Event>) {
+        if let Ok(event) = event {
+            match event.kind {
+                notify::EventKind::Create(_)
+                | notify::EventKind::Modify(_)
+                | notify::EventKind::Remove(_) => {
+                    if self
+                        .delay_handler
+                        .compare_exchange(
+                            false,
+                            true,
+                            std::sync::atomic::Ordering::Relaxed,
+                            std::sync::atomic::Ordering::Relaxed,
+                        )
+                        .is_ok()
+                    {
+                        let config_mutex = self.delay_handler.clone();
+                        let tx = self.tx.clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(
+                                500,
+                            ));
+                            let _ = tx.send(());
+                            config_mutex
+                                .store(false, std::sync::atomic::Ordering::Relaxed);
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+impl ConfigWatcher {
+    pub fn new(tx: Sender<()>) -> Self {
+        Self {
+            tx,
+            delay_handler: Arc::new(AtomicBool::new(false)),
+        }
+    }
+}

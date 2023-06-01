@@ -3,13 +3,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use druid::{ExtEventSink, Target, WidgetId};
+use druid::{ExtEventSink, WidgetId};
 use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
 
-use crate::{
-    command::{LapceUICommand, LAPCE_UI_COMMAND},
-    proxy::LapceProxy,
-};
+use crate::proxy::LapceProxy;
 
 #[derive(Clone)]
 pub struct FilePickerData {
@@ -81,20 +78,20 @@ impl FilePickerData {
 
     pub fn read_dir(
         path: &Path,
-        tab_id: WidgetId,
+        _tab_id: WidgetId,
         proxy: &LapceProxy,
-        event_sink: ExtEventSink,
+        _event_sink: ExtEventSink,
     ) {
         let path = PathBuf::from(path);
-        let local_path = path.clone();
+        let local_path = path;
         proxy.proxy_rpc.read_dir(local_path, move |result| {
-            if let Ok(ProxyResponse::ReadDirResponse { items }) = result {
-                let path = path.clone();
-                let _ = event_sink.submit_command(
-                    LAPCE_UI_COMMAND,
-                    LapceUICommand::UpdatePickerItems(path, items),
-                    Target::Widget(tab_id),
-                );
+            if let Ok(ProxyResponse::ReadDirResponse { items: _ }) = result {
+                // let path = path.clone();
+                // let _ = event_sink.submit_command(
+                //     LAPCE_UI_COMMAND,
+                //     LapceUICommand::UpdatePickerItems(path, items),
+                //     Target::Widget(tab_id),
+                // );
             }
         });
     }

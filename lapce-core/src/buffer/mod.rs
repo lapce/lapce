@@ -15,7 +15,7 @@ use lapce_xi_rope::{
     interval::IntervalBounds,
     multiset::{CountMatcher, Subset},
     tree::{Node, NodeInfo},
-    Cursor, Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta, RopeInfo,
+    Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta, RopeInfo,
 };
 use lsp_types::Position;
 
@@ -25,7 +25,6 @@ use crate::{
     editor::EditType,
     indent::{auto_detect_indent_style, IndentStyle},
     mode::Mode,
-    paragraph::ParagraphCursor,
     selection::Selection,
     syntax::{self, edit::SyntaxEdit, Syntax},
     word::WordCursor,
@@ -807,23 +806,11 @@ impl Buffer {
     }
 
     pub fn move_left(&self, offset: usize, mode: Mode, count: usize) -> usize {
-        let min_offset = if mode == Mode::Insert {
-            0
-        } else {
-            let line = self.line_of_offset(offset);
-            self.offset_of_line(line)
-        };
-        self.prev_grapheme_offset(offset, count, min_offset)
+        RopeText::new(&self.text).move_left(offset, mode, count)
     }
 
     pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
-        let max_offset = if mode == Mode::Insert {
-            self.len()
-        } else {
-            self.offset_line_end(offset, mode != Mode::Normal)
-        };
-
-        self.next_grapheme_offset(offset, count, max_offset)
+        RopeText::new(&self.text).move_right(offset, mode, count)
     }
 
     pub fn move_word_forward(&self, offset: usize) -> usize {
@@ -840,25 +827,7 @@ impl Buffer {
         count: usize,
         limit: usize,
     ) -> usize {
-        let offset = if offset > self.len() {
-            self.len()
-        } else {
-            offset
-        };
-        let mut cursor = Cursor::new(&self.text, offset);
-        let mut new_offset = offset;
-        for _i in 0..count {
-            if let Some(next_offset) = cursor.next_grapheme() {
-                if next_offset > limit {
-                    return new_offset;
-                }
-                new_offset = next_offset;
-                cursor.set(next_offset);
-            } else {
-                return new_offset;
-            }
-        }
-        new_offset
+        RopeText::new(&self.text).next_grapheme_offset(offset, count, limit)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -914,69 +883,16 @@ impl Buffer {
         self.text.len()
     }
 
-    fn find_nth_paragraph<F>(
-        &self,
-        offset: usize,
-        mut count: usize,
-        mut find_next: F,
-    ) -> usize
-    where
-        F: FnMut(&mut ParagraphCursor) -> Option<usize>,
-    {
-        let mut cursor = ParagraphCursor::new(self.text(), offset);
-        let mut new_offset = offset;
-        while count != 0 {
-            // FIXME: wait for if-let-chain
-            if let Some(offset) = find_next(&mut cursor) {
-                new_offset = offset;
-            } else {
-                break;
-            }
-            count -= 1;
-        }
-        new_offset
-    }
-
     pub fn move_n_paragraphs_forward(&self, offset: usize, count: usize) -> usize {
-        self.find_nth_paragraph(offset, count, |cursor| cursor.next_boundary())
+        RopeText::new(&self.text).move_n_paragraphs_forward(offset, count)
     }
 
     pub fn move_n_paragraphs_backward(&self, offset: usize, count: usize) -> usize {
-        self.find_nth_paragraph(offset, count, |cursor| cursor.prev_boundary())
-    }
-
-    /// Find the nth (`count`) word starting at `offset` in either direction
-    /// depending on `find_next`.
-    ///
-    /// A `WordCursor` is created and given to the `find_next` function for the
-    /// search.  The `find_next` function should return None when there is no
-    /// more word found.  Despite the name, `find_next` can search in either
-    /// direction.
-    fn find_nth_word<F>(
-        &self,
-        offset: usize,
-        mut count: usize,
-        mut find_next: F,
-    ) -> usize
-    where
-        F: FnMut(&mut WordCursor) -> Option<usize>,
-    {
-        let mut cursor = WordCursor::new(self.text(), offset);
-        let mut new_offset = offset;
-        while count != 0 {
-            // FIXME: wait for if-let-chain
-            if let Some(offset) = find_next(&mut cursor) {
-                new_offset = offset;
-            } else {
-                break;
-            }
-            count -= 1;
-        }
-        new_offset
+        RopeText::new(&self.text).move_n_paragraphs_backward(offset, count)
     }
 
     pub fn move_n_words_forward(&self, offset: usize, count: usize) -> usize {
-        self.find_nth_word(offset, count, |cursor| cursor.next_boundary())
+        RopeText::new(&self.text).move_n_words_forward(offset, count)
     }
 
     pub fn move_n_wordends_forward(
@@ -985,12 +901,7 @@ impl Buffer {
         count: usize,
         inserting: bool,
     ) -> usize {
-        let mut new_offset =
-            self.find_nth_word(offset, count, |cursor| cursor.end_boundary());
-        if !inserting && new_offset != self.len() {
-            new_offset = self.prev_grapheme_offset(new_offset, 1, 0);
-        }
-        new_offset
+        RopeText::new(&self.text).move_n_wordends_forward(offset, count, inserting)
     }
 
     pub fn move_n_words_backward(
@@ -999,11 +910,11 @@ impl Buffer {
         count: usize,
         mode: Mode,
     ) -> usize {
-        self.find_nth_word(offset, count, |cursor| cursor.prev_boundary(mode))
+        RopeText::new(&self.text).move_n_words_backward(offset, count, mode)
     }
 
     pub fn move_word_backward_deletion(&self, offset: usize) -> usize {
-        self.find_nth_word(offset, 1, |cursor| cursor.prev_deletion_boundary())
+        RopeText::new(&self.text).move_word_backward_deletion(offset)
     }
 }
 

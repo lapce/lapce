@@ -162,13 +162,17 @@ yellow = "#C18401"
 "activity.background" = "#EAEAEB"
 "activity.current" = "$white"
 
+"debug.breakpoint" = "$red"
+"debug.breakpoint.hover" = "$grey"
+
 "panel.background" = "#EAEAEB"
 "panel.foreground" = "$black"
 "panel.foreground.dim" = "#A0A1A7"
 "panel.current.background" = "#DBDBDC"
 "panel.current.foreground" = "$black"
 "panel.current.foreground.dim" = "#A0A1A7"
-"panel.hovered.background" = "#E4E4E6"
+"panel.hovered.background" = "#CBCBCB"
+"panel.hovered.active.background" = "#A0A1A7"
 "panel.hovered.foreground" = "$black"
 "panel.hovered.foreground.dim" = "#A0A1A7"
 

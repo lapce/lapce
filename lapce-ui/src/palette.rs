@@ -9,8 +9,9 @@ use druid::{
 };
 use lapce_data::{
     command::{LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
-    config::{LapceConfig, LapceTheme},
+    config::{LapceConfig, LapceIcons, LapceTheme},
     data::{LapceTabData, LapceWorkspaceType},
+    debug::RunDebugMode,
     keypress::{Alignment, KeyMap, KeyPressFocus},
     list::ListData,
     palette::{
@@ -657,6 +658,48 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 format!("{ssh}"),
                 self.indices.to_vec(),
             ),
+            PaletteItemContent::RunAndDebug(mode, config) => {
+                let text = format!("{mode} {}", config.name);
+                let hint = format!("{} {}", config.program, config.args.join(" "));
+                let text_indices: Vec<usize> = self
+                    .indices
+                    .iter()
+                    .filter_map(|i| {
+                        let i = *i;
+                        if i < text.len() {
+                            Some(i)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let hint_indices: Vec<usize> = self
+                    .indices
+                    .iter()
+                    .filter_map(|i| {
+                        let i = *i;
+                        if i > text.len() {
+                            Some(i - text.len() - 1)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let svg = match mode {
+                    RunDebugMode::Run => data.config.ui_svg(LapceIcons::START),
+                    RunDebugMode::Debug => data.config.ui_svg(LapceIcons::DEBUG),
+                };
+                PaletteItemPaintInfo {
+                    svg: Some(svg),
+                    svg_color: None,
+                    text,
+                    text_color: None,
+                    text_indices,
+                    hint,
+                    hint_indices,
+                    keymap: None,
+                }
+            }
         };
 
         let line_height = data.line_height() as f64;
@@ -683,9 +726,9 @@ impl ListPaint<PaletteListData> for PaletteItem {
         let focus_color = data.config.get_color_unchecked(LapceTheme::EDITOR_FOCUS);
 
         let full_text = if hint.is_empty() {
-            text.clone()
+            format!("{text} ")
         } else {
-            text.clone() + " " + &hint
+            format!("{text} {hint}")
         };
         let mut text_layout = ctx
             .text()

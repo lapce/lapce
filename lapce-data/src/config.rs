@@ -139,6 +139,9 @@ impl LapceTheme {
     pub const ACTIVITY_BACKGROUND: &str = "activity.background";
     pub const ACTIVITY_CURRENT: &str = "activity.current";
 
+    pub const DEBUG_BREAKPOINT: &str = "debug.breakpoint";
+    pub const DEBUG_BREAKPOINT_HOVER: &str = "debug.breakpoint.hover";
+
     pub const PANEL_BACKGROUND: &str = "panel.background";
     pub const PANEL_FOREGROUND: &str = "panel.foreground";
     pub const PANEL_FOREGROUND_DIM: &str = "panel.foreground.dim";
@@ -209,6 +212,16 @@ impl LapceIcons {
     pub const CLOSE: &str = "close";
     pub const REMOTE: &str = "remote";
     pub const PROBLEM: &str = "error";
+    pub const DEBUG: &str = "debug";
+    pub const DEBUG_ALT: &str = "debug_alt";
+    pub const DEBUG_BREAKPOINT: &str = "debug_breakpoint";
+    pub const DEBUG_SMALL: &str = "debug_small";
+    pub const DEBUG_RESTART: &str = "debug_restart";
+    pub const DEBUG_CONTINUE: &str = "debug_continue";
+    pub const DEBUG_PAUSE: &str = "debug_pause";
+    pub const DEBUG_STOP: &str = "debug_stop";
+    pub const START: &str = "start";
+    pub const RUN_ERRORS: &str = "run_errors";
     pub const UNSAVED: &str = "unsaved";
     pub const WARNING: &str = "warning";
     pub const TERMINAL: &str = "terminal";

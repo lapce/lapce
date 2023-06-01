@@ -30,6 +30,8 @@ use crate::editor::view::LapceEditorView;
 use crate::window::window_controls;
 use crate::{list::List, palette::Palette};
 
+const TITLE_HEIGHT: f64 = 36.0;
+
 pub struct Title {
     widget_id: WidgetId,
     mouse_pos: Point,
@@ -240,7 +242,8 @@ impl Title {
                 LapceUICommand::ShowMenu(
                     Point::new(
                         command_rect.x0,
-                        command_rect.y1 + if data.multiple_tab { 36.0 } else { 0.0 },
+                        command_rect.y1
+                            + if data.multiple_tab { TITLE_HEIGHT } else { 0.0 },
                     ),
                     Arc::new(menu_items),
                 ),
@@ -468,7 +471,7 @@ impl Title {
                     Point::new(
                         settings_rect.x0,
                         settings_rect.y1
-                            + if data.multiple_tab { 36.0 } else { 0.0 },
+                            + if data.multiple_tab { TITLE_HEIGHT } else { 0.0 },
                     ),
                     Arc::new(menu_items),
                 ),
@@ -615,7 +618,8 @@ impl Title {
                 LapceUICommand::ShowMenu(
                     Point::new(
                         x,
-                        size.height + if data.multiple_tab { 36.0 } else { 0.0 },
+                        size.height
+                            + if data.multiple_tab { TITLE_HEIGHT } else { 0.0 },
                     ),
                     Arc::new(menu_items),
                 ),
@@ -805,12 +809,12 @@ impl Widget<LapceTabData> for Title {
             &window_state,
             ctx.window().is_fullscreen(),
             ctx.text(),
-            Size::new(bc.max().width, 36.0),
+            Size::new(bc.max().width, TITLE_HEIGHT),
         );
 
         let remaining = bc.max().width
             - (remaining_rect.x0.max(bc.max().width - remaining_rect.x1)) * 2.0
-            - 36.0 * 4.0;
+            - TITLE_HEIGHT * 4.0;
 
         let min_palette_width = if data.palette.status == PaletteStatus::Inactive {
             100.0
@@ -842,47 +846,50 @@ impl Widget<LapceTabData> for Title {
         } else {
             Target::Auto
         };
-        let arrow_left_rect = Size::new(36.0, 36.0)
+        let arrow_left_rect = Size::new(TITLE_HEIGHT, TITLE_HEIGHT)
             .to_rect()
-            .with_origin(Point::new(palette_origin.x - 36.0 - 36.0, 0.0));
-        let (arrow_left_svg_color, arrow_left_svg_hover_color) = if !data
-            .main_split
-            .can_jump_location_backward()
-        {
-            (
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_INACTIVE)
-                        .clone(),
-                ),
-                None,
-            )
-        } else {
-            self.menus.push((
-                arrow_left_rect,
-                Command::new(
-                    LAPCE_COMMAND,
-                    LapceCommand {
-                        kind: CommandKind::Focus(FocusCommand::JumpLocationBackward),
-                        data: None,
-                    },
-                    target,
-                ),
+            .with_origin(Point::new(
+                palette_origin.x - TITLE_HEIGHT - TITLE_HEIGHT,
+                0.0,
             ));
-            (
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
-                        .clone(),
-                ),
-                Some(
-                    data.config.get_hover_color(
+        let (arrow_left_svg_color, arrow_left_svg_hover_color) =
+            if !data.main_split.can_jump_location_backward() {
+                (
+                    Some(
                         data.config
-                            .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_INACTIVE)
+                            .clone(),
                     ),
-                ),
-            )
-        };
+                    None,
+                )
+            } else {
+                self.menus.push((
+                    arrow_left_rect,
+                    Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Workbench(
+                                LapceWorkbenchCommand::OpenSettings,
+                            ),
+                            data: None,
+                        },
+                        target,
+                    ),
+                ));
+                (
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
+                            .clone(),
+                    ),
+                    Some(
+                        data.config.get_hover_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                        ),
+                    ),
+                )
+            };
         self.svgs.push((
             data.config.ui_svg(LapceIcons::LOCATION_BACKWARD),
             arrow_left_rect.inflate(-10.5, -10.5),
@@ -890,47 +897,47 @@ impl Widget<LapceTabData> for Title {
             arrow_left_svg_hover_color,
         ));
 
-        let arrow_right_rect = Size::new(36.0, 36.0)
+        let arrow_right_rect = Size::new(TITLE_HEIGHT, TITLE_HEIGHT)
             .to_rect()
-            .with_origin(Point::new(palette_origin.x - 36.0, 0.0));
-        let (arrow_right_svg_color, arrow_right_svg_hover_color) = if !data
-            .main_split
-            .can_jump_location_forward()
-        {
-            (
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_INACTIVE)
-                        .clone(),
-                ),
-                None,
-            )
-        } else {
-            self.menus.push((
-                arrow_right_rect,
-                Command::new(
-                    LAPCE_COMMAND,
-                    LapceCommand {
-                        kind: CommandKind::Focus(FocusCommand::JumpLocationForward),
-                        data: None,
-                    },
-                    target,
-                ),
-            ));
-            (
-                Some(
-                    data.config
-                        .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
-                        .clone(),
-                ),
-                Some(
-                    data.config.get_hover_color(
+            .with_origin(Point::new(palette_origin.x - TITLE_HEIGHT, 0.0));
+        let (arrow_right_svg_color, arrow_right_svg_hover_color) =
+            if !data.main_split.can_jump_location_forward() {
+                (
+                    Some(
                         data.config
-                            .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_INACTIVE)
+                            .clone(),
                     ),
-                ),
-            )
-        };
+                    None,
+                )
+            } else {
+                self.menus.push((
+                    arrow_right_rect,
+                    Command::new(
+                        LAPCE_COMMAND,
+                        LapceCommand {
+                            kind: CommandKind::Focus(
+                                FocusCommand::JumpToPrevSnippetPlaceholder,
+                            ),
+                            data: None,
+                        },
+                        target,
+                    ),
+                ));
+                (
+                    Some(
+                        data.config
+                            .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
+                            .clone(),
+                    ),
+                    Some(
+                        data.config.get_hover_color(
+                            data.config
+                                .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                        ),
+                    ),
+                )
+            };
         self.svgs.push((
             data.config.ui_svg(LapceIcons::LOCATION_FORWARD),
             arrow_right_rect.inflate(-10.5, -10.5),
@@ -938,19 +945,55 @@ impl Widget<LapceTabData> for Title {
             arrow_right_svg_hover_color,
         ));
 
+        // start button in title
+        let start_rect = Size::new(TITLE_HEIGHT, TITLE_HEIGHT)
+            .to_rect()
+            .with_origin(Point::new(palette_origin.x + palette_size.width, 0.0));
+        self.svgs.push((
+            data.config.ui_svg(LapceIcons::START),
+            start_rect.inflate(-10.5, -10.5),
+            Some(
+                data.config
+                    .get_color_unchecked(LapceTheme::LAPCE_ICON_ACTIVE)
+                    .clone(),
+            ),
+            Some(
+                data.config.get_hover_color(
+                    data.config
+                        .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                ),
+            ),
+        ));
+        self.menus.push((
+            start_rect,
+            Command::new(
+                LAPCE_COMMAND,
+                LapceCommand {
+                    kind: CommandKind::Workbench(
+                        LapceWorkbenchCommand::PaletteRunAndDebug,
+                    ),
+                    data: None,
+                },
+                Target::Widget(data.id),
+            ),
+        ));
+
+        // set dragable area
         self.dragable_area.clear();
         if !data.multiple_tab {
+            // dragable area on the left of the palette input
             self.dragable_area.add_rect(Rect::new(
                 remaining_rect.x0,
                 0.0,
-                palette_rect.x0 - 36.0 * 2.0,
-                36.0,
+                palette_rect.x0 - TITLE_HEIGHT * 2.0,
+                TITLE_HEIGHT,
             ));
+            // dragable area on the right of the palette input
             self.dragable_area.add_rect(Rect::new(
-                palette_rect.x1,
+                palette_rect.x1 + TITLE_HEIGHT,
                 0.0,
                 remaining_rect.x1,
-                36.0,
+                TITLE_HEIGHT,
             ));
             ctx.window().set_dragable_area(self.dragable_area.clone());
         }
@@ -959,7 +1002,7 @@ impl Widget<LapceTabData> for Title {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &LapceTabData, env: &Env) {
-        let size = Size::new(ctx.size().width, 36.0);
+        let size = Size::new(ctx.size().width, TITLE_HEIGHT);
         let rect = size.to_rect();
         ctx.fill(
             rect,

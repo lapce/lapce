@@ -62,7 +62,7 @@ pub enum ResponseHandler<Resp, Error> {
 }
 
 impl<Resp, Error> ResponseHandler<Resp, Error> {
-    fn invoke(self, result: Result<Resp, Error>) {
+    pub fn invoke(self, result: Result<Resp, Error>) {
         match self {
             ResponseHandler::Chan(tx) => {
                 let _ = tx.send(result);

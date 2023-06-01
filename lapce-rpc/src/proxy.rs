@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     buffer::BufferId,
+    dap_types::{DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
     file::FileNodeItem,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
@@ -38,6 +39,14 @@ pub enum ProxyRpc {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchMatch {
+    pub line: usize,
+    pub start: usize,
+    pub end: usize,
+    pub line_content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum ProxyRequest {
@@ -51,6 +60,8 @@ pub enum ProxyRequest {
     GlobalSearch {
         pattern: String,
         case_sensitive: bool,
+        whole_word: bool,
+        is_regex: bool,
     },
     CompletionResolve {
         plugin_id: PluginId,
@@ -237,6 +248,38 @@ pub enum ProxyNotification {
     TerminalClose {
         term_id: TermId,
     },
+    DapStart {
+        config: RunDebugConfig,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+    },
+    DapProcessId {
+        dap_id: DapId,
+        process_id: Option<u32>,
+        term_id: TermId,
+    },
+    DapContinue {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapPause {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStop {
+        dap_id: DapId,
+    },
+    DapDisconnect {
+        dap_id: DapId,
+    },
+    DapRestart {
+        dap_id: DapId,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+    },
+    DapSetBreakpoints {
+        dap_id: DapId,
+        path: PathBuf,
+        breakpoints: Vec<SourceBreakpoint>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -254,7 +297,7 @@ pub enum ProxyResponse {
         content: String,
     },
     ReadDirResponse {
-        items: HashMap<PathBuf, FileNodeItem>,
+        items: Vec<FileNodeItem>,
     },
     CompletionResolveResponse {
         item: Box<CompletionItem>,
@@ -312,8 +355,7 @@ pub enum ProxyResponse {
         items: Vec<TextDocumentItem>,
     },
     GlobalSearchResponse {
-        #[allow(clippy::type_complexity)]
-        matches: IndexMap<PathBuf, Vec<(usize, (usize, usize), String)>>,
+        matches: IndexMap<PathBuf, Vec<SearchMatch>>,
     },
     Success {},
     SaveResponse {},
@@ -543,11 +585,8 @@ impl ProxyRpcHandler {
         });
     }
 
-    pub fn terminal_write(&self, term_id: TermId, content: &str) {
-        self.notification(ProxyNotification::TerminalWrite {
-            term_id,
-            content: content.to_string(),
-        });
+    pub fn terminal_write(&self, term_id: TermId, content: String) {
+        self.notification(ProxyNotification::TerminalWrite { term_id, content });
     }
 
     pub fn new_buffer(
@@ -627,12 +666,16 @@ impl ProxyRpcHandler {
         &self,
         pattern: String,
         case_sensitive: bool,
+        whole_word: bool,
+        is_regex: bool,
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(
             ProxyRequest::GlobalSearch {
                 pattern,
                 case_sensitive,
+                whole_word,
+                is_regex,
             },
             f,
         );
@@ -862,6 +905,70 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::GetSelectionRange { path, positions }, f);
+    }
+
+    pub fn dap_start(
+        &self,
+        config: RunDebugConfig,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+    ) {
+        self.notification(ProxyNotification::DapStart {
+            config,
+            breakpoints,
+        })
+    }
+
+    pub fn dap_process_id(
+        &self,
+        dap_id: DapId,
+        process_id: Option<u32>,
+        term_id: TermId,
+    ) {
+        self.notification(ProxyNotification::DapProcessId {
+            dap_id,
+            process_id,
+            term_id,
+        })
+    }
+
+    pub fn dap_restart(
+        &self,
+        dap_id: DapId,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+    ) {
+        self.notification(ProxyNotification::DapRestart {
+            dap_id,
+            breakpoints,
+        })
+    }
+
+    pub fn dap_continue(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapContinue { dap_id, thread_id })
+    }
+
+    pub fn dap_pause(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapPause { dap_id, thread_id })
+    }
+
+    pub fn dap_stop(&self, dap_id: DapId) {
+        self.notification(ProxyNotification::DapStop { dap_id })
+    }
+
+    pub fn dap_disconnect(&self, dap_id: DapId) {
+        self.notification(ProxyNotification::DapDisconnect { dap_id })
+    }
+
+    pub fn dap_set_breakpoints(
+        &self,
+        dap_id: DapId,
+        path: PathBuf,
+        breakpoints: Vec<SourceBreakpoint>,
+    ) {
+        self.notification(ProxyNotification::DapSetBreakpoints {
+            dap_id,
+            path,
+            breakpoints,
+        })
     }
 }
 

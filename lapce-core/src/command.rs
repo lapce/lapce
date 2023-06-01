@@ -289,15 +289,6 @@ pub enum FocusCommand {
     #[strum(message = "Show Hover")]
     #[strum(serialize = "show_hover")]
     ShowHover,
-    #[strum(serialize = "jump_location_backward")]
-    JumpLocationBackward,
-    #[strum(serialize = "jump_location_forward")]
-    JumpLocationForward,
-    #[strum(message = "Next Error in Workspace")]
-    #[strum(serialize = "next_error")]
-    NextError,
-    #[strum(serialize = "previous_error")]
-    PreviousError,
     #[strum(message = "Go to Next Difference")]
     #[strum(serialize = "next_diff")]
     NextDiff,
@@ -315,6 +306,10 @@ pub enum FocusCommand {
     FormatDocument,
     #[strum(serialize = "search")]
     Search,
+    #[strum(serialize = "focus_replace_editor")]
+    FocusReplaceEditor,
+    #[strum(serialize = "focus_find_editor")]
+    FocusFindEditor,
     #[strum(serialize = "inline_find_right")]
     InlineFindRight,
     #[strum(serialize = "inline_find_left")]

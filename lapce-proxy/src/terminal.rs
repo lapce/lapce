@@ -30,7 +30,7 @@ pub type TermConfig = alacritty_terminal::config::Config;
 pub struct Terminal {
     term_id: TermId,
     poll: mio::Poll,
-    pty: alacritty_terminal::tty::Pty,
+    pub(crate) pty: alacritty_terminal::tty::Pty,
 
     #[allow(deprecated)]
     rx: Receiver<Msg>,
@@ -151,7 +151,6 @@ impl Terminal {
                         if let Some(tty::ChildEvent::Exited) =
                             self.pty.next_child_event()
                         {
-                            core_rpc.close_terminal(self.term_id);
                             break 'event_loop;
                         }
                     }
@@ -195,6 +194,7 @@ impl Terminal {
                 .reregister(&self.poll, interest, poll_opts)
                 .unwrap();
         }
+        core_rpc.terminal_process_stopped(self.term_id);
         let _ = self.poll.deregister(&self.rx);
         let _ = self.pty.deregister(&self.poll);
     }

@@ -5,6 +5,8 @@ use lsp_types::Position;
 
 use crate::{
     encoding::{offset_utf16_to_utf8, offset_utf8_to_utf16},
+    mode::Mode,
+    paragraph::ParagraphCursor,
     word::WordCursor,
 };
 
@@ -187,6 +189,38 @@ impl<'a> RopeText<'a> {
         new_offset
     }
 
+    pub fn next_grapheme_offset(
+        &self,
+        offset: usize,
+        count: usize,
+        limit: usize,
+    ) -> usize {
+        let offset = if offset > self.len() {
+            self.len()
+        } else {
+            offset
+        };
+        let mut cursor = Cursor::new(self.text, offset);
+        let mut new_offset = offset;
+        for _i in 0..count {
+            if let Some(next_offset) = cursor.next_grapheme() {
+                if next_offset > limit {
+                    return new_offset;
+                }
+                new_offset = next_offset;
+                cursor.set(next_offset);
+            } else {
+                return new_offset;
+            }
+        }
+        new_offset
+    }
+
+    /// Return the previous and end boundaries of the word under cursor.
+    pub fn select_word(&self, offset: usize) -> (usize, usize) {
+        WordCursor::new(self.text, offset).select_word()
+    }
+
     /// Returns the offset of the first non-blank character on the given line.  
     /// If the line is one past the last line, then the offset at the end of the rope is returned.
     /// If the line is further past that, then it defaults to the last line.
@@ -235,6 +269,119 @@ impl<'a> RopeText<'a> {
     /// The length of the given line
     pub fn line_len(&self, line: usize) -> usize {
         self.offset_of_line(line + 1) - self.offset_of_line(line)
+    }
+
+    pub fn move_left(&self, offset: usize, mode: Mode, count: usize) -> usize {
+        let min_offset = if mode == Mode::Insert {
+            0
+        } else {
+            let line = self.line_of_offset(offset);
+            self.offset_of_line(line)
+        };
+
+        self.prev_grapheme_offset(offset, count, min_offset)
+    }
+
+    pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
+        let max_offset = if mode == Mode::Insert {
+            self.len()
+        } else {
+            self.offset_line_end(offset, mode != Mode::Normal)
+        };
+
+        self.next_grapheme_offset(offset, count, max_offset)
+    }
+
+    fn find_nth_paragraph<F>(
+        &self,
+        offset: usize,
+        mut count: usize,
+        mut find_next: F,
+    ) -> usize
+    where
+        F: FnMut(&mut ParagraphCursor) -> Option<usize>,
+    {
+        let mut cursor = ParagraphCursor::new(self.text, offset);
+        let mut new_offset = offset;
+        while count != 0 {
+            // FIXME: wait for if-let-chain
+            if let Some(offset) = find_next(&mut cursor) {
+                new_offset = offset;
+            } else {
+                break;
+            }
+            count -= 1;
+        }
+        new_offset
+    }
+
+    pub fn move_n_paragraphs_forward(&self, offset: usize, count: usize) -> usize {
+        self.find_nth_paragraph(offset, count, |cursor| cursor.next_boundary())
+    }
+
+    pub fn move_n_paragraphs_backward(&self, offset: usize, count: usize) -> usize {
+        self.find_nth_paragraph(offset, count, |cursor| cursor.prev_boundary())
+    }
+
+    /// Find the nth (`count`) word starting at `offset` in either direction
+    /// depending on `find_next`.
+    ///
+    /// A `WordCursor` is created and given to the `find_next` function for the
+    /// search.  The `find_next` function should return None when there is no
+    /// more word found.  Despite the name, `find_next` can search in either
+    /// direction.
+    fn find_nth_word<F>(
+        &self,
+        offset: usize,
+        mut count: usize,
+        mut find_next: F,
+    ) -> usize
+    where
+        F: FnMut(&mut WordCursor) -> Option<usize>,
+    {
+        let mut cursor = WordCursor::new(self.text, offset);
+        let mut new_offset = offset;
+        while count != 0 {
+            // FIXME: wait for if-let-chain
+            if let Some(offset) = find_next(&mut cursor) {
+                new_offset = offset;
+            } else {
+                break;
+            }
+            count -= 1;
+        }
+        new_offset
+    }
+
+    pub fn move_n_words_forward(&self, offset: usize, count: usize) -> usize {
+        self.find_nth_word(offset, count, |cursor| cursor.next_boundary())
+    }
+
+    pub fn move_n_wordends_forward(
+        &self,
+        offset: usize,
+        count: usize,
+        inserting: bool,
+    ) -> usize {
+        let mut new_offset =
+            self.find_nth_word(offset, count, |cursor| cursor.end_boundary());
+        if !inserting && new_offset != self.len() {
+            new_offset = self.prev_grapheme_offset(new_offset, 1, 0);
+        }
+        new_offset
+    }
+
+    pub fn move_n_words_backward(
+        &self,
+        offset: usize,
+        count: usize,
+        mode: Mode,
+    ) -> usize {
+        self.find_nth_word(offset, count, |cursor| cursor.prev_boundary(mode))
+    }
+
+    pub fn move_word_backward_deletion(&self, offset: usize) -> usize {
+        self.find_nth_word(offset, 1, |cursor| cursor.prev_deletion_boundary())
     }
 }
 

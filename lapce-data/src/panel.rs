@@ -1,11 +1,14 @@
 use druid::Data;
 use serde::{Deserialize, Serialize};
+use strum_macros::EnumIter;
 
 use crate::config::LapceIcons;
 
 pub type PanelOrder = im::HashMap<PanelPosition, im::Vector<PanelKind>>;
 
-#[derive(Clone, Copy, PartialEq, Data, Serialize, Deserialize, Hash, Eq, Debug)]
+#[derive(
+    Clone, Copy, PartialEq, Data, Serialize, Deserialize, Hash, Eq, Debug, EnumIter,
+)]
 pub enum PanelKind {
     FileExplorer,
     SourceControl,
@@ -13,6 +16,7 @@ pub enum PanelKind {
     Terminal,
     Search,
     Problem,
+    Debug,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -34,6 +38,7 @@ impl PanelKind {
             PanelKind::Terminal => LapceIcons::TERMINAL,
             PanelKind::Search => LapceIcons::SEARCH,
             PanelKind::Problem => LapceIcons::PROBLEM,
+            PanelKind::Debug => LapceIcons::DEBUG,
         }
     }
 }
@@ -146,13 +151,7 @@ impl PanelData {
         &self,
         kind: &PanelKind,
     ) -> Option<(usize, PanelPosition)> {
-        for (pos, panels) in self.order.iter() {
-            let index = panels.iter().position(|k| k == kind);
-            if let Some(index) = index {
-                return Some((index, *pos));
-            }
-        }
-        None
+        panel_position(&self.order, kind)
     }
 
     pub fn toggle_maximize(&mut self, kind: &PanelKind) {
@@ -328,4 +327,17 @@ impl PanelContainerPosition {
             PanelContainerPosition::Right => PanelPosition::RightBottom,
         }
     }
+}
+
+pub fn panel_position(
+    order: &PanelOrder,
+    kind: &PanelKind,
+) -> Option<(usize, PanelPosition)> {
+    for (pos, panels) in order.iter() {
+        let index = panels.iter().position(|k| k == kind);
+        if let Some(index) = index {
+            return Some((index, *pos));
+        }
+    }
+    None
 }

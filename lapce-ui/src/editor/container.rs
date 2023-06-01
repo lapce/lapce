@@ -32,7 +32,7 @@ impl LapceEditorContainer {
             .horizontal()
             .vertical_scroll_for_horizontal();
         let gutter = LapceEditorGutter::new(view_id);
-        let gutter = LapcePadding::new((10.0, 0.0, 0.0, 0.0), gutter);
+        let gutter = LapcePadding::new((0.0, 0.0, 0.0, 0.0), gutter);
         let editor = LapceEditor::new(view_id, editor_id);
         let editor = LapceIdentityWrapper::wrap(
             LapceScroll::new(editor).vertical().horizontal(),

@@ -27,13 +27,15 @@ use lapce_core::{
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
-use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
+use lapce_rpc::{
+    dap_types::SourceBreakpoint, plugin::PluginId, proxy::ProxyResponse,
+};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionOrCommand,
-    CodeActionResponse, CompletionItem, CompletionTextEdit, DiagnosticSeverity,
-    DocumentChangeOperation, DocumentChanges, GotoDefinitionResponse, Location,
-    OneOf, Position, ResourceOp, TextEdit, Url, WorkspaceEdit,
+    CodeActionResponse, CompletionItem, CompletionTextEdit, DocumentChangeOperation,
+    DocumentChanges, GotoDefinitionResponse, Location, OneOf, Position, ResourceOp,
+    TextEdit, Url, WorkspaceEdit,
 };
 
 use crate::{
@@ -48,6 +50,7 @@ use crate::{
         EditorDiagnostic, EditorView, FocusArea, InlineFindDirection,
         LapceEditorData, LapceMainSplitData, ModalCommand, SplitContent,
     },
+    debug::LapceBreakpoint,
     document::{BufferContent, Document, LocalBufferKind},
     find::Find,
     hover::{HoverData, HoverStatus},
@@ -59,6 +62,7 @@ use crate::{
     signature::{SignatureData, SignatureStatus},
     source_control::SourceControlData,
     split::{SplitDirection, SplitMoveDirection},
+    terminal::TerminalPanelData,
 };
 
 pub struct LapceUI {}
@@ -222,6 +226,7 @@ pub struct LapceEditorBufferData {
     pub find: Arc<Find>,
     pub proxy: Arc<LapceProxy>,
     pub command_keymaps: Arc<IndexMap<String, Vec<KeyMap>>>,
+    pub terminal: Arc<TerminalPanelData>,
     pub config: Arc<LapceConfig>,
 }
 
@@ -1003,6 +1008,65 @@ impl LapceEditorBufferData {
         );
     }
 
+    pub fn toggle_breakpoint(&mut self, line: usize) -> Option<()> {
+        let path = self.doc.content().path()?.to_path_buf();
+        let terminal = Arc::make_mut(&mut self.terminal);
+        let debug = Arc::make_mut(&mut terminal.debug);
+        let breakpoints = debug
+            .breakpoints
+            .entry(path.clone())
+            .or_insert_with(Vec::new);
+        let pos = breakpoints.iter().position(|b| b.line == line);
+        if let Some(index) = pos {
+            breakpoints.remove(index);
+        } else {
+            breakpoints.push(LapceBreakpoint {
+                id: None,
+                line,
+                verified: false,
+                offset: self.doc.buffer().offset_of_line(line),
+                message: None,
+                dap_line: None,
+            });
+            breakpoints.sort_by_key(|b| b.line);
+        }
+
+        let source_breakpoints = breakpoints
+            .iter()
+            .map(|b| SourceBreakpoint {
+                line: b.line + 1,
+                column: None,
+                condition: None,
+                hit_condition: None,
+                log_message: None,
+            })
+            .collect::<Vec<_>>();
+        for (dap_id, _) in debug.daps.iter() {
+            self.proxy.proxy_rpc.dap_set_breakpoints(
+                *dap_id,
+                path.clone(),
+                source_breakpoints.clone(),
+            );
+        }
+        Some(())
+    }
+
+    fn update_breakpoints(&mut self, delta: &RopeDelta) -> Option<()> {
+        let path = self.doc.content().path()?;
+        if !self.terminal.debug.breakpoints.contains_key(path) {
+            return None;
+        }
+        let terminal = Arc::make_mut(&mut self.terminal);
+        let debug = Arc::make_mut(&mut terminal.debug);
+        let breakpoints = debug.breakpoints.get_mut(path)?;
+        for breakpoint in breakpoints {
+            let mut transformer = Transformer::new(delta);
+            breakpoint.offset = transformer.transform(breakpoint.offset, false);
+            breakpoint.line = self.doc.buffer().line_of_offset(breakpoint.offset);
+        }
+        Some(())
+    }
+
     fn update_snippet_offset(&mut self, delta: &RopeDelta) {
         if let Some(snippet) = &self.editor.snippet {
             let mut transformer = Transformer::new(delta);
@@ -1022,6 +1086,8 @@ impl LapceEditorBufferData {
             );
         }
     }
+
+    #[allow(unused)]
     fn diff_file_positions(&self) -> Vec<(PathBuf, Vec<usize>)> {
         let buffer = self.doc.buffer();
         let mut diff_files: Vec<(PathBuf, Vec<usize>)> = self
@@ -1071,140 +1137,6 @@ impl LapceEditorBufferData {
             .collect();
         diff_files.sort();
         diff_files
-    }
-
-    fn prev_diff(&mut self, ctx: &mut EventCtx) {
-        if let BufferContent::File(buffer_path) = self.doc.content() {
-            if self.source_control.file_diffs.is_empty() {
-                return;
-            }
-
-            let diff_files: Vec<(PathBuf, Vec<usize>)> = self.diff_file_positions();
-
-            let offset = self.editor.cursor.offset();
-            let (path, offset) =
-                prev_in_file_diff_offset(offset, buffer_path, &diff_files);
-            let location = EditorLocation {
-                path: path.to_path_buf(),
-                position: Some(offset),
-                scroll_offset: None,
-                history: Some("head".to_string()),
-            };
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::JumpToLocation(None, location, true),
-                Target::Widget(*self.main_split.tab_id),
-            ));
-        }
-    }
-
-    fn next_diff(&mut self, ctx: &mut EventCtx) {
-        if let BufferContent::File(buffer_path) = self.doc.content() {
-            if self.source_control.file_diffs.is_empty() {
-                return;
-            }
-
-            let diff_files: Vec<(PathBuf, Vec<usize>)> = self.diff_file_positions();
-
-            let offset = self.editor.cursor.offset();
-            let (path, offset) =
-                next_in_file_diff_offset(offset, buffer_path, &diff_files);
-            let location = EditorLocation {
-                path: path.to_path_buf(),
-                position: Some(offset),
-                scroll_offset: None,
-                history: Some("head".to_string()),
-            };
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::JumpToLocation(None, location, true),
-                Target::Widget(*self.main_split.tab_id),
-            ));
-        }
-    }
-
-    fn next_error(&mut self, ctx: &mut EventCtx) {
-        if let BufferContent::File(buffer_path) = self.doc.content() {
-            let mut file_diagnostics: Vec<(&PathBuf, Vec<Position>)> = self
-                .main_split
-                .diagnostics_items(DiagnosticSeverity::ERROR)
-                .into_iter()
-                .map(|(p, d)| {
-                    (p, d.iter().map(|d| d.diagnostic.range.start).collect())
-                })
-                .collect();
-            if file_diagnostics.is_empty() {
-                return;
-            }
-            file_diagnostics.sort_by(|a, b| a.0.cmp(b.0));
-
-            let offset = self.editor.cursor.offset();
-            let position = self.doc.buffer().offset_to_position(offset);
-            let (path, position) =
-                next_in_file_errors_offset(position, buffer_path, &file_diagnostics);
-            let location = EditorLocation {
-                path,
-                position: Some(position),
-                scroll_offset: None,
-                history: None,
-            };
-            ctx.submit_command(Command::new(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::JumpToLspLocation(None, location, true),
-                Target::Auto,
-            ));
-        }
-    }
-
-    fn jump_location_forward(&mut self, ctx: &mut EventCtx) -> Option<()> {
-        if self.main_split.locations.is_empty() {
-            return None;
-        }
-        if self.main_split.current_location >= self.main_split.locations.len() - 1 {
-            return None;
-        }
-        self.main_split.current_location += 1;
-        let location =
-            self.main_split.locations[self.main_split.current_location].clone();
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::GoToLocation(
-                None,
-                location,
-                !self.config.editor.show_tab,
-            ),
-            Target::Auto,
-        ));
-        None
-    }
-
-    fn jump_location_backward(&mut self, ctx: &mut EventCtx) -> Option<()> {
-        if self.main_split.current_location < 1 {
-            return None;
-        }
-        if self.main_split.current_location >= self.main_split.locations.len() {
-            if let BufferContent::File(path) = &self.editor.content {
-                self.main_split.save_jump_location(
-                    path.to_path_buf(),
-                    self.editor.cursor.offset(),
-                    self.editor.scroll_offset,
-                );
-            }
-            self.main_split.current_location -= 1;
-        }
-        self.main_split.current_location -= 1;
-        let location =
-            self.main_split.locations[self.main_split.current_location].clone();
-        ctx.submit_command(Command::new(
-            LAPCE_UI_COMMAND,
-            LapceUICommand::GoToLocation(
-                None,
-                location,
-                !self.config.editor.show_tab,
-            ),
-            Target::Auto,
-        ));
-        None
     }
 
     fn page_move(&mut self, ctx: &mut EventCtx, down: bool, mods: Modifiers) {
@@ -1464,6 +1396,7 @@ impl LapceEditorBufferData {
         for (delta, _, _) in deltas {
             self.inactive_apply_delta(delta);
             self.update_snippet_offset(delta);
+            self.update_breakpoints(delta);
         }
         self.update_signature();
     }
@@ -2303,21 +2236,6 @@ impl LapceEditorBufferData {
                 let offset = self.editor.cursor.offset();
                 self.update_hover(ctx, offset);
             }
-            JumpLocationBackward => {
-                self.jump_location_backward(ctx);
-            }
-            JumpLocationForward => {
-                self.jump_location_forward(ctx);
-            }
-            NextError => {
-                self.next_error(ctx);
-            }
-            PreviousDiff => {
-                self.prev_diff(ctx);
-            }
-            NextDiff => {
-                self.next_diff(ctx);
-            }
             ToggleCodeLens => {
                 let editor = Arc::make_mut(&mut self.editor);
                 editor.view = match editor.view {
@@ -2792,69 +2710,6 @@ pub struct HighlightTextLayout {
     pub layout: PietTextLayout,
     pub text: String,
     pub highlights: Vec<(usize, usize, String)>,
-}
-
-fn prev_in_file_diff_offset<'a>(
-    offset: usize,
-    path: &Path,
-    file_diffs: &'a [(PathBuf, Vec<usize>)],
-) -> (&'a Path, usize) {
-    for (current_path, offsets) in file_diffs.iter().rev() {
-        if path == current_path {
-            for diff_offset in offsets.iter().rev() {
-                if *diff_offset < offset {
-                    return (current_path.as_ref(), *diff_offset);
-                }
-            }
-        }
-        if current_path < path {
-            return (current_path.as_ref(), offsets[0]);
-        }
-    }
-    (file_diffs[0].0.as_ref(), file_diffs[0].1[0])
-}
-
-fn next_in_file_diff_offset<'a>(
-    offset: usize,
-    path: &Path,
-    file_diffs: &'a [(PathBuf, Vec<usize>)],
-) -> (&'a Path, usize) {
-    for (current_path, offsets) in file_diffs {
-        if path == current_path {
-            for diff_offset in offsets {
-                if *diff_offset > offset {
-                    return (current_path.as_ref(), *diff_offset);
-                }
-            }
-        }
-        if current_path > path {
-            return (current_path.as_ref(), offsets[0]);
-        }
-    }
-    (file_diffs[0].0.as_ref(), file_diffs[0].1[0])
-}
-
-fn next_in_file_errors_offset(
-    position: Position,
-    path: &Path,
-    file_diagnostics: &[(&PathBuf, Vec<Position>)],
-) -> (PathBuf, Position) {
-    for (current_path, positions) in file_diagnostics {
-        if &path == current_path {
-            for error_position in positions {
-                if error_position.line > position.line
-                    || (error_position.line == position.line
-                        && error_position.character > position.character)
-                {
-                    return ((*current_path).clone(), *error_position);
-                }
-            }
-        }
-        if current_path > &path {
-            return ((*current_path).clone(), positions[0]);
-        }
-    }
-    ((*file_diagnostics[0].0).clone(), file_diagnostics[0].1[0])
 }
 
 fn process_get_references(

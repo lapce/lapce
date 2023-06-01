@@ -43,6 +43,16 @@ impl CursorMode {
             CursorMode::Insert(selection) => selection.get_cursor_offset(),
         }
     }
+
+    pub fn start_offset(&self) -> usize {
+        match &self {
+            CursorMode::Normal(offset) => *offset,
+            CursorMode::Visual { start, .. } => *start,
+            CursorMode::Insert(selection) => {
+                selection.first().map(|s| s.start).unwrap_or(0)
+            }
+        }
+    }
 }
 
 impl Cursor {
@@ -59,8 +69,24 @@ impl Cursor {
         }
     }
 
+    pub fn origin(modal: bool) -> Self {
+        Self::new(
+            if modal {
+                CursorMode::Normal(0)
+            } else {
+                CursorMode::Insert(Selection::caret(0))
+            },
+            None,
+            None,
+        )
+    }
+
     pub fn offset(&self) -> usize {
         self.mode.offset()
+    }
+
+    pub fn start_offset(&self) -> usize {
+        self.mode.start_offset()
     }
 
     pub fn is_normal(&self) -> bool {

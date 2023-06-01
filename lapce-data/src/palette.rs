@@ -22,7 +22,9 @@ use lapce_core::{
     language::LapceLanguage,
     mode::Mode,
 };
-use lapce_rpc::{proxy::ProxyResponse, source_control::FileDiff};
+use lapce_rpc::{
+    dap_types::RunDebugConfig, proxy::ProxyResponse, source_control::FileDiff,
+};
 use lsp_types::{DocumentSymbolResponse, Position, Range, SymbolKind};
 use uuid::Uuid;
 
@@ -37,6 +39,7 @@ use crate::{
         LapceWorkspaceType, SshHost,
     },
     db::LapceDb,
+    debug::{run_configs, RunDebugMode},
     document::BufferContent,
     editor::EditorLocation,
     find::Find,
@@ -62,23 +65,36 @@ pub enum PaletteType {
     IconTheme,
     SshHost,
     Language,
+    RunAndDebug,
 }
 
 impl PaletteType {
-    fn string(&self) -> String {
+    fn symbol(&self) -> &'static str {
         match &self {
-            PaletteType::Line => "/".to_string(),
-            PaletteType::DocumentSymbol => "@".to_string(),
-            PaletteType::WorkspaceSymbol => "#".to_string(),
-            PaletteType::GlobalSearch => "?".to_string(),
-            PaletteType::Workspace => ">".to_string(),
-            PaletteType::Command => ":".to_string(),
+            PaletteType::Line => "/",
+            PaletteType::DocumentSymbol => "@",
+            PaletteType::WorkspaceSymbol => "#",
+            PaletteType::GlobalSearch => "?",
+            PaletteType::Workspace => ">",
+            PaletteType::Command => ":",
             PaletteType::File
             | PaletteType::Reference
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::SshHost
-            | PaletteType::Language => "".to_string(),
+            | PaletteType::RunAndDebug
+            | PaletteType::Language => "",
+        }
+    }
+
+    fn from_input(input: &str) -> PaletteType {
+        match input {
+            _ if input.starts_with('/') => PaletteType::Line,
+            _ if input.starts_with('@') => PaletteType::DocumentSymbol,
+            _ if input.starts_with('#') => PaletteType::WorkspaceSymbol,
+            _ if input.starts_with('>') => PaletteType::Workspace,
+            _ if input.starts_with(':') => PaletteType::Command,
+            _ => PaletteType::File,
         }
     }
 
@@ -96,27 +112,10 @@ impl PaletteType {
     /// Get the palette type that it should be considered as based on the current
     /// [`PaletteType`] and the current input.
     fn get_palette_type(current_type: &PaletteType, input: &str) -> PaletteType {
-        match current_type {
-            PaletteType::Reference
-            | PaletteType::SshHost
-            | PaletteType::ColorTheme
-            | PaletteType::IconTheme
-            | PaletteType::Language => {
-                return current_type.clone();
-            }
-            _ => (),
+        if current_type != &PaletteType::File && current_type.symbol() == "" {
+            return current_type.clone();
         }
-        if input.is_empty() {
-            return PaletteType::File;
-        }
-        match input {
-            _ if input.starts_with('/') => PaletteType::Line,
-            _ if input.starts_with('@') => PaletteType::DocumentSymbol,
-            _ if input.starts_with('#') => PaletteType::WorkspaceSymbol,
-            _ if input.starts_with('>') => PaletteType::Workspace,
-            _ if input.starts_with(':') => PaletteType::Command,
-            _ => PaletteType::File,
-        }
+        PaletteType::from_input(input)
     }
 }
 
@@ -155,6 +154,7 @@ pub enum PaletteItemContent {
     ReferenceLocation(PathBuf, EditorLocation<Position>),
     Workspace(LapceWorkspace),
     SshHost(SshHost),
+    RunAndDebug(RunDebugMode, RunDebugConfig),
     Command(LapceCommand),
     ColorTheme(String),
     IconTheme(String),
@@ -305,6 +305,18 @@ impl PaletteItemContent {
                     ));
                 }
             }
+            PaletteItemContent::RunAndDebug(mode, config) => {
+                if !preview {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::RunAndDebug {
+                            mode: *mode,
+                            config: config.clone(),
+                        },
+                        Target::Auto,
+                    ));
+                }
+            }
         }
         true
     }
@@ -394,6 +406,7 @@ pub struct PaletteData {
     pub preview_editor: WidgetId,
     pub input_editor: WidgetId,
     pub executed_commands: Rc<RefCell<HashMap<String, Instant>>>,
+    pub executed_run_configs: Rc<RefCell<HashMap<(RunDebugMode, String), Instant>>>,
 }
 
 impl KeyPressFocus for PaletteViewData {
@@ -489,6 +502,7 @@ impl PaletteData {
             preview_editor,
             input_editor: WidgetId::next(),
             executed_commands: Rc::new(RefCell::new(HashMap::new())),
+            executed_run_configs: Rc::new(RefCell::new(HashMap::new())),
         }
     }
 
@@ -521,6 +535,7 @@ impl PaletteData {
             | PaletteType::ColorTheme
             | PaletteType::IconTheme
             | PaletteType::Language
+            | PaletteType::RunAndDebug
             | PaletteType::SshHost => &self.input,
             PaletteType::Line
             | PaletteType::DocumentSymbol
@@ -608,7 +623,8 @@ impl PaletteViewData {
         let palette = Arc::make_mut(&mut self.palette);
         palette.status = PaletteStatus::Started;
         palette.palette_type = palette_type.unwrap_or(PaletteType::File);
-        palette.input = input.unwrap_or_else(|| palette.palette_type.string());
+        palette.input =
+            input.unwrap_or_else(|| palette.palette_type.symbol().to_string());
 
         // Most usages of `run` will want to initialize the input
         // However, special types like workspace-symbol-search want to avoid it
@@ -656,6 +672,9 @@ impl PaletteViewData {
                 self.get_workspaces(ctx);
             }
             PaletteType::Reference => {}
+            PaletteType::RunAndDebug => {
+                self.get_run_configs(ctx);
+            }
             PaletteType::SshHost => {
                 self.get_ssh_hosts(ctx);
             }
@@ -715,20 +734,7 @@ impl PaletteViewData {
             return;
         }
 
-        let start = match palette.palette_type {
-            PaletteType::File
-            | PaletteType::Reference
-            | PaletteType::ColorTheme
-            | PaletteType::IconTheme
-            | PaletteType::Language
-            | PaletteType::SshHost => 0,
-            PaletteType::Line
-            | PaletteType::DocumentSymbol
-            | PaletteType::WorkspaceSymbol
-            | PaletteType::Workspace
-            | PaletteType::Command
-            | PaletteType::GlobalSearch => 1,
-        };
+        let start = palette.palette_type.symbol().len();
 
         if palette.cursor == start {
             palette.input = "".to_string();
@@ -787,11 +793,20 @@ impl PaletteViewData {
         }
         let palette = Arc::make_mut(&mut self.palette);
         if let Some(item) = palette.list_data.current_selected_item() {
-            if let PaletteItemContent::Command(cmd) = &item.content {
-                palette
-                    .executed_commands
-                    .borrow_mut()
-                    .insert(cmd.kind.str().to_string(), Instant::now());
+            match &item.content {
+                PaletteItemContent::Command(cmd) => {
+                    palette
+                        .executed_commands
+                        .borrow_mut()
+                        .insert(cmd.kind.str().to_string(), Instant::now());
+                }
+                PaletteItemContent::RunAndDebug(mode, config) => {
+                    palette
+                        .executed_run_configs
+                        .borrow_mut()
+                        .insert((*mode, config.name.clone()), Instant::now());
+                }
+                _ => (),
             }
             if item.content.select(ctx, false, palette.preview_editor) {
                 self.cancel(ctx);
@@ -904,6 +919,68 @@ impl PaletteViewData {
                 );
             }
         });
+    }
+
+    fn get_run_configs(&mut self, ctx: &mut EventCtx) {
+        let configs = run_configs(self.workspace.path.as_deref());
+        if configs.is_none() {
+            if let Some(path) = self.workspace.path.as_ref() {
+                let path = path.join(".lapce").join("run.toml");
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::OpenFile(path, false),
+                    Target::Auto,
+                ));
+            }
+        }
+        let palette = Arc::make_mut(&mut self.palette);
+        palette.total_items.clear();
+        let executed_run_configs = palette.executed_run_configs.borrow();
+
+        let mut items = Vec::new();
+        if let Some(configs) = configs.as_ref() {
+            for config in &configs.configs {
+                items.push((
+                    executed_run_configs
+                        .get(&(RunDebugMode::Run, config.name.clone())),
+                    PaletteItem {
+                        content: PaletteItemContent::RunAndDebug(
+                            RunDebugMode::Run,
+                            config.clone(),
+                        ),
+                        filter_text: format!(
+                            "Run {} {} {}",
+                            config.name,
+                            config.program,
+                            config.args.join(" ")
+                        ),
+                        score: 0,
+                        indices: vec![],
+                    },
+                ));
+                items.push((
+                    executed_run_configs
+                        .get(&(RunDebugMode::Debug, config.name.clone())),
+                    PaletteItem {
+                        content: PaletteItemContent::RunAndDebug(
+                            RunDebugMode::Debug,
+                            config.clone(),
+                        ),
+                        filter_text: format!(
+                            "Debug {} {} {}",
+                            config.name,
+                            config.program,
+                            config.args.join(" ")
+                        ),
+                        score: 0,
+                        indices: vec![],
+                    },
+                ));
+            }
+        }
+
+        items.sort_by_key(|(executed, _item)| std::cmp::Reverse(executed.copied()));
+        palette.total_items = items.into_iter().map(|(_, item)| item).collect();
     }
 
     fn get_ssh_hosts(&mut self, _ctx: &mut EventCtx) {

@@ -5,6 +5,7 @@ pub mod alert;
 pub mod app;
 pub mod button;
 pub mod completion;
+pub mod debug;
 pub mod diff;
 pub mod dropdown;
 pub mod editor;

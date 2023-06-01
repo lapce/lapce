@@ -23,7 +23,7 @@ use lapce_rpc::{
     file::FileNodeItem,
     proxy::{
         ProxyHandler, ProxyNotification, ProxyRequest, ProxyResponse,
-        ProxyRpcHandler,
+        ProxyRpcHandler, SearchMatch,
     },
     source_control::{DiffInfo, FileDiff},
     style::{LineStyle, SemanticStyles},
@@ -163,6 +163,20 @@ impl ProxyHandler for Dispatcher {
                 shell,
             } => {
                 let mut terminal = Terminal::new(term_id, cwd, shell, 50, 10);
+
+                #[allow(unused)]
+                let mut child_id = None;
+
+                #[cfg(not(target_os = "windows"))]
+                {
+                    // Alacritty currently doesn't expose the child process ID on windows, so this won't compile
+                    // Alacritty does acquire this information, but it is discarded
+                    // This is currently only used for debug adapter protocol's RunInTerminal request, which we
+                    // specify isn't supported on Windows at the moment
+                    child_id = Some(terminal.pty.child().id());
+                }
+
+                self.core_rpc.terminal_process_id(term_id, child_id);
                 let tx = terminal.tx.clone();
                 self.terminals.insert(term_id, tx);
                 let rpc = self.core_rpc.clone();
@@ -194,10 +208,51 @@ impl ProxyHandler for Dispatcher {
                 }
             }
             TerminalClose { term_id } => {
+                println!("close terminal {term_id:?}");
                 if let Some(tx) = self.terminals.remove(&term_id) {
                     #[allow(deprecated)]
                     let _ = tx.send(Msg::Shutdown);
                 }
+            }
+            DapStart {
+                config,
+                breakpoints,
+            } => {
+                let _ = self.catalog_rpc.dap_start(config, breakpoints);
+            }
+            DapProcessId {
+                dap_id,
+                process_id,
+                term_id,
+            } => {
+                let _ = self.catalog_rpc.dap_process_id(dap_id, process_id, term_id);
+            }
+            DapContinue { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_continue(dap_id, thread_id);
+            }
+            DapPause { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_pause(dap_id, thread_id);
+            }
+            DapStop { dap_id } => {
+                let _ = self.catalog_rpc.dap_stop(dap_id);
+            }
+            DapDisconnect { dap_id } => {
+                let _ = self.catalog_rpc.dap_disconnect(dap_id);
+            }
+            DapRestart {
+                dap_id,
+                breakpoints,
+            } => {
+                let _ = self.catalog_rpc.dap_restart(dap_id, breakpoints);
+            }
+            DapSetBreakpoints {
+                dap_id,
+                path,
+                breakpoints,
+            } => {
+                let _ =
+                    self.catalog_rpc
+                        .dap_set_breakpoints(dap_id, path, breakpoints);
             }
             InstallVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();
@@ -309,6 +364,8 @@ impl ProxyHandler for Dispatcher {
             GlobalSearch {
                 pattern,
                 case_sensitive,
+                whole_word,
+                is_regex,
             } => {
                 static WORKER_ID: AtomicU64 = AtomicU64::new(0);
                 let our_id = WORKER_ID.fetch_add(1, Ordering::SeqCst) + 1;
@@ -340,6 +397,8 @@ impl ProxyHandler for Dispatcher {
                                 .map(|p| p.into_path()),
                             &pattern,
                             case_sensitive,
+                            whole_word,
+                            is_regex,
                         ),
                     );
                 });
@@ -613,10 +672,7 @@ impl ProxyHandler for Dispatcher {
                         }
                         Ok(ProxyResponse::GetFilesResponse { items })
                     } else {
-                        Err(RpcError {
-                            code: 0,
-                            message: "no workspace set".to_string(),
-                        })
+                        Ok(ProxyResponse::GetFilesResponse { items: Vec::new() })
                     };
                     proxy_rpc.handle_response(id, result);
                 });
@@ -640,26 +696,23 @@ impl ProxyHandler for Dispatcher {
                 thread::spawn(move || {
                     let result = fs::read_dir(path)
                         .map(|entries| {
-                            let items = entries
+                            let mut items = entries
                                 .into_iter()
                                 .filter_map(|entry| {
                                     entry
-                                        .map(|e| {
-                                            (
-                                                e.path(),
-                                                FileNodeItem {
-                                                    path_buf: e.path(),
-                                                    is_dir: e.path().is_dir(),
-                                                    open: false,
-                                                    read: false,
-                                                    children: HashMap::new(),
-                                                    children_open_count: 0,
-                                                },
-                                            )
+                                        .map(|e| FileNodeItem {
+                                            path_buf: e.path(),
+                                            is_dir: e.path().is_dir(),
+                                            open: false,
+                                            read: false,
+                                            children: HashMap::new(),
+                                            children_open_count: 0,
                                         })
                                         .ok()
                                 })
-                                .collect::<HashMap<PathBuf, FileNodeItem>>();
+                                .collect::<Vec<FileNodeItem>>();
+
+                            items.sort();
 
                             ProxyResponse::ReadDirResponse { items }
                         })
@@ -1237,16 +1290,21 @@ fn search_in_path(
     paths: impl Iterator<Item = PathBuf>,
     pattern: &str,
     case_sensitive: bool,
+    whole_word: bool,
+    is_regex: bool,
 ) -> Result<ProxyResponse, RpcError> {
     let mut matches = IndexMap::new();
-    let pattern = regex::escape(pattern);
-    let matcher = RegexMatcherBuilder::new()
-        .case_insensitive(!case_sensitive)
-        .build_literals(&[&pattern])
-        .map_err(|_| RpcError {
-            code: 0,
-            message: "can't build matcher".to_string(),
-        })?;
+    let mut matcher = RegexMatcherBuilder::new();
+    let matcher = matcher.case_insensitive(!case_sensitive).word(whole_word);
+    let matcher = if is_regex {
+        matcher.build(pattern)
+    } else {
+        matcher.build_literals(&[&regex::escape(pattern)])
+    };
+    let matcher = matcher.map_err(|_| RpcError {
+        code: 0,
+        message: "can't build matcher".to_string(),
+    })?;
     let mut searcher = SearcherBuilder::new().build();
 
     for path in paths {
@@ -1290,11 +1348,12 @@ fn search_in_path(
                     } else {
                         line.to_string()
                     };
-                    line_matches.push((
-                        lnum as usize,
-                        (mymatch.start(), mymatch.end()),
-                        line,
-                    ));
+                    line_matches.push(SearchMatch {
+                        line: lnum as usize,
+                        start: mymatch.start(),
+                        end: mymatch.end(),
+                        line_content: line,
+                    });
                     Ok(true)
                 }),
             );

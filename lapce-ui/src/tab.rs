@@ -28,6 +28,7 @@ use lapce_data::{
         LapceTabData, LapceWindowData, LapceWorkspace, LapceWorkspaceType,
         WorkProgress,
     },
+    debug::RunDebugMode,
     document::{BufferContent, LocalBufferKind},
     editor::EditorLocation,
     hover::HoverStatus,
@@ -48,10 +49,10 @@ use lsp_types::DiagnosticSeverity;
 
 use crate::{
     about::AboutBox, alert::AlertBox, completion::CompletionContainer,
-    editor::view::LapceEditorView, explorer::FileExplorer, hover::HoverContainer,
-    message::LapceMessage, panel::PanelContainer, picker::FilePicker,
-    plugin::Plugin, problem::new_problem_panel, scroll::LapceScroll,
-    search::new_search_panel, signature::SignatureContainer,
+    debug::new_debug_panel, editor::view::LapceEditorView, explorer::FileExplorer,
+    hover::HoverContainer, message::LapceMessage, panel::PanelContainer,
+    picker::FilePicker, plugin::Plugin, problem::new_problem_panel,
+    scroll::LapceScroll, search::new_search_panel, signature::SignatureContainer,
     source_control::new_source_control_panel, split::split_data_widget,
     status::LapceStatus, terminal::TerminalPanel, title::Title,
 };
@@ -188,6 +189,14 @@ impl LapceTab {
                         panel.insert_panel(
                             *kind,
                             WidgetPod::new(new_problem_panel(&data.problem).boxed()),
+                        );
+                    }
+                    PanelKind::Debug => {
+                        panel.insert_panel(
+                            *kind,
+                            WidgetPod::new(
+                                new_debug_panel(&data.terminal.debug).boxed(),
+                            ),
                         );
                     }
                 }
@@ -838,26 +847,26 @@ impl LapceTab {
                                 }
                             }
                             let pattern = pattern.to_string();
-                            let event_sink = ctx.get_external_handle();
-                            let tab_id = data.id;
                             data.proxy.proxy_rpc.global_search(
-                                pattern.clone(),
+                                pattern,
                                 find.case_sensitive(),
+                                false,
+                                false,
                                 Box::new(move |result| {
                                     if let Ok(
                                         ProxyResponse::GlobalSearchResponse {
-                                            matches,
+                                            matches: _,
                                         },
                                     ) = result
                                     {
-                                        let _ = event_sink.submit_command(
-                                            LAPCE_UI_COMMAND,
-                                            LapceUICommand::GlobalSearchResult(
-                                                pattern,
-                                                Arc::new(matches),
-                                            ),
-                                            Target::Widget(tab_id),
-                                        );
+                                        // let _ = event_sink.submit_command(
+                                        //     LAPCE_UI_COMMAND,
+                                        //     LapceUICommand::GlobalSearchResult(
+                                        //         pattern,
+                                        //         Arc::new(matches),
+                                        //     ),
+                                        //     Target::Widget(tab_id),
+                                        // );
                                     }
                                 }),
                             )
@@ -965,6 +974,72 @@ impl LapceTab {
                     } => {
                         let signature = Arc::make_mut(&mut data.signature);
                         signature.receive(*request_id, resp.to_owned(), *plugin_id);
+                    }
+                    LapceUICommand::TerminalProcessId {
+                        term_id,
+                        process_id,
+                    } => {
+                        ctx.set_handled();
+                        let terminal = Arc::make_mut(&mut data.terminal);
+                        terminal.set_process_id(*term_id, *process_id);
+                    }
+                    LapceUICommand::RunAndDebug { mode, config } => {
+                        ctx.set_handled();
+                        data.run_and_debug(ctx, mode, config);
+                    }
+                    LapceUICommand::RunInTerminal(config) => {
+                        ctx.set_handled();
+                        data.run_in_terminal(ctx, &RunDebugMode::Debug, config);
+                    }
+                    LapceUICommand::DapStopped {
+                        dap_id,
+                        stopped,
+                        stack_frames,
+                    } => {
+                        ctx.set_handled();
+                        let terminal = Arc::make_mut(&mut data.terminal);
+                        let debug = Arc::make_mut(&mut terminal.debug);
+                        if let Some(dap) = debug.daps.get_mut(dap_id) {
+                            dap.stopped(stopped, stack_frames);
+                        }
+                    }
+                    LapceUICommand::DapContinued { dap_id } => {
+                        ctx.set_handled();
+                        let terminal = Arc::make_mut(&mut data.terminal);
+                        let debug = Arc::make_mut(&mut terminal.debug);
+                        if let Some(dap) = debug.daps.get_mut(dap_id) {
+                            dap.stopped = false;
+                            dap.thread_id = None;
+                        }
+                    }
+                    LapceUICommand::DapBreakpointsResp {
+                        path, breakpoints, ..
+                    } => {
+                        ctx.set_handled();
+                        let terminal = Arc::make_mut(&mut data.terminal);
+                        let debug = Arc::make_mut(&mut terminal.debug);
+                        debug.set_breakpoints_resp(path, breakpoints);
+                    }
+                    LapceUICommand::TerminalProcessStopped(id) => {
+                        ctx.set_handled();
+                        let terminal_panel = Arc::make_mut(&mut data.terminal);
+                        if let Some(terminal) = terminal_panel.get_terminal_mut(id) {
+                            match Arc::make_mut(terminal).run_debug.as_mut() {
+                                Some(run_debug) => {
+                                    run_debug.stopped = true;
+                                }
+                                None => {
+                                    ctx.submit_command(Command::new(
+                                        LAPCE_UI_COMMAND,
+                                        LapceUICommand::SplitTerminalClose(
+                                            terminal.term_id,
+                                            terminal.widget_id,
+                                        ),
+                                        Target::Widget(terminal.split_id),
+                                    ));
+                                }
+                            }
+                        }
                     }
                     LapceUICommand::CloseTerminal(id) => {
                         let terminal_panel = Arc::make_mut(&mut data.terminal);

@@ -36,6 +36,7 @@ use lapce_proxy::cli::PathObject;
 use lapce_rpc::{
     buffer::BufferId,
     core::{CoreMessage, CoreNotification},
+    dap_types::RunDebugConfig,
     plugin::{VoltID, VoltInfo},
     proxy::ProxyResponse,
     source_control::FileDiff,
@@ -62,6 +63,7 @@ use crate::{
         EditorInfo, EditorTabChildInfo, EditorTabInfo, LapceDb, SplitContentInfo,
         SplitInfo, TabsInfo, WindowInfo, WorkspaceInfo,
     },
+    debug::{DapData, RunDebugMode, RunDebugProcess},
     document::{BufferContent, Document, LocalBufferKind},
     editor::{EditorLocation, EditorPosition, LapceEditorBufferData, Line, TabRect},
     explorer::FileExplorerData,
@@ -322,6 +324,7 @@ impl LapceData {
             PanelPosition::LeftTop,
             im::vector![
                 PanelKind::FileExplorer,
+                PanelKind::Debug,
                 PanelKind::SourceControl,
                 PanelKind::Plugin,
             ],
@@ -894,9 +897,11 @@ impl LapceTabData {
 
         let terminal = Arc::new(TerminalPanelData::new(
             Arc::new(workspace.clone()),
+            workspace_info.as_ref(),
             proxy.clone(),
             &config,
             event_sink.clone(),
+            None,
         ));
         let problem = Arc::new(ProblemData::new());
         let panel = workspace_info
@@ -965,6 +970,19 @@ impl LapceTabData {
         WorkspaceInfo {
             split: main_split_data.split_info(self),
             panel: (*self.panel).clone(),
+            breakpoints: Some(
+                self.terminal
+                    .debug
+                    .breakpoints
+                    .iter()
+                    .map(|(path, breakpints)| {
+                        (
+                            path.to_path_buf(),
+                            breakpints.iter().map(|b| b.line).collect(),
+                        )
+                    })
+                    .collect(),
+            ),
         }
     }
 
@@ -1038,6 +1056,7 @@ impl LapceTabData {
             focus_area: self.focus_area.clone(),
             source_control: self.source_control.clone(),
             proxy: self.proxy.clone(),
+            terminal: self.terminal.clone(),
             find: self.find.clone(),
             doc,
             palette: self.palette.clone(),
@@ -1112,6 +1131,7 @@ impl LapceTabData {
         self.rename = editor_buffer_data.rename.clone();
         self.main_split = editor_buffer_data.main_split.clone();
         self.find = editor_buffer_data.find.clone();
+        self.terminal = editor_buffer_data.terminal.clone();
         if !editor_buffer_data.editor.same(editor) {
             self.main_split
                 .editors
@@ -1614,6 +1634,36 @@ impl LapceTabData {
                     Target::Widget(self.palette.widget_id),
                 ));
             }
+            LapceWorkbenchCommand::PaletteRunAndDebug => {
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::RunPalette(Some(PaletteType::RunAndDebug)),
+                    Target::Widget(self.palette.widget_id),
+                ));
+            }
+            LapceWorkbenchCommand::RunAndDebugRestart => {
+                if self
+                    .terminal
+                    .debug
+                    .active_term
+                    .and_then(|term_id| {
+                        Arc::make_mut(&mut self.terminal)
+                            .restart_run_debug(term_id, &self.config)
+                    })
+                    .is_none()
+                {
+                    ctx.submit_command(Command::new(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::RunPalette(Some(PaletteType::RunAndDebug)),
+                        Target::Widget(self.palette.widget_id),
+                    ));
+                }
+            }
+            LapceWorkbenchCommand::RunAndDebugStop => {
+                if let Some(term_id) = self.terminal.debug.active_term {
+                    Arc::make_mut(&mut self.terminal).stop_run_debug(term_id);
+                }
+            }
             LapceWorkbenchCommand::PaletteWorkspace => {
                 ctx.submit_command(Command::new(
                     LAPCE_UI_COMMAND,
@@ -1710,6 +1760,9 @@ impl LapceTabData {
             }
             LapceWorkbenchCommand::ToggleProblemVisual => {
                 self.toggle_panel_visual(ctx, PanelKind::Problem);
+            }
+            LapceWorkbenchCommand::ToggleDebugVisual => {
+                self.toggle_panel_visual(ctx, PanelKind::Debug);
             }
             LapceWorkbenchCommand::ToggleTerminalVisual => {
                 self.toggle_panel_visual(ctx, PanelKind::Terminal);
@@ -1980,6 +2033,7 @@ impl LapceTabData {
                     self.proxy.clone(),
                     &self.config,
                     ctx.get_external_handle(),
+                    None,
                 );
                 if !self.panel.is_panel_visible(&PanelKind::Terminal) {
                     Arc::make_mut(&mut self.panel).show_panel(&PanelKind::Terminal);
@@ -2238,6 +2292,7 @@ impl LapceTabData {
             PanelKind::Terminal => self.terminal.widget_id,
             PanelKind::Search => self.search.active,
             PanelKind::Problem => self.problem.widget_id,
+            PanelKind::Debug => self.terminal.debug.widget_id,
         };
         if let PanelKind::Search = kind {
             ctx.submit_command(Command::new(
@@ -2268,7 +2323,10 @@ impl LapceTabData {
 
     fn toggle_panel_focus(&mut self, ctx: &mut EventCtx, kind: PanelKind) {
         let should_hide = match kind {
-            PanelKind::FileExplorer | PanelKind::Plugin | PanelKind::Problem => {
+            PanelKind::FileExplorer
+            | PanelKind::Plugin
+            | PanelKind::Problem
+            | PanelKind::Debug => {
                 // Some panels don't accept focus (yet). Fall back to visibility check
                 // in those cases.
                 self.panel.is_panel_visible(&kind)
@@ -2362,6 +2420,77 @@ impl LapceTabData {
 
     pub fn handle_workspace_file_change(&self, _ctx: &mut EventCtx) {
         self.file_explorer.reload();
+    }
+
+    pub fn run_in_terminal(
+        &mut self,
+        ctx: &mut EventCtx,
+        mode: &RunDebugMode,
+        config: &RunDebugConfig,
+    ) {
+        let terminal = Arc::make_mut(&mut self.terminal);
+        let term_id = if let Some(terminal) =
+            terminal.get_stopped_run_debug_terminal_mut(mode, config)
+        {
+            Arc::make_mut(terminal).new_process(
+                Some(RunDebugProcess {
+                    mode: *mode,
+                    config: config.clone(),
+                    stopped: false,
+                    created: Instant::now(),
+                }),
+                &self.config,
+            );
+            let _ = ctx.get_external_handle().submit_command(
+                LAPCE_UI_COMMAND,
+                LapceUICommand::Focus,
+                Target::Widget(terminal.widget_id),
+            );
+            terminal.term_id
+        } else {
+            let new_terminal_tab_id = terminal.new_tab(
+                self.workspace.clone(),
+                self.proxy.clone(),
+                &self.config,
+                ctx.get_external_handle(),
+                Some(RunDebugProcess {
+                    mode: *mode,
+                    config: config.clone(),
+                    stopped: false,
+                    created: Instant::now(),
+                }),
+            );
+            let tab = terminal.tabs.get(&new_terminal_tab_id).unwrap();
+            tab.active_term_id
+        };
+        let debug = Arc::make_mut(&mut terminal.debug);
+        debug.active_term = Some(term_id);
+        debug
+            .daps
+            .insert(config.dap_id, DapData::new(config.dap_id, term_id));
+
+        if !self.panel.is_panel_visible(&PanelKind::Terminal) {
+            Arc::make_mut(&mut self.panel).show_panel(&PanelKind::Terminal);
+        }
+    }
+
+    pub fn run_and_debug(
+        &mut self,
+        ctx: &mut EventCtx,
+        mode: &RunDebugMode,
+        config: &RunDebugConfig,
+    ) {
+        match mode {
+            RunDebugMode::Run => {
+                self.run_in_terminal(ctx, mode, config);
+            }
+            RunDebugMode::Debug => {
+                self.proxy.proxy_rpc.dap_start(
+                    config.clone(),
+                    self.terminal.debug.source_breakpoints(),
+                );
+            }
+        }
     }
 }
 

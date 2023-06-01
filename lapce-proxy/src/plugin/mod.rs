@@ -1,4 +1,5 @@
 pub mod catalog;
+pub mod dap;
 pub mod lsp;
 pub mod psp;
 pub mod wasi;
@@ -21,9 +22,11 @@ use flate2::read::GzDecoder;
 use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
+    dap_types::{DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
     plugin::{PluginId, VoltInfo, VoltMetadata},
     proxy::ProxyRpcHandler,
     style::LineStyle,
+    terminal::TermId,
     RequestId, RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
@@ -65,6 +68,7 @@ use tar::Archive;
 
 use self::{
     catalog::PluginCatalog,
+    dap::DapRpcHandler,
     psp::{ClonableCallback, PluginServerRpcHandler, RpcCallback},
     wasi::{load_volt, start_volt},
 };
@@ -124,6 +128,40 @@ pub enum PluginCatalogNotification {
     StopVolt(VoltInfo),
     EnableVolt(VoltInfo),
     ReloadVolt(VoltMetadata),
+    DapLoaded(DapRpcHandler),
+    DapDisconnected(DapId),
+    DapStart {
+        config: RunDebugConfig,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+    },
+    DapProcessId {
+        dap_id: DapId,
+        process_id: Option<u32>,
+        term_id: TermId,
+    },
+    DapContinue {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapPause {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStop {
+        dap_id: DapId,
+    },
+    DapDisconnect {
+        dap_id: DapId,
+    },
+    DapRestart {
+        dap_id: DapId,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+    },
+    DapSetBreakpoints {
+        dap_id: DapId,
+        path: PathBuf,
+        breakpoints: Vec<SourceBreakpoint>,
+    },
     Shutdown,
 }
 
@@ -960,6 +998,86 @@ impl PluginCatalogRpcHandler {
 
     pub fn enable_volt(&self, volt: VoltInfo) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::EnableVolt(volt))
+    }
+
+    pub fn dap_disconnected(&self, dap_id: DapId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapDisconnected(dap_id))
+    }
+
+    pub fn dap_loaded(&self, dap_rpc: DapRpcHandler) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapLoaded(dap_rpc))
+    }
+
+    pub fn dap_start(
+        &self,
+        config: RunDebugConfig,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+    ) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStart {
+            config,
+            breakpoints,
+        })
+    }
+
+    pub fn dap_process_id(
+        &self,
+        dap_id: DapId,
+        process_id: Option<u32>,
+        term_id: TermId,
+    ) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapProcessId {
+            dap_id,
+            process_id,
+            term_id,
+        })
+    }
+
+    pub fn dap_continue(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapContinue {
+            dap_id,
+            thread_id,
+        })
+    }
+
+    pub fn dap_pause(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapPause {
+            dap_id,
+            thread_id,
+        })
+    }
+
+    pub fn dap_stop(&self, dap_id: DapId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStop { dap_id })
+    }
+
+    pub fn dap_disconnect(&self, dap_id: DapId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapDisconnect {
+            dap_id,
+        })
+    }
+
+    pub fn dap_restart(
+        &self,
+        dap_id: DapId,
+        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+    ) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapRestart {
+            dap_id,
+            breakpoints,
+        })
+    }
+
+    pub fn dap_set_breakpoints(
+        &self,
+        dap_id: DapId,
+        path: PathBuf,
+        breakpoints: Vec<SourceBreakpoint>,
+    ) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapSetBreakpoints {
+            dap_id,
+            path,
+            breakpoints,
+        })
     }
 }
 
