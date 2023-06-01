@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use floem::{
+    event::EventListener,
     reactive::{ReadSignal, SignalGet, SignalWith},
     style::Style,
     view::View,
@@ -39,6 +40,15 @@ pub fn panel_container_view(
             panel_picker(window_tab_data.clone(), position.second()),
         )
     })
+    .on_event(EventListener::DragEnter, move |_| {
+        // println!("drag enter");
+        true
+    })
+    .on_event(EventListener::DragLeave, move |_| {
+        // println!("drag leave");
+        true
+    })
+    .on_event(EventListener::Drop, move |_| true)
     .style(move || {
         let size = panel.size.with(|s| match position {
             PanelContainerPosition::Left => s.left,
@@ -192,6 +202,24 @@ fn panel_picker(
                             || false,
                             config,
                         )
+                        .draggable()
+                        .on_event(EventListener::DragStart, move |_| {
+                            println!("drag start on icon");
+                            true
+                        })
+                        .dragging_style(move || {
+                            let config = config.get();
+                            Style::BASE
+                                .border(1.0)
+                                .border_radius(6.0)
+                                .border_color(
+                                    *config.get_color(LapceColor::LAPCE_BORDER),
+                                )
+                                .padding_px(6.0)
+                                .background(
+                                    *config.get_color(LapceColor::PANEL_BACKGROUND),
+                                )
+                        })
                         .style(|| Style::BASE.padding_px(1.0)),
                         label(|| "".to_string()).style(move || {
                             Style::BASE

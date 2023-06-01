@@ -5,6 +5,8 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+flate2.workspace = true
+tar.workspace = true
 alacritty_terminal.workspace = true
 clap.workspace = true
 rayon.workspace = true
@@ -39,13 +41,22 @@ fuzzy-matcher = "0.3.7"
 sled = "0.34.7"
 tokio = { version = "1.21", features = ["full"] }
 futures = "0.3.26"
-floem = { git = "https://github.com/lapce/floem", rev = "25222523a6801cfe7db06309020d7f0d7d78b350" }
+floem = { git = "https://github.com/lapce/floem", rev = "703a571ff0027aa64393a2cc62b7a95dce954834" }
 # floem = { path = "../../workspaces/floem" }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
 
+[target.'cfg(target_os="macos")'.dependencies]
+fs_extra = "1.2.0"
+dmg = "0.1.1"
+
+[target.'cfg(target_os="windows")'.dependencies]
+zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
+
 [features]
-default = ["all-languages"]
+default = ["all-languages", "updater"]
+
+updater = []
 
 # To build lapce with only some of the supported languages, for example:
 #

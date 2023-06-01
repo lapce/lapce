@@ -3,7 +3,7 @@ use std::{ops::Range, path::PathBuf, process::Stdio, sync::Arc};
 use clap::Parser;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
-    event::{Event, EventListner},
+    event::{Event, EventListener},
     ext_event::create_signal_from_channel,
     peniko::{
         kurbo::{Point, Rect, Size},
@@ -54,6 +54,7 @@ use crate::{
     settings::settings_view,
     text_input::text_input,
     title::title,
+    update::ReleaseInfo,
     window::{TabsInfo, WindowData, WindowInfo},
     window_tab::{CommonData, Focus, WindowTabData},
     workspace::{LapceWorkspace, LapceWorkspaceType},
@@ -79,6 +80,8 @@ pub struct AppInfo {
 pub struct AppData {
     pub windows: RwSignal<im::Vector<WindowData>>,
     pub window_scale: RwSignal<f64>,
+    /// The latest release information
+    pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
     pub watcher: Arc<notify::RecommendedWatcher>,
 }
 
@@ -259,13 +262,13 @@ fn editor_tab_header(
                         || false,
                         config,
                     )
-                    .on_event(EventListner::PointerDown, |_| true)
+                    .on_event(EventListener::PointerDown, |_| true)
                     .style(|| Style::BASE.margin_horiz_px(6.0)),
                 )
             })
             .style(move || {
                 Style::BASE
-                    .align_items(Some(AlignItems::Center))
+                    .items_center()
                     .border_left(if i.get() == 0 { 1.0 } else { 0.0 })
                     .border_right(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
@@ -284,13 +287,14 @@ fn editor_tab_header(
         stack(|| {
             (
                 container(child_view)
+                    .draggable()
                     .on_double_click(move |_| {
                         if let Some(confirmed) = confirmed {
                             confirmed.set(true);
                         }
                         true
                     })
-                    .on_event(EventListner::PointerDown, move |_| {
+                    .on_event(EventListener::PointerDown, move |_| {
                         editor_tab.update(|editor_tab| {
                             editor_tab.active = i.get_untracked();
                         });
@@ -300,6 +304,11 @@ fn editor_tab_header(
                         Style::BASE
                             .align_items(Some(AlignItems::Center))
                             .height_pct(100.0)
+                            .background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_BACKGROUND),
+                            )
                     }),
                 container(|| {
                     empty().style(move || {
@@ -486,7 +495,7 @@ fn editor_tab(
             ),
         )
     })
-    .on_event(EventListner::PointerDown, move |_| {
+    .on_event(EventListener::PointerDown, move |_| {
         if focus.get_untracked() != Focus::Workbench {
             focus.set(Focus::Workbench);
         }
@@ -1605,7 +1614,7 @@ fn palette(window_tab_data: Arc<WindowTabData>) -> impl View {
                 palette_preview(palette_data),
             )
         })
-        .on_event(EventListner::PointerDown, move |_| true)
+        .on_event(EventListener::PointerDown, move |_| true)
         .style(move || {
             let config = config.get();
             Style::BASE
@@ -1913,6 +1922,8 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let source_control = window_tab_data.source_control;
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;
+    let latest_release = window_tab_data.latest_release;
+    let update_in_progress = window_tab_data.update_in_progress;
     let config = window_tab_data.common.config;
     let workspace = window_tab_data.workspace.clone();
     let set_workbench_command =
@@ -1922,7 +1933,14 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
         (
             stack(|| {
                 (
-                    title(workspace, source_control, set_workbench_command, config),
+                    title(
+                        workspace,
+                        source_control,
+                        set_workbench_command,
+                        latest_release,
+                        update_in_progress,
+                        config,
+                    ),
                     workbench(window_tab_data.clone()),
                     status(window_tab_data.clone()),
                 )
@@ -2157,7 +2175,7 @@ fn app_view(window_data: WindowData) -> impl View {
     .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
     .window_scale(move || window_scale.get())
     .keyboard_navigatable()
-    .on_event(EventListner::KeyDown, move |event| {
+    .on_event(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             window_data.key_down(key_event);
             true
@@ -2165,13 +2183,13 @@ fn app_view(window_data: WindowData) -> impl View {
             false
         }
     })
-    .on_event(EventListner::WindowResized, move |event| {
+    .on_event(EventListener::WindowResized, move |event| {
         if let Event::WindowResized(size) = event {
             window_size.set(*size);
         }
         true
     })
-    .on_event(EventListner::WindowMoved, move |event| {
+    .on_event(EventListener::WindowMoved, move |event| {
         if let Event::WindowMoved(point) = event {
             position.set(*point);
         }
@@ -2224,10 +2242,19 @@ pub fn launch() {
     provide_context(scope, db.clone());
 
     let window_scale = create_rw_signal(scope, 1.0);
+    let latest_release = create_rw_signal(scope, Arc::new(None));
 
     let mut windows = im::Vector::new();
 
-    app = create_windows(scope, db.clone(), app, paths, &mut windows, window_scale);
+    app = create_windows(
+        scope,
+        db.clone(),
+        app,
+        paths,
+        &mut windows,
+        window_scale,
+        latest_release.read_only(),
+    );
 
     let (tx, rx) = crossbeam_channel::bounded(1);
     let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx)).unwrap();
@@ -2249,6 +2276,7 @@ pub fn launch() {
         windows,
         window_scale,
         watcher: Arc::new(watcher),
+        latest_release,
     };
 
     {
@@ -2258,6 +2286,24 @@ pub fn launch() {
             if notification.get().is_some() {
                 app_data.reload_config();
             }
+        });
+    }
+
+    #[cfg(feature = "updater")]
+    {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        let notification = create_signal_from_channel(scope, rx);
+        let latest_release = app_data.latest_release;
+        create_effect(scope, move |_| {
+            if let Some(release) = notification.get() {
+                latest_release.set(Arc::new(Some(release)));
+            }
+        });
+        std::thread::spawn(move || loop {
+            if let Ok(release) = crate::update::get_latest_release() {
+                let _ = tx.send(release);
+            }
+            std::thread::sleep(std::time::Duration::from_secs(60 * 60));
         });
     }
 
@@ -2276,6 +2322,7 @@ fn create_windows(
     paths: Vec<PathBuf>,
     windows: &mut im::Vector<WindowData>,
     window_scale: RwSignal<f64>,
+    latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
 ) -> floem::Application {
     let dirs: Vec<&PathBuf> = paths.iter().filter(|p| p.is_dir()).collect();
     let files: Vec<&PathBuf> = paths.iter().filter(|p| p.is_file()).collect();
@@ -2319,7 +2366,8 @@ fn create_windows(
             pos += (50.0, 50.0);
 
             let config = WindowConfig::default().size(info.size).position(info.pos);
-            let window_data = WindowData::new(scope, info, window_scale);
+            let window_data =
+                WindowData::new(scope, info, window_scale, latest_release);
             windows.push_back(window_data.clone());
             app = app.window(move || app_view(window_data), Some(config));
         }
@@ -2329,7 +2377,8 @@ fn create_windows(
             for info in app_info.windows {
                 let config =
                     WindowConfig::default().size(info.size).position(info.pos);
-                let window_data = WindowData::new(scope, info, window_scale);
+                let window_data =
+                    WindowData::new(scope, info, window_scale, latest_release);
                 windows.push_back(window_data.clone());
                 app = app.window(move || app_view(window_data), Some(config));
             }
@@ -2347,7 +2396,7 @@ fn create_windows(
             },
         });
         let config = WindowConfig::default().size(info.size).position(info.pos);
-        let window_data = WindowData::new(scope, info, window_scale);
+        let window_data = WindowData::new(scope, info, window_scale, latest_release);
         windows.push_back(window_data.clone());
         app = app.window(|| app_view(window_data), Some(config));
     }

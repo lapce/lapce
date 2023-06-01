@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use floem::{
-    event::{Event, EventListner},
+    event::{Event, EventListener},
     glazier::PointerType,
     reactive::{SignalGet, SignalGetUntracked, SignalSet, SignalWith},
     style::Style,
@@ -206,7 +206,7 @@ fn terminal_tab_split(
                     terminal.run_debug.read_only(),
                     terminal_panel_data,
                 )
-                .on_event(EventListner::PointerWheel, move |event| {
+                .on_event(EventListener::PointerWheel, move |event| {
                     if let Event::PointerWheel(pointer_event) = event {
                         if let PointerType::Mouse(info) = &pointer_event.pointer_type
                         {

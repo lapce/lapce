@@ -1,20 +1,26 @@
 use std::sync::Arc;
 
 use floem::{
+    menu::{Menu, MenuItem},
+    peniko::kurbo::Point,
     reactive::{
-        ReadSignal, RwSignal, SignalGet, SignalSet, SignalWith, WriteSignal,
+        create_memo, ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
+        SignalWith, WriteSignal,
     },
     style::{AlignItems, Dimension, Display, JustifyContent, Style},
     view::View,
     views::{container, stack, Decorators},
     views::{label, svg},
+    AppContext,
 };
+use lapce_core::meta;
 
 use crate::{
     app::clickable_icon,
     command::LapceWorkbenchCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     source_control::SourceControlData,
+    update::ReleaseInfo,
     workspace::LapceWorkspace,
 };
 
@@ -220,10 +226,105 @@ fn middle(
     })
 }
 
-fn right(config: ReadSignal<Arc<LapceConfig>>) -> impl View {
+fn right(
+    set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
+    latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
+    update_in_progress: RwSignal<bool>,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    let cx = AppContext::get_current();
+    let latest_version = create_memo(cx.scope, move |_| {
+        let latest_release = latest_release.get();
+        let latest_version =
+            latest_release.as_ref().as_ref().map(|r| r.version.clone());
+        if latest_version.is_some()
+            && latest_version.as_deref() != Some(*meta::VERSION)
+        {
+            latest_version
+        } else {
+            None
+        }
+    });
+
+    let has_update = move || latest_version.with(|v| v.is_some());
+
     container(move || {
-        clickable_icon(|| LapceIcons::SETTINGS, || {}, || false, || false, config)
-            .style(move || Style::BASE.margin_horiz_px(6.0))
+        stack(|| {
+            (
+                clickable_icon(
+                    || LapceIcons::SETTINGS,
+                    move || {
+                        cx.id.show_context_menu(
+                            Menu::new("")
+                                .entry(MenuItem::new("Command Palette").action(
+                                    move || {
+                                        set_workbench_command.set(Some(
+                                            LapceWorkbenchCommand::PaletteCommand,
+                                        ))
+                                    },
+                                ))
+                                .separator()
+                                .entry(MenuItem::new("Open Settings").action(
+                                    move || {
+                                        set_workbench_command.set(Some(
+                                            LapceWorkbenchCommand::OpenSettings,
+                                        ))
+                                    },
+                                ))
+                                .separator()
+                                .entry(
+                                    if let Some(v) = latest_version.get_untracked() {
+                                        if update_in_progress.get_untracked() {
+                                            MenuItem::new(format!(
+                                                "Update in progress ({v})"
+                                            ))
+                                            .enabled(false)
+                                        } else {
+                                            MenuItem::new(format!(
+                                                "Restart to update ({v})"
+                                            ))
+                                            .action(move || {
+                                                set_workbench_command.set(Some(
+                                            LapceWorkbenchCommand::RestartToUpdate,
+                                        ))
+                                            })
+                                        }
+                                    } else {
+                                        MenuItem::new("No update available")
+                                            .enabled(false)
+                                    },
+                                ),
+                            Point::ZERO,
+                        );
+                    },
+                    || false,
+                    || false,
+                    config,
+                ),
+                container(|| {
+                    label(|| "1".to_string()).style(move || {
+                        let config = config.get();
+                        Style::BASE
+                            .font_size(10.0)
+                            .color(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+                            .border_radius(100.0)
+                            .margin_left_px(5.0)
+                            .margin_top_px(10.0)
+                            .background(*config.get_color(LapceColor::EDITOR_CARET))
+                    })
+                })
+                .style(move || {
+                    let has_update = has_update();
+                    Style::BASE
+                        .absolute()
+                        .size_pct(100.0, 100.0)
+                        .justify_end()
+                        .items_end()
+                        .apply_if(!has_update, |s| s.hide())
+                }),
+            )
+        })
+        .style(move || Style::BASE.margin_horiz_px(6.0))
     })
     .style(|| {
         Style::BASE
@@ -237,13 +338,20 @@ pub fn title(
     workspace: Arc<LapceWorkspace>,
     source_control: RwSignal<SourceControlData>,
     set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
+    latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
+    update_in_progress: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     stack(move || {
         (
             left(source_control, config),
             middle(workspace, set_workbench_command, config),
-            right(config),
+            right(
+                set_workbench_command,
+                latest_release,
+                update_in_progress,
+                config,
+            ),
         )
     })
     .style(move || {

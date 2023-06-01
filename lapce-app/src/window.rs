@@ -4,15 +4,15 @@ use floem::{
     glazier::KeyEvent,
     peniko::kurbo::{Point, Size},
     reactive::{
-        create_effect, create_rw_signal, RwSignal, Scope, SignalGet,
+        create_effect, create_rw_signal, ReadSignal, RwSignal, Scope, SignalGet,
         SignalGetUntracked, SignalSet, SignalUpdate, SignalWithUntracked,
     },
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::WindowCommand, config::LapceConfig, window_tab::WindowTabData,
-    workspace::LapceWorkspace,
+    command::WindowCommand, config::LapceConfig, update::ReleaseInfo,
+    window_tab::WindowTabData, workspace::LapceWorkspace,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,11 +51,17 @@ pub struct WindowData {
     pub position: RwSignal<Point>,
     pub root_view_id: RwSignal<floem::id::Id>,
     pub window_scale: RwSignal<f64>,
+    pub latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     pub config: RwSignal<Arc<LapceConfig>>,
 }
 
 impl WindowData {
-    pub fn new(cx: Scope, info: WindowInfo, window_scale: RwSignal<f64>) -> Self {
+    pub fn new(
+        cx: Scope,
+        info: WindowInfo,
+        window_scale: RwSignal<f64>,
+        latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
+    ) -> Self {
         let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
         let config = create_rw_signal(cx, Arc::new(config));
         let root_view_id = create_rw_signal(cx, floem::id::Id::next());
@@ -71,6 +77,7 @@ impl WindowData {
                 Arc::new(w),
                 window_command.write_only(),
                 window_scale,
+                latest_release,
             ));
             window_tabs.push_back((create_rw_signal(cx, 0), window_tab));
         }
@@ -81,6 +88,7 @@ impl WindowData {
                 Arc::new(LapceWorkspace::default()),
                 window_command.write_only(),
                 window_scale,
+                latest_release,
             ));
             window_tabs.push_back((create_rw_signal(cx, 0), window_tab));
         }
@@ -99,6 +107,7 @@ impl WindowData {
             position,
             root_view_id,
             window_scale,
+            latest_release,
             config,
         };
 
@@ -132,6 +141,7 @@ impl WindowData {
                     Arc::new(workspace),
                     self.window_command.write_only(),
                     self.window_scale,
+                    self.latest_release,
                 ));
                 let active = self.active.get_untracked();
                 self.window_tabs.update(|window_tabs| {
@@ -153,6 +163,7 @@ impl WindowData {
                     Arc::new(workspace),
                     self.window_command.write_only(),
                     self.window_scale,
+                    self.latest_release,
                 ));
                 let active = self.active.get_untracked();
                 let active = self

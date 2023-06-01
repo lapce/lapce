@@ -599,10 +599,6 @@ impl DapRpcHandler {
         let _ = self.rpc_tx.send(DapRpc::Restart(breakpoints));
     }
 
-    fn shutdown(&self) {
-        let _ = self.rpc_tx.send(DapRpc::Shutdown);
-    }
-
     fn disconnected(&self) {
         let _ = self.rpc_tx.send(DapRpc::Disconnected);
     }

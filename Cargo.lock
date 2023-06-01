@@ -1615,7 +1615,7 @@ dependencies = [
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=25222523a6801cfe7db06309020d7f0d7d78b350#25222523a6801cfe7db06309020d7f0d7d78b350"
+source = "git+https://github.com/lapce/floem?rev=703a571ff0027aa64393a2cc62b7a95dce954834#703a571ff0027aa64393a2cc62b7a95dce954834"
 dependencies = [
  "bitflags 2.2.1",
  "crossbeam-channel",
@@ -1643,7 +1643,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=25222523a6801cfe7db06309020d7f0d7d78b350#25222523a6801cfe7db06309020d7f0d7d78b350"
+source = "git+https://github.com/lapce/floem?rev=703a571ff0027aa64393a2cc62b7a95dce954834#703a571ff0027aa64393a2cc62b7a95dce954834"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1654,7 +1654,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=25222523a6801cfe7db06309020d7f0d7d78b350#25222523a6801cfe7db06309020d7f0d7d78b350"
+source = "git+https://github.com/lapce/floem?rev=703a571ff0027aa64393a2cc62b7a95dce954834#703a571ff0027aa64393a2cc62b7a95dce954834"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -3185,7 +3185,10 @@ dependencies = [
  "config",
  "crossbeam-channel",
  "directories",
+ "dmg",
+ "flate2",
  "floem",
+ "fs_extra",
  "futures",
  "fuzzy-matcher",
  "im",
@@ -3211,10 +3214,12 @@ dependencies = [
  "structdesc",
  "strum",
  "strum_macros",
+ "tar",
  "thiserror",
  "tokio",
  "toml_edit",
  "unicode-width",
+ "zip",
 ]
 
 [[package]]

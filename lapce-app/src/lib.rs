@@ -26,6 +26,7 @@ pub mod source_control;
 pub mod terminal;
 pub mod text_input;
 pub mod title;
+pub mod update;
 pub mod wave;
 pub mod window;
 pub mod window_tab;

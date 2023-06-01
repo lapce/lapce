@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 use floem::{
     context::PaintCx,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
-    event::{Event, EventListner},
+    event::{Event, EventListener},
     glazier::{Modifiers, PointerType},
     id::Id,
     peniko::{
@@ -1146,7 +1146,7 @@ fn editor_gutter(
                 })
             })
             .hide_bar(|| true)
-            .on_event(EventListner::PointerWheel, move |event| {
+            .on_event(EventListener::PointerWheel, move |event| {
                 if let Event::PointerWheel(pointer_event) = event {
                     if let PointerType::Mouse(info) = &pointer_event.pointer_type {
                         scroll_delta.set(info.wheel_delta);
@@ -1302,7 +1302,7 @@ fn editor_content(
         });
         let id = editor_content_view.id();
         editor_content_view
-            .on_event(EventListner::PointerDown, move |event| {
+            .on_event(EventListener::PointerDown, move |event| {
                 if let Event::PointerDown(pointer_event) = event {
                     id.request_active();
                     let editor = editor.get_untracked();
@@ -1310,14 +1310,14 @@ fn editor_content(
                 }
                 true
             })
-            .on_event(EventListner::PointerMove, move |event| {
+            .on_event(EventListener::PointerMove, move |event| {
                 if let Event::PointerMove(pointer_event) = event {
                     let editor = editor.get_untracked();
                     editor.pointer_move(pointer_event);
                 }
                 true
             })
-            .on_event(EventListner::PointerUp, move |event| {
+            .on_event(EventListener::PointerUp, move |event| {
                 if let Event::PointerUp(pointer_event) = event {
                     let editor = editor.get_untracked();
                     editor.pointer_up(pointer_event);
@@ -1399,7 +1399,7 @@ fn search_editor_view(
                     && find_focus.get()
                     && !replace_focus.get()
             })
-            .on_event(EventListner::PointerDown, move |_| {
+            .on_event(EventListener::PointerDown, move |_| {
                 find_focus.set(true);
                 replace_focus.set(false);
                 false
@@ -1476,7 +1476,7 @@ fn replace_editor_view(
                     && replace_active.get()
                     && replace_focus.get()
             })
-            .on_event(EventListner::PointerDown, move |_| {
+            .on_event(EventListener::PointerDown, move |_| {
                 find_focus.set(true);
                 replace_focus.set(true);
                 false
@@ -1630,7 +1630,7 @@ fn find_view(
                 .cursor(CursorStyle::Default)
                 .flex_col()
         })
-        .on_event(EventListner::PointerDown, move |_| {
+        .on_event(EventListener::PointerDown, move |_| {
             let editor = editor.get_untracked();
             if let Some(editor_tab_id) = editor.editor_tab_id {
                 editor

@@ -6,7 +6,7 @@ use floem::{
         Attrs, AttrsList, FamilyOwned, LineHeightValue, Style as FontStyle,
         TextLayout, Weight,
     },
-    event::{Event, EventListner},
+    event::{Event, EventListener},
     glazier::PointerType,
     id::Id,
     peniko::{
@@ -89,7 +89,7 @@ pub fn text_input(
             .padding_horiz_px(10.0)
             .padding_vert_px(6.0)
     })
-    .on_event(EventListner::KeyDown, move |event| {
+    .on_event(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             let mut press = keypress.get_untracked();
             let executed = press.key_down(key_event, &editor);

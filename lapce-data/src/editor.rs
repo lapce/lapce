@@ -1071,6 +1071,7 @@ impl LapceEditorBufferData {
         }
     }
 
+    #[allow(unused)]
     fn diff_file_positions(&self) -> Vec<(PathBuf, Vec<usize>)> {
         let buffer = self.doc.buffer();
         let mut diff_files: Vec<(PathBuf, Vec<usize>)> = self

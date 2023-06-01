@@ -1,9 +1,9 @@
-use std::{collections::HashSet, sync::Arc, time::Instant};
+use std::{collections::HashSet, env, sync::Arc, time::Instant};
 
 use crossbeam_channel::Sender;
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
-    ext_event::create_signal_from_channel,
+    ext_event::{create_ext_action, create_signal_from_channel},
     glazier::{FileDialogOptions, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
@@ -13,7 +13,7 @@ use floem::{
     },
 };
 use itertools::Itertools;
-use lapce_core::{mode::Mode, register::Register};
+use lapce_core::{meta, mode::Mode, register::Register};
 use lapce_rpc::{
     core::CoreNotification, dap_types::RunDebugConfig, proxy::ProxyRpcHandler,
     terminal::TermId,
@@ -51,6 +51,7 @@ use crate::{
         event::{terminal_update_process, TermEvent, TermNotification},
         panel::TerminalPanelData,
     },
+    update::ReleaseInfo,
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
 
@@ -104,6 +105,8 @@ pub struct WindowTabData {
     pub proxy: ProxyData,
     pub window_scale: RwSignal<f64>,
     pub set_config: WriteSignal<Arc<LapceConfig>>,
+    pub update_in_progress: RwSignal<bool>,
+    pub latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     pub common: CommonData,
 }
 
@@ -139,6 +142,7 @@ impl WindowTabData {
         workspace: Arc<LapceWorkspace>,
         window_command: WriteSignal<Option<WindowCommand>>,
         window_scale: RwSignal<f64>,
+        latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     ) -> Self {
         let db: Arc<LapceDb> = use_context(cx).unwrap();
 
@@ -319,6 +323,8 @@ impl WindowTabData {
             proxy,
             window_scale,
             set_config,
+            update_in_progress: create_rw_signal(cx, false),
+            latest_release,
             common,
         };
 
@@ -663,7 +669,43 @@ impl WindowTabData {
             NextEditorTab => {}
             PreviousEditorTab => {}
             ToggleInlayHints => {}
-            RestartToUpdate => {}
+            RestartToUpdate => {
+                if let Some(release) = self.latest_release.get_untracked().as_ref() {
+                    let release = release.clone();
+                    let update_in_progress = self.update_in_progress;
+                    if release.version != *meta::VERSION {
+                        if let Ok(process_path) = env::current_exe() {
+                            update_in_progress.set(true);
+                            let send =
+                                create_ext_action(self.scope, move |_started| {
+                                    update_in_progress.set(false);
+                                });
+                            std::thread::spawn(move || {
+                                let do_update = || -> anyhow::Result<()> {
+                                    log::info!("start to down new versoin");
+                                    let src =
+                                        crate::update::download_release(&release)?;
+
+                                    log::info!("start to extract");
+                                    let path =
+                                        crate::update::extract(&src, &process_path)?;
+
+                                    log::info!("now restart {path:?}");
+                                    crate::update::restart(&path)?;
+
+                                    Ok(())
+                                };
+
+                                if let Err(err) = do_update() {
+                                    log::error!("Failed to update: {err}");
+                                }
+
+                                send(false);
+                            });
+                        }
+                    }
+                }
+            }
             ShowAbout => {}
             SaveAll => {}
             #[cfg(target_os = "macos")]

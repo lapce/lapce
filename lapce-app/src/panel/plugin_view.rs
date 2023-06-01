@@ -1,7 +1,7 @@
 use std::{ops::Range, sync::Arc};
 
 use floem::{
-    event::EventListner,
+    event::EventListener,
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
@@ -453,7 +453,7 @@ fn available_view(plugin: PluginData) -> impl View {
                         .to_rect()
                         .with_origin(Point::new(cursor_x.get(), 0.0))
                 })
-                .on_event(EventListner::PointerDown, move |_| {
+                .on_event(EventListener::PointerDown, move |_| {
                     focus.set(Focus::Panel(PanelKind::Plugin));
                     false
                 })

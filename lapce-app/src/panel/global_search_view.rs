@@ -1,7 +1,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use floem::{
-    event::EventListner,
+    event::EventListener,
     reactive::{
         ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
     },
@@ -95,7 +95,7 @@ pub fn global_search_panel(
                         .style(|| Style::BASE.padding_left_px(6.0)),
                     )
                 })
-                .on_event(EventListner::PointerDown, move |_| {
+                .on_event(EventListener::PointerDown, move |_| {
                     focus.set(Focus::Panel(PanelKind::Search));
                     false
                 })

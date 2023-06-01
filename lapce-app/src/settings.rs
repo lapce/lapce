@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use floem::{
-    event::EventListner,
-    glazier::KeyEvent,
+    event::EventListener,
     peniko::{kurbo::Size, Color},
     reactive::{
         create_effect, create_rw_signal, ReadSignal, RwSignal, Scope, SignalGet,
@@ -187,13 +186,6 @@ impl SettingsData {
             items,
             common,
         }
-    }
-
-    pub fn key_down(&self, key_event: &KeyEvent) -> bool {
-        let mut keypress = self.common.keypress.get_untracked();
-        let executed = keypress.key_down(key_event, self);
-        self.common.keypress.set(keypress);
-        executed
     }
 }
 
@@ -526,7 +518,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                     )
                                 })
                                 .keyboard_navigatable()
-                                .on_event(EventListner::FocusLost, move |_| {
+                                .on_event(EventListener::FocusLost, move |_| {
                                     if expanded.get_untracked() {
                                         expanded.set(false);
                                     }

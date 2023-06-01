@@ -113,6 +113,8 @@ pub trait TextCacheListener {
     fn clear(&self);
 }
 
+type TextCacheListeners = Rc<RefCell<SmallVec<[Rc<dyn TextCacheListener>; 2]>>>;
+
 /// A single document that can be viewed by multiple [`EditorData`]'s
 /// [`EditorViewData`]s and [`EditorView]s.  
 #[derive(Clone)]
@@ -122,7 +124,7 @@ pub struct Document {
     style_rev: u64,
     // TODO(minor): Perhaps use dyn-clone to avoid the need for Rc?
     /// The text cache listeners, which are told to clear cached text when the document is changed.
-    text_cache_listeners: Rc<RefCell<SmallVec<[Rc<dyn TextCacheListener>; 2]>>>,
+    text_cache_listeners: TextCacheListeners,
     buffer: Buffer,
     syntax: Option<Syntax>,
     line_styles: Rc<RefCell<LineStyles>>,
