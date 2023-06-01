@@ -279,7 +279,7 @@ impl KeyPressData {
             mods.set(Modifiers::SHIFT, false);
             if mods.is_empty() {
                 if let Key::Keyboard(KbKey::Character(c)) = &keypress.key {
-                    focus.receive_char(cx, c);
+                    focus.receive_char(c);
                     return true;
                 }
             }
