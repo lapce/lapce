@@ -3176,7 +3176,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-app"
-version = "0.2.6"
+version = "0.2.8"
 dependencies = [
  "Inflector",
  "alacritty_terminal",
