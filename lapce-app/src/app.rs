@@ -287,7 +287,6 @@ fn editor_tab_header(
         stack(|| {
             (
                 container(child_view)
-                    .draggable()
                     .on_double_click(move |_| {
                         if let Some(confirmed) = confirmed {
                             confirmed.set(true);
@@ -300,15 +299,25 @@ fn editor_tab_header(
                         });
                         false
                     })
-                    .style(move || {
+                    .draggable()
+                    .dragging_style(move || {
+                        let config = config.get();
+                        Style::BASE
+                            .border(1.0)
+                            .border_radius(6.0)
+                            .background(
+                                config
+                                    .get_color(LapceColor::PANEL_BACKGROUND)
+                                    .with_alpha_factor(0.7),
+                            )
+                            .border_color(
+                                *config.get_color(LapceColor::LAPCE_BORDER),
+                            )
+                    })
+                    .style(|| {
                         Style::BASE
                             .align_items(Some(AlignItems::Center))
                             .height_pct(100.0)
-                            .background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_BACKGROUND),
-                            )
                     }),
                 container(|| {
                     empty().style(move || {

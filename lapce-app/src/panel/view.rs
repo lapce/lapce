@@ -217,7 +217,9 @@ fn panel_picker(
                                 )
                                 .padding_px(6.0)
                                 .background(
-                                    *config.get_color(LapceColor::PANEL_BACKGROUND),
+                                    config
+                                        .get_color(LapceColor::PANEL_BACKGROUND)
+                                        .with_alpha_factor(0.7),
                                 )
                         })
                         .style(|| Style::BASE.padding_px(1.0)),
