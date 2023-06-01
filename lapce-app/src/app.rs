@@ -1,3 +1,5 @@
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::{ops::Range, path::PathBuf, process::Stdio, sync::Arc};
 
 use clap::Parser;
@@ -2347,14 +2349,15 @@ fn create_windows(
 
         for dir in dirs {
             #[cfg(windows)]
-            let workspace_type =
-                if !env::var("WSL_DISTRO_NAME").unwrap_or_default().is_empty()
-                    || !env::var("WSL_INTEROP").unwrap_or_default().is_empty()
-                {
-                    LapceWorkspaceType::RemoteWSL
-                } else {
-                    LapceWorkspaceType::Local
-                };
+            let workspace_type = if !std::env::var("WSL_DISTRO_NAME")
+                .unwrap_or_default()
+                .is_empty()
+                || !std::env::var("WSL_INTEROP").unwrap_or_default().is_empty()
+            {
+                LapceWorkspaceType::RemoteWSL
+            } else {
+                LapceWorkspaceType::Local
+            };
             #[cfg(not(windows))]
             let workspace_type = LapceWorkspaceType::Local;
 
