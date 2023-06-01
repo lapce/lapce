@@ -251,9 +251,8 @@ impl PluginCatalog {
     }
 
     pub fn handle_did_open_text_document(&mut self, document: TextDocumentItem) {
-        let language_id = document.language_id.clone();
         if let Ok(path) = document.uri.to_file_path() {
-            self.open_files.insert(path, language_id.clone());
+            self.open_files.insert(path, document.language_id.clone());
         }
 
         let to_be_activated: Vec<VoltID> = self
@@ -264,7 +263,7 @@ impl PluginCatalog {
                     .activation
                     .as_ref()
                     .and_then(|a| a.language.as_ref())
-                    .map(|l| l.contains(&language_id))?;
+                    .map(|l| l.contains(&document.language_id))?;
                 if contains {
                     Some(id.clone())
                 } else {
@@ -281,7 +280,7 @@ impl PluginCatalog {
                 DidOpenTextDocumentParams {
                     text_document: document.clone(),
                 },
-                Some(language_id.clone()),
+                Some(document.language_id.clone()),
                 path.clone(),
                 true,
             );

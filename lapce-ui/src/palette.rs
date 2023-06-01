@@ -726,9 +726,9 @@ impl ListPaint<PaletteListData> for PaletteItem {
         let focus_color = data.config.get_color_unchecked(LapceTheme::EDITOR_FOCUS);
 
         let full_text = if hint.is_empty() {
-            text.clone()
+            format!("{text} ")
         } else {
-            text.clone() + " " + &hint
+            format!("{text} {hint}")
         };
         let mut text_layout = ctx
             .text()

@@ -77,7 +77,6 @@ fn problem_section(
     let internal_command = window_tab_data.common.internal_command.write_only();
     container(|| {
         scroll(move || {
-            let main_split = main_split.clone();
             let workspace = main_split.common.workspace.clone();
             list(
                 move || main_split.diagnostics.get(),

@@ -300,7 +300,6 @@ fn search_result(
 
                                             ((start as i32 + offset) as usize
                                                 ..(end as i32 + offset) as usize)
-                                                .into_iter()
                                                 .collect()
                                         },
                                         move || {

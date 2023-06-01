@@ -196,7 +196,7 @@ impl DapClient {
                     process_id,
                     shell_process_id: None,
                 };
-                let resp = serde_json::to_value(&resp)?;
+                let resp = serde_json::to_value(resp)?;
                 Ok(resp)
             }
             _ => Err(anyhow!("not implemented")),

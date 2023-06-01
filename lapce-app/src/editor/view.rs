@@ -1195,12 +1195,12 @@ fn editor_breadcrumbs(
                         let full_path = doc
                             .with_untracked(|doc| doc.content.path().cloned())
                             .unwrap_or_default();
-                        let mut path = full_path.clone();
+                        let mut path = full_path;
                         if let Some(workspace_path) = workspace.clone().path.as_ref()
                         {
                             path = path
                                 .strip_prefix(workspace_path)
-                                .unwrap_or(&full_path)
+                                .unwrap_or(&path)
                                 .to_path_buf();
                         }
                         path.ancestors()

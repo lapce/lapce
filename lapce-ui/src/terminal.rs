@@ -1354,8 +1354,7 @@ impl Widget<LapceTabData> for LapceTerminal {
         match event {
             Event::MouseDown(mouse_event) => {
                 self.request_focus(ctx, data);
-                let terminal = old_terminal_data.clone();
-                let term = &mut terminal.raw.lock().term;
+                let term = &mut old_terminal_data.raw.lock().term;
                 if mouse_event.button.is_right() {
                     let mut clipboard = SystemClipboard {};
                     match term.selection_to_string() {
@@ -1365,10 +1364,10 @@ impl Widget<LapceTabData> for LapceTerminal {
                         }
                         None => {
                             if let Some(string) = clipboard.get_string() {
-                                terminal
-                                    .proxy
-                                    .proxy_rpc
-                                    .terminal_write(terminal.term_id, string);
+                                old_terminal_data.proxy.proxy_rpc.terminal_write(
+                                    old_terminal_data.term_id,
+                                    string,
+                                );
                                 term.scroll_display(Scroll::Bottom);
                             }
                         }
@@ -1387,8 +1386,7 @@ impl Widget<LapceTabData> for LapceTerminal {
             }
             Event::MouseMove(mouse_event) => {
                 if mouse_event.buttons.has_left() {
-                    let terminal = old_terminal_data.clone();
-                    let term = &mut terminal.raw.lock().term;
+                    let term = &mut old_terminal_data.raw.lock().term;
                     self.select(term, mouse_event, SelectionType::Simple);
                     ctx.request_paint();
                 }

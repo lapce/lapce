@@ -264,7 +264,7 @@ mod tests {
         assert_eq!(
             parse_file_line_column("./Cargo.toml/").unwrap(),
             PathObject::from_path(
-                PathBuf::from(env::current_dir().unwrap().join("Cargo.toml")),
+                env::current_dir().unwrap().join("Cargo.toml"),
                 PathObjectType::Directory
             ),
         );
@@ -275,9 +275,7 @@ mod tests {
         assert_eq!(
             parse_file_line_column(".").unwrap(),
             PathObject::from_path(
-                PathBuf::from(
-                    fs::canonicalize(env::current_dir().unwrap()).unwrap()
-                ),
+                fs::canonicalize(env::current_dir().unwrap()).unwrap(),
                 PathObjectType::Directory
             ),
         );
