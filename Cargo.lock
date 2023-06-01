@@ -1615,7 +1615,7 @@ dependencies = [
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=703a571ff0027aa64393a2cc62b7a95dce954834#703a571ff0027aa64393a2cc62b7a95dce954834"
+source = "git+https://github.com/lapce/floem?rev=36dc89435b2e57bcbe189aa51553552d3cf79f41#36dc89435b2e57bcbe189aa51553552d3cf79f41"
 dependencies = [
  "bitflags 2.2.1",
  "crossbeam-channel",
@@ -1643,7 +1643,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=703a571ff0027aa64393a2cc62b7a95dce954834#703a571ff0027aa64393a2cc62b7a95dce954834"
+source = "git+https://github.com/lapce/floem?rev=36dc89435b2e57bcbe189aa51553552d3cf79f41#36dc89435b2e57bcbe189aa51553552d3cf79f41"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1654,7 +1654,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=703a571ff0027aa64393a2cc62b7a95dce954834#703a571ff0027aa64393a2cc62b7a95dce954834"
+source = "git+https://github.com/lapce/floem?rev=36dc89435b2e57bcbe189aa51553552d3cf79f41#36dc89435b2e57bcbe189aa51553552d3cf79f41"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -2272,7 +2272,7 @@ dependencies = [
 [[package]]
 name = "glazier"
 version = "0.7.0"
-source = "git+https://github.com/linebender/glazier?rev=ab692f5eb10e7511f2e0a6b0a86151df5ae67921#ab692f5eb10e7511f2e0a6b0a86151df5ae67921"
+source = "git+https://github.com/lapce/glazier?rev=ab692f5eb10e7511f2e0a6b0a86151df5ae67921#ab692f5eb10e7511f2e0a6b0a86151df5ae67921"
 dependencies = [
  "anyhow",
  "ashpd",
