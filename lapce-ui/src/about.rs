@@ -330,7 +330,7 @@ impl Widget<LapceTabData> for AboutBoxContent {
 
         let version_layout = ctx
             .text()
-            .new_text_layout(format!("Version: {}", *meta::VERSION))
+            .new_text_layout(format!("Version: {}", meta::VERSION))
             .font(
                 data.config.ui.font_family(),
                 data.config.ui.font_size() as f64,

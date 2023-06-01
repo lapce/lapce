@@ -11,17 +11,14 @@ pub enum MotionMode {
     Outdent,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug, Copy, Deserialize, Serialize)]
+#[derive(
+    Clone, PartialEq, Eq, Hash, Debug, Copy, Deserialize, Serialize, Default,
+)]
 pub enum VisualMode {
+    #[default]
     Normal,
     Linewise,
     Blockwise,
-}
-
-impl Default for VisualMode {
-    fn default() -> Self {
-        VisualMode::Normal
-    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Copy, PartialOrd, Ord)]

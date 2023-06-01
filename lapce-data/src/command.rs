@@ -11,6 +11,7 @@ use lapce_core::{
         EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
         MultiSelectionCommand,
     },
+    movement::LineCol,
     syntax::Syntax,
 };
 use lapce_rpc::{
@@ -41,7 +42,7 @@ use crate::{
     },
     debug::RunDebugMode,
     document::BufferContent,
-    editor::{EditorLocation, EditorPosition, Line, LineCol},
+    editor::{EditorLocation, EditorPosition, Line},
     images,
     keypress::{KeyMap, KeyPress},
     markdown::Content,
@@ -225,6 +226,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "reveal_active_file_in_file_explorer")]
     #[strum(message = "Reveal Active File in File Explorer")]
     RevealActiveFileInFileExplorer,
+
+    #[strum(serialize = "reveal_active_file_in_file_tree")]
+    #[strum(message = "Reveal Active File in File Tree")]
+    RevealActiveFileInFileTree,
 
     #[strum(serialize = "change_color_theme")]
     #[strum(message = "Change Color Theme")]
@@ -961,7 +966,6 @@ pub enum LapceUICommand {
     },
     /// Informs the editor about the locations for requested references
     PaletteReferences(usize, Vec<Location>),
-    GotoLocation(Location),
     /// Update the current file highlighted in the explorer panel
     ActiveFileChanged {
         path: Option<PathBuf>,

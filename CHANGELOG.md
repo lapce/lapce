@@ -5,7 +5,23 @@
 ### Features/Changes
 
 ### Bug Fixes
+
+## 0.2.8
+
+### Features/Changes
+
+- [#1964](https://github.com/lapce/lapce/pull/1964): Add option to open files at line/column
+- [#2403](https://github.com/lapce/lapce/pull/2403): Add basic Vim marks feature
+
+### Bug Fixes
+
+## 0.2.7
+
+### Features/Changes
+
+### Bug Fixes
 - [#2209](https://github.com/lapce/lapce/pull/2209): Fix macOS crashes
+- [#2228](https://github.com/lapce/lapce/pull/2228): Fix `.desktop` entry to properly associate with Lapce on Wayland
 
 ## 0.2.6
 
@@ -34,6 +50,8 @@
 - [#2073](https://github.com/lapce/lapce/pull/2073): Add Ctrl+{a,e,k} keybinds on macOS
 - [#2128](https://github.com/lapce/lapce/pull/2128): Add Lapce app icon to logo collection
 - [#2127](https://github.com/lapce/lapce/pull/2127): Extended double-click options with file-only and file + folders mode
+- [#1944](https://github.com/lapce/lapce/pull/1944): Add filter input in git branch selection
+  - ![image](https://user-images.githubusercontent.com/4404609/211232461-293e3b31-4e17-457e-825c-3018699a6fc2.png)
 
 ### Bug Fixes
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys

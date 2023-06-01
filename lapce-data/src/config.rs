@@ -421,6 +421,9 @@ pub struct EditorConfig {
     #[field_names(desc = "If matching brackets are highlighted")]
     pub highlight_matching_brackets: bool,
 
+    #[field_names(desc = "If all occurrences of the selected text are highlighted")]
+    pub highlight_selection_occurrences: bool,
+
     #[field_names(desc = "If scope lines are highlighted")]
     pub highlight_scope_lines: bool,
 
@@ -464,7 +467,7 @@ pub struct EditorConfig {
     #[field_names(
         desc = "Set the cursor blink interval (in milliseconds). Set to 0 to completely disable."
     )]
-    pub blink_interval: u64, // TODO: change to u128 when upgrading config-rs to >0.11
+    pub blink_interval: u64,
     #[field_names(
         desc = "Whether the multiple cursor selection is case sensitive."
     )]
@@ -576,6 +579,17 @@ impl EditorConfig {
             self.inlay_hint_font_size()
         } else {
             self.completion_lens_font_size
+        }
+    }
+
+    pub fn blink_interval(&self) -> u64 {
+        match self.blink_interval {
+            0 => 0,
+            // We disallow anything below 100ms
+            // in case user has weak machine, as
+            // it would lock up the thread
+            v if v < 100 => 100,
+            v => v,
         }
     }
 }

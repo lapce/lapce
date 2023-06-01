@@ -46,7 +46,10 @@ winres = "0.1.12"
 
 [features]
 default = ["all-languages", "lapce-data/updater"]
-portable = ["lapce-data/portable"]
+portable = [
+    "lapce-core/portable",
+    "lapce-data/portable",
+]
 
 # To build lapce with only some of the supported languages, for example:
 #

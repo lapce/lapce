@@ -23,6 +23,7 @@ use lapce_core::{
     command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
     editor::EditType,
     mode::{Mode, MotionMode},
+    movement::LineCol,
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
@@ -47,7 +48,7 @@ use crate::{
     config::LapceConfig,
     data::{
         EditorDiagnostic, EditorView, FocusArea, InlineFindDirection,
-        LapceEditorData, LapceMainSplitData, SplitContent,
+        LapceEditorData, LapceMainSplitData, ModalCommand, SplitContent,
     },
     debug::LapceBreakpoint,
     document::{BufferContent, Document, LocalBufferKind},
@@ -138,13 +139,6 @@ impl EditorPosition for Line {
     }
 }
 
-/// UTF8 line and column-offset
-#[derive(Debug, Clone, Copy)]
-pub struct LineCol {
-    pub line: usize,
-    pub column: usize,
-}
-
 impl EditorPosition for LineCol {
     fn to_utf8_offset(&self, buffer: &Buffer) -> usize {
         buffer.offset_of_line_col(self.line, self.column)
@@ -189,7 +183,7 @@ impl EditorPosition for Position {
     }
 }
 
-/// Used to specify a location with some path, and potentially position information.  
+/// Used to specify a location with some path, and potentially position information.
 /// This is generic so that you can jump to utf8 offsets, line+column offsets, just the line,
 /// or even utf16 offsets (such as those given by the LSP)
 #[derive(Clone, Debug, PartialEq)]
@@ -249,6 +243,28 @@ impl LapceEditorBufferData {
             let doc = self.doc_mut();
             doc.cursor_offset = cursor_offset;
             doc.scroll_offset = scroll_offset;
+        }
+    }
+
+    fn create_mark(&mut self, mark_name: &str) {
+        let cursor_position = self
+            .doc
+            .buffer()
+            .offset_to_position(self.editor.cursor.offset());
+
+        let editor = Arc::make_mut(&mut self.editor);
+        editor.marks.insert(mark_name.to_owned(), cursor_position);
+    }
+
+    fn go_to_mark(&mut self, ctx: &mut EventCtx, mark_name: &str) {
+        if let Some(marked_position) = self.editor.marks.get(mark_name) {
+            let offset = self.doc.buffer().offset_of_position(marked_position);
+            self.run_move_command(
+                ctx,
+                &lapce_core::movement::Movement::Offset(offset),
+                None,
+                Modifiers::empty(),
+            );
         }
     }
 
@@ -370,7 +386,7 @@ impl LapceEditorBufferData {
         }
     }
 
-    /// Update the positions of cursors in other editors which are editing the same document  
+    /// Update the positions of cursors in other editors which are editing the same document
     /// Ex: You type at the start of the document, the cursor in the other editor (like a split)
     /// should be moved forward.
     fn inactive_apply_delta(&mut self, delta: &RopeDelta) {
@@ -2338,13 +2354,21 @@ impl LapceEditorBufferData {
                     ));
                 }
             }
+            CreateMark => {
+                Arc::make_mut(&mut self.editor).next_modal_command =
+                    Some(ModalCommand::CreateMark);
+            }
+            GoToMark => {
+                Arc::make_mut(&mut self.editor).next_modal_command =
+                    Some(ModalCommand::GoToMark);
+            }
             InlineFindLeft => {
-                Arc::make_mut(&mut self.editor).inline_find =
-                    Some(InlineFindDirection::Left);
+                Arc::make_mut(&mut self.editor).next_modal_command =
+                    Some(ModalCommand::InlineFind(InlineFindDirection::Left));
             }
             InlineFindRight => {
-                Arc::make_mut(&mut self.editor).inline_find =
-                    Some(InlineFindDirection::Right);
+                Arc::make_mut(&mut self.editor).next_modal_command =
+                    Some(ModalCommand::InlineFind(InlineFindDirection::Right));
             }
             RepeatLastInlineFind => {
                 if let Some((direction, c)) = self.editor.last_inline_find.clone() {
@@ -2435,6 +2459,17 @@ impl LapceEditorBufferData {
             }
             SelectPreviousSyntaxItem => self
                 .run_selection_range_command(ctx, SelectionRangeDirection::Previous),
+            OpenSourceFile => {
+                if let BufferContent::File(path) = self.doc.content() {
+                    if let EditorView::Diff(_) = self.editor.view {
+                        ctx.submit_command(Command::new(
+                            LAPCE_UI_COMMAND,
+                            LapceUICommand::OpenFile(path.clone(), true),
+                            Target::Auto,
+                        ));
+                    }
+                }
+            }
             _ => return CommandExecuted::No,
         }
         CommandExecuted::Yes
@@ -2544,7 +2579,7 @@ impl KeyPressFocus for LapceEditorBufferData {
     }
 
     fn expect_char(&self) -> bool {
-        self.editor.inline_find.is_some()
+        self.editor.next_modal_command.is_some()
     }
 
     fn check_condition(&self, condition: &str) -> bool {
@@ -2607,11 +2642,22 @@ impl KeyPressFocus for LapceEditorBufferData {
             }
             self.cancel_hover();
             self.apply_deltas(&deltas);
-        } else if let Some(direction) = self.editor.inline_find.clone() {
-            self.inline_find(ctx, direction.clone(), c);
+        } else if let Some(modal_command) = self.editor.next_modal_command.clone() {
+            match modal_command {
+                ModalCommand::CreateMark => {
+                    self.create_mark(c);
+                }
+                ModalCommand::GoToMark => {
+                    self.go_to_mark(ctx, c);
+                }
+                ModalCommand::InlineFind(direction) => {
+                    self.inline_find(ctx, direction.clone(), c);
+                    let editor = Arc::make_mut(&mut self.editor);
+                    editor.last_inline_find = Some((direction, c.to_string()));
+                }
+            }
             let editor = Arc::make_mut(&mut self.editor);
-            editor.last_inline_find = Some((direction, c.to_string()));
-            editor.inline_find = None;
+            editor.next_modal_command = None;
         }
     }
 

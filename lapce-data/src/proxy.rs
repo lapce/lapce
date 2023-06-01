@@ -442,10 +442,7 @@ impl LapceProxy {
     }
 
     fn start_remote(&self, remote: impl Remote) -> Result<()> {
-        let proxy_version = match *meta::RELEASE {
-            "Debug" | "Nightly" => "nightly".to_string(),
-            _ => format!("v{}", *meta::VERSION),
-        };
+        let proxy_version = meta::TAG;
 
         // start ssh CM connection in case where it doesn't handle
         // executing command properly on remote host
@@ -484,14 +481,14 @@ impl LapceProxy {
         let remote_proxy_path = match platform {
             Windows => format!(
                 "%HOMEDRIVE%%HOMEPATH%\\AppData\\Local\\lapce\\{}\\data\\proxy",
-                *meta::NAME
+                meta::NAME
             ),
             Darwin => format!(
                 "~/Library/Application\\ Support/dev.lapce.{}/proxy",
-                *meta::NAME
+                meta::NAME
             ),
             _ => {
-                format!("~/.local/share/{}/proxy", (*meta::NAME).to_lowercase())
+                format!("~/.local/share/{}/proxy", meta::NAME.to_lowercase())
             }
         };
 
@@ -516,7 +513,7 @@ impl LapceProxy {
                         "-c",
                         remote_proxy_script,
                         "-version",
-                        &proxy_version,
+                        proxy_version,
                         "-directory",
                         &remote_proxy_path,
                     ])
@@ -548,7 +545,7 @@ impl LapceProxy {
 
                 let cmd = remote
                     .command_builder()
-                    .args([remote_proxy_script, &proxy_version, &remote_proxy_path])
+                    .args([remote_proxy_script, proxy_version, &remote_proxy_path])
                     .output()?;
                 log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stderr));
                 log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stdout));

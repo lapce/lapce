@@ -6,6 +6,7 @@ Name=Lapce
 Comment=Lightning-fast and powerful code editor written in Rust
 Categories=Development;IDE;
 GenericName=Code Editor
+StartupWMClass=lapce
 
 Icon=dev.lapce.lapce
 Exec=lapce

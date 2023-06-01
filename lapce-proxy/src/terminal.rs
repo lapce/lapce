@@ -66,10 +66,15 @@ impl Terminal {
                 let host_shell = flatpak_get_default_host_shell();
 
                 let args = if shell.is_empty() {
-                    vec!["--host".to_string(), host_shell]
+                    vec![
+                        "--host".to_string(),
+                        "--env=TERM=alacritty".to_string(),
+                        host_shell,
+                    ]
                 } else {
                     vec![
                         "--host".to_string(),
+                        "--env=TERM=alacritty".to_string(),
                         host_shell,
                         "-c".to_string(),
                         shell.to_string(),

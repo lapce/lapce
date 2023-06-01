@@ -314,6 +314,10 @@ pub enum FocusCommand {
     InlineFindRight,
     #[strum(serialize = "inline_find_left")]
     InlineFindLeft,
+    #[strum(serialize = "create_mark")]
+    CreateMark,
+    #[strum(serialize = "go_to_mark")]
+    GoToMark,
     #[strum(serialize = "repeat_last_inline_find")]
     RepeatLastInlineFind,
     #[strum(message = "Save")]
@@ -335,6 +339,8 @@ pub enum FocusCommand {
     SelectNextSyntaxItem,
     #[strum(serialize = "select_previous_syntax_item")]
     SelectPreviousSyntaxItem,
+    #[strum(serialize = "open_source_file")]
+    OpenSourceFile,
 }
 
 #[derive(

@@ -179,6 +179,7 @@ impl LapceEditorView {
                 LocalBufferKind::Settings => {}
                 LocalBufferKind::PluginSearch => {}
                 LocalBufferKind::BranchesFilter => {}
+                LocalBufferKind::SettingsFilter => {}
                 LocalBufferKind::Palette => {
                     data.focus_area = FocusArea::Palette;
                 }
@@ -602,9 +603,11 @@ impl Widget<LapceTabData> for LapceEditorView {
                 let command = cmd.get_unchecked(LAPCE_UI_COMMAND);
                 if let LapceUICommand::Focus = command {
                     let editor_data = data.editor_view_content(self.view_id);
-                    if data.config.editor.blink_interval > 0 {
+                    if data.config.editor.blink_interval() > 0 {
                         self.cursor_blink_timer = ctx.request_timer(
-                            Duration::from_millis(data.config.editor.blink_interval),
+                            Duration::from_millis(
+                                data.config.editor.blink_interval(),
+                            ),
                             None,
                         );
                         *editor_data.editor.last_cursor_instant.borrow_mut() =
@@ -623,11 +626,13 @@ impl Widget<LapceTabData> for LapceEditorView {
             }
             Event::Timer(id) if self.cursor_blink_timer == *id => {
                 ctx.set_handled();
-                if data.config.editor.blink_interval > 0 {
+                if data.config.editor.blink_interval() > 0 {
                     if ctx.is_focused() {
                         ctx.request_paint();
                         self.cursor_blink_timer = ctx.request_timer(
-                            Duration::from_millis(data.config.editor.blink_interval),
+                            Duration::from_millis(
+                                data.config.editor.blink_interval(),
+                            ),
                             None,
                         );
                     } else {
@@ -688,9 +693,11 @@ impl Widget<LapceTabData> for LapceEditorView {
             Event::KeyDown(key_event) => {
                 ctx.set_handled();
                 if key_event.is_composing {
-                    if data.config.editor.blink_interval > 0 {
+                    if data.config.editor.blink_interval() > 0 {
                         self.cursor_blink_timer = ctx.request_timer(
-                            Duration::from_millis(data.config.editor.blink_interval),
+                            Duration::from_millis(
+                                data.config.editor.blink_interval(),
+                            ),
                             None,
                         );
                         *editor_data.editor.last_cursor_instant.borrow_mut() =
@@ -926,7 +933,7 @@ impl Widget<LapceTabData> for LapceEditorView {
         let offset = editor_data.editor.cursor.offset();
         let old_offset = old_editor_data.editor.cursor.offset();
 
-        if data.config.editor.blink_interval > 0 && *data.focus == self.view_id {
+        if data.config.editor.blink_interval() > 0 && *data.focus == self.view_id {
             let reset = if *old_data.focus != self.view_id {
                 true
             } else {
@@ -941,7 +948,7 @@ impl Widget<LapceTabData> for LapceEditorView {
 
             if reset {
                 self.cursor_blink_timer = ctx.request_timer(
-                    Duration::from_millis(data.config.editor.blink_interval),
+                    Duration::from_millis(data.config.editor.blink_interval()),
                     None,
                 );
                 *editor_data.editor.last_cursor_instant.borrow_mut() =

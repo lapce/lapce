@@ -566,7 +566,7 @@ impl Borrow<str> for CharBuffer {
     }
 }
 
-#[allow(clippy::derive_hash_xor_eq)]
+#[allow(clippy::derived_hash_with_manual_eq)]
 impl hash::Hash for CharBuffer {
     #[inline]
     fn hash<H: hash::Hasher>(&self, hasher: &mut H) {
