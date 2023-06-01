@@ -62,7 +62,7 @@ use crate::{
 
 #[derive(Parser)]
 #[clap(name = "Lapce")]
-#[clap(version=*meta::VERSION)]
+#[clap(version=meta::VERSION)]
 #[derive(Debug)]
 struct Cli {
     /// Don't return instantly when opened in a terminal

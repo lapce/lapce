@@ -238,7 +238,7 @@ fn right(
         let latest_version =
             latest_release.as_ref().as_ref().map(|r| r.version.clone());
         if latest_version.is_some()
-            && latest_version.as_deref() != Some(*meta::VERSION)
+            && latest_version.as_deref() != Some(meta::VERSION)
         {
             latest_version
         } else {
