@@ -24,10 +24,10 @@ pub fn default_panel_order() -> PanelOrder {
     order.insert(
         PanelPosition::LeftTop,
         im::vector![
-            PanelKind::Debug,
             PanelKind::FileExplorer,
-            PanelKind::SourceControl,
             PanelKind::Plugin,
+            PanelKind::SourceControl,
+            PanelKind::Debug,
         ],
     );
     order.insert(
@@ -46,6 +46,13 @@ pub struct PanelSize {
     pub bottom_split: f64,
     pub right: f64,
     pub right_split: f64,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PanelInfo {
+    pub panels: PanelOrder,
+    pub styles: im::HashMap<PanelPosition, PanelStyle>,
+    pub size: PanelSize,
 }
 
 #[derive(Clone)]
@@ -131,6 +138,14 @@ impl PanelData {
             styles,
             size,
             common,
+        }
+    }
+
+    pub fn panel_info(&self) -> PanelInfo {
+        PanelInfo {
+            panels: self.panels.get_untracked(),
+            styles: self.styles.get_untracked(),
+            size: self.size.get_untracked(),
         }
     }
 

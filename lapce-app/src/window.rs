@@ -136,6 +136,17 @@ impl WindowData {
     pub fn run_window_command(&self, cmd: WindowCommand) {
         match cmd {
             WindowCommand::SetWorkspace { workspace } => {
+                let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+                let _ = db.update_recent_workspace(&workspace);
+
+                let active = self.active.get_untracked();
+                self.window_tabs.with_untracked(|window_tabs| {
+                    if !window_tabs.is_empty() {
+                        let active = window_tabs.len().saturating_sub(1).min(active);
+                        let _ = db.insert_window_tab(window_tabs[active].1.clone());
+                    }
+                });
+
                 let window_tab = Arc::new(WindowTabData::new(
                     self.scope,
                     Arc::new(workspace),
@@ -143,7 +154,6 @@ impl WindowData {
                     self.window_scale,
                     self.latest_release,
                 ));
-                let active = self.active.get_untracked();
                 self.window_tabs.update(|window_tabs| {
                     if window_tabs.is_empty() {
                         window_tabs.push_back((
@@ -199,7 +209,9 @@ impl WindowData {
                     }
 
                     if index < window_tabs.len() {
-                        window_tabs.remove(index);
+                        let (_, old_window_tab) = window_tabs.remove(index);
+                        let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+                        let _ = db.save_window_tab(old_window_tab);
                     }
                 });
 

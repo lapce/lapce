@@ -392,6 +392,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     .or_else(|| dropdown.items.last())
                     .map(|s| s.to_string())
                     .unwrap_or_default();
+                let current_value = create_rw_signal(cx.scope, current_value);
 
                 let kind = item.kind.clone();
                 let field = item.field.clone();
@@ -401,6 +402,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     let local_item_string = item_string.clone();
                     label(move || local_item_string.clone())
                         .on_click(move |_| {
+                            current_value.set(item_string.clone());
                             if let Some(value) =
                                 toml_edit::ser::to_item(&item_string)
                                     .ok()
@@ -426,7 +428,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             (
                                 stack(|| {
                                     (
-                                        label(move || current_value.clone()).style(
+                                        label(move || current_value.get()).style(
                                             move || {
                                                 Style::BASE
                                                     .text_ellipsis()

@@ -255,7 +255,7 @@ impl WindowTabData {
             create_rw_signal(cx, SourceControlData::new(cx, common.clone()));
         let file_explorer = FileExplorerData::new(cx, common.clone());
 
-        if let Some(info) = workspace_info {
+        if let Some(info) = workspace_info.as_ref() {
             let root_split = main_split.root_split;
             info.split.to_data(cx, main_split.clone(), None, root_split);
         } else {
@@ -281,10 +281,25 @@ impl WindowTabData {
             common.clone(),
         );
 
-        let panel_order = db
-            .get_panel_orders()
-            .unwrap_or_else(|_| default_panel_order());
-        let panel = PanelData::new(cx, panel_order, common.clone());
+        let panel = workspace_info
+            .as_ref()
+            .map(|i| {
+                let panel_order = db
+                    .get_panel_orders()
+                    .unwrap_or_else(|_| i.panel.panels.clone());
+                PanelData {
+                    panels: create_rw_signal(cx, panel_order),
+                    styles: create_rw_signal(cx, i.panel.styles.clone()),
+                    size: create_rw_signal(cx, i.panel.size.clone()),
+                    common: common.clone(),
+                }
+            })
+            .unwrap_or_else(|| {
+                let panel_order = db
+                    .get_panel_orders()
+                    .unwrap_or_else(|_| default_panel_order());
+                PanelData::new(cx, panel_order, common.clone())
+            });
 
         let terminal =
             TerminalPanelData::new(workspace.clone(), None, common.clone());
@@ -545,7 +560,13 @@ impl WindowTabData {
                 }
                 self.common.focus.set(Focus::Panel(PanelKind::Terminal));
             }
-            ReloadWindow => {}
+            ReloadWindow => {
+                self.common
+                    .window_command
+                    .set(Some(WindowCommand::SetWorkspace {
+                        workspace: (*self.workspace).clone(),
+                    }));
+            }
             NewWindow => {}
             CloseWindow => {}
             NewFile => {}
@@ -1060,6 +1081,7 @@ impl WindowTabData {
             .unwrap();
         WorkspaceInfo {
             split: main_split_data.get_untracked().split_info(self),
+            panel: self.panel.panel_info(),
         }
     }
 

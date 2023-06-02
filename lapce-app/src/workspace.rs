@@ -2,7 +2,7 @@ use std::{fmt::Display, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::main_split::SplitInfo;
+use crate::{main_split::SplitInfo, panel::data::PanelInfo};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct SshHost {
@@ -135,4 +135,5 @@ impl std::fmt::Display for LapceWorkspace {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WorkspaceInfo {
     pub split: SplitInfo,
+    pub panel: PanelInfo,
 }

@@ -19,6 +19,7 @@ use crate::{
 };
 
 pub enum SaveEvent {
+    Workspace(LapceWorkspace, WorkspaceInfo),
     RecentWorkspace(LapceWorkspace),
     Doc(DocInfo),
     DisabledVolts(Vec<VoltID>),
@@ -51,6 +52,9 @@ impl LapceDb {
             loop {
                 let event = save_rx.recv()?;
                 match event {
+                    SaveEvent::Workspace(workspace, info) => {
+                        let _ = local_db.insert_workspace(&workspace, &info);
+                    }
                     SaveEvent::RecentWorkspace(workspace) => {
                         let _ = local_db.insert_recent_workspace(workspace);
                     }
@@ -211,6 +215,17 @@ impl LapceDb {
         Ok(info)
     }
 
+    pub fn save_window_tab(&self, data: Arc<WindowTabData>) -> Result<()> {
+        let workspace = (*data.workspace).clone();
+        let workspace_info = data.workspace_info();
+
+        self.save_tx
+            .send(SaveEvent::Workspace(workspace, workspace_info))?;
+        // self.insert_unsaved_buffer(main_split)?;
+
+        Ok(())
+    }
+
     fn insert_workspace(
         &self,
         workspace: &LapceWorkspace,
@@ -228,7 +243,7 @@ impl LapceDb {
         let windows = data.windows.get_untracked();
         for window in &windows {
             for (_, window_tab) in window.window_tabs.get_untracked().into_iter() {
-                let _ = self.save_window_tab(window_tab);
+                let _ = self.insert_window_tab(window_tab);
             }
         }
         let info = AppInfo {
@@ -264,9 +279,9 @@ impl LapceDb {
         Ok(info)
     }
 
-    pub fn save_window(&self, data: WindowData) -> Result<()> {
+    pub fn insert_window(&self, data: WindowData) -> Result<()> {
         for (_, window_tab) in data.window_tabs.get_untracked().into_iter() {
-            let _ = self.save_window_tab(window_tab);
+            let _ = self.insert_window_tab(window_tab);
         }
         let info = data.info();
         let info = serde_json::to_string(&info)?;
@@ -276,7 +291,7 @@ impl LapceDb {
         Ok(())
     }
 
-    pub fn save_window_tab(&self, data: Arc<WindowTabData>) -> Result<()> {
+    pub fn insert_window_tab(&self, data: Arc<WindowTabData>) -> Result<()> {
         let workspace = (*data.workspace).clone();
         let workspace_info = data.workspace_info();
 
