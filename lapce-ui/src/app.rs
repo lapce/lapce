@@ -30,7 +30,7 @@ use crate::{
 };
 
 #[derive(Parser)]
-#[clap(name = meta::NAME)]
+#[clap(name = "Lapce")]
 #[clap(version = meta::VERSION)]
 #[derive(Debug)]
 struct Cli {

@@ -18,7 +18,7 @@ eval lapce_dir="'${2}'"
 if [ -e "${lapce_dir}/lapce" ]; then
   chmod +x "${lapce_dir}/lapce"
 
-  lapce_installed_ver=$("${lapce_dir}/lapce" --version | cut -d'v' -f2)
+  lapce_installed_ver=$("${lapce_dir}/lapce" --version | cut -d' ' -f2)
 
   printf '[DEBUG]: Current proxy version: %s\n' "${lapce_installed_ver}"
   printf '[DEBUG]: New proxy version: %s\n' "${lapce_new_ver}"

@@ -44,7 +44,7 @@ pub fn get_latest_release() -> Result<ReleaseInfo> {
 
     release.version = match release.tag_name.as_str() {
         "nightly" => format!("nightly-{}", &release.target_commitish[..7]),
-        _ => release.tag_name[1..].to_string(),
+        _ => release.tag_name.clone(),
     };
 
     Ok(release)

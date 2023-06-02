@@ -28,7 +28,7 @@ use lapce_rpc::{
 };
 
 #[derive(Parser)]
-#[clap(name = meta::NAME)]
+#[clap(name = "Lapce-proxy")]
 #[clap(version = meta::VERSION)]
 struct Cli {
     #[clap(short, long, action, hide = true)]

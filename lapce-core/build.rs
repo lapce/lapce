@@ -12,7 +12,7 @@ fn main() -> Result<()> {
         let tag = env::var("RELEASE_TAG_NAME").unwrap_or(String::from("nightly"));
 
         let (release, version) = if tag.starts_with('v') {
-            ("Stable", env::var("CARGO_PKG_VERSION")?)
+            ("Stable", tag.clone())
         } else {
             ("Nightly", tag.clone())
         };
@@ -21,7 +21,8 @@ fn main() -> Result<()> {
     };
 
     #[cfg(debug_assertions)]
-    let (tag, release, version) = (String::new(), "Debug", String::from("debug"));
+    let (tag, release, version) =
+        (String::from("debug"), "Debug", String::from("debug"));
 
     let meta_file = Path::new(&env::var("OUT_DIR")?).join("meta.rs");
 
