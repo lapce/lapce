@@ -56,7 +56,7 @@ zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
 
 [features]
 default = ["all-languages", "updater"]
-
+portable = ["lapce-core/portable"]
 updater = []
 
 # To build lapce with only some of the supported languages, for example:
