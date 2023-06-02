@@ -4,14 +4,14 @@ use floem::{
     glazier::KeyEvent,
     peniko::kurbo::{Point, Size},
     reactive::{
-        create_effect, create_rw_signal, ReadSignal, RwSignal, Scope, SignalGet,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWithUntracked,
+        create_effect, create_rw_signal, use_context, ReadSignal, RwSignal, Scope,
+        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWithUntracked,
     },
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::WindowCommand, config::LapceConfig, update::ReleaseInfo,
+    command::WindowCommand, config::LapceConfig, db::LapceDb, update::ReleaseInfo,
     window_tab::WindowTabData, workspace::LapceWorkspace,
 };
 
@@ -158,6 +158,9 @@ impl WindowData {
                 })
             }
             WindowCommand::NewWorkspaceTab { workspace, end } => {
+                let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+                let _ = db.update_recent_workspace(&workspace);
+
                 let window_tab = Arc::new(WindowTabData::new(
                     self.scope,
                     Arc::new(workspace),

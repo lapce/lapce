@@ -4,8 +4,10 @@ use lapce_rpc::dap_types::RunDebugConfig;
 use lsp_types::{Range, SymbolKind};
 
 use crate::{
-    command::LapceCommand, debug::RunDebugMode, editor::location::EditorLocation,
-    workspace::LapceWorkspace,
+    command::LapceCommand,
+    debug::RunDebugMode,
+    editor::location::EditorLocation,
+    workspace::{LapceWorkspace, SshHost},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -47,6 +49,9 @@ pub enum PaletteItemContent {
         name: String,
         container_name: Option<String>,
         location: EditorLocation,
+    },
+    SshHost {
+        host: SshHost,
     },
     RunAndDebug {
         mode: RunDebugMode,

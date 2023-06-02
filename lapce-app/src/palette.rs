@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     rc::Rc,
     sync::{
@@ -42,7 +42,7 @@ use crate::{
     main_split::MainSplitData,
     proxy::path_from_url,
     window_tab::{CommonData, Focus},
-    workspace::{LapceWorkspace, LapceWorkspaceType},
+    workspace::{LapceWorkspace, LapceWorkspaceType, SshHost},
 };
 
 use self::{
@@ -344,6 +344,9 @@ impl PaletteData {
             PaletteKind::WorkspaceSymbol => {
                 self.get_workspace_symbols(cx);
             }
+            PaletteKind::SshHost => {
+                self.get_ssh_hosts(cx);
+            }
             PaletteKind::RunAndDebug => {
                 self.get_run_configs(cx);
             }
@@ -488,6 +491,7 @@ impl PaletteData {
                     LapceWorkspaceType::RemoteSSH(ssh) => {
                         format!("[{ssh}] {text}")
                     }
+                    #[cfg(windows)]
                     LapceWorkspaceType::RemoteWSL => {
                         format!("[wsl] {text}")
                     }
@@ -648,6 +652,28 @@ impl PaletteData {
             });
     }
 
+    fn get_ssh_hosts(&self, cx: Scope) {
+        let db: Arc<LapceDb> = use_context(cx).unwrap();
+        let workspaces = db.recent_workspaces().unwrap_or_default();
+        let mut hosts = HashSet::new();
+        for workspace in workspaces.iter() {
+            if let LapceWorkspaceType::RemoteSSH(ssh) = &workspace.kind {
+                hosts.insert(ssh.clone());
+            }
+        }
+
+        let items = hosts
+            .iter()
+            .map(|ssh| PaletteItem {
+                content: PaletteItemContent::SshHost { host: ssh.clone() },
+                filter_text: ssh.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+        self.items.set(items);
+    }
+
     fn get_run_configs(&self, _cx: Scope) {
         let configs = run_configs(self.common.workspace.path.as_deref());
         if configs.is_none() {
@@ -762,6 +788,17 @@ impl PaletteData {
                         },
                     ));
                 }
+                PaletteItemContent::SshHost { host } => {
+                    self.common.window_command.set(Some(
+                        WindowCommand::SetWorkspace {
+                            workspace: LapceWorkspace {
+                                kind: LapceWorkspaceType::RemoteSSH(host.clone()),
+                                path: None,
+                                last_open: 0,
+                            },
+                        },
+                    ));
+                }
                 PaletteItemContent::DocumentSymbol { range, .. } => {
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
@@ -805,6 +842,18 @@ impl PaletteData {
                     ));
                 }
             }
+        } else if self.kind.get_untracked() == PaletteKind::SshHost {
+            let input = self.input.with_untracked(|input| input.input.clone());
+            let ssh = SshHost::from_string(&input);
+            self.common
+                .window_command
+                .set(Some(WindowCommand::SetWorkspace {
+                    workspace: LapceWorkspace {
+                        kind: LapceWorkspaceType::RemoteSSH(ssh),
+                        path: None,
+                        last_open: 0,
+                    },
+                }));
         }
     }
 
@@ -848,6 +897,7 @@ impl PaletteData {
                 PaletteItemContent::Command { .. } => {}
                 PaletteItemContent::Workspace { .. } => {}
                 PaletteItemContent::RunAndDebug { .. } => {}
+                PaletteItemContent::SshHost { .. } => {}
                 PaletteItemContent::Reference { location, .. } => {
                     self.has_preview.set(true);
                     let (doc, new_doc) =

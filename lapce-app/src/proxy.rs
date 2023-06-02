@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::process::Command;
 use std::{collections::HashMap, sync::Arc};
 
 use crossbeam_channel::Sender;
@@ -14,7 +15,15 @@ use lapce_rpc::{
 use lsp_types::Url;
 
 use crate::terminal::event::TermEvent;
-use crate::workspace::LapceWorkspace;
+use crate::workspace::{LapceWorkspace, LapceWorkspaceType};
+
+use self::remote::start_remote;
+use self::ssh::SshRemote;
+
+mod remote;
+mod ssh;
+#[cfg(windows)]
+mod wsl;
 
 pub struct Proxy {
     pub tx: Sender<CoreNotification>,
@@ -37,16 +46,6 @@ pub fn start_proxy(
     let proxy_rpc = ProxyRpcHandler::new();
     let core_rpc = CoreRpcHandler::new();
 
-    {
-        let core_rpc = core_rpc.clone();
-        let proxy_rpc = proxy_rpc.clone();
-        std::thread::spawn(move || {
-            let mut dispatcher = Dispatcher::new(core_rpc, proxy_rpc);
-            let proxy_rpc = dispatcher.proxy_rpc.clone();
-            proxy_rpc.mainloop(&mut dispatcher);
-        });
-    }
-
     proxy_rpc.initialize(
         workspace.path.clone(),
         disabled_volts,
@@ -54,6 +53,40 @@ pub fn start_proxy(
         1,
         1,
     );
+
+    match &workspace.kind {
+        LapceWorkspaceType::Local => {
+            let core_rpc = core_rpc.clone();
+            let proxy_rpc = proxy_rpc.clone();
+            std::thread::spawn(move || {
+                let mut dispatcher = Dispatcher::new(core_rpc, proxy_rpc);
+                let proxy_rpc = dispatcher.proxy_rpc.clone();
+                proxy_rpc.mainloop(&mut dispatcher);
+            });
+        }
+        LapceWorkspaceType::RemoteSSH(ssh) => {
+            let _ = start_remote(
+                SshRemote { ssh: ssh.clone() },
+                core_rpc.clone(),
+                proxy_rpc.clone(),
+            );
+        }
+        #[cfg(windows)]
+        LapceWorkspaceType::RemoteWSL => {
+            use wsl::{WslDistro, WslRemote};
+            let distro = WslDistro::all()
+                .ok()
+                .and_then(|d| d.into_iter().find(|distro| distro.default))
+                .map(|d| d.name);
+            if let Some(distro) = distro {
+                let _ = start_remote(
+                    WslRemote { distro },
+                    core_rpc.clone(),
+                    proxy_rpc.clone(),
+                );
+            }
+        }
+    }
 
     let (tx, rx) = crossbeam_channel::unbounded();
     std::thread::spawn(move || {
@@ -109,4 +142,14 @@ pub fn path_from_url(url: &Url) -> PathBuf {
 pub fn path_from_url(url: &Url) -> PathBuf {
     url.to_file_path()
         .unwrap_or_else(|_| PathBuf::from(url.path()))
+}
+
+pub fn new_command(program: &str) -> Command {
+    #[allow(unused_mut)]
+    let mut cmd = Command::new(program);
+    #[cfg(target_os = "windows")]
+    use std::os::windows::process::CommandExt;
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(0x08000000);
+    cmd
 }

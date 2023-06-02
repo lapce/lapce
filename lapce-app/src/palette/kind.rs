@@ -7,6 +7,7 @@ pub enum PaletteKind {
     Reference,
     DocumentSymbol,
     WorkspaceSymbol,
+    SshHost,
     RunAndDebug,
 }
 
@@ -24,7 +25,7 @@ impl PaletteKind {
             | PaletteKind::Reference
             // | PaletteKind::ColorTheme
             // | PaletteKind::IconTheme
-            // | PaletteKind::SshHost
+            | PaletteKind::SshHost
             | PaletteKind::RunAndDebug
             // | PaletteKind::Language 
               => "",
@@ -62,7 +63,7 @@ impl PaletteKind {
             // | PaletteKind::IconTheme
             // | PaletteKind::Language
             | PaletteKind::RunAndDebug
-            // | PaletteKind::SshHost
+            | PaletteKind::SshHost
              => input,
             PaletteKind::Command
             | PaletteKind::Workspace

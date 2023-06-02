@@ -76,6 +76,11 @@ pub fn editor_view(
 
     let viewport = create_rw_signal(cx.scope, Rect::ZERO);
 
+    create_effect(cx.scope, move |_| {
+        editor.with(|_| ());
+        id.request_layout();
+    });
+
     create_effect(cx.scope, move |last_rev| {
         let (doc, sticky_header_height_signal, config) =
             editor.with_untracked(|editor| {
@@ -1337,8 +1342,8 @@ fn editor_content(
     .on_ensure_visible(move || {
         let cursor = cursor.get();
         let offset = cursor.offset();
-        let editor = editor.get_untracked();
-        let caret = cursor_caret(&editor.view, offset, !cursor.is_insert());
+        let view = editor.with(|e| e.view.clone());
+        let caret = cursor_caret(&view, offset, !cursor.is_insert());
         let config = config.get_untracked();
         let line_height = config.editor.line_height();
         if let CursorRender::Caret { x, width, line } = caret {

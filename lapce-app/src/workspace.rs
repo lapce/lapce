@@ -52,15 +52,22 @@ impl Display for SshHost {
 pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(SshHost),
+    #[cfg(windows)]
     RemoteWSL,
 }
 
 impl LapceWorkspaceType {
+    #[cfg(windows)]
     pub fn is_remote(&self) -> bool {
         matches!(
             self,
             LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL
         )
+    }
+
+    #[cfg(not(windows))]
+    pub fn is_remote(&self) -> bool {
+        matches!(self, LapceWorkspaceType::RemoteSSH(_))
     }
 }
 
@@ -71,6 +78,7 @@ impl std::fmt::Display for LapceWorkspaceType {
             LapceWorkspaceType::RemoteSSH(ssh) => {
                 write!(f, "ssh://{ssh}")
             }
+            #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
         }
     }
@@ -96,6 +104,7 @@ impl LapceWorkspace {
             LapceWorkspaceType::RemoteSSH(ssh) => {
                 format!(" [SSH: {}]", ssh.host)
             }
+            #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL => " [WSL]".to_string(),
         };
         Some(format!("{path}{remote}"))

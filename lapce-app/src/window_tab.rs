@@ -32,6 +32,7 @@ use crate::{
     debug::{DapData, RunDebugMode, RunDebugProcess},
     doc::EditorDiagnostic,
     editor::location::EditorLocation,
+    editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
     find::Find,
     global_search::GlobalSearchData,
@@ -65,6 +66,18 @@ pub enum Focus {
 }
 
 #[derive(Clone)]
+pub enum DragContent {
+    Panel(PanelKind),
+    EditorTab(EditorTabChild),
+}
+
+impl DragContent {
+    pub fn is_panel(&self) -> bool {
+        matches!(self, DragContent::Panel(_))
+    }
+}
+
+#[derive(Clone)]
 pub struct CommonData {
     pub workspace: Arc<LapceWorkspace>,
     pub scope: Scope,
@@ -82,6 +95,7 @@ pub struct CommonData {
     pub proxy: ProxyRpcHandler,
     pub view_id: RwSignal<floem::id::Id>,
     pub ui_line_height: Memo<f64>,
+    pub dragging: RwSignal<Option<DragContent>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
 }
 
@@ -230,6 +244,7 @@ impl WindowTabData {
             proxy: proxy.rpc.clone(),
             view_id,
             ui_line_height,
+            dragging: create_rw_signal(cx, None),
             config,
         };
 
@@ -534,7 +549,9 @@ impl WindowTabData {
             NewWindow => {}
             CloseWindow => {}
             NewFile => {}
-            ConnectSshHost => {}
+            ConnectSshHost => {
+                self.palette.run(cx, PaletteKind::SshHost);
+            }
             ConnectWsl => {}
             DisconnectRemote => {}
             PaletteLine => {
@@ -921,7 +938,6 @@ impl WindowTabData {
                 }
             }
             CoreNotification::TerminalProcessStopped { term_id } => {
-                println!("terminal stopped {term_id:?}");
                 let _ = self
                     .common
                     .term_tx
@@ -953,6 +969,28 @@ impl WindowTabData {
                 stack_frames,
             } => {
                 self.terminal.dap_stopped(dap_id, stopped, stack_frames);
+            }
+            CoreNotification::OpenPaths { folders, files, .. } => {
+                for folder in folders {
+                    self.common.window_command.set(Some(
+                        WindowCommand::NewWorkspaceTab {
+                            workspace: LapceWorkspace {
+                                kind: self.workspace.kind.clone(),
+                                path: Some(folder.to_path_buf()),
+                                last_open: 0,
+                            },
+                            end: false,
+                        },
+                    ));
+                }
+
+                for file in files {
+                    self.common.internal_command.set(Some(
+                        InternalCommand::OpenFile {
+                            path: file.to_path_buf(),
+                        },
+                    ));
+                }
             }
             CoreNotification::DapContinued { dap_id } => {
                 self.terminal.dap_continued(dap_id);

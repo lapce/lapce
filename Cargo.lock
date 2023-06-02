@@ -900,7 +900,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.7.0"
-source = "git+https://github.com/lapce/cosmic-text?rev=88bda037195ed21402eba66d85602728d99cbb48#88bda037195ed21402eba66d85602728d99cbb48"
+source = "git+https://github.com/lapce/cosmic-text?rev=fa0efccc67b0ff362056198fc931bd24f68d3fb8#fa0efccc67b0ff362056198fc931bd24f68d3fb8"
 dependencies = [
  "fontdb 0.13.0",
  "libm",
@@ -1615,7 +1615,7 @@ dependencies = [
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=36dc89435b2e57bcbe189aa51553552d3cf79f41#36dc89435b2e57bcbe189aa51553552d3cf79f41"
+source = "git+https://github.com/lapce/floem?rev=0cfc5ad220c92b5818fdaf34fe19cf7376144daf#0cfc5ad220c92b5818fdaf34fe19cf7376144daf"
 dependencies = [
  "bitflags 2.2.1",
  "crossbeam-channel",
@@ -1643,7 +1643,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=36dc89435b2e57bcbe189aa51553552d3cf79f41#36dc89435b2e57bcbe189aa51553552d3cf79f41"
+source = "git+https://github.com/lapce/floem?rev=0cfc5ad220c92b5818fdaf34fe19cf7376144daf#0cfc5ad220c92b5818fdaf34fe19cf7376144daf"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1654,7 +1654,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=36dc89435b2e57bcbe189aa51553552d3cf79f41#36dc89435b2e57bcbe189aa51553552d3cf79f41"
+source = "git+https://github.com/lapce/floem?rev=0cfc5ad220c92b5818fdaf34fe19cf7376144daf#0cfc5ad220c92b5818fdaf34fe19cf7376144daf"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -2226,9 +2226,9 @@ dependencies = [
 
 [[package]]
 name = "git2"
-version = "0.16.1"
+version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccf7f68c2995f392c49fffb4f95ae2c873297830eb25c6bc4c114ce8f4562acc"
+checksum = "7b989d6a7ca95a362cf2cfc5ad688b3a467be1f87e480b8dad07fee8c79b0044"
 dependencies = [
  "bitflags 1.3.2",
  "libc",
@@ -3181,6 +3181,7 @@ dependencies = [
  "Inflector",
  "alacritty_terminal",
  "anyhow",
+ "bytemuck",
  "clap",
  "config",
  "crossbeam-channel",
@@ -3517,9 +3518,9 @@ checksum = "c0f80d65747a3e43d1596c7c5492d95d5edddaabd45a7fcdb02b95f644164966"
 
 [[package]]
 name = "libgit2-sys"
-version = "0.14.2+1.5.1"
+version = "0.15.2+1.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f3d95f6b51075fe9810a7ae22c7095f12b98005ab364d8544797a825ce946a4"
+checksum = "a80df2e11fb4a61f4ba2ab42dbe7f74468da143f1a75c74e11dee7c813f694fa"
 dependencies = [
  "cc",
  "libc",
@@ -3547,9 +3548,9 @@ checksum = "348108ab3fba42ec82ff6e9564fc4ca0247bdccdc68dd8af9764bbc79c3c8ffb"
 
 [[package]]
 name = "libssh2-sys"
-version = "0.2.23"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b094a36eb4b8b8c8a7b4b8ae43b2944502be3e59cd87687595cf6b0a71b3f4ca"
+checksum = "2dc8a030b787e2119a731f1951d6a773e2280c660f8ec4b0f5e1505a386e71ee"
 dependencies = [
  "cc",
  "libc",
@@ -5591,9 +5592,9 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "stretto"
-version = "0.7.2"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6bcb902b974bc20b50c3ad3148022a366a46c9a676b587684ff46c237a3329e"
+checksum = "63eada6d62b660f5c1d4862c180ae70193de86df12386eee74da694ae2177583"
 dependencies = [
  "atomic",
  "crossbeam-channel",
@@ -5601,6 +5602,7 @@ dependencies = [
  "rand 0.8.5",
  "seahash",
  "thiserror",
+ "tracing",
  "wg",
  "xxhash-rust",
 ]
@@ -7106,7 +7108,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.5"
-source = "git+https://github.com/lapce/vger-rs?rev=43f9ae2d2f2da9a9d3d7f35690032a2fa8a4dac1#43f9ae2d2f2da9a9d3d7f35690032a2fa8a4dac1"
+source = "git+https://github.com/lapce/vger-rs?rev=8182b13ce636785b7e8a9453ff4277485f1e9658#8182b13ce636785b7e8a9453ff4277485f1e9658"
 dependencies = [
  "cosmic-text",
  "euclid",

@@ -23,6 +23,7 @@ pub enum SaveEvent {
     Doc(DocInfo),
     DisabledVolts(Vec<VoltID>),
     WorkspaceDisabledVolts(Arc<LapceWorkspace>, Vec<VoltID>),
+    PanelOrder(PanelOrder),
 }
 
 #[derive(Clone)]
@@ -62,6 +63,9 @@ impl LapceDb {
                     SaveEvent::WorkspaceDisabledVolts(workspace, volts) => {
                         let _ = local_db
                             .insert_workspace_disabled_volts(workspace, volts);
+                    }
+                    SaveEvent::PanelOrder(order) => {
+                        let _ = local_db.insert_panel_orders(&order);
                     }
                 }
             }
@@ -140,6 +144,15 @@ impl LapceDb {
         let workspaces = std::str::from_utf8(&workspaces)?;
         let workspaces: Vec<LapceWorkspace> = serde_json::from_str(workspaces)?;
         Ok(workspaces)
+    }
+
+    pub fn update_recent_workspace(&self, workspace: &LapceWorkspace) -> Result<()> {
+        if workspace.path.is_none() {
+            return Ok(());
+        }
+        self.save_tx
+            .send(SaveEvent::RecentWorkspace(workspace.clone()))?;
+        Ok(())
     }
 
     fn insert_doc(&self, info: &DocInfo) -> Result<()> {
@@ -292,6 +305,18 @@ impl LapceDb {
         }
 
         Ok(panel_orders)
+    }
+
+    pub fn save_panel_orders(&self, order: PanelOrder) {
+        let _ = self.save_tx.send(SaveEvent::PanelOrder(order));
+    }
+
+    fn insert_panel_orders(&self, order: &PanelOrder) -> Result<()> {
+        let info = serde_json::to_string(order)?;
+        let sled_db = self.get_db()?;
+        sled_db.insert("panel_orders", info.as_str())?;
+        sled_db.flush()?;
+        Ok(())
     }
 
     pub fn save_doc_position(
