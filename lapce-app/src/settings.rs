@@ -131,25 +131,25 @@ impl SettingsData {
 
         for (kind, fields, descs, mut settings_map) in [
             (
-                "core",
+                "Core",
                 &CoreConfig::FIELDS[..],
                 &CoreConfig::DESCS[..],
                 into_settings_map(&config.core),
             ),
             (
-                "editor",
+                "Editor",
                 &EditorConfig::FIELDS[..],
                 &EditorConfig::DESCS[..],
                 into_settings_map(&config.editor),
             ),
             (
-                "ui",
+                "UI",
                 &UIConfig::FIELDS[..],
                 &UIConfig::DESCS[..],
                 into_settings_map(&config.ui),
             ),
             (
-                "terminal",
+                "Terminal",
                 &TerminalConfig::FIELDS[..],
                 &TerminalConfig::DESCS[..],
                 into_settings_map(&config.terminal),
@@ -158,17 +158,21 @@ impl SettingsData {
             for (name, desc) in fields.iter().zip(descs.iter()) {
                 let field = name.replace('_', "-");
 
-                let value =
-                    if let Some(dropdown) = config.get_dropdown_info(kind, &field) {
-                        SettingsValue::Dropdown(dropdown)
-                    } else {
-                        let value = settings_map.remove(&field).unwrap();
-                        SettingsValue::from(value)
-                    };
+                let value = if let Some(dropdown) =
+                    config.get_dropdown_info(&kind.to_lowercase(), &field)
+                {
+                    SettingsValue::Dropdown(dropdown)
+                } else {
+                    let value = settings_map.remove(&field).unwrap();
+                    SettingsValue::from(value)
+                };
 
-                let kind = kind.to_string();
-                let name = name.replace('_', " ").to_title_case();
-                let filter_text = format!("{kind}\n{name}").to_lowercase();
+                let name =
+                    format!("{kind}: {}", name.replace('_', " ").to_title_case());
+                let kind = kind.to_lowercase();
+                let filter_text = format!("{kind} {name} {desc}").to_lowercase();
+                let filter_text =
+                    format!("{filter_text}{}", filter_text.replace(' ', ""));
                 items.push_back(SettingsItem {
                     kind,
                     name,
@@ -247,7 +251,7 @@ pub fn settings_view(common: CommonData) -> impl View {
                     .flex_col()
                     .line_height(1.6)
                     .width_px(200.0)
-                    .padding_left_px(50.0)
+                    .padding_left_px(20.0)
                     .padding_right_px(10.0)
                     .padding_top_px(20.0)
                     .border_right(1.0)

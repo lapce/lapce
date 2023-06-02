@@ -915,11 +915,8 @@ pub fn editor_container_view(
                 stack(|| {
                     (
                         editor_gutter(editor, is_active, gutter_rect),
-                        editor_content(editor, is_active).style(move || {
-                            let width = editor_rect.get().width()
-                                - gutter_rect.get().width();
-                            Style::BASE.height_pct(100.0).width_px(width as f32)
-                        }),
+                        container(|| editor_content(editor, is_active))
+                            .style(move || Style::BASE.size_pct(100.0, 100.0)),
                         empty().style(move || {
                             let config = config.get();
                             Style::BASE
@@ -1349,7 +1346,8 @@ fn editor_content(
         if let CursorRender::Caret { x, width, line } = caret {
             let rect = Size::new(width, line_height as f64)
                 .to_rect()
-                .with_origin(Point::new(x, (line * line_height) as f64));
+                .with_origin(Point::new(x, (line * line_height) as f64))
+                .inflate(10.0, 0.0);
 
             let viewport = viewport.get_untracked();
             let smallest_distance = (viewport.y0 - rect.y0)
