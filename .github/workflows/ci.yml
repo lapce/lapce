@@ -29,7 +29,7 @@ jobs:
             features: []
           - os: windows-latest
             features: 
-              - lapce-ui/portable
+              - lapce-app/portable
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repo
