@@ -52,7 +52,10 @@ use crate::{
         item::{PaletteItem, PaletteItemContent},
         PaletteData, PaletteStatus,
     },
-    panel::{position::PanelContainerPosition, view::panel_container_view},
+    panel::{
+        kind::PanelKind, position::PanelContainerPosition,
+        view::panel_container_view,
+    },
     settings::settings_view,
     text_input::text_input,
     title::title,
@@ -758,7 +761,6 @@ pub fn clickable_icon(
             Style::BASE
                 .padding_px(4.0)
                 .border_radius(6.0)
-                .cursor(CursorStyle::Pointer)
                 .border(1.0)
                 .border_color(Color::TRANSPARENT)
                 .apply_if(active_fn(), |s| {
@@ -766,7 +768,7 @@ pub fn clickable_icon(
                 })
         })
         .hover_style(move || {
-            Style::BASE.background(
+            Style::BASE.cursor(CursorStyle::Pointer).background(
                 *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
             )
         })
@@ -878,34 +880,57 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                             .height_pct(100.0)
                             .align_items(Some(AlignItems::Center))
                     }),
-                    svg(move || config.get().ui_svg(LapceIcons::ERROR)).style(
-                        move || {
-                            let config = config.get();
-                            let size = config.ui.icon_size() as f32;
+                    {
+                        let panel = panel.clone();
+                        stack(|| {
+                            (
+                                svg(move || config.get().ui_svg(LapceIcons::ERROR))
+                                    .style(move || {
+                                        let config = config.get();
+                                        let size = config.ui.icon_size() as f32;
+                                        Style::BASE.size_px(size, size).color(
+                                            *config.get_color(
+                                                LapceColor::LAPCE_ICON_ACTIVE,
+                                            ),
+                                        )
+                                    }),
+                                label(move || diagnostic_count.get().0.to_string())
+                                    .style(|| Style::BASE.margin_left_px(5.0)),
+                                svg(move || {
+                                    config.get().ui_svg(LapceIcons::WARNING)
+                                })
+                                .style(move || {
+                                    let config = config.get();
+                                    let size = config.ui.icon_size() as f32;
+                                    Style::BASE
+                                        .size_px(size, size)
+                                        .margin_left_px(5.0)
+                                        .color(*config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ))
+                                }),
+                                label(move || diagnostic_count.get().1.to_string())
+                                    .style(|| Style::BASE.margin_left_px(5.0)),
+                            )
+                        })
+                        .on_click(move |_| {
+                            panel.show_panel(&PanelKind::Problem);
+                            true
+                        })
+                        .style(|| {
                             Style::BASE
-                                .size_px(size, size)
-                                .margin_left_px(10.0)
-                                .color(
-                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                                )
-                        },
-                    ),
-                    label(move || diagnostic_count.get().0.to_string())
-                        .style(|| Style::BASE.margin_left_px(5.0)),
-                    svg(move || config.get().ui_svg(LapceIcons::WARNING)).style(
-                        move || {
-                            let config = config.get();
-                            let size = config.ui.icon_size() as f32;
-                            Style::BASE
-                                .size_px(size, size)
-                                .margin_left_px(5.0)
-                                .color(
-                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                                )
-                        },
-                    ),
-                    label(move || diagnostic_count.get().1.to_string())
-                        .style(|| Style::BASE.margin_left_px(5.0)),
+                                .height_pct(100.0)
+                                .padding_horiz_px(10.0)
+                                .items_center()
+                        })
+                        .hover_style(move || {
+                            Style::BASE.cursor(CursorStyle::Pointer).background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                        })
+                    },
                 )
             })
             .style(|| {
@@ -1940,6 +1965,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let workspace = window_tab_data.workspace.clone();
     let set_workbench_command =
         window_tab_data.common.workbench_command.write_only();
+    let main_split = window_tab_data.main_split.clone();
 
     let view = stack(|| {
         (
@@ -1947,6 +1973,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
                 (
                     title(
                         workspace,
+                        main_split,
                         source_control,
                         set_workbench_command,
                         latest_release,

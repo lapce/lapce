@@ -7,7 +7,7 @@ use floem::{
         create_memo, ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
         SignalWith, WriteSignal,
     },
-    style::{AlignItems, Dimension, Display, JustifyContent, Style},
+    style::{AlignItems, Dimension, Display, JustifyContent, Style, CursorStyle},
     view::View,
     views::{container, stack, Decorators},
     views::{label, svg},
@@ -19,6 +19,7 @@ use crate::{
     app::clickable_icon,
     command::LapceWorkbenchCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    main_split::MainSplitData,
     source_control::SourceControlData,
     update::ReleaseInfo,
     workspace::LapceWorkspace,
@@ -26,6 +27,7 @@ use crate::{
 
 fn left(
     source_control: RwSignal<SourceControlData>,
+    set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let branch = move || {
@@ -41,6 +43,7 @@ fn left(
             )
         })
     };
+    let id = AppContext::get_current().id;
     stack(move || {
         (
             container(move || {
@@ -52,6 +55,22 @@ fn left(
                     },
                 )
             })
+            .on_click(move |_| {
+                #[allow(unused_mut)]
+                let mut menu = Menu::new("")
+                    .entry(MenuItem::new("Connect to SSH Host").action(move || {
+                        set_workbench_command.set(Some(LapceWorkbenchCommand::ConnectSshHost)); 
+                    }));
+                #[cfg(windows)]
+                menu.entry(MenuItem::new(
+                    "Connect to WSL",
+                ).action(move || {
+                    set_workbench_command.set(Some(LapceWorkbenchCommand::ConnectWsl)); 
+                }));
+                id.show_context_menu(menu, Point::ZERO);
+                true
+            })
+            .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer))
             .style(move || {
                 Style::BASE
                     .height_pct(100.0)
@@ -101,27 +120,46 @@ fn left(
 
 fn middle(
     workspace: Arc<LapceWorkspace>,
+    main_split: MainSplitData,
     set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let local_workspace = workspace.clone();
+    let cx = AppContext::get_current();
+    let can_jump_backward = {
+        let main_split = main_split.clone();
+        create_memo(cx.scope, move |_| {
+            main_split.can_jump_location_backward(true)
+        })
+    };
+    let can_jump_forward = create_memo(cx.scope, move |_| {
+        main_split.can_jump_location_forward(true)
+    });
     stack(move || {
         (
             stack(move || {
                 (
                     clickable_icon(
                         || LapceIcons::LOCATION_BACKWARD,
-                        || {},
+                        move || {
+                            set_workbench_command.set(Some(LapceWorkbenchCommand::JumpLocationBackward));
+                        },
                         || false,
-                        || false,
+                        move  || {
+                            !can_jump_backward.get() 
+                        },
                         config,
                     )
                     .style(move || Style::BASE.margin_horiz_px(6.0)),
                     clickable_icon(
                         || LapceIcons::LOCATION_FORWARD,
-                        || {},
+                        move || {
+                            set_workbench_command.set(Some(LapceWorkbenchCommand::JumpLocationForward));
+                        },
                         || false,
-                        || false,
+                        move || {
+                            !can_jump_forward.get()
+                        },
                         config,
                     )
                     .style(move || Style::BASE.margin_right_px(6.0)),
@@ -155,19 +193,29 @@ fn middle(
                         .style(|| {
                             Style::BASE.padding_left_px(10.0).padding_right_px(5.0)
                         }),
-                        container(move || {
-                            svg(move || {
-                                config.get().ui_svg(LapceIcons::PALETTE_MENU)
-                            })
-                            .style(move || {
-                                let config = config.get();
-                                let icon_size = config.ui.icon_size() as f32;
-                                Style::BASE.size_px(icon_size, icon_size).color(
-                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                                )
-                            })
-                        })
-                        .style(move || Style::BASE.padding_px(5.0)),
+                        {
+                            let id = AppContext::get_current().id;
+                            clickable_icon(
+                                || LapceIcons::PALETTE_MENU,
+                                move || {
+                                    id.show_context_menu(
+                                        Menu::new("")
+                                            .entry(MenuItem::new("Open Folder").action(move || {
+                                               set_workbench_command.set(Some(LapceWorkbenchCommand::OpenFolder)); 
+                                            }))
+                                            .entry(MenuItem::new(
+                                                "Open Recent Workspace",
+                                            ).action(move || {
+                                               set_workbench_command.set(Some(LapceWorkbenchCommand::PaletteWorkspace)); 
+                                            })),
+                                        Point::ZERO,
+                                    );
+                                },
+                                || false,
+                                || false,
+                                config,
+                            )
+                        },
                     )
                 })
                 .style(|| Style::BASE.align_items(Some(AlignItems::Center)))
@@ -336,6 +384,7 @@ fn right(
 
 pub fn title(
     workspace: Arc<LapceWorkspace>,
+    main_split: MainSplitData,
     source_control: RwSignal<SourceControlData>,
     set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
@@ -344,8 +393,8 @@ pub fn title(
 ) -> impl View {
     stack(move || {
         (
-            left(source_control, config),
-            middle(workspace, set_workbench_command, config),
+            left(source_control, set_workbench_command, config),
+            middle(workspace, main_split, set_workbench_command, config),
             right(
                 set_workbench_command,
                 latest_release,

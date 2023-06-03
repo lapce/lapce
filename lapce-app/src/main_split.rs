@@ -191,8 +191,8 @@ pub struct MainSplitData {
     pub active_editor: Memo<Option<RwSignal<EditorData>>>,
     pub find_editor: EditorData,
     pub replace_editor: EditorData,
-    locations: RwSignal<im::Vector<EditorLocation>>,
-    current_location: RwSignal<usize>,
+    pub locations: RwSignal<im::Vector<EditorLocation>>,
+    pub current_location: RwSignal<usize>,
     pub common: CommonData,
 }
 
@@ -1377,6 +1377,26 @@ impl MainSplitData {
             );
             editor_tab.active = new_active;
         });
+    }
+
+    pub fn can_jump_location_backward(&self, tracked: bool) -> bool {
+        if tracked {
+            self.current_location.get() >= 1
+        } else {
+            self.current_location.get_untracked() >= 1
+        }
+    }
+
+    pub fn can_jump_location_forward(&self, tracked: bool) -> bool {
+        if tracked {
+            !(self.locations.with(|l| l.is_empty())
+                || self.current_location.get()
+                    >= self.locations.with(|l| l.len()) - 1)
+        } else {
+            !(self.locations.with_untracked(|l| l.is_empty())
+                || self.current_location.get_untracked()
+                    >= self.locations.with_untracked(|l| l.len()) - 1)
+        }
     }
 }
 
