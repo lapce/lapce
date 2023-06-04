@@ -216,6 +216,14 @@ impl<'a> RopeText<'a> {
         new_offset
     }
 
+    pub fn prev_code_boundary(&self, offset: usize) -> usize {
+        WordCursor::new(self.text, offset).prev_code_boundary()
+    }
+
+    pub fn next_code_boundary(&self, offset: usize) -> usize {
+        WordCursor::new(self.text, offset).next_code_boundary()
+    }
+
     /// Return the previous and end boundaries of the word under cursor.
     pub fn select_word(&self, offset: usize) -> (usize, usize) {
         WordCursor::new(self.text, offset).select_word()
