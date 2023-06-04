@@ -62,11 +62,13 @@ fn left(
                         set_workbench_command.set(Some(LapceWorkbenchCommand::ConnectSshHost)); 
                     }));
                 #[cfg(windows)]
-                menu.entry(MenuItem::new(
-                    "Connect to WSL",
-                ).action(move || {
-                    set_workbench_command.set(Some(LapceWorkbenchCommand::ConnectWsl)); 
-                }));
+                {
+                    menu = menu.entry(MenuItem::new(
+                        "Connect to WSL",
+                    ).action(move || {
+                        set_workbench_command.set(Some(LapceWorkbenchCommand::ConnectWsl)); 
+                    }));
+                }
                 id.show_context_menu(menu, Point::ZERO);
                 true
             })
