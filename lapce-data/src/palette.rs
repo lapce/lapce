@@ -18,6 +18,7 @@ use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
+    buffer::rope_text::RopeText,
     command::{EditCommand, FocusCommand},
     language::LapceLanguage,
     mode::Mode,

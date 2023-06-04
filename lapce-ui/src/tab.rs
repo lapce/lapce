@@ -10,6 +10,7 @@ use druid::{
 };
 use itertools::Itertools;
 use lapce_core::{
+    buffer::rope_text::RopeText,
     command::FocusCommand,
     cursor::{Cursor, CursorMode},
     language::LapceLanguage,

@@ -2,7 +2,7 @@ use lapce_xi_rope::{RopeDelta, Transformer};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    buffer::Buffer,
+    buffer::{rope_text::RopeText, Buffer},
     mode::{Mode, MotionMode, VisualMode},
     register::RegisterData,
     selection::{InsertDrift, SelRegion, Selection},

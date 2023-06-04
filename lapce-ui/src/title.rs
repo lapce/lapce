@@ -9,7 +9,7 @@ use druid::{
     RenderContext, Size, Target, TimerToken, Widget, WidgetExt, WidgetId, WidgetPod,
     WindowConfig, WindowState,
 };
-use lapce_core::{command::FocusCommand, meta};
+use lapce_core::{buffer::rope_text::RopeText, command::FocusCommand, meta};
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,

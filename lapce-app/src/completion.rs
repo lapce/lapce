@@ -302,10 +302,8 @@ impl CompletionData {
         }
 
         let completion_lens = doc.with_untracked(|doc| {
-            let text = view.text();
-            let rope_text = RopeText::new(&text);
             completion_lens_text(
-                rope_text,
+                view.rope_text(),
                 cursor_offset,
                 self,
                 doc.completion_lens(),
@@ -346,7 +344,7 @@ pub fn clear_completion_lens(doc: RwSignal<Document>) {
 /// Returns `Some(None)` if the completion lens should be shown, but not changed.
 /// Returns `Some(Some(text))` if the completion lens should be shown and changed to the given text.
 fn completion_lens_text(
-    rope_text: RopeText<'_>,
+    rope_text: impl RopeText,
     cursor_offset: usize,
     completion: &CompletionData,
     current_completion: Option<&str>,

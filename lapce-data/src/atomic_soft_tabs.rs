@@ -1,4 +1,4 @@
-use lapce_core::buffer::Buffer;
+use lapce_core::buffer::{rope_text::RopeText, Buffer};
 
 /// The direction to snap. Left is used when moving left, Right when moving right.
 /// Nearest is used for mouse selection.

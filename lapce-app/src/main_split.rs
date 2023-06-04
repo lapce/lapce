@@ -14,7 +14,9 @@ use floem::{
     },
 };
 use itertools::Itertools;
-use lapce_core::{cursor::Cursor, selection::Selection};
+use lapce_core::{
+    buffer::rope_text::RopeText, cursor::Cursor, selection::Selection,
+};
 use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::Rope;
 use lsp_types::{

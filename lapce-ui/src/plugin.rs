@@ -10,7 +10,7 @@ use druid::{
     FontWeight, LayoutCtx, LifeCycle, LifeCycleCtx, PaintCtx, Point, Rect,
     RenderContext, Size, Target, TimerToken, UpdateCtx, Widget, WidgetExt, WidgetId,
 };
-use lapce_core::command::FocusCommand;
+use lapce_core::{buffer::rope_text::RopeText, command::FocusCommand};
 use lapce_data::{
     command::{CommandKind, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND},
     config::{LapceConfig, LapceIcons, LapceTheme},

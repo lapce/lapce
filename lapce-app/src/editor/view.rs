@@ -25,6 +25,7 @@ use floem::{
     AppContext, Renderer,
 };
 use lapce_core::{
+    buffer::rope_text::{RopeText, RopeTextVal},
     char_buffer::CharBuffer,
     cursor::{ColPosition, CursorMode},
     mode::{Mode, VisualMode},
@@ -1782,6 +1783,13 @@ impl EditorViewData {
     /// Return the underlying `Rope` of the document.
     pub fn text(&self) -> Rope {
         self.doc.with_untracked(|doc| doc.buffer().text().clone())
+    }
+
+    /// Return a [`RopeTextVal`] wrapper.  
+    /// Unfortunately, we can't implement [`RopeText`] directly on [`EditorViewData`] due to
+    /// it not having a reference to the rope.
+    pub fn rope_text(&self) -> RopeTextVal {
+        RopeTextVal::new(self.text())
     }
 
     /// Return the [`Document`]'s [`Find`] instance. Find uses signals, and so can be updated.

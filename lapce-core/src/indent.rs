@@ -1,7 +1,7 @@
 use lapce_xi_rope::Rope;
 
 use crate::{
-    buffer::Buffer,
+    buffer::{rope_text::RopeText, Buffer},
     chars::{char_is_line_ending, char_is_whitespace},
     selection::Selection,
 };
