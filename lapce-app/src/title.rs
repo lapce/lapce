@@ -7,7 +7,7 @@ use floem::{
         create_memo, ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
         SignalWith, WriteSignal,
     },
-    style::{AlignItems, Dimension, Display, JustifyContent, Style, CursorStyle},
+    style::{AlignItems, CursorStyle, Dimension, Display, JustifyContent, Style},
     view::View,
     views::{container, stack, Decorators},
     views::{label, svg},
@@ -57,17 +57,20 @@ fn left(
             })
             .on_click(move |_| {
                 #[allow(unused_mut)]
-                let mut menu = Menu::new("")
-                    .entry(MenuItem::new("Connect to SSH Host").action(move || {
-                        set_workbench_command.set(Some(LapceWorkbenchCommand::ConnectSshHost)); 
-                    }));
+                let mut menu = Menu::new("").entry(
+                    MenuItem::new("Connect to SSH Host").action(move || {
+                        set_workbench_command
+                            .set(Some(LapceWorkbenchCommand::ConnectSshHost));
+                    }),
+                );
                 #[cfg(windows)]
                 {
-                    menu = menu.entry(MenuItem::new(
-                        "Connect to WSL",
-                    ).action(move || {
-                        set_workbench_command.set(Some(LapceWorkbenchCommand::ConnectWsl)); 
-                    }));
+                    menu = menu.entry(MenuItem::new("Connect to WSL").action(
+                        move || {
+                            set_workbench_command
+                                .set(Some(LapceWorkbenchCommand::ConnectWsl));
+                        },
+                    ));
                 }
                 id.show_context_menu(menu, Point::ZERO);
                 true
@@ -137,37 +140,64 @@ fn middle(
     let can_jump_forward = create_memo(cx.scope, move |_| {
         main_split.can_jump_location_forward(true)
     });
+
+    let jump_backward = move || {
+        clickable_icon(
+            || LapceIcons::LOCATION_BACKWARD,
+            move || {
+                set_workbench_command
+                    .set(Some(LapceWorkbenchCommand::JumpLocationBackward));
+            },
+            || false,
+            move || !can_jump_backward.get(),
+            config,
+        )
+        .style(move || Style::BASE.margin_horiz_px(6.0))
+    };
+    let jump_forward = move || {
+        clickable_icon(
+            || LapceIcons::LOCATION_FORWARD,
+            move || {
+                set_workbench_command
+                    .set(Some(LapceWorkbenchCommand::JumpLocationForward));
+            },
+            || false,
+            move || !can_jump_forward.get(),
+            config,
+        )
+        .style(move || Style::BASE.margin_right_px(6.0))
+    };
+
+    let open_folder = move || {
+        let id = AppContext::get_current().id;
+        clickable_icon(
+            || LapceIcons::PALETTE_MENU,
+            move || {
+                id.show_context_menu(
+                    Menu::new("")
+                        .entry(MenuItem::new("Open Folder").action(move || {
+                            set_workbench_command
+                                .set(Some(LapceWorkbenchCommand::OpenFolder));
+                        }))
+                        .entry(MenuItem::new("Open Recent Workspace").action(
+                            move || {
+                                set_workbench_command.set(Some(
+                                    LapceWorkbenchCommand::PaletteWorkspace,
+                                ));
+                            },
+                        )),
+                    Point::ZERO,
+                );
+            },
+            || false,
+            || false,
+            config,
+        )
+    };
+
     stack(move || {
         (
-            stack(move || {
-                (
-                    clickable_icon(
-                        || LapceIcons::LOCATION_BACKWARD,
-                        move || {
-                            set_workbench_command.set(Some(LapceWorkbenchCommand::JumpLocationBackward));
-                        },
-                        || false,
-                        move  || {
-                            !can_jump_backward.get() 
-                        },
-                        config,
-                    )
-                    .style(move || Style::BASE.margin_horiz_px(6.0)),
-                    clickable_icon(
-                        || LapceIcons::LOCATION_FORWARD,
-                        move || {
-                            set_workbench_command.set(Some(LapceWorkbenchCommand::JumpLocationForward));
-                        },
-                        || false,
-                        move || {
-                            !can_jump_forward.get()
-                        },
-                        config,
-                    )
-                    .style(move || Style::BASE.margin_right_px(6.0)),
-                )
-            })
-            .style(|| {
+            stack(move || (jump_backward(), jump_forward())).style(|| {
                 Style::BASE
                     .flex_basis(Dimension::Points(0.0))
                     .flex_grow(1.0)
@@ -195,29 +225,7 @@ fn middle(
                         .style(|| {
                             Style::BASE.padding_left_px(10.0).padding_right_px(5.0)
                         }),
-                        {
-                            let id = AppContext::get_current().id;
-                            clickable_icon(
-                                || LapceIcons::PALETTE_MENU,
-                                move || {
-                                    id.show_context_menu(
-                                        Menu::new("")
-                                            .entry(MenuItem::new("Open Folder").action(move || {
-                                               set_workbench_command.set(Some(LapceWorkbenchCommand::OpenFolder)); 
-                                            }))
-                                            .entry(MenuItem::new(
-                                                "Open Recent Workspace",
-                                            ).action(move || {
-                                               set_workbench_command.set(Some(LapceWorkbenchCommand::PaletteWorkspace)); 
-                                            })),
-                                        Point::ZERO,
-                                    );
-                                },
-                                || false,
-                                || false,
-                                config,
-                            )
-                        },
+                        open_folder(),
                     )
                 })
                 .style(|| Style::BASE.align_items(Some(AlignItems::Center)))
