@@ -134,6 +134,11 @@ pub struct Document {
     pub inlay_hints: Option<Spans<InlayHint>>,
     /// The diagnostics for the document
     pub diagnostics: DiagnosticData,
+    /// Current completion lens text, if any.  
+    /// This will be displayed even on views that are not focused.
+    completion_lens: Option<String>,
+    /// (line, col)
+    completion_pos: (usize, usize),
     /// (Offset -> (Plugin the code actions are from, Code Actions))
     pub code_actions: im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>,
     /// Whether the buffer's content has been loaded/initialized into the buffer.
@@ -167,6 +172,8 @@ impl Document {
             semantic_styles: None,
             inlay_hints: None,
             diagnostics,
+            completion_lens: None,
+            completion_pos: (0, 0),
             content: DocContent::File(path),
             loaded: false,
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
@@ -199,6 +206,8 @@ impl Document {
                 expanded: create_rw_signal(cx, true),
                 diagnostics: create_rw_signal(cx, im::Vector::new()),
             },
+            completion_lens: None,
+            completion_pos: (0, 0),
             loaded: true,
             code_actions: im::HashMap::new(),
             proxy,
@@ -322,7 +331,7 @@ impl Document {
             self.update_styles(delta);
             self.update_inlay_hints(delta);
             self.update_diagnostics(delta);
-            // self.update_completion(delta);
+            self.update_completion_lens(delta);
             if let DocContent::File(path) = &self.content {
                 self.proxy
                     .update(path.clone(), delta.clone(), rev + i as u64 + 1);
@@ -674,32 +683,28 @@ impl Document {
 
         text.append(&mut diag_text);
 
-        // let (completion_line, completion_col) = self.completion_pos;
-        // let completion_text = config
-        //     .editor
-        //     .enable_completion_lens
-        //     .then_some(())
-        //     .and(self.completion.as_ref())
-        //     // TODO: We're probably missing on various useful completion things to include here!
-        //     .filter(|_| line == completion_line)
-        //     .map(|completion| PhantomText {
-        //         kind: PhantomTextKind::Completion,
-        //         col: completion_col,
-        //         text: completion.to_string(),
-        //         fg: Some(
-        //             config
-        //                 .get_color_unchecked(LapceTheme::COMPLETION_LENS_FOREGROUND)
-        //                 .clone(),
-        //         ),
-        //         font_size: Some(config.editor.completion_lens_font_size()),
-        //         font_family: Some(config.editor.completion_lens_font_family()),
-        //         bg: None,
-        //         under_line: None,
-        //         // TODO: italics?
-        //     });
-        // if let Some(completion_text) = completion_text {
-        //     text.push(completion_text);
-        // }
+        let (completion_line, completion_col) = self.completion_pos;
+        let completion_text = config
+            .editor
+            .enable_completion_lens
+            .then_some(())
+            .and(self.completion_lens.as_ref())
+            // TODO: We're probably missing on various useful completion things to include here!
+            .filter(|_| line == completion_line)
+            .map(|completion| PhantomText {
+                kind: PhantomTextKind::Completion,
+                col: completion_col,
+                text: completion.clone(),
+                fg: Some(*config.get_color(LapceColor::COMPLETION_LENS_FOREGROUND)),
+                font_size: Some(config.editor.completion_lens_font_size()),
+                // font_family: Some(config.editor.completion_lens_font_family()),
+                bg: None,
+                under_line: None,
+                // TODO: italics?
+            });
+        if let Some(completion_text) = completion_text {
+            text.push(completion_text);
+        }
 
         // if let Some(ime_text) = self.ime_text.as_ref() {
         //     let (ime_line, col, _) = self.ime_pos;
@@ -777,6 +782,67 @@ impl Document {
                 diagnostic.range = (start, end);
             }
         });
+    }
+
+    /// Get the current completion lens text
+    pub fn completion_lens(&self) -> Option<&str> {
+        self.completion_lens.as_deref()
+    }
+
+    pub fn set_completion_lens(
+        &mut self,
+        completion_lens: String,
+        line: usize,
+        col: usize,
+    ) {
+        // TODO: more granular invalidation
+        self.clear_text_cache();
+        self.completion_lens = Some(completion_lens);
+        self.completion_pos = (line, col);
+    }
+
+    pub fn clear_completion_lens(&mut self) {
+        // TODO: more granular invalidation
+        self.clear_text_cache();
+        if self.completion_lens.is_some() {
+            self.completion_lens = None;
+        }
+    }
+
+    /// Update the completion lens position after an edit so that it appears in the correct place.
+    pub fn update_completion_lens(&mut self, delta: &RopeDelta) {
+        let Some(completion) = self.completion_lens.as_ref() else { return };
+
+        let (line, col) = self.completion_pos;
+        let offset = self.buffer().offset_of_line_col(line, col);
+
+        // If the edit is easily checkable + updateable from, then we alter the lens' text.
+        // In normal typing, if we didn't do this, then the text would jitter forward and then
+        // backwards as the completion lens is updated.
+        // TODO: this could also handle simple deletion, but we don't currently keep track of
+        // the past copmletion lens string content in the field.
+        if delta.as_simple_insert().is_some() {
+            let (iv, new_len) = delta.summary();
+            if iv.start() == iv.end()
+                && iv.start() == offset
+                && new_len <= completion.len()
+            {
+                // Remove the # of newly inserted characters
+                // These aren't necessarily the same as the characters literally in the
+                // text, but the completion will be updated when the completion widget
+                // receives the update event, and it will fix this if needed.
+                // TODO: this could be smarter and use the insert's content
+                self.completion_lens = Some(completion[new_len..].to_string());
+            }
+        }
+
+        // Shift the position by the rope delta
+        let mut transformer = Transformer::new(delta);
+
+        let new_offset = transformer.transform(offset, true);
+        let new_pos = self.buffer().offset_to_line_col(new_offset);
+
+        self.completion_pos = new_pos;
     }
 
     pub fn update_find(&self, start_line: usize, end_line: usize) {

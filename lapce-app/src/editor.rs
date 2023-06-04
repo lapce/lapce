@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
-    completion::CompletionStatus,
+    completion::{clear_completion_lens, CompletionStatus},
     db::LapceDb,
     doc::{DocContent, Document},
     editor::location::{EditorLocation, EditorPosition},
@@ -392,6 +392,13 @@ impl EditorData {
         count: Option<usize>,
         mods: Modifiers,
     ) -> CommandExecuted {
+        // TODO(minor): Evaluate whether we should split this into subenums,
+        // such as actions specific to the actual editor pane, movement, and list movement.
+        let prev_completion_index = self
+            .common
+            .completion
+            .with_untracked(|c| c.active.get_untracked());
+
         match cmd {
             FocusCommand::SplitVertical => {
                 if let Some(editor_tab_id) = self.editor_tab_id {
@@ -622,6 +629,19 @@ impl EditorData {
             }
             _ => {}
         }
+
+        let current_completion_index = self
+            .common
+            .completion
+            .with_untracked(|c| c.active.get_untracked());
+
+        if prev_completion_index != current_completion_index {
+            self.common.completion.with_untracked(|c| {
+                let cursor_offset = self.cursor.with_untracked(|c| c.offset());
+                c.update_document_completion(&self.view, cursor_offset);
+            });
+        }
+
         CommandExecuted::Yes
     }
 
@@ -927,9 +947,11 @@ impl EditorData {
         self.common.completion.update(|c| {
             c.cancel();
         });
+
+        clear_completion_lens(self.doc);
     }
 
-    /// Update the displayed autocompletion box
+    /// Update the displayed autocompletion box  
     /// Sends a request to the LSP for completion information
     fn update_completion(&self, display_if_empty_input: bool) {
         if self.get_mode() != Mode::Insert {
@@ -967,9 +989,7 @@ impl EditorData {
         });
         if !display_if_empty_input && input.is_empty() && char != "." && char != ":"
         {
-            self.common.completion.update(|c| {
-                c.cancel();
-            });
+            self.cancel_completion();
             return;
         }
 
@@ -981,11 +1001,15 @@ impl EditorData {
             self.common.completion.update(|completion| {
                 completion.update_input(input.clone());
 
+                let cursor_offset = self.cursor.with_untracked(|c| c.offset());
+                completion.update_document_completion(&self.view, cursor_offset);
+
                 if !completion.input_items.contains_key("") {
                     let start_pos = self.doc.with_untracked(|doc| {
                         doc.buffer().offset_to_position(start_offset)
                     });
                     completion.request(
+                        self.editor_id,
                         &self.common.proxy,
                         path.clone(),
                         "".to_string(),
@@ -997,7 +1021,13 @@ impl EditorData {
                     let position = self.doc.with_untracked(|doc| {
                         doc.buffer().offset_to_position(offset)
                     });
-                    completion.request(&self.common.proxy, path, input, position);
+                    completion.request(
+                        self.editor_id,
+                        &self.common.proxy,
+                        path,
+                        input,
+                        position,
+                    );
                 }
             });
             return;
@@ -1014,6 +1044,7 @@ impl EditorData {
                 .doc
                 .with_untracked(|doc| doc.buffer().offset_to_position(start_offset));
             completion.request(
+                self.editor_id,
                 &self.common.proxy,
                 path.clone(),
                 "".to_string(),
@@ -1024,7 +1055,13 @@ impl EditorData {
                 let position = self
                     .doc
                     .with_untracked(|doc| doc.buffer().offset_to_position(offset));
-                completion.request(&self.common.proxy, path, input, position);
+                completion.request(
+                    self.editor_id,
+                    &self.common.proxy,
+                    path,
+                    input,
+                    position,
+                );
             }
         });
     }

@@ -1,17 +1,24 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{borrow::Cow, path::PathBuf, str::FromStr, sync::Arc};
 
 use floem::{
     peniko::kurbo::Rect,
     reactive::{
-        create_rw_signal, ReadSignal, RwSignal, Scope, SignalGetUntracked, SignalSet,
+        create_rw_signal, ReadSignal, RwSignal, Scope, SignalGetUntracked,
+        SignalSet, SignalUpdate, SignalWithUntracked,
     },
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
-use lapce_core::movement::Movement;
+use lapce_core::{buffer::rope_text::RopeText, movement::Movement};
 use lapce_rpc::{plugin::PluginId, proxy::ProxyRpcHandler};
-use lsp_types::{CompletionItem, CompletionResponse, Position};
+use lsp_types::{
+    CompletionItem, CompletionResponse, CompletionTextEdit, InsertTextFormat,
+    Position,
+};
 
-use crate::config::LapceConfig;
+use crate::{
+    config::LapceConfig, doc::Document, editor::view::EditorViewData, id::EditorId,
+    snippet::Snippet,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CompletionStatus {
@@ -32,15 +39,32 @@ pub struct ScoredCompletionItem {
 #[derive(Clone)]
 pub struct CompletionData {
     pub status: CompletionStatus,
+    /// The current request id. This is used to discard old requests.
     pub request_id: usize,
+    /// An input id that is used for keeping track of whether the input has changed.
     pub input_id: usize,
+    // TODO: A `PathBuf` has the issue that the proxy may not have the same format.
+    // TODO(minor): It might be nice to not require a path. LSPs cannot operate on scratch buffers
+    // as of now, but they might be allowed in the future.
     pub path: PathBuf,
+    /// The offset that the completion is/was started at. Used for positioning the completion elem
     pub offset: usize,
+    /// The active completion index in the list of filtered items
     pub active: RwSignal<usize>,
+    /// The current input that the user has typed which is being sent for consideration by the LSP
     pub input: String,
+    /// `(Input, CompletionItems)`
     pub input_items: im::HashMap<String, im::Vector<ScoredCompletionItem>>,
+    /// The filtered items that are being displayed to the user
     pub filtered_items: im::Vector<ScoredCompletionItem>,
+    /// The size of the completion element.  
+    /// This is used for positioning the element.  
+    /// As well, it is needed for some movement commands like page up/down that need to know the
+    /// height to compute how far to move.
     pub layout_rect: Rect,
+    /// The editor id that was most recently used to trigger a completion.
+    pub latest_editor_id: Option<EditorId>,
+    /// Matcher for filtering the completion items
     matcher: Arc<SkimMatcherV2>,
     config: ReadSignal<Arc<LapceConfig>>,
 }
@@ -60,10 +84,12 @@ impl CompletionData {
             filtered_items: im::Vector::new(),
             layout_rect: Rect::ZERO,
             matcher: Arc::new(SkimMatcherV2::default().ignore_case()),
+            latest_editor_id: None,
             config,
         }
     }
 
+    /// Handle the response to a completion request.
     pub fn receive(
         &mut self,
         request_id: usize,
@@ -71,6 +97,7 @@ impl CompletionData {
         resp: &CompletionResponse,
         plugin_id: PluginId,
     ) {
+        // If we've been canceled or the request id is old, ignore the response.
         if self.status == CompletionStatus::Inactive || self.request_id != request_id
         {
             return;
@@ -78,6 +105,7 @@ impl CompletionData {
 
         let items = match resp {
             CompletionResponse::Array(items) => items,
+            // TODO: Possibly handle the 'is_incomplete' field on List.
             CompletionResponse::List(list) => &list.items,
         };
         let items: im::Vector<ScoredCompletionItem> = items
@@ -94,23 +122,28 @@ impl CompletionData {
         self.filter_items();
     }
 
+    /// Request for completion items wit the current request id.
     pub fn request(
         &mut self,
+        editor_id: EditorId,
         proxy_rpc: &ProxyRpcHandler,
         path: PathBuf,
         input: String,
         position: Position,
     ) {
+        self.latest_editor_id = Some(editor_id);
         self.input_items.insert(input.clone(), im::Vector::new());
         proxy_rpc.completion(self.request_id, path, input, position);
     }
 
+    /// Close the completion, clearing all the data.
     pub fn cancel(&mut self) {
         if self.status == CompletionStatus::Inactive {
             return;
         }
         self.status = CompletionStatus::Inactive;
         self.input_id = 0;
+        self.latest_editor_id = None;
         self.active.set(0);
         self.input.clear();
         self.input_items.clear();
@@ -122,6 +155,10 @@ impl CompletionData {
             return;
         }
         self.input = input;
+        // TODO: If the user types a letter that continues the current active item, we should
+        // try keeping that item active. Possibly give this a setting.
+        // ex: `p` has `print!` and `println!` has options. If you select the second, then type
+        // `r` then it should stay on `println!` even as the overall filtering of the list changes.
         self.active.set(0);
         self.filter_items();
     }
@@ -143,6 +180,7 @@ impl CompletionData {
             return;
         }
 
+        // Filter the items by the fuzzy matching with the input text.
         let mut items: im::Vector<ScoredCompletionItem> = self
             .all_items()
             .iter()
@@ -179,6 +217,7 @@ impl CompletionData {
                 }
             })
             .collect();
+        // Sort all the items by their score, then their label score, then their length.
         items.sort_by(|a, b| {
             b.score
                 .cmp(&a.score)
@@ -188,6 +227,7 @@ impl CompletionData {
         self.filtered_items = items;
     }
 
+    /// Move down in the list of items.
     pub fn next(&mut self) {
         let active = self.active.get_untracked();
         let new =
@@ -195,6 +235,7 @@ impl CompletionData {
         self.active.set(new);
     }
 
+    /// Move up in the list of items.
     pub fn previous(&mut self) {
         let active = self.active.get_untracked();
         let new =
@@ -202,12 +243,17 @@ impl CompletionData {
         self.active.set(new);
     }
 
-    pub fn next_page(&mut self) {
+    /// The amount of items that can be displayed in the current layout.
+    fn display_count(&self) -> usize {
         let config = self.config.get_untracked();
-        let count = ((self.layout_rect.size().height
-            / config.editor.line_height() as f64)
+        ((self.layout_rect.size().height / config.editor.line_height() as f64)
             .floor() as usize)
-            .saturating_sub(1);
+            .saturating_sub(1)
+    }
+
+    /// Move to the next page of items.
+    pub fn next_page(&mut self) {
+        let count = self.display_count();
         let active = self.active.get_untracked();
         let new = Movement::Down.update_index(
             active,
@@ -218,12 +264,9 @@ impl CompletionData {
         self.active.set(new);
     }
 
+    /// Move to the previous page of items.
     pub fn previous_page(&mut self) {
-        let config = self.config.get_untracked();
-        let count = ((self.layout_rect.size().height
-            / config.editor.line_height() as f64)
-            .floor() as usize)
-            .saturating_sub(1);
+        let count = self.display_count();
         let active = self.active.get_untracked();
         let new = Movement::Up.update_index(
             active,
@@ -234,7 +277,141 @@ impl CompletionData {
         self.active.set(new);
     }
 
+    /// The currently selected/active item.
     pub fn current_item(&self) -> Option<&ScoredCompletionItem> {
         self.filtered_items.get(self.active.get_untracked())
+    }
+
+    /// Update the completion lens of the document with the active completion item.  
+    pub fn update_document_completion(
+        &self,
+        view: &EditorViewData,
+        cursor_offset: usize,
+    ) {
+        let doc = view.doc;
+
+        if !doc.with_untracked(|doc| doc.content.is_file()) {
+            return;
+        }
+
+        let config = self.config.get_untracked();
+
+        if !config.editor.enable_completion_lens {
+            clear_completion_lens(doc);
+            return;
+        }
+
+        let completion_lens = doc.with_untracked(|doc| {
+            let text = view.text();
+            let rope_text = RopeText::new(&text);
+            completion_lens_text(
+                rope_text,
+                cursor_offset,
+                self,
+                doc.completion_lens(),
+            )
+        });
+        match completion_lens {
+            Some(Some(lens)) => {
+                let offset = self.offset + self.input.len();
+                // TODO: will need to be adjusted to use visual line.
+                //   Could just store the offset in doc.
+                let (line, col) = view.offset_to_line_col(offset);
+
+                doc.update(|doc| {
+                    doc.set_completion_lens(lens, line, col);
+                });
+            }
+            // Unchanged
+            Some(None) => {}
+            None => {
+                clear_completion_lens(doc);
+            }
+        }
+    }
+}
+
+/// Clear the current completion lens. Only `update`s if there is a completion lens.
+pub fn clear_completion_lens(doc: RwSignal<Document>) {
+    let has_completion = doc.with_untracked(|doc| doc.completion_lens().is_some());
+    if has_completion {
+        doc.update(|doc| {
+            doc.clear_completion_lens();
+        });
+    }
+}
+
+/// Get the text of the completion lens for the given completion item.  
+/// Returns `None` if the completion lens should be hidden.
+/// Returns `Some(None)` if the completion lens should be shown, but not changed.
+/// Returns `Some(Some(text))` if the completion lens should be shown and changed to the given text.
+fn completion_lens_text(
+    rope_text: RopeText<'_>,
+    cursor_offset: usize,
+    completion: &CompletionData,
+    current_completion: Option<&str>,
+) -> Option<Option<String>> {
+    let item = &completion.current_item()?.item;
+
+    let item: Cow<str> = if let Some(edit) = &item.text_edit {
+        // A text edit is used, because that is what will actually be inserted.
+
+        let text_format = item
+            .insert_text_format
+            .unwrap_or(InsertTextFormat::PLAIN_TEXT);
+
+        // We don't display insert and replace
+        let CompletionTextEdit::Edit(edit) = edit else { return None };
+        // The completion offset can be different from the current cursor offset.
+        let completion_offset = completion.offset;
+
+        let start_offset = rope_text.prev_code_boundary(cursor_offset);
+        let edit_start = rope_text.offset_of_position(&edit.range.start);
+
+        // If the start of the edit isn't where the cursor currently is,
+        // and it is not at the start of the completion, then we ignore it.
+        // This captures most cases that we want, even if it skips over some
+        // displayable edits.
+        if start_offset != edit_start && completion_offset != edit_start {
+            return None;
+        }
+
+        match text_format {
+            InsertTextFormat::PLAIN_TEXT => {
+                // This is not entirely correct because it assumes that the position is
+                // `{start,end}_offset` when it may not necessarily be.
+                Cow::Borrowed(&edit.new_text)
+            }
+            InsertTextFormat::SNIPPET => {
+                // Parse the snippet. Bail if it's invalid.
+                let snippet = Snippet::from_str(&edit.new_text).ok()?;
+
+                let text = snippet.text();
+
+                Cow::Owned(text)
+            }
+            _ => {
+                // We don't know how to support this text format.
+                return None;
+            }
+        }
+    } else {
+        // There's no specific text edit, so we just use the label.
+        Cow::Borrowed(&item.label)
+    };
+    // We strip the prefix of the current input from the label.
+    // So that, for example, `p` with a completion of `println` only sets the lens text to `rintln`.
+    // If the text does not include a prefix in the expected position, then we do not display it.
+    let item = item.as_ref().strip_prefix(&completion.input)?;
+
+    // Get only the first line of text, because Lapce does not currently support
+    // multi-line phantom text.
+    let item = item.lines().next().unwrap_or(item);
+
+    if Some(item) == current_completion {
+        // If the item is the same as the current completion, then we don't display it.
+        Some(None)
+    } else {
+        Some(Some(item.to_string()))
     }
 }

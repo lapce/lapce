@@ -177,7 +177,7 @@ impl EditorConfig {
         if self.inlay_hint_font_size < 5
             || self.inlay_hint_font_size > self.font_size
         {
-            self.font_size
+            self.font_size()
         } else {
             self.inlay_hint_font_size
         }
@@ -185,9 +185,17 @@ impl EditorConfig {
 
     pub fn error_lens_font_size(&self) -> usize {
         if self.error_lens_font_size == 0 {
-            self.font_size
+            self.inlay_hint_font_size()
         } else {
             self.error_lens_font_size
+        }
+    }
+
+    pub fn completion_lens_font_size(&self) -> usize {
+        if self.completion_lens_font_size == 0 {
+            self.inlay_hint_font_size()
+        } else {
+            self.completion_lens_font_size
         }
     }
 
