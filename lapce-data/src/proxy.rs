@@ -27,7 +27,6 @@ use lapce_rpc::{
 use lapce_xi_rope::Rope;
 use lsp_types::{LogMessageParams, MessageType, Url};
 use parking_lot::Mutex;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 

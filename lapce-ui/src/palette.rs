@@ -658,6 +658,7 @@ impl ListPaint<PaletteListData> for PaletteItem {
                 format!("{ssh}"),
                 self.indices.to_vec(),
             ),
+<<<<<<< HEAD
             PaletteItemContent::RunAndDebug(mode, config) => {
                 let text = format!("{mode} {}", config.name);
                 let hint = format!("{} {}", config.program, config.args.join(" "));
@@ -700,6 +701,9 @@ impl ListPaint<PaletteListData> for PaletteItem {
                     keymap: None,
                 }
             }
+=======
+            #[cfg(windows)]
+>>>>>>> 92a5aa1f (wsl distro)
             PaletteItemContent::WslDistro(distro) => PaletteItemPaintInfo::new_text(
                 if distro.default {
                     format!("{} (default)", distro.name)

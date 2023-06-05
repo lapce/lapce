@@ -46,7 +46,7 @@ use crate::{
     keypress::{KeyMap, KeyPressData, KeyPressFocus},
     list::ListData,
     panel::PanelKind,
-    proxy::{path_from_url, LapceProxy, WslDistro},
+    proxy::{path_from_url, LapceProxy},
     source_control::SourceControlData,
     terminal::TerminalPanelData,
 };
@@ -156,7 +156,11 @@ pub enum PaletteItemContent {
     ReferenceLocation(PathBuf, EditorLocation<Position>),
     Workspace(LapceWorkspace),
     SshHost(SshHost),
+<<<<<<< HEAD
     RunAndDebug(RunDebugMode, RunDebugConfig),
+=======
+    #[cfg(windows)]
+>>>>>>> 92a5aa1f (wsl distro)
     WslDistro(WslDistro),
     Command(LapceCommand),
     ColorTheme(String),
@@ -308,6 +312,7 @@ impl PaletteItemContent {
                     ));
                 }
             }
+<<<<<<< HEAD
             PaletteItemContent::RunAndDebug(mode, config) => {
                 if !preview {
                     ctx.submit_command(Command::new(
@@ -320,6 +325,9 @@ impl PaletteItemContent {
                     ));
                 }
             }
+=======
+            #[cfg(windows)]
+>>>>>>> 92a5aa1f (wsl distro)
             PaletteItemContent::WslDistro(distro) => {
                 if !preview {
                     ctx.submit_command(Command::new(
@@ -696,6 +704,7 @@ impl PaletteViewData {
                 self.get_ssh_hosts(ctx);
             }
             PaletteType::WslDistro => {
+                #[cfg(windows)]
                 self.get_wsl_distros(ctx);
             }
             PaletteType::GlobalSearch => {
@@ -1023,7 +1032,7 @@ impl PaletteViewData {
             })
             .collect();
     }
-
+    #[cfg(windows)]
     fn get_wsl_distros(&mut self, _ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
         if let Ok(distros) = WslDistro::all() {
