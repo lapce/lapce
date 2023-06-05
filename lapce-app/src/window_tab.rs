@@ -39,7 +39,7 @@ use crate::{
     id::WindowTabId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     main_split::{MainSplitData, SplitData, SplitDirection},
-    palette::{kind::PaletteKind, PaletteData},
+    palette::{kind::PaletteKind, PaletteData, PaletteStatus},
     panel::{
         data::{default_panel_order, PanelData},
         kind::PanelKind,
@@ -426,9 +426,18 @@ impl WindowTabData {
             CommandKind::Workbench(command) => {
                 self.run_workbench_command(command, cmd.data);
             }
-            CommandKind::Edit(_) => {}
-            CommandKind::Move(_) => {}
-            CommandKind::Focus(_) => {}
+            CommandKind::Focus(_) | CommandKind::Edit(_) | CommandKind::Move(_) => {
+                if self.palette.status.get_untracked() != PaletteStatus::Inactive {
+                    self.palette.run_command(&cmd, None, Modifiers::default());
+                } else if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    let editor_data = editor_data.get_untracked();
+                    editor_data.run_command(&cmd, None, Modifiers::default());
+                } else {
+                    // TODO: dispatch to current focused view?
+                }
+            }
             CommandKind::MotionMode(_) => {}
             CommandKind::MultiSelection(_) => {}
         }
