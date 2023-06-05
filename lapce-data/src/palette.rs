@@ -158,11 +158,8 @@ pub enum PaletteItemContent {
     ReferenceLocation(PathBuf, EditorLocation<Position>),
     Workspace(LapceWorkspace),
     SshHost(SshHost),
-<<<<<<< HEAD
     RunAndDebug(RunDebugMode, RunDebugConfig),
-=======
     #[cfg(windows)]
->>>>>>> 92a5aa1f (wsl distro)
     WslDistro(WslDistro),
     Command(LapceCommand),
     ColorTheme(String),
@@ -314,7 +311,6 @@ impl PaletteItemContent {
                     ));
                 }
             }
-<<<<<<< HEAD
             PaletteItemContent::RunAndDebug(mode, config) => {
                 if !preview {
                     ctx.submit_command(Command::new(
@@ -327,9 +323,7 @@ impl PaletteItemContent {
                     ));
                 }
             }
-=======
             #[cfg(windows)]
->>>>>>> 92a5aa1f (wsl distro)
             PaletteItemContent::WslDistro(distro) => {
                 if !preview {
                     ctx.submit_command(Command::new(
