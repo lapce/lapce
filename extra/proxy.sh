@@ -60,7 +60,8 @@ esac
 printf 'Switching to "%s"\n' "${tmp_dir}"
 cd "${tmp_dir}"
 
-lapce_download_url="https://github.com/lapce/lapce/releases/download/${lapce_new_ver}/lapce-proxy-${os_name}-${arch_name}.gz"
+lapce_new_ver_real_tag=$(echo ${lapce_new_ver} | cut -d '-' -f1)
+lapce_download_url="https://github.com/lapce/lapce/releases/download/${lapce_new_ver_real_tag}/lapce-proxy-${os_name}-${arch_name}.gz"
 
 if test_cmd 'curl'; then
   # How old curl has these options? we'll find out

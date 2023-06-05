@@ -129,7 +129,6 @@ impl PluginData {
         {
             let plugin = plugin.clone();
             let send = create_ext_action(
-                cx,
                 move |volts: Vec<(Option<Vec<u8>>, VoltMetadata)>| {
                     for (icon, meta) in volts {
                         plugin.volt_installed(&meta, &icon);
@@ -204,7 +203,7 @@ impl PluginData {
                         "https://plugins.lapce.dev/api/v1/plugins/{}/{}/latest",
                         volt.author, volt.name
                     );
-                    let send = create_ext_action(self.common.scope, move |info| {
+                    let send = create_ext_action(move |info| {
                         if let Some(info) = info {
                             latest.set(info);
                         }
@@ -263,28 +262,27 @@ impl PluginData {
         let loading = self.all.loading;
         let query_id = self.all.query_id;
         let current_query_id = self.all.query_id.get_untracked();
-        let send =
-            create_ext_action(self.common.scope, move |new: Result<VoltsInfo>| {
-                loading.set(false);
-                if query_id.get_untracked() != current_query_id {
-                    return;
-                }
+        let send = create_ext_action(move |new: Result<VoltsInfo>| {
+            loading.set(false);
+            if query_id.get_untracked() != current_query_id {
+                return;
+            }
 
-                if let Ok(new) = new {
-                    volts.update(|volts| {
-                        volts.extend(new.plugins.into_iter().map(|volt| {
-                            (
-                                volt.id(),
-                                AvailableVoltData {
-                                    info: create_rw_signal(cx, volt),
-                                    installing: create_rw_signal(cx, false),
-                                },
-                            )
-                        }));
-                    });
-                    volts_total.set(new.total);
-                }
-            });
+            if let Ok(new) = new {
+                volts.update(|volts| {
+                    volts.extend(new.plugins.into_iter().map(|volt| {
+                        (
+                            volt.id(),
+                            AvailableVoltData {
+                                info: create_rw_signal(cx, volt),
+                                installing: create_rw_signal(cx, false),
+                            },
+                        )
+                    }));
+                });
+                volts_total.set(new.total);
+            }
+        });
 
         let query = query.to_string();
         std::thread::spawn(move || {
@@ -329,7 +327,7 @@ impl PluginData {
             self.common.proxy.install_volt(info);
         } else {
             let plugin = self.clone();
-            let send = create_ext_action(self.common.scope, move |result| {
+            let send = create_ext_action(move |result| {
                 if let Ok((meta, icon)) = result {
                     plugin.volt_installed(&meta, &icon);
                 }
@@ -407,12 +405,11 @@ impl PluginData {
         } else {
             let plugin = self.clone();
             let info = volt.info();
-            let send =
-                create_ext_action(self.common.scope, move |result: Result<()>| {
-                    if let Ok(()) = result {
-                        plugin.volt_removed(&info);
-                    }
-                });
+            let send = create_ext_action(move |result: Result<()>| {
+                if let Ok(()) = result {
+                    plugin.volt_removed(&info);
+                }
+            });
             std::thread::spawn(move || {
                 let uninstall = || -> Result<()> {
                     let path = volt

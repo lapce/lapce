@@ -207,6 +207,7 @@ pub enum ProxyNotification {
     NewTerminal {
         term_id: TermId,
         cwd: Option<PathBuf>,
+        env: Option<HashMap<String, String>>,
         shell: String,
     },
     InstallVolt {
@@ -564,11 +565,13 @@ impl ProxyRpcHandler {
         &self,
         term_id: TermId,
         cwd: Option<PathBuf>,
+        env: Option<HashMap<String, String>>,
         shell: String,
     ) {
         self.notification(ProxyNotification::NewTerminal {
             term_id,
             cwd,
+            env,
             shell,
         })
     }

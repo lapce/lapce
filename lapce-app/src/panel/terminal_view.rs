@@ -10,7 +10,7 @@ use floem::{
 };
 
 use crate::{
-    app::clickable_icon,
+    app::{clickable_icon, dispose_on_ui_cleanup},
     config::{color::LapceColor, icon::LapceIcons},
     debug::RunDebugMode,
     terminal::{
@@ -183,6 +183,7 @@ fn terminal_tab_split(
     terminal_panel_data: TerminalPanelData,
     terminal_tab_data: TerminalTabData,
 ) -> impl View {
+    dispose_on_ui_cleanup(terminal_tab_data.scope);
     let config = terminal_panel_data.common.config;
     list(
         move || {
@@ -198,6 +199,7 @@ fn terminal_tab_split(
         move |(index, terminal)| {
             let focus = terminal.common.focus;
             let terminal_panel_data = terminal_panel_data.clone();
+            dispose_on_ui_cleanup(terminal.scope);
             container(move || {
                 terminal_view(
                     terminal.term_id,

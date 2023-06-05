@@ -354,10 +354,10 @@ impl PaletteData {
     }
 
     /// Initialize the palette with the files in the current workspace.
-    fn get_files(&self, cx: Scope) {
+    fn get_files(&self, _cx: Scope) {
         let workspace = self.workspace.clone();
         let set_items = self.items.write_only();
-        let send = create_ext_action(cx, move |items: Vec<PathBuf>| {
+        let send = create_ext_action(move |items: Vec<PathBuf>| {
             let items = items
                 .into_iter()
                 .map(|path| {
@@ -536,7 +536,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_document_symbols(&self, cx: Scope) {
+    fn get_document_symbols(&self, _cx: Scope) {
         let editor = self.main_split.active_editor.get_untracked();
         let doc = match editor {
             Some(editor) => editor.with_untracked(|editor| (editor.doc)),
@@ -555,7 +555,7 @@ impl PaletteData {
         };
 
         let set_items = self.items.write_only();
-        let send = create_ext_action(cx, move |result| {
+        let send = create_ext_action(move |result| {
             if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
                 let items: im::Vector<PaletteItem> = match resp {
                     DocumentSymbolResponse::Flat(symbols) => symbols
@@ -604,11 +604,11 @@ impl PaletteData {
         });
     }
 
-    fn get_workspace_symbols(&self, cx: Scope) {
+    fn get_workspace_symbols(&self, _cx: Scope) {
         let input = self.input.get_untracked().input;
 
         let set_items = self.items.write_only();
-        let send = create_ext_action(cx, move |result| {
+        let send = create_ext_action(move |result| {
             if let Ok(ProxyResponse::GetWorkspaceSymbols { symbols }) = result {
                 let items: im::Vector<PaletteItem> = symbols
                     .iter()
@@ -858,7 +858,7 @@ impl PaletteData {
     }
 
     /// Update the preview for the currently active palette item, if it has one.
-    fn preview(&self, cx: Scope) {
+    fn preview(&self, _cx: Scope) {
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
         if let Some(item) = items.get(index) {
@@ -882,7 +882,6 @@ impl PaletteData {
                         preview_editor.update_doc(doc);
                     });
                     self.preview_editor.get_untracked().go_to_location(
-                        cx,
                         EditorLocation {
                             path,
                             position: Some(EditorPosition::Line(*line)),
@@ -901,12 +900,11 @@ impl PaletteData {
                 PaletteItemContent::Reference { location, .. } => {
                     self.has_preview.set(true);
                     let (doc, new_doc) =
-                        self.main_split.get_doc(cx, location.path.clone());
+                        self.main_split.get_doc(location.path.clone());
                     self.preview_editor.update(|preview_editor| {
                         preview_editor.update_doc(doc);
                     });
                     self.preview_editor.get_untracked().go_to_location(
-                        cx,
                         location.clone(),
                         new_doc,
                         None,
@@ -930,7 +928,6 @@ impl PaletteData {
                         preview_editor.update_doc(doc);
                     });
                     self.preview_editor.get_untracked().go_to_location(
-                        cx,
                         EditorLocation {
                             path,
                             position: Some(EditorPosition::Position(range.start)),
@@ -945,12 +942,12 @@ impl PaletteData {
                 PaletteItemContent::WorkspaceSymbol { location, .. } => {
                     self.has_preview.set(true);
                     let (doc, new_doc) =
-                        self.main_split.get_doc(cx, location.path.clone());
+                        self.main_split.get_doc(location.path.clone());
                     self.preview_editor.update(|preview_editor| {
                         preview_editor.update_doc(doc);
                     });
                     let editor = self.preview_editor.get_untracked();
-                    editor.go_to_location(cx, location.clone(), new_doc, None);
+                    editor.go_to_location(location.clone(), new_doc, None);
                 }
             }
         }

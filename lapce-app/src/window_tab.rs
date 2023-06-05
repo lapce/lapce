@@ -158,6 +158,7 @@ impl WindowTabData {
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     ) -> Self {
+        let (cx, _) = cx.run_child_scope(|cx| cx);
         let db: Arc<LapceDb> = use_context(cx).unwrap();
 
         let disabled_volts = db.get_disabled_volts().unwrap_or_default();
@@ -257,19 +258,24 @@ impl WindowTabData {
 
         if let Some(info) = workspace_info.as_ref() {
             let root_split = main_split.root_split;
-            info.split.to_data(cx, main_split.clone(), None, root_split);
+            info.split.to_data(main_split.clone(), None, root_split);
         } else {
             let root_split = main_split.root_split;
-            let root_split_data = SplitData {
-                parent_split: None,
-                split_id: root_split,
-                children: Vec::new(),
-                direction: SplitDirection::Horizontal,
-                window_origin: Point::ZERO,
-                layout_rect: Rect::ZERO,
+            let root_split_data = {
+                let (cx, _) = cx.run_child_scope(|cx| cx);
+                let root_split_data = SplitData {
+                    scope: cx,
+                    parent_split: None,
+                    split_id: root_split,
+                    children: Vec::new(),
+                    direction: SplitDirection::Horizontal,
+                    window_origin: Point::ZERO,
+                    layout_rect: Rect::ZERO,
+                };
+                create_rw_signal(cx, root_split_data)
             };
             main_split.splits.update(|splits| {
-                splits.insert(root_split, create_rw_signal(cx, root_split_data));
+                splits.insert(root_split, root_split_data);
             });
         }
 
@@ -714,10 +720,9 @@ impl WindowTabData {
                     if release.version != *meta::VERSION {
                         if let Ok(process_path) = env::current_exe() {
                             update_in_progress.set(true);
-                            let send =
-                                create_ext_action(self.scope, move |_started| {
-                                    update_in_progress.set(false);
-                                });
+                            let send = create_ext_action(move |_started| {
+                                update_in_progress.set(false);
+                            });
                             std::thread::spawn(move || {
                                 let do_update = || -> anyhow::Result<()> {
                                     log::info!("start to down new versoin");
@@ -751,19 +756,19 @@ impl WindowTabData {
             #[cfg(target_os = "macos")]
             UninstallFromPATH => {}
             JumpLocationForward => {
-                self.main_split.jump_location_forward(cx, false);
+                self.main_split.jump_location_forward(false);
             }
             JumpLocationBackward => {
-                self.main_split.jump_location_backward(cx, false);
+                self.main_split.jump_location_backward(false);
             }
             JumpLocationForwardLocal => {
-                self.main_split.jump_location_forward(cx, true);
+                self.main_split.jump_location_forward(true);
             }
             JumpLocationBackwardLocal => {
-                self.main_split.jump_location_backward(cx, true);
+                self.main_split.jump_location_backward(true);
             }
             NextError => {
-                self.main_split.next_error(cx);
+                self.main_split.next_error();
             }
             PreviousError => {}
             Quit => {}
@@ -775,7 +780,6 @@ impl WindowTabData {
         match cmd {
             InternalCommand::OpenFile { path } => {
                 self.main_split.jump_to_location(
-                    cx,
                     EditorLocation {
                         path,
                         position: None,
@@ -787,10 +791,10 @@ impl WindowTabData {
                 );
             }
             InternalCommand::GoToLocation { location } => {
-                self.main_split.go_to_location(cx, location, None);
+                self.main_split.go_to_location(location, None);
             }
             InternalCommand::JumpToLocation { location } => {
-                self.main_split.jump_to_location(cx, location, None);
+                self.main_split.jump_to_location(location, None);
             }
             InternalCommand::PaletteReferences { references } => {
                 self.palette.references.set(references);
@@ -800,7 +804,7 @@ impl WindowTabData {
                 direction,
                 editor_tab_id,
             } => {
-                self.main_split.split(cx, direction, editor_tab_id);
+                self.main_split.split(direction, editor_tab_id);
             }
             InternalCommand::SplitMove {
                 direction,
@@ -831,10 +835,10 @@ impl WindowTabData {
                 self.code_action.set(code_action);
             }
             InternalCommand::RunCodeAction { plugin_id, action } => {
-                self.main_split.run_code_action(cx, plugin_id, action);
+                self.main_split.run_code_action(plugin_id, action);
             }
             InternalCommand::ApplyWorkspaceEdit { edit } => {
-                self.main_split.apply_workspace_edit(cx, &edit);
+                self.main_split.apply_workspace_edit(&edit);
             }
             InternalCommand::SaveJumpLocation {
                 path,
@@ -845,16 +849,16 @@ impl WindowTabData {
                     .save_jump_location(path, offset, scroll_offset);
             }
             InternalCommand::SplitTerminal { term_id } => {
-                self.terminal.split(cx, term_id);
+                self.terminal.split(term_id);
             }
             InternalCommand::SplitTerminalNext { term_id } => {
-                self.terminal.split_next(cx, term_id);
+                self.terminal.split_next(term_id);
             }
             InternalCommand::SplitTerminalPrevious { term_id } => {
-                self.terminal.split_previous(cx, term_id);
+                self.terminal.split_previous(term_id);
             }
             InternalCommand::SplitTerminalExchange { term_id } => {
-                self.terminal.split_exchange(cx, term_id);
+                self.terminal.split_exchange(term_id);
             }
             InternalCommand::RunAndDebug { mode, config } => {
                 self.run_and_debug(cx, &mode, &config);
@@ -1359,11 +1363,6 @@ impl WindowTabData {
                 created: Instant::now(),
             }));
 
-            // let _ = ctx.get_external_handle().submit_command(
-            //     LAPCE_UI_COMMAND,
-            //     LapceUICommand::Focus,
-            //     Target::Widget(terminal.widget_id),
-            // );
             terminal.term_id
         } else {
             let new_terminal_tab = self.terminal.new_tab(Some(RunDebugProcess {

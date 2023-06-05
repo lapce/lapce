@@ -26,13 +26,12 @@ pub enum EditorTabChildInfo {
 impl EditorTabChildInfo {
     pub fn to_data(
         &self,
-        cx: Scope,
         data: MainSplitData,
         editor_tab_id: EditorTabId,
     ) -> EditorTabChild {
         match &self {
             EditorTabChildInfo::Editor(editor_info) => {
-                let editor_data = editor_info.to_data(cx, data, editor_tab_id);
+                let editor_data = editor_info.to_data(data, editor_tab_id);
                 EditorTabChild::Editor(
                     editor_data.with_untracked(|editor_data| editor_data.editor_id),
                 )
@@ -54,31 +53,34 @@ pub struct EditorTabInfo {
 impl EditorTabInfo {
     pub fn to_data(
         &self,
-        cx: Scope,
         data: MainSplitData,
         split: SplitId,
     ) -> RwSignal<EditorTabData> {
         let editor_tab_id = EditorTabId::next();
-        let editor_tab_data = EditorTabData {
-            editor_tab_id,
-            split,
-            active: self.active,
-            children: self
-                .children
-                .iter()
-                .map(|child| {
-                    (
-                        create_rw_signal(cx, 0),
-                        child.to_data(cx, data.clone(), editor_tab_id),
-                    )
-                })
-                .collect(),
-            layout_rect: Rect::ZERO,
-            window_origin: Point::ZERO,
-            locations: create_rw_signal(cx, im::Vector::new()),
-            current_location: create_rw_signal(cx, 0),
+        let editor_tab_data = {
+            let (cx, _) = data.scope.run_child_scope(|cx| cx);
+            let editor_tab_data = EditorTabData {
+                scope: cx,
+                editor_tab_id,
+                split,
+                active: self.active,
+                children: self
+                    .children
+                    .iter()
+                    .map(|child| {
+                        (
+                            create_rw_signal(cx, 0),
+                            child.to_data(data.clone(), editor_tab_id),
+                        )
+                    })
+                    .collect(),
+                layout_rect: Rect::ZERO,
+                window_origin: Point::ZERO,
+                locations: create_rw_signal(cx, im::Vector::new()),
+                current_location: create_rw_signal(cx, 0),
+            };
+            create_rw_signal(cx, editor_tab_data)
         };
-        let editor_tab_data = create_rw_signal(cx, editor_tab_data);
         if self.is_focus {
             data.active_editor_tab.set(Some(editor_tab_id));
         }
@@ -128,6 +130,7 @@ impl EditorTabChild {
 
 #[derive(Clone)]
 pub struct EditorTabData {
+    pub scope: Scope,
     pub split: SplitId,
     pub editor_tab_id: EditorTabId,
     pub active: usize,

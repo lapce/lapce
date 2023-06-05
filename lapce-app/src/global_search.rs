@@ -139,7 +139,7 @@ impl GlobalSearchData {
                 let is_regex = global_search.common.find.is_regex.get();
                 let send = {
                     let global_search = global_search.clone();
-                    create_ext_action(cx, move |result| {
+                    create_ext_action(move |result| {
                         if let Ok(ProxyResponse::GlobalSearchResponse { matches }) =
                             result
                         {

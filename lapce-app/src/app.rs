@@ -6,15 +6,15 @@ use clap::Parser;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener},
-    ext_event::create_signal_from_channel,
+    ext_event::{create_ext_action, create_signal_from_channel},
     peniko::{
         kurbo::{Point, Rect, Size},
         Color,
     },
     reactive::{
-        create_effect, create_memo, create_rw_signal, provide_context, ReadSignal,
-        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalWith, SignalWithUntracked,
+        create_effect, create_memo, create_rw_signal, on_cleanup, provide_context,
+        ReadSignal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
+        SignalUpdate, SignalWith, SignalWithUntracked,
     },
     style::{
         AlignItems, CursorStyle, Dimension, Display, FlexDirection, JustifyContent,
@@ -494,6 +494,22 @@ fn editor_tab(
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
 ) -> impl View {
+    let (editor_tab_id, editor_tab_scope) =
+        editor_tab.with_untracked(|e| (e.editor_tab_id, e.scope));
+    let editor_tabs = main_split.editor_tabs;
+    on_cleanup(AppContext::get_current().scope, move || {
+        let exits =
+            editor_tabs.with_untracked(|tabs| tabs.contains_key(&editor_tab_id));
+        if !exits {
+            let send = create_ext_action(move |_| {
+                editor_tab_scope.dispose();
+            });
+            std::thread::spawn(move || {
+                send(());
+            });
+        }
+    });
+
     let common = main_split.common.clone();
     let focus = common.focus;
     let internal_command = main_split.common.internal_command;
@@ -612,6 +628,19 @@ fn split_list(
     let editors = main_split.editors.read_only();
     let splits = main_split.splits.read_only();
     let config = main_split.common.config;
+    let (split_id, split_scope) =
+        split.with_untracked(|split| (split.split_id, split.scope));
+    on_cleanup(AppContext::get_current().scope, move || {
+        let exits = splits.with_untracked(|splits| splits.contains_key(&split_id));
+        if !exits {
+            let send = create_ext_action(move |_| {
+                split_scope.dispose();
+            });
+            std::thread::spawn(move || {
+                send(());
+            });
+        }
+    });
 
     let direction = move || split.with(|split| split.direction);
     let items = move || split.get().children.into_iter().enumerate();
@@ -1955,7 +1984,19 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
     })
 }
 
+pub fn dispose_on_ui_cleanup(scope: Scope) {
+    on_cleanup(AppContext::get_current().scope, move || {
+        let send = create_ext_action(move |_| {
+            scope.dispose();
+        });
+        std::thread::spawn(move || {
+            send(());
+        });
+    });
+}
+
 fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
+    dispose_on_ui_cleanup(window_tab_data.scope);
     let source_control = window_tab_data.source_control;
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;

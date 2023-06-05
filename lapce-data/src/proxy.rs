@@ -810,11 +810,12 @@ impl LapceProxy {
         &self,
         term_id: TermId,
         cwd: Option<PathBuf>,
+        env: Option<HashMap<String, String>>,
         shell: String,
         raw: Arc<Mutex<RawTerminal>>,
     ) {
         let _ = self.term_tx.send((term_id, TermEvent::NewTerminal(raw)));
-        self.proxy_rpc.new_terminal(term_id, cwd, shell);
+        self.proxy_rpc.new_terminal(term_id, cwd, env, shell);
     }
 
     pub fn stop(&self) {

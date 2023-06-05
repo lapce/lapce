@@ -49,7 +49,8 @@ impl TerminalPanelData {
 
         let cx = common.scope;
 
-        let tabs = im::vector![(create_rw_signal(cx, 0), terminal_tab)];
+        let tabs =
+            im::vector![(create_rw_signal(terminal_tab.scope, 0), terminal_tab)];
         let tab_info = TerminalTabInfo { active: 0, tabs };
         let tab_info = create_rw_signal(cx, tab_info);
 
@@ -114,7 +115,10 @@ impl TerminalPanelData {
                 } else {
                     (info.active + 1).min(info.tabs.len())
                 },
-                (create_rw_signal(self.common.scope, 0), terminal_tab.clone()),
+                (
+                    create_rw_signal(terminal_tab.scope, 0),
+                    terminal_tab.clone(),
+                ),
             );
             let new_active = (info.active + 1).min(info.tabs.len() - 1);
             info.active = new_active;
@@ -206,22 +210,22 @@ impl TerminalPanelData {
         })
     }
 
-    pub fn split(&self, cx: Scope, term_id: TermId) {
+    pub fn split(&self, term_id: TermId) {
         if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
             let terminal_data = TerminalData::new(
-                cx,
+                tab.scope,
                 self.workspace.clone(),
                 None,
                 self.common.clone(),
             );
-            let i = create_rw_signal(cx, 0);
+            let i = create_rw_signal(terminal_data.scope, 0);
             tab.terminals.update(|terminals| {
                 terminals.insert(index + 1, (i, terminal_data));
             });
         }
     }
 
-    pub fn split_next(&self, _cx: Scope, term_id: TermId) {
+    pub fn split_next(&self, term_id: TermId) {
         if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
             let max = tab.terminals.with_untracked(|t| t.len() - 1);
             let new_index = (index + 1).min(max);
@@ -232,7 +236,7 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn split_previous(&self, _cx: Scope, term_id: TermId) {
+    pub fn split_previous(&self, term_id: TermId) {
         if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
             let new_index = index.saturating_sub(1);
             if new_index != index {
@@ -242,7 +246,7 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn split_exchange(&self, _cx: Scope, term_id: TermId) {
+    pub fn split_exchange(&self, term_id: TermId) {
         if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
             let max = tab.terminals.with_untracked(|t| t.len() - 1);
             if index < max {
@@ -339,14 +343,15 @@ impl TerminalPanelData {
                 let mut run_debug = run_debug;
                 run_debug.stopped = false;
                 let new_terminal = TerminalData::new(
-                    self.cx,
+                    terminal_tab.scope,
                     self.workspace.clone(),
                     Some(run_debug),
                     self.common.clone(),
                 );
                 let new_term_id = new_terminal.term_id;
                 terminal_tab.terminals.update(|terminals| {
-                    terminals[index] = (create_rw_signal(self.cx, 0), new_terminal);
+                    terminals[index] =
+                        (create_rw_signal(new_terminal.scope, 0), new_terminal);
                 });
                 self.debug.active_term.set(Some(new_term_id));
                 new_term_id

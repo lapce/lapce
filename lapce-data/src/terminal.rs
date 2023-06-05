@@ -901,7 +901,7 @@ impl LapceTerminalData {
         {
             let raw = raw.clone();
             std::thread::spawn(move || {
-                proxy.new_terminal(term_id, cwd, shell, raw);
+                proxy.new_terminal(term_id, cwd, None, shell, raw);
             });
         }
         raw

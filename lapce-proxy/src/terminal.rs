@@ -2,7 +2,7 @@
 use std::process::Command;
 use std::{
     borrow::Cow,
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     io::{self, ErrorKind, Read, Write},
     path::PathBuf,
 };
@@ -43,6 +43,7 @@ impl Terminal {
     pub fn new(
         term_id: TermId,
         cwd: Option<PathBuf>,
+        env: Option<HashMap<String, String>>,
         shell: String,
         width: usize,
         height: usize,
@@ -55,6 +56,8 @@ impl Terminal {
             } else {
                 BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
             };
+        config.env = env.unwrap_or_default();
+
         let shell = shell.trim();
         let flatpak_use_host_terminal = flatpak_should_use_host_terminal();
 
