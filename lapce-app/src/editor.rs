@@ -721,7 +721,7 @@ impl EditorData {
 
         let internal_command = self.common.internal_command;
         let cursor = self.cursor.read_only();
-        let send = create_ext_action(move |d| {
+        let send = create_ext_action(self.scope, move |d| {
             let current_offset = cursor.with_untracked(|c| c.offset());
             if current_offset != offset {
                 return;
@@ -915,7 +915,7 @@ impl EditorData {
                     .doc
                     .with_untracked(|doc| (doc.rev(), doc.content.path().cloned()));
                 let offset = self.cursor.with_untracked(|c| c.offset());
-                let send = create_ext_action(move |item| {
+                let send = create_ext_action(self.scope, move |item| {
                     if editor.cursor.with_untracked(|c| c.offset() != offset) {
                         return;
                     }
@@ -1368,7 +1368,7 @@ impl EditorData {
             let set_doc = self.doc.write_only();
             let editor = self.clone();
             let path = location.path.clone();
-            let send = create_ext_action(move |content| {
+            let send = create_ext_action(self.scope, move |content| {
                 set_doc.update(move |doc| {
                     doc.init_content(content);
                 });
@@ -1460,7 +1460,7 @@ impl EditorData {
         });
 
         let doc = self.doc;
-        let send = create_ext_action(move |resp| {
+        let send = create_ext_action(self.scope, move |resp| {
             if doc.with_untracked(|doc| doc.rev() == rev) {
                 doc.update(|doc| {
                     doc.code_actions.insert(offset, Arc::new(resp));
@@ -1508,7 +1508,7 @@ impl EditorData {
             .with_untracked(|doc| (doc.rev(), doc.content.clone()));
 
         let doc = self.doc;
-        let send = create_ext_action(move |result| {
+        let send = create_ext_action(self.scope, move |result| {
             if let Ok(ProxyResponse::SaveResponse {}) = result {
                 let current_rev = doc.with_untracked(|doc| doc.rev());
                 if current_rev == rev {
@@ -1541,7 +1541,7 @@ impl EditorData {
             let format_on_save = allow_formatting && config.editor.format_on_save;
             if format_on_save {
                 let editor = self.clone();
-                let send = create_ext_action(move |result| {
+                let send = create_ext_action(self.scope, move |result| {
                     if let Ok(Ok(ProxyResponse::GetDocumentFormatting { edits })) =
                         result
                     {
@@ -1667,7 +1667,7 @@ impl EditorData {
         let doc = self.doc;
         let internal_command = self.common.internal_command;
         let local_path = path.clone();
-        let send = create_ext_action(move |result| {
+        let send = create_ext_action(self.scope, move |result| {
             if let Ok(ProxyResponse::PrepareRename { resp }) = result {
                 if doc.with_untracked(|doc| doc.rev()) != rev {
                     return;

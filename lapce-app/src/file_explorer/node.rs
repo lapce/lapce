@@ -118,7 +118,7 @@ impl FileNode {
         self.read.set(true);
         let cx = self.scope;
         let file_node = self.clone();
-        let send = create_ext_action(move |result| {
+        let send = create_ext_action(self.scope, move |result| {
             if let Ok(ProxyResponse::ReadDirResponse { items }) = result {
                 let items = items
                     .into_iter()

@@ -136,7 +136,7 @@ impl RenameData {
             let path = self.path.get_untracked();
             let position = self.position.get_untracked();
             let internal_command = self.common.internal_command;
-            let send = create_ext_action(move |result| {
+            let send = create_ext_action(self.common.scope, move |result| {
                 if let Ok(ProxyResponse::Rename { edit }) = result {
                     internal_command
                         .set(Some(InternalCommand::ApplyWorkspaceEdit { edit }));

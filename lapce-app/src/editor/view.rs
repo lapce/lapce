@@ -906,7 +906,7 @@ pub fn editor_container_view(
         let exits =
             editors.with_untracked(|editors| editors.contains_key(&editor_id));
         if !exits {
-            let send = create_ext_action(move |_| {
+            let send = create_ext_action(editor_scope, move |_| {
                 editor_scope.dispose();
             });
             std::thread::spawn(move || {

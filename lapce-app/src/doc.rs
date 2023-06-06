@@ -458,13 +458,21 @@ impl Document {
         self.line_styles.borrow().get(&line).cloned().unwrap()
     }
 
-    pub fn tigger_proxy_update(doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
-        Self::get_inlay_hints(doc, proxy);
-        Self::get_semantic_styles(doc, proxy);
+    pub fn tigger_proxy_update(
+        cx: Scope,
+        doc: RwSignal<Document>,
+        proxy: &ProxyRpcHandler,
+    ) {
+        Self::get_inlay_hints(cx, doc, proxy);
+        Self::get_semantic_styles(cx, doc, proxy);
     }
 
     /// Request semantic styles for the buffer from the LSP through the proxy.
-    fn get_semantic_styles(doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
+    fn get_semantic_styles(
+        cx: Scope,
+        doc: RwSignal<Document>,
+        proxy: &ProxyRpcHandler,
+    ) {
         if !doc.with_untracked(|doc| doc.loaded) {
             return;
         }
@@ -481,7 +489,7 @@ impl Document {
             doc.syntax.as_ref().and_then(|s| s.styles.as_ref()).cloned()
         });
 
-        let send = create_ext_action(move |styles| {
+        let send = create_ext_action(cx, move |styles| {
             doc.update(|doc| {
                 if doc.buffer.rev() == rev {
                     doc.semantic_styles = Some(styles);
@@ -522,7 +530,7 @@ impl Document {
     }
 
     /// Request inlay hints for the buffer from the LSP through the proxy.
-    fn get_inlay_hints(doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
+    fn get_inlay_hints(cx: Scope, doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
         if !doc.with_untracked(|doc| doc.loaded) {
             return;
         }
@@ -536,7 +544,7 @@ impl Document {
             (doc.buffer.clone(), doc.buffer.rev(), doc.buffer.len())
         });
 
-        let send = create_ext_action(move |hints| {
+        let send = create_ext_action(cx, move |hints| {
             doc.update(|doc| {
                 if doc.buffer.rev() == rev {
                     doc.inlay_hints = Some(hints);

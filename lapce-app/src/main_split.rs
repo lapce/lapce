@@ -393,7 +393,7 @@ impl MainSplitData {
                     let find_result =
                         doc.with_untracked(|doc| doc.find_result.clone());
                     find_result.reset();
-                    Document::tigger_proxy_update(doc, &proxy);
+                    Document::tigger_proxy_update(cx, doc, &proxy);
                     rev
                 });
             }
@@ -1176,7 +1176,7 @@ impl MainSplitData {
     /// Resolve a code action and apply its held workspace edit
     fn resolve_code_action(&self, plugin_id: PluginId, action: CodeAction) {
         let main_split = self.clone();
-        let send = create_ext_action(move |edit| {
+        let send = create_ext_action(self.scope, move |edit| {
             main_split.apply_workspace_edit(&edit);
         });
         self.common

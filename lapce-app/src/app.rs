@@ -501,7 +501,7 @@ fn editor_tab(
         let exits =
             editor_tabs.with_untracked(|tabs| tabs.contains_key(&editor_tab_id));
         if !exits {
-            let send = create_ext_action(move |_| {
+            let send = create_ext_action(editor_tab_scope, move |_| {
                 editor_tab_scope.dispose();
             });
             std::thread::spawn(move || {
@@ -633,7 +633,7 @@ fn split_list(
     on_cleanup(AppContext::get_current().scope, move || {
         let exits = splits.with_untracked(|splits| splits.contains_key(&split_id));
         if !exits {
-            let send = create_ext_action(move |_| {
+            let send = create_ext_action(split_scope, move |_| {
                 split_scope.dispose();
             });
             std::thread::spawn(move || {
@@ -1986,7 +1986,7 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
 
 pub fn dispose_on_ui_cleanup(scope: Scope) {
     on_cleanup(AppContext::get_current().scope, move || {
-        let send = create_ext_action(move |_| {
+        let send = create_ext_action(scope, move |_| {
             scope.dispose();
         });
         std::thread::spawn(move || {

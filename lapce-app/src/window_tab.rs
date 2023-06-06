@@ -242,7 +242,7 @@ impl WindowTabData {
             workbench_command,
             term_tx,
             term_notification_tx,
-            proxy: proxy.rpc.clone(),
+            proxy: proxy.proxy_rpc.clone(),
             view_id,
             ui_line_height,
             dragging: create_rw_signal(cx, None),
@@ -729,9 +729,10 @@ impl WindowTabData {
                     if release.version != *meta::VERSION {
                         if let Ok(process_path) = env::current_exe() {
                             update_in_progress.set(true);
-                            let send = create_ext_action(move |_started| {
-                                update_in_progress.set(false);
-                            });
+                            let send =
+                                create_ext_action(self.scope, move |_started| {
+                                    update_in_progress.set(false);
+                                });
                             std::thread::spawn(move || {
                                 let do_update = || -> anyhow::Result<()> {
                                     log::info!("start to down new versoin");

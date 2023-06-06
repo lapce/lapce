@@ -357,31 +357,32 @@ impl PaletteData {
     fn get_files(&self, _cx: Scope) {
         let workspace = self.workspace.clone();
         let set_items = self.items.write_only();
-        let send = create_ext_action(move |items: Vec<PathBuf>| {
-            let items = items
-                .into_iter()
-                .map(|path| {
-                    let full_path = path.clone();
-                    // Strip the workspace prefix off the path, to avoid clutter
-                    let path = if let Some(workspace_path) = workspace.path.as_ref()
-                    {
-                        path.strip_prefix(workspace_path)
-                            .unwrap_or(&full_path)
-                            .to_path_buf()
-                    } else {
-                        path
-                    };
-                    let filter_text = path.to_str().unwrap_or("").to_string();
-                    PaletteItem {
-                        content: PaletteItemContent::File { path, full_path },
-                        filter_text,
-                        score: 0,
-                        indices: Vec::new(),
-                    }
-                })
-                .collect::<im::Vector<_>>();
-            set_items.set(items);
-        });
+        let send =
+            create_ext_action(self.common.scope, move |items: Vec<PathBuf>| {
+                let items = items
+                    .into_iter()
+                    .map(|path| {
+                        let full_path = path.clone();
+                        // Strip the workspace prefix off the path, to avoid clutter
+                        let path =
+                            if let Some(workspace_path) = workspace.path.as_ref() {
+                                path.strip_prefix(workspace_path)
+                                    .unwrap_or(&full_path)
+                                    .to_path_buf()
+                            } else {
+                                path
+                            };
+                        let filter_text = path.to_str().unwrap_or("").to_string();
+                        PaletteItem {
+                            content: PaletteItemContent::File { path, full_path },
+                            filter_text,
+                            score: 0,
+                            indices: Vec::new(),
+                        }
+                    })
+                    .collect::<im::Vector<_>>();
+                set_items.set(items);
+            });
         self.common.proxy.get_files(move |result| {
             if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
                 send(items);
@@ -555,7 +556,7 @@ impl PaletteData {
         };
 
         let set_items = self.items.write_only();
-        let send = create_ext_action(move |result| {
+        let send = create_ext_action(self.common.scope, move |result| {
             if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
                 let items: im::Vector<PaletteItem> = match resp {
                     DocumentSymbolResponse::Flat(symbols) => symbols
@@ -608,7 +609,7 @@ impl PaletteData {
         let input = self.input.get_untracked().input;
 
         let set_items = self.items.write_only();
-        let send = create_ext_action(move |result| {
+        let send = create_ext_action(self.common.scope, move |result| {
             if let Ok(ProxyResponse::GetWorkspaceSymbols { symbols }) = result {
                 let items: im::Vector<PaletteItem> = symbols
                     .iter()
