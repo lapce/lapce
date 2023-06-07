@@ -549,7 +549,7 @@ fn split_border(
         |content| content.id(),
         move |content| {
             container(|| {
-                label(|| "".to_string()).style(move || {
+                empty().style(move || {
                     let direction = direction();
                     Style::BASE
                         .width(match direction {
@@ -590,18 +590,18 @@ fn split_border(
                 Style::BASE
                     .position(Position::Absolute)
                     .apply_if(direction == SplitDirection::Vertical, |style| {
-                        style.margin_left_px(rect.x0 as f32 - 1.0)
+                        style.margin_left_px(rect.x0 as f32 - 2.0)
                     })
                     .apply_if(direction == SplitDirection::Horizontal, |style| {
-                        style.margin_top_px(rect.y0 as f32 - 1.0)
+                        style.margin_top_px(rect.y0 as f32 - 2.0)
                     })
                     .width(match direction {
-                        SplitDirection::Vertical => Dimension::Points(5.0),
+                        SplitDirection::Vertical => Dimension::Points(4.0),
                         SplitDirection::Horizontal => Dimension::Percent(1.0),
                     })
                     .height(match direction {
                         SplitDirection::Vertical => Dimension::Percent(1.0),
-                        SplitDirection::Horizontal => Dimension::Points(5.0),
+                        SplitDirection::Horizontal => Dimension::Points(4.0),
                     })
                     .flex_direction(match direction {
                         SplitDirection::Vertical => FlexDirection::Row,
@@ -1871,7 +1871,7 @@ fn completion(window_tab_data: Arc<WindowTabData>) -> impl View {
             .background(*config.get_color(LapceColor::COMPLETION_BACKGROUND))
             .font_family(config.editor.font_family.clone())
             .font_size(config.editor.font_size() as f32)
-            .border_radius(6.0)
+            .border_radius(10.0)
     })
 }
 
@@ -1883,35 +1883,39 @@ fn code_action(window_tab_data: Arc<WindowTabData>) -> impl View {
     let request_id =
         move || code_action.with_untracked(|code_action| code_action.request_id);
     scroll(move || {
-        list(
-            move || {
-                code_action.with(|code_action| {
-                    code_action.filtered_items.clone().into_iter().enumerate()
-                })
-            },
-            move |(i, _item)| (request_id(), *i),
-            move |(i, item)| {
-                container(move || {
-                    label(move || item.title().to_string())
-                        .style(|| Style::BASE.text_ellipsis().min_width_px(0.0))
-                })
-                .style(move || {
-                    let config = config.get();
-                    Style::BASE
-                        .padding_horiz_px(10.0)
-                        .align_items(Some(AlignItems::Center))
-                        .min_width_px(0.0)
-                        .width_pct(100.0)
-                        .height_px(config.editor.line_height() as f32)
-                        .apply_if(active.get() == i, |s| {
-                            s.background(
-                                *config.get_color(LapceColor::COMPLETION_CURRENT),
-                            )
-                        })
-                })
-            },
-        )
-        .style(|| Style::BASE.width_pct(100.0).flex_col())
+        container(|| {
+            list(
+                move || {
+                    code_action.with(|code_action| {
+                        code_action.filtered_items.clone().into_iter().enumerate()
+                    })
+                },
+                move |(i, _item)| (request_id(), *i),
+                move |(i, item)| {
+                    container(move || {
+                        label(move || item.title().replace('\n', " "))
+                            .style(|| Style::BASE.text_ellipsis().min_width_px(0.0))
+                    })
+                    .style(move || {
+                        let config = config.get();
+                        Style::BASE
+                            .padding_horiz_px(10.0)
+                            .align_items(Some(AlignItems::Center))
+                            .min_width_px(0.0)
+                            .width_pct(100.0)
+                            .line_height(1.6)
+                            .apply_if(active.get() == i, |s| {
+                                s.border_radius(6.0).background(
+                                    *config
+                                        .get_color(LapceColor::COMPLETION_CURRENT),
+                                )
+                            })
+                    })
+                },
+            )
+            .style(|| Style::BASE.width_pct(100.0).flex_col())
+        })
+        .style(|| Style::BASE.width_pct(100.0).padding_vert_px(4.0))
     })
     .scroll_bar_color(move || *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR))
     .on_ensure_visible(move || {
@@ -1942,7 +1946,7 @@ fn code_action(window_tab_data: Arc<WindowTabData>) -> impl View {
             .margin_left_px(origin.x as f32)
             .margin_top_px(origin.y as f32)
             .background(*config.get().get_color(LapceColor::COMPLETION_BACKGROUND))
-            .border_radius(20.0)
+            .border_radius(10.0)
     })
 }
 
