@@ -477,7 +477,19 @@ impl WindowTabData {
                     );
                 }
             }
-            CloseFolder => {}
+            CloseFolder => {
+                if !self.workspace.kind.is_remote() {
+                    let window_command = self.common.window_command;
+                    let workspace = LapceWorkspace {
+                        kind: LapceWorkspaceType::Local,
+                        path: None,
+                        last_open: 0,
+                    };
+                    window_command.set(Some(
+                        WindowCommand::SetWorkspace { workspace },
+                    ));
+                }
+            }
             OpenFile => {}
             RevealActiveFileInFileExplorer => {}
             ChangeColorTheme => {}
