@@ -36,6 +36,7 @@ smallvec.workspace = true
 include_dir.workspace = true
 regex.workspace = true
 Inflector = "0.11.4"
+open = "3.0.2"
 unicode-width = "0.1.10"
 fuzzy-matcher = "0.3.7"
 sled = "0.34.7"

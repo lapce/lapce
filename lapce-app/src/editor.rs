@@ -1526,7 +1526,7 @@ impl EditorData {
         }
     }
 
-    fn save(&self, exit: bool, allow_formatting: bool) {
+    pub fn save(&self, exit: bool, allow_formatting: bool) {
         let (rev, is_pristine, content) = self.doc.with_untracked(|doc| {
             (doc.rev(), doc.buffer().is_pristine(), doc.content.clone())
         });
