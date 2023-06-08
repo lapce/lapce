@@ -545,34 +545,33 @@ impl PaletteData {
 
     fn get_color_themes(&self, _cx: Scope) {
         let config = self.common.config.get_untracked();
-        let items = config.available_color_themes
+        let items = config
+            .available_color_themes
             .iter()
-            .map(|(name,(label,_))|{
-                PaletteItem {
-                    content: PaletteItemContent::ColorTheme { name: name.clone() },
-                    filter_text: label.clone(),
-                    score: 0,
-                    indices: vec![],
-                }
-            }).collect();
+            .map(|(name, (label, _))| PaletteItem {
+                content: PaletteItemContent::ColorTheme { name: name.clone() },
+                filter_text: label.clone(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
         self.items.set(items);
     }
 
     fn get_icon_themes(&self, _cx: Scope) {
         let config = self.common.config.get_untracked();
-        let items = config.available_icon_themes
+        let items = config
+            .available_icon_themes
             .iter()
-            .map(|(name,(label,_,_))|{
-                PaletteItem {
-                    content: PaletteItemContent::IconTheme { name: name.clone() },
-                    filter_text: label.clone(),
-                    score: 0,
-                    indices: vec![],
-                }
-            }).collect();
+            .map(|(name, (label, _, _))| PaletteItem {
+                content: PaletteItemContent::IconTheme { name: name.clone() },
+                filter_text: label.clone(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
         self.items.set(items);
     }
-
 
     fn get_document_symbols(&self, _cx: Scope) {
         let editor = self.main_split.active_editor.get_untracked();

@@ -1,4 +1,4 @@
-use std::{sync::Arc};
+use std::sync::Arc;
 
 use floem::{
     glazier::KeyEvent,
@@ -11,7 +11,7 @@ use floem::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::WindowCommand, config::{LapceConfig, color_theme::ColorThemeConfig}, db::LapceDb, update::ReleaseInfo,
+    command::WindowCommand, config::LapceConfig, db::LapceDb, update::ReleaseInfo,
     window_tab::WindowTabData, workspace::LapceWorkspace,
 };
 
@@ -252,28 +252,30 @@ impl WindowData {
                 }
             }
             WindowCommand::SetColorTheme { theme } => {
-                let config = self.config.get_untracked().clone();
-                let set_theme = config.available_color_themes.iter().find(|(name, _)| {
-                    **name == theme
-                });
-                if let Some((name,(_,_))) = set_theme {
+                let config = self.config.get_untracked();
+                let set_theme = config
+                    .available_color_themes
+                    .iter()
+                    .find(|(name, _)| **name == theme);
+                if let Some((name, (_, _))) = set_theme {
                     if let Some(value) = toml_edit::ser::to_item(&name.clone())
-                    .ok()
-                    .and_then(|i| i.into_value().ok())
+                        .ok()
+                        .and_then(|i| i.into_value().ok())
                     {
                         LapceConfig::update_file("core", "color-theme", value);
                     }
                 }
             }
             WindowCommand::SetIconTheme { theme } => {
-                let config = self.config.get_untracked().clone();
-                let set_theme = config.available_icon_themes.iter().find(|(name, _)| {
-                    **name == theme
-                });
-                if let Some((name,(_,_,_))) = set_theme {
+                let config = self.config.get_untracked();
+                let set_theme = config
+                    .available_icon_themes
+                    .iter()
+                    .find(|(name, _)| **name == theme);
+                if let Some((name, (_, _, _))) = set_theme {
                     if let Some(value) = toml_edit::ser::to_item(&name.clone())
-                    .ok()
-                    .and_then(|i| i.into_value().ok())
+                        .ok()
+                        .and_then(|i| i.into_value().ok())
                     {
                         LapceConfig::update_file("core", "icon-theme", value);
                     }

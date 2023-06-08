@@ -1,4 +1,4 @@
-use std::{collections::HashSet, env, sync::Arc, time::Instant };
+use std::{collections::HashSet, env, sync::Arc, time::Instant};
 
 use crossbeam_channel::Sender;
 use floem::{
@@ -485,9 +485,8 @@ impl WindowTabData {
                         path: None,
                         last_open: 0,
                     };
-                    window_command.set(Some(
-                        WindowCommand::SetWorkspace { workspace },
-                    ));
+                    window_command
+                        .set(Some(WindowCommand::SetWorkspace { workspace }));
                 }
             }
             OpenFile => {}

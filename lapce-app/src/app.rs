@@ -1470,7 +1470,7 @@ fn palette_item(
         | PaletteItemContent::Line { .. }
         | PaletteItemContent::Workspace { .. }
         | PaletteItemContent::SshHost { .. }
-        | PaletteItemContent::ColorTheme { .. } 
+        | PaletteItemContent::ColorTheme { .. }
         | PaletteItemContent::IconTheme { .. } => {
             let text = item.filter_text;
             let indices = item.indices;
