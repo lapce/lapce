@@ -11,7 +11,6 @@ use std::{
 
 use lapce_xi_rope::{
     delta::InsertDelta,
-    diff::{Diff, LineHashDiff},
     interval::IntervalBounds,
     multiset::{CountMatcher, Subset},
     tree::{Node, NodeInfo},
@@ -272,7 +271,8 @@ impl Buffer {
         content: Rope,
         set_pristine: bool,
     ) -> (RopeDelta, InvalLines, SyntaxEdit) {
-        let delta = LineHashDiff::compute_delta(&self.text, &content);
+        let len = self.text.len();
+        let delta = Delta::simple_edit(Interval::new(0, len), content, len);
         self.this_edit_type = EditType::Other;
         let (delta, inval_lines, edits) = self.add_delta(delta);
         if set_pristine {
