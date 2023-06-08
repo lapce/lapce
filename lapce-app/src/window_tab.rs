@@ -485,8 +485,9 @@ impl WindowTabData {
                         path: None,
                         last_open: 0,
                     };
-                    window_command
-                        .set(Some(WindowCommand::SetWorkspace { workspace }));
+                    window_command.set(Some(
+                        WindowCommand::SetWorkspace { workspace },
+                    ));
                 }
             }
             OpenFile => {}
