@@ -239,6 +239,8 @@ impl PanelData {
         }
     }
 
+    /// Get the active panel kind at that position, if any.  
+    /// `tracked` decides whether it should track the signal or not.
     pub fn active_panel_at_position(
         &self,
         position: &PanelPosition,

@@ -5,6 +5,7 @@ use std::{
 };
 
 use floem::peniko::Color;
+use itertools::Itertools;
 use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
 use lapce_rpc::plugin::VoltID;
@@ -87,9 +88,9 @@ pub struct LapceConfig {
     /// A list of the themes that are available. This is primarily for populating
     /// the theme picker, and serves as a cache.
     #[serde(skip)]
-    color_theme_list: Vec<String>,
+    color_theme_list: im::Vector<String>,
     #[serde(skip)]
-    icon_theme_list: Vec<String>,
+    icon_theme_list: im::Vector<String>,
 }
 
 impl LapceConfig {
@@ -108,6 +109,7 @@ impl LapceConfig {
             .available_color_themes
             .values()
             .map(|(name, _)| name.clone())
+            .sorted()
             .collect();
         lapce_config.color_theme_list.sort();
 
@@ -115,6 +117,7 @@ impl LapceConfig {
             .available_icon_themes
             .values()
             .map(|(name, _, _)| name.clone())
+            .sorted()
             .collect();
         lapce_config.icon_theme_list.sort();
 
@@ -242,6 +245,8 @@ impl LapceConfig {
                 self.ui = new.ui;
                 self.editor = new.editor;
                 self.terminal = new.terminal;
+                self.terminal.get_indexed_colors();
+
                 self.color_theme = new.color_theme;
                 self.icon_theme = new.icon_theme;
                 if let Some(icon_theme_path) = icon_theme_path {
@@ -274,6 +279,20 @@ impl LapceConfig {
         themes.insert(name.to_lowercase(), (name, theme));
 
         themes
+    }
+
+    /// Set the active color theme.
+    /// Note that this does not save the config.
+    pub fn set_color_theme(&mut self, workspace: &LapceWorkspace, theme: &str) {
+        self.core.color_theme = theme.to_string();
+        self.resolve_theme(workspace);
+    }
+
+    /// Set the active icon theme.  
+    /// Note that this does not save the config.
+    pub fn set_icon_theme(&mut self, workspace: &LapceWorkspace, theme: &str) {
+        self.core.icon_theme = theme.to_string();
+        self.resolve_theme(workspace);
     }
 
     /// Get the color by the name from the current theme if it exists
@@ -559,6 +578,16 @@ impl LapceConfig {
         Some(self.ui_svg(kind_str))
     }
 
+    /// List of the color themes that are available by their display names.
+    pub fn color_theme_list(&self) -> im::Vector<String> {
+        self.color_theme_list.clone()
+    }
+
+    /// List of the icon themes that are available by their display names.
+    pub fn icon_theme_list(&self) -> im::Vector<String> {
+        self.icon_theme_list.clone()
+    }
+
     pub fn terminal_font_family(&self) -> &str {
         if self.terminal.font_family.is_empty() {
             self.editor.font_family.as_str()
@@ -733,7 +762,7 @@ impl LapceConfig {
                     .iter()
                     .position(|s| s == &self.color_theme.name)
                     .unwrap_or(0),
-                items: self.color_theme_list.clone().into(),
+                items: self.color_theme_list.clone(),
             }),
             ("core", "icon-theme") => Some(DropdownInfo {
                 active_index: self
@@ -741,7 +770,7 @@ impl LapceConfig {
                     .iter()
                     .position(|s| s == &self.icon_theme.name)
                     .unwrap_or(0),
-                items: self.icon_theme_list.clone().into(),
+                items: self.icon_theme_list.clone(),
             }),
             _ => None,
         }
@@ -754,6 +783,8 @@ impl LapceConfig {
         Some(document)
     }
 
+    /// Update the config file with the given edit.  
+    /// This should be called whenever the configuration is changed, so that it is persisted.
     pub fn update_file(
         parent: &str,
         key: &str,

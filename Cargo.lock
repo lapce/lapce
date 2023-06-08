@@ -3204,6 +3204,7 @@ dependencies = [
  "lsp-types",
  "notify",
  "once_cell",
+ "open",
  "parking_lot 0.11.2",
  "rayon",
  "regex",
