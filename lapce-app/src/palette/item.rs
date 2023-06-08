@@ -38,6 +38,12 @@ pub enum PaletteItemContent {
         path: PathBuf,
         location: EditorLocation,
     },
+    ColorTheme {
+        name: String,
+    },
+    IconTheme {
+        name: String,
+    },
     DocumentSymbol {
         kind: SymbolKind,
         name: String,

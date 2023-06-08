@@ -1,4 +1,4 @@
-use std::{collections::HashSet, env, sync::Arc, time::Instant};
+use std::{collections::HashSet, env, sync::Arc, time::Instant };
 
 use crossbeam_channel::Sender;
 use floem::{
@@ -492,8 +492,12 @@ impl WindowTabData {
             }
             OpenFile => {}
             RevealActiveFileInFileExplorer => {}
-            ChangeColorTheme => {}
-            ChangeIconTheme => {}
+            ChangeColorTheme => {
+                self.palette.run(cx, PaletteKind::ColorTheme);
+            }
+            ChangeIconTheme => {
+                self.palette.run(cx, PaletteKind::IconTheme);
+            }
             OpenSettings => {
                 self.main_split.open_settings();
             }

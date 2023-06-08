@@ -579,6 +579,12 @@ pub enum InternalCommand {
 
 #[derive(Clone)]
 pub enum WindowCommand {
+    SetColorTheme{
+        theme: String
+    },
+    SetIconTheme{
+        theme: String
+    },
     SetWorkspace {
         workspace: LapceWorkspace,
     },

@@ -181,7 +181,7 @@ impl LapceConfig {
             .unwrap_or(0);
     }
 
-    fn default_config() -> config::Config {
+    pub fn default_config() -> config::Config {
         config::Config::builder()
             .add_source(config::File::from_str(
                 DEFAULT_SETTINGS,
@@ -198,7 +198,7 @@ impl LapceConfig {
         default_lapce_config
     }
 
-    fn resolve_theme(&mut self, workspace: &LapceWorkspace) {
+    pub fn resolve_theme(&mut self, workspace: &LapceWorkspace) {
         let mut default_lapce_config = DEFAULT_LAPCE_CONFIG.clone();
         if let Some((_, color_theme_config)) = self
             .available_color_themes
