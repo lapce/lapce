@@ -292,7 +292,7 @@ impl WindowData {
         let active = self
             .active
             .get_untracked()
-            .max(window_tabs.len().saturating_sub(1));
+            .min(window_tabs.len().saturating_sub(1));
         window_tabs.get(active).map(|(_, tab)| tab.clone())
     }
 }
