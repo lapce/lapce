@@ -14,7 +14,7 @@ use druid::{
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::{Buffer, DiffLines, InvalLines},
+    buffer::{rope_text::RopeText, Buffer, DiffLines, InvalLines},
     char_buffer::CharBuffer,
     command::{EditCommand, MultiSelectionCommand},
     cursor::{ColPosition, Cursor, CursorMode},
@@ -1261,9 +1261,8 @@ impl Document {
                     _ => {}
                 }
 
-                let rope_text = self.buffer.rope_text();
-                let col = rope_text.offset_of_line(line + 1)
-                    - rope_text.offset_of_line(line);
+                let col = self.buffer.offset_of_line(line + 1)
+                    - self.buffer.offset_of_line(line);
                 let fg = {
                     let severity = diag
                         .diagnostic

@@ -22,6 +22,7 @@ use druid::{
 use im::Vector;
 use itertools::Itertools;
 use lapce_core::{
+    buffer::rope_text::RopeText,
     command::{FocusCommand, MultiSelectionCommand},
     cursor::{Cursor, CursorMode},
     directory::Directory,

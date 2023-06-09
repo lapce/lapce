@@ -4,7 +4,7 @@ use druid::{
     LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
     Widget, WidgetId,
 };
-use lapce_core::buffer::DiffLines;
+use lapce_core::buffer::{rope_text::RopeText, DiffLines};
 use lapce_data::document::BufferContent;
 use lapce_data::history::DocumentHistory;
 use lapce_data::{

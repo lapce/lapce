@@ -4,7 +4,7 @@ use anyhow::Error;
 use core::fmt;
 use druid::{EventCtx, Size, WidgetId};
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
-use lapce_core::command::FocusCommand;
+use lapce_core::{buffer::rope_text::RopeText, command::FocusCommand};
 use lapce_rpc::{buffer::BufferId, plugin::PluginId};
 use lsp_types::{CompletionItem, CompletionResponse, CompletionTextEdit, Position};
 use once_cell::sync::Lazy;

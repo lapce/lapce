@@ -5,7 +5,10 @@ use druid::{
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetId,
 };
-use lapce_core::{buffer::DiffLines, command::FocusCommand};
+use lapce_core::{
+    buffer::{rope_text::RopeText, DiffLines},
+    command::FocusCommand,
+};
 use lapce_data::{
     command::{CommandKind, LapceCommand, LAPCE_COMMAND},
     config::{LapceIcons, LapceTheme},

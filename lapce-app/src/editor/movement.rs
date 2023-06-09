@@ -14,7 +14,6 @@ use lapce_core::{
     selection::{SelRegion, Selection},
     soft_tab::{snap_to_soft_tab, SnapDirection},
 };
-use lapce_xi_rope::Rope;
 
 use crate::doc::Document;
 
@@ -99,7 +98,7 @@ pub fn move_offset(
     match movement {
         Movement::Left => {
             let new_offset = move_left(
-                &view.text(),
+                view.rope_text(),
                 offset,
                 mode,
                 count,
@@ -110,7 +109,7 @@ pub fn move_offset(
         }
         Movement::Right => {
             let new_offset = move_right(
-                &view.text(),
+                view.rope_text(),
                 offset,
                 mode,
                 count,
@@ -135,22 +134,22 @@ pub fn move_offset(
         }
         Movement::DocumentStart => (0, Some(ColPosition::Start)),
         Movement::DocumentEnd => {
-            let (new_offset, horiz) = document_end(&view.text(), mode);
+            let (new_offset, horiz) = document_end(view.rope_text(), mode);
 
             (new_offset, Some(horiz))
         }
         Movement::FirstNonBlank => {
-            let (new_offset, horiz) = first_non_blank(&view.text(), offset);
+            let (new_offset, horiz) = first_non_blank(view.rope_text(), offset);
 
             (new_offset, Some(horiz))
         }
         Movement::StartOfLine => {
-            let (new_offset, horiz) = start_of_line(&view.text(), offset);
+            let (new_offset, horiz) = start_of_line(view.rope_text(), offset);
 
             (new_offset, Some(horiz))
         }
         Movement::EndOfLine => {
-            let (new_offset, horiz) = end_of_line(&view.text(), offset, mode);
+            let (new_offset, horiz) = end_of_line(view.rope_text(), offset, mode);
 
             (new_offset, Some(horiz))
         }
@@ -166,9 +165,7 @@ pub fn move_offset(
             (new_offset, None)
         }
         Movement::WordEndForward => {
-            let text = view.text();
-            let rope_text = RopeText::new(&text);
-            let new_offset = rope_text.move_n_wordends_forward(
+            let new_offset = view.rope_text().move_n_wordends_forward(
                 offset,
                 count,
                 mode == Mode::Insert,
@@ -176,15 +173,12 @@ pub fn move_offset(
             (new_offset, None)
         }
         Movement::WordForward => {
-            let text = view.text();
-            let rope_text = RopeText::new(&text);
-            let new_offset = rope_text.move_n_words_forward(offset, count);
+            let new_offset = view.rope_text().move_n_words_forward(offset, count);
             (new_offset, None)
         }
         Movement::WordBackward => {
-            let text = view.text();
-            let rope_text = RopeText::new(&text);
-            let new_offset = rope_text.move_n_words_backward(offset, count, mode);
+            let new_offset =
+                view.rope_text().move_n_words_backward(offset, count, mode);
             (new_offset, None)
         }
         Movement::NextUnmatched(char) => {
@@ -203,16 +197,14 @@ pub fn move_offset(
             (new_offset, None)
         }
         Movement::ParagraphForward => {
-            let text = view.text();
-            let rope_text = RopeText::new(&text);
-            let new_offset = rope_text.move_n_paragraphs_forward(offset, count);
+            let new_offset =
+                view.rope_text().move_n_paragraphs_forward(offset, count);
 
             (new_offset, None)
         }
         Movement::ParagraphBackward => {
-            let text = view.text();
-            let rope_text = RopeText::new(&text);
-            let new_offset = rope_text.move_n_paragraphs_backward(offset, count);
+            let new_offset =
+                view.rope_text().move_n_paragraphs_backward(offset, count);
 
             (new_offset, None)
         }
@@ -222,20 +214,18 @@ pub fn move_offset(
 /// Move the offset to the left by `count` amount.  
 /// If `soft_tab_width` is `Some` (and greater than 1) then the offset will snap to the soft tab.  
 fn move_left(
-    text: &Rope,
+    rope_text: impl RopeText,
     offset: usize,
     mode: Mode,
     count: usize,
     soft_tab_width: Option<usize>,
 ) -> usize {
-    let rope_text = RopeText::new(text);
-
     let mut new_offset = rope_text.move_left(offset, mode, count);
 
     if let Some(soft_tab_width) = soft_tab_width {
         if soft_tab_width > 1 {
             new_offset = snap_to_soft_tab(
-                text,
+                rope_text.text(),
                 new_offset,
                 SnapDirection::Left,
                 soft_tab_width,
@@ -249,20 +239,18 @@ fn move_left(
 /// Move the offset to the right by `count` amount.
 /// If `soft_tab_width` is `Some` (and greater than 1) then the offset will snap to the soft tab.
 fn move_right(
-    text: &Rope,
+    rope_text: impl RopeText,
     offset: usize,
     mode: Mode,
     count: usize,
     soft_tab_width: Option<usize>,
 ) -> usize {
-    let rope_text = RopeText::new(text);
-
     let mut new_offset = rope_text.move_right(offset, mode, count);
 
     if let Some(soft_tab_width) = soft_tab_width {
         if soft_tab_width > 1 {
             new_offset = snap_to_soft_tab(
-                text,
+                rope_text.text(),
                 new_offset,
                 SnapDirection::Right,
                 soft_tab_width,
@@ -283,8 +271,7 @@ fn move_up(
     mode: Mode,
     count: usize,
 ) -> (usize, ColPosition) {
-    let text = view.text();
-    let rope_text = RopeText::new(&text);
+    let rope_text = view.rope_text();
 
     let line = rope_text.line_of_offset(offset);
 
@@ -317,8 +304,7 @@ fn move_down(
     mode: Mode,
     count: usize,
 ) -> (usize, ColPosition) {
-    let text = view.text();
-    let rope_text = RopeText::new(&text);
+    let rope_text = view.rope_text();
 
     let last_line = rope_text.last_line();
     let line = rope_text.line_of_offset(offset);
@@ -342,17 +328,14 @@ fn move_down(
     (new_offset, horiz)
 }
 
-fn document_end(text: &Rope, mode: Mode) -> (usize, ColPosition) {
-    let rope_text = RopeText::new(text);
-
-    let last_offset = rope_text.offset_line_end(text.len(), mode != Mode::Normal);
+fn document_end(rope_text: impl RopeText, mode: Mode) -> (usize, ColPosition) {
+    let last_offset =
+        rope_text.offset_line_end(rope_text.len(), mode != Mode::Normal);
 
     (last_offset, ColPosition::End)
 }
 
-fn first_non_blank(text: &Rope, offset: usize) -> (usize, ColPosition) {
-    let rope_text = RopeText::new(text);
-
+fn first_non_blank(rope_text: impl RopeText, offset: usize) -> (usize, ColPosition) {
     let line = rope_text.line_of_offset(offset);
     let non_blank_offset = rope_text.first_non_blank_character_on_line(line);
     let start_line_offset = rope_text.offset_of_line(line);
@@ -370,18 +353,18 @@ fn first_non_blank(text: &Rope, offset: usize) -> (usize, ColPosition) {
     }
 }
 
-fn start_of_line(text: &Rope, offset: usize) -> (usize, ColPosition) {
-    let rope_text = RopeText::new(text);
-
+fn start_of_line(rope_text: impl RopeText, offset: usize) -> (usize, ColPosition) {
     let line = rope_text.line_of_offset(offset);
     let new_offset = rope_text.offset_of_line(line);
 
     (new_offset, ColPosition::Start)
 }
 
-fn end_of_line(text: &Rope, offset: usize, mode: Mode) -> (usize, ColPosition) {
-    let rope_text = RopeText::new(text);
-
+fn end_of_line(
+    rope_text: impl RopeText,
+    offset: usize,
+    mode: Mode,
+) -> (usize, ColPosition) {
     let new_offset = rope_text.offset_line_end(offset, mode != Mode::Normal);
 
     (new_offset, ColPosition::End)
@@ -395,8 +378,7 @@ fn to_line(
     mode: Mode,
     position: &LinePosition,
 ) -> (usize, ColPosition) {
-    let text = view.text();
-    let rope_text = RopeText::new(&text);
+    let rope_text = view.rope_text();
 
     let line = match position {
         LinePosition::Line(line) => (line - 1).min(rope_text.last_line()),
@@ -512,8 +494,7 @@ pub fn do_multi_selection(
     cmd: &MultiSelectionCommand,
 ) {
     use MultiSelectionCommand::*;
-    let text = view.text();
-    let rope_text = RopeText::new(&text);
+    let rope_text = view.rope_text();
 
     match cmd {
         SelectUndo => {
@@ -616,7 +597,7 @@ pub fn do_multi_selection(
                     find.set_find(&search_str);
                     let mut offset = 0;
                     while let Some((start, end)) =
-                        find.next(&text, offset, false, false)
+                        find.next(rope_text.text(), offset, false, false)
                     {
                         offset = end;
                         selection.add_region(SelRegion::new(start, end, None));
@@ -654,7 +635,7 @@ pub fn do_multi_selection(
                         let mut offset = r.max();
                         let mut seen = HashSet::new();
                         while let Some((start, end)) =
-                            find.next(&text, offset, false, true)
+                            find.next(rope_text.text(), offset, false, true)
                         {
                             if !selection
                                 .regions()
@@ -693,7 +674,7 @@ pub fn do_multi_selection(
                         let mut offset = r.max();
                         let mut seen = HashSet::new();
                         while let Some((start, end)) =
-                            find.next(&text, offset, false, true)
+                            find.next(rope_text.text(), offset, false, true)
                         {
                             if !selection
                                 .regions()
@@ -717,7 +698,7 @@ pub fn do_multi_selection(
             }
         }
         SelectAll => {
-            let new_selection = Selection::region(0, text.len());
+            let new_selection = Selection::region(0, rope_text.len());
             cursor.set_insert(new_selection);
         }
     }

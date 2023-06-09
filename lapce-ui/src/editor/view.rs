@@ -11,7 +11,10 @@ use druid::{
     SingleUse, Size, Target, TimerToken, Vec2, Widget, WidgetExt, WidgetId,
     WidgetPod,
 };
-use lapce_core::command::{EditCommand, FocusCommand};
+use lapce_core::{
+    buffer::rope_text::RopeText,
+    command::{EditCommand, FocusCommand},
+};
 use lapce_data::{
     command::{
         CommandExecuted, CommandKind, EnsureVisiblePosition, LapceCommand,

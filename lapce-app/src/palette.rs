@@ -23,7 +23,8 @@ use floem::{
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lapce_core::{
-    command::FocusCommand, mode::Mode, movement::Movement, selection::Selection,
+    buffer::rope_text::RopeText, command::FocusCommand, mode::Mode,
+    movement::Movement, selection::Selection,
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;

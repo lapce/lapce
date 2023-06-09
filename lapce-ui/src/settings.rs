@@ -15,6 +15,7 @@ use druid::{
 use inflector::Inflector;
 use itertools::Itertools;
 use lapce_core::{
+    buffer::rope_text::RopeText,
     command::{EditCommand, MoveCommand},
     mode::Mode,
 };

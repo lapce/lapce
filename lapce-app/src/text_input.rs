@@ -24,6 +24,7 @@ use floem::{
     AppContext, Renderer,
 };
 use lapce_core::{
+    buffer::rope_text::RopeText,
     cursor::{Cursor, CursorMode},
     selection::Selection,
 };

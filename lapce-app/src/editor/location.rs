@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use floem::peniko::kurbo::Vec2;
-use lapce_core::buffer::Buffer;
+use lapce_core::buffer::{rope_text::RopeText, Buffer};
 use lsp_types::Position;
 
 #[derive(Clone, Debug, PartialEq)]

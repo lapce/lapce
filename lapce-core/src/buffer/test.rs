@@ -1,4 +1,4 @@
-use super::Buffer;
+use super::{Buffer, RopeText};
 
 mod editing {
     use lapce_xi_rope::Rope;

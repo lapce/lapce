@@ -12,7 +12,10 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
 use jsonrpc_lite::{Id, JsonRpc, Params};
-use lapce_core::{buffer::rope_text::RopeText, encoding::offset_utf16_to_utf8};
+use lapce_core::{
+    buffer::rope_text::{RopeText, RopeTextRef},
+    encoding::offset_utf16_to_utf8,
+};
 use lapce_rpc::{
     plugin::{PluginId, VoltID},
     style::{LineStyle, Style},
@@ -1022,7 +1025,7 @@ fn get_document_content_change(
     let (interval, _) = delta.summary();
     let (start, end) = interval.start_end();
 
-    let text = RopeText::new(text);
+    let text = RopeTextRef::new(text);
 
     // TODO: Handle more trivial cases like typing when there's a selection or transpose
     if let Some(node) = delta.as_simple_insert() {
@@ -1069,7 +1072,7 @@ fn format_semantic_styles(
     let semantic_tokens_provider = semantic_tokens_provider?;
     let semantic_legends = semantic_tokens_legend(semantic_tokens_provider);
 
-    let text = RopeText::new(text);
+    let text = RopeTextRef::new(text);
     let mut highlights = Vec::new();
     let mut line = 0;
     let mut start = 0;

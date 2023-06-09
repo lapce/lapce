@@ -5,7 +5,9 @@ use std::{
 };
 
 use druid::{Command, EventCtx, ExtEventSink, Target, WidgetId};
-use lapce_core::{cursor::CursorMode, selection::Selection};
+use lapce_core::{
+    buffer::rope_text::RopeText, cursor::CursorMode, selection::Selection,
+};
 use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
 use lapce_xi_rope::Rope;
 

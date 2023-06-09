@@ -4,7 +4,7 @@ use itertools::Itertools;
 use lapce_xi_rope::RopeDelta;
 
 use crate::{
-    buffer::{Buffer, InvalLines},
+    buffer::{rope_text::RopeText, Buffer, InvalLines},
     command::EditCommand,
     cursor::{get_first_selection_after, Cursor, CursorMode},
     mode::{Mode, MotionMode, VisualMode},
@@ -1525,7 +1525,7 @@ enum DuplicateDirection {
 #[cfg(test)]
 mod test {
     use crate::{
-        buffer::Buffer,
+        buffer::{rope_text::RopeText, Buffer},
         cursor::{Cursor, CursorMode},
         editor::{DuplicateDirection, Editor},
         selection::{SelRegion, Selection},

@@ -9,7 +9,7 @@ use floem::{
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::{Buffer, InvalLines},
+    buffer::{rope_text::RopeText, Buffer, InvalLines},
     command::EditCommand,
     cursor::Cursor,
     editor::{EditType, Editor},
@@ -647,9 +647,8 @@ impl Document {
                     _ => {}
                 }
 
-                let rope_text = self.buffer.rope_text();
-                let col = rope_text.offset_of_line(line + 1)
-                    - rope_text.offset_of_line(line);
+                let col = self.buffer.offset_of_line(line + 1)
+                    - self.buffer.offset_of_line(line);
                 let fg = {
                     let severity = diag
                         .diagnostic

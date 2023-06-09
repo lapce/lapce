@@ -1,7 +1,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use druid::{Command, EventCtx, ExtEventSink, Target, WidgetId};
-use lapce_core::buffer::Buffer;
+use lapce_core::buffer::{rope_text::RopeText, Buffer};
 use lapce_xi_rope::Rope;
 use lsp_types::{Position, PrepareRenameResponse};
 

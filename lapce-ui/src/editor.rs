@@ -9,7 +9,7 @@ use druid::{
     Widget, WidgetId,
 };
 use lapce_core::{
-    buffer::DiffLines,
+    buffer::{rope_text::RopeText, DiffLines},
     command::{EditCommand, FocusCommand},
     cursor::{ColPosition, CursorMode},
     mode::{Mode, VisualMode},

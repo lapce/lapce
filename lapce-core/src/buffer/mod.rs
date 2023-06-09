@@ -11,12 +11,12 @@ use std::{
 
 use lapce_xi_rope::{
     delta::InsertDelta,
+    diff::{Diff, LineHashDiff},
     interval::IntervalBounds,
     multiset::{CountMatcher, Subset},
     tree::{Node, NodeInfo},
     Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta, RopeInfo,
 };
-use lsp_types::Position;
 
 use crate::{
     char_buffer::CharBuffer,
@@ -189,14 +189,6 @@ impl Buffer {
         self.atomic_rev.clone()
     }
 
-    pub fn text(&self) -> &Rope {
-        &self.text
-    }
-
-    pub fn num_lines(&self) -> usize {
-        RopeText::new(&self.text).num_lines()
-    }
-
     fn get_max_line_len(&self) -> (usize, usize) {
         let mut pre_offset = 0;
         let mut max_len = 0;
@@ -244,10 +236,6 @@ impl Buffer {
 
     pub fn max_len(&self) -> usize {
         self.max_len
-    }
-
-    pub fn line_len(&self, line: usize) -> usize {
-        RopeText::new(&self.text).line_len(line)
     }
 
     pub fn init_content(&mut self, content: Rope) {
@@ -727,115 +715,12 @@ impl Buffer {
         Some((delta, inval_lines, edits, cursor_after))
     }
 
-    pub fn rope_text(&self) -> RopeText {
-        RopeText::new(&self.text)
-    }
-
-    pub fn last_line(&self) -> usize {
-        RopeText::new(&self.text).last_line()
-    }
-
-    pub fn offset_of_line(&self, line: usize) -> usize {
-        RopeText::new(&self.text).offset_of_line(line)
-    }
-
-    pub fn offset_line_end(&self, offset: usize, caret: bool) -> usize {
-        RopeText::new(&self.text).offset_line_end(offset, caret)
-    }
-
-    pub fn line_of_offset(&self, offset: usize) -> usize {
-        RopeText::new(&self.text).line_of_offset(offset)
-    }
-
-    /// Converts a UTF8 offset to a UTF16 LSP position
-    pub fn offset_to_position(&self, offset: usize) -> Position {
-        RopeText::new(&self.text).offset_to_position(offset)
-    }
-
-    pub fn offset_of_position(&self, pos: &Position) -> usize {
-        RopeText::new(&self.text).offset_of_position(pos)
-    }
-
-    pub fn position_to_line_col(&self, pos: &Position) -> (usize, usize) {
-        RopeText::new(&self.text).position_to_line_col(pos)
-    }
-
-    pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
-        RopeText::new(&self.text).offset_to_line_col(offset)
-    }
-
-    pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
-        RopeText::new(&self.text).offset_of_line_col(line, col)
-    }
-
-    pub fn line_end_col(&self, line: usize, caret: bool) -> usize {
-        RopeText::new(&self.text).line_end_col(line, caret)
-    }
-
-    pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
-        RopeText::new(&self.text).first_non_blank_character_on_line(line)
-    }
-
-    pub fn indent_on_line(&self, line: usize) -> String {
-        RopeText::new(&self.text).indent_on_line(line)
-    }
-
-    pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
-        RopeText::new(&self.text).line_end_offset(line, caret)
-    }
-
-    pub fn line_content(&self, line: usize) -> Cow<str> {
-        RopeText::new(&self.text).line_content(line)
-    }
-
-    pub fn prev_grapheme_offset(
-        &self,
-        offset: usize,
-        count: usize,
-        limit: usize,
-    ) -> usize {
-        RopeText::new(&self.text).prev_grapheme_offset(offset, count, limit)
-    }
-
-    pub fn prev_code_boundary(&self, offset: usize) -> usize {
-        WordCursor::new(&self.text, offset).prev_code_boundary()
-    }
-
-    pub fn next_code_boundary(&self, offset: usize) -> usize {
-        WordCursor::new(&self.text, offset).next_code_boundary()
-    }
-
-    pub fn move_left(&self, offset: usize, mode: Mode, count: usize) -> usize {
-        RopeText::new(&self.text).move_left(offset, mode, count)
-    }
-
-    pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
-        RopeText::new(&self.text).move_right(offset, mode, count)
-    }
-
     pub fn move_word_forward(&self, offset: usize) -> usize {
         self.move_n_words_forward(offset, 1)
     }
 
     pub fn move_word_backward(&self, offset: usize, mode: Mode) -> usize {
         self.move_n_words_backward(offset, 1, mode)
-    }
-
-    pub fn next_grapheme_offset(
-        &self,
-        offset: usize,
-        count: usize,
-        limit: usize,
-    ) -> usize {
-        RopeText::new(&self.text).next_grapheme_offset(offset, count, limit)
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn select_word(&self, offset: usize) -> (usize, usize) {
-        WordCursor::new(&self.text, offset).select_word()
     }
 
     pub fn char_at_offset(&self, offset: usize) -> Option<char> {
@@ -860,61 +745,11 @@ impl Buffer {
             WordCursor::new(&self.text, offset).previous_unmatched(c)
         }
     }
+}
 
-    /// Get the content of the rope as a Cow string, for 'nice' ranges (small, and at the right
-    /// offsets) this will be a reference to the rope's data. Otherwise, it allocates a new string.
-    /// You should be somewhat wary of requesting large parts of the rope, as it will allocate
-    /// a new string since it isn't contiguous in memory for large chunks.
-    pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<str> {
-        self.text
-            .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
-    }
-
-    /// Iterate over (utf8_offset, char) values in the given range  
-    /// This uses `iter_chunks` and so does not allocate, compared to `slice_to_cow` which can
-    pub fn char_indices_iter<T: IntervalBounds>(
-        &self,
-        range: T,
-    ) -> impl Iterator<Item = (usize, char)> + '_ {
-        CharIndicesJoin::new(self.text.iter_chunks(range).map(str::char_indices))
-    }
-
-    pub fn len(&self) -> usize {
-        self.text.len()
-    }
-
-    pub fn move_n_paragraphs_forward(&self, offset: usize, count: usize) -> usize {
-        RopeText::new(&self.text).move_n_paragraphs_forward(offset, count)
-    }
-
-    pub fn move_n_paragraphs_backward(&self, offset: usize, count: usize) -> usize {
-        RopeText::new(&self.text).move_n_paragraphs_backward(offset, count)
-    }
-
-    pub fn move_n_words_forward(&self, offset: usize, count: usize) -> usize {
-        RopeText::new(&self.text).move_n_words_forward(offset, count)
-    }
-
-    pub fn move_n_wordends_forward(
-        &self,
-        offset: usize,
-        count: usize,
-        inserting: bool,
-    ) -> usize {
-        RopeText::new(&self.text).move_n_wordends_forward(offset, count, inserting)
-    }
-
-    pub fn move_n_words_backward(
-        &self,
-        offset: usize,
-        count: usize,
-        mode: Mode,
-    ) -> usize {
-        RopeText::new(&self.text).move_n_words_backward(offset, count, mode)
-    }
-
-    pub fn move_word_backward_deletion(&self, offset: usize) -> usize {
-        RopeText::new(&self.text).move_word_backward_deletion(offset)
+impl RopeText for Buffer {
+    fn text(&self) -> &Rope {
+        &self.text
     }
 }
 
