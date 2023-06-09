@@ -366,25 +366,22 @@ impl WindowTabData {
 
         {
             let window_tab_data = window_tab_data.clone();
-            window_tab_data.common.lapce_command.listen(cx, move |cmd| {
+            window_tab_data.common.lapce_command.listen(move |cmd| {
                 window_tab_data.run_lapce_command(cmd);
             });
         }
 
         {
             let window_tab_data = window_tab_data.clone();
-            window_tab_data
-                .common
-                .workbench_command
-                .listen(cx, move |cmd| {
-                    window_tab_data.run_workbench_command(cmd, None);
-                });
+            window_tab_data.common.workbench_command.listen(move |cmd| {
+                window_tab_data.run_workbench_command(cmd, None);
+            });
         }
 
         {
             let window_tab_data = window_tab_data.clone();
             let internal_command = window_tab_data.common.internal_command;
-            internal_command.listen(cx, move |cmd| {
+            internal_command.listen(move |cmd| {
                 window_tab_data.run_internal_command(cmd);
             });
         }
@@ -1685,14 +1682,14 @@ impl WindowTabData {
         for folder in folders {
             self.common
                 .window_command
-                .set(Some(WindowCommand::NewWorkspaceTab {
+                .send(WindowCommand::NewWorkspaceTab {
                     workspace: LapceWorkspace {
                         kind: self.workspace.kind.clone(),
                         path: Some(folder.path.clone()),
                         last_open: 0,
                     },
                     end: false,
-                }));
+                });
         }
 
         for file in files {
@@ -1705,7 +1702,7 @@ impl WindowTabData {
 
             self.common
                 .internal_command
-                .set(Some(InternalCommand::GoToLocation {
+                .send(InternalCommand::GoToLocation {
                     location: EditorLocation {
                         path: file.path.clone(),
                         position,
@@ -1715,7 +1712,7 @@ impl WindowTabData {
                         ignore_unconfirmed: true,
                         same_editor_tab: false,
                     },
-                }));
+                });
         }
     }
 }

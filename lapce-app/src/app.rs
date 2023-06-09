@@ -63,6 +63,7 @@ use crate::{
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
+    listener::Listener,
     main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
     palette::{
         item::{PaletteItem, PaletteItemContent},
@@ -117,7 +118,7 @@ pub struct AppData {
     pub scope: Scope,
     pub windows: RwSignal<im::Vector<WindowData>>,
     pub window_scale: RwSignal<f64>,
-    pub app_command: RwSignal<Option<AppCommand>>,
+    pub app_command: Listener<AppCommand>,
     /// The latest release information
     pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
     pub watcher: Arc<notify::RecommendedWatcher>,
@@ -2379,7 +2380,7 @@ pub fn launch() {
 
     let window_scale = create_rw_signal(scope, 1.0);
     let latest_release = create_rw_signal(scope, Arc::new(None));
-    let app_command = create_rw_signal(scope, None);
+    let app_command = Listener::new_empty(scope);
 
     let mut windows = im::Vector::new();
 
@@ -2465,10 +2466,8 @@ pub fn launch() {
 
     {
         let app_data = app_data.clone();
-        create_effect(scope, move |_| {
-            if let Some(command) = app_data.app_command.get() {
-                app_data.run_app_command(command);
-            }
+        app_data.app_command.listen(move |command| {
+            app_data.run_app_command(command);
         });
     }
 
@@ -2489,7 +2488,7 @@ fn create_windows(
     windows: &mut im::Vector<WindowData>,
     window_scale: RwSignal<f64>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-    app_command: RwSignal<Option<AppCommand>>,
+    app_command: Listener<AppCommand>,
 ) -> floem::Application {
     // Split user input into known existing directors and
     // file paths that exist or not

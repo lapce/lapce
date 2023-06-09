@@ -11,8 +11,6 @@ use std::{
 
 use lapce_xi_rope::{
     delta::InsertDelta,
-    diff::{Diff, LineHashDiff},
-    interval::IntervalBounds,
     multiset::{CountMatcher, Subset},
     tree::{Node, NodeInfo},
     Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta, RopeInfo,

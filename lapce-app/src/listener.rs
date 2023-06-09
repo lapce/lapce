@@ -9,26 +9,16 @@ use floem::reactive::{
 /// Copied/Cloned listeners refer to the same listener.
 #[derive(Debug)]
 pub struct Listener<T: 'static> {
+    cx: Scope,
     val: RwSignal<Option<T>>,
 }
+
 impl<T: Clone + 'static> Listener<T> {
     pub fn new(cx: Scope, on_val: impl Fn(T) + 'static) -> Listener<T> {
         let val = create_rw_signal(cx, None);
 
-        let listener = Listener { val };
-        listener.listen(cx, on_val);
-
-        listener
-    }
-
-    /// Construct a listener when you already have a signal.  
-    pub fn new_with(
-        cx: Scope,
-        val: RwSignal<Option<T>>,
-        on_val: impl Fn(T) + 'static,
-    ) -> Listener<T> {
-        let listener = Listener { val };
-        listener.listen(cx, on_val);
+        let listener = Listener { val, cx };
+        listener.listen(on_val);
 
         listener
     }
@@ -37,14 +27,14 @@ impl<T: Clone + 'static> Listener<T> {
     /// Call `listen` to set a callback.
     pub fn new_empty(cx: Scope) -> Listener<T> {
         let val = create_rw_signal(cx, None);
-        Listener { val }
+        Listener { val, cx }
     }
 
     /// Listen for values sent to this listener.  
-    pub fn listen(self, cx: Scope, on_val: impl Fn(T) + 'static) {
+    pub fn listen(self, on_val: impl Fn(T) + 'static) {
         let val = self.val;
 
-        create_effect(cx, move |_| {
+        create_effect(self.cx, move |_| {
             // TODO(minor): Signals could have a `take` method to avoid cloning.
             if let Some(cmd) = val.get() {
                 on_val(cmd);
@@ -57,11 +47,14 @@ impl<T: Clone + 'static> Listener<T> {
         self.val.set(Some(v));
     }
 }
+
 impl<T: 'static> Copy for Listener<T> {}
+
 impl<T: 'static> Clone for Listener<T> {
     fn clone(&self) -> Self {
         Listener {
-            val: self.val.clone(),
+            cx: self.cx,
+            val: self.val,
         }
     }
 }

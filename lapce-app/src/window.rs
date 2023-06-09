@@ -48,7 +48,7 @@ pub struct WindowData {
     /// The index of the active window tab.
     pub active: RwSignal<usize>,
     pub window_command: Listener<WindowCommand>,
-    pub app_command: RwSignal<Option<AppCommand>>,
+    pub app_command: Listener<AppCommand>,
     pub size: RwSignal<Size>,
     pub position: RwSignal<Point>,
     pub root_view_id: RwSignal<floem::id::Id>,
@@ -63,7 +63,7 @@ impl WindowData {
         info: WindowInfo,
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-        app_command: RwSignal<Option<AppCommand>>,
+        app_command: Listener<AppCommand>,
     ) -> Self {
         let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
         let config = create_rw_signal(cx, Arc::new(config));
@@ -117,7 +117,7 @@ impl WindowData {
 
         {
             let window_data = window_data.clone();
-            window_data.window_command.listen(cx, move |cmd| {
+            window_data.window_command.listen(move |cmd| {
                 window_data.run_window_command(cmd);
             });
         }
@@ -253,7 +253,7 @@ impl WindowData {
                 }
             }
         }
-        self.app_command.set(Some(AppCommand::SaveApp));
+        self.app_command.send(AppCommand::SaveApp);
     }
 
     pub fn key_down(&self, key_event: &KeyEvent) {
