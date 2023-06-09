@@ -3,10 +3,14 @@ use std::sync::Arc;
 use floem::{
     event::{Event, EventListener},
     glazier::PointerType,
-    reactive::{SignalGet, SignalGetUntracked, SignalSet, SignalWith},
+    reactive::{
+        create_memo, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalWith, SignalWithUntracked,
+    },
     style::Style,
     view::View,
     views::{container, label, list, stack, svg, tab, Decorators},
+    AppContext,
 };
 
 use crate::{
@@ -22,11 +26,18 @@ use crate::{
 use super::kind::PanelKind;
 
 pub fn terminal_panel(window_tab_data: Arc<WindowTabData>) -> impl View {
+    let focus = window_tab_data.common.focus;
     stack(|| {
         (
             terminal_tab_header(window_tab_data.clone()),
             terminal_tab_content(window_tab_data),
         )
+    })
+    .on_event(EventListener::PointerDown, move |_| {
+        if focus.get_untracked() != Focus::Panel(PanelKind::Terminal) {
+            focus.set(Focus::Panel(PanelKind::Terminal));
+        }
+        false
     })
     .style(|| Style::BASE.size_pct(100.0, 100.0).flex_col())
 }
@@ -35,7 +46,8 @@ fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
     let terminal = window_tab_data.terminal.clone();
     let config = window_tab_data.common.config;
     let focus = window_tab_data.common.focus;
-    let active = move || terminal.tab_info.with(|info| info.active);
+    let active_index = move || terminal.tab_info.with(|info| info.active);
+    let tab_info = terminal.tab_info;
 
     list(
         move || {
@@ -144,7 +156,7 @@ fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
                         label(|| "".to_string()).style(move || {
                             Style::BASE
                                 .size_pct(100.0, 100.0)
-                                .border_bottom(if active() == index.get() {
+                                .border_bottom(if active_index() == index.get() {
                                     2.0
                                 } else {
                                     0.0
@@ -168,6 +180,15 @@ fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
                     }),
                 )
             })
+            .on_event(EventListener::PointerDown, move |_| {
+                if tab_info.with_untracked(|tab| tab.active) != index.get_untracked()
+                {
+                    tab_info.update(|tab| {
+                        tab.active = index.get_untracked();
+                    });
+                }
+                false
+            })
         },
     )
     .style(move || {
@@ -185,6 +206,7 @@ fn terminal_tab_split(
 ) -> impl View {
     dispose_on_ui_cleanup(terminal_tab_data.scope);
     let config = terminal_panel_data.common.config;
+    let active = terminal_tab_data.active;
     list(
         move || {
             let terminals = terminal_tab_data.terminals.get();
@@ -208,6 +230,10 @@ fn terminal_tab_split(
                     terminal.run_debug.read_only(),
                     terminal_panel_data,
                 )
+                .on_event(EventListener::PointerDown, move |_| {
+                    active.set(index.get_untracked());
+                    false
+                })
                 .on_event(EventListener::PointerWheel, move |event| {
                     if let Event::PointerWheel(pointer_event) = event {
                         if let PointerType::Mouse(info) = &pointer_event.pointer_type
@@ -220,10 +246,6 @@ fn terminal_tab_split(
                     }
                 })
                 .style(|| Style::BASE.size_pct(100.0, 100.0))
-            })
-            .on_click(move |_| {
-                focus.set(Focus::Panel(PanelKind::Terminal));
-                true
             })
             .style(move || {
                 Style::BASE
