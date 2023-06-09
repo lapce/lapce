@@ -11,8 +11,9 @@ use floem::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::WindowCommand, config::LapceConfig, db::LapceDb, listener::Listener,
-    update::ReleaseInfo, window_tab::WindowTabData, workspace::LapceWorkspace,
+    app::AppCommand, command::WindowCommand, config::LapceConfig, db::LapceDb,
+    listener::Listener, update::ReleaseInfo, window_tab::WindowTabData,
+    workspace::LapceWorkspace,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +48,7 @@ pub struct WindowData {
     /// The index of the active window tab.
     pub active: RwSignal<usize>,
     pub window_command: Listener<WindowCommand>,
+    pub app_command: RwSignal<Option<AppCommand>>,
     pub size: RwSignal<Size>,
     pub position: RwSignal<Point>,
     pub root_view_id: RwSignal<floem::id::Id>,
@@ -61,6 +63,7 @@ impl WindowData {
         info: WindowInfo,
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
+        app_command: RwSignal<Option<AppCommand>>,
     ) -> Self {
         let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
         let config = create_rw_signal(cx, Arc::new(config));
@@ -108,6 +111,7 @@ impl WindowData {
             root_view_id,
             window_scale,
             latest_release,
+            app_command,
             config,
         };
 
@@ -249,6 +253,7 @@ impl WindowData {
                 }
             }
         }
+        self.app_command.set(Some(AppCommand::SaveApp));
     }
 
     pub fn key_down(&self, key_event: &KeyEvent) {
@@ -280,5 +285,14 @@ impl WindowData {
                 workspaces,
             },
         }
+    }
+
+    pub fn active_window_tab(&self) -> Option<Arc<WindowTabData>> {
+        let window_tabs = self.window_tabs.get_untracked();
+        let active = self
+            .active
+            .get_untracked()
+            .max(window_tabs.len().saturating_sub(1));
+        window_tabs.get(active).map(|(_, tab)| tab.clone())
     }
 }

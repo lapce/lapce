@@ -11,13 +11,12 @@ use lapce_core::{
         EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
         MultiSelectionCommand,
     },
-    movement::LineCol,
     syntax::Syntax,
 };
 use lapce_rpc::{
     buffer::BufferId,
     dap_types::{self, DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
-    file::FileNodeItem,
+    file::{FileNodeItem, LineCol},
     plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     source_control::DiffInfo,
     style::Style,

@@ -23,12 +23,12 @@ use lapce_core::{
     command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
     editor::EditType,
     mode::{Mode, MotionMode},
-    movement::LineCol,
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
 use lapce_rpc::{
-    dap_types::SourceBreakpoint, plugin::PluginId, proxy::ProxyResponse,
+    dap_types::SourceBreakpoint, file::LineCol, plugin::PluginId,
+    proxy::ProxyResponse,
 };
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{

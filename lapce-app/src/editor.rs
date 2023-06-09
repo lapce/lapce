@@ -1573,7 +1573,6 @@ impl EditorData {
                 doc.buffer().clone(),
             )
         });
-        self.common.find.whole_words.set(true);
         self.common.internal_command.send(InternalCommand::Search {
             pattern: Some(word),
         });

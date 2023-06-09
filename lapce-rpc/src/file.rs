@@ -6,6 +6,47 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+/// UTF8 line and column-offset
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
+pub struct LineCol {
+    pub line: usize,
+    pub column: usize,
+}
+
+#[derive(
+    Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
+pub struct PathObject {
+    pub path: PathBuf,
+    pub linecol: Option<LineCol>,
+    pub is_dir: bool,
+}
+
+impl PathObject {
+    pub fn new(
+        path: PathBuf,
+        is_dir: bool,
+        line: usize,
+        column: usize,
+    ) -> PathObject {
+        PathObject {
+            path,
+            is_dir,
+            linecol: Some(LineCol { line, column }),
+        }
+    }
+
+    pub fn from_path(path: PathBuf, is_dir: bool) -> PathObject {
+        PathObject {
+            path,
+            is_dir,
+            linecol: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FileNodeItem {
     pub path_buf: PathBuf,

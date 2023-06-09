@@ -1,8 +1,15 @@
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
-use std::{ops::Range, path::PathBuf, process::Stdio, sync::Arc};
+use std::{
+    io::{BufReader, Read, Write},
+    ops::Range,
+    process::Stdio,
+    sync::Arc,
+};
 
+use anyhow::{anyhow, Result};
 use clap::Parser;
+use crossbeam_channel::Sender;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener},
@@ -13,8 +20,8 @@ use floem::{
     },
     reactive::{
         create_effect, create_memo, create_rw_signal, on_cleanup, provide_context,
-        ReadSignal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWith, SignalWithUntracked,
+        use_context, ReadSignal, RwSignal, Scope, SignalGet, SignalGetUntracked,
+        SignalSet, SignalUpdate, SignalWith, SignalWithUntracked,
     },
     style::{
         AlignItems, CursorStyle, Dimension, Display, FlexDirection, JustifyContent,
@@ -30,6 +37,11 @@ use floem::{
     AppContext,
 };
 use lapce_core::{directory::Directory, meta, mode::Mode};
+use lapce_rpc::{
+    core::{CoreMessage, CoreNotification},
+    file::PathObject,
+    RpcMessage,
+};
 use lsp_types::{CompletionItemKind, DiagnosticSeverity};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
@@ -43,7 +55,11 @@ use crate::{
     db::LapceDb,
     debug::RunDebugMode,
     doc::DocContent,
-    editor::{location::EditorLocation, view::editor_container_view, EditorData},
+    editor::{
+        location::{EditorLocation, EditorPosition},
+        view::editor_container_view,
+        EditorData,
+    },
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
@@ -70,10 +86,20 @@ use crate::{
 #[clap(version=meta::VERSION)]
 #[derive(Debug)]
 struct Cli {
+    /// Launch new window even if Lapce is already running
+    #[clap(short, long, action)]
+    new: bool,
     /// Don't return instantly when opened in a terminal
     #[clap(short, long, action)]
     wait: bool,
-    paths: Vec<PathBuf>,
+
+    /// Paths to file(s) and/or folder(s) to open.
+    /// When path is a file (that exists or not),
+    /// it accepts `path:line:column` syntax
+    /// to specify line and column at which it should open the file
+    #[clap(value_parser = lapce_proxy::cli::parse_file_line_column)]
+    #[clap(value_hint = clap::ValueHint::AnyPath)]
+    paths: Vec<PathObject>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,9 +108,16 @@ pub struct AppInfo {
 }
 
 #[derive(Clone)]
+pub enum AppCommand {
+    SaveApp,
+}
+
+#[derive(Clone)]
 pub struct AppData {
+    pub scope: Scope,
     pub windows: RwSignal<im::Vector<WindowData>>,
     pub window_scale: RwSignal<f64>,
+    pub app_command: RwSignal<Option<AppCommand>>,
     /// The latest release information
     pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
     pub watcher: Arc<notify::RecommendedWatcher>,
@@ -95,6 +128,23 @@ impl AppData {
         let windows = self.windows.get_untracked();
         for window in windows {
             window.reload_config();
+        }
+    }
+
+    pub fn active_window_tab(&self) -> Option<Arc<WindowTabData>> {
+        let windows = self.windows.get_untracked();
+        if let Some(window) = windows.iter().next() {
+            return window.active_window_tab();
+        }
+        None
+    }
+
+    pub fn run_app_command(&self, cmd: AppCommand) {
+        match cmd {
+            AppCommand::SaveApp => {
+                let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+                let _ = db.save_app(self);
+            }
         }
     }
 }
@@ -2309,17 +2359,19 @@ pub fn launch() {
         return;
     }
 
-    let pwd = std::env::current_dir().unwrap_or_default();
-    let paths: Vec<PathBuf> = cli
-        .paths
-        .iter()
-        .map(|p| pwd.join(p).canonicalize().unwrap_or_default())
-        .collect();
+    if !cli.new {
+        if let Ok(socket) = get_socket() {
+            if let Err(e) = try_open_in_existing_process(socket, &cli.paths) {
+                log::error!("failed to open path(s): {e}");
+            };
+            return;
+        }
+    }
 
-    // TODO: open in existing window
+    #[cfg(feature = "updater")]
+    crate::update::cleanup();
 
-    // TODO: lapce updater cleanup?
-
+    let _ = lapce_proxy::register_lapce_path();
     let db = Arc::new(LapceDb::new().unwrap());
     let mut app = floem::Application::new();
     let scope = app.scope();
@@ -2327,6 +2379,7 @@ pub fn launch() {
 
     let window_scale = create_rw_signal(scope, 1.0);
     let latest_release = create_rw_signal(scope, Arc::new(None));
+    let app_command = create_rw_signal(scope, None);
 
     let mut windows = im::Vector::new();
 
@@ -2334,10 +2387,11 @@ pub fn launch() {
         scope,
         db.clone(),
         app,
-        paths,
+        cli.paths,
         &mut windows,
         window_scale,
         latest_release.read_only(),
+        app_command,
     );
 
     let (tx, rx) = crossbeam_channel::bounded(1);
@@ -2357,10 +2411,12 @@ pub fn launch() {
 
     let windows = create_rw_signal(scope, windows);
     let app_data = AppData {
+        scope,
         windows,
         window_scale,
         watcher: Arc::new(watcher),
         latest_release,
+        app_command,
     };
 
     {
@@ -2391,25 +2447,54 @@ pub fn launch() {
         });
     }
 
+    {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        let notification = create_signal_from_channel(scope, rx);
+        let app_data = app_data.clone();
+        create_effect(scope, move |_| {
+            if let Some(CoreNotification::OpenPaths { paths }) = notification.get() {
+                if let Some(window_tab) = app_data.active_window_tab() {
+                    window_tab.open_paths(&paths);
+                }
+            }
+        });
+        std::thread::spawn(move || {
+            let _ = listen_local_socket(tx);
+        });
+    }
+
+    {
+        let app_data = app_data.clone();
+        create_effect(scope, move |_| {
+            if let Some(command) = app_data.app_command.get() {
+                app_data.run_app_command(command);
+            }
+        });
+    }
+
     app.on_event(move |event| match event {
         floem::AppEvent::WillTerminate => {
-            let _ = db.save_app(app_data.clone());
+            let _ = db.insert_app(app_data.clone());
         }
     })
     .run();
 }
 
+#[allow(clippy::too_many_arguments)]
 fn create_windows(
     scope: floem::reactive::Scope,
     db: Arc<LapceDb>,
     mut app: floem::Application,
-    paths: Vec<PathBuf>,
+    paths: Vec<PathObject>,
     windows: &mut im::Vector<WindowData>,
     window_scale: RwSignal<f64>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
+    app_command: RwSignal<Option<AppCommand>>,
 ) -> floem::Application {
-    let dirs: Vec<&PathBuf> = paths.iter().filter(|p| p.is_dir()).collect();
-    let files: Vec<&PathBuf> = paths.iter().filter(|p| p.is_file()).collect();
+    // Split user input into known existing directors and
+    // file paths that exist or not
+    let (dirs, files): (Vec<&PathObject>, Vec<&PathObject>) =
+        paths.iter().partition(|p| p.is_dir);
 
     if !dirs.is_empty() {
         // There were directories specified, so we'll load those as windows
@@ -2442,7 +2527,7 @@ fn create_windows(
                     active_tab: 0,
                     workspaces: vec![LapceWorkspace {
                         kind: workspace_type,
-                        path: Some(dir.to_path_buf()),
+                        path: Some(dir.path.to_owned()),
                         last_open: 0,
                     }],
                 },
@@ -2451,8 +2536,13 @@ fn create_windows(
             pos += (50.0, 50.0);
 
             let config = WindowConfig::default().size(info.size).position(info.pos);
-            let window_data =
-                WindowData::new(scope, info, window_scale, latest_release);
+            let window_data = WindowData::new(
+                scope,
+                info,
+                window_scale,
+                latest_release,
+                app_command,
+            );
             windows.push_back(window_data.clone());
             app = app.window(move || app_view(window_data), Some(config));
         }
@@ -2462,8 +2552,13 @@ fn create_windows(
             for info in app_info.windows {
                 let config =
                     WindowConfig::default().size(info.size).position(info.pos);
-                let window_data =
-                    WindowData::new(scope, info, window_scale, latest_release);
+                let window_data = WindowData::new(
+                    scope,
+                    info,
+                    window_scale,
+                    latest_release,
+                    app_command,
+                );
                 windows.push_back(window_data.clone());
                 app = app.window(move || app_view(window_data), Some(config));
             }
@@ -2471,7 +2566,7 @@ fn create_windows(
     }
 
     if windows.is_empty() {
-        let info = db.get_window().unwrap_or_else(|_| WindowInfo {
+        let mut info = db.get_window().unwrap_or_else(|_| WindowInfo {
             size: Size::new(800.0, 600.0),
             pos: Point::ZERO,
             maximised: false,
@@ -2480,8 +2575,13 @@ fn create_windows(
                 workspaces: vec![LapceWorkspace::default()],
             },
         });
+        info.tabs = TabsInfo {
+            active_tab: 0,
+            workspaces: vec![LapceWorkspace::default()],
+        };
         let config = WindowConfig::default().size(info.size).position(info.pos);
-        let window_data = WindowData::new(scope, info, window_scale, latest_release);
+        let window_data =
+            WindowData::new(scope, info, window_scale, latest_release, app_command);
         windows.push_back(window_data.clone());
         app = app.window(|| app_view(window_data), Some(config));
     }
@@ -2491,10 +2591,17 @@ fn create_windows(
         let cur_window_tab = window.active.get_untracked();
         let (_, window_tab) = &window.window_tabs.get_untracked()[cur_window_tab];
         for file in files {
+            let position = file.linecol.map(|pos| {
+                EditorPosition::Position(lsp_types::Position {
+                    line: pos.line.saturating_sub(1) as u32,
+                    character: pos.column.saturating_sub(1) as u32,
+                })
+            });
+
             window_tab.run_internal_command(InternalCommand::GoToLocation {
                 location: EditorLocation {
-                    path: file.clone(),
-                    position: None,
+                    path: file.path.clone(),
+                    position,
                     scroll_offset: None,
                     // Create a new editor for the file, so we don't change any current unconfirmed
                     // editor
@@ -2540,4 +2647,69 @@ fn load_shell_env() {
         .for_each(|(key, value)| {
             std::env::set_var(key, value);
         })
+}
+
+pub fn get_socket() -> Result<interprocess::local_socket::LocalSocketStream> {
+    let local_socket = Directory::local_socket()
+        .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+    let socket =
+        interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
+    Ok(socket)
+}
+
+pub fn try_open_in_existing_process(
+    mut socket: interprocess::local_socket::LocalSocketStream,
+    paths: &[PathObject],
+) -> Result<()> {
+    let msg: CoreMessage = RpcMessage::Notification(CoreNotification::OpenPaths {
+        paths: paths.to_vec(),
+    });
+    lapce_rpc::stdio::write_msg(&mut socket, msg)?;
+
+    let (tx, rx) = crossbeam_channel::bounded(1);
+    std::thread::spawn(move || {
+        let mut buf = [0; 100];
+        let received = if let Ok(n) = socket.read(&mut buf) {
+            &buf[..n] == b"received"
+        } else {
+            false
+        };
+        tx.send(received)
+    });
+
+    let received = rx.recv_timeout(std::time::Duration::from_millis(500))?;
+    if !received {
+        return Err(anyhow!("didn't receive response"));
+    }
+
+    Ok(())
+}
+
+fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
+    let local_socket = Directory::local_socket()
+        .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+    let _ = std::fs::remove_file(&local_socket);
+    let socket =
+        interprocess::local_socket::LocalSocketListener::bind(local_socket)?;
+
+    for stream in socket.incoming().flatten() {
+        let tx = tx.clone();
+        std::thread::spawn(move || -> Result<()> {
+            let mut reader = BufReader::new(stream);
+            loop {
+                let msg: CoreMessage = lapce_rpc::stdio::read_msg(&mut reader)?;
+
+                if let RpcMessage::Notification(msg) = msg {
+                    tx.send(msg)?;
+                } else {
+                    log::trace!("Unhandled message: {msg:?}");
+                }
+
+                let stream_ref = reader.get_mut();
+                let _ = stream_ref.write_all(b"received");
+                let _ = stream_ref.flush();
+            }
+        });
+    }
+    Ok(())
 }

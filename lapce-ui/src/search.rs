@@ -7,7 +7,7 @@ use druid::{
     RenderContext, Size, Target, UpdateCtx, Widget, WidgetExt, WidgetId, WidgetPod,
 };
 use indexmap::IndexMap;
-use lapce_core::{command::FocusCommand, movement::LineCol};
+use lapce_core::command::FocusCommand;
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LAPCE_COMMAND, LAPCE_UI_COMMAND,
@@ -17,6 +17,7 @@ use lapce_data::{
     editor::EditorLocation,
     panel::PanelKind,
 };
+use lapce_rpc::file::LineCol;
 
 use crate::{
     editor::view::LapceEditorView,

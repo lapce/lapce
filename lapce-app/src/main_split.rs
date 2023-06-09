@@ -34,7 +34,7 @@ use crate::{
     editor_tab::{EditorTabChild, EditorTabData, EditorTabInfo},
     id::{EditorId, EditorTabId, SettingsId, SplitId},
     keypress::KeyPressData,
-    window_tab::{CommonData, WindowTabData},
+    window_tab::{CommonData, Focus, WindowTabData},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -409,6 +409,9 @@ impl MainSplitData {
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
     ) {
+        if self.common.focus.get_untracked() != Focus::Workbench {
+            self.common.focus.set(Focus::Workbench);
+        }
         let path = location.path.clone();
         let (doc, new_doc) = self.get_doc(path.clone());
 

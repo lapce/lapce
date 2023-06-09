@@ -22,6 +22,7 @@ use lapce_data::{
     },
     db::{TabsInfo, WindowInfo},
 };
+use lapce_rpc::file::PathObject;
 
 use crate::{
     logging::override_log_levels,
@@ -48,7 +49,7 @@ struct Cli {
     /// to specify line and column at which it should open the file
     #[clap(value_parser = lapce_proxy::cli::parse_file_line_column)]
     #[clap(value_hint = clap::ValueHint::AnyPath)]
-    paths: Vec<lapce_proxy::cli::PathObject>,
+    paths: Vec<PathObject>,
 }
 
 pub fn build_window(data: &mut LapceWindowData) -> impl Widget<LapceData> {

@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     dap_types::{self, DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
+    file::PathObject,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::DiffInfo,
     terminal::TermId,
@@ -50,9 +51,7 @@ pub enum CoreNotification {
         plugin_id: PluginId,
     },
     OpenPaths {
-        window_tab_id: Option<(usize, usize)>,
-        folders: Vec<PathBuf>,
-        files: Vec<PathBuf>,
+        paths: Vec<PathObject>,
     },
     WorkspaceFileChange {},
     PublishDiagnostics {

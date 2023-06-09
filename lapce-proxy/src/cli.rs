@@ -1,14 +1,11 @@
 use anyhow::{anyhow, Error, Result};
-use core::fmt;
-use lapce_core::{directory::Directory, movement::LineCol};
+use lapce_core::directory::Directory;
 use lapce_rpc::{
+    file::{LineCol, PathObject},
     proxy::{ProxyMessage, ProxyNotification},
     RpcMessage,
 };
-use std::{
-    fs,
-    path::{self, Component, PathBuf},
-};
+use std::path::PathBuf;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PathObjectType {
@@ -17,152 +14,66 @@ pub enum PathObjectType {
     File,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct PathObject {
-    pub path: PathBuf,
-    pub linecol: Option<LineCol>,
-    pub r#type: PathObjectType,
-}
-
-impl PathObject {
-    pub fn new(
-        path: PathBuf,
-        r#type: PathObjectType,
-        line: usize,
-        column: usize,
-    ) -> PathObject {
-        PathObject {
-            path,
-            r#type,
-            linecol: Some(LineCol { line, column }),
-        }
-    }
-
-    pub fn from_path(path: PathBuf, r#type: PathObjectType) -> PathObject {
-        PathObject {
-            path,
-            r#type,
-            linecol: None,
-        }
-    }
-}
-
-fn canonicalize_or_return(path: PathBuf) -> PathBuf {
-    if let Ok(p) = fs::canonicalize(&path) {
-        p
-    } else {
-        path
-    }
-}
-
 pub fn parse_file_line_column(path: &str) -> Result<PathObject, Error> {
-    let path = PathBuf::from(path);
-    if path::is_separator(path.to_string_lossy().chars().last().unwrap_or(' ')) {
-        return Ok(PathObject::from_path(
-            canonicalize_or_return(path),
-            PathObjectType::Directory,
-        ));
+    if let Ok(path) = PathBuf::from(path).canonicalize() {
+        return Ok(PathObject {
+            is_dir: path.is_dir(),
+            path,
+            linecol: None,
+        });
     }
-    let components = path.components();
-    // Verify that last component is what could be a filename
-    // otherwise bail out since it's an actual path
-    match components.last() {
-        Some(Component::Normal(_)) => {}
-        _ => {
-            return Ok(PathObject::from_path(
-                canonicalize_or_return(path),
-                PathObjectType::Directory,
-            ));
-        }
-    };
-    // Bail out quickly on existing path
-    if let Ok(meta) = fs::metadata(&path) {
-        let path = canonicalize_or_return(path.clone());
-        if meta.is_dir() {
-            return Ok(PathObject::from_path(path, PathObjectType::Directory));
-        }
-        if meta.is_file() {
-            return Ok(PathObject::from_path(path, PathObjectType::File));
-        }
-    };
-    if let Some(str) = path.to_str() {
-        let mut splits = str.rsplit(':');
-        if let Some(first_rhs) = splits.next() {
-            if let Ok(first_rhs_num) = first_rhs.parse::<usize>() {
-                if let Some(second_rhs) = splits.next() {
-                    if let Ok(second_rhs_num) = second_rhs.parse::<usize>() {
-                        let mut str = String::new();
-                        write_text_with_sep_to(splits.rev(), &mut str, ":")?;
-                        // NOTE: The last element is ":", and its ok, because even if we use &[&str] we need
-                        // to check the length of a slice on each iteration
-                        let left_path = PathBuf::from(&str[..str.len() - 1]);
-                        if left_path.is_file() {
-                            return Ok(PathObject::new(
-                                left_path,
-                                PathObjectType::File,
-                                second_rhs_num,
-                                first_rhs_num,
-                            ));
-                        }
 
-                        str.push_str(second_rhs);
-                        let left_path = PathBuf::from(&str);
-                        if left_path.is_file() {
-                            return Ok(PathObject::new(
-                                left_path,
-                                PathObjectType::File,
-                                first_rhs_num,
-                                1,
-                            ));
-                        } else if path.is_file() {
-                            return Ok(PathObject::from_path(
-                                path,
-                                PathObjectType::File,
-                            ));
-                        }
-                    } else {
-                        let mut str = String::new();
-                        write_text_with_sep_to(splits.rev(), &mut str, ":")?;
-                        // Last char of `str` is ":", so we neen to push only `second_rhs`
-                        str.push_str(second_rhs);
+    let pwd = std::env::current_dir().unwrap_or_default();
 
-                        return Ok(PathObject::new(
-                            PathBuf::from(str),
-                            PathObjectType::File,
-                            first_rhs_num,
-                            1,
-                        ));
-                    }
-                } else {
-                    return Ok(PathObject::from_path(path, PathObjectType::File));
-                }
+    let mut splits = path.rsplit(':').peekable();
+    let (path, linecol) = if let Some(first_rhs) =
+        splits.peek().and_then(|s| s.parse::<usize>().ok())
+    {
+        splits.next();
+        if let Some(second_rhs) = splits.peek().and_then(|s| s.parse::<usize>().ok())
+        {
+            splits.next();
+            let remaning: Vec<&str> = splits.rev().collect();
+            let path = remaning.join(":");
+            let path = PathBuf::from(path);
+            let path = if let Ok(path) = path.canonicalize() {
+                path
             } else {
-                return Ok(PathObject::from_path(path, PathObjectType::File));
-            }
+                pwd.join(&path)
+            };
+            (
+                path,
+                Some(LineCol {
+                    line: second_rhs,
+                    column: first_rhs,
+                }),
+            )
+        } else {
+            let remaning: Vec<&str> = splits.rev().collect();
+            let path = remaning.join(":");
+            let path = PathBuf::from(path);
+            let path = if let Ok(path) = path.canonicalize() {
+                path
+            } else {
+                pwd.join(&path)
+            };
+            (
+                path,
+                Some(LineCol {
+                    line: first_rhs,
+                    column: 1,
+                }),
+            )
         }
-    }
-    Ok(PathObject::from_path(path, PathObjectType::File))
-}
+    } else {
+        (pwd.join(path), None)
+    };
 
-// FIXME: Unfortunately the last element will be ":", we need to think about how to handle
-// it without having to allocate an unnecessary vector
-fn write_text_with_sep_to<I, T, Buf>(
-    mut iter: I,
-    buf: &mut Buf,
-    sep: T,
-) -> fmt::Result
-where
-    Buf: fmt::Write,
-    I: Iterator<Item = T>,
-    T: AsRef<str>,
-{
-    if let Some(str) = iter.next() {
-        buf.write_str(str.as_ref())?;
-        buf.write_str(sep.as_ref())?;
-        // call ourselves recursively
-        write_text_with_sep_to(iter, buf, sep)?
-    }
-    fmt::Result::Ok(())
+    Ok(PathObject {
+        is_dir: path.is_dir(),
+        path,
+        linecol,
+    })
 }
 
 pub fn try_open_in_existing_process(paths: &[PathObject]) -> Result<()> {
@@ -171,24 +82,18 @@ pub fn try_open_in_existing_process(paths: &[PathObject]) -> Result<()> {
     let mut socket =
         interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
 
-    // Split user input into known existing directors and
-    // file paths that exist or not
-    let (folders, files): (Vec<PathBuf>, Vec<PathBuf>) = paths
-        .iter()
-        .map(|p| p.path.to_owned())
-        .partition(|p| p.is_dir());
-
-    let msg: ProxyMessage =
-        RpcMessage::Notification(ProxyNotification::OpenPaths { folders, files });
+    let msg: ProxyMessage = RpcMessage::Notification(ProxyNotification::OpenPaths {
+        paths: paths.to_vec(),
+    });
     lapce_rpc::stdio::write_msg(&mut socket, msg)?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{env, fs, path::PathBuf};
+    use std::{env, path::PathBuf};
 
-    use crate::cli::{PathObject, PathObjectType};
+    use crate::cli::PathObject;
 
     use super::parse_file_line_column;
 
@@ -197,12 +102,7 @@ mod tests {
     fn test_absolute_path() {
         assert_eq!(
             parse_file_line_column("C:\\Cargo.toml:55").unwrap(),
-            PathObject::new(
-                PathBuf::from("C:\\Cargo.toml"),
-                PathObjectType::File,
-                55,
-                1
-            ),
+            PathObject::new(PathBuf::from("C:\\Cargo.toml"), false, 55, 1),
         );
     }
 
@@ -212,8 +112,8 @@ mod tests {
         assert_eq!(
             parse_file_line_column(".\\..\\Cargo.toml:55").unwrap(),
             PathObject::new(
-                PathBuf::from(".\\..\\Cargo.toml"),
-                PathObjectType::File,
+                PathBuf::from(".\\..\\Cargo.toml").canonicalize().unwrap(),
+                false,
                 55,
                 1
             ),
@@ -226,8 +126,8 @@ mod tests {
         assert_eq!(
             parse_file_line_column(".\\Cargo.toml\\").unwrap(),
             PathObject::from_path(
-                PathBuf::from(".\\Cargo.toml\\"),
-                PathObjectType::Directory
+                env::current_dir().unwrap().join("Cargo.toml"),
+                false
             ),
         );
     }
@@ -237,23 +137,19 @@ mod tests {
     fn test_absolute_path() {
         assert_eq!(
             parse_file_line_column("/tmp/Cargo.toml:55").unwrap(),
-            PathObject::new(
-                PathBuf::from("/tmp/Cargo.toml"),
-                PathObjectType::File,
-                55,
-                1
-            ),
+            PathObject::new(PathBuf::from("/tmp/Cargo.toml"), false, 55, 1),
         );
     }
 
     #[test]
     #[cfg(unix)]
     fn test_relative_path() {
+        println!("{:?}", env::current_dir());
         assert_eq!(
-            parse_file_line_column("./lapce-core/../Cargo.toml").unwrap(),
+            parse_file_line_column("./../Cargo.toml").unwrap(),
             PathObject::from_path(
-                PathBuf::from("./lapce-core/../Cargo.toml"),
-                PathObjectType::File
+                PathBuf::from("./../Cargo.toml").canonicalize().unwrap(),
+                false,
             ),
         );
     }
@@ -265,7 +161,7 @@ mod tests {
             parse_file_line_column("./Cargo.toml/").unwrap(),
             PathObject::from_path(
                 env::current_dir().unwrap().join("Cargo.toml"),
-                PathObjectType::Directory
+                false
             ),
         );
     }
@@ -275,8 +171,8 @@ mod tests {
         assert_eq!(
             parse_file_line_column(".").unwrap(),
             PathObject::from_path(
-                fs::canonicalize(env::current_dir().unwrap()).unwrap(),
-                PathObjectType::Directory
+                env::current_dir().unwrap().canonicalize().unwrap(),
+                true
             ),
         );
     }
@@ -286,8 +182,8 @@ mod tests {
         assert_eq!(
             parse_file_line_column("Cargo.toml:55").unwrap(),
             PathObject::new(
-                PathBuf::from("Cargo.toml"),
-                PathObjectType::File,
+                PathBuf::from("Cargo.toml").canonicalize().unwrap(),
+                false,
                 55,
                 1
             ),
@@ -299,8 +195,8 @@ mod tests {
         assert_eq!(
             parse_file_line_column("Cargo.toml:55:3").unwrap(),
             PathObject::new(
-                PathBuf::from("Cargo.toml"),
-                PathObjectType::File,
+                PathBuf::from("Cargo.toml").canonicalize().unwrap(),
+                false,
                 55,
                 3
             ),
@@ -311,9 +207,13 @@ mod tests {
     fn test_relative_path_with_none() {
         assert_eq!(
             parse_file_line_column("Cargo.toml:12:623:352").unwrap(),
-            PathObject::from_path(
-                PathBuf::from("Cargo.toml:12:623:352"),
-                PathObjectType::File
+            PathObject::new(
+                env::current_dir()
+                    .unwrap()
+                    .join(PathBuf::from("Cargo.toml:12")),
+                false,
+                623,
+                352
             ),
         );
     }

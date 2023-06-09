@@ -19,6 +19,7 @@ use crate::{
 };
 
 pub enum SaveEvent {
+    App(AppInfo),
     Workspace(LapceWorkspace, WorkspaceInfo),
     RecentWorkspace(LapceWorkspace),
     Doc(DocInfo),
@@ -52,6 +53,9 @@ impl LapceDb {
             loop {
                 let event = save_rx.recv()?;
                 match event {
+                    SaveEvent::App(info) => {
+                        let _ = local_db.insert_app_info(info);
+                    }
                     SaveEvent::Workspace(workspace, info) => {
                         let _ = local_db.insert_workspace(&workspace, &info);
                     }
@@ -239,12 +243,36 @@ impl LapceDb {
         Ok(())
     }
 
-    pub fn save_app(&self, data: AppData) -> Result<()> {
+    pub fn save_app(&self, data: &AppData) -> Result<()> {
         let windows = data.windows.get_untracked();
         for window in &windows {
-            for (_, window_tab) in window.window_tabs.get_untracked().into_iter() {
-                let _ = self.insert_window_tab(window_tab);
-            }
+            let _ = self.save_window(window.clone());
+        }
+
+        let info = AppInfo {
+            windows: windows
+                .iter()
+                .map(|window_data| window_data.info())
+                .collect(),
+        };
+
+        self.save_tx.send(SaveEvent::App(info))?;
+
+        Ok(())
+    }
+
+    pub fn insert_app_info(&self, info: AppInfo) -> Result<()> {
+        let info = serde_json::to_string(&info)?;
+        let sled_db = self.get_db()?;
+        sled_db.insert("app", info.as_str())?;
+        sled_db.flush()?;
+        Ok(())
+    }
+
+    pub fn insert_app(&self, data: AppData) -> Result<()> {
+        let windows = data.windows.get_untracked();
+        for window in &windows {
+            let _ = self.insert_window(window.clone());
         }
         let info = AppInfo {
             windows: windows
@@ -277,6 +305,13 @@ impl LapceDb {
         let info = std::str::from_utf8(&info)?;
         let info: WindowInfo = serde_json::from_str(info)?;
         Ok(info)
+    }
+
+    pub fn save_window(&self, data: WindowData) -> Result<()> {
+        for (_, window_tab) in data.window_tabs.get_untracked().into_iter() {
+            let _ = self.save_window_tab(window_tab);
+        }
+        Ok(())
     }
 
     pub fn insert_window(&self, data: WindowData) -> Result<()> {

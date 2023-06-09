@@ -33,11 +33,11 @@ use lapce_core::{
     register::Register,
     selection::Selection,
 };
-use lapce_proxy::cli::PathObject;
 use lapce_rpc::{
     buffer::BufferId,
     core::{CoreMessage, CoreNotification},
     dap_types::RunDebugConfig,
+    file::PathObject,
     plugin::{VoltID, VoltInfo},
     proxy::ProxyResponse,
     source_control::FileDiff,
@@ -365,24 +365,16 @@ impl LapceData {
                     let msg: CoreMessage = lapce_rpc::stdio::read_msg(&mut reader)?;
 
                     if let RpcMessage::Notification(CoreNotification::OpenPaths {
-                        window_tab_id,
-                        folders,
-                        files,
+                        ..
                     }) = msg
                     {
-                        let window_tab_id =
-                            window_tab_id.map(|(window_id, tab_id)| {
-                                (
-                                    WindowId::from_usize(window_id),
-                                    WidgetId::from_usize(tab_id),
-                                )
-                            });
+                        let window_tab_id = None;
                         let _ = event_sink.submit_command(
                             LAPCE_UI_COMMAND,
                             LapceUICommand::OpenPaths {
                                 window_tab_id,
-                                folders,
-                                files,
+                                folders: Vec::new(),
+                                files: Vec::new(),
                             },
                             Target::Global,
                         );
@@ -411,32 +403,9 @@ impl LapceData {
         mut socket: interprocess::local_socket::LocalSocketStream,
         paths: &[PathObject],
     ) -> Result<()> {
-        let folders: Vec<PathBuf> = paths
-            .iter()
-            .filter_map(|p| {
-                if p.path.is_dir() {
-                    Some(p.path.to_owned())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let files = paths
-            .iter()
-            .filter_map(|p| {
-                if p.path.is_file() {
-                    Some(p.path.to_owned())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<PathBuf>>();
         let msg: CoreMessage =
             RpcMessage::Notification(CoreNotification::OpenPaths {
-                window_tab_id: None,
-                folders,
-                files,
+                paths: paths.to_vec(),
             });
         lapce_rpc::stdio::write_msg(&mut socket, msg)?;
 

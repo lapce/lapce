@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     buffer::BufferId,
     dap_types::{DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
-    file::FileNodeItem,
+    file::{FileNodeItem, PathObject},
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
     style::SemanticStyles,
@@ -181,8 +181,7 @@ pub enum ProxyNotification {
         path: PathBuf,
     },
     OpenPaths {
-        folders: Vec<PathBuf>,
-        files: Vec<PathBuf>,
+        paths: Vec<PathObject>,
     },
     Shutdown {},
     Completion {

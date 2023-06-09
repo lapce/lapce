@@ -15,8 +15,8 @@ use floem::{
 use itertools::Itertools;
 use lapce_core::{directory::Directory, meta, mode::Mode, register::Register};
 use lapce_rpc::{
-    core::CoreNotification, dap_types::RunDebugConfig, proxy::ProxyRpcHandler,
-    terminal::TermId,
+    core::CoreNotification, dap_types::RunDebugConfig, file::PathObject,
+    proxy::ProxyRpcHandler, terminal::TermId,
 };
 use serde_json::Value;
 
@@ -31,7 +31,7 @@ use crate::{
     db::LapceDb,
     debug::{DapData, RunDebugMode, RunDebugProcess},
     doc::{DocContent, EditorDiagnostic},
-    editor::location::EditorLocation,
+    editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
     find::Find,
@@ -1285,27 +1285,8 @@ impl WindowTabData {
             } => {
                 self.terminal.dap_stopped(dap_id, stopped, stack_frames);
             }
-            CoreNotification::OpenPaths { folders, files, .. } => {
-                for folder in folders {
-                    self.common.window_command.send(
-                        WindowCommand::NewWorkspaceTab {
-                            workspace: LapceWorkspace {
-                                kind: self.workspace.kind.clone(),
-                                path: Some(folder.to_path_buf()),
-                                last_open: 0,
-                            },
-                            end: false,
-                        },
-                    );
-                }
-
-                for file in files {
-                    self.common
-                        .internal_command
-                        .send(InternalCommand::OpenFile {
-                            path: file.to_path_buf(),
-                        });
-                }
+            CoreNotification::OpenPaths { paths } => {
+                self.open_paths(paths);
             }
             CoreNotification::DapContinued { dap_id } => {
                 self.terminal.dap_continued(dap_id);
@@ -1694,6 +1675,47 @@ impl WindowTabData {
 
         if !self.panel.is_panel_visible(&PanelKind::Terminal) {
             self.panel.show_panel(&PanelKind::Terminal);
+        }
+    }
+
+    pub fn open_paths(&self, paths: &[PathObject]) {
+        let (folders, files): (Vec<&PathObject>, Vec<&PathObject>) =
+            paths.iter().partition(|p| p.is_dir);
+
+        for folder in folders {
+            self.common
+                .window_command
+                .set(Some(WindowCommand::NewWorkspaceTab {
+                    workspace: LapceWorkspace {
+                        kind: self.workspace.kind.clone(),
+                        path: Some(folder.path.clone()),
+                        last_open: 0,
+                    },
+                    end: false,
+                }));
+        }
+
+        for file in files {
+            let position = file.linecol.map(|pos| {
+                EditorPosition::Position(lsp_types::Position {
+                    line: pos.line.saturating_sub(1) as u32,
+                    character: pos.column.saturating_sub(1) as u32,
+                })
+            });
+
+            self.common
+                .internal_command
+                .set(Some(InternalCommand::GoToLocation {
+                    location: EditorLocation {
+                        path: file.path.clone(),
+                        position,
+                        scroll_offset: None,
+                        // Create a new editor for the file, so we don't change any current unconfirmed
+                        // editor
+                        ignore_unconfirmed: true,
+                        same_editor_tab: false,
+                    },
+                }));
         }
     }
 }

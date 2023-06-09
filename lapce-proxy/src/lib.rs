@@ -22,6 +22,7 @@ use dispatch::Dispatcher;
 use lapce_core::{directory::Directory, meta};
 use lapce_rpc::{
     core::{CoreRpc, CoreRpcHandler},
+    file::PathObject,
     proxy::{ProxyMessage, ProxyNotification, ProxyRpcHandler},
     stdio::stdio_transport,
     RpcMessage,
@@ -40,7 +41,7 @@ struct Cli {
     /// to specify line and column at which it should open the file
     #[clap(value_parser = cli::parse_file_line_column)]
     #[clap(value_hint = clap::ValueHint::AnyPath)]
-    paths: Vec<cli::PathObject>,
+    paths: Vec<PathObject>,
 }
 
 pub fn mainloop() {
@@ -147,14 +148,10 @@ fn listen_local_socket(proxy_rpc: ProxyRpcHandler) -> Result<()> {
             loop {
                 let msg: ProxyMessage = lapce_rpc::stdio::read_msg(&mut reader)?;
                 if let RpcMessage::Notification(ProxyNotification::OpenPaths {
-                    folders,
-                    files,
+                    paths,
                 }) = msg
                 {
-                    proxy_rpc.notification(ProxyNotification::OpenPaths {
-                        folders,
-                        files,
-                    });
+                    proxy_rpc.notification(ProxyNotification::OpenPaths { paths });
                 }
             }
         });
