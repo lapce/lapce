@@ -4,13 +4,12 @@ use floem::{
     event::{Event, EventListener},
     glazier::PointerType,
     reactive::{
-        create_memo, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalWith, SignalWithUntracked,
+        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        SignalWithUntracked,
     },
     style::Style,
     view::View,
     views::{container, label, list, stack, svg, tab, Decorators},
-    AppContext,
 };
 
 use crate::{
@@ -61,6 +60,9 @@ fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
         },
         |(_, tab)| tab.terminal_tab_id,
         move |(index, tab)| {
+            let terminal = terminal.clone();
+            let terminal_tab_id = tab.terminal_tab_id;
+
             let title = {
                 let tab = tab.clone();
                 move || {
@@ -131,7 +133,9 @@ fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
                                 }),
                                 clickable_icon(
                                     || LapceIcons::CLOSE,
-                                    || {},
+                                    move || {
+                                        terminal.close_tab(Some(terminal_tab_id));
+                                    },
                                     || false,
                                     || false,
                                     config,
@@ -219,7 +223,6 @@ fn terminal_tab_split(
         },
         |(_, terminal)| terminal.term_id,
         move |(index, terminal)| {
-            let focus = terminal.common.focus;
             let terminal_panel_data = terminal_panel_data.clone();
             dispose_on_ui_cleanup(terminal.scope);
             container(move || {
