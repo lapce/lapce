@@ -3,8 +3,8 @@ use std::{path::PathBuf, sync::Arc};
 use floem::{
     peniko::Color,
     reactive::{
-        create_memo, create_rw_signal, ReadSignal, SignalGet, SignalSet,
-        SignalUpdate, SignalWith, WriteSignal,
+        create_memo, create_rw_signal, ReadSignal, SignalGet, SignalUpdate,
+        SignalWith,
     },
     style::{CursorStyle, Style},
     view::View,
@@ -18,6 +18,7 @@ use crate::{
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     doc::{DiagnosticData, EditorDiagnostic},
     editor::location::{EditorLocation, EditorPosition},
+    listener::Listener,
     proxy::path_from_url,
     window_tab::WindowTabData,
     workspace::LapceWorkspace,
@@ -74,7 +75,7 @@ fn problem_section(
 ) -> impl View {
     let config = window_tab_data.common.config;
     let main_split = window_tab_data.main_split.clone();
-    let internal_command = window_tab_data.common.internal_command.write_only();
+    let internal_command = window_tab_data.common.internal_command;
     container(|| {
         scroll(move || {
             let workspace = main_split.common.workspace.clone();
@@ -107,7 +108,7 @@ fn file_view(
     path: PathBuf,
     diagnostic_data: DiagnosticData,
     severity: DiagnosticSeverity,
-    internal_command: WriteSignal<Option<InternalCommand>>,
+    internal_command: Listener<InternalCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let cx = AppContext::get_current();
@@ -291,7 +292,7 @@ fn item_view(
     d: EditorDiagnostic,
     icon: &'static str,
     icon_color: impl Fn() -> Color + 'static,
-    internal_command: WriteSignal<Option<InternalCommand>>,
+    internal_command: Listener<InternalCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let related = d.diagnostic.related_information.unwrap_or_default();
@@ -352,9 +353,9 @@ fn item_view(
                 })
             })
             .on_click(move |_| {
-                internal_command.set(Some(InternalCommand::JumpToLocation {
+                internal_command.send(InternalCommand::JumpToLocation {
                     location: location.clone(),
-                }));
+                });
                 true
             })
             .style(|| Style::BASE.width_pct(100.0).min_width_pct(0.0)),
@@ -366,7 +367,7 @@ fn item_view(
 
 fn related_view(
     related: Vec<DiagnosticRelatedInformation>,
-    internal_command: WriteSignal<Option<InternalCommand>>,
+    internal_command: Listener<InternalCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let is_empty = related.is_empty();
@@ -404,11 +405,9 @@ fn related_view(
                         })
                     })
                     .on_click(move |_| {
-                        internal_command.set(Some(
-                            InternalCommand::JumpToLocation {
-                                location: location.clone(),
-                            },
-                        ));
+                        internal_command.send(InternalCommand::JumpToLocation {
+                            location: location.clone(),
+                        });
                         true
                     })
                     .style(move || {

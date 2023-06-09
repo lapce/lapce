@@ -1655,7 +1655,7 @@ fn find_view(
                 editor
                     .common
                     .internal_command
-                    .set(Some(InternalCommand::FocusEditorTab { editor_tab_id }));
+                    .send(InternalCommand::FocusEditorTab { editor_tab_id });
             }
             true
         })

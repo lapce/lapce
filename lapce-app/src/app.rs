@@ -256,12 +256,12 @@ fn editor_tab_header(
                         move || {
                             let editor_tab_id =
                                 editor_tab.with_untracked(|t| t.editor_tab_id);
-                            internal_command.set(Some(
+                            internal_command.send(
                                 InternalCommand::EditorTabChildClose {
                                     editor_tab_id,
                                     child: child_for_close.clone(),
                                 },
-                            ));
+                            );
                         },
                         || false,
                         || false,
@@ -393,10 +393,10 @@ fn editor_tab_header(
                 move || {
                     let editor_tab_id =
                         editor_tab.with_untracked(|t| t.editor_tab_id);
-                    internal_command.set(Some(InternalCommand::Split {
+                    internal_command.send(InternalCommand::Split {
                         direction: SplitDirection::Vertical,
                         editor_tab_id,
-                    }));
+                    });
                 },
                 || false,
                 || false,
@@ -408,9 +408,8 @@ fn editor_tab_header(
                 move || {
                     let editor_tab_id =
                         editor_tab.with_untracked(|t| t.editor_tab_id);
-                    internal_command.set(Some(InternalCommand::EditorTabClose {
-                        editor_tab_id,
-                    }));
+                    internal_command
+                        .send(InternalCommand::EditorTabClose { editor_tab_id });
                 },
                 || false,
                 || false,
@@ -530,8 +529,7 @@ fn editor_tab(
             focus.set(Focus::Workbench);
         }
         let editor_tab_id = editor_tab.with_untracked(|t| t.editor_tab_id);
-        internal_command
-            .set(Some(InternalCommand::FocusEditorTab { editor_tab_id }));
+        internal_command.send(InternalCommand::FocusEditorTab { editor_tab_id });
         false
     })
     .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
@@ -2010,8 +2008,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let update_in_progress = window_tab_data.update_in_progress;
     let config = window_tab_data.common.config;
     let workspace = window_tab_data.workspace.clone();
-    let set_workbench_command =
-        window_tab_data.common.workbench_command.write_only();
+    let workbench_command = window_tab_data.common.workbench_command;
     let main_split = window_tab_data.main_split.clone();
 
     let view = stack(|| {
@@ -2022,7 +2019,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
                         workspace,
                         main_split,
                         source_control,
-                        set_workbench_command,
+                        workbench_command,
                         latest_release,
                         update_in_progress,
                         config,

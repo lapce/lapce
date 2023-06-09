@@ -139,7 +139,7 @@ impl RenameData {
             let send = create_ext_action(self.common.scope, move |result| {
                 if let Ok(ProxyResponse::Rename { edit }) = result {
                     internal_command
-                        .set(Some(InternalCommand::ApplyWorkspaceEdit { edit }));
+                        .send(InternalCommand::ApplyWorkspaceEdit { edit });
                 }
             });
             self.common.proxy.rename(

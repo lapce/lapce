@@ -199,10 +199,10 @@ impl CodeActionData {
         if let Some(item) = self.filtered_items.get(self.active.get_untracked()) {
             self.common
                 .internal_command
-                .set(Some(InternalCommand::RunCodeAction {
+                .send(InternalCommand::RunCodeAction {
                     plugin_id: item.plugin_id,
                     action: item.item.clone(),
-                }));
+                });
         }
         self.cancel();
     }

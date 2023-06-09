@@ -2,9 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use floem::{
     event::EventListener,
-    reactive::{
-        ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
-    },
+    reactive::{ReadSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate},
     style::{CursorStyle, Style},
     view::View,
     views::{
@@ -21,6 +19,7 @@ use crate::{
     editor::location::{EditorLocation, EditorPosition},
     focus_text::focus_text,
     global_search::{GlobalSearchData, SearchMatchData},
+    listener::Listener,
     text_input::text_input,
     window_tab::{Focus, WindowTabData},
     workspace::LapceWorkspace,
@@ -121,7 +120,7 @@ pub fn global_search_panel(
 fn search_result(
     workspace: Arc<LapceWorkspace>,
     global_search_data: GlobalSearchData,
-    internal_command: RwSignal<Option<InternalCommand>>,
+    internal_command: Listener<InternalCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let ui_line_height = global_search_data.common.ui_line_height;
@@ -315,7 +314,7 @@ fn search_result(
                                             .margin_left_px(10.0 + icon_size + 6.0)
                                     })
                                     .on_click(move |_| {
-                                        internal_command.set(Some(
+                                        internal_command.send(
                                             InternalCommand::JumpToLocation {
                                                 location: EditorLocation {
                                                     path: path.clone(),
@@ -330,7 +329,7 @@ fn search_result(
                                                     same_editor_tab: false,
                                                 },
                                             },
-                                        ));
+                                        );
                                         true
                                     })
                                     .hover_style(move || {

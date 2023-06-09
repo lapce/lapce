@@ -352,13 +352,13 @@ impl EditorData {
             if let Some(path) = path {
                 let offset = self.cursor.with_untracked(|c| c.offset());
                 let scroll_offset = self.viewport.get_untracked().origin().to_vec2();
-                self.common.internal_command.set(Some(
+                self.common.internal_command.send(
                     InternalCommand::SaveJumpLocation {
                         path,
                         offset,
                         scroll_offset,
                     },
-                ));
+                );
             }
         }
         self.last_movement.set(movement.clone());
@@ -412,79 +412,75 @@ impl EditorData {
         match cmd {
             FocusCommand::SplitVertical => {
                 if let Some(editor_tab_id) = self.editor_tab_id {
-                    self.common
-                        .internal_command
-                        .set(Some(InternalCommand::Split {
-                            direction: SplitDirection::Vertical,
-                            editor_tab_id,
-                        }));
+                    self.common.internal_command.send(InternalCommand::Split {
+                        direction: SplitDirection::Vertical,
+                        editor_tab_id,
+                    });
                 }
             }
             FocusCommand::SplitHorizontal => {
                 if let Some(editor_tab_id) = self.editor_tab_id {
-                    self.common
-                        .internal_command
-                        .set(Some(InternalCommand::Split {
-                            direction: SplitDirection::Horizontal,
-                            editor_tab_id,
-                        }));
+                    self.common.internal_command.send(InternalCommand::Split {
+                        direction: SplitDirection::Horizontal,
+                        editor_tab_id,
+                    });
                 }
             }
             FocusCommand::SplitRight => {
                 if let Some(editor_tab_id) = self.editor_tab_id {
-                    self.common.internal_command.set(Some(
-                        InternalCommand::SplitMove {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
                             direction: SplitMoveDirection::Right,
                             editor_tab_id,
-                        },
-                    ));
+                        });
                 }
             }
             FocusCommand::SplitLeft => {
                 if let Some(editor_tab_id) = self.editor_tab_id {
-                    self.common.internal_command.set(Some(
-                        InternalCommand::SplitMove {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
                             direction: SplitMoveDirection::Left,
                             editor_tab_id,
-                        },
-                    ));
+                        });
                 }
             }
             FocusCommand::SplitUp => {
                 if let Some(editor_tab_id) = self.editor_tab_id {
-                    self.common.internal_command.set(Some(
-                        InternalCommand::SplitMove {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
                             direction: SplitMoveDirection::Up,
                             editor_tab_id,
-                        },
-                    ));
+                        });
                 }
             }
             FocusCommand::SplitDown => {
                 if let Some(editor_tab_id) = self.editor_tab_id {
-                    self.common.internal_command.set(Some(
-                        InternalCommand::SplitMove {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
                             direction: SplitMoveDirection::Down,
                             editor_tab_id,
-                        },
-                    ));
+                        });
                 }
             }
             FocusCommand::SplitExchange => {
                 if let Some(editor_tab_id) = self.editor_tab_id {
                     self.common
                         .internal_command
-                        .set(Some(InternalCommand::SplitExchange { editor_tab_id }));
+                        .send(InternalCommand::SplitExchange { editor_tab_id });
                 }
             }
             FocusCommand::SplitClose => {
                 if let Some(editor_tab_id) = self.editor_tab_id {
-                    self.common.internal_command.set(Some(
+                    self.common.internal_command.send(
                         InternalCommand::EditorTabChildClose {
                             editor_tab_id,
                             child: EditorTabChild::Editor(self.editor_id),
                         },
-                    ));
+                    );
                 }
             }
             FocusCommand::PageUp => {
@@ -730,10 +726,10 @@ impl EditorData {
             match d {
                 DefinitionOrReferece::Location(location) => {
                     internal_command
-                        .set(Some(InternalCommand::JumpToLocation { location }));
+                        .send(InternalCommand::JumpToLocation { location });
                 }
                 DefinitionOrReferece::References(locations) => {
-                    internal_command.set(Some(InternalCommand::PaletteReferences {
+                    internal_command.send(InternalCommand::PaletteReferences {
                         references: locations
                             .into_iter()
                             .map(|l| EditorLocation {
@@ -746,7 +742,7 @@ impl EditorData {
                                 same_editor_tab: false,
                             })
                             .collect(),
-                    }));
+                    });
                 }
             }
         });
@@ -1491,13 +1487,13 @@ impl EditorData {
             .with_untracked(|doc| doc.code_actions.get(&offset).cloned());
         if let Some(code_actions) = code_actions {
             if !code_actions.1.is_empty() {
-                self.common.internal_command.set(Some(
+                self.common.internal_command.send(
                     InternalCommand::ShowCodeActions {
                         offset,
                         mouse_click,
                         code_actions,
                     },
-                ));
+                );
             }
         }
     }
@@ -1578,11 +1574,9 @@ impl EditorData {
             )
         });
         self.common.find.whole_words.set(true);
-        self.common
-            .internal_command
-            .set(Some(InternalCommand::Search {
-                pattern: Some(word),
-            }));
+        self.common.internal_command.send(InternalCommand::Search {
+            pattern: Some(word),
+        });
         let next = self.common.find.next(buffer.text(), offset, false, true);
 
         if let Some((start, _end)) = next {
@@ -1713,12 +1707,12 @@ impl EditorData {
                         doc.buffer().slice_to_cow(start..end).to_string()
                     })
                 });
-                internal_command.set(Some(InternalCommand::StartRename {
+                internal_command.send(InternalCommand::StartRename {
                     path: local_path.clone(),
                     placeholder,
                     start,
                     position,
-                }));
+                });
             }
         });
         self.common
@@ -1783,7 +1777,7 @@ impl EditorData {
 
         self.common
             .internal_command
-            .set(Some(InternalCommand::Search { pattern }));
+            .send(InternalCommand::Search { pattern });
         self.common.find.visual.set(true);
         self.find_focus.set(true);
         self.common.find.replace_focus.set(false);
@@ -1793,7 +1787,7 @@ impl EditorData {
         if let Some(editor_tab_id) = self.editor_tab_id {
             self.common
                 .internal_command
-                .set(Some(InternalCommand::FocusEditorTab { editor_tab_id }));
+                .send(InternalCommand::FocusEditorTab { editor_tab_id });
         }
         self.common.focus.set(Focus::Workbench);
         self.find_focus.set(false);
@@ -1941,21 +1935,21 @@ impl KeyPressFocus for EditorData {
                 | CommandKind::Move(_)
                 | CommandKind::MultiSelection(_) => {
                     if self.common.find.replace_focus.get_untracked() {
-                        self.common.internal_command.set(Some(
+                        self.common.internal_command.send(
                             InternalCommand::ReplaceEditorCommand {
                                 command: command.clone(),
                                 count,
                                 mods,
                             },
-                        ));
+                        );
                     } else {
-                        self.common.internal_command.set(Some(
+                        self.common.internal_command.send(
                             InternalCommand::FindEditorCommand {
                                 command: command.clone(),
                                 count,
                                 mods,
                             },
-                        ));
+                        );
                     }
                     return CommandExecuted::Yes;
                 }
@@ -1999,13 +1993,13 @@ impl KeyPressFocus for EditorData {
         {
             // find/relace editor receive char
             if self.common.find.replace_focus.get_untracked() {
-                self.common.internal_command.set(Some(
+                self.common.internal_command.send(
                     InternalCommand::ReplaceEditorReceiveChar { s: c.to_string() },
-                ));
+                );
             } else {
-                self.common.internal_command.set(Some(
+                self.common.internal_command.send(
                     InternalCommand::FindEditorReceiveChar { s: c.to_string() },
-                ));
+                );
             }
         } else {
             // normal editor receive char

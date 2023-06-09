@@ -713,7 +713,7 @@ impl PaletteData {
                 let path = path.join(".lapce").join("run.toml");
                 self.common
                     .internal_command
-                    .set(Some(InternalCommand::OpenFile { path }));
+                    .send(InternalCommand::OpenFile { path });
             }
         }
         let executed_run_configs = self.executed_run_configs.borrow();
@@ -808,11 +808,11 @@ impl PaletteData {
         if let Some(item) = items.get(index) {
             match &item.content {
                 PaletteItemContent::File { full_path, .. } => {
-                    self.common.internal_command.set(Some(
-                        InternalCommand::OpenFile {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::OpenFile {
                             path: full_path.to_owned(),
-                        },
-                    ));
+                        });
                 }
                 PaletteItemContent::Line { line, .. } => {
                     let editor = self.main_split.active_editor.get_untracked();
@@ -827,7 +827,7 @@ impl PaletteData {
                         Some(path) => path,
                         None => return,
                     };
-                    self.common.internal_command.set(Some(
+                    self.common.internal_command.send(
                         InternalCommand::JumpToLocation {
                             location: EditorLocation {
                                 path,
@@ -837,35 +837,35 @@ impl PaletteData {
                                 same_editor_tab: false,
                             },
                         },
-                    ));
+                    );
                 }
                 PaletteItemContent::Command { cmd } => {
-                    self.common.lapce_command.set(Some(cmd.clone()));
+                    self.common.lapce_command.send(cmd.clone());
                 }
                 PaletteItemContent::Workspace { workspace } => {
-                    self.common.window_command.set(Some(
-                        WindowCommand::SetWorkspace {
+                    self.common
+                        .window_command
+                        .send(WindowCommand::SetWorkspace {
                             workspace: workspace.clone(),
-                        },
-                    ));
+                        });
                 }
                 PaletteItemContent::Reference { location, .. } => {
-                    self.common.internal_command.set(Some(
+                    self.common.internal_command.send(
                         InternalCommand::JumpToLocation {
                             location: location.clone(),
                         },
-                    ));
+                    );
                 }
                 PaletteItemContent::SshHost { host } => {
-                    self.common.window_command.set(Some(
-                        WindowCommand::SetWorkspace {
+                    self.common
+                        .window_command
+                        .send(WindowCommand::SetWorkspace {
                             workspace: LapceWorkspace {
                                 kind: LapceWorkspaceType::RemoteSSH(host.clone()),
                                 path: None,
                                 last_open: 0,
                             },
-                        },
-                    ));
+                        });
                 }
                 PaletteItemContent::DocumentSymbol { range, .. } => {
                     let editor = self.main_split.active_editor.get_untracked();
@@ -880,7 +880,7 @@ impl PaletteData {
                         Some(path) => path,
                         None => return,
                     };
-                    self.common.internal_command.set(Some(
+                    self.common.internal_command.send(
                         InternalCommand::JumpToLocation {
                             location: EditorLocation {
                                 path,
@@ -892,50 +892,50 @@ impl PaletteData {
                                 same_editor_tab: false,
                             },
                         },
-                    ));
+                    );
                 }
                 PaletteItemContent::WorkspaceSymbol { location, .. } => {
-                    self.common.internal_command.set(Some(
+                    self.common.internal_command.send(
                         InternalCommand::JumpToLocation {
                             location: location.clone(),
                         },
-                    ));
+                    );
                 }
                 PaletteItemContent::RunAndDebug { mode, config } => {
-                    self.common.internal_command.set(Some(
+                    self.common.internal_command.send(
                         InternalCommand::RunAndDebug {
                             mode: *mode,
                             config: config.clone(),
                         },
-                    ));
+                    );
                 }
                 PaletteItemContent::ColorTheme { name } => self
                     .common
                     .internal_command
-                    .set(Some(InternalCommand::SetColorTheme {
+                    .send(InternalCommand::SetColorTheme {
                         name: name.clone(),
                         save: true,
-                    })),
+                    }),
                 PaletteItemContent::IconTheme { name } => self
                     .common
                     .internal_command
-                    .set(Some(InternalCommand::SetIconTheme {
+                    .send(InternalCommand::SetIconTheme {
                         name: name.clone(),
                         save: true,
-                    })),
+                    }),
             }
         } else if self.kind.get_untracked() == PaletteKind::SshHost {
             let input = self.input.with_untracked(|input| input.input.clone());
             let ssh = SshHost::from_string(&input);
             self.common
                 .window_command
-                .set(Some(WindowCommand::SetWorkspace {
+                .send(WindowCommand::SetWorkspace {
                     workspace: LapceWorkspace {
                         kind: LapceWorkspaceType::RemoteSSH(ssh),
                         path: None,
                         last_open: 0,
                     },
-                }));
+                });
         }
     }
 
@@ -1038,17 +1038,17 @@ impl PaletteData {
                 PaletteItemContent::ColorTheme { name } => self
                     .common
                     .internal_command
-                    .set(Some(InternalCommand::SetColorTheme {
+                    .send(InternalCommand::SetColorTheme {
                         name: name.clone(),
                         save: false,
-                    })),
+                    }),
                 PaletteItemContent::IconTheme { name } => self
                     .common
                     .internal_command
-                    .set(Some(InternalCommand::SetIconTheme {
+                    .send(InternalCommand::SetIconTheme {
                         name: name.clone(),
                         save: false,
-                    })),
+                    }),
             }
         }
     }
@@ -1061,7 +1061,7 @@ impl PaletteData {
             // TODO(minor): We don't really need to reload the *entire config* here!
             self.common
                 .internal_command
-                .set(Some(InternalCommand::ReloadConfig));
+                .send(InternalCommand::ReloadConfig);
         }
 
         self.close();

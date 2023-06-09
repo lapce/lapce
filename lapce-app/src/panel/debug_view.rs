@@ -21,6 +21,7 @@ use crate::{
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     debug::{RunDebugMode, StackTraceData},
     editor::location::{EditorLocation, EditorPosition},
+    listener::Listener,
     terminal::panel::TerminalPanelData,
     window_tab::WindowTabData,
 };
@@ -296,7 +297,7 @@ fn debug_stack_frames(
     thread_id: ThreadId,
     stack_trace: StackTraceData,
     stopped: RwSignal<bool>,
-    internal_command: RwSignal<Option<InternalCommand>>,
+    internal_command: Listener<InternalCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let expanded = stack_trace.expanded;
@@ -374,22 +375,20 @@ fn debug_stack_frames(
                     })
                     .on_click(move |_| {
                         if let Some(path) = full_path.clone() {
-                            internal_command.set(Some(
-                                InternalCommand::JumpToLocation {
-                                    location: EditorLocation {
-                                        path,
-                                        position: Some(EditorPosition::Position(
-                                            lsp_types::Position {
-                                                line: line as u32,
-                                                character: col as u32,
-                                            },
-                                        )),
-                                        scroll_offset: None,
-                                        ignore_unconfirmed: false,
-                                        same_editor_tab: false,
-                                    },
+                            internal_command.send(InternalCommand::JumpToLocation {
+                                location: EditorLocation {
+                                    path,
+                                    position: Some(EditorPosition::Position(
+                                        lsp_types::Position {
+                                            line: line as u32,
+                                            character: col as u32,
+                                        },
+                                    )),
+                                    scroll_offset: None,
+                                    ignore_unconfirmed: false,
+                                    same_editor_tab: false,
                                 },
-                            ));
+                            });
                         }
                         true
                     })
@@ -423,7 +422,7 @@ fn debug_stack_frames(
 
 fn debug_stack_traces(
     terminal: TerminalPanelData,
-    internal_command: RwSignal<Option<InternalCommand>>,
+    internal_command: Listener<InternalCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     container(move || {

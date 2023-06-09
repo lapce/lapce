@@ -38,6 +38,7 @@ use crate::{
     global_search::GlobalSearchData,
     id::WindowTabId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
+    listener::Listener,
     main_split::{MainSplitData, SplitData, SplitDirection},
     palette::{kind::PaletteKind, PaletteData, PaletteStatus},
     panel::{
@@ -87,10 +88,10 @@ pub struct CommonData {
     pub completion: RwSignal<CompletionData>,
     pub register: RwSignal<Register>,
     pub find: Find,
-    pub window_command: WriteSignal<Option<WindowCommand>>,
-    pub internal_command: RwSignal<Option<InternalCommand>>,
-    pub lapce_command: RwSignal<Option<LapceCommand>>,
-    pub workbench_command: RwSignal<Option<LapceWorkbenchCommand>>,
+    pub window_command: Listener<WindowCommand>,
+    pub internal_command: Listener<InternalCommand>,
+    pub lapce_command: Listener<LapceCommand>,
+    pub workbench_command: Listener<LapceWorkbenchCommand>,
     pub term_tx: Sender<(TermId, TermEvent)>,
     pub term_notification_tx: Sender<TermNotification>,
     pub proxy: ProxyRpcHandler,
@@ -155,7 +156,7 @@ impl WindowTabData {
     pub fn new(
         cx: Scope,
         workspace: Arc<LapceWorkspace>,
-        window_command: WriteSignal<Option<WindowCommand>>,
+        window_command: Listener<WindowCommand>,
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     ) -> Self {
@@ -180,13 +181,11 @@ impl WindowTabData {
         };
 
         let config = LapceConfig::load(&workspace, &all_disabled_volts);
-        let lapce_command = create_rw_signal(cx, None);
-        let workbench_command = create_rw_signal(cx, None);
-        let internal_command = create_rw_signal(cx, None);
-        let keypress = create_rw_signal(
-            cx,
-            KeyPressData::new(&config, workbench_command.write_only()),
-        );
+        let lapce_command = Listener::new_empty(cx);
+        let workbench_command = Listener::new_empty(cx);
+        let internal_command = Listener::new_empty(cx);
+        let keypress =
+            create_rw_signal(cx, KeyPressData::new(&config, workbench_command));
 
         let (term_tx, term_rx) = crossbeam_channel::unbounded();
         let (term_notification_tx, term_notification_rx) =
@@ -367,29 +366,26 @@ impl WindowTabData {
 
         {
             let window_tab_data = window_tab_data.clone();
-            create_effect(cx, move |_| {
-                if let Some(cmd) = window_tab_data.common.lapce_command.get() {
-                    window_tab_data.run_lapce_command(cmd);
-                }
+            window_tab_data.common.lapce_command.listen(cx, move |cmd| {
+                window_tab_data.run_lapce_command(cmd);
             });
         }
 
         {
             let window_tab_data = window_tab_data.clone();
-            create_effect(cx, move |_| {
-                if let Some(cmd) = window_tab_data.common.workbench_command.get() {
+            window_tab_data
+                .common
+                .workbench_command
+                .listen(cx, move |cmd| {
                     window_tab_data.run_workbench_command(cmd, None);
-                }
-            });
+                });
         }
 
         {
             let window_tab_data = window_tab_data.clone();
             let internal_command = window_tab_data.common.internal_command;
-            create_effect(cx, move |_| {
-                if let Some(cmd) = internal_command.get() {
-                    window_tab_data.run_internal_command(cmd);
-                }
+            internal_command.listen(cx, move |cmd| {
+                window_tab_data.run_internal_command(cmd);
             });
         }
 
@@ -473,9 +469,8 @@ impl WindowTabData {
                                         .unwrap()
                                         .as_secs(),
                                 };
-                                window_command.set(Some(
-                                    WindowCommand::SetWorkspace { workspace },
-                                ));
+                                window_command
+                                    .send(WindowCommand::SetWorkspace { workspace });
                             }
                         },
                     );
@@ -489,8 +484,7 @@ impl WindowTabData {
                         path: None,
                         last_open: 0,
                     };
-                    window_command
-                        .set(Some(WindowCommand::SetWorkspace { workspace }));
+                    window_command.send(WindowCommand::SetWorkspace { workspace });
                 }
             }
             OpenFile => {
@@ -501,9 +495,9 @@ impl WindowTabData {
                         options,
                         move |file| {
                             if let Some(file) = file {
-                                internal_command.set(Some(
-                                    InternalCommand::OpenFile { path: file.path },
-                                ))
+                                internal_command.send(InternalCommand::OpenFile {
+                                    path: file.path,
+                                })
                             }
                         },
                     );
@@ -627,9 +621,9 @@ impl WindowTabData {
             ReloadWindow => {
                 self.common
                     .window_command
-                    .set(Some(WindowCommand::SetWorkspace {
+                    .send(WindowCommand::SetWorkspace {
                         workspace: (*self.workspace).clone(),
-                    }));
+                    });
             }
             NewWindow => {
                 // TODO:
@@ -640,27 +634,27 @@ impl WindowTabData {
 
             // ==== Window Tabs ====
             NewWindowTab => {
-                self.common.window_command.set(Some(
-                    WindowCommand::NewWorkspaceTab {
+                self.common
+                    .window_command
+                    .send(WindowCommand::NewWorkspaceTab {
                         workspace: LapceWorkspace::default(),
                         end: false,
-                    },
-                ));
+                    });
             }
             CloseWindowTab => {
                 self.common
                     .window_command
-                    .set(Some(WindowCommand::CloseWorkspaceTab { index: None }));
+                    .send(WindowCommand::CloseWorkspaceTab { index: None });
             }
             NextWindowTab => {
                 self.common
                     .window_command
-                    .set(Some(WindowCommand::NextWorkspaceTab));
+                    .send(WindowCommand::NextWorkspaceTab);
             }
             PreviousWindowTab => {
                 self.common
                     .window_command
-                    .set(Some(WindowCommand::PreviousWorkspaceTab));
+                    .send(WindowCommand::PreviousWorkspaceTab);
             }
 
             // ==== Editor Tabs ====
@@ -766,13 +760,13 @@ impl WindowTabData {
             DisconnectRemote => {
                 self.common
                     .window_command
-                    .set(Some(WindowCommand::SetWorkspace {
+                    .send(WindowCommand::SetWorkspace {
                         workspace: LapceWorkspace {
                             kind: LapceWorkspaceType::Local,
                             path: None,
                             last_open: 0,
                         },
-                    }));
+                    });
             }
 
             // ==== Palette Commands ====
@@ -1293,7 +1287,7 @@ impl WindowTabData {
             }
             CoreNotification::OpenPaths { folders, files, .. } => {
                 for folder in folders {
-                    self.common.window_command.set(Some(
+                    self.common.window_command.send(
                         WindowCommand::NewWorkspaceTab {
                             workspace: LapceWorkspace {
                                 kind: self.workspace.kind.clone(),
@@ -1302,15 +1296,15 @@ impl WindowTabData {
                             },
                             end: false,
                         },
-                    ));
+                    );
                 }
 
                 for file in files {
-                    self.common.internal_command.set(Some(
-                        InternalCommand::OpenFile {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::OpenFile {
                             path: file.to_path_buf(),
-                        },
-                    ));
+                        });
                 }
             }
             CoreNotification::DapContinued { dap_id } => {
