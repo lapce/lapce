@@ -218,39 +218,39 @@ impl KeyPressFocus for TerminalData {
                     ));
                 }
                 FocusCommand::SplitVertical => {
-                    self.common.internal_command.set(Some(
+                    self.common.internal_command.send(
                         InternalCommand::SplitTerminal {
                             term_id: self.term_id,
                         },
-                    ));
+                    );
                 }
                 FocusCommand::SplitHorizontal => {
-                    self.common.internal_command.set(Some(
+                    self.common.internal_command.send(
                         InternalCommand::SplitTerminal {
                             term_id: self.term_id,
                         },
-                    ));
+                    );
                 }
                 FocusCommand::SplitLeft => {
-                    self.common.internal_command.set(Some(
+                    self.common.internal_command.send(
                         InternalCommand::SplitTerminalPrevious {
                             term_id: self.term_id,
                         },
-                    ));
+                    );
                 }
                 FocusCommand::SplitRight => {
-                    self.common.internal_command.set(Some(
+                    self.common.internal_command.send(
                         InternalCommand::SplitTerminalNext {
                             term_id: self.term_id,
                         },
-                    ));
+                    );
                 }
                 FocusCommand::SplitExchange => {
-                    self.common.internal_command.set(Some(
+                    self.common.internal_command.send(
                         InternalCommand::SplitTerminalExchange {
                             term_id: self.term_id,
                         },
-                    ));
+                    );
                 }
                 FocusCommand::SearchForward => {
                     // if let Some(search_string) = self.find.search_string.as_ref() {

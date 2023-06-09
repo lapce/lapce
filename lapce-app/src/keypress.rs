@@ -7,10 +7,7 @@ mod press;
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Result;
-use floem::{
-    glazier::{KbKey, KeyEvent, Modifiers, MouseEvent},
-    reactive::{SignalSet, WriteSignal},
-};
+use floem::glazier::{KbKey, KeyEvent, Modifiers, MouseEvent};
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
 
@@ -24,6 +21,7 @@ use crate::{
         condition::{CheckCondition, Condition},
         keymap::KeymapMatch,
     },
+    listener::Listener,
 };
 
 use self::{key::Key, keymap::KeyMap, loader::KeyMapLoader, press::KeyPress};
@@ -80,7 +78,7 @@ impl<'a> From<&'a MouseEvent> for EventRef<'a> {
 pub struct KeyPressData {
     count: Option<usize>,
     pending_keypress: Vec<KeyPress>,
-    workbench_cmd: WriteSignal<Option<LapceWorkbenchCommand>>,
+    workbench_cmd: Listener<LapceWorkbenchCommand>,
     pub commands: IndexMap<String, LapceCommand>,
     keymaps: IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
     command_keymaps: IndexMap<String, Vec<KeyMap>>,
@@ -91,7 +89,7 @@ pub struct KeyPressData {
 impl KeyPressData {
     pub fn new(
         config: &LapceConfig,
-        workbench_cmd: WriteSignal<Option<LapceWorkbenchCommand>>,
+        workbench_cmd: Listener<LapceWorkbenchCommand>,
     ) -> Self {
         let (keymaps, command_keymaps) =
             Self::get_keymaps(config).unwrap_or((IndexMap::new(), IndexMap::new()));
@@ -169,7 +167,7 @@ impl KeyPressData {
         if let Some(cmd) = self.commands.get(command) {
             match &cmd.kind {
                 CommandKind::Workbench(cmd) => {
-                    self.workbench_cmd.set(Some(cmd.clone()));
+                    self.workbench_cmd.send(cmd.clone());
                     CommandExecuted::Yes
                 }
                 CommandKind::Move(_)

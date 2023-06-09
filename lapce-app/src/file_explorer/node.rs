@@ -11,7 +11,7 @@ use floem::{
 use indexmap::IndexMap;
 use lapce_rpc::proxy::{ProxyResponse, ProxyRpcHandler};
 
-use crate::command::InternalCommand;
+use crate::{command::InternalCommand, listener::Listener};
 
 #[derive(Clone)]
 pub struct FileNode {
@@ -24,7 +24,7 @@ pub struct FileNode {
     pub children_open_count: RwSignal<usize>,
     pub all_files: RwSignal<im::HashMap<PathBuf, FileNode>>,
     pub line_height: Memo<f64>,
-    pub internal_command: RwSignal<Option<InternalCommand>>,
+    pub internal_command: Listener<InternalCommand>,
 }
 
 impl VirtualListVector<(PathBuf, FileNode)> for FileNode {
@@ -60,9 +60,9 @@ impl FileNode {
         if self.is_dir {
             self.toggle_expand(proxy)
         } else {
-            self.internal_command.set(Some(InternalCommand::OpenFile {
+            self.internal_command.send(InternalCommand::OpenFile {
                 path: self.path.clone(),
-            }))
+            })
         }
     }
 

@@ -4,8 +4,7 @@ use floem::{
     menu::{Menu, MenuItem},
     peniko::kurbo::Point,
     reactive::{
-        create_memo, ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
-        SignalWith, WriteSignal,
+        create_memo, ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalWith,
     },
     style::{AlignItems, CursorStyle, Dimension, Display, JustifyContent, Style},
     view::View,
@@ -19,6 +18,7 @@ use crate::{
     app::clickable_icon,
     command::LapceWorkbenchCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    listener::Listener,
     main_split::MainSplitData,
     source_control::SourceControlData,
     update::ReleaseInfo,
@@ -27,7 +27,7 @@ use crate::{
 
 fn left(
     source_control: RwSignal<SourceControlData>,
-    set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
+    workbench_command: Listener<LapceWorkbenchCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let branch = move || {
@@ -59,16 +59,16 @@ fn left(
                 #[allow(unused_mut)]
                 let mut menu = Menu::new("").entry(
                     MenuItem::new("Connect to SSH Host").action(move || {
-                        set_workbench_command
-                            .set(Some(LapceWorkbenchCommand::ConnectSshHost));
+                        workbench_command
+                            .send(LapceWorkbenchCommand::ConnectSshHost);
                     }),
                 );
                 #[cfg(windows)]
                 {
                     menu = menu.entry(MenuItem::new("Connect to WSL").action(
                         move || {
-                            set_workbench_command
-                                .set(Some(LapceWorkbenchCommand::ConnectWsl));
+                            workbench_command
+                                .send(LapceWorkbenchCommand::ConnectWsl);
                         },
                     ));
                 }
@@ -126,7 +126,7 @@ fn left(
 fn middle(
     workspace: Arc<LapceWorkspace>,
     main_split: MainSplitData,
-    set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
+    workbench_command: Listener<LapceWorkbenchCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let local_workspace = workspace.clone();
@@ -145,8 +145,7 @@ fn middle(
         clickable_icon(
             || LapceIcons::LOCATION_BACKWARD,
             move || {
-                set_workbench_command
-                    .set(Some(LapceWorkbenchCommand::JumpLocationBackward));
+                workbench_command.send(LapceWorkbenchCommand::JumpLocationBackward);
             },
             || false,
             move || !can_jump_backward.get(),
@@ -158,8 +157,7 @@ fn middle(
         clickable_icon(
             || LapceIcons::LOCATION_FORWARD,
             move || {
-                set_workbench_command
-                    .set(Some(LapceWorkbenchCommand::JumpLocationForward));
+                workbench_command.send(LapceWorkbenchCommand::JumpLocationForward);
             },
             || false,
             move || !can_jump_forward.get(),
@@ -176,14 +174,13 @@ fn middle(
                 id.show_context_menu(
                     Menu::new("")
                         .entry(MenuItem::new("Open Folder").action(move || {
-                            set_workbench_command
-                                .set(Some(LapceWorkbenchCommand::OpenFolder));
+                            workbench_command
+                                .send(LapceWorkbenchCommand::OpenFolder);
                         }))
                         .entry(MenuItem::new("Open Recent Workspace").action(
                             move || {
-                                set_workbench_command.set(Some(
-                                    LapceWorkbenchCommand::PaletteWorkspace,
-                                ));
+                                workbench_command
+                                    .send(LapceWorkbenchCommand::PaletteWorkspace);
                             },
                         )),
                     Point::ZERO,
@@ -232,10 +229,9 @@ fn middle(
             })
             .on_click(move |_| {
                 if workspace.clone().path.is_some() {
-                    set_workbench_command.set(Some(LapceWorkbenchCommand::Palette));
+                    workbench_command.send(LapceWorkbenchCommand::Palette);
                 } else {
-                    set_workbench_command
-                        .set(Some(LapceWorkbenchCommand::PaletteWorkspace));
+                    workbench_command.send(LapceWorkbenchCommand::PaletteWorkspace);
                 }
                 true
             })
@@ -258,8 +254,8 @@ fn middle(
                 clickable_icon(
                     || LapceIcons::START,
                     move || {
-                        set_workbench_command
-                            .set(Some(LapceWorkbenchCommand::PaletteRunAndDebug))
+                        workbench_command
+                            .send(LapceWorkbenchCommand::PaletteRunAndDebug)
                     },
                     || false,
                     || false,
@@ -285,7 +281,7 @@ fn middle(
 }
 
 fn right(
-    set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
+    workbench_command: Listener<LapceWorkbenchCommand>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     update_in_progress: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
@@ -316,17 +312,17 @@ fn right(
                             Menu::new("")
                                 .entry(MenuItem::new("Command Palette").action(
                                     move || {
-                                        set_workbench_command.set(Some(
+                                        workbench_command.send(
                                             LapceWorkbenchCommand::PaletteCommand,
-                                        ))
+                                        )
                                     },
                                 ))
                                 .separator()
                                 .entry(MenuItem::new("Open Settings").action(
                                     move || {
-                                        set_workbench_command.set(Some(
+                                        workbench_command.send(
                                             LapceWorkbenchCommand::OpenSettings,
-                                        ))
+                                        )
                                     },
                                 ))
                                 .separator()
@@ -342,9 +338,7 @@ fn right(
                                                 "Restart to update ({v})"
                                             ))
                                             .action(move || {
-                                                set_workbench_command.set(Some(
-                                            LapceWorkbenchCommand::RestartToUpdate,
-                                        ))
+                                                workbench_command.send(LapceWorkbenchCommand::RestartToUpdate)
                                             })
                                         }
                                     } else {
@@ -396,17 +390,17 @@ pub fn title(
     workspace: Arc<LapceWorkspace>,
     main_split: MainSplitData,
     source_control: RwSignal<SourceControlData>,
-    set_workbench_command: WriteSignal<Option<LapceWorkbenchCommand>>,
+    workbench_command: Listener<LapceWorkbenchCommand>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     update_in_progress: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     stack(move || {
         (
-            left(source_control, set_workbench_command, config),
-            middle(workspace, main_split, set_workbench_command, config),
+            left(source_control, workbench_command, config),
+            middle(workspace, main_split, workbench_command, config),
             right(
-                set_workbench_command,
+                workbench_command,
                 latest_release,
                 update_in_progress,
                 config,

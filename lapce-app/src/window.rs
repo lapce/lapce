@@ -4,15 +4,15 @@ use floem::{
     glazier::KeyEvent,
     peniko::kurbo::{Point, Size},
     reactive::{
-        create_effect, create_rw_signal, use_context, ReadSignal, RwSignal, Scope,
-        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWithUntracked,
+        create_rw_signal, use_context, ReadSignal, RwSignal, Scope,
+        SignalGetUntracked, SignalSet, SignalUpdate, SignalWithUntracked,
     },
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::WindowCommand, config::LapceConfig, db::LapceDb, update::ReleaseInfo,
-    window_tab::WindowTabData, workspace::LapceWorkspace,
+    command::WindowCommand, config::LapceConfig, db::LapceDb, listener::Listener,
+    update::ReleaseInfo, window_tab::WindowTabData, workspace::LapceWorkspace,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,7 +46,7 @@ pub struct WindowData {
     pub window_tabs: RwSignal<im::Vector<(RwSignal<usize>, Arc<WindowTabData>)>>,
     /// The index of the active window tab.
     pub active: RwSignal<usize>,
-    pub window_command: RwSignal<Option<WindowCommand>>,
+    pub window_command: Listener<WindowCommand>,
     pub size: RwSignal<Size>,
     pub position: RwSignal<Point>,
     pub root_view_id: RwSignal<floem::id::Id>,
@@ -69,13 +69,13 @@ impl WindowData {
         let mut window_tabs = im::Vector::new();
         let active = info.tabs.active_tab;
 
-        let window_command = create_rw_signal(cx, None);
+        let window_command = Listener::new_empty(cx);
 
         for w in info.tabs.workspaces {
             let window_tab = Arc::new(WindowTabData::new(
                 cx,
                 Arc::new(w),
-                window_command.write_only(),
+                window_command,
                 window_scale,
                 latest_release,
             ));
@@ -86,7 +86,7 @@ impl WindowData {
             let window_tab = Arc::new(WindowTabData::new(
                 cx,
                 Arc::new(LapceWorkspace::default()),
-                window_command.write_only(),
+                window_command,
                 window_scale,
                 latest_release,
             ));
@@ -113,11 +113,8 @@ impl WindowData {
 
         {
             let window_data = window_data.clone();
-            let window_command = window_data.window_command.read_only();
-            create_effect(cx, move |_| {
-                if let Some(cmd) = window_command.get() {
-                    window_data.run_window_command(cmd);
-                }
+            window_data.window_command.listen(cx, move |cmd| {
+                window_data.run_window_command(cmd);
             });
         }
 
@@ -150,7 +147,7 @@ impl WindowData {
                 let window_tab = Arc::new(WindowTabData::new(
                     self.scope,
                     Arc::new(workspace),
-                    self.window_command.write_only(),
+                    self.window_command,
                     self.window_scale,
                     self.latest_release,
                 ));
@@ -177,7 +174,7 @@ impl WindowData {
                 let window_tab = Arc::new(WindowTabData::new(
                     self.scope,
                     Arc::new(workspace),
-                    self.window_command.write_only(),
+                    self.window_command,
                     self.window_scale,
                     self.latest_release,
                 ));
