@@ -42,8 +42,8 @@ impl Remote for SshRemote {
             .arg(dbg!(format!("{}:{remote}", self.ssh.user_host())))
             .output()?;
 
-        log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stderr));
-        log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stdout));
+        log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stderr));
+        log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stdout));
 
         Ok(())
     }

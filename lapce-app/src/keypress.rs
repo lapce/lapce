@@ -189,7 +189,7 @@ impl KeyPressData {
         focus: &T,
     ) -> bool {
         let event = event.into();
-        log::info!(target: "lapce_data::keypress::key_down", "{event:?}");
+        log::info!(target: "lapce_app::keypress::key_down", "{event:?}");
 
         let keypress = match event {
             EventRef::Keyboard(ev)

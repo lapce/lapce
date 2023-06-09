@@ -79,11 +79,11 @@ pub fn start_remote(
     // also print ssh debug output when used with LAPCE_DEBUG env
     match remote.command_builder().arg("lapce-no-command").output() {
         Ok(cmd) => {
-            log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stderr));
-            log::debug!(target: "lapce_data::proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stdout));
+            log::debug!(target: "lapce_app::proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stderr));
+            log::debug!(target: "lapce_app:proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stdout));
         }
         Err(err) => {
-            log::error!(target: "lapce_data::proxy::start_remote::first_try", "{err}");
+            log::error!(target: "lapce_app::proxy::start_remote::first_try", "{err}");
             return Err(anyhow!(err));
         }
     }
@@ -102,7 +102,7 @@ pub fn start_remote(
     let (platform, architecture) = host_specification(&remote).unwrap();
 
     if platform == UnknownOS || architecture == HostArchitecture::UnknownArch {
-        log::error!(target: "lapce_data::proxy::start_remote", "detected remote host: {platform}/{architecture}");
+        log::error!(target: "lapce_app::proxy::start_remote", "detected remote host: {platform}/{architecture}");
         return Err(anyhow!("Unknown OS and/or architecture"));
     }
 
@@ -148,8 +148,8 @@ pub fn start_remote(
                     &remote_proxy_path,
                 ])
                 .output()?;
-            log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stderr));
-            log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stdout));
+            log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stderr));
+            log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stdout));
 
             cmd.status
         }
@@ -170,15 +170,15 @@ pub fn start_remote(
                 .command_builder()
                 .args(["chmod", "+x", remote_proxy_script])
                 .output()?;
-            log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stderr));
-            log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stdout));
+            log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stderr));
+            log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stdout));
 
             let cmd = remote
                 .command_builder()
                 .args([remote_proxy_script, proxy_version, &remote_proxy_path])
                 .output()?;
-            log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stderr));
-            log::debug!(target: "lapce_data::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stdout));
+            log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stderr));
+            log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stdout));
 
             cmd.status
         }
@@ -191,7 +191,7 @@ pub fn start_remote(
 
     let proxy_filename = format!("lapce-proxy-{platform}-{architecture}");
 
-    log::debug!(target: "lapce_data::proxy::start_remote", "remote proxy path: {remote_proxy_path}");
+    log::debug!(target: "lapce_app::proxy::start_remote", "remote proxy path: {remote_proxy_path}");
 
     if !script_install.success() {
         let cmd = match platform {
@@ -217,7 +217,7 @@ pub fn start_remote(
                 std::fs::remove_file(&local_proxy_file)?;
             }
             let url = format!("https://github.com/lapce/lapce/releases/download/{proxy_version}/{proxy_filename}.gz");
-            log::debug!(target: "lapce_data::proxy::start_remote", "proxy download URI: {url}");
+            log::debug!(target: "lapce_app::proxy::start_remote", "proxy download URI: {url}");
             let mut resp = reqwest::blocking::get(url).expect("request failed");
             if resp.status().is_success() {
                 let mut out = std::fs::File::create(&local_proxy_file)
@@ -225,7 +225,7 @@ pub fn start_remote(
                 let mut gz = GzDecoder::new(&mut resp);
                 std::io::copy(&mut gz, &mut out).expect("failed to copy content");
             } else {
-                log::error!(target: "lapce_data::proxy::start_remote", "proxy download failed with: {}", resp.status());
+                log::error!(target: "lapce_app::proxy::start_remote", "proxy download failed with: {}", resp.status());
             }
 
             match platform {
@@ -284,7 +284,7 @@ pub fn start_remote(
             .take()
             .ok_or_else(|| anyhow!("can't find stdout"))?,
     );
-    log::debug!(target: "lapce_data::proxy::start_remote", "process id: {}", child.id());
+    log::debug!(target: "lapce_app::proxy::start_remote", "process id: {}", child.id());
 
     let (writer_tx, writer_rx) = crossbeam_channel::unbounded();
     let (reader_tx, reader_rx) = crossbeam_channel::unbounded();
@@ -353,7 +353,7 @@ fn host_specification(
         Ok(cmd) => {
             let stdout = String::from_utf8_lossy(&cmd.stdout).to_lowercase();
             let stdout = stdout.trim();
-            log::debug!(target: "lapce_data::proxy::host_specification", "{}", &stdout);
+            log::debug!(target: "lapce_app::proxy::host_specification", "{}", &stdout);
             match stdout {
                 // If empty, then we probably deal with Windows and not Unix
                 // or something went wrong with command output
@@ -368,7 +368,7 @@ fn host_specification(
                             let stdout =
                                 String::from_utf8_lossy(&cmd.stdout).to_lowercase();
                             let stdout = stdout.trim();
-                            log::debug!(target: "lapce_data::proxy::host_specification", "{}", &stdout);
+                            log::debug!(target: "lapce_app::proxy::host_specification", "{}", &stdout);
                             match stdout.split_once(' ') {
                                 Some((os, arch)) => (parse_os(os), parse_arch(arch)),
                                 None => {
@@ -383,7 +383,7 @@ fn host_specification(
                                                 String::from_utf8_lossy(&cmd.stdout)
                                                     .to_lowercase();
                                             let stdout = stdout.trim();
-                                            log::debug!(target: "lapce_data::proxy::host_specification", "{}", &stdout);
+                                            log::debug!(target: "lapce_app::proxy::host_specification", "{}", &stdout);
                                             match stdout.split_once(' ') {
                                                 Some((os, arch)) => {
                                                     (parse_os(os), parse_arch(arch))
@@ -392,7 +392,7 @@ fn host_specification(
                                             }
                                         }
                                         Err(e) => {
-                                            log::error!(target: "lapce_data::proxy::host_specification", "{e}");
+                                            log::error!(target: "lapce_app::proxy::host_specification", "{e}");
                                             (UnknownOS, UnknownArch)
                                         }
                                     }
@@ -400,7 +400,7 @@ fn host_specification(
                             }
                         }
                         Err(e) => {
-                            log::error!(target: "lapce_data::proxy::host_specification", "{e}");
+                            log::error!(target: "lapce_app::proxy::host_specification", "{e}");
                             (UnknownOS, UnknownArch)
                         }
                     }
@@ -415,7 +415,7 @@ fn host_specification(
             }
         }
         Err(e) => {
-            log::error!(target: "lapce_data::proxy::host_specification", "{e}");
+            log::error!(target: "lapce_app::proxy::host_specification", "{e}");
             (UnknownOS, UnknownArch)
         }
     };
