@@ -33,6 +33,7 @@ pub struct RunDebugConfig {
     pub program: String,
     pub args: Vec<String>,
     pub cwd: Option<String>,
+    pub env: Option<HashMap<String, String>>,
     #[serde(skip)]
     pub debug_command: Option<String>,
     #[serde(skip)]

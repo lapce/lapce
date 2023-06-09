@@ -162,8 +162,11 @@ impl WindowData {
                         ));
                     } else {
                         let active = window_tabs.len().saturating_sub(1).min(active);
-                        window_tabs[active] =
-                            (create_rw_signal(self.scope, 0), window_tab);
+                        let (_, old_window_tab) = window_tabs.set(
+                            active,
+                            (create_rw_signal(self.scope, 0), window_tab),
+                        );
+                        old_window_tab.proxy.shutdown();
                     }
                 })
             }
@@ -210,6 +213,7 @@ impl WindowData {
 
                     if index < window_tabs.len() {
                         let (_, old_window_tab) = window_tabs.remove(index);
+                        old_window_tab.proxy.shutdown();
                         let db: Arc<LapceDb> = use_context(self.scope).unwrap();
                         let _ = db.save_window_tab(old_window_tab);
                     }

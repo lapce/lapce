@@ -1,4 +1,4 @@
-use std::{collections::HashSet, env, sync::Arc, time::Instant};
+use std::{collections::HashSet, env, path::Path, sync::Arc, time::Instant};
 
 use crossbeam_channel::Sender;
 use floem::{
@@ -13,7 +13,7 @@ use floem::{
     },
 };
 use itertools::Itertools;
-use lapce_core::{meta, mode::Mode, register::Register};
+use lapce_core::{directory::Directory, meta, mode::Mode, register::Register};
 use lapce_rpc::{
     core::CoreNotification, dap_types::RunDebugConfig, proxy::ProxyRpcHandler,
     terminal::TermId,
@@ -30,7 +30,7 @@ use crate::{
     config::LapceConfig,
     db::LapceDb,
     debug::{DapData, RunDebugMode, RunDebugProcess},
-    doc::EditorDiagnostic,
+    doc::{DocContent, EditorDiagnostic},
     editor::location::EditorLocation,
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
@@ -39,10 +39,11 @@ use crate::{
     id::WindowTabId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     main_split::{MainSplitData, SplitData, SplitDirection},
-    palette::{kind::PaletteKind, PaletteData},
+    palette::{kind::PaletteKind, PaletteData, PaletteStatus},
     panel::{
         data::{default_panel_order, PanelData},
         kind::PanelKind,
+        position::PanelContainerPosition,
     },
     plugin::PluginData,
     proxy::{path_from_url, start_proxy, ProxyData},
@@ -158,6 +159,7 @@ impl WindowTabData {
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     ) -> Self {
+        let (cx, _) = cx.run_child_scope(|cx| cx);
         let db: Arc<LapceDb> = use_context(cx).unwrap();
 
         let disabled_volts = db.get_disabled_volts().unwrap_or_default();
@@ -241,7 +243,7 @@ impl WindowTabData {
             workbench_command,
             term_tx,
             term_notification_tx,
-            proxy: proxy.rpc.clone(),
+            proxy: proxy.proxy_rpc.clone(),
             view_id,
             ui_line_height,
             dragging: create_rw_signal(cx, None),
@@ -257,19 +259,24 @@ impl WindowTabData {
 
         if let Some(info) = workspace_info.as_ref() {
             let root_split = main_split.root_split;
-            info.split.to_data(cx, main_split.clone(), None, root_split);
+            info.split.to_data(main_split.clone(), None, root_split);
         } else {
             let root_split = main_split.root_split;
-            let root_split_data = SplitData {
-                parent_split: None,
-                split_id: root_split,
-                children: Vec::new(),
-                direction: SplitDirection::Horizontal,
-                window_origin: Point::ZERO,
-                layout_rect: Rect::ZERO,
+            let root_split_data = {
+                let (cx, _) = cx.run_child_scope(|cx| cx);
+                let root_split_data = SplitData {
+                    scope: cx,
+                    parent_split: None,
+                    split_id: root_split,
+                    children: Vec::new(),
+                    direction: SplitDirection::Horizontal,
+                    window_origin: Point::ZERO,
+                    layout_rect: Rect::ZERO,
+                };
+                create_rw_signal(cx, root_split_data)
             };
             main_split.splits.update(|splits| {
-                splits.insert(root_split, create_rw_signal(cx, root_split_data));
+                splits.insert(root_split, root_split_data);
             });
         }
 
@@ -420,9 +427,18 @@ impl WindowTabData {
             CommandKind::Workbench(command) => {
                 self.run_workbench_command(command, cmd.data);
             }
-            CommandKind::Edit(_) => {}
-            CommandKind::Move(_) => {}
-            CommandKind::Focus(_) => {}
+            CommandKind::Focus(_) | CommandKind::Edit(_) | CommandKind::Move(_) => {
+                if self.palette.status.get_untracked() != PaletteStatus::Inactive {
+                    self.palette.run_command(&cmd, None, Modifiers::default());
+                } else if let Some(editor_data) =
+                    self.main_split.active_editor.get_untracked()
+                {
+                    let editor_data = editor_data.get_untracked();
+                    editor_data.run_command(&cmd, None, Modifiers::default());
+                } else {
+                    // TODO: dispatch to current focused view?
+                }
+            }
             CommandKind::MotionMode(_) => {}
             CommandKind::MultiSelection(_) => {}
         }
@@ -436,8 +452,11 @@ impl WindowTabData {
         let cx = self.scope;
         use LapceWorkbenchCommand::*;
         match cmd {
+            // ==== Modal ====
             EnableModal => {}
             DisableModal => {}
+
+            // ==== Files / Folders ====
             OpenFolder => {
                 if !self.workspace.kind.is_remote() {
                     let window_command = self.common.window_command;
@@ -462,42 +481,164 @@ impl WindowTabData {
                     );
                 }
             }
-            CloseFolder => {}
-            OpenFile => {}
-            RevealActiveFileInFileExplorer => {}
-            ChangeColorTheme => {}
-            ChangeIconTheme => {}
+            CloseFolder => {
+                if !self.workspace.kind.is_remote() {
+                    let window_command = self.common.window_command;
+                    let workspace = LapceWorkspace {
+                        kind: LapceWorkspaceType::Local,
+                        path: None,
+                        last_open: 0,
+                    };
+                    window_command
+                        .set(Some(WindowCommand::SetWorkspace { workspace }));
+                }
+            }
+            OpenFile => {
+                if !self.workspace.kind.is_remote() {
+                    let internal_command = self.common.internal_command;
+                    let options = FileDialogOptions::new();
+                    self.common.view_id.get_untracked().open_file(
+                        options,
+                        move |file| {
+                            if let Some(file) = file {
+                                internal_command.set(Some(
+                                    InternalCommand::OpenFile { path: file.path },
+                                ))
+                            }
+                        },
+                    );
+                }
+            }
+            NewFile => {
+                // TODO: needs scratch files
+            }
+            RevealActiveFileInFileExplorer => {
+                if let Some(editor_data) = self.main_split.active_editor.get() {
+                    editor_data.with_untracked(|editor_data| {
+                        let path = editor_data.doc.with_untracked(|doc| {
+                            if let DocContent::File(path) = &doc.content {
+                                Some(path.clone())
+                            } else {
+                                None
+                            }
+                        });
+                        let Some(path) = path else { return };
+                        let path = path.parent().unwrap_or(&path);
+
+                        open_uri(path);
+                    });
+                }
+            }
+
+            SaveAll => {
+                self.main_split.editors.with_untracked(|editors| {
+                    let mut paths = HashSet::new();
+                    for (_, editor_data) in editors.iter() {
+                        editor_data.with_untracked(|editor_data| {
+                            let should_save = editor_data.doc.with_untracked(|doc| {
+                                let DocContent::File(path) = &doc.content else { return false };
+
+                                if paths.contains(path) {
+                                    return false;
+                                }
+
+                                paths.insert(path.clone());
+
+                                true
+                            });
+
+                            if should_save {
+                                editor_data.save(false, true);
+                            }
+                        });
+                    }
+                });
+            }
+
+            // ==== Configuration / Info Files and Folders ====
             OpenSettings => {
                 self.main_split.open_settings();
             }
-            OpenSettingsFile => {}
-            OpenSettingsDirectory => {}
-            OpenKeyboardShortcuts => {}
-            OpenKeyboardShortcutsFile => {}
-            OpenLogFile => {}
-            OpenLogsDirectory => {}
-            OpenProxyDirectory => {}
-            OpenThemesDirectory => {}
-            OpenPluginsDirectory => {}
-            ZoomIn => {
-                let mut scale = self.window_scale.get_untracked();
-                scale += 0.1;
-                if scale > 4.0 {
-                    scale = 4.0
+            OpenSettingsFile => {
+                if let Some(path) = LapceConfig::settings_file() {
+                    self.main_split.jump_to_location(
+                        EditorLocation {
+                            path,
+                            position: None,
+                            scroll_offset: None,
+                            ignore_unconfirmed: false,
+                            same_editor_tab: false,
+                        },
+                        None,
+                    );
                 }
-                self.window_scale.set(scale);
             }
-            ZoomOut => {
-                let mut scale = self.window_scale.get_untracked();
-                scale -= 0.1;
-                if scale < 0.1 {
-                    scale = 0.1
+            OpenSettingsDirectory => {
+                if let Some(dir) = Directory::config_directory() {
+                    open_uri(&dir);
                 }
-                self.window_scale.set(scale);
             }
-            ZoomReset => {
-                self.window_scale.set(1.0);
+            OpenKeyboardShortcuts => {
+                // TODO: open keyboard shortcuts
             }
+            OpenKeyboardShortcutsFile => {
+                if let Some(path) = LapceConfig::keymaps_file() {
+                    self.main_split.jump_to_location(
+                        EditorLocation {
+                            path,
+                            position: None,
+                            scroll_offset: None,
+                            ignore_unconfirmed: false,
+                            same_editor_tab: false,
+                        },
+                        None,
+                    );
+                }
+            }
+            OpenLogFile => {
+                // TODO:
+            }
+            OpenLogsDirectory => {
+                if let Some(dir) = Directory::logs_directory() {
+                    open_uri(&dir);
+                }
+            }
+            OpenProxyDirectory => {
+                if let Some(dir) = Directory::proxy_directory() {
+                    open_uri(&dir);
+                }
+            }
+            OpenThemesDirectory => {
+                if let Some(dir) = Directory::themes_directory() {
+                    open_uri(&dir);
+                }
+            }
+            OpenPluginsDirectory => {
+                if let Some(dir) = Directory::plugins_directory() {
+                    open_uri(&dir);
+                }
+            }
+
+            InstallTheme => {}
+            ExportCurrentThemeSettings => {}
+            ToggleInlayHints => {}
+
+            // ==== Window ====
+            ReloadWindow => {
+                self.common
+                    .window_command
+                    .set(Some(WindowCommand::SetWorkspace {
+                        workspace: (*self.workspace).clone(),
+                    }));
+            }
+            NewWindow => {
+                // TODO:
+            }
+            CloseWindow => {
+                // TODO:
+            }
+
+            // ==== Window Tabs ====
             NewWindowTab => {
                 self.common.window_command.set(Some(
                     WindowCommand::NewWorkspaceTab {
@@ -521,6 +662,60 @@ impl WindowTabData {
                     .window_command
                     .set(Some(WindowCommand::PreviousWorkspaceTab));
             }
+
+            // ==== Editor Tabs ====
+            NextEditorTab => {
+                if let Some(editor_tab_id) =
+                    self.main_split.active_editor_tab.get_untracked()
+                {
+                    self.main_split.editor_tabs.with_untracked(|editor_tabs| {
+                        let Some(editor_tab) = editor_tabs.get(&editor_tab_id) else { return };
+
+                        let new_index = editor_tab.with_untracked(|editor_tab| {
+                            if editor_tab.children.is_empty() {
+                                None
+                            } else if editor_tab.active == editor_tab.children.len() - 1 {
+                                Some(0)
+                            } else {
+                                Some(editor_tab.active + 1)
+                            }
+                        });
+
+                        if let Some(new_index) = new_index {
+                            editor_tab.update(|editor_tab| {
+                                editor_tab.active = new_index;
+                            });
+                        }
+                    });
+                }
+            }
+            PreviousEditorTab => {
+                if let Some(editor_tab_id) =
+                    self.main_split.active_editor_tab.get_untracked()
+                {
+                    self.main_split.editor_tabs.with_untracked(|editor_tabs| {
+                        let Some(editor_tab) = editor_tabs.get(&editor_tab_id) else { return };
+
+                        let new_index = editor_tab.with_untracked(|editor_tab| {
+                            if editor_tab.children.is_empty() {
+                                None
+                            } else if editor_tab.active == 0 {
+                                Some(editor_tab.children.len() - 1)
+                            } else {
+                                Some(editor_tab.active - 1)
+                            }
+                        });
+
+                        if let Some(new_index) = new_index {
+                            editor_tab.update(|editor_tab| {
+                                editor_tab.active = new_index;
+                            });
+                        }
+                    });
+                }
+            }
+
+            // ==== Terminal ====
             NewTerminalTab => {
                 self.terminal.new_tab(None);
                 if !self.panel.is_panel_visible(&PanelKind::Terminal) {
@@ -560,21 +755,27 @@ impl WindowTabData {
                 }
                 self.common.focus.set(Focus::Panel(PanelKind::Terminal));
             }
-            ReloadWindow => {
-                self.common
-                    .window_command
-                    .set(Some(WindowCommand::SetWorkspace {
-                        workspace: (*self.workspace).clone(),
-                    }));
-            }
-            NewWindow => {}
-            CloseWindow => {}
-            NewFile => {}
+
+            // ==== Remote ====
             ConnectSshHost => {
                 self.palette.run(cx, PaletteKind::SshHost);
             }
-            ConnectWsl => {}
-            DisconnectRemote => {}
+            ConnectWsl => {
+                // TODO:
+            }
+            DisconnectRemote => {
+                self.common
+                    .window_command
+                    .set(Some(WindowCommand::SetWorkspace {
+                        workspace: LapceWorkspace {
+                            kind: LapceWorkspaceType::Local,
+                            path: None,
+                            last_open: 0,
+                        },
+                    }));
+            }
+
+            // ==== Palette Commands ====
             PaletteLine => {
                 self.palette.run(cx, PaletteKind::Line);
             }
@@ -594,6 +795,15 @@ impl WindowTabData {
             PaletteRunAndDebug => {
                 self.palette.run(cx, PaletteKind::RunAndDebug);
             }
+            ChangeColorTheme => {
+                self.palette.run(cx, PaletteKind::ColorTheme);
+            }
+            ChangeIconTheme => {
+                self.palette.run(cx, PaletteKind::IconTheme);
+            }
+            ChangeFileLanguage => {}
+
+            // ==== Running / Debugging ====
             RunAndDebugRestart => {
                 let active_term = self.terminal.debug.active_term.get_untracked();
                 if active_term
@@ -609,7 +819,28 @@ impl WindowTabData {
                     self.terminal.stop_run_debug(term_id);
                 }
             }
-            CheckoutBranch => {}
+
+            // ==== UI ====
+            ZoomIn => {
+                let mut scale = self.window_scale.get_untracked();
+                scale += 0.1;
+                if scale > 4.0 {
+                    scale = 4.0
+                }
+                self.window_scale.set(scale);
+            }
+            ZoomOut => {
+                let mut scale = self.window_scale.get_untracked();
+                scale -= 0.1;
+                if scale < 0.1 {
+                    scale = 0.1
+                }
+                self.window_scale.set(scale);
+            }
+            ZoomReset => {
+                self.window_scale.set(1.0);
+            }
+
             ToggleMaximizedPanel => {
                 if let Some(data) = data {
                     if let Ok(kind) = serde_json::from_value::<PanelKind>(data) {
@@ -647,9 +878,15 @@ impl WindowTabData {
                     }
                 }
             }
-            TogglePanelLeftVisual => {}
-            TogglePanelRightVisual => {}
-            TogglePanelBottomVisual => {}
+            TogglePanelLeftVisual => {
+                self.toggle_container_visual(&PanelContainerPosition::Left);
+            }
+            TogglePanelRightVisual => {
+                self.toggle_container_visual(&PanelContainerPosition::Right);
+            }
+            TogglePanelBottomVisual => {
+                self.toggle_container_visual(&PanelContainerPosition::Bottom);
+            }
             ToggleTerminalFocus => {
                 self.toggle_panel_focus(PanelKind::Terminal);
             }
@@ -695,18 +932,34 @@ impl WindowTabData {
             FocusTerminal => {
                 self.common.focus.set(Focus::Panel(PanelKind::Terminal));
             }
-            SourceControlInit => {}
-            SourceControlCommit => {}
-            SourceControlCopyActiveFileRemoteUrl => {}
-            SourceControlDiscardActiveFileChanges => {}
-            SourceControlDiscardTargetFileChanges => {}
-            SourceControlDiscardWorkspaceChanges => {}
-            ExportCurrentThemeSettings => {}
-            InstallTheme => {}
-            ChangeFileLanguage => {}
-            NextEditorTab => {}
-            PreviousEditorTab => {}
-            ToggleInlayHints => {}
+
+            // ==== Source Control ====
+            SourceControlInit => {
+                self.proxy.proxy_rpc.git_init();
+            }
+            CheckoutBranch => {
+                // TODO:
+            }
+            SourceControlCommit => {
+                // TODO
+            }
+            SourceControlCopyActiveFileRemoteUrl => {
+                // TODO:
+            }
+            SourceControlDiscardActiveFileChanges => {
+                // TODO:
+            }
+            SourceControlDiscardTargetFileChanges => {
+                // TODO:
+            }
+            SourceControlDiscardWorkspaceChanges => {
+                // TODO:
+            }
+
+            // ==== UI ====
+            ShowAbout => {}
+
+            // ==== Updating ====
             RestartToUpdate => {
                 if let Some(release) = self.latest_release.get_untracked().as_ref() {
                     let release = release.clone();
@@ -744,26 +997,26 @@ impl WindowTabData {
                     }
                 }
             }
-            ShowAbout => {}
-            SaveAll => {}
+
+            // ==== Movement ====
             #[cfg(target_os = "macos")]
             InstallToPATH => {}
             #[cfg(target_os = "macos")]
             UninstallFromPATH => {}
             JumpLocationForward => {
-                self.main_split.jump_location_forward(cx, false);
+                self.main_split.jump_location_forward(false);
             }
             JumpLocationBackward => {
-                self.main_split.jump_location_backward(cx, false);
+                self.main_split.jump_location_backward(false);
             }
             JumpLocationForwardLocal => {
-                self.main_split.jump_location_forward(cx, true);
+                self.main_split.jump_location_forward(true);
             }
             JumpLocationBackwardLocal => {
-                self.main_split.jump_location_backward(cx, true);
+                self.main_split.jump_location_backward(true);
             }
             NextError => {
-                self.main_split.next_error(cx);
+                self.main_split.next_error();
             }
             PreviousError => {}
             Quit => {}
@@ -773,9 +1026,11 @@ impl WindowTabData {
     pub fn run_internal_command(&self, cmd: InternalCommand) {
         let cx = self.scope;
         match cmd {
+            InternalCommand::ReloadConfig => {
+                self.reload_config();
+            }
             InternalCommand::OpenFile { path } => {
                 self.main_split.jump_to_location(
-                    cx,
                     EditorLocation {
                         path,
                         position: None,
@@ -787,10 +1042,10 @@ impl WindowTabData {
                 );
             }
             InternalCommand::GoToLocation { location } => {
-                self.main_split.go_to_location(cx, location, None);
+                self.main_split.go_to_location(location, None);
             }
             InternalCommand::JumpToLocation { location } => {
-                self.main_split.jump_to_location(cx, location, None);
+                self.main_split.jump_to_location(location, None);
             }
             InternalCommand::PaletteReferences { references } => {
                 self.palette.references.set(references);
@@ -800,7 +1055,7 @@ impl WindowTabData {
                 direction,
                 editor_tab_id,
             } => {
-                self.main_split.split(cx, direction, editor_tab_id);
+                self.main_split.split(direction, editor_tab_id);
             }
             InternalCommand::SplitMove {
                 direction,
@@ -831,10 +1086,10 @@ impl WindowTabData {
                 self.code_action.set(code_action);
             }
             InternalCommand::RunCodeAction { plugin_id, action } => {
-                self.main_split.run_code_action(cx, plugin_id, action);
+                self.main_split.run_code_action(plugin_id, action);
             }
             InternalCommand::ApplyWorkspaceEdit { edit } => {
-                self.main_split.apply_workspace_edit(cx, &edit);
+                self.main_split.apply_workspace_edit(&edit);
             }
             InternalCommand::SaveJumpLocation {
                 path,
@@ -845,16 +1100,16 @@ impl WindowTabData {
                     .save_jump_location(path, offset, scroll_offset);
             }
             InternalCommand::SplitTerminal { term_id } => {
-                self.terminal.split(cx, term_id);
+                self.terminal.split(term_id);
             }
             InternalCommand::SplitTerminalNext { term_id } => {
-                self.terminal.split_next(cx, term_id);
+                self.terminal.split_next(term_id);
             }
             InternalCommand::SplitTerminalPrevious { term_id } => {
-                self.terminal.split_previous(cx, term_id);
+                self.terminal.split_previous(term_id);
             }
             InternalCommand::SplitTerminalExchange { term_id } => {
-                self.terminal.split_exchange(cx, term_id);
+                self.terminal.split_exchange(term_id);
             }
             InternalCommand::RunAndDebug { mode, config } => {
                 self.run_and_debug(cx, &mode, &config);
@@ -896,6 +1151,34 @@ impl WindowTabData {
             }
             InternalCommand::FocusEditorTab { editor_tab_id } => {
                 self.main_split.active_editor_tab.set(Some(editor_tab_id));
+            }
+            InternalCommand::SetColorTheme { name, save } => {
+                if save {
+                    // The config file is watched
+                    LapceConfig::update_file(
+                        "core",
+                        "color-theme",
+                        toml_edit::Value::from(name),
+                    );
+                } else {
+                    let mut new_config = self.common.config.get().as_ref().clone();
+                    new_config.set_color_theme(&self.workspace, &name);
+                    self.set_config.set(Arc::new(new_config));
+                }
+            }
+            InternalCommand::SetIconTheme { name, save } => {
+                if save {
+                    // The config file is watched
+                    LapceConfig::update_file(
+                        "core",
+                        "icon-theme",
+                        toml_edit::Value::from(name),
+                    );
+                } else {
+                    let mut new_config = self.common.config.get().as_ref().clone();
+                    new_config.set_icon_theme(&self.workspace, &name);
+                    self.set_config.set(Arc::new(new_config));
+                }
             }
         }
     }
@@ -1265,6 +1548,7 @@ impl WindowTabData {
         }
     }
 
+    /// Toggle a specific kind of panel.
     fn toggle_panel_focus(&self, kind: PanelKind) {
         let should_hide = match kind {
             PanelKind::FileExplorer
@@ -1283,6 +1567,43 @@ impl WindowTabData {
             self.hide_panel(kind);
         } else {
             self.show_panel(kind);
+        }
+    }
+
+    /// Toggle a panel on one of the sides.
+    fn toggle_container_visual(&self, position: &PanelContainerPosition) {
+        let shown = !self.panel.is_container_shown(position, false);
+        self.panel.set_shown(&position.first(), shown);
+        self.panel.set_shown(&position.second(), shown);
+
+        if shown {
+            if let Some((kind, _)) = self
+                .panel
+                .active_panel_at_position(&position.second(), false)
+            {
+                self.show_panel(kind);
+            }
+
+            if let Some((kind, _)) = self
+                .panel
+                .active_panel_at_position(&position.first(), false)
+            {
+                self.show_panel(kind);
+            }
+        } else {
+            if let Some((kind, _)) = self
+                .panel
+                .active_panel_at_position(&position.second(), false)
+            {
+                self.hide_panel(kind);
+            }
+
+            if let Some((kind, _)) = self
+                .panel
+                .active_panel_at_position(&position.first(), false)
+            {
+                self.hide_panel(kind);
+            }
         }
     }
 
@@ -1359,11 +1680,6 @@ impl WindowTabData {
                 created: Instant::now(),
             }));
 
-            // let _ = ctx.get_external_handle().submit_command(
-            //     LAPCE_UI_COMMAND,
-            //     LapceUICommand::Focus,
-            //     Target::Widget(terminal.widget_id),
-            // );
             terminal.term_id
         } else {
             let new_terminal_tab = self.terminal.new_tab(Some(RunDebugProcess {
@@ -1384,6 +1700,18 @@ impl WindowTabData {
 
         if !self.panel.is_panel_visible(&PanelKind::Terminal) {
             self.panel.show_panel(&PanelKind::Terminal);
+        }
+    }
+}
+
+/// Open path with the default application without blocking.
+fn open_uri(path: &Path) {
+    match open::that(path) {
+        Ok(_) => {
+            log::debug!(target: "window_tab::open_uri", "opened active file: {path:?}");
+        }
+        Err(e) => {
+            log::error!(target: "window_tab::open_uri", "failed to open active file: {path:?}, error: {e}");
         }
     }
 }

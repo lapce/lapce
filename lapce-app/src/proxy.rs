@@ -3,8 +3,9 @@ use std::process::Command;
 use std::{collections::HashMap, sync::Arc};
 
 use crossbeam_channel::Sender;
+use floem::ext_event::create_signal_from_channel;
+use floem::reactive::ReadSignal;
 use floem::reactive::Scope;
-use floem::{ext_event::create_signal_from_channel, reactive::ReadSignal};
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::plugin::VoltID;
 use lapce_rpc::terminal::TermId;
@@ -32,8 +33,16 @@ pub struct Proxy {
 
 #[derive(Clone)]
 pub struct ProxyData {
-    pub rpc: ProxyRpcHandler,
+    pub proxy_rpc: ProxyRpcHandler,
+    pub core_rpc: CoreRpcHandler,
     pub notification: ReadSignal<Option<CoreNotification>>,
+}
+
+impl ProxyData {
+    pub fn shutdown(&self) {
+        self.proxy_rpc.shutdown();
+        self.core_rpc.shutdown();
+    }
 }
 
 pub fn start_proxy(
@@ -46,58 +55,68 @@ pub fn start_proxy(
     let proxy_rpc = ProxyRpcHandler::new();
     let core_rpc = CoreRpcHandler::new();
 
-    proxy_rpc.initialize(
-        workspace.path.clone(),
-        disabled_volts,
-        plugin_configurations,
-        1,
-        1,
-    );
-
-    match &workspace.kind {
-        LapceWorkspaceType::Local => {
-            let core_rpc = core_rpc.clone();
-            let proxy_rpc = proxy_rpc.clone();
-            std::thread::spawn(move || {
-                let mut dispatcher = Dispatcher::new(core_rpc, proxy_rpc);
-                let proxy_rpc = dispatcher.proxy_rpc.clone();
-                proxy_rpc.mainloop(&mut dispatcher);
-            });
-        }
-        LapceWorkspaceType::RemoteSSH(ssh) => {
-            let _ = start_remote(
-                SshRemote { ssh: ssh.clone() },
-                core_rpc.clone(),
-                proxy_rpc.clone(),
+    {
+        let core_rpc = core_rpc.clone();
+        let proxy_rpc = proxy_rpc.clone();
+        std::thread::spawn(move || {
+            proxy_rpc.initialize(
+                workspace.path.clone(),
+                disabled_volts,
+                plugin_configurations,
+                1,
+                1,
             );
-        }
-        #[cfg(windows)]
-        LapceWorkspaceType::RemoteWSL => {
-            use wsl::{WslDistro, WslRemote};
-            let distro = WslDistro::all()
-                .ok()
-                .and_then(|d| d.into_iter().find(|distro| distro.default))
-                .map(|d| d.name);
-            if let Some(distro) = distro {
-                let _ = start_remote(
-                    WslRemote { distro },
-                    core_rpc.clone(),
-                    proxy_rpc.clone(),
-                );
+
+            match &workspace.kind {
+                LapceWorkspaceType::Local => {
+                    let core_rpc = core_rpc.clone();
+                    let proxy_rpc = proxy_rpc.clone();
+                    std::thread::spawn(move || {
+                        let mut dispatcher = Dispatcher::new(core_rpc, proxy_rpc);
+                        let proxy_rpc = dispatcher.proxy_rpc.clone();
+                        proxy_rpc.mainloop(&mut dispatcher);
+                    });
+                }
+                LapceWorkspaceType::RemoteSSH(ssh) => {
+                    let _ = start_remote(
+                        SshRemote { ssh: ssh.clone() },
+                        core_rpc.clone(),
+                        proxy_rpc.clone(),
+                    );
+                }
+                #[cfg(windows)]
+                LapceWorkspaceType::RemoteWSL => {
+                    use wsl::{WslDistro, WslRemote};
+                    let distro = WslDistro::all()
+                        .ok()
+                        .and_then(|d| d.into_iter().find(|distro| distro.default))
+                        .map(|d| d.name);
+                    if let Some(distro) = distro {
+                        let _ = start_remote(
+                            WslRemote { distro },
+                            core_rpc.clone(),
+                            proxy_rpc.clone(),
+                        );
+                    }
+                }
             }
-        }
+        });
     }
 
     let (tx, rx) = crossbeam_channel::unbounded();
-    std::thread::spawn(move || {
-        let mut proxy = Proxy { tx, term_tx };
-        core_rpc.mainloop(&mut proxy);
-    });
+    {
+        let core_rpc = core_rpc.clone();
+        std::thread::spawn(move || {
+            let mut proxy = Proxy { tx, term_tx };
+            core_rpc.mainloop(&mut proxy);
+        })
+    };
 
     let notification = create_signal_from_channel(cx, rx);
 
     ProxyData {
-        rpc: proxy_rpc,
+        proxy_rpc,
+        core_rpc,
         notification,
     }
 }

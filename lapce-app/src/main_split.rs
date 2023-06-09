@@ -95,6 +95,7 @@ impl SplitContent {
 
 #[derive(Clone)]
 pub struct SplitData {
+    pub scope: Scope,
     pub parent_split: Option<SplitId>,
     pub split_id: SplitId,
     pub children: Vec<SplitContent>,
@@ -112,24 +113,27 @@ pub struct SplitInfo {
 impl SplitInfo {
     pub fn to_data(
         &self,
-        cx: Scope,
         data: MainSplitData,
         parent_split: Option<SplitId>,
         split_id: SplitId,
     ) -> RwSignal<SplitData> {
-        let split_data = SplitData {
-            split_id,
-            direction: self.direction,
-            parent_split,
-            children: self
-                .children
-                .iter()
-                .map(|child| child.to_data(cx, data.clone(), split_id))
-                .collect(),
-            window_origin: Point::ZERO,
-            layout_rect: Rect::ZERO,
+        let split_data = {
+            let (cx, _) = data.scope.run_child_scope(|cx| cx);
+            let split_data = SplitData {
+                scope: cx,
+                split_id,
+                direction: self.direction,
+                parent_split,
+                children: self
+                    .children
+                    .iter()
+                    .map(|child| child.to_data(data.clone(), split_id))
+                    .collect(),
+                window_origin: Point::ZERO,
+                layout_rect: Rect::ZERO,
+            };
+            create_rw_signal(cx, split_data)
         };
-        let split_data = create_rw_signal(cx, split_data);
         data.splits.update(|splits| {
             splits.insert(split_id, split_data);
         });
@@ -146,20 +150,19 @@ pub enum SplitContentInfo {
 impl SplitContentInfo {
     pub fn to_data(
         &self,
-        cx: Scope,
         data: MainSplitData,
         parent_split: SplitId,
     ) -> SplitContent {
         match &self {
             SplitContentInfo::EditorTab(tab_info) => {
-                let tab_data = tab_info.to_data(cx, data, parent_split);
+                let tab_data = tab_info.to_data(data, parent_split);
                 SplitContent::EditorTab(
                     tab_data.with_untracked(|tab_data| tab_data.editor_tab_id),
                 )
             }
             SplitContentInfo::Split(split_info) => {
                 let split_id = SplitId::next();
-                split_info.to_data(cx, data, Some(parent_split), split_id);
+                split_info.to_data(data, Some(parent_split), split_id);
                 SplitContent::Split(split_id)
             }
         }
@@ -354,15 +357,15 @@ impl MainSplitData {
 
     pub fn jump_to_location(
         &self,
-        cx: Scope,
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
     ) {
         self.save_current_jump_location();
-        self.go_to_location(cx, location, edits);
+        self.go_to_location(location, edits);
     }
 
-    pub fn get_doc(&self, cx: Scope, path: PathBuf) -> (RwSignal<Document>, bool) {
+    pub fn get_doc(&self, path: PathBuf) -> (RwSignal<Document>, bool) {
+        let cx = self.scope;
         let doc = self.docs.with_untracked(|docs| docs.get(&path).cloned());
         if let Some(doc) = doc {
             (doc, false)
@@ -403,12 +406,11 @@ impl MainSplitData {
 
     pub fn go_to_location(
         &self,
-        cx: Scope,
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
     ) {
         let path = location.path.clone();
-        let (doc, new_doc) = self.get_doc(cx, path.clone());
+        let (doc, new_doc) = self.get_doc(path.clone());
 
         let editor = self.get_editor_or_new(
             doc,
@@ -417,7 +419,7 @@ impl MainSplitData {
             location.same_editor_tab,
         );
         let editor = editor.get_untracked();
-        editor.go_to_location(cx, location, new_doc, edits);
+        editor.go_to_location(location, new_doc, edits);
     }
 
     fn new_editor_tab(
@@ -425,19 +427,21 @@ impl MainSplitData {
         editor_tab_id: EditorTabId,
         split_id: SplitId,
     ) -> RwSignal<EditorTabData> {
-        let cx = self.scope;
-
-        let editor_tab = EditorTabData {
-            split: split_id,
-            active: 0,
-            editor_tab_id,
-            children: vec![],
-            window_origin: Point::ZERO,
-            layout_rect: Rect::ZERO,
-            locations: create_rw_signal(cx, im::Vector::new()),
-            current_location: create_rw_signal(cx, 0),
+        let editor_tab = {
+            let (cx, _) = self.scope.run_child_scope(|cx| cx);
+            let editor_tab = EditorTabData {
+                scope: cx,
+                split: split_id,
+                active: 0,
+                editor_tab_id,
+                children: vec![],
+                window_origin: Point::ZERO,
+                layout_rect: Rect::ZERO,
+                locations: create_rw_signal(cx, im::Vector::new()),
+                current_location: create_rw_signal(cx, 0),
+            };
+            create_rw_signal(cx, editor_tab)
         };
-        let editor_tab = create_rw_signal(cx, editor_tab);
         self.editor_tabs.update(|editor_tabs| {
             editor_tabs.insert(editor_tab_id, editor_tab);
         });
@@ -559,20 +563,24 @@ impl MainSplitData {
                 editors.insert(editor_id, editor);
             });
 
-            let editor_tab = EditorTabData {
-                split: self.root_split,
-                active: 0,
-                editor_tab_id,
-                children: vec![(
-                    create_rw_signal(cx, 0),
-                    EditorTabChild::Editor(editor_id),
-                )],
-                window_origin: Point::ZERO,
-                layout_rect: Rect::ZERO,
-                locations: create_rw_signal(cx, im::Vector::new()),
-                current_location: create_rw_signal(cx, 0),
+            let editor_tab = {
+                let (cx, _) = self.scope.run_child_scope(|cx| cx);
+                let editor_tab = EditorTabData {
+                    scope: cx,
+                    split: self.root_split,
+                    active: 0,
+                    editor_tab_id,
+                    children: vec![(
+                        create_rw_signal(cx, 0),
+                        EditorTabChild::Editor(editor_id),
+                    )],
+                    window_origin: Point::ZERO,
+                    layout_rect: Rect::ZERO,
+                    locations: create_rw_signal(cx, im::Vector::new()),
+                    current_location: create_rw_signal(cx, 0),
+                };
+                create_rw_signal(cx, editor_tab)
             };
-            let editor_tab = create_rw_signal(cx, editor_tab);
             self.editor_tabs.update(|editor_tabs| {
                 editor_tabs.insert(editor_tab_id, editor_tab);
             });
@@ -624,7 +632,7 @@ impl MainSplitData {
         editor
     }
 
-    pub fn jump_location_backward(&self, cx: Scope, local: bool) {
+    pub fn jump_location_backward(&self, local: bool) {
         let (locations, current_location) = if local {
             let active_editor_tab_id = self.active_editor_tab.get_untracked();
             let editor_tabs = self.editor_tabs.get_untracked();
@@ -670,10 +678,10 @@ impl MainSplitData {
         // because we only jump on the same split
         location.same_editor_tab = local;
 
-        self.go_to_location(cx, location, None);
+        self.go_to_location(location, None);
     }
 
-    pub fn jump_location_forward(&self, cx: Scope, local: bool) {
+    pub fn jump_location_forward(&self, local: bool) {
         let (locations, current_location) = if local {
             let active_editor_tab_id = self.active_editor_tab.get_untracked();
             let editor_tabs = self.editor_tabs.get_untracked();
@@ -706,12 +714,11 @@ impl MainSplitData {
         // for local jumps, we keep on the same editor tab
         // because we only jump on the same split
         location.same_editor_tab = local;
-        self.go_to_location(cx, location, None);
+        self.go_to_location(location, None);
     }
 
     pub fn split(
         &self,
-        cx: Scope,
         direction: SplitDirection,
         editor_tab_id: EditorTabId,
     ) -> Option<()> {
@@ -733,7 +740,7 @@ impl MainSplitData {
 
         if split_direction == direction {
             let new_editor_tab = editor_tab.with_untracked(|editor_tab| {
-                self.split_editor_tab(cx, split_id, editor_tab)
+                self.split_editor_tab(self.scope, split_id, editor_tab)
             })?;
             let new_editor_tab_id =
                 new_editor_tab.with_untracked(|editor_tab| editor_tab.editor_tab_id);
@@ -744,7 +751,7 @@ impl MainSplitData {
             });
         } else if children_len == 1 {
             let new_editor_tab = editor_tab.with_untracked(|editor_tab| {
-                self.split_editor_tab(cx, split_id, editor_tab)
+                self.split_editor_tab(self.scope, split_id, editor_tab)
             })?;
             let new_editor_tab_id =
                 new_editor_tab.with_untracked(|editor_tab| editor_tab.editor_tab_id);
@@ -761,23 +768,27 @@ impl MainSplitData {
                 editor_tab.split = new_split_id;
             });
             let new_editor_tab = editor_tab.with_untracked(|editor_tab| {
-                self.split_editor_tab(cx, new_split_id, editor_tab)
+                self.split_editor_tab(self.scope, new_split_id, editor_tab)
             })?;
             let new_editor_tab_id =
                 new_editor_tab.with_untracked(|editor_tab| editor_tab.editor_tab_id);
 
-            let new_split = SplitData {
-                parent_split: Some(split_id),
-                split_id: new_split_id,
-                children: vec![
-                    SplitContent::EditorTab(editor_tab_id),
-                    SplitContent::EditorTab(new_editor_tab_id),
-                ],
-                direction,
-                window_origin: Point::ZERO,
-                layout_rect: Rect::ZERO,
+            let new_split = {
+                let (cx, _) = self.scope.run_child_scope(|cx| cx);
+                let new_split = SplitData {
+                    scope: cx,
+                    parent_split: Some(split_id),
+                    split_id: new_split_id,
+                    children: vec![
+                        SplitContent::EditorTab(editor_tab_id),
+                        SplitContent::EditorTab(new_editor_tab_id),
+                    ],
+                    direction,
+                    window_origin: Point::ZERO,
+                    layout_rect: Rect::ZERO,
+                };
+                create_rw_signal(cx, new_split)
             };
-            let new_split = create_rw_signal(cx, new_split);
             self.splits.update(|splits| {
                 splits.insert(new_split_id, new_split);
             });
@@ -817,20 +828,27 @@ impl MainSplitData {
             }
         };
 
-        let editor_tab = EditorTabData {
-            split: split_id,
-            editor_tab_id,
-            active: 0,
-            children: vec![(create_rw_signal(cx, 0), new_child)],
-            window_origin: Point::ZERO,
-            layout_rect: Rect::ZERO,
-            locations: create_rw_signal(cx, editor_tab.locations.get_untracked()),
-            current_location: create_rw_signal(
-                cx,
-                editor_tab.current_location.get_untracked(),
-            ),
+        let editor_tab = {
+            let (cx, _) = self.scope.run_child_scope(|cx| cx);
+            let editor_tab = EditorTabData {
+                scope: cx,
+                split: split_id,
+                editor_tab_id,
+                active: 0,
+                children: vec![(create_rw_signal(cx, 0), new_child)],
+                window_origin: Point::ZERO,
+                layout_rect: Rect::ZERO,
+                locations: create_rw_signal(
+                    cx,
+                    editor_tab.locations.get_untracked(),
+                ),
+                current_location: create_rw_signal(
+                    cx,
+                    editor_tab.current_location.get_untracked(),
+                ),
+            };
+            create_rw_signal(cx, editor_tab)
         };
-        let editor_tab = create_rw_signal(cx, editor_tab);
         self.editor_tabs.update(|editor_tabs| {
             editor_tabs.insert(editor_tab_id, editor_tab);
         });
@@ -1144,34 +1162,24 @@ impl MainSplitData {
         Some(())
     }
 
-    pub fn run_code_action(
-        &self,
-        cx: Scope,
-        plugin_id: PluginId,
-        action: CodeActionOrCommand,
-    ) {
+    pub fn run_code_action(&self, plugin_id: PluginId, action: CodeActionOrCommand) {
         match action {
             CodeActionOrCommand::Command(_) => {}
             CodeActionOrCommand::CodeAction(action) => {
                 if let Some(edit) = action.edit.as_ref() {
-                    self.apply_workspace_edit(cx, edit);
+                    self.apply_workspace_edit(edit);
                 } else {
-                    self.resolve_code_action(cx, plugin_id, action);
+                    self.resolve_code_action(plugin_id, action);
                 }
             }
         }
     }
 
     /// Resolve a code action and apply its held workspace edit
-    fn resolve_code_action(
-        &self,
-        cx: Scope,
-        plugin_id: PluginId,
-        action: CodeAction,
-    ) {
+    fn resolve_code_action(&self, plugin_id: PluginId, action: CodeAction) {
         let main_split = self.clone();
-        let send = create_ext_action(cx, move |edit| {
-            main_split.apply_workspace_edit(cx, &edit);
+        let send = create_ext_action(self.scope, move |edit| {
+            main_split.apply_workspace_edit(&edit);
         });
         self.common
             .proxy
@@ -1186,7 +1194,7 @@ impl MainSplitData {
     }
 
     /// Perform a workspace edit, which are from the LSP (such as code actions, or symbol renaming)
-    pub fn apply_workspace_edit(&self, cx: Scope, edit: &WorkspaceEdit) {
+    pub fn apply_workspace_edit(&self, edit: &WorkspaceEdit) {
         if let Some(DocumentChanges::Operations(_op)) =
             edit.document_changes.as_ref()
         {
@@ -1216,13 +1224,13 @@ impl MainSplitData {
                         ignore_unconfirmed: true,
                         same_editor_tab: false,
                     };
-                    self.jump_to_location(cx, location, Some(edits));
+                    self.jump_to_location(location, Some(edits));
                 }
             }
         }
     }
 
-    pub fn next_error(&self, cx: Scope) {
+    pub fn next_error(&self) {
         let file_diagnostics =
             self.diagnostics_items(DiagnosticSeverity::ERROR, false);
         if file_diagnostics.is_empty() {
@@ -1252,7 +1260,7 @@ impl MainSplitData {
             ignore_unconfirmed: false,
             same_editor_tab: false,
         };
-        self.jump_to_location(cx, location, None);
+        self.jump_to_location(location, None);
     }
 
     pub fn diagnostics_items(

@@ -160,9 +160,10 @@ impl ProxyHandler for Dispatcher {
             NewTerminal {
                 term_id,
                 cwd,
+                env,
                 shell,
             } => {
-                let mut terminal = Terminal::new(term_id, cwd, shell, 50, 10);
+                let mut terminal = Terminal::new(term_id, cwd, env, shell, 50, 10);
 
                 #[allow(unused)]
                 let mut child_id = None;

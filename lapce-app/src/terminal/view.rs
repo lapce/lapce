@@ -10,6 +10,7 @@ use floem::{
     peniko::kurbo::{Point, Rect, Size},
     reactive::{
         create_effect, ReadSignal, SignalGet, SignalGetUntracked, SignalWith,
+        SignalWithUntracked,
     },
     view::{ChangeFlags, View},
     AppContext, Renderer,
@@ -303,7 +304,7 @@ impl View for TerminalView {
                         * line_height,
                 ));
                 let cursor_color = if mode == Mode::Terminal {
-                    if self.run_config.with(|run_config| {
+                    if self.run_config.with_untracked(|run_config| {
                         run_config.as_ref().map(|r| r.stopped).unwrap_or(false)
                     }) {
                         config.get_color(LapceColor::LAPCE_ERROR)

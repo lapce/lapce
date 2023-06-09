@@ -36,6 +36,7 @@ use super::{
 
 #[derive(Clone)]
 pub struct TerminalData {
+    pub scope: Scope,
     pub term_id: TermId,
     pub workspace: Arc<LapceWorkspace>,
     pub title: RwSignal<String>,
@@ -301,6 +302,7 @@ impl TerminalData {
         run_debug: Option<RunDebugProcess>,
         common: CommonData,
     ) -> Self {
+        let (cx, _) = cx.run_child_scope(|cx| cx);
         let term_id = TermId::next();
 
         let title = create_rw_signal(cx, "title".to_string());
@@ -318,6 +320,7 @@ impl TerminalData {
         let raw = create_rw_signal(cx, raw);
 
         Self {
+            scope: cx,
             term_id,
             workspace,
             raw,
@@ -342,6 +345,7 @@ impl TerminalData {
         )));
 
         let mut cwd = workspace.path.as_ref().cloned();
+        let mut env = None;
         let shell = if let Some(run_debug) = run_debug {
             if let Some(path) = run_debug.cwd.as_ref() {
                 cwd = Some(PathBuf::from(path));
@@ -358,6 +362,8 @@ impl TerminalData {
                 }
             }
 
+            env = run_debug.env.clone();
+
             if let Some(debug_command) = run_debug.debug_command.as_ref() {
                 debug_command.clone()
             } else {
@@ -370,7 +376,7 @@ impl TerminalData {
         {
             let raw = raw.clone();
             let _ = common.term_tx.send((term_id, TermEvent::NewTerminal(raw)));
-            common.proxy.new_terminal(term_id, cwd, shell);
+            common.proxy.new_terminal(term_id, cwd, env, shell);
         }
         raw
     }

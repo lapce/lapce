@@ -65,23 +65,21 @@ pub struct EditorInfo {
 impl EditorInfo {
     pub fn to_data(
         &self,
-        cx: Scope,
         data: MainSplitData,
         editor_tab_id: EditorTabId,
     ) -> RwSignal<EditorData> {
         let editor_id = EditorId::next();
         let editor_data = match &self.content {
             DocContent::File(path) => {
-                let (doc, new_doc) = data.get_doc(cx, path.clone());
+                let (doc, new_doc) = data.get_doc(path.clone());
                 let editor_data = EditorData::new(
-                    cx,
+                    data.scope,
                     Some(editor_tab_id),
                     editor_id,
                     doc,
                     data.common,
                 );
                 editor_data.go_to_location(
-                    cx,
                     EditorLocation {
                         path: path.clone(),
                         position: Some(EditorPosition::Offset(self.offset)),
@@ -97,9 +95,11 @@ impl EditorInfo {
                 );
                 editor_data
             }
-            DocContent::Local => EditorData::new_local(cx, editor_id, data.common),
+            DocContent::Local => {
+                EditorData::new_local(data.scope, editor_id, data.common)
+            }
         };
-        let editor_data = create_rw_signal(cx, editor_data);
+        let editor_data = create_rw_signal(editor_data.scope, editor_data);
         data.editors.update(|editors| {
             editors.insert(editor_id, editor_data);
         });
@@ -111,6 +111,7 @@ pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 
 #[derive(Clone)]
 pub struct EditorData {
+    pub scope: Scope,
     pub editor_tab_id: Option<EditorTabId>,
     pub editor_id: EditorId,
     /// The document this editor is for.  
@@ -147,6 +148,7 @@ impl EditorData {
         doc: RwSignal<Document>,
         common: CommonData,
     ) -> Self {
+        let (cx, _) = cx.run_child_scope(|cx| cx);
         let is_local = doc.with_untracked(|doc| doc.content.is_local());
         let modal = common.config.with_untracked(|c| c.core.modal);
         let cursor = Cursor::new(
@@ -173,6 +175,7 @@ impl EditorData {
         let sticky_header_height = create_rw_signal(cx, 0.0);
         let view = EditorViewData::new(doc, common.config);
         Self {
+            scope: cx,
             editor_tab_id,
             editor_id,
             doc,
@@ -195,6 +198,7 @@ impl EditorData {
     }
 
     pub fn new_local(cx: Scope, editor_id: EditorId, common: CommonData) -> Self {
+        let (cx, _) = cx.run_child_scope(|cx| cx);
         let doc = Document::new_local(
             cx,
             common.find.clone(),
@@ -234,7 +238,9 @@ impl EditorData {
         editor_tab_id: Option<EditorTabId>,
         editor_id: EditorId,
     ) -> Self {
+        let (cx, _) = cx.run_child_scope(|cx| cx);
         let mut editor = self.clone();
+        editor.scope = cx;
         editor.view = self.view.duplicate();
         editor.cursor = create_rw_signal(cx, editor.cursor.get_untracked());
         editor.viewport = create_rw_signal(cx, editor.viewport.get_untracked());
@@ -246,6 +252,10 @@ impl EditorData {
         editor.window_origin = create_rw_signal(cx, Point::ZERO);
         editor.confirmed = create_rw_signal(cx, true);
         editor.snippet = create_rw_signal(cx, None);
+        editor.last_movement =
+            create_rw_signal(cx, editor.last_movement.get_untracked());
+        editor.inline_find = create_rw_signal(cx, None);
+        editor.last_inline_find = create_rw_signal(cx, None);
         editor.find_focus = create_rw_signal(cx, false);
         editor.active = create_rw_signal(cx, false);
         editor.sticky_header_height = create_rw_signal(cx, 0.0);
@@ -711,7 +721,7 @@ impl EditorData {
 
         let internal_command = self.common.internal_command;
         let cursor = self.cursor.read_only();
-        let send = create_ext_action(self.common.scope, move |d| {
+        let send = create_ext_action(self.scope, move |d| {
             let current_offset = cursor.with_untracked(|c| c.offset());
             if current_offset != offset {
                 return;
@@ -905,7 +915,7 @@ impl EditorData {
                     .doc
                     .with_untracked(|doc| (doc.rev(), doc.content.path().cloned()));
                 let offset = self.cursor.with_untracked(|c| c.offset());
-                let send = create_ext_action(self.common.scope, move |item| {
+                let send = create_ext_action(self.scope, move |item| {
                     if editor.cursor.with_untracked(|c| c.offset() != offset) {
                         return;
                     }
@@ -1325,7 +1335,6 @@ impl EditorData {
 
     fn do_go_to_location(
         &self,
-        cx: Scope,
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
     ) {
@@ -1334,7 +1343,7 @@ impl EditorData {
         } else if let Some(edits) = edits.as_ref() {
             self.do_text_edit(edits);
         } else {
-            let db: Arc<LapceDb> = use_context(cx).unwrap();
+            let db: Arc<LapceDb> = use_context(self.scope).unwrap();
             if let Ok(info) = db.get_doc_info(&self.common.workspace, &location.path)
             {
                 self.go_to_position(
@@ -1348,24 +1357,23 @@ impl EditorData {
 
     pub fn go_to_location(
         &self,
-        cx: Scope,
         location: EditorLocation,
         new_doc: bool,
         edits: Option<Vec<TextEdit>>,
     ) {
         if !new_doc {
-            self.do_go_to_location(cx, location, edits);
+            self.do_go_to_location(location, edits);
         } else {
             let buffer_id = self.doc.with_untracked(|doc| doc.buffer_id);
             let set_doc = self.doc.write_only();
             let editor = self.clone();
             let path = location.path.clone();
-            let send = create_ext_action(cx, move |content| {
+            let send = create_ext_action(self.scope, move |content| {
                 set_doc.update(move |doc| {
                     doc.init_content(content);
                 });
 
-                editor.do_go_to_location(cx, location.clone(), edits.clone());
+                editor.do_go_to_location(location.clone(), edits.clone());
             });
 
             self.common
@@ -1452,7 +1460,7 @@ impl EditorData {
         });
 
         let doc = self.doc;
-        let send = create_ext_action(self.common.scope, move |resp| {
+        let send = create_ext_action(self.scope, move |resp| {
             if doc.with_untracked(|doc| doc.rev() == rev) {
                 doc.update(|doc| {
                     doc.code_actions.insert(offset, Arc::new(resp));
@@ -1500,7 +1508,7 @@ impl EditorData {
             .with_untracked(|doc| (doc.rev(), doc.content.clone()));
 
         let doc = self.doc;
-        let send = create_ext_action(self.common.scope, move |result| {
+        let send = create_ext_action(self.scope, move |result| {
             if let Ok(ProxyResponse::SaveResponse {}) = result {
                 let current_rev = doc.with_untracked(|doc| doc.rev());
                 if current_rev == rev {
@@ -1518,7 +1526,7 @@ impl EditorData {
         }
     }
 
-    fn save(&self, exit: bool, allow_formatting: bool) {
+    pub fn save(&self, exit: bool, allow_formatting: bool) {
         let (rev, is_pristine, content) = self.doc.with_untracked(|doc| {
             (doc.rev(), doc.buffer().is_pristine(), doc.content.clone())
         });
@@ -1533,7 +1541,7 @@ impl EditorData {
             let format_on_save = allow_formatting && config.editor.format_on_save;
             if format_on_save {
                 let editor = self.clone();
-                let send = create_ext_action(self.common.scope, move |result| {
+                let send = create_ext_action(self.scope, move |result| {
                     if let Ok(Ok(ProxyResponse::GetDocumentFormatting { edits })) =
                         result
                     {
@@ -1659,7 +1667,7 @@ impl EditorData {
         let doc = self.doc;
         let internal_command = self.common.internal_command;
         let local_path = path.clone();
-        let send = create_ext_action(self.common.scope, move |result| {
+        let send = create_ext_action(self.scope, move |result| {
             if let Ok(ProxyResponse::PrepareRename { resp }) = result {
                 if doc.with_untracked(|doc| doc.rev()) != rev {
                     return;

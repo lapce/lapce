@@ -1615,7 +1615,7 @@ dependencies = [
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=95112d756b621a81bb00ff9e0c000199f944e8dd#95112d756b621a81bb00ff9e0c000199f944e8dd"
+source = "git+https://github.com/lapce/floem?rev=7a5f0c8554f55e14b922ef3ca47175602630bcba#7a5f0c8554f55e14b922ef3ca47175602630bcba"
 dependencies = [
  "bitflags 2.2.1",
  "crossbeam-channel",
@@ -1643,7 +1643,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=95112d756b621a81bb00ff9e0c000199f944e8dd#95112d756b621a81bb00ff9e0c000199f944e8dd"
+source = "git+https://github.com/lapce/floem?rev=7a5f0c8554f55e14b922ef3ca47175602630bcba#7a5f0c8554f55e14b922ef3ca47175602630bcba"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1654,7 +1654,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=95112d756b621a81bb00ff9e0c000199f944e8dd#95112d756b621a81bb00ff9e0c000199f944e8dd"
+source = "git+https://github.com/lapce/floem?rev=7a5f0c8554f55e14b922ef3ca47175602630bcba#7a5f0c8554f55e14b922ef3ca47175602630bcba"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -3204,6 +3204,7 @@ dependencies = [
  "lsp-types",
  "notify",
  "once_cell",
+ "open",
  "parking_lot 0.11.2",
  "rayon",
  "regex",
@@ -3493,14 +3494,15 @@ checksum = "03087c2bad5e1034e8cace5926dec053fb3790248370865f5117a7d0213354c8"
 
 [[package]]
 name = "leptos_reactive"
-version = "0.2.5"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22e702730c3ac1f8a619bf2b139e650b792c96c66f2285a88a1c92c1a53ed262"
+checksum = "d43223e5d172e5986a31a0d5f40b10813c4c3a43b52a8cab1993f27df4bea975"
 dependencies = [
  "base64 0.21.0",
  "cfg-if 1.0.0",
  "futures",
  "indexmap",
+ "ouroboros",
  "rustc-hash",
  "serde",
  "serde-wasm-bindgen",

@@ -4,6 +4,7 @@ use floem::{
     context::PaintCx,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     event::{Event, EventListener},
+    ext_event::create_ext_action,
     glazier::{Modifiers, PointerType},
     id::Id,
     peniko::{
@@ -11,9 +12,9 @@ use floem::{
         Color,
     },
     reactive::{
-        create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal,
-        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked,
+        create_effect, create_memo, create_rw_signal, on_cleanup, ReadSignal,
+        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalWith, SignalWithUntracked,
     },
     style::{ComputedStyle, CursorStyle, Style},
     taffy::prelude::Node,
@@ -153,7 +154,7 @@ impl EditorView {
         let is_active = (*self.is_active)() && !find_focus.get_untracked();
 
         view.track_doc();
-        let renders = cursor.with(|cursor| match &cursor.mode {
+        let renders = cursor.with_untracked(|cursor| match &cursor.mode {
             CursorMode::Normal(offset) => {
                 let line = view.line_of_offset(*offset);
                 let mut renders = vec![CursorRender::CurrentLine { line }];
@@ -891,14 +892,29 @@ pub fn editor_container_view(
     is_active: impl Fn() -> bool + 'static + Copy,
     editor: RwSignal<EditorData>,
 ) -> impl View {
-    let (find_focus, sticky_header_height, config) =
-        editor.with_untracked(|editor| {
+    let (find_focus, sticky_header_height, config, editor_id, editor_scope) = editor
+        .with_untracked(|editor| {
             (
                 editor.find_focus,
                 editor.sticky_header_height,
                 editor.common.config,
+                editor.editor_id,
+                editor.scope,
             )
         });
+    let editors = main_split.editors;
+    on_cleanup(AppContext::get_current().scope, move || {
+        let exits =
+            editors.with_untracked(|editors| editors.contains_key(&editor_id));
+        if !exits {
+            let send = create_ext_action(editor_scope, move |_| {
+                editor_scope.dispose();
+            });
+            std::thread::spawn(move || {
+                send(());
+            });
+        }
+    });
 
     let find_editor = main_split.find_editor;
     let replace_editor = main_split.replace_editor;

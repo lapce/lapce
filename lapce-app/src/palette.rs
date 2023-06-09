@@ -175,14 +175,33 @@ impl PaletteData {
             let resp = create_signal_from_channel(cx, resp_rx);
             let run_id = run_id.read_only();
             let input = input.read_only();
-            let index = index.write_only();
             create_effect(cx, move |_| {
-                if let Some((filter_run_id, filter_input, items)) = resp.get() {
+                if let Some((filter_run_id, filter_input, new_items)) = resp.get() {
                     if run_id.get_untracked() == filter_run_id
                         && input.get_untracked().input == filter_input
                     {
-                        set_filtered_items.set(items);
-                        index.set(0);
+                        let items = items.get_untracked();
+                        let current_index = index.get_untracked();
+
+                        if current_index != 0 && items.get(current_index).is_some() {
+                            let current_item = items.get(current_index).unwrap();
+
+                            // Keep the current item selected if it is still in the list
+                            if let Some((idx, _)) = new_items
+                                .iter()
+                                .find_position(|item| *item == current_item)
+                            {
+                                if idx != current_index {
+                                    index.set(idx);
+                                }
+                            } else {
+                                index.set(0);
+                            }
+                        } else {
+                            index.set(0);
+                        }
+
+                        set_filtered_items.set(new_items);
                     }
                 }
             });
@@ -351,38 +370,51 @@ impl PaletteData {
             PaletteKind::RunAndDebug => {
                 self.get_run_configs(cx);
             }
+            PaletteKind::ColorTheme => {
+                self.get_color_themes(cx);
+                self.preselect_matching(
+                    &self.common.config.get_untracked().color_theme.name,
+                );
+            }
+            PaletteKind::IconTheme => {
+                self.get_icon_themes(cx);
+                self.preselect_matching(
+                    &self.common.config.get_untracked().icon_theme.name,
+                );
+            }
         }
     }
 
     /// Initialize the palette with the files in the current workspace.
-    fn get_files(&self, cx: Scope) {
+    fn get_files(&self, _cx: Scope) {
         let workspace = self.workspace.clone();
         let set_items = self.items.write_only();
-        let send = create_ext_action(cx, move |items: Vec<PathBuf>| {
-            let items = items
-                .into_iter()
-                .map(|path| {
-                    let full_path = path.clone();
-                    // Strip the workspace prefix off the path, to avoid clutter
-                    let path = if let Some(workspace_path) = workspace.path.as_ref()
-                    {
-                        path.strip_prefix(workspace_path)
-                            .unwrap_or(&full_path)
-                            .to_path_buf()
-                    } else {
-                        path
-                    };
-                    let filter_text = path.to_str().unwrap_or("").to_string();
-                    PaletteItem {
-                        content: PaletteItemContent::File { path, full_path },
-                        filter_text,
-                        score: 0,
-                        indices: Vec::new(),
-                    }
-                })
-                .collect::<im::Vector<_>>();
-            set_items.set(items);
-        });
+        let send =
+            create_ext_action(self.common.scope, move |items: Vec<PathBuf>| {
+                let items = items
+                    .into_iter()
+                    .map(|path| {
+                        let full_path = path.clone();
+                        // Strip the workspace prefix off the path, to avoid clutter
+                        let path =
+                            if let Some(workspace_path) = workspace.path.as_ref() {
+                                path.strip_prefix(workspace_path)
+                                    .unwrap_or(&full_path)
+                                    .to_path_buf()
+                            } else {
+                                path
+                            };
+                        let filter_text = path.to_str().unwrap_or("").to_string();
+                        PaletteItem {
+                            content: PaletteItemContent::File { path, full_path },
+                            filter_text,
+                            score: 0,
+                            indices: Vec::new(),
+                        }
+                    })
+                    .collect::<im::Vector<_>>();
+                set_items.set(items);
+            });
         self.common.proxy.get_files(move |result| {
             if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
                 send(items);
@@ -537,7 +569,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_document_symbols(&self, cx: Scope) {
+    fn get_document_symbols(&self, _cx: Scope) {
         let editor = self.main_split.active_editor.get_untracked();
         let doc = match editor {
             Some(editor) => editor.with_untracked(|editor| (editor.doc)),
@@ -556,7 +588,7 @@ impl PaletteData {
         };
 
         let set_items = self.items.write_only();
-        let send = create_ext_action(cx, move |result| {
+        let send = create_ext_action(self.common.scope, move |result| {
             if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
                 let items: im::Vector<PaletteItem> = match resp {
                     DocumentSymbolResponse::Flat(symbols) => symbols
@@ -605,11 +637,11 @@ impl PaletteData {
         });
     }
 
-    fn get_workspace_symbols(&self, cx: Scope) {
+    fn get_workspace_symbols(&self, _cx: Scope) {
         let input = self.input.get_untracked().input;
 
         let set_items = self.items.write_only();
-        let send = create_ext_action(cx, move |result| {
+        let send = create_ext_action(self.common.scope, move |result| {
             if let Ok(ProxyResponse::GetWorkspaceSymbols { symbols }) = result {
                 let items: im::Vector<PaletteItem> = symbols
                     .iter()
@@ -734,10 +766,46 @@ impl PaletteData {
             .set(items.into_iter().map(|(_, item)| item).collect());
     }
 
+    fn get_color_themes(&self, _cx: Scope) {
+        let config = self.common.config.get_untracked();
+        let items = config
+            .color_theme_list()
+            .iter()
+            .map(|name| PaletteItem {
+                content: PaletteItemContent::ColorTheme { name: name.clone() },
+                filter_text: name.clone(),
+                score: 0,
+                indices: Vec::new(),
+            })
+            .collect();
+        self.items.set(items);
+    }
+
+    fn get_icon_themes(&self, _cx: Scope) {
+        let config = self.common.config.get_untracked();
+        let items = config
+            .icon_theme_list()
+            .iter()
+            .map(|name| PaletteItem {
+                content: PaletteItemContent::IconTheme { name: name.clone() },
+                filter_text: name.clone(),
+                score: 0,
+                indices: Vec::new(),
+            })
+            .collect();
+        self.items.set(items);
+    }
+
+    fn preselect_matching(&self, matching: &str) {
+        let Some((idx, _)) = self.items.get_untracked().iter().find_position(|item| item.filter_text == matching) else { return };
+
+        self.index.set(idx);
+    }
+
     fn select(&self) {
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
-        self.cancel();
+        self.close();
         if let Some(item) = items.get(index) {
             match &item.content {
                 PaletteItemContent::File { full_path, .. } => {
@@ -842,6 +910,20 @@ impl PaletteData {
                         },
                     ));
                 }
+                PaletteItemContent::ColorTheme { name } => self
+                    .common
+                    .internal_command
+                    .set(Some(InternalCommand::SetColorTheme {
+                        name: name.clone(),
+                        save: true,
+                    })),
+                PaletteItemContent::IconTheme { name } => self
+                    .common
+                    .internal_command
+                    .set(Some(InternalCommand::SetIconTheme {
+                        name: name.clone(),
+                        save: true,
+                    })),
             }
         } else if self.kind.get_untracked() == PaletteKind::SshHost {
             let input = self.input.with_untracked(|input| input.input.clone());
@@ -859,7 +941,11 @@ impl PaletteData {
     }
 
     /// Update the preview for the currently active palette item, if it has one.
-    fn preview(&self, cx: Scope) {
+    fn preview(&self, _cx: Scope) {
+        if self.status.get_untracked() == PaletteStatus::Inactive {
+            return;
+        }
+
         let index = self.index.get_untracked();
         let items = self.filtered_items.get_untracked();
         if let Some(item) = items.get(index) {
@@ -883,7 +969,6 @@ impl PaletteData {
                         preview_editor.update_doc(doc);
                     });
                     self.preview_editor.get_untracked().go_to_location(
-                        cx,
                         EditorLocation {
                             path,
                             position: Some(EditorPosition::Line(*line)),
@@ -902,12 +987,11 @@ impl PaletteData {
                 PaletteItemContent::Reference { location, .. } => {
                     self.has_preview.set(true);
                     let (doc, new_doc) =
-                        self.main_split.get_doc(cx, location.path.clone());
+                        self.main_split.get_doc(location.path.clone());
                     self.preview_editor.update(|preview_editor| {
                         preview_editor.update_doc(doc);
                     });
                     self.preview_editor.get_untracked().go_to_location(
-                        cx,
                         location.clone(),
                         new_doc,
                         None,
@@ -931,7 +1015,6 @@ impl PaletteData {
                         preview_editor.update_doc(doc);
                     });
                     self.preview_editor.get_untracked().go_to_location(
-                        cx,
                         EditorLocation {
                             path,
                             position: Some(EditorPosition::Position(range.start)),
@@ -946,19 +1029,47 @@ impl PaletteData {
                 PaletteItemContent::WorkspaceSymbol { location, .. } => {
                     self.has_preview.set(true);
                     let (doc, new_doc) =
-                        self.main_split.get_doc(cx, location.path.clone());
+                        self.main_split.get_doc(location.path.clone());
                     self.preview_editor.update(|preview_editor| {
                         preview_editor.update_doc(doc);
                     });
                     let editor = self.preview_editor.get_untracked();
-                    editor.go_to_location(cx, location.clone(), new_doc, None);
+                    editor.go_to_location(location.clone(), new_doc, None);
                 }
+                PaletteItemContent::ColorTheme { name } => self
+                    .common
+                    .internal_command
+                    .set(Some(InternalCommand::SetColorTheme {
+                        name: name.clone(),
+                        save: false,
+                    })),
+                PaletteItemContent::IconTheme { name } => self
+                    .common
+                    .internal_command
+                    .set(Some(InternalCommand::SetIconTheme {
+                        name: name.clone(),
+                        save: false,
+                    })),
             }
         }
     }
 
-    /// Close the palette, reverting focus back to the workbench.
+    /// Cancel the palette, doing cleanup specific to the palette kind.
     fn cancel(&self) {
+        if let PaletteKind::ColorTheme | PaletteKind::IconTheme =
+            self.kind.get_untracked()
+        {
+            // TODO(minor): We don't really need to reload the *entire config* here!
+            self.common
+                .internal_command
+                .set(Some(InternalCommand::ReloadConfig));
+        }
+
+        self.close();
+    }
+
+    /// Close the palette, reverting focus back to the workbench.  
+    fn close(&self) {
         self.status.set(PaletteStatus::Inactive);
         if self.common.focus.get_untracked() == Focus::Palette {
             self.common.focus.set(Focus::Workbench);

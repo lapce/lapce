@@ -329,12 +329,15 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "toggle_panel_visual")]
     TogglePanelVisual,
 
+    #[strum(message = "Toggle Left Panel")]
     #[strum(serialize = "toggle_panel_left_visual")]
     TogglePanelLeftVisual,
 
+    #[strum(message = "Toggle Right Panel")]
     #[strum(serialize = "toggle_panel_right_visual")]
     TogglePanelRightVisual,
 
+    #[strum(message = "Toggle Bottom Panel")]
     #[strum(serialize = "toggle_panel_bottom_visual")]
     TogglePanelBottomVisual,
 
@@ -425,11 +428,11 @@ pub enum LapceWorkbenchCommand {
     ChangeFileLanguage,
 
     #[strum(serialize = "next_editor_tab")]
-    #[strum(message = "Next editor tab")]
+    #[strum(message = "Next Editor Tab")]
     NextEditorTab,
 
     #[strum(serialize = "previous_editor_tab")]
-    #[strum(message = "Previous editor tab")]
+    #[strum(message = "Previous Editor Tab")]
     PreviousEditorTab,
 
     #[strum(serialize = "toggle_inlay_hints")]
@@ -484,6 +487,7 @@ pub enum LapceWorkbenchCommand {
 
 #[derive(Clone, Debug)]
 pub enum InternalCommand {
+    ReloadConfig,
     OpenFile {
         path: PathBuf,
     },
@@ -574,6 +578,17 @@ pub enum InternalCommand {
     },
     FocusEditorTab {
         editor_tab_id: EditorTabId,
+    },
+
+    SetColorTheme {
+        name: String,
+        /// Whether to save the theme to the config file
+        save: bool,
+    },
+    SetIconTheme {
+        name: String,
+        /// Whether to save the theme to the config file
+        save: bool,
     },
 }
 

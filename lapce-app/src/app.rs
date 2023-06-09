@@ -6,15 +6,15 @@ use clap::Parser;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener},
-    ext_event::create_signal_from_channel,
+    ext_event::{create_ext_action, create_signal_from_channel},
     peniko::{
         kurbo::{Point, Rect, Size},
         Color,
     },
     reactive::{
-        create_effect, create_memo, create_rw_signal, provide_context, ReadSignal,
-        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalWith, SignalWithUntracked,
+        create_effect, create_memo, create_rw_signal, on_cleanup, provide_context,
+        ReadSignal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
+        SignalUpdate, SignalWith, SignalWithUntracked,
     },
     style::{
         AlignItems, CursorStyle, Dimension, Display, FlexDirection, JustifyContent,
@@ -494,6 +494,22 @@ fn editor_tab(
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
 ) -> impl View {
+    let (editor_tab_id, editor_tab_scope) =
+        editor_tab.with_untracked(|e| (e.editor_tab_id, e.scope));
+    let editor_tabs = main_split.editor_tabs;
+    on_cleanup(AppContext::get_current().scope, move || {
+        let exits =
+            editor_tabs.with_untracked(|tabs| tabs.contains_key(&editor_tab_id));
+        if !exits {
+            let send = create_ext_action(editor_tab_scope, move |_| {
+                editor_tab_scope.dispose();
+            });
+            std::thread::spawn(move || {
+                send(());
+            });
+        }
+    });
+
     let common = main_split.common.clone();
     let focus = common.focus;
     let internal_command = main_split.common.internal_command;
@@ -533,7 +549,7 @@ fn split_border(
         |content| content.id(),
         move |content| {
             container(|| {
-                label(|| "".to_string()).style(move || {
+                empty().style(move || {
                     let direction = direction();
                     Style::BASE
                         .width(match direction {
@@ -574,18 +590,18 @@ fn split_border(
                 Style::BASE
                     .position(Position::Absolute)
                     .apply_if(direction == SplitDirection::Vertical, |style| {
-                        style.margin_left_px(rect.x0 as f32 - 1.0)
+                        style.margin_left_px(rect.x0 as f32 - 2.0)
                     })
                     .apply_if(direction == SplitDirection::Horizontal, |style| {
-                        style.margin_top_px(rect.y0 as f32 - 1.0)
+                        style.margin_top_px(rect.y0 as f32 - 2.0)
                     })
                     .width(match direction {
-                        SplitDirection::Vertical => Dimension::Points(5.0),
+                        SplitDirection::Vertical => Dimension::Points(4.0),
                         SplitDirection::Horizontal => Dimension::Percent(1.0),
                     })
                     .height(match direction {
                         SplitDirection::Vertical => Dimension::Percent(1.0),
-                        SplitDirection::Horizontal => Dimension::Points(5.0),
+                        SplitDirection::Horizontal => Dimension::Points(4.0),
                     })
                     .flex_direction(match direction {
                         SplitDirection::Vertical => FlexDirection::Row,
@@ -612,6 +628,19 @@ fn split_list(
     let editors = main_split.editors.read_only();
     let splits = main_split.splits.read_only();
     let config = main_split.common.config;
+    let (split_id, split_scope) =
+        split.with_untracked(|split| (split.split_id, split.scope));
+    on_cleanup(AppContext::get_current().scope, move || {
+        let exits = splits.with_untracked(|splits| splits.contains_key(&split_id));
+        if !exits {
+            let send = create_ext_action(split_scope, move |_| {
+                split_scope.dispose();
+            });
+            std::thread::spawn(move || {
+                send(());
+            });
+        }
+    });
 
     let direction = move || split.with(|split| split.direction);
     let items = move || split.get().children.into_iter().enumerate();
@@ -1440,7 +1469,9 @@ fn palette_item(
         PaletteItemContent::Command { .. }
         | PaletteItemContent::Line { .. }
         | PaletteItemContent::Workspace { .. }
-        | PaletteItemContent::SshHost { .. } => {
+        | PaletteItemContent::SshHost { .. }
+        | PaletteItemContent::ColorTheme { .. }
+        | PaletteItemContent::IconTheme { .. } => {
             let text = item.filter_text;
             let indices = item.indices;
             container_box(move || {
@@ -1842,7 +1873,7 @@ fn completion(window_tab_data: Arc<WindowTabData>) -> impl View {
             .background(*config.get_color(LapceColor::COMPLETION_BACKGROUND))
             .font_family(config.editor.font_family.clone())
             .font_size(config.editor.font_size() as f32)
-            .border_radius(6.0)
+            .border_radius(10.0)
     })
 }
 
@@ -1854,35 +1885,39 @@ fn code_action(window_tab_data: Arc<WindowTabData>) -> impl View {
     let request_id =
         move || code_action.with_untracked(|code_action| code_action.request_id);
     scroll(move || {
-        list(
-            move || {
-                code_action.with(|code_action| {
-                    code_action.filtered_items.clone().into_iter().enumerate()
-                })
-            },
-            move |(i, _item)| (request_id(), *i),
-            move |(i, item)| {
-                container(move || {
-                    label(move || item.title().to_string())
-                        .style(|| Style::BASE.text_ellipsis().min_width_px(0.0))
-                })
-                .style(move || {
-                    let config = config.get();
-                    Style::BASE
-                        .padding_horiz_px(10.0)
-                        .align_items(Some(AlignItems::Center))
-                        .min_width_px(0.0)
-                        .width_pct(100.0)
-                        .height_px(config.editor.line_height() as f32)
-                        .apply_if(active.get() == i, |s| {
-                            s.background(
-                                *config.get_color(LapceColor::COMPLETION_CURRENT),
-                            )
-                        })
-                })
-            },
-        )
-        .style(|| Style::BASE.width_pct(100.0).flex_col())
+        container(|| {
+            list(
+                move || {
+                    code_action.with(|code_action| {
+                        code_action.filtered_items.clone().into_iter().enumerate()
+                    })
+                },
+                move |(i, _item)| (request_id(), *i),
+                move |(i, item)| {
+                    container(move || {
+                        label(move || item.title().replace('\n', " "))
+                            .style(|| Style::BASE.text_ellipsis().min_width_px(0.0))
+                    })
+                    .style(move || {
+                        let config = config.get();
+                        Style::BASE
+                            .padding_horiz_px(10.0)
+                            .align_items(Some(AlignItems::Center))
+                            .min_width_px(0.0)
+                            .width_pct(100.0)
+                            .line_height(1.6)
+                            .apply_if(active.get() == i, |s| {
+                                s.border_radius(6.0).background(
+                                    *config
+                                        .get_color(LapceColor::COMPLETION_CURRENT),
+                                )
+                            })
+                    })
+                },
+            )
+            .style(|| Style::BASE.width_pct(100.0).flex_col())
+        })
+        .style(|| Style::BASE.width_pct(100.0).padding_vert_px(4.0))
     })
     .scroll_bar_color(move || *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR))
     .on_ensure_visible(move || {
@@ -1913,7 +1948,7 @@ fn code_action(window_tab_data: Arc<WindowTabData>) -> impl View {
             .margin_left_px(origin.x as f32)
             .margin_top_px(origin.y as f32)
             .background(*config.get().get_color(LapceColor::COMPLETION_BACKGROUND))
-            .border_radius(20.0)
+            .border_radius(10.0)
     })
 }
 
@@ -1955,7 +1990,19 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
     })
 }
 
+pub fn dispose_on_ui_cleanup(scope: Scope) {
+    on_cleanup(AppContext::get_current().scope, move || {
+        let send = create_ext_action(scope, move |_| {
+            scope.dispose();
+        });
+        std::thread::spawn(move || {
+            send(());
+        });
+    });
+}
+
 fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
+    dispose_on_ui_cleanup(window_tab_data.scope);
     let source_control = window_tab_data.source_control;
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;

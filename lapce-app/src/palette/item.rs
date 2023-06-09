@@ -57,4 +57,10 @@ pub enum PaletteItemContent {
         mode: RunDebugMode,
         config: RunDebugConfig,
     },
+    ColorTheme {
+        name: String,
+    },
+    IconTheme {
+        name: String,
+    },
 }
