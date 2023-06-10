@@ -498,6 +498,53 @@ impl EditorView {
             cx.restore();
         }
     }
+
+    fn paint_scroll_bar(
+        &self,
+        cx: &mut PaintCx,
+        viewport: Rect,
+        config: Arc<LapceConfig>,
+    ) {
+        const BAR_WIDTH: f64 = 10.0;
+        cx.fill(
+            &Rect::ZERO
+                .with_size(Size::new(1.0, viewport.height()))
+                .with_origin(Point::new(
+                    viewport.x0 + viewport.width() - BAR_WIDTH,
+                    viewport.y0,
+                ))
+                .inflate(0.0, 10.0),
+            config.get_color(LapceColor::LAPCE_SCROLL_BAR),
+        );
+
+        let doc = self.editor.with_untracked(|e| e.doc);
+        let total_len = doc.with_untracked(|doc| doc.buffer().last_line());
+        let changes = doc.with_untracked(|doc| doc.head_changes);
+        let changes = changes.get();
+        let total_height = viewport.height();
+        let total_width = viewport.width();
+        let line_height = config.editor.line_height();
+        let content_height = if config.editor.scroll_beyond_last_line {
+            (total_len * line_height) as f64 + total_height - line_height as f64
+        } else {
+            (total_len * line_height) as f64
+        };
+
+        let colors = changes_colors(changes, 0, total_len, &config);
+        for (y, height, _, color) in colors {
+            let y = (y * line_height) as f64 / content_height * total_height;
+            let height = ((height * line_height) as f64 / content_height
+                * total_height)
+                .max(3.0);
+            let rect = Rect::ZERO.with_size(Size::new(3.0, height)).with_origin(
+                Point::new(
+                    viewport.x0 + total_width - BAR_WIDTH + 1.0,
+                    y + viewport.y0,
+                ),
+            );
+            cx.fill(&rect, color);
+        }
+    }
 }
 
 impl View for EditorView {
@@ -589,6 +636,7 @@ impl View for EditorView {
         self.paint_find(cx, min_line, max_line);
         self.paint_text(cx, min_line, max_line, viewport);
         self.paint_sticky_headers(cx, min_line, viewport);
+        self.paint_scroll_bar(cx, viewport, config);
     }
 }
 
@@ -1039,58 +1087,7 @@ fn editor_gutter(
         let min_line = (viewport.y0 / line_height).floor() as usize;
         let max_line = (viewport.y1 / line_height).ceil() as usize;
 
-        let mut line = 0;
-        let mut last_change = None;
-        let mut colors = Vec::new();
-        for change in changes.iter() {
-            let len = match change {
-                DiffLines::Left(_range) => 0,
-                DiffLines::Skip(_left, right) => right.len(),
-                DiffLines::Both(_left, right) => right.len(),
-                DiffLines::Right(range) => range.len(),
-            };
-            line += len;
-            if line < min_line {
-                last_change = Some(change);
-                continue;
-            }
-
-            let mut modified = false;
-            let color = match change {
-                DiffLines::Left(_range) => {
-                    Some(config.get_color(LapceColor::SOURCE_CONTROL_REMOVED))
-                }
-                DiffLines::Right(_range) => {
-                    if let Some(DiffLines::Left(_)) = last_change.as_ref() {
-                        modified = true;
-                    }
-                    if modified {
-                        Some(config.get_color(LapceColor::SOURCE_CONTROL_MODIFIED))
-                    } else {
-                        Some(config.get_color(LapceColor::SOURCE_CONTROL_ADDED))
-                    }
-                }
-                _ => None,
-            };
-
-            if let Some(color) = color.cloned() {
-                let y = line - len;
-                let height = len;
-                let removed = len == 0;
-
-                if modified {
-                    colors.pop();
-                }
-
-                colors.push((y, height, removed, color));
-            }
-
-            if line > max_line {
-                break;
-            }
-            last_change = Some(change);
-        }
-        colors
+        changes_colors(changes, min_line, max_line, &config)
     };
 
     let gutter_view_fn = move |line: DocLine| {
@@ -2446,4 +2443,64 @@ impl TextCacheListener for RefCell<TextLayoutCache> {
     fn clear(&self) {
         self.borrow_mut().clear();
     }
+}
+
+fn changes_colors(
+    changes: im::Vector<DiffLines>,
+    min_line: usize,
+    max_line: usize,
+    config: &LapceConfig,
+) -> Vec<(usize, usize, bool, Color)> {
+    let mut line = 0;
+    let mut last_change = None;
+    let mut colors = Vec::new();
+    for change in changes.iter() {
+        let len = match change {
+            DiffLines::Left(_range) => 0,
+            DiffLines::Skip(_left, right) => right.len(),
+            DiffLines::Both(_left, right) => right.len(),
+            DiffLines::Right(range) => range.len(),
+        };
+        line += len;
+        if line < min_line {
+            last_change = Some(change);
+            continue;
+        }
+
+        let mut modified = false;
+        let color = match change {
+            DiffLines::Left(_range) => {
+                Some(config.get_color(LapceColor::SOURCE_CONTROL_REMOVED))
+            }
+            DiffLines::Right(_range) => {
+                if let Some(DiffLines::Left(_)) = last_change.as_ref() {
+                    modified = true;
+                }
+                if modified {
+                    Some(config.get_color(LapceColor::SOURCE_CONTROL_MODIFIED))
+                } else {
+                    Some(config.get_color(LapceColor::SOURCE_CONTROL_ADDED))
+                }
+            }
+            _ => None,
+        };
+
+        if let Some(color) = color.cloned() {
+            let y = line - len;
+            let height = len;
+            let removed = len == 0;
+
+            if modified {
+                colors.pop();
+            }
+
+            colors.push((y, height, removed, color));
+        }
+
+        if line > max_line {
+            break;
+        }
+        last_change = Some(change);
+    }
+    colors
 }

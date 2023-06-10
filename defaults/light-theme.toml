@@ -72,7 +72,7 @@ yellow = "#C18401"
 "lapce.warn" = "#E9A700"
 "lapce.dropdown_shadow" = "#B4B4B4"
 "lapce.border" = "#B4B4B4"
-"lapce.scroll_bar" = "#B4B4B4"
+"lapce.scroll_bar" = "#B4B4B4BB"
 
 "lapce.button.primary.background" = "#50a14f"
 "lapce.button.primary.foreground" = "$white"
