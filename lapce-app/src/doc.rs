@@ -1,4 +1,10 @@
-use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    path::PathBuf,
+    rc::Rc,
+    sync::{atomic, Arc},
+};
 
 use floem::{
     ext_event::create_ext_action,
@@ -9,7 +15,7 @@ use floem::{
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::{rope_text::RopeText, Buffer, InvalLines},
+    buffer::{rope_diff, rope_text::RopeText, Buffer, DiffLines, InvalLines},
     command::EditCommand,
     cursor::Cursor,
     editor::{EditType, Editor},
@@ -37,6 +43,7 @@ use smallvec::SmallVec;
 use crate::{
     config::{color::LapceColor, LapceConfig},
     find::{Find, FindProgress, FindResult},
+    history::DocumentHistory,
     workspace::LapceWorkspace,
 };
 
@@ -119,6 +126,7 @@ type TextCacheListeners = Rc<RefCell<SmallVec<[Rc<dyn TextCacheListener>; 2]>>>;
 /// [`EditorViewData`]s and [`EditorView]s.  
 #[derive(Clone)]
 pub struct Document {
+    pub scope: Scope,
     pub content: DocContent,
     pub buffer_id: BufferId,
     style_rev: u64,
@@ -143,6 +151,9 @@ pub struct Document {
     pub code_actions: im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>,
     /// Whether the buffer's content has been loaded/initialized into the buffer.
     loaded: bool,
+    /// Stores information about different versions of the document from source control.
+    histories: RwSignal<im::HashMap<String, DocumentHistory>>,
+    pub head_changes: RwSignal<im::Vector<DiffLines>>,
 
     /// A cache for the sticky headers which maps a line to the lines it should show in the header.
     pub sticky_headers: Rc<RefCell<HashMap<usize, Option<Vec<usize>>>>>,
@@ -163,6 +174,7 @@ impl Document {
     ) -> Self {
         let syntax = Syntax::init(&path);
         Self {
+            scope: cx,
             buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
             style_rev: 0,
@@ -176,6 +188,8 @@ impl Document {
             completion_pos: (0, 0),
             content: DocContent::File(path),
             loaded: false,
+            histories: create_rw_signal(cx, im::HashMap::new()),
+            head_changes: create_rw_signal(cx, im::Vector::new()),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             code_actions: im::HashMap::new(),
             proxy,
@@ -192,6 +206,7 @@ impl Document {
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
         Self {
+            scope: cx,
             buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
             style_rev: 0,
@@ -209,6 +224,8 @@ impl Document {
             completion_lens: None,
             completion_pos: (0, 0),
             loaded: true,
+            histories: create_rw_signal(cx, im::HashMap::new()),
+            head_changes: create_rw_signal(cx, im::Vector::new()),
             code_actions: im::HashMap::new(),
             proxy,
             config,
@@ -249,6 +266,7 @@ impl Document {
         self.loaded = true;
         self.on_update(None);
         self.init_diagnostics();
+        self.retrieve_head();
     }
 
     /// Reload the document's content, and is what you should typically use when you want to *set*
@@ -360,7 +378,7 @@ impl Document {
         self.clear_sticky_headers_cache();
         // self.find_result.reset();
         // self.clear_sticky_headers_cache();
-        // self.trigger_head_change();
+        self.trigger_head_change();
         // self.notify_special();
     }
 
@@ -989,5 +1007,84 @@ impl Document {
         });
         self.sticky_headers.borrow_mut().insert(line, lines.clone());
         lines
+    }
+
+    /// Retrieve the `head` version of the buffer
+    pub fn retrieve_head(&self) {
+        if let DocContent::File(path) = &self.content {
+            let histories = self.histories;
+
+            let send = {
+                let path = path.clone();
+                let doc = self.clone();
+                create_ext_action(self.scope, move |result| {
+                    if let Ok(ProxyResponse::BufferHeadResponse {
+                        content, ..
+                    }) = result
+                    {
+                        let hisotry = DocumentHistory::new(
+                            path.clone(),
+                            "head".to_string(),
+                            &content,
+                        );
+                        histories.update(|histories| {
+                            histories.insert("head".to_string(), hisotry);
+                        });
+
+                        doc.trigger_head_change();
+                    }
+                })
+            };
+
+            let path = path.clone();
+            let proxy = self.proxy.clone();
+            std::thread::spawn(move || {
+                proxy.get_buffer_head(path, move |result| {
+                    send(result);
+                });
+            });
+        }
+    }
+
+    pub fn trigger_head_change(&self) {
+        let history = if let Some(text) =
+            self.histories.with_untracked(|histories| {
+                histories
+                    .get("head")
+                    .map(|history| history.buffer.text().clone())
+            }) {
+            text
+        } else {
+            return;
+        };
+
+        let atomic_rev = self.buffer().atomic_rev();
+        let rev = self.rev();
+        let left_rope = history;
+        let right_rope = self.buffer().text().clone();
+
+        let send = {
+            let atomic_rev = atomic_rev.clone();
+            let head_changes = self.head_changes;
+            create_ext_action(self.scope, move |changes| {
+                let changes = if let Some(changes) = changes {
+                    changes
+                } else {
+                    return;
+                };
+
+                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                    return;
+                }
+
+                head_changes.set(changes);
+            })
+        };
+
+        rayon::spawn(move || {
+            let changes =
+                rope_diff(left_rope, right_rope, rev, atomic_rev.clone(), None);
+            send(changes.map(im::Vector::from));
+        });
     }
 }

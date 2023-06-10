@@ -26,7 +26,10 @@ use floem::{
     AppContext, Renderer,
 };
 use lapce_core::{
-    buffer::rope_text::{RopeText, RopeTextVal},
+    buffer::{
+        rope_text::{RopeText, RopeTextVal},
+        DiffLines,
+    },
     char_buffer::CharBuffer,
     cursor::{ColPosition, CursorMode},
     mode::{Mode, VisualMode},
@@ -1012,6 +1015,8 @@ fn editor_gutter(
         }
     });
 
+    let gutter_width = create_memo(cx.scope, move |_| gutter_rect.get().width());
+
     let current_line = create_memo(cx.scope, move |_| {
         let doc = editor.with(|editor| editor.doc);
         let (offset, mode) =
@@ -1023,145 +1028,230 @@ fn editor_gutter(
         (line, mode)
     });
 
+    let head_changes = move || {
+        let viewport = viewport.get();
+        let doc = editor.with(|editor| editor.doc);
+        let changes = doc.with_untracked(|doc| doc.head_changes);
+        let changes = changes.get();
+        let config = config.get();
+        let line_height = config.editor.line_height() as f64;
+
+        let min_line = (viewport.y0 / line_height).floor() as usize;
+        let max_line = (viewport.y1 / line_height).ceil() as usize;
+
+        let mut line = 0;
+        let mut last_change = None;
+        let mut colors = Vec::new();
+        for change in changes.iter() {
+            let len = match change {
+                DiffLines::Left(_range) => 0,
+                DiffLines::Skip(_left, right) => right.len(),
+                DiffLines::Both(_left, right) => right.len(),
+                DiffLines::Right(range) => range.len(),
+            };
+            line += len;
+            if line < min_line {
+                last_change = Some(change);
+                continue;
+            }
+
+            let mut modified = false;
+            let color = match change {
+                DiffLines::Left(_range) => {
+                    Some(config.get_color(LapceColor::SOURCE_CONTROL_REMOVED))
+                }
+                DiffLines::Right(_range) => {
+                    if let Some(DiffLines::Left(_)) = last_change.as_ref() {
+                        modified = true;
+                    }
+                    if modified {
+                        Some(config.get_color(LapceColor::SOURCE_CONTROL_MODIFIED))
+                    } else {
+                        Some(config.get_color(LapceColor::SOURCE_CONTROL_ADDED))
+                    }
+                }
+                _ => None,
+            };
+
+            if let Some(color) = color.cloned() {
+                let y = line - len;
+                let height = len;
+                let removed = len == 0;
+
+                if modified {
+                    colors.pop();
+                }
+
+                colors.push((y, height, removed, color));
+            }
+
+            if line > max_line {
+                break;
+            }
+            last_change = Some(change);
+        }
+        colors
+    };
+
+    let gutter_view_fn = move |line: DocLine| {
+        let line_number = {
+            let config = config.get_untracked();
+            let (current_line, mode) = current_line.get_untracked();
+            if config.core.modal
+                && config.editor.modal_mode_relative_line_numbers
+                && mode != Mode::Insert
+            {
+                if line.line == current_line {
+                    line.line + 1
+                } else {
+                    line.line.abs_diff(current_line)
+                }
+            } else {
+                line.line + 1
+            }
+        };
+
+        stack(move || {
+            (
+                empty().style(move || Style::BASE.width_px(padding_left)),
+                container(|| {
+                    label(move || line_number.to_string()).style(move || {
+                        let config = config.get();
+                        let (current_line, _) = current_line.get_untracked();
+                        Style::BASE.apply_if(current_line != line.line, move |s| {
+                            s.color(*config.get_color(LapceColor::EDITOR_DIM))
+                        })
+                    })
+                })
+                .style(move || {
+                    Style::BASE
+                        .width_px(
+                            gutter_width.get() as f32 - padding_left - padding_right,
+                        )
+                        .justify_end()
+                }),
+                container(|| {
+                    container(|| {
+                        container(|| {
+                            svg(move || config.get().ui_svg(LapceIcons::LIGHTBULB))
+                                .style(move || {
+                                    let config = config.get();
+                                    let size = config.ui.icon_size() as f32;
+                                    Style::BASE.size_px(size, size).color(
+                                        *config.get_color(LapceColor::LAPCE_WARN),
+                                    )
+                                })
+                        })
+                        .on_click(move |_| {
+                            editor.with_untracked(|editor| {
+                                editor.show_code_actions(true);
+                            });
+                            true
+                        })
+                        .style(move || {
+                            Style::BASE.apply_if(
+                                code_action_line.get() != Some(line.line),
+                                |s| s.hide(),
+                            )
+                        })
+                    })
+                    .style(move || {
+                        Style::BASE
+                            .justify_center()
+                            .items_center()
+                            .width_px(padding_right - padding_left)
+                    })
+                })
+                .style(move || Style::BASE.justify_end().width_px(padding_right)),
+            )
+        })
+        .style(move || {
+            let config = config.get_untracked();
+            let line_height = config.editor.line_height();
+            Style::BASE.items_center().height_px(line_height as f32)
+        })
+    };
+
     stack(|| {
         (
             stack(|| {
                 (
-                    label(|| "".to_string())
-                        .style(move || Style::BASE.width_px(padding_left)),
+                    empty().style(move || Style::BASE.width_px(padding_left)),
                     label(move || {
                         editor
                             .get()
                             .doc
                             .with(|doc| (doc.buffer().last_line() + 1).to_string())
                     }),
-                    label(|| "".to_string())
-                        .style(move || Style::BASE.width_px(padding_right)),
+                    empty().style(move || Style::BASE.width_px(padding_right)),
                 )
             })
             .style(|| Style::BASE.height_pct(100.0)),
             scroll(|| {
-                virtual_list(
-                    VirtualListDirection::Vertical,
-                    VirtualListItemSize::Fixed(Box::new(move || {
-                        config.get_untracked().editor.line_height() as f64
-                    })),
-                    move || {
-                        let editor = editor.get();
-                        current_line.get();
-                        editor.view.track_doc();
-                        editor.view
-                    },
-                    move |line: &DocLine| (line.line, current_line.get_untracked()),
-                    move |line: DocLine| {
-                        let line_number = {
-                            let config = config.get_untracked();
-                            let (current_line, mode) = current_line.get_untracked();
-                            if config.core.modal
-                                && config.editor.modal_mode_relative_line_numbers
-                                && mode != Mode::Insert
-                            {
-                                if line.line == current_line {
-                                    line.line + 1
-                                } else {
-                                    line.line.abs_diff(current_line)
-                                }
-                            } else {
-                                line.line + 1
-                            }
-                        };
-
-                        stack(move || {
-                            (
-                                label(|| "".to_string()).style(move || {
-                                    Style::BASE.width_px(padding_left)
-                                }),
-                                label(move || line_number.to_string()).style(
-                                    move || {
-                                        let config = config.get();
-                                        let (current_line, _) =
-                                            current_line.get_untracked();
-                                        Style::BASE
-                                            .flex_grow(1.0)
-                                            .apply_if(
-                                                current_line != line.line,
-                                                move |s| {
-                                                    s.color(*config.get_color(
-                                                        LapceColor::EDITOR_DIM,
-                                                    ))
-                                                },
-                                            )
-                                            .justify_end()
-                                    },
-                                ),
-                                container(|| {
-                                    container(|| {
-                                        container(|| {
-                                            svg(move || {
-                                                config
-                                                    .get()
-                                                    .ui_svg(LapceIcons::LIGHTBULB)
-                                            })
-                                            .style(move || {
-                                                let config = config.get();
-                                                let size =
-                                                    config.ui.icon_size() as f32;
-                                                Style::BASE
-                                                    .size_px(size, size)
-                                                    .color(*config.get_color(
-                                                        LapceColor::LAPCE_WARN,
-                                                    ))
-                                            })
-                                        })
-                                        .on_click(move |_| {
-                                            editor.with_untracked(|editor| {
-                                                editor.show_code_actions(true);
-                                            });
-                                            true
-                                        })
-                                        .style(move || {
-                                            Style::BASE.apply_if(
-                                                code_action_line.get()
-                                                    != Some(line.line),
-                                                |s| s.hide(),
-                                            )
-                                        })
-                                    })
-                                    .style(
-                                        move || {
-                                            Style::BASE
-                                                .justify_center()
-                                                .items_center()
-                                                .width_px(
-                                                    padding_right - padding_left,
-                                                )
-                                        },
-                                    )
-                                })
-                                .style(move || {
-                                    Style::BASE.justify_end().width_px(padding_right)
-                                }),
-                            )
-                        })
+                stack(|| {
+                    (
+                        virtual_list(
+                            VirtualListDirection::Vertical,
+                            VirtualListItemSize::Fixed(Box::new(move || {
+                                config.get_untracked().editor.line_height() as f64
+                            })),
+                            move || {
+                                let editor = editor.get();
+                                current_line.get();
+                                editor.view.track_doc();
+                                editor.view
+                            },
+                            move |line: &DocLine| {
+                                (line.line, current_line.get_untracked())
+                            },
+                            gutter_view_fn,
+                        )
                         .style(move || {
-                            let config = config.get_untracked();
-                            let line_height = config.editor.line_height();
-                            Style::BASE.items_center().height_px(line_height as f32)
-                        })
-                    },
-                )
-                .style(move || {
-                    let config = config.get();
-                    let padding_bottom = if config.editor.scroll_beyond_last_line {
-                        viewport.get().height() as f32
-                            - config.editor.line_height() as f32
-                    } else {
-                        0.0
-                    };
-                    Style::BASE
-                        .flex_col()
-                        .width_pct(100.0)
-                        .padding_bottom_px(padding_bottom)
+                            let config = config.get();
+                            let padding_bottom =
+                                if config.editor.scroll_beyond_last_line {
+                                    viewport.get().height() as f32
+                                        - config.editor.line_height() as f32
+                                } else {
+                                    0.0
+                                };
+                            Style::BASE
+                                .flex_col()
+                                .width_pct(100.0)
+                                .padding_bottom_px(padding_bottom)
+                        }),
+                        list(
+                            head_changes,
+                            move |(y, height, removed, color)| {
+                                (*y, *height, *removed, *color)
+                            },
+                            move |(y, height, removed, color)| {
+                                empty().style(move || {
+                                    let line_height =
+                                        config.get().editor.line_height();
+                                    Style::BASE
+                                        .absolute()
+                                        .width_px(3.0)
+                                        .height_px((height * line_height) as f32)
+                                        .apply_if(removed, |s| s.height_px(10.0))
+                                        .margin_left_px(
+                                            gutter_width.get() as f32
+                                                - padding_right
+                                                + padding_left
+                                                - 3.0,
+                                        )
+                                        .margin_top_px((y * line_height) as f32)
+                                        .apply_if(removed, |s| {
+                                            s.margin_top_px(
+                                                (y * line_height) as f32 - 5.0,
+                                            )
+                                        })
+                                        .background(color)
+                                })
+                            },
+                        )
+                        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0)),
+                    )
                 })
             })
             .hide_bar(|| true)

@@ -145,9 +145,9 @@ yellow = "#C18401"
 "error_lens.other.foreground" = "#A0A1A7"
 "error_lens.other.background" = "#A0A1A720"
 
-"source_control.added" = "#50A14F32"
-"source_control.removed" = "#FF526632"
-"source_control.modified" = "#0184BC32"
+"source_control.added" = "#50A14FCC"
+"source_control.removed" = "#FF5266CC"
+"source_control.modified" = "#0184BCCC"
 
 "palette.background" = "#EAEAEB"
 "palette.foreground" = "$black"

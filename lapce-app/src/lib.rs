@@ -12,6 +12,7 @@ pub mod file_explorer;
 pub mod find;
 pub mod focus_text;
 pub mod global_search;
+pub mod history;
 pub mod id;
 pub mod keypress;
 pub mod listener;

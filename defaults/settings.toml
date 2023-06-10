@@ -177,9 +177,9 @@ magenta = "#C678DD"
 
 "completion_lens.foreground" = "#5C6370"
 
-"source_control.added" = "#50A14F32"
-"source_control.removed" = "#FF526632"
-"source_control.modified" = "#0184BC32"
+"source_control.added" = "#50A14FCC"
+"source_control.removed" = "#FF5266CC"
+"source_control.modified" = "#0184BCCC"
 
 "palette.background" = "#21252B"
 "palette.foreground" = "$white"

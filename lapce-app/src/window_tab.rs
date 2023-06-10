@@ -1195,6 +1195,11 @@ impl WindowTabData {
                         })
                         .collect();
                 });
+
+                let docs = self.main_split.docs.get_untracked();
+                for (_, doc) in docs {
+                    doc.with_untracked(|doc| doc.retrieve_head());
+                }
             }
             CoreNotification::CompletionResponse {
                 request_id,

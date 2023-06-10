@@ -176,7 +176,6 @@ impl DocumentHistory {
     /// Retrieve the `head` version of the buffer
     pub fn retrieve(&self, doc: &Document) {
         if let BufferContent::File(path) = &doc.content() {
-            let id = doc.id();
             let tab_id = doc.tab_id;
             let path = path.clone();
             let proxy = doc.proxy.clone();
@@ -184,7 +183,7 @@ impl DocumentHistory {
             std::thread::spawn(move || {
                 proxy
                     .proxy_rpc
-                    .get_buffer_head(id, path.clone(), move |result| {
+                    .get_buffer_head(path.clone(), move |result| {
                         if let Ok(ProxyResponse::BufferHeadResponse {
                             version,
                             content,

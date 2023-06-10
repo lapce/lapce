@@ -600,12 +600,7 @@ impl ProxyRpcHandler {
         self.request_async(ProxyRequest::NewBuffer { buffer_id, path }, f);
     }
 
-    pub fn get_buffer_head(
-        &self,
-        _buffer_id: BufferId,
-        path: PathBuf,
-        f: impl ProxyCallback + 'static,
-    ) {
+    pub fn get_buffer_head(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::BufferHead { path }, f);
     }
 
