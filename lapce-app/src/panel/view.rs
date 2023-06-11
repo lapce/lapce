@@ -345,7 +345,3 @@ fn panel_picker(
             .apply_if(is_bottom && !is_first, |s| s.border_top(1.0))
     })
 }
-
-fn blank_panel() -> impl View {
-    label(|| "blank".to_string())
-}
