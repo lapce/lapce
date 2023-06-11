@@ -10,7 +10,7 @@ use floem::{
     view::View,
     views::{container, stack, Decorators},
     views::{label, svg},
-    AppContext,
+    ViewContext,
 };
 use lapce_core::meta;
 
@@ -26,24 +26,24 @@ use crate::{
 };
 
 fn left(
-    source_control: RwSignal<SourceControlData>,
+    source_control: SourceControlData,
     workbench_command: Listener<LapceWorkbenchCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
+    let branch = source_control.branch;
+    let file_diffs = source_control.file_diffs;
     let branch = move || {
-        source_control.with(|source_control| {
-            format!(
-                "{}{}",
-                source_control.branch,
-                if source_control.file_diffs.is_empty() {
-                    ""
-                } else {
-                    "*"
-                }
-            )
-        })
+        format!(
+            "{}{}",
+            branch.get(),
+            if file_diffs.with(|diffs| diffs.is_empty()) {
+                ""
+            } else {
+                "*"
+            }
+        )
     };
-    let id = AppContext::get_current().id;
+    let id = ViewContext::get_current().id;
     stack(move || {
         (
             container(move || {
@@ -130,7 +130,7 @@ fn middle(
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let local_workspace = workspace.clone();
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
     let can_jump_backward = {
         let main_split = main_split.clone();
         create_memo(cx.scope, move |_| {
@@ -167,7 +167,7 @@ fn middle(
     };
 
     let open_folder = move || {
-        let id = AppContext::get_current().id;
+        let id = ViewContext::get_current().id;
         clickable_icon(
             || LapceIcons::PALETTE_MENU,
             move || {
@@ -286,7 +286,7 @@ fn right(
     update_in_progress: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
     let latest_version = create_memo(cx.scope, move |_| {
         let latest_release = latest_release.get();
         let latest_version =
@@ -389,7 +389,7 @@ fn right(
 pub fn title(
     workspace: Arc<LapceWorkspace>,
     main_split: MainSplitData,
-    source_control: RwSignal<SourceControlData>,
+    source_control: SourceControlData,
     workbench_command: Listener<LapceWorkbenchCommand>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     update_in_progress: RwSignal<bool>,

@@ -11,7 +11,7 @@ use floem::{
     style::{ComputedStyle, Style},
     taffy::prelude::Node,
     view::{ChangeFlags, View},
-    AppContext, Renderer,
+    Renderer, ViewContext,
 };
 
 enum FocusTextState {
@@ -25,7 +25,7 @@ pub fn focus_text(
     focus_indices: impl Fn() -> Vec<usize> + 'static,
     focus_color: impl Fn() -> Color + 'static,
 ) -> FocusText {
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
 
     let id = cx.new_id();
 

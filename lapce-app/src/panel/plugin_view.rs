@@ -14,7 +14,7 @@ use floem::{
         container, empty, label, scroll, stack, virtual_list, Decorators,
         VirtualListDirection, VirtualListItemSize, VirtualListVector,
     },
-    AppContext,
+    ViewContext,
 };
 use indexmap::IndexMap;
 use lapce_rpc::plugin::{VoltID, VoltInfo, VoltMetadata};
@@ -322,7 +322,7 @@ fn available_view(plugin: PluginData) -> impl View {
                                info: RwSignal<VoltInfo>,
                                installing: RwSignal<bool>| {
         let plugin = local_plugin.clone();
-        let cx = AppContext::get_current();
+        let cx = ViewContext::get_current();
         let installed = create_memo(cx.scope, move |_| {
             installed.with(|installed| installed.contains_key(&id))
         });
@@ -424,7 +424,7 @@ fn available_view(plugin: PluginData) -> impl View {
         })
     };
 
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
     let content_rect = create_rw_signal(cx.scope, Rect::ZERO);
 
     let editor = plugin.all.query_editor.clone();

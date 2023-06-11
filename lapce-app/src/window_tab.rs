@@ -113,7 +113,7 @@ pub struct WindowTabData {
     pub terminal: TerminalPanelData,
     pub plugin: PluginData,
     pub code_action: RwSignal<CodeActionData>,
-    pub source_control: RwSignal<SourceControlData>,
+    pub source_control: SourceControlData,
     pub rename: RenameData,
     pub global_search: GlobalSearchData,
     pub window_origin: RwSignal<Point>,
@@ -252,8 +252,7 @@ impl WindowTabData {
         let main_split = MainSplitData::new(cx, common.clone());
         let code_action =
             create_rw_signal(cx, CodeActionData::new(cx, common.clone()));
-        let source_control =
-            create_rw_signal(cx, SourceControlData::new(cx, common.clone()));
+        let source_control = SourceControlData::new(cx, common.clone());
         let file_explorer = FileExplorerData::new(cx, common.clone());
 
         if let Some(info) = workspace_info.as_ref() {
@@ -1178,17 +1177,17 @@ impl WindowTabData {
         let cx = self.scope;
         match rpc {
             CoreNotification::DiffInfo { diff } => {
-                self.source_control.update(|source_control| {
-                    source_control.branch = diff.head.clone();
-                    source_control.branches =
-                        diff.branches.iter().cloned().collect();
-                    source_control.file_diffs = diff
+                self.source_control.branch.set(diff.head.clone());
+                self.source_control
+                    .branches
+                    .set(diff.branches.iter().cloned().collect());
+                self.source_control.file_diffs.update(|file_diffs| {
+                    *file_diffs = diff
                         .diffs
                         .iter()
                         .cloned()
                         .map(|diff| {
-                            let checked = source_control
-                                .file_diffs
+                            let checked = file_diffs
                                 .get(diff.path())
                                 .map_or(true, |(_, c)| *c);
                             (diff.path().clone(), (diff, checked))

@@ -34,7 +34,7 @@ use floem::{
         VirtualListVector,
     },
     window::WindowConfig,
-    AppContext,
+    ViewContext,
 };
 use lapce_core::{directory::Directory, meta, mode::Mode};
 use lapce_rpc::{
@@ -193,7 +193,7 @@ fn editor_tab_header(
                 is_pristine: bool,
             }
 
-            let cx = AppContext::get_current();
+            let cx = ViewContext::get_current();
             let info = match child {
                 EditorTabChild::Editor(editor_id) => {
                     create_memo(cx.scope, move |_| {
@@ -547,7 +547,7 @@ fn editor_tab(
     let (editor_tab_id, editor_tab_scope) =
         editor_tab.with_untracked(|e| (e.editor_tab_id, e.scope));
     let editor_tabs = main_split.editor_tabs;
-    on_cleanup(AppContext::get_current().scope, move || {
+    on_cleanup(ViewContext::get_current().scope, move || {
         let exits =
             editor_tabs.with_untracked(|tabs| tabs.contains_key(&editor_tab_id));
         if !exits {
@@ -679,7 +679,7 @@ fn split_list(
     let config = main_split.common.config;
     let (split_id, split_scope) =
         split.with_untracked(|split| (split.split_id, split.scope));
-    on_cleanup(AppContext::get_current().scope, move || {
+    on_cleanup(ViewContext::get_current().scope, move || {
         let exits = splits.with_untracked(|splits| splits.contains_key(&split_id));
         if !exits {
             let send = create_ext_action(split_scope, move |_| {
@@ -890,7 +890,7 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
     let config = window_tab_data.common.config;
     let diagnostics = window_tab_data.main_split.diagnostics;
     let panel = window_tab_data.panel.clone();
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
     let diagnostic_count = create_memo(cx.scope, move |_| {
         let mut errors = 0;
         let mut warnings = 0;
@@ -2040,7 +2040,7 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
 }
 
 pub fn dispose_on_ui_cleanup(scope: Scope) {
-    on_cleanup(AppContext::get_current().scope, move || {
+    on_cleanup(ViewContext::get_current().scope, move || {
         let send = create_ext_action(scope, move |_| {
             scope.dispose();
         });
@@ -2052,7 +2052,7 @@ pub fn dispose_on_ui_cleanup(scope: Scope) {
 
 fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     dispose_on_ui_cleanup(window_tab_data.scope);
-    let source_control = window_tab_data.source_control;
+    let source_control = window_tab_data.source_control.clone();
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;
     let latest_release = window_tab_data.latest_release;
@@ -2121,7 +2121,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
     let tabs = window_data.window_tabs;
     let active = window_data.active;
     let config = window_data.config;
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
     let available_width = create_rw_signal(cx.scope, 0.0);
     let add_icon_width = create_rw_signal(cx.scope, 0.0);
 

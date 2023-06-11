@@ -23,7 +23,7 @@ use floem::{
         container, empty, label, list, scroll, stack, svg, virtual_list, Decorators,
         VirtualListDirection, VirtualListItemSize, VirtualListVector,
     },
-    AppContext, Renderer,
+    Renderer, ViewContext,
 };
 use lapce_core::{
     buffer::{
@@ -76,7 +76,7 @@ pub fn editor_view(
     editor: RwSignal<EditorData>,
     is_active: impl Fn() -> bool + 'static + Copy,
 ) -> EditorView {
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
     let id = cx.new_id();
 
     let viewport = create_rw_signal(cx.scope, Rect::ZERO);
@@ -256,7 +256,15 @@ impl EditorView {
                 let width = style.width.unwrap_or_else(|| viewport.width());
                 cx.fill(
                     &Rect::ZERO.with_size(Size::new(width, height)).with_origin(
-                        Point::new(style.x, y + (line_height - height) / 2.0),
+                        Point::new(
+                            style.x
+                                + if style.width.is_none() {
+                                    viewport.x0
+                                } else {
+                                    0.0
+                                },
+                            y + (line_height - height) / 2.0,
+                        ),
                     ),
                     bg,
                 );
@@ -454,7 +462,7 @@ impl EditorView {
         // Clear background
         let area_height =
             total_sticky_lines as f64 * line_height - scroll_offset + 1.0;
-        let sticky_area_rect = Size::new(viewport.width(), area_height)
+        let sticky_area_rect = Size::new(viewport.x1, area_height)
             .to_rect()
             .with_origin(Point::new(0.0, viewport.y0));
 
@@ -954,7 +962,7 @@ pub fn editor_container_view(
             )
         });
     let editors = main_split.editors;
-    on_cleanup(AppContext::get_current().scope, move || {
+    on_cleanup(ViewContext::get_current().scope, move || {
         let exits =
             editors.with_untracked(|editors| editors.contains_key(&editor_id));
         if !exits {
@@ -972,7 +980,7 @@ pub fn editor_container_view(
     let replace_active = main_split.common.find.replace_active;
     let replace_focus = main_split.common.find.replace_focus;
 
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
     let editor_rect = create_rw_signal(cx.scope, Rect::ZERO);
     let gutter_rect = create_rw_signal(cx.scope, Rect::ZERO);
 
@@ -1040,7 +1048,7 @@ fn editor_gutter(
     let padding_left = 10.0;
     let padding_right = 30.0;
 
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
     let code_action_line = create_memo(cx.scope, move |_| {
         if is_active() {
             let doc = editor.with(|editor| editor.doc);

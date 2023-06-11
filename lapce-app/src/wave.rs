@@ -2,11 +2,11 @@ use floem::{
     id::Id,
     peniko::kurbo::{BezPath, Point, Size},
     view::{ChangeFlags, View},
-    AppContext, Renderer,
+    Renderer, ViewContext,
 };
 
 pub fn wave_line() -> WaveLine {
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
     let id = cx.new_id();
     WaveLine { id }
 }

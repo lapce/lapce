@@ -9,7 +9,7 @@ pub struct DiffInfo {
     pub diffs: Vec<FileDiff>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum FileDiff {
     Modified(PathBuf),
     Added(PathBuf),

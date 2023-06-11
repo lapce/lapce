@@ -9,7 +9,7 @@ use floem::{
     style::{CursorStyle, Style},
     view::View,
     views::{container, label, list, scroll, stack, svg, Decorators},
-    AppContext,
+    ViewContext,
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 
@@ -111,7 +111,7 @@ fn file_view(
     internal_command: Listener<InternalCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
     let collpased = create_rw_signal(cx.scope, false);
 
     let diagnostics = create_memo(cx.scope, move |_| {

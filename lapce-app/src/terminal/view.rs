@@ -13,7 +13,7 @@ use floem::{
         SignalWithUntracked,
     },
     view::{ChangeFlags, View},
-    AppContext, Renderer,
+    Renderer, ViewContext,
 };
 use lapce_core::mode::Mode;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
@@ -54,7 +54,7 @@ pub fn terminal_view(
     run_config: ReadSignal<Option<RunDebugProcess>>,
     terminal_panel_data: TerminalPanelData,
 ) -> TerminalView {
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
     let id = cx.new_id();
 
     create_effect(cx.scope, move |_| {

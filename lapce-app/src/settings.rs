@@ -14,7 +14,7 @@ use floem::{
         container, container_box, empty, label, list, scroll, stack, svg,
         virtual_list, Decorators, VirtualListDirection, VirtualListVector,
     },
-    AppContext,
+    ViewContext,
 };
 use inflector::Inflector;
 use lapce_core::mode::Mode;
@@ -196,7 +196,7 @@ impl SettingsData {
 pub fn settings_view(common: CommonData) -> impl View {
     let config = common.config;
 
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
 
     let settings_data = SettingsData::new(cx.scope, common.clone());
     let view_settings_data = settings_data.clone();
@@ -339,7 +339,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
     let view = {
         let item = item.clone();
         move || {
-            let cx = AppContext::get_current();
+            let cx = ViewContext::get_current();
             if let Some(editor_value) = editor_value {
                 let editor = EditorData::new_local(
                     cx.scope,
@@ -388,7 +388,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     )
                 })
             } else if let SettingsValue::Dropdown(dropdown) = item.value {
-                let cx = AppContext::get_current();
+                let cx = ViewContext::get_current();
                 let expanded = create_rw_signal(cx.scope, false);
                 let current_value = dropdown
                     .items
@@ -582,7 +582,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             })
                     }),
                     if let Some(is_ticked) = is_ticked {
-                        let cx = AppContext::get_current();
+                        let cx = ViewContext::get_current();
                         let checked = create_rw_signal(cx.scope, is_ticked);
 
                         let kind = item.kind.clone();
@@ -647,7 +647,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
     })
 }
 
-fn checkbox(
+pub fn checkbox(
     checked: impl Fn() -> bool + 'static,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
@@ -660,6 +660,7 @@ fn checkbox(
         let color = *config.get_color(LapceColor::EDITOR_FOREGROUND);
 
         Style::BASE
+            .min_width_px(size)
             .size_px(size, size)
             .color(color)
             .border_color(color)

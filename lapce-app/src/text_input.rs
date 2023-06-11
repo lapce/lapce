@@ -21,7 +21,7 @@ use floem::{
     taffy::{self, prelude::Node},
     view::{ChangeFlags, View},
     views::Decorators,
-    AppContext, Renderer,
+    Renderer, ViewContext,
 };
 use lapce_core::{
     buffer::rope_text::RopeText,
@@ -39,7 +39,7 @@ pub fn text_input(
     editor: EditorData,
     is_focused: impl Fn() -> bool + 'static,
 ) -> TextInput {
-    let cx = AppContext::get_current();
+    let cx = ViewContext::get_current();
     let id = cx.new_id();
 
     let doc = editor.doc;
@@ -133,7 +133,7 @@ pub struct TextInput {
 
 impl TextInput {
     pub fn placeholder(self, placeholder: impl Fn() -> String + 'static) -> Self {
-        let cx = AppContext::get_current();
+        let cx = ViewContext::get_current();
         let id = self.id;
         create_effect(cx.scope, move |_| {
             let placeholder = placeholder();

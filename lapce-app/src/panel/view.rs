@@ -9,7 +9,7 @@ use floem::{
     style::Style,
     view::View,
     views::{container, container_box, empty, label, list, stack, tab, Decorators},
-    AppContext,
+    ViewContext,
 };
 
 use crate::{
@@ -26,6 +26,7 @@ use super::{
     plugin_view::plugin_panel,
     position::{PanelContainerPosition, PanelPosition},
     problem_view::problem_panel,
+    source_control_view::source_control_panel,
     terminal_view::terminal_panel,
 };
 
@@ -45,7 +46,7 @@ pub fn panel_container_view(
         let panel = panel.clone();
         move |position: PanelPosition| {
             let panel = panel.clone();
-            let cx = AppContext::get_current();
+            let cx = ViewContext::get_current();
             let dragging_over = create_rw_signal(cx.scope, false);
             empty()
                 .on_event(EventListener::DragEnter, move |_| {
@@ -169,9 +170,9 @@ fn panel_view(
                 PanelKind::FileExplorer => container_box(|| {
                     Box::new(file_explorer_panel(window_tab_data.clone(), position))
                 }),
-                PanelKind::SourceControl => {
-                    container_box(|| Box::new(blank_panel()))
-                }
+                PanelKind::SourceControl => container_box(|| {
+                    Box::new(source_control_panel(window_tab_data.clone(), position))
+                }),
                 PanelKind::Plugin => container_box(|| {
                     Box::new(plugin_panel(window_tab_data.clone(), position))
                 }),
