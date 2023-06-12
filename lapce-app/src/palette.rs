@@ -180,28 +180,8 @@ impl PaletteData {
                     if run_id.get_untracked() == filter_run_id
                         && input.get_untracked().input == filter_input
                     {
-                        let items = items.get_untracked();
-                        let current_index = index.get_untracked();
-
-                        if current_index != 0 && items.get(current_index).is_some() {
-                            let current_item = items.get(current_index).unwrap();
-
-                            // Keep the current item selected if it is still in the list
-                            if let Some((idx, _)) = new_items
-                                .iter()
-                                .find_position(|item| *item == current_item)
-                            {
-                                if idx != current_index {
-                                    index.set(idx);
-                                }
-                            } else {
-                                index.set(0);
-                            }
-                        } else {
-                            index.set(0);
-                        }
-
                         set_filtered_items.set(new_items);
+                        index.set(0);
                     }
                 }
             });

@@ -12,8 +12,11 @@ use lapce_rpc::source_control::FileDiff;
 
 use crate::{
     config::{color::LapceColor, icon::LapceIcons},
+    editor::EditorData,
+    id::EditorId,
     settings::checkbox,
     source_control::SourceControlData,
+    text_area::text_area,
     window_tab::WindowTabData,
 };
 
@@ -25,42 +28,53 @@ pub fn source_control_panel(
 ) -> impl View {
     let config = window_tab_data.common.config;
     let source_control = window_tab_data.source_control.clone();
+    let cx = ViewContext::get_current();
+    let editor = EditorData::new_local(
+        cx.scope,
+        EditorId::next(),
+        window_tab_data.common.clone(),
+    );
 
     stack(|| {
         (
-            container(|| {
-                label(|| "Commit".to_string())
-                    .style(move || {
-                        Style::BASE
-                            .line_height(1.6)
-                            .width_pct(100.0)
-                            .justify_center()
-                            .border(1.0)
-                            .border_radius(6.0)
-                            .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+            stack(|| {
+                (
+                    text_area(editor)
+                        .style(|| Style::BASE.width_pct(100.0).height_px(120.0)),
+                    label(|| "Commit".to_string())
+                        .style(move || {
+                            Style::BASE
+                                .margin_top_px(10.0)
+                                .line_height(1.6)
+                                .width_pct(100.0)
+                                .justify_center()
+                                .border(1.0)
+                                .border_radius(6.0)
+                                .border_color(
+                                    *config
+                                        .get()
+                                        .get_color(LapceColor::LAPCE_BORDER),
+                                )
+                        })
+                        .on_click(move |_| {
+                            // on_click();
+                            true
+                        })
+                        .hover_style(move || {
+                            Style::BASE.cursor(CursorStyle::Pointer).background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
-                    })
-                    .on_click(move |_| {
-                        // on_click();
-                        true
-                    })
-                    .hover_style(move || {
-                        Style::BASE.cursor(CursorStyle::Pointer).background(
-                            *config
-                                .get()
-                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                        )
-                    })
-                    .active_style(move || {
-                        Style::BASE.background(
-                            *config.get().get_color(
+                        })
+                        .active_style(move || {
+                            Style::BASE.background(*config.get().get_color(
                                 LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
-                            ),
-                        )
-                    })
+                            ))
+                        }),
+                )
             })
-            .style(|| Style::BASE.width_pct(100.0).padding_px(10.0)),
+            .style(|| Style::BASE.flex_col().width_pct(100.0).padding_px(10.0)),
             stack(|| {
                 (
                     panel_header("Changes".to_string(), config),
@@ -111,7 +125,20 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                     let style_path = path.clone();
                     stack(|| {
                         (
-                            checkbox(move || checked, config),
+                            checkbox(move || checked, config)
+                                .on_click(move |_| {
+                                    file_diffs.update(|diffs| {
+                                        if let Some((_, checked)) =
+                                            diffs.get_mut(&full_path)
+                                        {
+                                            *checked = !*checked;
+                                        }
+                                    });
+                                    true
+                                })
+                                .hover_style(|| {
+                                    Style::BASE.cursor(CursorStyle::Pointer)
+                                }),
                             svg(move || config.get().file_svg(&path).0).style(
                                 move || {
                                     let config = config.get();
@@ -204,14 +231,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                             }),
                         )
                     })
-                    .on_click(move |_| {
-                        file_diffs.update(|diffs| {
-                            if let Some((_, checked)) = diffs.get_mut(&full_path) {
-                                *checked = !*checked;
-                            }
-                        });
-                        true
-                    })
+                    .on_click(move |_| true)
                     .style(move || {
                         Style::BASE
                             .padding_left_px(10.0)
@@ -220,7 +240,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                             .items_center()
                     })
                     .hover_style(move || {
-                        Style::BASE.cursor(CursorStyle::Pointer).background(
+                        Style::BASE.background(
                             *config
                                 .get()
                                 .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),

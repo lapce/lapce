@@ -900,7 +900,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.7.0"
-source = "git+https://github.com/lapce/cosmic-text?rev=fa0efccc67b0ff362056198fc931bd24f68d3fb8#fa0efccc67b0ff362056198fc931bd24f68d3fb8"
+source = "git+https://github.com/lapce/cosmic-text?rev=25f260eced296296ca22d22a04cbb3026f5fe2a2#25f260eced296296ca22d22a04cbb3026f5fe2a2"
 dependencies = [
  "fontdb 0.13.0",
  "libm",
@@ -912,7 +912,7 @@ dependencies = [
  "rangemap",
  "rustybuzz 0.7.0",
  "stretto",
- "swash 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "swash 0.1.8",
  "sys-locale",
  "ttf-parser 0.18.1",
  "unicode-bidi",
@@ -1615,7 +1615,7 @@ dependencies = [
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=9a2c40304aacc7d0b642b919b15c25b3475c9810#9a2c40304aacc7d0b642b919b15c25b3475c9810"
+source = "git+https://github.com/lapce/floem?rev=5dfa844f7ca4b9827f7ba20308b25dc98c14890c#5dfa844f7ca4b9827f7ba20308b25dc98c14890c"
 dependencies = [
  "bitflags 2.2.1",
  "crossbeam-channel",
@@ -1643,7 +1643,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=9a2c40304aacc7d0b642b919b15c25b3475c9810#9a2c40304aacc7d0b642b919b15c25b3475c9810"
+source = "git+https://github.com/lapce/floem?rev=5dfa844f7ca4b9827f7ba20308b25dc98c14890c#5dfa844f7ca4b9827f7ba20308b25dc98c14890c"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1654,7 +1654,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=9a2c40304aacc7d0b642b919b15c25b3475c9810#9a2c40304aacc7d0b642b919b15c25b3475c9810"
+source = "git+https://github.com/lapce/floem?rev=5dfa844f7ca4b9827f7ba20308b25dc98c14890c#5dfa844f7ca4b9827f7ba20308b25dc98c14890c"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -1662,7 +1662,7 @@ dependencies = [
  "peniko",
  "raw-window-handle",
  "resvg 0.33.0",
- "swash 0.1.6 (git+https://github.com/dfrg/swash)",
+ "swash 0.1.8",
  "vger",
  "wgpu",
 ]
@@ -1843,7 +1843,7 @@ source = "git+https://github.com/lapce/fount#3bfdc689c0cfbeb498358c79c7be2cb3beb
 dependencies = [
  "font-kit",
  "memmap2 0.5.7",
- "swash 0.1.6 (git+https://github.com/lapce/swash)",
+ "swash 0.1.6",
 ]
 
 [[package]]
@@ -4395,7 +4395,7 @@ version = "0.1.0"
 source = "git+https://github.com/lapce/parley#c37477b889ff53b9a3033e2180becddf90b9bb17"
 dependencies = [
  "fount",
- "swash 0.1.6 (git+https://github.com/lapce/swash)",
+ "swash 0.1.6",
 ]
 
 [[package]]
@@ -4510,7 +4510,7 @@ dependencies = [
  "piet",
  "resvg 0.22.0",
  "sha2 0.9.9",
- "swash 0.1.6 (git+https://github.com/lapce/swash)",
+ "swash 0.1.6",
  "tiny-skia 0.6.6",
  "usvg 0.22.0",
 ]
@@ -5706,26 +5706,17 @@ dependencies = [
 [[package]]
 name = "swash"
 version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bb18e5888a9b5f0a89ea3ebdf6883dc479347ca9183b6c51a8f9cf2041f23a0"
-dependencies = [
- "yazi",
- "zeno",
-]
-
-[[package]]
-name = "swash"
-version = "0.1.6"
-source = "git+https://github.com/dfrg/swash#af0c735d64ea3ebb7dbeb770f044e4485329037e"
-dependencies = [
- "yazi",
- "zeno",
-]
-
-[[package]]
-name = "swash"
-version = "0.1.6"
 source = "git+https://github.com/lapce/swash#d9c8b9c4475297bf81642895a3272822ce689562"
+dependencies = [
+ "yazi",
+ "zeno",
+]
+
+[[package]]
+name = "swash"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b7c73c813353c347272919aa1af2885068b05e625e5532b43049e4f641ae77f"
 dependencies = [
  "yazi",
  "zeno",
@@ -7111,7 +7102,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.5"
-source = "git+https://github.com/lapce/vger-rs?rev=8182b13ce636785b7e8a9453ff4277485f1e9658#8182b13ce636785b7e8a9453ff4277485f1e9658"
+source = "git+https://github.com/lapce/vger-rs?rev=0116da1bca0dbce1e71cac17a67dbbf474740c22#0116da1bca0dbce1e71cac17a67dbbf474740c22"
 dependencies = [
  "cosmic-text",
  "euclid",
@@ -8123,9 +8114,9 @@ dependencies = [
 
 [[package]]
 name = "yazi"
-version = "0.1.4"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c03b3e19c937b5b9bd8e52b1c88f30cce5c0d33d676cf174866175bb794ff658"
+checksum = "c94451ac9513335b5e23d7a8a2b61a7102398b8cca5160829d313e84c9d98be1"
 
 [[package]]
 name = "yeslogic-fontconfig-sys"

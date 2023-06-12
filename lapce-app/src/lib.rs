@@ -26,6 +26,7 @@ pub mod settings;
 pub mod snippet;
 pub mod source_control;
 pub mod terminal;
+pub mod text_area;
 pub mod text_input;
 pub mod title;
 pub mod update;

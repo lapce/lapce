@@ -528,7 +528,7 @@ impl EditorView {
         let doc = self.editor.with_untracked(|e| e.doc);
         let total_len = doc.with_untracked(|doc| doc.buffer().last_line());
         let changes = doc.with_untracked(|doc| doc.head_changes);
-        let changes = changes.get();
+        let changes = changes.get_untracked();
         let total_height = viewport.height();
         let total_width = viewport.width();
         let line_height = config.editor.line_height();
