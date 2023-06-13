@@ -39,6 +39,11 @@ command = "zoom_in"
 key = "meta+-"
 command = "zoom_out"
 
+[[keymaps]]
+key = "meta+enter"
+command = "source_control_commit"
+when = "source_control_focus"
+
 # --------------------------------- Basic editing ---------------------------------------
 
 [[keymaps]]
@@ -148,6 +153,7 @@ command = "select_all"
 [[keymaps]]
 key = "meta+enter"
 command = "new_line_below"
+when = "!source_control_focus"
 mode = "i"
 
 [[keymaps]]

@@ -1,6 +1,5 @@
 use floem::{
     cosmic_text::{Attrs, AttrsList, LineHeightValue, TextLayout},
-    event::{Event, EventListener},
     peniko::kurbo::Rect,
     reactive::{
         create_effect, create_rw_signal, SignalGet, SignalGetUntracked, SignalSet,
@@ -15,10 +14,12 @@ use lapce_core::buffer::rope_text::RopeText;
 
 use crate::{config::color::LapceColor, editor::EditorData};
 
-pub fn text_area(editor: EditorData) -> impl View {
+pub fn text_area(
+    editor: EditorData,
+    is_active: impl Fn() -> bool + 'static,
+) -> impl View {
     let cx = ViewContext::get_current();
     let config = editor.common.config;
-    let keypress = editor.common.keypress;
     let doc = editor.doc;
     let cursor = editor.cursor;
     let text_area_rect = create_rw_signal(cx.scope, Rect::ZERO);
@@ -103,12 +104,13 @@ pub fn text_area(editor: EditorData) -> impl View {
                         Style::BASE
                             .absolute()
                             .line_height(line_height)
-                            .margin_left_px(cursor_pos.x as f32)
+                            .margin_left_px(cursor_pos.x as f32 - 1.0)
                             .margin_top_px(cursor_pos.y as f32)
                             .border_left(2.0)
                             .border_color(
                                 *config.get().get_color(LapceColor::EDITOR_CARET),
                             )
+                            .apply_if(!is_active(), |s| s.hide())
                     }),
                 )
             })
@@ -118,17 +120,6 @@ pub fn text_area(editor: EditorData) -> impl View {
             *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
         })
         .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
-    })
-    .keyboard_navigatable()
-    .on_event(EventListener::KeyDown, move |event| {
-        if let Event::KeyDown(key_event) = event {
-            let mut press = keypress.get_untracked();
-            let executed = press.key_down(key_event, &editor);
-            keypress.set(press);
-            executed
-        } else {
-            false
-        }
     })
     .base_style(move || {
         let config = config.get();

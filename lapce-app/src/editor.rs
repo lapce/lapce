@@ -1788,8 +1788,10 @@ impl EditorData {
                 .internal_command
                 .send(InternalCommand::FocusEditorTab { editor_tab_id });
         }
-        self.common.focus.set(Focus::Workbench);
-        self.find_focus.set(false);
+        if self.doc.with_untracked(|doc| !doc.content.is_local()) {
+            self.common.focus.set(Focus::Workbench);
+            self.find_focus.set(false);
+        }
         match pointer_event.button {
             PointerButton::Left => {
                 self.active.set(true);
@@ -1873,6 +1875,13 @@ impl EditorData {
 
     pub fn pointer_up(&self, _pointer_event: &PointerEvent) {
         self.active.set(false);
+    }
+
+    // reset the doc inside and move cursor back
+    pub fn reset(&self) {
+        self.doc.update(|doc| doc.reload(Rope::from(""), true));
+        self.cursor
+            .update(|cursor| cursor.set_offset(0, false, false));
     }
 }
 

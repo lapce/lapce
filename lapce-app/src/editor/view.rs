@@ -87,6 +87,16 @@ pub fn editor_view(
     });
 
     create_effect(cx.scope, move |last_rev| {
+        let doc = editor.with(|editor| editor.doc);
+        let rev = doc.with(|doc| doc.rev());
+        if last_rev == Some(rev) {
+            return rev;
+        }
+        id.request_layout();
+        rev
+    });
+
+    create_effect(cx.scope, move |last_rev| {
         let (doc, sticky_header_height_signal, config) =
             editor.with_untracked(|editor| {
                 (
@@ -140,7 +150,13 @@ pub fn editor_view(
 }
 
 impl EditorView {
-    fn paint_cursor(&self, cx: &mut PaintCx, min_line: usize, max_line: usize) {
+    fn paint_cursor(
+        &self,
+        cx: &mut PaintCx,
+        min_line: usize,
+        max_line: usize,
+        is_local: bool,
+    ) {
         let (view, cursor, find_focus, config) =
             self.editor.with_untracked(|editor| {
                 (
@@ -186,15 +202,17 @@ impl EditorView {
         for render in renders {
             match render {
                 CursorRender::CurrentLine { line } => {
-                    cx.fill(
-                        &Rect::ZERO
-                            .with_size(Size::new(viewport.width(), line_height))
-                            .with_origin(Point::new(
-                                viewport.x0,
-                                line_height * line as f64,
-                            )),
-                        config.get_color(LapceColor::EDITOR_CURRENT_LINE),
-                    );
+                    if !is_local {
+                        cx.fill(
+                            &Rect::ZERO
+                                .with_size(Size::new(viewport.width(), line_height))
+                                .with_origin(Point::new(
+                                    viewport.x0,
+                                    line_height * line as f64,
+                                )),
+                            config.get_color(LapceColor::EDITOR_CURRENT_LINE),
+                        );
+                    }
                 }
                 CursorRender::Selection { x, width, line } => {
                     cx.fill(
@@ -511,8 +529,12 @@ impl EditorView {
         &self,
         cx: &mut PaintCx,
         viewport: Rect,
+        is_local: bool,
         config: Arc<LapceConfig>,
     ) {
+        if is_local {
+            return;
+        }
         const BAR_WIDTH: f64 = 10.0;
         cx.fill(
             &Rect::ZERO
@@ -592,13 +614,26 @@ impl View for EditorView {
             }
             let inner_node = self.inner_node.unwrap();
 
-            let (doc, view, config) = self.editor.with_untracked(|editor| {
-                (editor.doc, editor.view.clone(), editor.common.config)
-            });
+            let (doc, view, viewport, config) =
+                self.editor.with_untracked(|editor| {
+                    (
+                        editor.doc,
+                        editor.view.clone(),
+                        editor.viewport,
+                        editor.common.config,
+                    )
+                });
             let config = config.get_untracked();
             let line_height = config.editor.line_height() as f64;
+            let font_size = config.editor.font_size();
+            let viewport = viewport.get_untracked();
+            let min_line = (viewport.y0 / line_height).floor() as usize;
+            let max_line = (viewport.y1 / line_height).ceil() as usize;
+            for line in min_line..max_line + 1 {
+                view.get_text_layout(line, font_size);
+            }
             let (width, height) = doc.with_untracked(|doc| {
-                let width = view.text_layouts.borrow().max_width;
+                let width = view.text_layouts.borrow().max_width + 20.0;
                 let height = line_height * doc.buffer().num_lines() as f64;
                 (width as f32, height as f32)
             });
@@ -640,11 +675,14 @@ impl View for EditorView {
         let min_line = (viewport.y0 / line_height).floor() as usize;
         let max_line = (viewport.y1 / line_height).ceil() as usize;
 
-        self.paint_cursor(cx, min_line, max_line);
+        let doc = self.editor.with_untracked(|e| e.doc);
+        let is_local = doc.with_untracked(|doc| doc.content.is_local());
+
+        self.paint_cursor(cx, min_line, max_line, is_local);
         self.paint_find(cx, min_line, max_line);
         self.paint_text(cx, min_line, max_line, viewport);
         self.paint_sticky_headers(cx, min_line, viewport);
-        self.paint_scroll_bar(cx, viewport, config);
+        self.paint_scroll_bar(cx, viewport, is_local, config);
     }
 }
 
@@ -744,13 +782,17 @@ fn get_sticky_header_info(
 }
 
 #[derive(Clone, Debug)]
-enum CursorRender {
+pub enum CursorRender {
     CurrentLine { line: usize },
     Selection { x: f64, width: f64, line: usize },
     Caret { x: f64, width: f64, line: usize },
 }
 
-fn cursor_caret(view: &EditorViewData, offset: usize, block: bool) -> CursorRender {
+pub fn cursor_caret(
+    view: &EditorViewData,
+    offset: usize,
+    block: bool,
+) -> CursorRender {
     let (line, col) = view.offset_to_line_col(offset);
     let phantom_text = view.line_phantom_text(line);
     let col = phantom_text.col_after(col, block);

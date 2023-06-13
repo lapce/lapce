@@ -1155,7 +1155,14 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     let mut deltas = Vec::new();
     let mut diff_options = DiffOptions::new();
     let diff = repo
-        .diff_index_to_workdir(None, Some(diff_options.include_untracked(true)))
+        .diff_index_to_workdir(
+            None,
+            Some(
+                diff_options
+                    .include_untracked(true)
+                    .recurse_untracked_dirs(true),
+            ),
+        )
         .ok()?;
     for delta in diff.deltas() {
         if let Some(delta) = git_delta_format(workspace_path, &delta) {

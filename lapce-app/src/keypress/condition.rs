@@ -55,6 +55,8 @@ pub enum Condition {
     InSnippet,
     #[strum(serialize = "terminal_focus")]
     TerminalFocus,
+    #[strum(serialize = "source_control_focus")]
+    SourceControlFocus,
     #[strum(serialize = "panel_focus")]
     PanelFocus,
     #[strum(serialize = "rename_focus")]

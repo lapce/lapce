@@ -176,48 +176,53 @@ impl PluginData {
 
     pub fn volt_installed(&self, volt: &VoltMetadata, icon: &Option<Vec<u8>>) {
         let volt_id = volt.id();
-        self.installed.update(|installed| {
-            if let Some(v) = installed.get_mut(&volt_id) {
-                v.meta.set(volt.clone());
-                v.icon.set(icon.clone());
-            } else {
-                let (info, is_latest) = if let Some(volt) = self
-                    .all
-                    .volts
-                    .with_untracked(|all| all.get(&volt_id).cloned())
-                {
-                    (volt.info.get_untracked(), true)
+        let (is_latest, latest) = self
+            .installed
+            .try_update(|installed| {
+                if let Some(v) = installed.get_mut(&volt_id) {
+                    v.meta.set(volt.clone());
+                    v.icon.set(icon.clone());
+                    (true, v.latest)
                 } else {
-                    (volt.info(), false)
-                };
+                    let (info, is_latest) = if let Some(volt) = self
+                        .all
+                        .volts
+                        .with_untracked(|all| all.get(&volt_id).cloned())
+                    {
+                        (volt.info.get_untracked(), true)
+                    } else {
+                        (volt.info(), false)
+                    };
 
-                let latest = create_rw_signal(self.common.scope, info);
-                let data = InstalledVoltData {
-                    meta: create_rw_signal(self.common.scope, volt.clone()),
-                    icon: create_rw_signal(self.common.scope, icon.clone()),
-                    latest,
-                };
-                installed.insert(volt_id, data);
+                    let latest = create_rw_signal(self.common.scope, info);
+                    let data = InstalledVoltData {
+                        meta: create_rw_signal(self.common.scope, volt.clone()),
+                        icon: create_rw_signal(self.common.scope, icon.clone()),
+                        latest,
+                    };
+                    installed.insert(volt_id, data);
 
-                if !is_latest {
-                    let url = format!(
-                        "https://plugins.lapce.dev/api/v1/plugins/{}/{}/latest",
-                        volt.author, volt.name
-                    );
-                    let send = create_ext_action(self.common.scope, move |info| {
-                        if let Some(info) = info {
-                            latest.set(info);
-                        }
-                    });
-                    std::thread::spawn(move || {
-                        let info: Option<VoltInfo> = reqwest::blocking::get(url)
-                            .ok()
-                            .and_then(|r| r.json().ok());
-                        send(info);
-                    });
+                    (is_latest, latest)
                 }
-            }
-        })
+            })
+            .unwrap();
+
+        if !is_latest {
+            let url = format!(
+                "https://plugins.lapce.dev/api/v1/plugins/{}/{}/latest",
+                volt.author, volt.name
+            );
+            let send = create_ext_action(self.common.scope, move |info| {
+                if let Some(info) = info {
+                    latest.set(info);
+                }
+            });
+            std::thread::spawn(move || {
+                let info: Option<VoltInfo> =
+                    reqwest::blocking::get(url).ok().and_then(|r| r.json().ok());
+                send(info);
+            });
+        }
     }
 
     pub fn volt_removed(&self, volt: &VoltInfo) {

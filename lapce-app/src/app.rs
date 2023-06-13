@@ -1213,6 +1213,8 @@ fn palette_item(
                                             .get_color(LapceColor::EDITOR_DIM),
                                     )
                                     .min_width_px(0.0)
+                                    .flex_grow(1.0)
+                                    .flex_basis_px(0.0)
                             }),
                         )
                     })
@@ -1305,6 +1307,8 @@ fn palette_item(
                                             .get_color(LapceColor::EDITOR_DIM),
                                     )
                                     .min_width_px(0.0)
+                                    .flex_grow(1.0)
+                                    .flex_basis_px(0.0)
                             }),
                         )
                     })
@@ -1408,6 +1412,8 @@ fn palette_item(
                                             .get_color(LapceColor::EDITOR_DIM),
                                     )
                                     .min_width_px(0.0)
+                                    .flex_grow(1.0)
+                                    .flex_basis_px(0.0)
                             }),
                         )
                     })
@@ -1504,6 +1510,8 @@ fn palette_item(
                                             .get_color(LapceColor::EDITOR_DIM),
                                     )
                                     .min_width_px(0.0)
+                                    .flex_grow(1.0)
+                                    .flex_basis_px(0.0)
                             }),
                         )
                     })

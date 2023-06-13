@@ -931,7 +931,7 @@ impl WindowTabData {
                 // TODO:
             }
             SourceControlCommit => {
-                // TODO
+                self.source_control.commit();
             }
             SourceControlCopyActiveFileRemoteUrl => {
                 // TODO:
@@ -1335,6 +1335,10 @@ impl WindowTabData {
             }
             Focus::Panel(PanelKind::Plugin) => {
                 keypress.key_down(key_event, &self.plugin);
+                true
+            }
+            Focus::Panel(PanelKind::SourceControl) => {
+                keypress.key_down(key_event, &self.source_control);
                 true
             }
             _ => false,
