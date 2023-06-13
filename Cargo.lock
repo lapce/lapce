@@ -3312,6 +3312,7 @@ dependencies = [
  "directories",
  "dmg",
  "druid",
+ "druid-shell",
  "flate2",
  "fs_extra",
  "fuzzy-matcher",

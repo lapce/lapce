@@ -12,6 +12,8 @@ use druid::{
     },
     Color, ExtEventSink, FontFamily, Point, Size, Target, Vec2, WidgetId,
 };
+#[cfg(target_os = "linux")]
+use druid_shell::platform::linux::ApplicationExt;
 use itertools::Itertools;
 use lapce_core::{
     buffer::{rope_text::RopeText, Buffer, DiffLines, InvalLines},
@@ -67,6 +69,11 @@ impl SystemClipboard {
     fn clipboard() -> druid::Clipboard {
         druid::Application::global().clipboard()
     }
+
+    #[cfg(target_os = "linux")]
+    fn primary_clipboard() -> druid::Clipboard {
+        druid::Application::global().primary_clipboard()
+    }
 }
 
 impl Clipboard for SystemClipboard {
@@ -76,6 +83,16 @@ impl Clipboard for SystemClipboard {
 
     fn put_string(&mut self, s: impl AsRef<str>) {
         Self::clipboard().put_string(s)
+    }
+
+    #[cfg(target_os = "linux")]
+    fn get_string_primary(&self) -> Option<String> {
+        Self::primary_clipboard().get_string()
+    }
+
+    #[cfg(target_os = "linux")]
+    fn put_string_primary(&mut self, s: impl AsRef<str>) {
+        Self::primary_clipboard().put_string(s)
     }
 }
 

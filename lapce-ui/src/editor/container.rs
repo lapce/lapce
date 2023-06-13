@@ -1,9 +1,15 @@
 use druid::{
-    kurbo::Line, BoxConstraints, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-    LifeCycleCtx, PaintCtx, Point, RenderContext, Size, UpdateCtx, Widget, WidgetId,
-    WidgetPod,
+    kurbo::Line, BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx,
+    LifeCycle, LifeCycleCtx, PaintCtx, Point, RenderContext, Size, Target,
+    UpdateCtx, Widget, WidgetId, WidgetPod,
 };
-use lapce_data::{config::LapceTheme, data::LapceTabData};
+use lapce_data::{
+    command::{CommandKind, LapceCommand, LAPCE_COMMAND},
+    config::LapceTheme,
+    data::LapceTabData,
+};
+
+use lapce_core::command::EditCommand;
 
 use super::bread_crumb::LapceEditorBreadCrumb;
 use crate::{
@@ -83,6 +89,21 @@ impl Widget<LapceTabData> for LapceEditorContainer {
                 let doc = editor_data.doc.clone();
                 editor_data
                     .sync_buffer_position(self.editor.widget().inner().offset());
+                if let Event::MouseUp(_) = event {
+                    #[cfg(target_os = "linux")]
+                    {
+                        ctx.submit_command(Command::new(
+                            LAPCE_COMMAND,
+                            LapceCommand {
+                                kind: CommandKind::Edit(
+                                    EditCommand::ClipboardPrimaryCopy,
+                                ),
+                                data: None,
+                            },
+                            Target::Widget(*editor_data.main_split.tab_id),
+                        ));
+                    }
+                }
                 data.update_from_editor_buffer_data(editor_data, &editor, &doc);
             }
             _ => (),
