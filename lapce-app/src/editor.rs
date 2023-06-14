@@ -44,8 +44,10 @@ use crate::{
 
 use self::view::EditorViewData;
 
+pub mod diff;
 pub mod location;
 pub mod movement;
+pub mod readonly;
 pub mod view;
 
 #[derive(Clone, Debug)]
