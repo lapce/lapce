@@ -16,7 +16,7 @@ use itertools::Itertools;
 use lapce_core::{directory::Directory, meta, mode::Mode, register::Register};
 use lapce_rpc::{
     core::CoreNotification, dap_types::RunDebugConfig, file::PathObject,
-    proxy::ProxyRpcHandler, terminal::TermId,
+    proxy::ProxyRpcHandler, source_control::FileDiff, terminal::TermId,
 };
 use serde_json::Value;
 
@@ -940,7 +940,24 @@ impl WindowTabData {
                 // TODO:
             }
             SourceControlDiscardTargetFileChanges => {
-                // TODO:
+                if let Some(diff) = data
+                    .and_then(|data| serde_json::from_value::<FileDiff>(data).ok())
+                {
+                    match diff {
+                        FileDiff::Added(path) => {
+                            self.common.proxy.trash_path(path, Box::new(|_| {}));
+                        }
+                        FileDiff::Modified(path) | FileDiff::Deleted(path) => {
+                            self.common.proxy.git_discard_files_changes(vec![path]);
+                        }
+                        FileDiff::Renamed(old_path, new_path) => {
+                            self.common
+                                .proxy
+                                .git_discard_files_changes(vec![old_path]);
+                            self.common.proxy.trash_path(new_path, Box::new(|_| {}));
+                        }
+                    }
+                }
             }
             SourceControlDiscardWorkspaceChanges => {
                 // TODO:
