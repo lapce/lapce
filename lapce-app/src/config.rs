@@ -295,6 +295,10 @@ impl LapceConfig {
         self.resolve_theme(workspace);
     }
 
+    pub fn set_modal(&mut self, _workspace: &LapceWorkspace, modal: bool) {
+        self.core.modal = modal;
+    }
+
     /// Get the color by the name from the current theme if it exists
     /// Otherwise, get the color from the base them
     /// # Panics

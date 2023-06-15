@@ -590,6 +590,9 @@ pub enum InternalCommand {
         /// Whether to save the theme to the config file
         save: bool,
     },
+    SetModal {
+        modal: bool,
+    },
 }
 
 #[derive(Clone)]

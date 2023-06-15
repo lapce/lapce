@@ -445,8 +445,14 @@ impl WindowTabData {
         use LapceWorkbenchCommand::*;
         match cmd {
             // ==== Modal ====
-            EnableModal => {}
-            DisableModal => {}
+            EnableModal => {
+                let internal_command = self.common.internal_command;
+                internal_command.send(InternalCommand::SetModal { modal: true });
+            }
+            DisableModal => {
+                let internal_command = self.common.internal_command;
+                internal_command.send(InternalCommand::SetModal { modal: false });
+            }
 
             // ==== Files / Folders ====
             OpenFolder => {
@@ -1186,6 +1192,13 @@ impl WindowTabData {
                     new_config.set_icon_theme(&self.workspace, &name);
                     self.set_config.set(Arc::new(new_config));
                 }
+            }
+            InternalCommand::SetModal { modal } => {
+                LapceConfig::update_file(
+                    "core",
+                    "modal",
+                    toml_edit::Value::from(modal),
+                );
             }
         }
     }
