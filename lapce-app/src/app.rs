@@ -3,6 +3,7 @@ use std::os::windows::process::CommandExt;
 use std::{
     io::{BufReader, Read, Write},
     ops::Range,
+    path::PathBuf,
     process::Stdio,
     sync::Arc,
 };
@@ -64,6 +65,7 @@ use crate::{
     focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
     listener::Listener,
+    logging::override_log_levels,
     main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
     palette::{
         item::{PaletteItem, PaletteItemContent},
@@ -2380,6 +2382,51 @@ pub fn launch() {
     #[cfg(feature = "updater")]
     crate::update::cleanup();
 
+    let mut log_dispatch = fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}] {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.target(),
+                record.level(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Debug)
+        .chain(override_log_levels(
+            fern::Dispatch::new()
+                .level(if cfg!(debug_assertions) {
+                    log::LevelFilter::Warn
+                } else {
+                    log::LevelFilter::Off
+                })
+                .chain(std::io::stderr()),
+        ));
+
+    let log_file = LapceConfig::log_file();
+    if let Some(log_file) = log_file.clone().and_then(|f| fern::log_file(f).ok()) {
+        log_dispatch = log_dispatch.chain(
+            fern::Dispatch::new()
+                .level(log::LevelFilter::Debug)
+                .level_for("lapce_data::keypress::key_down", log::LevelFilter::Off)
+                .level_for("sled", log::LevelFilter::Off)
+                .level_for("tracing", log::LevelFilter::Off)
+                .level_for("druid::core", log::LevelFilter::Off)
+                .level_for("druid::window", log::LevelFilter::Off)
+                .level_for("druid::box_constraints", log::LevelFilter::Off)
+                .level_for("cranelift_codegen", log::LevelFilter::Off)
+                .level_for("wasmtime_cranelift", log::LevelFilter::Off)
+                .level_for("regalloc", log::LevelFilter::Off)
+                .level_for("hyper::proto", log::LevelFilter::Off)
+                .chain(log_file),
+        );
+    }
+
+    match log_dispatch.apply() {
+        Ok(()) => (),
+        Err(e) => eprintln!("Initialising logging failed {e:?}"),
+    }
+
     let _ = lapce_proxy::register_lapce_path();
     let db = Arc::new(LapceDb::new().unwrap());
     let mut app = floem::Application::new();
@@ -2401,6 +2448,7 @@ pub fn launch() {
         window_scale,
         latest_release.read_only(),
         app_command,
+        Arc::new(log_file),
     );
 
     let (tx, rx) = crossbeam_channel::bounded(1);
@@ -2497,6 +2545,7 @@ fn create_windows(
     window_scale: RwSignal<f64>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     app_command: Listener<AppCommand>,
+    log_file: Arc<Option<PathBuf>>,
 ) -> floem::Application {
     // Split user input into known existing directors and
     // file paths that exist or not
@@ -2549,6 +2598,7 @@ fn create_windows(
                 window_scale,
                 latest_release,
                 app_command,
+                log_file.clone(),
             );
             windows.push_back(window_data.clone());
             app = app.window(move || app_view(window_data), Some(config));
@@ -2565,6 +2615,7 @@ fn create_windows(
                     window_scale,
                     latest_release,
                     app_command,
+                    log_file.clone(),
                 );
                 windows.push_back(window_data.clone());
                 app = app.window(move || app_view(window_data), Some(config));
@@ -2587,8 +2638,14 @@ fn create_windows(
             workspaces: vec![LapceWorkspace::default()],
         };
         let config = WindowConfig::default().size(info.size).position(info.pos);
-        let window_data =
-            WindowData::new(scope, info, window_scale, latest_release, app_command);
+        let window_data = WindowData::new(
+            scope,
+            info,
+            window_scale,
+            latest_release,
+            app_command,
+            log_file,
+        );
         windows.push_back(window_data.clone());
         app = app.window(|| app_view(window_data), Some(config));
     }

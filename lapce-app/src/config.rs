@@ -516,6 +516,23 @@ impl LapceConfig {
         Some(path)
     }
 
+    pub fn log_file() -> Option<PathBuf> {
+        let time = chrono::Local::now().format("%Y%m%d-%H%M%S");
+
+        let file_name = format!("{time}.log");
+
+        let path = Directory::logs_directory()?.join(file_name);
+
+        if !path.exists() {
+            let _ = std::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&path);
+        }
+
+        Some(path)
+    }
+
     pub fn ui_svg(&self, icon: &'static str) -> String {
         let svg = self.icon_theme.ui.get(icon).and_then(|path| {
             let path = self.icon_theme.path.join(path);

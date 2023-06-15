@@ -16,6 +16,7 @@ pub mod history;
 pub mod id;
 pub mod keypress;
 pub mod listener;
+mod logging;
 pub mod main_split;
 pub mod palette;
 pub mod panel;

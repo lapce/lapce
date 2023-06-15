@@ -1,4 +1,10 @@
-use std::{collections::HashSet, env, path::Path, sync::Arc, time::Instant};
+use std::{
+    collections::HashSet,
+    env,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Instant,
+};
 
 use crossbeam_channel::Sender;
 use floem::{
@@ -124,6 +130,7 @@ pub struct WindowTabData {
     pub update_in_progress: RwSignal<bool>,
     pub latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     pub common: CommonData,
+    pub log_file: Arc<Option<PathBuf>>,
 }
 
 impl KeyPressFocus for WindowTabData {
@@ -159,6 +166,7 @@ impl WindowTabData {
         window_command: Listener<WindowCommand>,
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
+        log_file: Arc<Option<PathBuf>>,
     ) -> Self {
         let (cx, _) = cx.run_child_scope(|cx| cx);
         let db: Arc<LapceDb> = use_context(cx).unwrap();
@@ -361,6 +369,7 @@ impl WindowTabData {
             update_in_progress: create_rw_signal(cx, false),
             latest_release,
             common,
+            log_file,
         };
 
         {
@@ -587,6 +596,18 @@ impl WindowTabData {
             }
             OpenLogFile => {
                 // TODO:
+                if let Some(path) = (*self.log_file).clone() {
+                    self.main_split.jump_to_location(
+                        EditorLocation {
+                            path,
+                            position: None,
+                            scroll_offset: None,
+                            ignore_unconfirmed: false,
+                            same_editor_tab: false,
+                        },
+                        None,
+                    );
+                }
             }
             OpenLogsDirectory => {
                 if let Some(dir) = Directory::logs_directory() {

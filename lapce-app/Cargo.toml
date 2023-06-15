@@ -36,6 +36,7 @@ lsp-types.workspace = true
 smallvec.workspace = true
 include_dir.workspace = true
 regex.workspace = true
+chrono.workspace = true
 Inflector = "0.11.4"
 open = "3.0.2"
 unicode-width = "0.1.10"
@@ -48,7 +49,8 @@ floem = { git = "https://github.com/lapce/floem", rev = "5b1536bed7360d5a86fc3f4
 # floem = { path = "../../workspaces/floem" }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
-
+fern = "0.6.0"
+log-panics = { version = "2.1.0", features = ["with-backtrace"] }
 [target.'cfg(target_os="macos")'.dependencies]
 fs_extra = "1.2.0"
 dmg = "0.1.1"

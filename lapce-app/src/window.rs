@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 use floem::{
     glazier::KeyEvent,
@@ -55,6 +55,7 @@ pub struct WindowData {
     pub window_scale: RwSignal<f64>,
     pub latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     pub config: RwSignal<Arc<LapceConfig>>,
+    pub log_file: Arc<Option<PathBuf>>,
 }
 
 impl WindowData {
@@ -64,6 +65,7 @@ impl WindowData {
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
         app_command: Listener<AppCommand>,
+        log_file: Arc<Option<PathBuf>>,
     ) -> Self {
         let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
         let config = create_rw_signal(cx, Arc::new(config));
@@ -81,6 +83,7 @@ impl WindowData {
                 window_command,
                 window_scale,
                 latest_release,
+                log_file.clone(),
             ));
             window_tabs.push_back((create_rw_signal(cx, 0), window_tab));
         }
@@ -92,6 +95,7 @@ impl WindowData {
                 window_command,
                 window_scale,
                 latest_release,
+                log_file.clone(),
             ));
             window_tabs.push_back((create_rw_signal(cx, 0), window_tab));
         }
@@ -113,6 +117,7 @@ impl WindowData {
             latest_release,
             app_command,
             config,
+            log_file: log_file.clone(),
         };
 
         {
@@ -154,6 +159,7 @@ impl WindowData {
                     self.window_command,
                     self.window_scale,
                     self.latest_release,
+                    self.log_file.clone(),
                 ));
                 self.window_tabs.update(|window_tabs| {
                     if window_tabs.is_empty() {
@@ -181,6 +187,7 @@ impl WindowData {
                     self.window_command,
                     self.window_scale,
                     self.latest_release,
+                    self.log_file.clone(),
                 ));
                 let active = self.active.get_untracked();
                 let active = self
