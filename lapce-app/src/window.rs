@@ -117,7 +117,7 @@ impl WindowData {
             latest_release,
             app_command,
             config,
-            log_file: log_file.clone(),
+            log_file,
         };
 
         {
