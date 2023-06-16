@@ -63,6 +63,7 @@ use crate::{
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
     id::{EditorId, EditorTabId, SplitId},
+    keypress::keymap::KeyMap,
     listener::Listener,
     main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
     palette::{
@@ -1130,6 +1131,7 @@ fn palette_item(
     index: ReadSignal<usize>,
     palette_item_height: f64,
     config: ReadSignal<Arc<LapceConfig>>,
+    keymap: Option<&KeyMap>,
 ) -> impl View {
     match &item.content {
         PaletteItemContent::File { path, .. }
@@ -1523,8 +1525,64 @@ fn palette_item(
                 )
             })
         }
-        PaletteItemContent::Command { .. }
-        | PaletteItemContent::Line { .. }
+        PaletteItemContent::Command { .. } => {
+            let text = item.filter_text;
+            let indices = item.indices;
+            let keys = if let Some(keymap) = keymap {
+                keymap
+                    .key
+                    .iter()
+                    .map(|key| key.label().trim().to_string())
+                    .filter(|l| !l.is_empty())
+                    .collect()
+            } else {
+                vec![]
+            };
+            container_box(move || {
+                Box::new(
+                    stack(|| {
+                        (
+                            focus_text(
+                                move || text.clone(),
+                                move || indices.clone(),
+                                move || {
+                                    *config.get().get_color(LapceColor::EDITOR_FOCUS)
+                                },
+                            )
+                            .style(|| {
+                                Style::BASE
+                                    .flex_row()
+                                    .flex_grow(1.0)
+                                    .align_items(Some(AlignItems::Center))
+                            }),
+                            stack(|| {
+                                (list(
+                                    move || keys.clone(),
+                                    |k| k.clone(),
+                                    move |key| {
+                                        label(move || key.clone()).style(move || {
+                                            Style::BASE
+                                                .padding_horiz_px(5.0)
+                                                .padding_vert_px(2.0)
+                                                .margin_right_px(5.0)
+                                                .height_pct(90.0)
+                                                .border(1.0)
+                                                .border_color(
+                                                    *config.get().get_color(
+                                                        LapceColor::LAPCE_BORDER,
+                                                    ),
+                                                )
+                                        })
+                                    },
+                                ),)
+                            }),
+                        )
+                    })
+                    .style(|| Style::BASE.width_pct(100.0)),
+                )
+            })
+        }
+        PaletteItemContent::Line { .. }
         | PaletteItemContent::Workspace { .. }
         | PaletteItemContent::SshHost { .. }
         | PaletteItemContent::ColorTheme { .. }
@@ -1611,6 +1669,11 @@ fn palette_content(
     layout_rect: ReadSignal<Rect>,
 ) -> impl View {
     let items = window_tab_data.palette.filtered_items;
+    let keymaps = window_tab_data
+        .palette
+        .keypress
+        .get_untracked()
+        .command_keymaps;
     let index = window_tab_data.palette.index.read_only();
     let clicked_index = window_tab_data.palette.clicked_index.write_only();
     let config = window_tab_data.common.config;
@@ -1633,6 +1696,13 @@ fn palette_content(
                     },
                     move |(i, item)| {
                         let workspace = workspace.clone();
+                        let keymap = if let PaletteItemContent::Command { cmd } =
+                            item.clone().content
+                        {
+                            keymaps.get(cmd.kind.str()).and_then(|maps| maps.get(0))
+                        } else {
+                            None
+                        };
                         container(move || {
                             palette_item(
                                 workspace,
@@ -1641,6 +1711,7 @@ fn palette_content(
                                 index,
                                 palette_item_height,
                                 config,
+                                keymap,
                             )
                         })
                         .on_click(move |_| {

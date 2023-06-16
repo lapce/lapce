@@ -32,7 +32,28 @@ impl KeyPress {
         }
         false
     }
-
+    pub fn label(&self) -> String {
+        let mut keys = String::from("");
+        if self.mods.ctrl() {
+            keys.push_str("Ctrl+");
+        }
+        if self.mods.alt() {
+            keys.push_str("Alt+");
+        }
+        if self.mods.meta() {
+            let keyname = match std::env::consts::OS {
+                "macos" => "Cmd+",
+                "windows" => "Win+",
+                _ => "Meta+",
+            };
+            keys.push_str(keyname);
+        }
+        if self.mods.shift() {
+            keys.push_str("Shift+");
+        }
+        keys.push_str(&self.key.to_string());
+        keys.trim().to_string()
+    }
     pub fn parse(key: &str) -> Vec<Self> {
         key.split(' ')
             .filter_map(|k| {
