@@ -1539,44 +1539,47 @@ fn palette_item(
                 vec![]
             };
             container_box(move || {
-                Box::new(stack(|| {
-                    (
-                        focus_text(
-                            move || text.clone(),
-                            move || indices.clone(),
-                            move || {
-                                *config.get().get_color(LapceColor::EDITOR_FOCUS)
-                            },
-                        )
-                        .style(|| {
-                            Style::BASE
-                                .flex_row()
-                                .flex_grow(1.0)
-                                .align_items(Some(AlignItems::Center))
-                        }),
-                        stack(|| {
-                            (list(
-                                move || keys.clone(),
-                                |k| k.clone(),
-                                move |key| {
-                                    label(move || key.clone()).style(move || {
-                                        Style::BASE
-                                            .padding_horiz_px(5.0)
-                                            .padding_vert_px(2.0)
-                                            .margin_right_px(5.0)
-                                            .height_pct(90.0)
-                                            .border(1.0)
-                                            .border_color(
-                                                *config.get().get_color(
-                                                    LapceColor::LAPCE_BORDER,
-                                                ),
-                                            )
-                                    })
+                Box::new(
+                    stack(|| {
+                        (
+                            focus_text(
+                                move || text.clone(),
+                                move || indices.clone(),
+                                move || {
+                                    *config.get().get_color(LapceColor::EDITOR_FOCUS)
                                 },
-                            ),)
-                        }),
-                    )
-                }).style(|| Style::BASE.width_pct(100.0)))
+                            )
+                            .style(|| {
+                                Style::BASE
+                                    .flex_row()
+                                    .flex_grow(1.0)
+                                    .align_items(Some(AlignItems::Center))
+                            }),
+                            stack(|| {
+                                (list(
+                                    move || keys.clone(),
+                                    |k| k.clone(),
+                                    move |key| {
+                                        label(move || key.clone()).style(move || {
+                                            Style::BASE
+                                                .padding_horiz_px(5.0)
+                                                .padding_vert_px(2.0)
+                                                .margin_right_px(5.0)
+                                                .height_pct(90.0)
+                                                .border(1.0)
+                                                .border_color(
+                                                    *config.get().get_color(
+                                                        LapceColor::LAPCE_BORDER,
+                                                    ),
+                                                )
+                                        })
+                                    },
+                                ),)
+                            }),
+                        )
+                    })
+                    .style(|| Style::BASE.width_pct(100.0)),
+                )
             })
         }
         PaletteItemContent::Line { .. }
