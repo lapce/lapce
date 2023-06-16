@@ -1,6 +1,6 @@
 pub mod condition;
 mod key;
-mod keymap;
+pub mod keymap;
 mod loader;
 mod press;
 
@@ -81,7 +81,7 @@ pub struct KeyPressData {
     workbench_cmd: Listener<LapceWorkbenchCommand>,
     pub commands: IndexMap<String, LapceCommand>,
     keymaps: IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
-    command_keymaps: IndexMap<String, Vec<KeyMap>>,
+    pub command_keymaps: IndexMap<String, Vec<KeyMap>>,
     commands_with_keymap: Vec<KeyMap>,
     commands_without_keymap: Vec<LapceCommand>,
 }
