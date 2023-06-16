@@ -1550,8 +1550,9 @@ fn palette_item(
                         )
                         .style(|| {
                             Style::BASE
+                                .flex_row()
+                                .flex_grow(1.0)
                                 .align_items(Some(AlignItems::Center))
-                                .max_width_pct(100.0)
                         }),
                         stack(|| {
                             (list(
@@ -1562,6 +1563,8 @@ fn palette_item(
                                         Style::BASE
                                             .padding_horiz_px(5.0)
                                             .padding_vert_px(2.0)
+                                            .margin_right_px(5.0)
+                                            .height_pct(90.0)
                                             .border(1.0)
                                             .border_color(
                                                 *config.get().get_color(
@@ -1573,7 +1576,7 @@ fn palette_item(
                             ),)
                         }),
                     )
-                }))
+                }).style(|| Style::BASE.width_pct(100.0)))
             })
         }
         PaletteItemContent::Line { .. }
