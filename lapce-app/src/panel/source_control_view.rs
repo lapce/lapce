@@ -17,7 +17,7 @@ use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;
 
 use crate::{
-    command::{CommandKind, LapceCommand, LapceWorkbenchCommand},
+    command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
     config::{color::LapceColor, icon::LapceIcons},
     editor::view::{cursor_caret, editor_view, CursorRender},
     settings::checkbox,
@@ -217,11 +217,13 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
     let panel_rect = create_rw_signal(cx.scope, Rect::ZERO);
     let panel_width = create_memo(cx.scope, move |_| panel_rect.get().width());
     let lapce_command = source_control.common.lapce_command;
+    let internal_command = source_control.common.internal_command;
 
     let view_fn = move |(path, (diff, checked)): (PathBuf, (FileDiff, bool))| {
         let diff_for_style = diff.clone();
         let full_path = path.clone();
         let diff_for_menu = diff.clone();
+        let path_for_click = full_path.clone();
 
         let path = if let Some(workspace_path) = workspace.path.as_ref() {
             path.strip_prefix(workspace_path)
@@ -330,7 +332,12 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                 }),
             )
         })
-        .on_click(move |_| true)
+        .on_click(move |_| {
+            internal_command.send(InternalCommand::OpenFileChanges {
+                path: path_for_click.clone(),
+            });
+            true
+        })
         .on_event(EventListener::PointerDown, move |event| {
             let diff_for_menu = diff_for_menu.clone();
 

@@ -1048,6 +1048,9 @@ impl WindowTabData {
                     None,
                 );
             }
+            InternalCommand::OpenFileChanges { path } => {
+                self.main_split.open_file_changes(path);
+            }
             InternalCommand::GoToLocation { location } => {
                 self.main_split.go_to_location(location, None);
             }

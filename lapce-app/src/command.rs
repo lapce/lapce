@@ -491,6 +491,9 @@ pub enum InternalCommand {
     OpenFile {
         path: PathBuf,
     },
+    OpenFileChanges {
+        path: PathBuf,
+    },
     GoToLocation {
         location: EditorLocation,
     },

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use floem::{
     peniko::kurbo::{Point, Rect},
@@ -10,7 +10,7 @@ use floem::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    doc::DocContent,
+    doc::{DocContent, Document},
     editor::{location::EditorLocation, EditorData, EditorInfo},
     id::{EditorId, EditorTabId, SettingsId, SplitId},
     main_split::MainSplitData,
@@ -89,6 +89,14 @@ impl EditorTabInfo {
         });
         editor_tab_data
     }
+}
+
+pub enum EditorTabChildSource {
+    Editor {
+        path: PathBuf,
+        doc: RwSignal<Document>,
+    },
+    Settings,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -28,10 +28,13 @@ use serde::{Deserialize, Serialize};
 use crate::{
     doc::{DiagnosticData, Document, EditorDiagnostic},
     editor::{
+        diff::DiffEditorData,
         location::{EditorLocation, EditorPosition},
         EditorData,
     },
-    editor_tab::{EditorTabChild, EditorTabData, EditorTabInfo},
+    editor_tab::{
+        EditorTabChild, EditorTabChildSource, EditorTabData, EditorTabInfo,
+    },
     id::{EditorId, EditorTabId, SettingsId, SplitId},
     keypress::KeyPressData,
     window_tab::{CommonData, Focus, WindowTabData},
@@ -425,6 +428,8 @@ impl MainSplitData {
         editor.go_to_location(location, new_doc, edits);
     }
 
+    pub fn open_file_changes(&self, path: PathBuf) {}
+
     fn new_editor_tab(
         &self,
         editor_tab_id: EditorTabId,
@@ -449,6 +454,76 @@ impl MainSplitData {
             editor_tabs.insert(editor_tab_id, editor_tab);
         });
         editor_tab
+    }
+
+    fn get_editor_tab_child(
+        &self,
+        source: EditorTabChildSource,
+        ignore_unconfirmed: bool,
+        same_editor_tab: bool,
+    ) {
+        let config = self.common.config.get_untracked();
+
+        let active_editor_tab_id = self.active_editor_tab.get_untracked();
+        let editor_tabs = self.editor_tabs.get_untracked();
+        let active_editor_tab = active_editor_tab_id
+            .and_then(|id| editor_tabs.get(&id))
+            .cloned();
+
+        let editors = self.editors.get_untracked();
+
+        let active_editor_tab = if let Some(editor_tab) = active_editor_tab {
+            editor_tab
+        } else if editor_tabs.is_empty() {
+            let editor_tab_id = EditorTabId::next();
+            let editor_tab = self.new_editor_tab(editor_tab_id, self.root_split);
+            let root_split = self.splits.with_untracked(|splits| {
+                splits.get(&self.root_split).cloned().unwrap()
+            });
+            root_split.update(|root_split| {
+                root_split.children = vec![SplitContent::EditorTab(editor_tab_id)];
+            });
+            self.active_editor_tab.set(Some(editor_tab_id));
+            editor_tab
+        } else {
+            let (editor_tab_id, editor_tab) = editor_tabs.iter().next().unwrap();
+            self.active_editor_tab.set(Some(*editor_tab_id));
+            *editor_tab
+        };
+
+        if !config.editor.show_tab {
+            active_editor_tab.with_untracked(|editor_tab| {
+                for (i, (_, child)) in editor_tab.children.iter().enumerate() {
+                    let can_be_selected = match child {
+                        EditorTabChild::Editor(editor_id) => {
+                            if let Some(editor) = editors.get(editor_id) {
+                                let doc = editor.with_untracked(|editor| editor.doc);
+                                doc.with_untracked(|doc| {
+                                    let same_path =
+                                        if let EditorTabChildSource::Editor {
+                                            path,
+                                            ..
+                                        } = &source
+                                        {
+                                            doc.content
+                                                .path()
+                                                .map(|p| p == path)
+                                                .unwrap_or(false)
+                                        } else {
+                                            false
+                                        };
+
+                                    same_path || doc.buffer().is_pristine()
+                                })
+                            } else {
+                                false
+                            }
+                        }
+                        EditorTabChild::Settings(_) => true,
+                    };
+                }
+            });
+        }
     }
 
     fn get_editor_or_new(
