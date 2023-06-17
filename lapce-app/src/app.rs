@@ -56,13 +56,14 @@ use crate::{
     debug::RunDebugMode,
     doc::DocContent,
     editor::{
+        diff::DiffEditorData,
         location::{EditorLocation, EditorPosition},
         view::editor_container_view,
         EditorData,
     },
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
-    id::{EditorId, EditorTabId, SplitId},
+    id::{DiffEditorId, EditorId, EditorTabId, SplitId},
     keypress::keymap::KeyMap,
     listener::Listener,
     main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
@@ -155,6 +156,7 @@ fn editor_tab_header(
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    diff_editors: ReadSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
     common: CommonData,
 ) -> impl View {
     let focus = common.focus;
@@ -219,6 +221,7 @@ fn editor_tab_header(
                                     Some((path, confirmed, is_pristine))
                                 }
                                 DocContent::Local => None,
+                                DocContent::History(_) => None,
                             }
                         } else {
                             None
@@ -254,6 +257,64 @@ fn editor_tab_header(
                             color,
                             path,
                             confirmed: Some(confirmed),
+                            is_pristine,
+                        }
+                    })
+                }
+                EditorTabChild::DiffEditor(diff_editor_id) => {
+                    create_memo(cx.scope, move |_| {
+                        let config = config.get();
+                        let diff_editor_data = diff_editors.with(|diff_editors| {
+                            diff_editors.get(&diff_editor_id).cloned()
+                        });
+                        let path = if let Some(diff_editor_data) = diff_editor_data {
+                            let (content, is_pristine) =
+                                diff_editor_data.right.with(|editor_data| {
+                                    editor_data.doc.with(|doc| {
+                                        (
+                                            doc.content.clone(),
+                                            doc.buffer().is_pristine(),
+                                        )
+                                    })
+                                });
+                            match content {
+                                DocContent::File(path) => Some((path, is_pristine)),
+                                DocContent::Local => None,
+                                DocContent::History(_) => None,
+                            }
+                        } else {
+                            None
+                        };
+                        let (icon, color, path, is_pristine) = match path {
+                            Some((path, is_pritine)) => {
+                                let (svg, color) = config.file_svg(&path);
+                                (
+                                    svg,
+                                    color.cloned(),
+                                    format!(
+                                        "{} (Diff)",
+                                        path.file_name()
+                                            .unwrap_or_default()
+                                            .to_str()
+                                            .unwrap_or_default()
+                                    ),
+                                    is_pritine,
+                                )
+                            }
+                            None => (
+                                config.ui_svg(LapceIcons::FILE),
+                                Some(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                ),
+                                "local".to_string(),
+                                true,
+                            ),
+                        };
+                        Info {
+                            icon,
+                            color,
+                            path,
+                            confirmed: None,
                             is_pristine,
                         }
                     })
@@ -486,8 +547,10 @@ fn editor_tab_content(
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    diff_editors: ReadSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
 ) -> impl View {
     let common = main_split.common.clone();
+    let config = common.config;
     let focus = common.focus;
     let items = move || {
         editor_tab
@@ -527,6 +590,73 @@ fn editor_tab_content(
                     container_box(|| Box::new(label(|| "emtpy editor".to_string())))
                 }
             }
+            EditorTabChild::DiffEditor(diff_editor_id) => {
+                let diff_editor_data = diff_editors
+                    .with(|diff_editors| diff_editors.get(&diff_editor_id).cloned());
+                if let Some(diff_editor_data) = diff_editor_data {
+                    let diff_editor_tab_id = diff_editor_data.editor_tab_id;
+                    let is_active = move || {
+                        let focus = focus.get();
+                        if let Focus::Workbench = focus {
+                            let active_editor_tab = active_editor_tab.get();
+                            Some(diff_editor_tab_id) == active_editor_tab
+                        } else {
+                            false
+                        }
+                    };
+                    container_box(|| {
+                        Box::new(
+                            stack(|| {
+                                (
+                                    container(|| {
+                                        editor_container_view(
+                                            main_split.clone(),
+                                            workspace.clone(),
+                                            is_active,
+                                            diff_editor_data.left,
+                                        )
+                                    })
+                                    .style(
+                                        move || {
+                                            Style::BASE
+                                                .height_pct(100.0)
+                                                .flex_grow(1.0)
+                                                .flex_basis_px(0.0)
+                                                .border_right(1.0)
+                                                .border_color(
+                                                    *config.get().get_color(
+                                                        LapceColor::LAPCE_BORDER,
+                                                    ),
+                                                )
+                                        },
+                                    ),
+                                    container(|| {
+                                        editor_container_view(
+                                            main_split.clone(),
+                                            workspace.clone(),
+                                            is_active,
+                                            diff_editor_data.right,
+                                        )
+                                    })
+                                    .style(
+                                        || {
+                                            Style::BASE
+                                                .height_pct(100.0)
+                                                .flex_grow(1.0)
+                                                .flex_basis_px(0.0)
+                                        },
+                                    ),
+                                )
+                            })
+                            .style(|| Style::BASE.size_pct(100.0, 100.0)),
+                        )
+                    })
+                } else {
+                    container_box(|| {
+                        Box::new(label(|| "emtpy diff editor".to_string()))
+                    })
+                }
+            }
             EditorTabChild::Settings(_) => {
                 container_box(move || Box::new(settings_view(common)))
             }
@@ -544,6 +674,7 @@ fn editor_tab(
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    diff_editors: ReadSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
 ) -> impl View {
     let (editor_tab_id, editor_tab_scope) =
         editor_tab.with_untracked(|e| (e.editor_tab_id, e.scope));
@@ -566,13 +697,20 @@ fn editor_tab(
     let internal_command = main_split.common.internal_command;
     stack(|| {
         (
-            editor_tab_header(active_editor_tab, editor_tab, editors, common),
+            editor_tab_header(
+                active_editor_tab,
+                editor_tab,
+                editors,
+                diff_editors,
+                common,
+            ),
             editor_tab_content(
                 main_split.clone(),
                 workspace.clone(),
                 active_editor_tab,
                 editor_tab,
                 editors,
+                diff_editors,
             ),
         )
     })
@@ -676,6 +814,7 @@ fn split_list(
     let editor_tabs = main_split.editor_tabs.read_only();
     let active_editor_tab = main_split.active_editor_tab.read_only();
     let editors = main_split.editors.read_only();
+    let diff_editors = main_split.diff_editors.read_only();
     let splits = main_split.splits.read_only();
     let config = main_split.common.config;
     let (split_id, split_scope) =
@@ -708,6 +847,7 @@ fn split_list(
                             active_editor_tab,
                             editor_tab_data,
                             editors,
+                            diff_editors,
                         ))
                     })
                 } else {

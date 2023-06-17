@@ -99,6 +99,9 @@ impl EditorInfo {
             DocContent::Local => {
                 EditorData::new_local(data.scope, editor_id, data.common)
             }
+            DocContent::History(_) => {
+                EditorData::new_local(data.scope, editor_id, data.common)
+            }
         };
         let editor_data = create_rw_signal(editor_data.scope, editor_data);
         data.editors.update(|editors| {
@@ -211,13 +214,6 @@ impl EditorData {
     }
 
     pub fn editor_info(&self, _data: &WindowTabData) -> EditorInfo {
-        // let unsaved = if let BufferContent::Scratch(id, _) = &self.content {
-        //     let doc = data.main_split.scratch_docs.get(id).unwrap();
-        //     Some(doc.buffer().to_string())
-        // } else {
-        //     None
-        // };
-
         let offset = self.cursor.get_untracked().offset();
         let scroll_offset = self.viewport.get_untracked().origin();
         EditorInfo {

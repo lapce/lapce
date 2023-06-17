@@ -82,11 +82,19 @@ pub struct EditorDiagnostic {
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct DocHistory {
+    pub path: PathBuf,
+    pub version: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DocContent {
     /// A file at some location. This can be a remote path.
     File(PathBuf),
     /// A local document, which doens't need to be sync to the disk.
     Local,
+    /// A document of an old version in the source control
+    History(DocHistory),
 }
 
 impl DocContent {
@@ -102,6 +110,7 @@ impl DocContent {
         match self {
             DocContent::File(path) => Some(path),
             DocContent::Local => None,
+            DocContent::History(_) => None,
         }
     }
 }
@@ -213,6 +222,48 @@ impl Document {
             text_cache_listeners: Rc::new(RefCell::new(SmallVec::new())),
             content: DocContent::Local,
             syntax: None,
+            line_styles: Rc::new(RefCell::new(HashMap::new())),
+            sticky_headers: Rc::new(RefCell::new(HashMap::new())),
+            semantic_styles: None,
+            inlay_hints: None,
+            diagnostics: DiagnosticData {
+                expanded: create_rw_signal(cx, true),
+                diagnostics: create_rw_signal(cx, im::Vector::new()),
+            },
+            completion_lens: None,
+            completion_pos: (0, 0),
+            loaded: true,
+            histories: create_rw_signal(cx, im::HashMap::new()),
+            head_changes: create_rw_signal(cx, im::Vector::new()),
+            code_actions: im::HashMap::new(),
+            proxy,
+            config,
+            find,
+            find_result: FindResult::new(cx),
+        }
+    }
+
+    pub fn new_hisotry(
+        cx: Scope,
+        content: DocContent,
+        find: Find,
+        proxy: ProxyRpcHandler,
+        config: ReadSignal<Arc<LapceConfig>>,
+    ) -> Self {
+        let syntax = if let DocContent::History(history) = &content {
+            Syntax::init(&history.path).ok()
+        } else {
+            None
+        };
+        let (cx, _) = cx.run_child_scope(|cx| cx);
+        Self {
+            scope: cx,
+            buffer_id: BufferId::next(),
+            buffer: Buffer::new(""),
+            style_rev: 0,
+            text_cache_listeners: Rc::new(RefCell::new(SmallVec::new())),
+            content,
+            syntax,
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
@@ -498,6 +549,7 @@ impl Document {
         let path = match doc.with_untracked(|doc| doc.content.clone()) {
             DocContent::File(path) => path,
             DocContent::Local => return,
+            DocContent::History(_) => return,
         };
 
         let (rev, len) =
@@ -556,6 +608,7 @@ impl Document {
         let path = match doc.with_untracked(|doc| doc.content.clone()) {
             DocContent::File(path) => path,
             DocContent::Local => return,
+            DocContent::History(_) => return,
         };
 
         let (buffer, rev, len) = doc.with_untracked(|doc| {

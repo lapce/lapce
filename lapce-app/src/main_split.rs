@@ -26,15 +26,16 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    doc::{DiagnosticData, Document, EditorDiagnostic},
+    doc::{DiagnosticData, DocContent, DocHistory, Document, EditorDiagnostic},
     editor::{
+        diff::DiffEditorData,
         location::{EditorLocation, EditorPosition},
         EditorData,
     },
     editor_tab::{
         EditorTabChild, EditorTabChildSource, EditorTabData, EditorTabInfo,
     },
-    id::{EditorId, EditorTabId, SettingsId, SplitId},
+    id::{DiffEditorId, EditorId, EditorTabId, SettingsId, SplitId},
     keypress::KeyPressData,
     window_tab::{CommonData, Focus, WindowTabData},
 };
@@ -193,6 +194,7 @@ pub struct MainSplitData {
     pub splits: RwSignal<im::HashMap<SplitId, RwSignal<SplitData>>>,
     pub editor_tabs: RwSignal<im::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
     pub editors: RwSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    pub diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
     pub docs: RwSignal<im::HashMap<PathBuf, RwSignal<Document>>>,
     pub diagnostics: RwSignal<im::HashMap<PathBuf, DiagnosticData>>,
     pub active_editor: Memo<Option<RwSignal<EditorData>>>,
@@ -211,6 +213,7 @@ impl MainSplitData {
             im::HashMap<EditorTabId, RwSignal<EditorTabData>>,
         > = create_rw_signal(cx, im::HashMap::new());
         let editors = create_rw_signal(cx, im::HashMap::new());
+        let diff_editors = create_rw_signal(cx, im::HashMap::new());
         let docs = create_rw_signal(cx, im::HashMap::new());
         let locations = create_rw_signal(cx, im::Vector::new());
         let current_location = create_rw_signal(cx, 0);
@@ -256,6 +259,7 @@ impl MainSplitData {
             active_editor_tab,
             editor_tabs,
             editors,
+            diff_editors,
             docs,
             active_editor,
             find_editor,
@@ -288,6 +292,7 @@ impl MainSplitData {
                 keypress.key_down(key_event, &editor);
                 editor.get_code_actions();
             }
+            EditorTabChild::DiffEditor(diff_editor_id) => {}
             EditorTabChild::Settings(_) => {
                 return None;
             }
@@ -433,7 +438,37 @@ impl MainSplitData {
         }
     }
 
-    pub fn open_file_changes(&self, path: PathBuf) {}
+    pub fn open_file_changes(&self, path: PathBuf) {
+        let (right, _) = self.get_doc(path.clone());
+        let left = Document::new_hisotry(
+            self.scope,
+            DocContent::History(DocHistory {
+                path: path.clone(),
+                version: "head".to_string(),
+            }),
+            self.common.find.clone(),
+            self.common.proxy.clone(),
+            self.common.config,
+        );
+        let left = create_rw_signal(left.scope, left);
+
+        let send = create_ext_action(self.scope, move |result| {
+            if let Ok(ProxyResponse::BufferHeadResponse { content, .. }) = result {
+                left.update(|doc| {
+                    doc.init_content(Rope::from(content));
+                });
+            }
+        });
+        self.common.proxy.get_buffer_head(path, move |result| {
+            send(result);
+        });
+
+        self.get_editor_tab_child(
+            EditorTabChildSource::DiffEditor { left, right },
+            false,
+            false,
+        );
+    }
 
     fn new_editor_tab(
         &self,
@@ -476,6 +511,7 @@ impl MainSplitData {
             .cloned();
 
         let editors = self.editors.get_untracked();
+        let diff_editors = self.diff_editors.get_untracked();
 
         let active_editor_tab = if let Some(editor_tab) = active_editor_tab {
             editor_tab
@@ -495,6 +531,27 @@ impl MainSplitData {
             self.active_editor_tab.set(Some(*editor_tab_id));
             *editor_tab
         };
+
+        let is_same_diff_editor =
+            |diff_editor_id: &DiffEditorId,
+             left: &RwSignal<Document>,
+             right: &RwSignal<Document>| {
+                diff_editors
+                    .get(diff_editor_id)
+                    .map(|diff_editor| {
+                        left.with_untracked(|doc| doc.content.clone())
+                            == diff_editor
+                                .left
+                                .with_untracked(|editor| editor.doc)
+                                .with_untracked(|doc| doc.content.clone())
+                            && right.with_untracked(|doc| doc.content.clone())
+                                == diff_editor
+                                    .right
+                                    .with_untracked(|editor| editor.doc)
+                                    .with_untracked(|doc| doc.content.clone())
+                    })
+                    .unwrap_or(false)
+            };
 
         let selected = if !config.editor.show_tab {
             active_editor_tab.with_untracked(|editor_tab| {
@@ -524,6 +581,34 @@ impl MainSplitData {
                                 false
                             }
                         }
+                        EditorTabChild::DiffEditor(diff_editor_id) => {
+                            if let EditorTabChildSource::DiffEditor { left, right } =
+                                &source
+                            {
+                                is_same_diff_editor(diff_editor_id, left, right)
+                                    || diff_editors
+                                        .get(diff_editor_id)
+                                        .map(|diff_editor| {
+                                            diff_editor
+                                                .left
+                                                .with_untracked(|editor| editor.doc)
+                                                .with_untracked(|doc| {
+                                                    doc.buffer().is_pristine()
+                                                })
+                                                && diff_editor
+                                                    .right
+                                                    .with_untracked(|editor| {
+                                                        editor.doc
+                                                    })
+                                                    .with_untracked(|doc| {
+                                                        doc.buffer().is_pristine()
+                                                    })
+                                        })
+                                        .unwrap_or(false)
+                            } else {
+                                false
+                            }
+                        }
                         EditorTabChild::Settings(_) => true,
                     };
 
@@ -535,7 +620,7 @@ impl MainSplitData {
             })
         } else {
             match &source {
-                EditorTabChildSource::Editor { path, doc } => active_editor_tab
+                EditorTabChildSource::Editor { path, .. } => active_editor_tab
                     .with_untracked(|editor_tab| {
                         editor_tab
                             .get_editor(&editors, path)
@@ -548,6 +633,31 @@ impl MainSplitData {
                             })
                             .map(|(i, _)| i)
                     }),
+                EditorTabChildSource::DiffEditor { left, right } => {
+                    if let Some(index) =
+                        active_editor_tab.with_untracked(|editor_tab| {
+                            editor_tab.children.iter().position(|(_, child)| {
+                                if let EditorTabChild::DiffEditor(diff_editor_id) =
+                                    child
+                                {
+                                    is_same_diff_editor(diff_editor_id, left, right)
+                                } else {
+                                    false
+                                }
+                            })
+                        })
+                    {
+                        Some(index)
+                    } else if ignore_unconfirmed {
+                        None
+                    } else {
+                        active_editor_tab.with_untracked(|editor_tab| {
+                            editor_tab
+                                .get_unconfirmed_editor(&editors)
+                                .map(|(i, _)| i)
+                        })
+                    }
+                }
                 EditorTabChildSource::Settings => {
                     if let Some(index) =
                         active_editor_tab.with_untracked(|editor_tab| {
@@ -570,6 +680,44 @@ impl MainSplitData {
             }
         };
 
+        let new_child_from_source =
+            |editor_tab_id: EditorTabId, source: &EditorTabChildSource| match source
+            {
+                EditorTabChildSource::Editor { doc, .. } => {
+                    let editor_id = EditorId::next();
+                    let editor = EditorData::new(
+                        self.scope,
+                        Some(editor_tab_id),
+                        editor_id,
+                        *doc,
+                        self.common.clone(),
+                    );
+                    let editor = create_rw_signal(self.scope, editor);
+                    self.editors.update(|editors| {
+                        editors.insert(editor_id, editor);
+                    });
+                    EditorTabChild::Editor(editor_id)
+                }
+                EditorTabChildSource::Settings => {
+                    EditorTabChild::Settings(SettingsId::next())
+                }
+                EditorTabChildSource::DiffEditor { left, right } => {
+                    let diff_editor_id = DiffEditorId::next();
+                    let diff_editor = DiffEditorData::new(
+                        self.scope,
+                        diff_editor_id,
+                        editor_tab_id,
+                        *left,
+                        *right,
+                        self.common.clone(),
+                    );
+                    self.diff_editors.update(|diff_editors| {
+                        diff_editors.insert(diff_editor_id, diff_editor);
+                    });
+                    EditorTabChild::DiffEditor(diff_editor_id)
+                }
+            };
+
         if let Some(selected) = selected {
             let (editor_tab_id, current_child) =
                 active_editor_tab.with_untracked(|editor_tab| {
@@ -583,12 +731,14 @@ impl MainSplitData {
                                 });
                             }
                         }
+                        EditorTabChild::DiffEditor(_) => {}
                         EditorTabChild::Settings(_) => {}
                     }
                     (editor_tab_id, current_child.clone())
                 });
 
-            match (&current_child, &source) {
+            // firstly, if they are the same type of child, load the new doc to the old editor
+            let is_same = match (&current_child, &source) {
                 (
                     EditorTabChild::Editor(editor_id),
                     EditorTabChildSource::Editor { path, doc },
@@ -612,50 +762,52 @@ impl MainSplitData {
                             });
                         }
                     }
+
+                    true
                 }
                 (
-                    EditorTabChild::Editor(editor_id),
-                    EditorTabChildSource::Settings,
+                    EditorTabChild::DiffEditor(diff_editor_id),
+                    EditorTabChildSource::DiffEditor { left, right },
                 ) => {
+                    if !is_same_diff_editor(diff_editor_id, left, right) {}
+
+                    true
+                }
+                (EditorTabChild::Settings(_), EditorTabChildSource::Settings) => {
+                    true
+                }
+                _ => false,
+            };
+            if is_same {
+                let (_, child) = active_editor_tab.with_untracked(|editor_tab| {
+                    editor_tab.children[selected].clone()
+                });
+                active_editor_tab.update(|editor_tab| {
+                    editor_tab.active = selected;
+                });
+                return child;
+            }
+
+            // We're loading a different kind of child, clean up the old resources
+            match &current_child {
+                EditorTabChild::Editor(editor_id) => {
                     self.editors.update(|editors| {
                         editors.remove(editor_id);
                     });
-                    active_editor_tab.update(|editor_tab| {
-                        editor_tab.children[selected] = (
-                            create_rw_signal(editor_tab.scope, 0),
-                            EditorTabChild::Settings(SettingsId::next()),
-                        );
-                    })
                 }
-                (
-                    EditorTabChild::Settings(_),
-                    EditorTabChildSource::Editor { doc, .. },
-                ) => {
-                    // create the new editor
-                    let editor_id = EditorId::next();
-                    let editor = EditorData::new(
-                        self.scope,
-                        Some(editor_tab_id),
-                        editor_id,
-                        *doc,
-                        self.common.clone(),
-                    );
-                    let editor = create_rw_signal(self.scope, editor);
-                    self.editors.update(|editors| {
-                        editors.insert(editor_id, editor);
+                EditorTabChild::DiffEditor(diff_editor_id) => {
+                    self.diff_editors.update(|diff_editors| {
+                        diff_editors.remove(diff_editor_id);
                     });
-                    active_editor_tab.update(|editor_tab| {
-                        editor_tab.children[selected] = (
-                            create_rw_signal(editor_tab.scope, 0),
-                            EditorTabChild::Editor(editor_id),
-                        );
-                    })
                 }
-                (EditorTabChild::Settings(_), EditorTabChildSource::Settings) => {}
+                EditorTabChild::Settings(_) => {}
             }
-            let (_, child) = active_editor_tab
-                .with_untracked(|editor_tab| editor_tab.children[selected].clone());
+
+            // Now loading the new child
+            let child = new_child_from_source(editor_tab_id, &source);
             active_editor_tab.update(|editor_tab| {
+                editor_tab.children[selected] =
+                    (create_rw_signal(editor_tab.scope, 0), child.clone());
                 editor_tab.active = selected;
             });
             return child;
@@ -670,6 +822,22 @@ impl MainSplitData {
                             EditorTabChildSource::Editor { path, .. } => editor_tab
                                 .get_editor(&editors, path)
                                 .map(|(index, _)| index),
+                            EditorTabChildSource::DiffEditor { left, right } => {
+                                editor_tab.children.iter().position(|(_, child)| {
+                                    if let EditorTabChild::DiffEditor(
+                                        diff_editor_id,
+                                    ) = child
+                                    {
+                                        is_same_diff_editor(
+                                            diff_editor_id,
+                                            left,
+                                            right,
+                                        )
+                                    } else {
+                                        false
+                                    }
+                                })
+                            }
                             EditorTabChildSource::Settings => {
                                 editor_tab.children.iter().position(|(_, child)| {
                                     matches!(child, EditorTabChild::Settings(_))
@@ -690,28 +858,9 @@ impl MainSplitData {
             }
         }
 
-        let child = match source {
-            EditorTabChildSource::Editor { path, doc } => {
-                let editor_tab_id = active_editor_tab
-                    .with_untracked(|editor_tab| editor_tab.editor_tab_id);
-                let editor_id = EditorId::next();
-                let editor = EditorData::new(
-                    self.scope,
-                    Some(editor_tab_id),
-                    editor_id,
-                    doc,
-                    self.common.clone(),
-                );
-                let editor = create_rw_signal(self.scope, editor);
-                self.editors.update(|editors| {
-                    editors.insert(editor_id, editor);
-                });
-                EditorTabChild::Editor(editor_id)
-            }
-            EditorTabChildSource::Settings => {
-                EditorTabChild::Settings(SettingsId::next())
-            }
-        };
+        let editor_tab_id =
+            active_editor_tab.with_untracked(|editor_tab| editor_tab.editor_tab_id);
+        let child = new_child_from_source(editor_tab_id, &source);
 
         active_editor_tab.update(|editor_tab| {
             let active = editor_tab
@@ -922,6 +1071,18 @@ impl MainSplitData {
                     editors.insert(new_editor_id, editor);
                 });
                 EditorTabChild::Editor(new_editor_id)
+            }
+            EditorTabChild::DiffEditor(diff_editor_id) => {
+                let new_diff_editor_id = DiffEditorId::next();
+                let diff_editor = self
+                    .diff_editors
+                    .get_untracked()
+                    .get(diff_editor_id)?
+                    .copy(cx, new_diff_editor_id);
+                self.diff_editors.update(|diff_editors| {
+                    diff_editors.insert(new_diff_editor_id, diff_editor);
+                });
+                EditorTabChild::Editor(new_diff_editor_id)
             }
             EditorTabChild::Settings(_) => {
                 EditorTabChild::Settings(SettingsId::next())
@@ -1234,6 +1395,16 @@ impl MainSplitData {
                     .unwrap();
                 if let Some(editor) = removed_editor {
                     let editor = editor.get_untracked();
+                    editor.save_doc_position();
+                }
+            }
+            EditorTabChild::DiffEditor(diff_editor_id) => {
+                let removed_diff_editor = self
+                    .diff_editors
+                    .try_update(|diff_editors| diff_editors.remove(&diff_editor_id))
+                    .unwrap();
+                if let Some(diff_editor) = removed_diff_editor {
+                    let editor = diff_editor.right.get_untracked();
                     editor.save_doc_position();
                 }
             }
