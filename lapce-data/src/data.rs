@@ -2265,6 +2265,18 @@ impl LapceTabData {
             PanelKind::Debug => self.terminal.debug.widget_id,
         };
         if let PanelKind::Search = kind {
+            if let Some(editor) = self.main_split.active_editor() {
+                let doc = self.main_split.editor_doc(editor.view_id);
+                let offset = doc.cursor_offset;
+                let (start, end) = doc.buffer().select_word(offset);
+                let word = doc.buffer().slice_to_cow(start..end).to_string();
+                ctx.submit_command(Command::new(
+                    LAPCE_UI_COMMAND,
+                    LapceUICommand::UpdateSearchInput(word.clone()),
+                    Target::Widget(*self.main_split.tab_id),
+                ));
+                Arc::make_mut(&mut self.find).set_find(&word, false, true);
+            }
             ctx.submit_command(Command::new(
                 LAPCE_COMMAND,
                 LapceCommand {
