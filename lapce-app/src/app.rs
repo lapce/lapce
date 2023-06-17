@@ -1563,10 +1563,10 @@ fn palette_item(
                                         label(move || key.clone()).style(move || {
                                             Style::BASE
                                                 .padding_horiz_px(5.0)
-                                                .padding_vert_px(2.0)
+                                                .padding_vert_px(1.0)
                                                 .margin_right_px(5.0)
-                                                .height_pct(90.0)
                                                 .border(1.0)
+                                                .border_radius(6.0)
                                                 .border_color(
                                                     *config.get().get_color(
                                                         LapceColor::LAPCE_BORDER,
@@ -1578,7 +1578,7 @@ fn palette_item(
                             }),
                         )
                     })
-                    .style(|| Style::BASE.width_pct(100.0)),
+                    .style(|| Style::BASE.width_pct(100.0).items_center()),
                 )
             })
         }

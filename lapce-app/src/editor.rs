@@ -1616,7 +1616,7 @@ impl EditorData {
         }
     }
 
-    pub fn save_doc_position(&self, cx: Scope) {
+    pub fn save_doc_position(&self) {
         let path = match self.doc.with_untracked(|doc| {
             if doc.loaded() {
                 doc.content.path().cloned()
@@ -1631,7 +1631,7 @@ impl EditorData {
         let cursor_offset = self.cursor.with_untracked(|c| c.offset());
         let scroll_offset = self.viewport.with_untracked(|v| v.origin().to_vec2());
 
-        let db: Arc<LapceDb> = use_context(cx).unwrap();
+        let db: Arc<LapceDb> = use_context(self.scope).unwrap();
         db.save_doc_position(
             &self.common.workspace,
             path,

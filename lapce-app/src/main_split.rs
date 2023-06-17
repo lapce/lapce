@@ -28,7 +28,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
     doc::{DiagnosticData, Document, EditorDiagnostic},
     editor::{
-        diff::DiffEditorData,
         location::{EditorLocation, EditorPosition},
         EditorData,
     },
@@ -418,14 +417,20 @@ impl MainSplitData {
         let path = location.path.clone();
         let (doc, new_doc) = self.get_doc(path.clone());
 
-        let editor = self.get_editor_or_new(
-            doc,
-            &path,
+        let child = self.get_editor_tab_child(
+            EditorTabChildSource::Editor { path, doc },
             location.ignore_unconfirmed,
             location.same_editor_tab,
         );
-        let editor = editor.get_untracked();
-        editor.go_to_location(location, new_doc, edits);
+        if let EditorTabChild::Editor(editor_id) = child {
+            if let Some(editor) = self
+                .editors
+                .with_untracked(|editors| editors.get(&editor_id).cloned())
+            {
+                let editor = editor.get_untracked();
+                editor.go_to_location(location, new_doc, edits);
+            }
+        }
     }
 
     pub fn open_file_changes(&self, path: PathBuf) {}
@@ -461,7 +466,7 @@ impl MainSplitData {
         source: EditorTabChildSource,
         ignore_unconfirmed: bool,
         same_editor_tab: bool,
-    ) {
+    ) -> EditorTabChild {
         let config = self.common.config.get_untracked();
 
         let active_editor_tab_id = self.active_editor_tab.get_untracked();
@@ -491,7 +496,7 @@ impl MainSplitData {
             *editor_tab
         };
 
-        if !config.editor.show_tab {
+        let selected = if !config.editor.show_tab {
             active_editor_tab.with_untracked(|editor_tab| {
                 for (i, (_, child)) in editor_tab.children.iter().enumerate() {
                     let can_be_selected = match child {
@@ -521,193 +526,210 @@ impl MainSplitData {
                         }
                         EditorTabChild::Settings(_) => true,
                     };
+
+                    if can_be_selected {
+                        return Some(i);
+                    }
                 }
-            });
-        }
-    }
-
-    fn get_editor_or_new(
-        &self,
-        doc: RwSignal<Document>,
-        path: &Path,
-        ignore_unconfirmed: bool,
-        same_editor_tab: bool,
-    ) -> RwSignal<EditorData> {
-        let cx = self.scope;
-        let config = self.common.config.get_untracked();
-
-        let active_editor_tab_id = self.active_editor_tab.get_untracked();
-        let editor_tabs = self.editor_tabs.get_untracked();
-        let editors = self.editors.get_untracked();
-        let splits = self.splits.get_untracked();
-
-        let active_editor_tab = active_editor_tab_id
-            .and_then(|id| editor_tabs.get(&id))
-            .cloned();
-
-        // first check if the file exists in active editor tab or there's unconfirmed editor
-        if let Some(editor_tab) = active_editor_tab {
-            let selected = if !config.editor.show_tab {
-                editor_tab.with_untracked(|editor_tab| {
-                    for (i, child) in editor_tab.children.iter().enumerate() {
-                        if let (_, EditorTabChild::Editor(editor_id)) = child {
-                            if let Some(editor) = editors.get(editor_id) {
-                                let e = editor.get_untracked();
-                                let can_be_selected = e.doc.with_untracked(|doc| {
-                                    doc.content
-                                        .path()
-                                        .map(|p| p == path)
-                                        .unwrap_or(false)
-                                        || doc.buffer().is_pristine()
-                                });
-                                if can_be_selected {
-                                    return Some((i, *editor));
+                None
+            })
+        } else {
+            match &source {
+                EditorTabChildSource::Editor { path, doc } => active_editor_tab
+                    .with_untracked(|editor_tab| {
+                        editor_tab
+                            .get_editor(&editors, path)
+                            .or_else(|| {
+                                if ignore_unconfirmed {
+                                    None
+                                } else {
+                                    editor_tab.get_unconfirmed_editor(&editors)
                                 }
+                            })
+                            .map(|(i, _)| i)
+                    }),
+                EditorTabChildSource::Settings => {
+                    if let Some(index) =
+                        active_editor_tab.with_untracked(|editor_tab| {
+                            editor_tab.children.iter().position(|(_, child)| {
+                                matches!(child, EditorTabChild::Settings(_))
+                            })
+                        })
+                    {
+                        Some(index)
+                    } else if ignore_unconfirmed {
+                        None
+                    } else {
+                        active_editor_tab.with_untracked(|editor_tab| {
+                            editor_tab
+                                .get_unconfirmed_editor(&editors)
+                                .map(|(i, _)| i)
+                        })
+                    }
+                }
+            }
+        };
+
+        if let Some(selected) = selected {
+            let (editor_tab_id, current_child) =
+                active_editor_tab.with_untracked(|editor_tab| {
+                    let editor_tab_id = editor_tab.editor_tab_id;
+                    let (_, current_child) = &editor_tab.children[selected];
+                    match current_child {
+                        EditorTabChild::Editor(editor_id) => {
+                            if let Some(editor) = editors.get(editor_id) {
+                                editor.with_untracked(|editor| {
+                                    editor.save_doc_position();
+                                });
                             }
                         }
+                        EditorTabChild::Settings(_) => {}
                     }
-                    None
-                })
-            } else {
-                editor_tab.with_untracked(|editor_tab| {
-                    editor_tab.get_editor(&editors, path).or_else(|| {
-                        if ignore_unconfirmed {
-                            None
-                        } else {
-                            editor_tab.get_unconfirmed_editor(&editors)
-                        }
-                    })
-                })
-            };
-
-            if let Some((index, editor)) = selected {
-                if editor.with_untracked(|editor| {
-                    editor.doc.with_untracked(|doc| doc.buffer_id)
-                        != doc.with_untracked(|doc| doc.buffer_id)
-                }) {
-                    editor.with_untracked(|editor| {
-                        editor.save_doc_position(cx);
-                    });
-                    editor.update(|editor| {
-                        editor.update_doc(doc);
-                    });
-                    editor.with_untracked(|editor| {
-                        editor.cursor.set(Cursor::origin(
-                            self.common.config.with_untracked(|c| c.core.modal),
-                        ));
-                    });
-                }
-                editor_tab.update(|editor_tab| {
-                    editor_tab.active = index;
+                    (editor_tab_id, current_child.clone())
                 });
-                return editor;
+
+            match (&current_child, &source) {
+                (
+                    EditorTabChild::Editor(editor_id),
+                    EditorTabChildSource::Editor { path, doc },
+                ) => {
+                    if let Some(editor) = editors.get(editor_id) {
+                        let same_path = editor.with_untracked(|editor| {
+                            editor.doc.with_untracked(|doc| {
+                                doc.content.path() == Some(path)
+                            })
+                        });
+                        if !same_path {
+                            editor.update(|editor| {
+                                editor.update_doc(*doc);
+                            });
+                            editor.with_untracked(|editor| {
+                                editor.cursor.set(Cursor::origin(
+                                    self.common
+                                        .config
+                                        .with_untracked(|c| c.core.modal),
+                                ));
+                            });
+                        }
+                    }
+                }
+                (
+                    EditorTabChild::Editor(editor_id),
+                    EditorTabChildSource::Settings,
+                ) => {
+                    self.editors.update(|editors| {
+                        editors.remove(editor_id);
+                    });
+                    active_editor_tab.update(|editor_tab| {
+                        editor_tab.children[selected] = (
+                            create_rw_signal(editor_tab.scope, 0),
+                            EditorTabChild::Settings(SettingsId::next()),
+                        );
+                    })
+                }
+                (
+                    EditorTabChild::Settings(_),
+                    EditorTabChildSource::Editor { doc, .. },
+                ) => {
+                    // create the new editor
+                    let editor_id = EditorId::next();
+                    let editor = EditorData::new(
+                        self.scope,
+                        Some(editor_tab_id),
+                        editor_id,
+                        *doc,
+                        self.common.clone(),
+                    );
+                    let editor = create_rw_signal(self.scope, editor);
+                    self.editors.update(|editors| {
+                        editors.insert(editor_id, editor);
+                    });
+                    active_editor_tab.update(|editor_tab| {
+                        editor_tab.children[selected] = (
+                            create_rw_signal(editor_tab.scope, 0),
+                            EditorTabChild::Editor(editor_id),
+                        );
+                    })
+                }
+                (EditorTabChild::Settings(_), EditorTabChildSource::Settings) => {}
             }
+            let (_, child) = active_editor_tab
+                .with_untracked(|editor_tab| editor_tab.children[selected].clone());
+            active_editor_tab.update(|editor_tab| {
+                editor_tab.active = selected;
+            });
+            return child;
         }
 
         // check file exists in non active editor tabs
         if config.editor.show_tab && !ignore_unconfirmed && !same_editor_tab {
             for (editor_tab_id, editor_tab) in &editor_tabs {
                 if Some(*editor_tab_id) != active_editor_tab_id {
-                    if let Some((index, editor)) =
-                        editor_tab.with_untracked(|editor_tab| {
-                            editor_tab.get_editor(&editors, path)
+                    if let Some(index) =
+                        editor_tab.with_untracked(|editor_tab| match &source {
+                            EditorTabChildSource::Editor { path, .. } => editor_tab
+                                .get_editor(&editors, path)
+                                .map(|(index, _)| index),
+                            EditorTabChildSource::Settings => {
+                                editor_tab.children.iter().position(|(_, child)| {
+                                    matches!(child, EditorTabChild::Settings(_))
+                                })
+                            }
                         })
                     {
                         self.active_editor_tab.set(Some(*editor_tab_id));
                         editor_tab.update(|editor_tab| {
                             editor_tab.active = index;
                         });
-                        return editor;
+                        let (_, child) = editor_tab.with_untracked(|editor_tab| {
+                            editor_tab.children[index].clone()
+                        });
+                        return child;
                     }
                 }
             }
         }
 
-        let editor = if editor_tabs.is_empty() {
-            // the main split doens't have anything
-            let editor_tab_id = EditorTabId::next();
-
-            // create the new editor
-            let editor_id = EditorId::next();
-            let editor = EditorData::new(
-                self.scope,
-                Some(editor_tab_id),
-                editor_id,
-                doc,
-                self.common.clone(),
-            );
-            let editor = create_rw_signal(cx, editor);
-            self.editors.update(|editors| {
-                editors.insert(editor_id, editor);
-            });
-
-            let editor_tab = {
-                let (cx, _) = self.scope.run_child_scope(|cx| cx);
-                let editor_tab = EditorTabData {
-                    scope: cx,
-                    split: self.root_split,
-                    active: 0,
-                    editor_tab_id,
-                    children: vec![(
-                        create_rw_signal(cx, 0),
-                        EditorTabChild::Editor(editor_id),
-                    )],
-                    window_origin: Point::ZERO,
-                    layout_rect: Rect::ZERO,
-                    locations: create_rw_signal(cx, im::Vector::new()),
-                    current_location: create_rw_signal(cx, 0),
-                };
-                create_rw_signal(cx, editor_tab)
-            };
-            self.editor_tabs.update(|editor_tabs| {
-                editor_tabs.insert(editor_tab_id, editor_tab);
-            });
-            let root_split = splits.get(&self.root_split).unwrap();
-            root_split.update(|root_split| {
-                root_split.children = vec![SplitContent::EditorTab(editor_tab_id)];
-            });
-            self.active_editor_tab.set(Some(editor_tab_id));
-            editor
-        } else {
-            let editor_tab = if let Some(editor_tab) = active_editor_tab {
-                editor_tab
-            } else {
-                let (editor_tab_id, editor_tab) = editor_tabs.iter().next().unwrap();
-                self.active_editor_tab.set(Some(*editor_tab_id));
-                *editor_tab
-            };
-
-            let editor_tab_id =
-                editor_tab.with_untracked(|editor_tab| editor_tab.editor_tab_id);
-
-            // create the new editor
-            let editor_id = EditorId::next();
-            let editor = EditorData::new(
-                cx,
-                Some(editor_tab_id),
-                editor_id,
-                doc,
-                self.common.clone(),
-            );
-            let editor = create_rw_signal(cx, editor);
-            self.editors.update(|editors| {
-                editors.insert(editor_id, editor);
-            });
-
-            editor_tab.update(|editor_tab| {
-                let active = editor_tab
-                    .active
-                    .min(editor_tab.children.len().saturating_sub(1));
-                editor_tab.children.insert(
-                    active + 1,
-                    (create_rw_signal(cx, 0), EditorTabChild::Editor(editor_id)),
+        let child = match source {
+            EditorTabChildSource::Editor { path, doc } => {
+                let editor_tab_id = active_editor_tab
+                    .with_untracked(|editor_tab| editor_tab.editor_tab_id);
+                let editor_id = EditorId::next();
+                let editor = EditorData::new(
+                    self.scope,
+                    Some(editor_tab_id),
+                    editor_id,
+                    doc,
+                    self.common.clone(),
                 );
-                editor_tab.active = active + 1;
-            });
-            editor
+                let editor = create_rw_signal(self.scope, editor);
+                self.editors.update(|editors| {
+                    editors.insert(editor_id, editor);
+                });
+                EditorTabChild::Editor(editor_id)
+            }
+            EditorTabChildSource::Settings => {
+                EditorTabChild::Settings(SettingsId::next())
+            }
         };
 
-        editor
+        active_editor_tab.update(|editor_tab| {
+            let active = editor_tab
+                .active
+                .min(editor_tab.children.len().saturating_sub(1));
+            let new_active = if editor_tab.children.is_empty() {
+                0
+            } else {
+                active + 1
+            };
+            editor_tab.children.insert(
+                new_active,
+                (create_rw_signal(self.scope, 0), child.clone()),
+            );
+            editor_tab.active = new_active;
+        });
+
+        child
     }
 
     pub fn jump_location_backward(&self, local: bool) {
@@ -1212,7 +1234,7 @@ impl MainSplitData {
                     .unwrap();
                 if let Some(editor) = removed_editor {
                     let editor = editor.get_untracked();
-                    editor.save_doc_position(cx);
+                    editor.save_doc_position();
                 }
             }
             EditorTabChild::Settings(_) => {}
@@ -1416,55 +1438,7 @@ impl MainSplitData {
     }
 
     pub fn open_settings(&self) {
-        let active_editor_tab_id = self.active_editor_tab.get_untracked();
-        let editor_tabs = self.editor_tabs.get_untracked();
-        let active_editor_tab = active_editor_tab_id
-            .and_then(|id| editor_tabs.get(&id))
-            .cloned();
-
-        let editor_tab = if let Some(editor_tab) = active_editor_tab {
-            editor_tab
-        } else if editor_tabs.is_empty() {
-            let editor_tab_id = EditorTabId::next();
-            let editor_tab = self.new_editor_tab(editor_tab_id, self.root_split);
-            let root_split = self.splits.with_untracked(|splits| {
-                splits.get(&self.root_split).cloned().unwrap()
-            });
-            root_split.update(|root_split| {
-                root_split.children = vec![SplitContent::EditorTab(editor_tab_id)];
-            });
-            self.active_editor_tab.set(Some(editor_tab_id));
-            editor_tab
-        } else {
-            let (editor_tab_id, editor_tab) = editor_tabs.iter().next().unwrap();
-            self.active_editor_tab.set(Some(*editor_tab_id));
-            *editor_tab
-        };
-
-        let position = editor_tab.with_untracked(|editor_tab| {
-            editor_tab
-                .children
-                .iter()
-                .position(|(_, child)| child.is_settings())
-        });
-        if let Some(position) = position {
-            editor_tab.update(|editor_tab| {
-                editor_tab.active = position;
-            });
-            return;
-        }
-
-        editor_tab.update(|editor_tab| {
-            let new_active = (editor_tab.active + 1).min(editor_tab.children.len());
-            editor_tab.children.insert(
-                new_active,
-                (
-                    create_rw_signal(self.scope, 0),
-                    EditorTabChild::Settings(SettingsId::next()),
-                ),
-            );
-            editor_tab.active = new_active;
-        });
+        self.get_editor_tab_child(EditorTabChildSource::Settings, false, false);
     }
 
     pub fn can_jump_location_backward(&self, tracked: bool) -> bool {
