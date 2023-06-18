@@ -18,6 +18,7 @@ pub enum PaletteKind {
     IconTheme,
     Language,
     SCMReferences,
+    TerminalProfile,
 }
 
 impl PaletteKind {
@@ -31,6 +32,7 @@ impl PaletteKind {
             // PaletteKind::GlobalSearch => "?",
             PaletteKind::Workspace => ">",
             PaletteKind::Command => ":",
+            PaletteKind::TerminalProfile => "<",
             PaletteKind::File
             | PaletteKind::Reference
             | PaletteKind::SshHost
@@ -51,6 +53,7 @@ impl PaletteKind {
             _ if input.starts_with('#') => PaletteKind::WorkspaceSymbol,
             _ if input.starts_with('>') => PaletteKind::Workspace,
             _ if input.starts_with(':') => PaletteKind::Command,
+            _ if input.starts_with('<') => PaletteKind::TerminalProfile,
             _ => PaletteKind::File,
         }
     }
@@ -80,6 +83,7 @@ impl PaletteKind {
             PaletteKind::SCMReferences => {
                 Some(LapceWorkbenchCommand::PaletteSCMReferences)
             }
+            PaletteKind::TerminalProfile => None, // InternalCommand::NewTerminal
         }
     }
 
@@ -110,6 +114,7 @@ impl PaletteKind {
             | PaletteKind::DocumentSymbol
             | PaletteKind::WorkspaceSymbol
             | PaletteKind::Line
+            | PaletteKind::TerminalProfile
             // | PaletteType::GlobalSearch
              => input.get(1..).unwrap_or(""),
         }

@@ -2670,6 +2670,7 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "unicode-width",
+ "url",
  "zip",
 ]
 
@@ -2773,6 +2774,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing 0.2.0",
+ "url",
 ]
 
 [[package]]

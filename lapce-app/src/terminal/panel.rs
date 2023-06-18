@@ -4,7 +4,7 @@ use floem::reactive::{RwSignal, Scope};
 use lapce_core::mode::Mode;
 use lapce_rpc::{
     dap_types::{DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
-    terminal::TermId,
+    terminal::{TermId, TerminalProfile},
 };
 
 use super::{data::TerminalData, tab::TerminalTabData};
@@ -35,10 +35,15 @@ impl TerminalPanelData {
     pub fn new(
         workspace: Arc<LapceWorkspace>,
         run_debug: Option<RunDebugProcess>,
+        profile: Option<TerminalProfile>,
         common: Rc<CommonData>,
     ) -> Self {
-        let terminal_tab =
-            TerminalTabData::new(workspace.clone(), run_debug, common.clone());
+        let terminal_tab = TerminalTabData::new(
+            workspace.clone(),
+            run_debug,
+            profile,
+            common.clone(),
+        );
 
         let cx = common.scope;
 
@@ -84,7 +89,7 @@ impl TerminalPanelData {
         keypress: &KeyPressData,
     ) -> bool {
         if self.tab_info.with_untracked(|info| info.tabs.is_empty()) {
-            self.new_tab(None);
+            self.new_tab(None, None);
         }
 
         let tab = self.active_tab(false);
@@ -106,10 +111,15 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn new_tab(&self, run_debug: Option<RunDebugProcess>) -> TerminalTabData {
+    pub fn new_tab(
+        &self,
+        run_debug: Option<RunDebugProcess>,
+        profile: Option<TerminalProfile>,
+    ) -> TerminalTabData {
         let terminal_tab = TerminalTabData::new(
             self.workspace.clone(),
             run_debug,
+            profile,
             self.common.clone(),
         );
 
@@ -217,6 +227,7 @@ impl TerminalPanelData {
             let terminal_data = TerminalData::new(
                 tab.scope,
                 self.workspace.clone(),
+                None,
                 None,
                 self.common.clone(),
             );
@@ -348,6 +359,7 @@ impl TerminalPanelData {
                     terminal_tab.scope,
                     self.workspace.clone(),
                     Some(run_debug),
+                    None,
                     self.common.clone(),
                 );
                 let new_term_id = new_terminal.term_id;

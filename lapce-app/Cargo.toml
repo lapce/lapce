@@ -40,6 +40,7 @@ toml_edit.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-appender.workspace = true
+url.workspace = true
 
 pulldown-cmark = "0.9.1"
 Inflector = "0.11.4"

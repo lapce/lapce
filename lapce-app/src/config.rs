@@ -788,6 +788,22 @@ impl LapceConfig {
                     .sorted()
                     .collect(),
             }),
+            ("terminal", "default-profile") => Some(DropdownInfo {
+                active_index: self
+                    .terminal
+                    .profiles
+                    .iter()
+                    .position(|(profile_name, _)| {
+                        profile_name
+                            == self
+                                .terminal
+                                .default_profile
+                                .get(&std::env::consts::OS.to_string())
+                                .unwrap_or(&String::from("default"))
+                    })
+                    .unwrap_or(0),
+                items: self.terminal.profiles.clone().into_keys().collect(),
+            }),
             _ => None,
         }
     }
