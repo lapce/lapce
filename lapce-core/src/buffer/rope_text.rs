@@ -506,9 +506,8 @@ impl<I: Iterator<Item = (usize, char)>, O: Iterator<Item = I>> Iterator
 mod tests {
     use lapce_xi_rope::Rope;
 
-    use crate::buffer::rope_text::RopeTextVal;
-
     use super::RopeText;
+    use crate::buffer::rope_text::RopeTextVal;
 
     #[test]
     fn test_line_content() {

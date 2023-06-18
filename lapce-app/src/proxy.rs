@@ -1,25 +1,24 @@
-use std::path::PathBuf;
-use std::process::Command;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, process::Command, sync::Arc};
 
 use crossbeam_channel::Sender;
-use floem::ext_event::create_signal_from_channel;
-use floem::reactive::ReadSignal;
-use floem::reactive::Scope;
+use floem::{
+    ext_event::create_signal_from_channel,
+    reactive::{ReadSignal, Scope},
+};
 use lapce_proxy::dispatch::Dispatcher;
-use lapce_rpc::plugin::VoltID;
-use lapce_rpc::terminal::TermId;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRpcHandler},
+    plugin::VoltID,
     proxy::ProxyRpcHandler,
+    terminal::TermId,
 };
 use lsp_types::Url;
 
-use crate::terminal::event::TermEvent;
-use crate::workspace::{LapceWorkspace, LapceWorkspaceType};
-
-use self::remote::start_remote;
-use self::ssh::SshRemote;
+use self::{remote::start_remote, ssh::SshRemote};
+use crate::{
+    terminal::event::TermEvent,
+    workspace::{LapceWorkspace, LapceWorkspaceType},
+};
 
 mod remote;
 mod ssh;

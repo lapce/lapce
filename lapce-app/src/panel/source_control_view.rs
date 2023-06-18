@@ -16,6 +16,7 @@ use floem::{
 use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;
 
+use super::{kind::PanelKind, position::PanelPosition, view::panel_header};
 use crate::{
     command::{CommandKind, LapceCommand, LapceWorkbenchCommand},
     config::{color::LapceColor, icon::LapceIcons},
@@ -24,8 +25,6 @@ use crate::{
     source_control::SourceControlData,
     window_tab::{Focus, WindowTabData},
 };
-
-use super::{kind::PanelKind, position::PanelPosition, view::panel_header};
 
 pub fn source_control_panel(
     window_tab_data: Arc<WindowTabData>,

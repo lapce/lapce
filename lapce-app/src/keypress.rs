@@ -11,6 +11,7 @@ use floem::glazier::{KbKey, KeyEvent, Modifiers, MouseEvent};
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
 
+use self::{key::Key, keymap::KeyMap, loader::KeyMapLoader, press::KeyPress};
 use crate::{
     command::{
         lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
@@ -23,8 +24,6 @@ use crate::{
     },
     listener::Listener,
 };
-
-use self::{key::Key, keymap::KeyMap, loader::KeyMapLoader, press::KeyPress};
 
 const DEFAULT_KEYMAPS_COMMON: &str =
     include_str!("../../defaults/keymaps-common.toml");

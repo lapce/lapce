@@ -5,12 +5,11 @@ use floem::reactive::{
     SignalWithUntracked,
 };
 
+use super::data::TerminalData;
 use crate::{
     debug::RunDebugProcess, id::TerminalTabId, window_tab::CommonData,
     workspace::LapceWorkspace,
 };
-
-use super::data::TerminalData;
 
 #[derive(Clone)]
 pub struct TerminalTabData {

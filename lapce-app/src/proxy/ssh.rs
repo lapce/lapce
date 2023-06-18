@@ -2,9 +2,8 @@ use std::{path::Path, process::Command};
 
 use anyhow::Result;
 
-use crate::{proxy::new_command, workspace::SshHost};
-
 use super::remote::Remote;
+use crate::{proxy::new_command, workspace::SshHost};
 
 pub struct SshRemote {
     pub ssh: SshHost,

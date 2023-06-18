@@ -12,6 +12,7 @@ use floem::{
     views::{container, label, list, stack, svg, tab, Decorators},
 };
 
+use super::kind::PanelKind;
 use crate::{
     app::{clickable_icon, dispose_on_ui_cleanup},
     config::{color::LapceColor, icon::LapceIcons},
@@ -21,8 +22,6 @@ use crate::{
     },
     window_tab::{Focus, WindowTabData},
 };
-
-use super::kind::PanelKind;
 
 pub fn terminal_panel(window_tab_data: Arc<WindowTabData>) -> impl View {
     let focus = window_tab_data.common.focus;

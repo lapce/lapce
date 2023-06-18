@@ -19,6 +19,7 @@ use floem::{
 use indexmap::IndexMap;
 use lapce_rpc::plugin::{VoltID, VoltInfo, VoltMetadata};
 
+use super::{kind::PanelKind, position::PanelPosition, view::panel_header};
 use crate::{
     app::clickable_icon,
     config::{color::LapceColor, icon::LapceIcons},
@@ -26,8 +27,6 @@ use crate::{
     text_input::text_input,
     window_tab::{Focus, WindowTabData},
 };
-
-use super::{kind::PanelKind, position::PanelPosition, view::panel_header};
 
 struct IndexMapItems<K, V>(IndexMap<K, V>);
 

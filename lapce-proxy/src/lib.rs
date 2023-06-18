@@ -16,7 +16,6 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-
 use clap::Parser;
 use dispatch::Dispatcher;
 use lapce_core::{directory::Directory, meta};

@@ -15,9 +15,8 @@ use lapce_core::{
     soft_tab::{snap_to_soft_tab, SnapDirection},
 };
 
-use crate::doc::Document;
-
 use super::view::EditorViewData;
+use crate::doc::Document;
 
 /// Move a selection region by a given movement.  
 /// Much of the time, this will just be a matter of moving the cursor, but

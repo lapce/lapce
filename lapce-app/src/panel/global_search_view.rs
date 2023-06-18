@@ -12,6 +12,7 @@ use floem::{
 };
 use lapce_xi_rope::find::CaseMatching;
 
+use super::{kind::PanelKind, position::PanelPosition};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -24,8 +25,6 @@ use crate::{
     window_tab::{Focus, WindowTabData},
     workspace::LapceWorkspace,
 };
-
-use super::{kind::PanelKind, position::PanelPosition};
 
 pub fn global_search_panel(
     window_tab_data: Arc<WindowTabData>,

@@ -3,9 +3,8 @@ use std::path::PathBuf;
 use floem::reactive::{create_rw_signal, RwSignal, Scope, SignalUpdate};
 use indexmap::IndexMap;
 
-use crate::window_tab::CommonData;
-
 use super::node::FileNode;
+use crate::window_tab::CommonData;
 
 #[derive(Clone)]
 pub struct FileExplorerData {
