@@ -1,6 +1,7 @@
 use std::{collections::HashSet, path::Path, str::FromStr};
 
 use strum_macros::{Display, EnumString};
+use tracing::error;
 use tree_sitter::TreeCursor;
 
 use crate::syntax::highlight::{HighlightConfiguration, HighlightIssue};
@@ -1062,7 +1063,7 @@ impl LapceLanguage {
             Ok(x) => Ok(x),
             Err(x) => {
                 let str = format!("Encountered {x:?} while trying to construct HighlightConfiguration for {self}");
-                log::error!("{str}");
+                error!("{str}");
                 Err(HighlightIssue::Error(str))
             }
         }

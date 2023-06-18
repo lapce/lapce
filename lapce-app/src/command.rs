@@ -590,6 +590,10 @@ pub enum InternalCommand {
         /// Whether to save the theme to the config file
         save: bool,
     },
+
+    UpdateLogLevel {
+        level: tracing_subscriber::filter::LevelFilter,
+    },
 }
 
 #[derive(Clone)]

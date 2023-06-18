@@ -13,6 +13,7 @@ use lapce_rpc::{
     terminal::TermId,
 };
 use lsp_types::Url;
+use tracing::error;
 
 use self::{remote::start_remote, ssh::SshRemote};
 use crate::{
@@ -77,11 +78,13 @@ pub fn start_proxy(
                     });
                 }
                 LapceWorkspaceType::RemoteSSH(ssh) => {
-                    let _ = start_remote(
+                    if let Err(e) = start_remote(
                         SshRemote { ssh: ssh.clone() },
                         core_rpc.clone(),
                         proxy_rpc.clone(),
-                    );
+                    ) {
+                        error!("Failed to start SSH remote: {e}");
+                    }
                 }
                 #[cfg(windows)]
                 LapceWorkspaceType::RemoteWSL => {
@@ -91,11 +94,13 @@ pub fn start_proxy(
                         .and_then(|d| d.into_iter().find(|distro| distro.default))
                         .map(|d| d.name);
                     if let Some(distro) = distro {
-                        let _ = start_remote(
+                        if let Err(e) = start_remote(
                             WslRemote { distro },
                             core_rpc.clone(),
                             proxy_rpc.clone(),
-                        );
+                        ) {
+                            error!("Failed to start SSH remote: {e}");
+                        }
                     }
                 }
             }

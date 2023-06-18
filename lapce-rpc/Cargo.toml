@@ -10,13 +10,15 @@ edition.workspace = true
 anyhow.workspace = true
 crossbeam-channel.workspace = true
 indexmap.workspace = true
-log.workspace = true
 parking_lot.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tracing.workspace = true
 
 lsp-types.workspace = true
 
 lapce-xi-rope.workspace = true
 
-human-sort = { git = "https://github.com/dragazo/human-sort" }
+[dependencies.human-sort]
+git = "https://github.com/dragazo/human-sort"
+rev = "1e74db1e09e8194ba88ad983723cf6f8b0c365da"

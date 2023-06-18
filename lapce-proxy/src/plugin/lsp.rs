@@ -219,7 +219,7 @@ impl LspClient {
                     }
                     Err(_err) => {
                         core_rpc.log(
-                            log::Level::Error,
+                            tracing::Level::ERROR,
                             format!("lsp server {server} stopped!"),
                         );
                         return;
@@ -239,7 +239,7 @@ impl LspClient {
                             return;
                         }
                         core_rpc.log(
-                            log::Level::Error,
+                            tracing::Level::ERROR,
                             format!("lsp server stderr: {}", line.trim_end()),
                         );
                     }

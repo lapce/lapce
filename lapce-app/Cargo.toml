@@ -7,6 +7,7 @@ edition.workspace = true
 [dependencies]
 alacritty_terminal.workspace = true
 anyhow.workspace = true
+chrono.workspace = true
 clap.workspace = true
 crossbeam-channel.workspace = true
 directories.workspace = true
@@ -20,7 +21,6 @@ lapce-core.workspace = true
 lapce-proxy.workspace = true
 lapce-rpc.workspace = true
 lapce-xi-rope.workspace = true
-log.workspace = true
 lsp-types.workspace = true
 notify.workspace = true
 once_cell.workspace = true
@@ -36,6 +36,9 @@ regex.workspace = true
 tar.workspace = true
 thiserror.workspace = true
 toml_edit.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-appender.workspace = true
 
 Inflector = "0.11.4"
 open = "3.0.2"
