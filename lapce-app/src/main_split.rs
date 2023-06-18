@@ -407,6 +407,26 @@ impl MainSplitData {
                 });
             }
 
+            {
+                let buffer_id = doc.with_untracked(|doc| doc.buffer_id);
+                let set_doc = doc.write_only();
+                let send = create_ext_action(self.scope, move |content| {
+                    set_doc.update(move |doc| {
+                        doc.init_content(content);
+                    });
+                });
+
+                self.common
+                    .proxy
+                    .new_buffer(buffer_id, path, move |result| {
+                        if let Ok(ProxyResponse::NewBufferResponse { content }) =
+                            result
+                        {
+                            send(Rope::from(content))
+                        }
+                    });
+            }
+
             (doc, true)
         }
     }

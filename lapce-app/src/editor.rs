@@ -6,8 +6,9 @@ use floem::{
     glazier::{Modifiers, PointerButton, PointerEvent},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_rw_signal, use_context, RwSignal, Scope, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWithUntracked,
+        create_effect, create_rw_signal, use_context, RwSignal, Scope,
+        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        SignalWithUntracked,
     },
 };
 use lapce_core::{
@@ -1357,26 +1358,16 @@ impl EditorData {
         if !new_doc {
             self.do_go_to_location(location, edits);
         } else {
-            let buffer_id = self.doc.with_untracked(|doc| doc.buffer_id);
-            let set_doc = self.doc.write_only();
+            let (cx, _) = self.scope.run_child_scope(|scope| scope);
+            let doc = self.doc;
             let editor = self.clone();
-            let path = location.path.clone();
-            let send = create_ext_action(self.scope, move |content| {
-                set_doc.update(move |doc| {
-                    doc.init_content(content);
-                });
-
-                editor.do_go_to_location(location.clone(), edits.clone());
+            create_effect(cx, move |_| {
+                let loaded = doc.with(|doc| doc.loaded());
+                if loaded {
+                    cx.dispose();
+                    editor.do_go_to_location(location.clone(), edits.clone());
+                }
             });
-
-            self.common
-                .proxy
-                .new_buffer(buffer_id, path, move |result| {
-                    if let Ok(ProxyResponse::NewBufferResponse { content }) = result
-                    {
-                        send(Rope::from(content))
-                    }
-                });
         }
     }
 
