@@ -791,7 +791,9 @@ impl WindowTabData {
             ChangeIconTheme => {
                 self.palette.run(cx, PaletteKind::IconTheme);
             }
-            ChangeFileLanguage => {}
+            ChangeFileLanguage => {
+                self.palette.run(cx, PaletteKind::Language);
+            }
 
             // ==== Running / Debugging ====
             RunAndDebugRestart => {

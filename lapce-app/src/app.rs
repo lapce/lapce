@@ -1585,6 +1585,7 @@ fn palette_item(
         PaletteItemContent::Line { .. }
         | PaletteItemContent::Workspace { .. }
         | PaletteItemContent::SshHost { .. }
+        | PaletteItemContent::Language { .. }
         | PaletteItemContent::ColorTheme { .. }
         | PaletteItemContent::IconTheme { .. } => {
             let text = item.filter_text;

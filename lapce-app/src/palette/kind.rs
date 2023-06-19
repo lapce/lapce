@@ -11,6 +11,7 @@ pub enum PaletteKind {
     RunAndDebug,
     ColorTheme,
     IconTheme,
+    Language,
 }
 
 impl PaletteKind {
@@ -29,7 +30,7 @@ impl PaletteKind {
             | PaletteKind::IconTheme
             | PaletteKind::SshHost
             | PaletteKind::RunAndDebug
-            // | PaletteKind::Language 
+            | PaletteKind::Language 
               => "",
         }
     }
@@ -63,7 +64,7 @@ impl PaletteKind {
             | PaletteKind::Reference
             | PaletteKind::ColorTheme
             | PaletteKind::IconTheme
-            // | PaletteKind::Language
+            | PaletteKind::Language
             | PaletteKind::RunAndDebug
             | PaletteKind::SshHost
              => input,

@@ -63,4 +63,7 @@ pub enum PaletteItemContent {
     IconTheme {
         name: String,
     },
+    Language {
+        name: String,
+    }
 }
