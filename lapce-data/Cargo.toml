@@ -18,7 +18,6 @@ include_dir.workspace = true
 indexmap.workspace = true
 interprocess.workspace = true
 itertools.workspace = true
-log.workspace = true
 notify.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
@@ -55,6 +54,7 @@ bytemuck = "1.8.0"
 # For parsing markdown data, such as in hovers
 pulldown-cmark = "0.9.1"
 url = "2.3.1"
+log = "0.4"
 
 [target.'cfg(target_os="macos")'.dependencies]
 dmg = "0.1.1"

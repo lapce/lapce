@@ -13,6 +13,7 @@ use lapce_rpc::{
     terminal::TermId,
 };
 
+use super::{data::TerminalData, tab::TerminalTabData};
 use crate::{
     debug::{DapData, RunDebugData, RunDebugMode, RunDebugProcess},
     id::TerminalTabId,
@@ -21,8 +22,6 @@ use crate::{
     window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
 };
-
-use super::{data::TerminalData, tab::TerminalTabData};
 
 pub struct TerminalTabInfo {
     pub active: usize,

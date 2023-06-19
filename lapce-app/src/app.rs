@@ -45,6 +45,8 @@ use lapce_rpc::{
 use lsp_types::{CompletionItemKind, DiagnosticSeverity};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
+use tracing::{error, metadata::LevelFilter, trace};
+use tracing_subscriber::{filter::FilterFn, reload::Handle};
 
 use crate::{
     code_action::CodeActionStatus,
@@ -95,6 +97,10 @@ struct Cli {
     #[clap(short, long, action)]
     wait: bool,
 
+    /// Manually set log level
+    #[clap(short, long)]
+    log_level: Option<String>,
+
     /// Paths to file(s) and/or folder(s) to open.
     /// When path is a file (that exists or not),
     /// it accepts `path:line:column` syntax
@@ -123,6 +129,7 @@ pub struct AppData {
     /// The latest release information
     pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
     pub watcher: Arc<notify::RecommendedWatcher>,
+    pub tracing_handle: Handle<LevelFilter>,
 }
 
 impl AppData {
@@ -2412,6 +2419,31 @@ fn app_view(window_data: WindowData) -> impl View {
 }
 
 pub fn launch() {
+    use tracing_subscriber::{filter, fmt, prelude::*, reload};
+    let file_appender = tracing_appender::rolling::Builder::new()
+        .max_log_files(10)
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix("lapce")
+        .filename_suffix("log")
+        .build(Directory::logs_directory().expect("Failed to obtain log directory"))
+        .expect("Couldn't create rolling appender");
+    let (log_file, _guard) = tracing_appender::non_blocking(file_appender);
+    let (filter, reload_handle) =
+        reload::Subscriber::new(filter::LevelFilter::ERROR);
+
+    let file_layer = tracing_subscriber::fmt::subscriber()
+        .with_ansi(false)
+        .with_writer(log_file);
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(file_layer)
+        .with(
+            fmt::Subscriber::default().with_filter(FilterFn::new(|metadata| {
+                metadata.target().starts_with("lapce_app")
+            })),
+        )
+        .init();
+
     // if PWD is not set, then we are not being launched via a terminal
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     if std::env::var("PWD").is_err() {
@@ -2419,6 +2451,24 @@ pub fn launch() {
     }
 
     let cli = Cli::parse();
+
+    if let Some(log_level) = cli.log_level {
+        if let Err(e) = reload_handle.modify(|filter| {
+            *filter = match log_level.to_lowercase().as_str() {
+                "off" => filter::LevelFilter::OFF,
+                "error" => filter::LevelFilter::ERROR,
+                "warn" => filter::LevelFilter::WARN,
+                "info" => filter::LevelFilter::INFO,
+                "debug" => filter::LevelFilter::DEBUG,
+                "trace" => filter::LevelFilter::TRACE,
+                val => {
+                    panic!("ignored unknown log level: '{val}'");
+                }
+            }
+        }) {
+            error!("Failed to modify log level: {e}");
+        };
+    }
 
     // small hack to unblock terminal if launched from it
     // launch it as a separate process that waits
@@ -2442,7 +2492,7 @@ pub fn launch() {
     if !cli.new {
         if let Ok(socket) = get_socket() {
             if let Err(e) = try_open_in_existing_process(socket, &cli.paths) {
-                log::error!("failed to open path(s): {e}");
+                error!("failed to open path(s): {e}");
             };
             return;
         }
@@ -2497,6 +2547,7 @@ pub fn launch() {
         watcher: Arc::new(watcher),
         latest_release,
         app_command,
+        tracing_handle: reload_handle,
     };
 
     {
@@ -2780,7 +2831,7 @@ fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
                 if let RpcMessage::Notification(msg) = msg {
                     tx.send(msg)?;
                 } else {
-                    log::trace!("Unhandled message: {msg:?}");
+                    trace!("Unhandled message: {msg:?}");
                 }
 
                 let stream_ref = reader.get_mut();

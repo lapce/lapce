@@ -1,10 +1,10 @@
 use std::{path::Path, process::Command};
 
 use anyhow::Result;
-
-use crate::{proxy::new_command, workspace::SshHost};
+use tracing::debug;
 
 use super::remote::Remote;
+use crate::{proxy::new_command, workspace::SshHost};
 
 pub struct SshRemote {
     pub ssh: SshHost,
@@ -42,8 +42,8 @@ impl Remote for SshRemote {
             .arg(dbg!(format!("{}:{remote}", self.ssh.user_host())))
             .output()?;
 
-        log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stderr));
-        log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&output.stdout));
+        debug!("{}", String::from_utf8_lossy(&output.stderr));
+        debug!("{}", String::from_utf8_lossy(&output.stdout));
 
         Ok(())
     }

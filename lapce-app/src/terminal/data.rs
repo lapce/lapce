@@ -20,6 +20,10 @@ use lapce_core::{
 use lapce_rpc::{dap_types::RunDebugConfig, terminal::TermId};
 use parking_lot::RwLock;
 
+use super::{
+    event::TermEvent,
+    raw::{EventProxy, RawTerminal},
+};
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
     debug::RunDebugProcess,
@@ -27,11 +31,6 @@ use crate::{
     keypress::{condition::Condition, KeyPressFocus},
     window_tab::CommonData,
     workspace::LapceWorkspace,
-};
-
-use super::{
-    event::TermEvent,
-    raw::{EventProxy, RawTerminal},
 };
 
 #[derive(Clone)]

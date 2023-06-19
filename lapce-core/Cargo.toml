@@ -8,12 +8,12 @@ edition.workspace = true
 anyhow.workspace = true
 directories.workspace = true
 itertools.workspace = true
-log.workspace = true
 once_cell.workspace = true
 serde.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
 
 lsp-types.workspace = true
 

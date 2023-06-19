@@ -1,6 +1,5 @@
 use alacritty_terminal::{ansi, event::EventListener, term::test::TermSize, Term};
 use crossbeam_channel::Sender;
-
 use lapce_proxy::terminal::TermConfig;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 

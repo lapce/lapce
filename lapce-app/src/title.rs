@@ -8,8 +8,7 @@ use floem::{
     },
     style::{AlignItems, CursorStyle, Dimension, Display, JustifyContent, Style},
     view::View,
-    views::{container, stack, Decorators},
-    views::{label, svg},
+    views::{container, label, stack, svg, Decorators},
     ViewContext,
 };
 use lapce_core::meta;
