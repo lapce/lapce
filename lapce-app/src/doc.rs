@@ -40,14 +40,13 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
+use self::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine};
 use crate::{
     config::{color::LapceColor, LapceConfig},
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     workspace::LapceWorkspace,
 };
-
-use self::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine};
 
 pub mod phantom_text;
 

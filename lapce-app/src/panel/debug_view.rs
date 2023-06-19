@@ -15,6 +15,7 @@ use lapce_rpc::{
     terminal::TermId,
 };
 
+use super::{position::PanelPosition, view::panel_header};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -25,8 +26,6 @@ use crate::{
     terminal::panel::TerminalPanelData,
     window_tab::WindowTabData,
 };
-
-use super::{position::PanelPosition, view::panel_header};
 
 pub fn debug_panel(
     window_tab_data: Arc<WindowTabData>,

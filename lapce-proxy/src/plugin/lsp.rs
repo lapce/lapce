@@ -12,8 +12,7 @@ use anyhow::{anyhow, Result};
 use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_core::meta;
-use lapce_rpc::plugin::VoltID;
-use lapce_rpc::{style::LineStyle, RpcError};
+use lapce_rpc::{plugin::VoltID, style::LineStyle, RpcError};
 use lapce_xi_rope::Rope;
 use lsp_types::{
     notification::{Initialized, Notification},
@@ -220,7 +219,7 @@ impl LspClient {
                     }
                     Err(_err) => {
                         core_rpc.log(
-                            log::Level::Error,
+                            tracing::Level::ERROR,
                             format!("lsp server {server} stopped!"),
                         );
                         return;
@@ -240,7 +239,7 @@ impl LspClient {
                             return;
                         }
                         core_rpc.log(
-                            log::Level::Error,
+                            tracing::Level::ERROR,
                             format!("lsp server stderr: {}", line.trim_end()),
                         );
                     }

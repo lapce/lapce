@@ -133,7 +133,7 @@ impl DapClient {
                                 DapEvent::Initialized(None),
                             ));
                             plugin_rpc.core_rpc.log(
-                                log::Level::Error,
+                                tracing::Level::ERROR,
                                 format!("dap server {program} stopped!"),
                             );
 

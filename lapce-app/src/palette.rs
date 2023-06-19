@@ -30,6 +30,10 @@ use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
 use lsp_types::DocumentSymbolResponse;
 
+use self::{
+    item::{PaletteItem, PaletteItemContent},
+    kind::PaletteKind,
+};
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand, WindowCommand},
     db::LapceDb,
@@ -44,11 +48,6 @@ use crate::{
     proxy::path_from_url,
     window_tab::{CommonData, Focus},
     workspace::{LapceWorkspace, LapceWorkspaceType, SshHost},
-};
-
-use self::{
-    item::{PaletteItem, PaletteItemContent},
-    kind::PaletteKind,
 };
 
 pub mod item;

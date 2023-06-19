@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::{anyhow, Error, Result};
 use lapce_core::directory::Directory;
 use lapce_rpc::{
@@ -5,7 +7,6 @@ use lapce_rpc::{
     proxy::{ProxyMessage, ProxyNotification},
     RpcMessage,
 };
-use std::path::PathBuf;
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PathObjectType {
@@ -93,9 +94,8 @@ pub fn try_open_in_existing_process(paths: &[PathObject]) -> Result<()> {
 mod tests {
     use std::{env, path::PathBuf};
 
-    use crate::cli::PathObject;
-
     use super::parse_file_line_column;
+    use crate::cli::PathObject;
 
     #[test]
     #[cfg(windows)]

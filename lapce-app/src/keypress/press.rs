@@ -1,4 +1,5 @@
 use floem::glazier::{KbKey, Modifiers};
+use tracing::warn;
 
 use super::key::Key;
 
@@ -66,7 +67,7 @@ impl KeyPress {
                     Some(key) => key,
                     None => {
                         // Skip past unrecognized key definitions
-                        log::warn!("Unrecognized key: {key}");
+                        warn!("Unrecognized key: {key}");
                         return None;
                     }
                 };
@@ -79,7 +80,7 @@ impl KeyPress {
                         "shift" => mods.set(Modifiers::SHIFT, true),
                         "alt" => mods.set(Modifiers::ALT, true),
                         "" => (),
-                        other => log::warn!("Invalid key modifier: {}", other),
+                        other => warn!("Invalid key modifier: {}", other),
                     }
                 }
 

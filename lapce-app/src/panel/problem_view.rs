@@ -13,6 +13,7 @@ use floem::{
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 
+use super::{position::PanelPosition, view::panel_header};
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
@@ -23,8 +24,6 @@ use crate::{
     window_tab::WindowTabData,
     workspace::LapceWorkspace,
 };
-
-use super::{position::PanelPosition, view::panel_header};
 
 pub fn problem_panel(
     window_tab_data: Arc<WindowTabData>,
