@@ -20,14 +20,13 @@ use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 use parking_lot::RwLock;
 use unicode_width::UnicodeWidthChar;
 
+use super::{panel::TerminalPanelData, raw::RawTerminal};
 use crate::{
     config::{color::LapceColor, LapceConfig},
     debug::RunDebugProcess,
     panel::kind::PanelKind,
     window_tab::Focus,
 };
-
-use super::{panel::TerminalPanelData, raw::RawTerminal};
 
 enum TerminalViewState {
     Config,

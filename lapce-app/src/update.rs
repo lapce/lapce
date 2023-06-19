@@ -86,7 +86,7 @@ pub fn extract(src: &Path, process_path: &Path) -> Result<PathBuf> {
     } else {
         dest
     };
-    let _ = std::fs::remove_dir_all(dest.join("Lapce.app"));
+    std::fs::remove_dir_all(dest.join("Lapce.app"))?;
     fs_extra::copy_items(
         &[info.mount_point.join("Lapce.app")],
         dest,

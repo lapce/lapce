@@ -12,13 +12,6 @@ use floem::{
     ViewContext,
 };
 
-use crate::{
-    app::clickable_icon,
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    file_explorer::view::file_explorer_panel,
-    window_tab::{DragContent, WindowTabData},
-};
-
 use super::{
     debug_view::debug_panel,
     global_search_view::global_search_panel,
@@ -28,6 +21,12 @@ use super::{
     problem_view::problem_panel,
     source_control_view::source_control_panel,
     terminal_view::terminal_panel,
+};
+use crate::{
+    app::clickable_icon,
+    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    file_explorer::view::file_explorer_panel,
+    window_tab::{DragContent, WindowTabData},
 };
 
 pub fn panel_container_view(

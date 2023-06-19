@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
-use crate::config::icon::LapceIcons;
-
 use super::{data::PanelOrder, position::PanelPosition};
+use crate::config::icon::LapceIcons;
 
 #[derive(
     Clone, Copy, PartialEq, Serialize, Deserialize, Hash, Eq, Debug, EnumIter,

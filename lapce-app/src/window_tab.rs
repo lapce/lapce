@@ -19,6 +19,7 @@ use lapce_rpc::{
     proxy::ProxyRpcHandler, source_control::FileDiff, terminal::TermId,
 };
 use serde_json::Value;
+use tracing::{debug, error};
 
 use crate::{
     code_action::{CodeActionData, CodeActionStatus},
@@ -586,7 +587,15 @@ impl WindowTabData {
                 }
             }
             OpenLogFile => {
-                // TODO:
+                if let Some(dir) = Directory::logs_directory() {
+                    self.open_paths(&[PathObject::from_path(
+                        dir.join(format!(
+                            "lapce.{}.log",
+                            chrono::prelude::Local::now().format("%Y-%m-%d")
+                        )),
+                        false,
+                    )])
+                }
             }
             OpenLogsDirectory => {
                 if let Some(dir) = Directory::logs_directory() {
@@ -980,22 +989,19 @@ impl WindowTabData {
                                 });
                             std::thread::spawn(move || {
                                 let do_update = || -> anyhow::Result<()> {
-                                    log::info!("start to down new versoin");
                                     let src =
                                         crate::update::download_release(&release)?;
 
-                                    log::info!("start to extract");
                                     let path =
                                         crate::update::extract(&src, &process_path)?;
 
-                                    log::info!("now restart {path:?}");
                                     crate::update::restart(&path)?;
 
                                     Ok(())
                                 };
 
                                 if let Err(err) = do_update() {
-                                    log::error!("Failed to update: {err}");
+                                    error!("Failed to update: {err}");
                                 }
 
                                 send(false);
@@ -1035,6 +1041,10 @@ impl WindowTabData {
         match cmd {
             InternalCommand::ReloadConfig => {
                 self.reload_config();
+            }
+            InternalCommand::UpdateLogLevel { level } => {
+                // TODO: implement logging panel, runtime log level change
+                debug!("{level}");
             }
             InternalCommand::OpenFile { path } => {
                 self.main_split.jump_to_location(
@@ -1749,10 +1759,10 @@ impl WindowTabData {
 fn open_uri(path: &Path) {
     match open::that(path) {
         Ok(_) => {
-            log::debug!(target: "window_tab::open_uri", "opened active file: {path:?}");
+            debug!("opened active file: {path:?}");
         }
         Err(e) => {
-            log::error!(target: "window_tab::open_uri", "failed to open active file: {path:?}, error: {e}");
+            error!("failed to open active file: {path:?}, error: {e}");
         }
     }
 }

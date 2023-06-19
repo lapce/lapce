@@ -13,7 +13,6 @@ directories.workspace = true
 flate2.workspace = true
 indexmap.workspace = true
 interprocess.workspace = true
-log.workspace = true
 notify.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
@@ -25,6 +24,7 @@ strum.workspace = true
 strum_macros.workspace = true
 tar.workspace = true
 toml_edit.workspace = true
+tracing.workspace = true
 
 lsp-types.workspace = true
 psp-types.workspace = true

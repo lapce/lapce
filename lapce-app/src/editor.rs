@@ -28,6 +28,7 @@ use lsp_types::{
 };
 use serde::{Deserialize, Serialize};
 
+use self::view::EditorViewData;
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
     completion::{clear_completion_lens, CompletionStatus},

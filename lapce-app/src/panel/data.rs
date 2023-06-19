@@ -6,15 +6,14 @@ use floem::reactive::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    db::LapceDb,
-    window_tab::{CommonData, Focus},
-};
-
 use super::{
     kind::PanelKind,
     position::{PanelContainerPosition, PanelPosition},
     style::PanelStyle,
+};
+use crate::{
+    db::LapceDb,
+    window_tab::{CommonData, Focus},
 };
 
 pub type PanelOrder = im::HashMap<PanelPosition, im::Vector<PanelKind>>;

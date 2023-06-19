@@ -12,13 +12,12 @@ use floem::{
 };
 use lapce_rpc::proxy::ProxyRpcHandler;
 
+use super::node::FileNode;
 use crate::{
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     panel::{position::PanelPosition, view::panel_header},
     window_tab::WindowTabData,
 };
-
-use super::node::FileNode;
 
 pub fn file_explorer_panel(
     window_tab_data: Arc<WindowTabData>,

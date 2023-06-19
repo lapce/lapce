@@ -41,6 +41,7 @@ use lapce_rpc::style::LineStyle;
 use lapce_xi_rope::{find::CaseMatching, Rope};
 use lsp_types::DiagnosticSeverity;
 
+use super::EditorData;
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -54,8 +55,6 @@ use crate::{
     text_input::text_input,
     workspace::LapceWorkspace,
 };
-
-use super::EditorData;
 
 struct StickyHeaderInfo {
     sticky_lines: Vec<usize>,
