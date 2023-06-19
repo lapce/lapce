@@ -12,7 +12,7 @@ use floem::{
     },
 };
 use lapce_core::{
-    buffer::{rope_text::RopeText, InvalLines},
+    buffer::{rope_text::RopeText, DiffLines, InvalLines},
     command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
     cursor::{Cursor, CursorMode},
     editor::EditType,
@@ -115,6 +115,12 @@ impl EditorInfo {
 pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 
 #[derive(Clone)]
+pub enum EditorView {
+    Normal,
+    Diff(RwSignal<Vec<DiffLines>>),
+}
+
+#[derive(Clone)]
 pub struct EditorData {
     pub scope: Scope,
     pub editor_tab_id: Option<EditorTabId>,
@@ -123,6 +129,7 @@ pub struct EditorData {
     /// To change out the current document, use [`EditorData::update_doc`].
     pub doc: RwSignal<Document>,
     pub view: EditorViewData,
+    pub new_view: EditorView,
     pub confirmed: RwSignal<bool>,
     pub cursor: RwSignal<Cursor>,
     pub window_origin: RwSignal<Point>,
@@ -185,6 +192,7 @@ impl EditorData {
             editor_id,
             doc,
             view,
+            new_view: EditorView::Normal,
             cursor,
             confirmed,
             snippet,
