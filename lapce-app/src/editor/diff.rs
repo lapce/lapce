@@ -1,10 +1,14 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::atomic};
 
-use floem::reactive::{
-    create_effect, create_rw_signal, RwSignal, Scope, SignalGetUntracked,
-    SignalUpdate,
+use floem::{
+    ext_event::create_ext_action,
+    reactive::{
+        create_effect, create_memo, create_rw_signal, RwSignal, Scope, SignalGet,
+        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        SignalWithUntracked,
+    },
 };
-use lapce_core::buffer::DiffLines;
+use lapce_core::buffer::{rope_diff, rope_text::RopeText, DiffLines};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -14,7 +18,7 @@ use crate::{
     window_tab::CommonData,
 };
 
-use super::{location::EditorLocation, EditorData};
+use super::{location::EditorLocation, EditorData, EditorViewKind};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct DiffEditorInfo {
@@ -82,6 +86,8 @@ impl DiffEditorInfo {
             diff_editors.insert(diff_editor_id, diff_editor_data.clone());
         });
 
+        diff_editor_data.listen_diff_changes();
+
         diff_editor_data
     }
 }
@@ -111,15 +117,17 @@ impl DiffEditorData {
         let right = EditorData::new(cx, None, EditorId::next(), right_doc, common);
         let right = create_rw_signal(right.scope, right);
 
-        create_effect(cx, move |_| {});
-
-        Self {
+        let data = Self {
             id,
             editor_tab_id,
             scope: cx,
             left,
             right,
-        }
+        };
+
+        data.listen_diff_changes();
+
+        data
     }
 
     pub fn diff_editor_info(&self) -> DiffEditorInfo {
@@ -148,30 +156,86 @@ impl DiffEditorData {
                 .get_untracked()
                 .copy(cx, None, EditorId::next()),
         );
+        diff_editor.listen_diff_changes();
         diff_editor
     }
-}
 
-struct DocHistory {
-    path: PathBuf,
-    version: String,
-}
+    fn listen_diff_changes(&self) {
+        let cx = self.scope;
 
-// #[derive(Clone)]
-// enum DocContent {
-//     /// A file at some location. This can be a remote path.
-//     File(PathBuf),
-//     /// A local document, which doens't need to be sync to the disk.
-//     Local,
-//     History(DocHistory),
-// }
+        let left = self.left;
+        let left_doc_rev = create_memo(cx, move |_| {
+            let left_doc = left.with(|editor| editor.doc);
+            left_doc.with(|doc| (doc.content.clone(), doc.rev()))
+        });
 
-struct DiffData {
-    doc: Document,
-    changes: DiffLines,
-}
+        let right = self.right;
+        let right_doc_rev = create_memo(cx, move |_| {
+            let right_doc = right.with(|editor| editor.doc);
+            right_doc.with(|doc| (doc.content.clone(), doc.rev()))
+        });
 
-enum EditorViewKind {
-    Normal,
-    Diff(DiffLines),
+        create_effect(cx, move |_| {
+            let (_, left_rev) = left_doc_rev.get();
+            let (left_editor_view, left_doc) =
+                left.with_untracked(|editor| (editor.new_view, editor.doc));
+            let (left_atomic_rev, left_rope) = left_doc.with_untracked(|doc| {
+                (doc.buffer().atomic_rev(), doc.buffer().text().clone())
+            });
+
+            let (_, right_rev) = right_doc_rev.get();
+            let (right_editor_view, right_doc) =
+                right.with_untracked(|editor| (editor.new_view, editor.doc));
+            let (right_atomic_rev, right_rope) = right_doc.with_untracked(|doc| {
+                (doc.buffer().atomic_rev(), doc.buffer().text().clone())
+            });
+
+            let send = {
+                let right_atomic_rev = right_atomic_rev.clone();
+                create_ext_action(cx, move |changes| {
+                    let (changes_for_left, changes_for_right) =
+                        if let Some(changes) = changes {
+                            changes
+                        } else {
+                            return;
+                        };
+
+                    if left_atomic_rev.load(atomic::Ordering::Acquire) != left_rev {
+                        return;
+                    }
+
+                    if right_atomic_rev.load(atomic::Ordering::Acquire) != right_rev
+                    {
+                        return;
+                    }
+
+                    left_editor_view.set(EditorViewKind::Diff(changes_for_left));
+                    right_editor_view.set(EditorViewKind::Diff(changes_for_right));
+                })
+            };
+
+            rayon::spawn(move || {
+                let changes = rope_diff(
+                    left_rope,
+                    right_rope,
+                    right_rev,
+                    right_atomic_rev.clone(),
+                    None,
+                );
+                let changes = changes.map(|changes| {
+                    let mut changes_for_left = im::Vector::new();
+                    for change in &changes {
+                        let change = match change {
+                            DiffLines::Left(n) => DiffLines::Right(n.clone()),
+                            DiffLines::Right(n) => DiffLines::Left(n.clone()),
+                            _ => change.clone(),
+                        };
+                        changes_for_left.push_back(change);
+                    }
+                    (changes_for_left, im::Vector::from(changes))
+                });
+                send(changes);
+            });
+        });
+    }
 }

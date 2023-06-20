@@ -44,8 +44,6 @@ use crate::{
     window_tab::{CommonData, Focus, WindowTabData},
 };
 
-use self::view::EditorViewData;
-
 pub mod diff;
 pub mod location;
 pub mod movement;
@@ -116,9 +114,9 @@ impl EditorInfo {
 pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 
 #[derive(Clone)]
-pub enum EditorView {
+pub enum EditorViewKind {
     Normal,
-    Diff(RwSignal<Vec<DiffLines>>),
+    Diff(im::Vector<DiffLines>),
 }
 
 #[derive(Clone)]
@@ -130,7 +128,7 @@ pub struct EditorData {
     /// To change out the current document, use [`EditorData::update_doc`].
     pub doc: RwSignal<Document>,
     pub view: EditorViewData,
-    pub new_view: EditorView,
+    pub new_view: RwSignal<EditorViewKind>,
     pub confirmed: RwSignal<bool>,
     pub cursor: RwSignal<Cursor>,
     pub window_origin: RwSignal<Point>,
@@ -174,18 +172,6 @@ impl EditorData {
             None,
         );
         let cursor = create_rw_signal(cx, cursor);
-        let scroll_delta = create_rw_signal(cx, Vec2::ZERO);
-        let scroll_to = create_rw_signal(cx, None);
-        let snippet = create_rw_signal(cx, None);
-        let window_origin = create_rw_signal(cx, Point::ZERO);
-        let viewport = create_rw_signal(cx, Rect::ZERO);
-        let confirmed = create_rw_signal(cx, false);
-        let last_movement = create_rw_signal(cx, Movement::Left);
-        let inline_find = create_rw_signal(cx, None);
-        let last_inline_find = create_rw_signal(cx, None);
-        let find_focus = create_rw_signal(cx, false);
-        let active = create_rw_signal(cx, false);
-        let sticky_header_height = create_rw_signal(cx, 0.0);
         let view = EditorViewData::new(doc, common.config);
         Self {
             scope: cx,
@@ -193,20 +179,20 @@ impl EditorData {
             editor_id,
             doc,
             view,
-            new_view: EditorView::Normal,
+            new_view: create_rw_signal(cx, EditorViewKind::Normal),
             cursor,
-            confirmed,
-            snippet,
-            window_origin,
-            viewport,
-            scroll_delta,
-            scroll_to,
-            last_movement,
-            inline_find,
-            last_inline_find,
-            find_focus,
-            active,
-            sticky_header_height,
+            confirmed: create_rw_signal(cx, false),
+            snippet: create_rw_signal(cx, None),
+            window_origin: create_rw_signal(cx, Point::ZERO),
+            viewport: create_rw_signal(cx, Rect::ZERO),
+            scroll_delta: create_rw_signal(cx, Vec2::ZERO),
+            scroll_to: create_rw_signal(cx, None),
+            last_movement: create_rw_signal(cx, Movement::Left),
+            inline_find: create_rw_signal(cx, None),
+            last_inline_find: create_rw_signal(cx, None),
+            find_focus: create_rw_signal(cx, false),
+            active: create_rw_signal(cx, false),
+            sticky_header_height: create_rw_signal(cx, 0.0),
             common,
         }
     }

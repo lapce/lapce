@@ -41,7 +41,7 @@ use lapce_rpc::style::LineStyle;
 use lapce_xi_rope::{find::CaseMatching, Rope};
 use lsp_types::DiagnosticSeverity;
 
-use super::EditorData;
+use super::{EditorData, EditorViewKind};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -55,6 +55,18 @@ use crate::{
     text_input::text_input,
     workspace::LapceWorkspace,
 };
+
+struct ScreenLines {
+    lines: Vec<usize>,
+    info: HashMap<usize, LineInfo>,
+}
+
+struct LineInfo {
+    font_size: usize,
+    x: f64,
+    y: f64,
+    line_height: f64,
+}
 
 struct StickyHeaderInfo {
     sticky_lines: Vec<usize>,
@@ -149,6 +161,121 @@ pub fn editor_view(
 }
 
 impl EditorView {
+    fn get_screen_lines(&self) -> ScreenLines {
+        let viewport = self.viewport.get_untracked();
+        let (editor_view, config) = self
+            .editor
+            .with_untracked(|e| (e.new_view, e.common.config));
+        let config = config.get_untracked();
+        let line_height = config.editor.line_height() as f64;
+
+        let min_line = (viewport.y0 / line_height).floor() as usize;
+        let max_line = (viewport.y1 / line_height).ceil() as usize;
+
+        let editor_view = editor_view.get_untracked();
+        match editor_view {
+            EditorViewKind::Normal => {
+                let font_size = config.editor.font_size();
+                let mut lines = Vec::new();
+                let mut info = HashMap::new();
+                for line in min_line..max_line + 1 {
+                    lines.push(line);
+                    info.insert(
+                        line,
+                        LineInfo {
+                            font_size,
+                            x: 0.0,
+                            y: line as f64 * line_height,
+                            line_height,
+                        },
+                    );
+                }
+                ScreenLines { lines, info }
+            }
+            EditorViewKind::Diff(diff_lines) => {
+                let font_size = config.editor.font_size();
+
+                let mut line = 0;
+                let mut lines = Vec::new();
+                let mut info = HashMap::new();
+                for change in diff_lines.iter() {
+                    match change {
+                        DiffLines::Left(range) => {
+                            let len = range.len();
+                            line += len;
+
+                            if line < min_line {
+                                continue;
+                            }
+                        }
+                        DiffLines::Skip(left, right) => {
+                            line += 1;
+                        }
+                        DiffLines::Both(_left, right) => {
+                            let len = right.len();
+                            line += len;
+                            if line < min_line {
+                                continue;
+                            }
+                            for l in line - len..line {
+                                if l < min_line {
+                                    continue;
+                                }
+                                let rope_line = l - (line - len) + right.start;
+
+                                lines.push(rope_line);
+                                info.insert(
+                                    rope_line,
+                                    LineInfo {
+                                        font_size,
+                                        x: 0.0,
+                                        y: l as f64 * line_height,
+                                        line_height,
+                                    },
+                                );
+
+                                if l > max_line {
+                                    break;
+                                }
+                            }
+                        }
+                        DiffLines::Right(range) => {
+                            let len = range.len();
+                            line += len;
+
+                            if line < min_line {
+                                continue;
+                            }
+
+                            for l in line - len..line {
+                                if l < min_line {
+                                    continue;
+                                }
+                                let rope_line = l - (line - len) + range.start;
+
+                                lines.push(rope_line);
+                                info.insert(
+                                    rope_line,
+                                    LineInfo {
+                                        font_size,
+                                        x: 0.0,
+                                        y: l as f64 * line_height,
+                                        line_height,
+                                    },
+                                );
+
+                                if l > max_line {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                ScreenLines { lines, info }
+            }
+        }
+    }
+
     fn paint_cursor(
         &self,
         cx: &mut PaintCx,
