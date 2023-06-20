@@ -192,40 +192,53 @@ impl EditorView {
                 }
                 ScreenLines { lines, info }
             }
-            EditorViewKind::Diff(diff_lines) => {
+            EditorViewKind::Diff(diff_info) => {
                 let font_size = config.editor.font_size();
 
-                let mut line = 0;
+                let mut visual_line = 0;
                 let mut lines = Vec::new();
                 let mut info = HashMap::new();
-                for change in diff_lines.iter() {
-                    match change {
-                        DiffLines::Left(range) => {
+                let mut last_change: Option<&DiffLines> = None;
+                let mut changes = diff_info.changes.iter().peekable();
+                let is_right = diff_info.is_right;
+                while let Some(change) = changes.next() {
+                    match (is_right, change) {
+                        (true, DiffLines::Left(range)) => {
                             let len = range.len();
-                            line += len;
+                            visual_line += len;
+                        }
+                        (false, DiffLines::Right(range)) => {
+                            let len = range.len();
+                            visual_line += len;
+                            if let Some(DiffLines::Left(r)) = last_change {
+                                visual_line -= r.len().min(range.len());
+                            }
+                        }
+                        (true, DiffLines::Right(range))
+                        | (false, DiffLines::Left(range)) => {
+                            if is_right {
+                                if let Some(DiffLines::Left(r)) = last_change {
+                                    visual_line -= r.len().min(range.len());
+                                }
+                            }
 
-                            if line < min_line {
+                            let len = range.len();
+                            visual_line += len;
+
+                            if visual_line < min_line {
                                 continue;
                             }
-                        }
-                        DiffLines::Skip(left, right) => {
-                            line += 1;
-                        }
-                        DiffLines::Both(_left, right) => {
-                            let len = right.len();
-                            line += len;
-                            if line < min_line {
-                                continue;
-                            }
-                            for l in line - len..line {
+
+                            for l in visual_line - len..visual_line {
                                 if l < min_line {
                                     continue;
                                 }
-                                let rope_line = l - (line - len) + right.start;
+                                let actual_line =
+                                    l - (visual_line - len) + range.start;
 
-                                lines.push(rope_line);
+                                lines.push(actual_line);
                                 info.insert(
-                                    rope_line,
+                                    actual_line,
                                     LineInfo {
                                         font_size,
                                         x: 0.0,
@@ -239,23 +252,26 @@ impl EditorView {
                                 }
                             }
                         }
-                        DiffLines::Right(range) => {
-                            let len = range.len();
-                            line += len;
-
-                            if line < min_line {
+                        (_, DiffLines::Skip(left, right)) => {
+                            visual_line += 1;
+                        }
+                        (_, DiffLines::Both(left, right)) => {
+                            let start =
+                                if is_right { right.start } else { left.start };
+                            let len = right.len();
+                            visual_line += len;
+                            if visual_line < min_line {
                                 continue;
                             }
-
-                            for l in line - len..line {
+                            for l in visual_line - len..visual_line {
                                 if l < min_line {
                                     continue;
                                 }
-                                let rope_line = l - (line - len) + range.start;
+                                let actual_line = l - (visual_line - len) + start;
 
-                                lines.push(rope_line);
+                                lines.push(actual_line);
                                 info.insert(
-                                    rope_line,
+                                    actual_line,
                                     LineInfo {
                                         font_size,
                                         x: 0.0,
@@ -270,6 +286,7 @@ impl EditorView {
                             }
                         }
                     }
+                    last_change = Some(change);
                 }
                 ScreenLines { lines, info }
             }
@@ -432,6 +449,7 @@ impl EditorView {
         min_line: usize,
         max_line: usize,
         viewport: Rect,
+        screen_lines: &ScreenLines,
     ) {
         let (view, config) = self
             .editor
@@ -455,14 +473,16 @@ impl EditorView {
 
         let last_line = view.last_line();
 
-        for line in min_line..max_line + 1 {
+        for line in &screen_lines.lines {
+            let line = *line;
             if line > last_line {
                 break;
             }
 
+            let info = screen_lines.info.get(&line).unwrap();
             let text_layout = view.get_text_layout(line, font_size);
             let height = text_layout.text.size().height;
-            let y = line as f64 * line_height;
+            let y = info.y;
 
             self.paint_extra_style(
                 cx,
@@ -805,6 +825,7 @@ impl View for EditorView {
         let config = self.editor.with_untracked(|e| e.common.config);
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
+        let screen_lines = self.get_screen_lines();
 
         let min_line = (viewport.y0 / line_height).floor() as usize;
         let max_line = (viewport.y1 / line_height).ceil() as usize;
@@ -814,7 +835,7 @@ impl View for EditorView {
 
         self.paint_cursor(cx, min_line, max_line, is_local);
         self.paint_find(cx, min_line, max_line);
-        self.paint_text(cx, min_line, max_line, viewport);
+        self.paint_text(cx, min_line, max_line, viewport, &screen_lines);
         self.paint_sticky_headers(cx, min_line, viewport);
         self.paint_scroll_bar(cx, viewport, is_local, config);
     }

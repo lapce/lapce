@@ -20,6 +20,12 @@ use crate::{
 
 use super::{location::EditorLocation, EditorData, EditorViewKind};
 
+#[derive(Clone)]
+pub struct DiffInfo {
+    pub is_right: bool,
+    pub changes: im::Vector<DiffLines>,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct DiffEditorInfo {
     pub left_content: DocContent,
@@ -192,26 +198,37 @@ impl DiffEditorData {
 
             let send = {
                 let right_atomic_rev = right_atomic_rev.clone();
-                create_ext_action(cx, move |changes| {
-                    let (changes_for_left, changes_for_right) =
-                        if let Some(changes) = changes {
+                create_ext_action(
+                    cx,
+                    move |changes: Option<im::Vector<DiffLines>>| {
+                        let changes = if let Some(changes) = changes {
                             changes
                         } else {
                             return;
                         };
 
-                    if left_atomic_rev.load(atomic::Ordering::Acquire) != left_rev {
-                        return;
-                    }
+                        if left_atomic_rev.load(atomic::Ordering::Acquire)
+                            != left_rev
+                        {
+                            return;
+                        }
 
-                    if right_atomic_rev.load(atomic::Ordering::Acquire) != right_rev
-                    {
-                        return;
-                    }
+                        if right_atomic_rev.load(atomic::Ordering::Acquire)
+                            != right_rev
+                        {
+                            return;
+                        }
 
-                    left_editor_view.set(EditorViewKind::Diff(changes_for_left));
-                    right_editor_view.set(EditorViewKind::Diff(changes_for_right));
-                })
+                        left_editor_view.set(EditorViewKind::Diff(DiffInfo {
+                            is_right: false,
+                            changes: changes.clone(),
+                        }));
+                        right_editor_view.set(EditorViewKind::Diff(DiffInfo {
+                            is_right: true,
+                            changes,
+                        }));
+                    },
+                )
             };
 
             rayon::spawn(move || {
@@ -220,21 +237,9 @@ impl DiffEditorData {
                     right_rope,
                     right_rev,
                     right_atomic_rev.clone(),
-                    None,
+                    Some(3),
                 );
-                let changes = changes.map(|changes| {
-                    let mut changes_for_left = im::Vector::new();
-                    for change in &changes {
-                        let change = match change {
-                            DiffLines::Left(n) => DiffLines::Right(n.clone()),
-                            DiffLines::Right(n) => DiffLines::Left(n.clone()),
-                            _ => change.clone(),
-                        };
-                        changes_for_left.push_back(change);
-                    }
-                    (changes_for_left, im::Vector::from(changes))
-                });
-                send(changes);
+                send(changes.map(im::Vector::from));
             });
         });
     }

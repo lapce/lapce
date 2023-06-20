@@ -292,7 +292,15 @@ impl MainSplitData {
                 keypress.key_down(key_event, &editor);
                 editor.get_code_actions();
             }
-            EditorTabChild::DiffEditor(diff_editor_id) => {}
+            EditorTabChild::DiffEditor(diff_editor_id) => {
+                let diff_editor =
+                    self.diff_editors.with_untracked(|diff_editors| {
+                        diff_editors.get(&diff_editor_id).cloned()
+                    })?;
+                let editor = diff_editor.right.get_untracked();
+                keypress.key_down(key_event, &editor);
+                editor.get_code_actions();
+            }
             EditorTabChild::Settings(_) => {
                 return None;
             }

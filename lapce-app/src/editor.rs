@@ -28,7 +28,7 @@ use lsp_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use self::view::EditorViewData;
+use self::{diff::DiffInfo, view::EditorViewData};
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
     completion::{clear_completion_lens, CompletionStatus},
@@ -116,7 +116,7 @@ pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 #[derive(Clone)]
 pub enum EditorViewKind {
     Normal,
-    Diff(im::Vector<DiffLines>),
+    Diff(DiffInfo),
 }
 
 #[derive(Clone)]
