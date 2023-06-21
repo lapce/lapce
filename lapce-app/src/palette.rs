@@ -923,7 +923,27 @@ impl PaletteData {
                         name: name.clone(),
                         save: true,
                     }),
-                PaletteItemContent::Language { name } => {}
+                PaletteItemContent::Language { name } => {
+                    let editor = self.main_split.active_editor.get_untracked();
+                    let doc = match editor {
+                        Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+                        None => {
+                            return;
+                        }
+                    };
+                    doc.update(|doc| {
+                        if name.is_empty() || name.to_lowercase().eq("plain text") {
+                            doc.set_syntax(None)
+                        } else {
+                            let lang = match LapceLanguage::from_name(name) {
+                                Some(v) => v,
+                                None => return,
+                            };
+                            doc.set_language(lang);
+                        }
+                        doc.trigger_syntax_change(None);
+                    });
+                }
             }
         } else if self.kind.get_untracked() == PaletteKind::SshHost {
             let input = self.input.with_untracked(|input| input.input.clone());
