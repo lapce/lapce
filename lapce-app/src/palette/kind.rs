@@ -30,8 +30,7 @@ impl PaletteKind {
             | PaletteKind::IconTheme
             | PaletteKind::SshHost
             | PaletteKind::RunAndDebug
-            | PaletteKind::Language 
-              => "",
+            | PaletteKind::Language => "",
         }
     }
 

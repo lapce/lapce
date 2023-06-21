@@ -23,8 +23,8 @@ use floem::{
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lapce_core::{
-    buffer::rope_text::RopeText, command::FocusCommand, mode::Mode,
-    movement::Movement, selection::Selection, language::LapceLanguage,
+    buffer::rope_text::RopeText, command::FocusCommand, language::LapceLanguage,
+    mode::Mode, movement::Movement, selection::Selection,
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
@@ -786,12 +786,15 @@ impl PaletteData {
 
     fn get_languages(&self, _cx: Scope) {
         let langs = LapceLanguage::languages();
-        let items = langs.iter().map(|lang| PaletteItem{
-            content: PaletteItemContent::Language { name: lang.clone() },
-            filter_text: lang.clone(),
-            score: 0,
-            indices: Vec::new(),
-        }).collect();
+        let items = langs
+            .iter()
+            .map(|lang| PaletteItem {
+                content: PaletteItemContent::Language { name: lang.clone() },
+                filter_text: lang.clone(),
+                score: 0,
+                indices: Vec::new(),
+            })
+            .collect();
         self.items.set(items);
     }
 

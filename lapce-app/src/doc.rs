@@ -19,10 +19,11 @@ use lapce_core::{
     command::EditCommand,
     cursor::Cursor,
     editor::{EditType, Editor},
+    language::LapceLanguage,
     register::{Clipboard, Register},
     selection::{SelRegion, Selection},
     style::line_styles,
-    syntax::{edit::SyntaxEdit, Syntax }, language::LapceLanguage,
+    syntax::{edit::SyntaxEdit, Syntax},
 };
 use lapce_rpc::{
     buffer::BufferId,
@@ -35,7 +36,7 @@ use lapce_xi_rope::{
     Interval, Rope, RopeDelta, Transformer,
 };
 use lsp_types::{
-    CodeActionResponse, Diagnostic, DiagnosticSeverity, InlayHint, InlayHintLabel, 
+    CodeActionResponse, Diagnostic, DiagnosticSeverity, InlayHint, InlayHintLabel,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -420,7 +421,10 @@ impl Document {
         }
     }
 
-    pub fn trigger_syntax_change(&mut self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
+    pub fn trigger_syntax_change(
+        &mut self,
+        edits: Option<SmallVec<[SyntaxEdit; 3]>>,
+    ) {
         let Some(syntax) = self.syntax.as_mut() else { return };
 
         let rev = self.buffer.rev();

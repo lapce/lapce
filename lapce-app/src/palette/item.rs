@@ -65,5 +65,5 @@ pub enum PaletteItemContent {
     },
     Language {
         name: String,
-    }
+    },
 }
