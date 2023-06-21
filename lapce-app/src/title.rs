@@ -112,13 +112,13 @@ fn left(
                     }),
                     stack(move || {
                         (
-                            text_input(source_control.editor.clone(), move || branches_expanded.get())
+                            text_input(source_control.filter_editor.clone(), move || branches_expanded.get())
                             .style(move || Style::BASE.border_bottom(1.0).border_color(*config.get().get_color(
                                 LapceColor::LAPCE_BORDER,
-                            ))),
+                            ))).keyboard_navigatable(),
                             scroll( move || {
                                 list(move || {
-                                    let query = source_control.editor.doc.get().buffer().to_string();
+                                    let query = source_control.filter_editor.doc.get().buffer().to_string();
                                     if !query.trim().is_empty() {
                                         let branches =  source_control.branches.get();
                                         let filtered_branches = branches.iter()

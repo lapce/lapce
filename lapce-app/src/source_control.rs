@@ -21,6 +21,7 @@ pub struct SourceControlData {
     pub branches: RwSignal<im::Vector<String>>,
     pub editor: EditorData,
     pub common: CommonData,
+    pub filter_editor: EditorData,
 }
 
 impl KeyPressFocus for SourceControlData {
@@ -66,6 +67,7 @@ impl SourceControlData {
             branch: create_rw_signal(cx, "".to_string()),
             branches: create_rw_signal(cx, im::Vector::new()),
             editor: EditorData::new_local(cx, EditorId::next(), common.clone()),
+            filter_editor: EditorData::new_local(cx, EditorId::next(), common.clone()),
             common,
         }
     }
