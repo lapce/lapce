@@ -1,11 +1,16 @@
 use std::path::PathBuf;
 
-use directories::ProjectDirs;
+use directories::{BaseDirs, ProjectDirs};
 
 use crate::meta::NAME;
+
 pub struct Directory {}
 
 impl Directory {
+    pub fn home_dir() -> Option<PathBuf> {
+        BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
+    }
+
     #[cfg(not(feature = "portable"))]
     fn project_dirs() -> Option<ProjectDirs> {
         ProjectDirs::from("dev", "lapce", NAME)
@@ -133,6 +138,32 @@ impl Directory {
             if !dir.exists() {
                 let _ = std::fs::create_dir(&dir);
             }
+            Some(dir)
+        } else {
+            None
+        }
+    }
+
+    pub fn queries_directory() -> Option<PathBuf> {
+        if let Some(dir) = Self::config_directory() {
+            let dir = dir.join("queries");
+            if !dir.exists() {
+                let _ = std::fs::create_dir(&dir);
+            }
+
+            Some(dir)
+        } else {
+            None
+        }
+    }
+
+    pub fn grammars_directory() -> Option<PathBuf> {
+        if let Some(dir) = Self::data_local_directory() {
+            let dir = dir.join("grammars");
+            if !dir.exists() {
+                let _ = std::fs::create_dir(&dir);
+            }
+
             Some(dir)
         } else {
             None

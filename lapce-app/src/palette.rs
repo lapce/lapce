@@ -789,8 +789,10 @@ impl PaletteData {
         let items = langs
             .iter()
             .map(|lang| PaletteItem {
-                content: PaletteItemContent::Language { name: lang.clone() },
-                filter_text: lang.clone(),
+                content: PaletteItemContent::Language {
+                    name: lang.to_owned().to_owned(),
+                },
+                filter_text: lang.to_owned().to_owned(),
                 score: 0,
                 indices: Vec::new(),
             })
