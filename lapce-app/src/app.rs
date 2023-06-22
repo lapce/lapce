@@ -70,6 +70,7 @@ use crate::{
     main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
     palette::{
         item::{PaletteItem, PaletteItemContent},
+        kind::PaletteKind,
         PaletteData, PaletteStatus,
     },
     panel::{
@@ -897,7 +898,9 @@ fn workbench(window_tab_data: Arc<WindowTabData>) -> impl View {
 fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
     let config = window_tab_data.common.config;
     let diagnostics = window_tab_data.main_split.diagnostics;
+    let editor = window_tab_data.main_split.active_editor;
     let panel = window_tab_data.panel.clone();
+    let palette = window_tab_data.palette.clone();
     let cx = ViewContext::get_current();
     let diagnostic_count = create_memo(cx.scope, move |_| {
         let mut errors = 0;
@@ -1112,11 +1115,39 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                 )
             })
             .style(|| Style::BASE.height_pct(100.0).items_center()),
-            label(|| "".to_string()).style(|| {
+            stack(|| {
+                (label(move || {
+                    if let Some(editor) = editor.get() {
+                        if let Some(syn) = editor.get().doc.get().syntax() {
+                            return syn.language.to_string();
+                        }
+                    }
+                    return String::from("Plain Text");
+                })
+                .on_click(move |_| {
+                    palette.run(cx.scope, PaletteKind::Language);
+                    true
+                })
+                .style(|| {
+                    Style::BASE
+                        .height_pct(100.0)
+                        .padding_horiz_px(10.0)
+                        .items_center()
+                })
+                .hover_style(move || {
+                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                }),)
+            })
+            .style(|| {
                 Style::BASE
                     .height_pct(100.0)
                     .flex_basis_px(0.0)
                     .flex_grow(1.0)
+                    .justify_end()
             }),
         )
     })
