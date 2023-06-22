@@ -1122,7 +1122,7 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                             return syn.language.to_string();
                         }
                     }
-                    return String::from("Plain Text");
+                    String::from("Plain Text")
                 })
                 .on_click(move |_| {
                     palette.run(cx.scope, PaletteKind::Language);
