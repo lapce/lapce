@@ -46,9 +46,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install clang libxkbcommon-x11-dev pkg-config libvulkan-dev libgtk-3-dev
 
       - name: Update toolchain & add llvm-tools
-        run: |
-          rustup update
-          rustup component add llvm-tools-preview
+        run: rustup update
+          
+      - name: Add llvm-tools
+        if: matrix.type == 'coverage'
+        run: rustup component add llvm-tools-preview
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -57,27 +59,27 @@ jobs:
         run: cargo fetch --locked
 
       - name: Build
-        if: ${{ matrix.type == "build" && join(matrix.features, ',') == '' }}
+        if: ${{ matrix.type == 'build' && join(matrix.features, ',') == '' }}
         run: cargo build --frozen
 
       - name: Build
-        if: ${{ matrix.type == "build" && join(matrix.features, ',') != '' }}
+        if: ${{ matrix.type == 'build' && join(matrix.features, ',') != '' }}
         run: cargo build --frozen --features ${{ join(matrix.features, ',') }}
 
       - name: Install cargo-llvm-cov
-        if: ${{ matrix.type == "coverage" }}
+        if: ${{ matrix.type == 'coverage' }}
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Run tests and coverage
-        if: ${{ matrix.type == "coverage" }}
+        if: ${{ matrix.type == 'coverage' }}
         run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
 
       - name: Run doc tests
-        if: ${{ matrix.type == "coverage" }}
+        if: ${{ matrix.type == 'coverage' }}
         run: cargo test --doc --workspace
 
       - name: Upload coverage
-        if: ${{ matrix.type == "coverage" }}
+        if: ${{ matrix.type == 'coverage' }}
         uses: codecov/codecov-action@v3
         with:
           files: lcov.info
