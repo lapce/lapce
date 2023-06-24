@@ -1116,20 +1116,25 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
             })
             .style(|| Style::BASE.height_pct(100.0).items_center()),
             stack(|| {
-                (label(move || {
+                let palette_clone = palette.clone();
+                let cursor_info = label(move || {
                     if let Some(editor) = editor.get() {
-                        if let Some(syn) = editor.get().doc.get().syntax() {
-                            if let Some(lang) =
-                                strum::EnumMessage::get_message(&syn.language)
-                            {
-                                return lang.to_string();
-                            }
+                        if let Some((line, column, character)) = editor
+                            .get()
+                            .cursor
+                            .get()
+                            .get_line_col_char(editor.get().doc.get().buffer())
+                        {
+                            return format!(
+                                "Ln {}, Col {}, Char {}",
+                                line, column, character,
+                            );
                         }
                     }
-                    "Plain Text".to_string() // FIXME: remove
+                    String::from("No document")
                 })
                 .on_click(move |_| {
-                    palette.run(cx.scope, PaletteKind::Language);
+                    palette_clone.run(cx.scope, PaletteKind::Line);
                     true
                 })
                 .style(|| {
@@ -1144,7 +1149,38 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                             .get()
                             .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
-                }),)
+                });
+                let palette_clone = palette.clone();
+                let language_info = label(move || {
+                    if let Some(editor) = editor.get() {
+                        if let Some(syn) = editor.get().doc.get().syntax() {
+                            if let Some(lang) =
+                                strum::EnumMessage::get_message(&syn.language)
+                            {
+                                return lang.to_string();
+                            }
+                        }
+                    }
+                    "Plain Text".to_string() // FIXME: remove
+                })
+                .on_click(move |_| {
+                    palette_clone.run(cx.scope, PaletteKind::Language);
+                    true
+                })
+                .style(|| {
+                    Style::BASE
+                        .height_pct(100.0)
+                        .padding_horiz_px(10.0)
+                        .items_center()
+                })
+                .hover_style(move || {
+                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                });
+                (cursor_info, language_info)
             })
             .style(|| {
                 Style::BASE
