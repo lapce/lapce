@@ -17,7 +17,7 @@ use lapce_core::meta;
 
 use crate::{
     app::clickable_icon,
-    command::LapceWorkbenchCommand,
+    command::{LapceWorkbenchCommand, LapceCommand, CommandKind},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     listener::Listener,
     main_split::MainSplitData,
@@ -131,12 +131,21 @@ fn left(
                                 },
                                 |item| item.clone(),
                                 move |item| {
+                                    let branch = item.clone();
                                     label(move || item.clone())
                                     .style(|| Style::BASE.text_ellipsis().padding_horiz_px(10.0).padding_vert_px(5.0))
                                     .hover_style(move || {
                                         Style::BASE.cursor(CursorStyle::Pointer).background(
                                             *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
                                         )
+                                    }).on_click(move |_| {
+                                        source_control.common.lapce_command.send(LapceCommand {
+                                            kind: CommandKind::Workbench(
+                                                LapceWorkbenchCommand::CheckoutBranch,
+                                            ),
+                                            data: Some(serde_json::json!(branch.clone())),
+                                        });
+                                        true
                                     })
                                 })
                                 .style(|| {
@@ -155,12 +164,9 @@ fn left(
                                     .width_pct(100.0)
                                     .max_height_px(350.0)
                                     .min_width_px(100.0)
-                                    .apply_if(!branches_expanded.get(), |s| {
-                                        s.hide()
-                                    })
                             }),
                         )
-                    }).keyboard_navigatable()
+                    })
                     .on_event(EventListener::FocusLost, move |_| {
                         if branches_expanded.get_untracked() {
                             branches_expanded.set(false);
@@ -170,6 +176,7 @@ fn left(
                     .style(move || {
                         Style::BASE
                             .absolute()
+                            .inset_left_px(0.0)
                             .inset_top_px(37.0)
                             .flex_col()
                             .width_pct(100.0)
