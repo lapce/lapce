@@ -22,6 +22,7 @@ pub struct SourceControlData {
     pub editor: EditorData,
     pub common: CommonData,
     pub filter_editor: EditorData,
+    pub branches_active: RwSignal<bool>,
 }
 
 impl KeyPressFocus for SourceControlData {
@@ -72,6 +73,7 @@ impl SourceControlData {
                 EditorId::next(),
                 common.clone(),
             ),
+            branches_active: create_rw_signal(cx, false),
             common,
         }
     }

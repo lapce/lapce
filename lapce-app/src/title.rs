@@ -1,29 +1,26 @@
 use std::sync::Arc;
 
 use floem::{
-    event::{Event, EventListener},
-    glazier::keyboard_types::Key,
     menu::{Menu, MenuItem},
     peniko::kurbo::Point,
     reactive::{
-        create_memo, create_rw_signal, ReadSignal, RwSignal, SignalGet,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        create_memo, ReadSignal, RwSignal, SignalGet, SignalGetUntracked,
+        SignalUpdate, SignalWith,
     },
     style::{AlignItems, CursorStyle, Dimension, Display, JustifyContent, Style},
     view::View,
-    views::{container, label, list, scroll, stack, svg, Decorators},
+    views::{container, label, stack, svg, Decorators},
     ViewContext,
 };
 use lapce_core::meta;
 
 use crate::{
     app::clickable_icon,
-    command::{CommandKind, LapceCommand, LapceWorkbenchCommand},
+    command::LapceWorkbenchCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     listener::Listener,
     main_split::MainSplitData,
     source_control::SourceControlData,
-    text_input::text_input,
     update::ReleaseInfo,
     workspace::LapceWorkspace,
 };
@@ -34,7 +31,7 @@ fn left(
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let branch = source_control.branch;
-    let branches_expanded = create_rw_signal(source_control.common.scope, false);
+    let branches_active = source_control.branches_active;
     let file_diffs = source_control.file_diffs;
     let branch_label = move || {
         format!(
@@ -90,123 +87,21 @@ fn left(
                     )
             }),
             stack(move || {
-                (
-                    stack(|| {
-                        (
-                            svg(move || config.get().ui_svg(LapceIcons::SCM)).style(
-                                move || {
-                                    let config = config.get();
-                                    let icon_size = config.ui.icon_size() as f32;
-                                    Style::BASE.size_px(icon_size, icon_size).color(
-                                        *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                                    )
-                                },
-                            ),
-                            label(branch_label).style(|| Style::BASE.margin_left_px(10.0))
-                            ,
-                        )
-                    }),
-                    stack(move || {
-                        (
-                            text_input(source_control.filter_editor.clone(), move || branches_expanded.get())
-                            .style(move || Style::BASE.border_bottom(1.0).border_color(*config.get().get_color(
-                                LapceColor::LAPCE_BORDER,
-                            ))).keyboard_navigatable(),
-                            scroll( move || {
-                                list(move || {
-                                    let query = source_control.filter_editor.doc.get().buffer().to_string();
-                                    if !query.trim().is_empty() {
-                                        let branches =  source_control.branches.get();
-                                        let filtered_branches = branches.iter()
-                                        .filter(|branch| branch.contains(&query))
-                                        .cloned();
-                                        im::Vector::from_iter(filtered_branches)
-                                    } else {
-                                        source_control.branches.get()
-                                    }
-                                },
-                                move |item| item.clone(),
-                                move |item| {
-                                    let item_clone1= item.clone();
-                                    let item_clone2= item.clone();
-                                    label(move || item.clone())
-                                    .style(move || Style::BASE.text_ellipsis()
-                                        .padding_horiz_px(10.0).padding_vert_px(5.0)
-                                        .apply_if(item_clone1.clone() == branch.get(), move |s| {
-                                            s.background(*config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND))
-                                        })
-                                    )
-                                    .hover_style(move || {
-                                        Style::BASE.cursor(CursorStyle::Pointer).background(
-                                            *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                                        )
-                                    }).on_click(move |_| {
-                                        source_control.common.lapce_command.send(LapceCommand {
-                                            kind: CommandKind::Workbench(
-                                                LapceWorkbenchCommand::CheckoutBranch,
-                                            ),
-                                            data: Some(serde_json::json!(item_clone2.clone())),
-                                        });
-                                        true
-                                    })
-                                })
-                                .style(|| {
-                                    Style::BASE
-                                        .flex_col()
-                                        .width_pct(100.0)
-                                        .cursor(CursorStyle::Pointer)
-                                })
-                            }).scroll_bar_color(move || {
-                                *config.get().get_color(
-                                    LapceColor::LAPCE_SCROLL_BAR,
+                (stack(|| {
+                    (
+                        svg(move || config.get().ui_svg(LapceIcons::SCM)).style(
+                            move || {
+                                let config = config.get();
+                                let icon_size = config.ui.icon_size() as f32;
+                                Style::BASE.size_px(icon_size, icon_size).color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                                 )
-                            })
-                            .style(move || {
-                                Style::BASE
-                                    .width_pct(100.0)
-                                    .max_height_px(350.0)
-                                    .min_width_px(150.0)
-                            }),
-                        )
-                    })
-                    .on_event(EventListener::FocusLost, move |_| {
-                        if branches_expanded.get_untracked() {
-                            branches_expanded.set(false);
-                        }
-                        true
-                    })
-                    .on_event(EventListener::KeyDown, move |event| {
-                        if let Event::KeyDown(key_event) = event {
-                            if let Key::Escape = key_event.key {
-                                if branches_expanded.get_untracked() {
-                                    branches_expanded.set(false);
-                                }
-                            }
-                        }
-                        true
-                    })
-                    .style(move || {
-                        Style::BASE
-                            .absolute()
-                            .inset_left_px(0.0)
-                            .inset_top_px(37.0)
-                            .flex_col()
-                            .width_pct(100.0)
-                            .min_width_px(150.0)
-                            .z_index(2)
-                            .background(*config.get().get_color(
-                                LapceColor::EDITOR_BACKGROUND,
-                            ))
-                            .border(1.0)
-                            .border_radius(6.0)
-                            .border_color(*config.get().get_color(
-                                LapceColor::LAPCE_BORDER,
-                            ))
-                            .apply_if(!branches_expanded.get(), |s| {
-                                s.hide()
-                            })
-                    })
-                )
+                            },
+                        ),
+                        label(branch_label)
+                            .style(|| Style::BASE.margin_left_px(10.0)),
+                    )
+                }),)
             })
             .style(move || {
                 Style::BASE
@@ -220,8 +115,10 @@ fn left(
                     .border_right(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
                     .align_items(Some(AlignItems::Center))
-            }).on_click(move |_| {
-                branches_expanded.update(|expanded| {
+            })
+            .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer))
+            .on_click(move |_| {
+                branches_active.update(|expanded| {
                     *expanded = !*expanded;
                 });
                 true

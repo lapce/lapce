@@ -14,6 +14,7 @@ use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener},
     ext_event::{create_ext_action, create_signal_from_channel},
+    glazier::keyboard_types::Key,
     peniko::{
         kurbo::{Point, Rect, Size},
         Color,
@@ -50,7 +51,10 @@ use tracing_subscriber::{filter::FilterFn, reload::Handle};
 
 use crate::{
     code_action::CodeActionStatus,
-    command::{InternalCommand, WindowCommand},
+    command::{
+        CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand,
+        WindowCommand,
+    },
     config::{
         color::LapceColor, icon::LapceIcons, watcher::ConfigWatcher, LapceConfig,
     },
@@ -2197,6 +2201,127 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
     })
 }
 
+fn source_branches(window_tab_data: Arc<WindowTabData>) -> impl View {
+    let config = window_tab_data.common.config;
+    let source_control = window_tab_data.source_control.clone();
+    let branch = source_control.branch;
+    let branches_active = source_control.branches_active;
+    stack(move || {
+        (
+            text_input(source_control.filter_editor.clone(), move || {
+                branches_active.get()
+            })
+            .style(move || {
+                Style::BASE
+                    .border_bottom(1.0)
+                    .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+            })
+            .keyboard_navigatable(),
+            scroll(move || {
+                list(
+                    move || {
+                        let query = source_control
+                            .filter_editor
+                            .doc
+                            .get()
+                            .buffer()
+                            .to_string();
+                        if !query.trim().is_empty() {
+                            let branches = source_control.branches.get();
+                            let filtered_branches = branches
+                                .iter()
+                                .filter(|branch| branch.contains(&query))
+                                .cloned();
+                            im::Vector::from_iter(filtered_branches)
+                        } else {
+                            source_control.branches.get()
+                        }
+                    },
+                    move |item| item.clone(),
+                    move |item| {
+                        let item_clone1 = item.clone();
+                        let item_clone2 = item.clone();
+                        label(move || item.clone())
+                            .style(move || {
+                                Style::BASE
+                                    .text_ellipsis()
+                                    .width_pct(100.0)
+                                    .padding_horiz_px(10.0)
+                                    .padding_vert_px(5.0)
+                                    .apply_if(
+                                        item_clone1.clone() == branch.get(),
+                                        move |s| {
+                                            s.background(*config.get().get_color(
+                                                LapceColor::PANEL_HOVERED_BACKGROUND,
+                                            ))
+                                        },
+                                    )
+                            })
+                            .hover_style(move || {
+                                Style::BASE.cursor(CursorStyle::Pointer).background(
+                                    *config.get().get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
+                                )
+                            })
+                            .on_click(move |_| {
+                                source_control.common.lapce_command.send(
+                                    LapceCommand {
+                                        kind: CommandKind::Workbench(
+                                            LapceWorkbenchCommand::CheckoutBranch,
+                                        ),
+                                        data: Some(serde_json::json!(
+                                            item_clone2.clone()
+                                        )),
+                                    },
+                                );
+                                true
+                            })
+                    },
+                )
+                .style(|| {
+                    Style::BASE
+                        .flex_col()
+                        .width_pct(100.0)
+                        .cursor(CursorStyle::Pointer)
+                })
+            })
+            .scroll_bar_color(move || {
+                *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
+            })
+            .style(move || Style::BASE.min_width_px(300.0).max_height_px(500.0)),
+        )
+    })
+    .on_event(EventListener::FocusLost, move |_| {
+        if branches_active.get_untracked() {
+            branches_active.set(false);
+        }
+        true
+    })
+    .on_event(EventListener::KeyDown, move |event| {
+        if let Event::KeyDown(key_event) = event {
+            if let Key::Escape = key_event.key {
+                if branches_active.get_untracked() {
+                    branches_active.set(false);
+                }
+            }
+        }
+        true
+    })
+    .style(move || {
+        Style::BASE
+            .absolute()
+            .inset_left_px(46.0) // TODO: from var
+            .inset_top_px(37.0) // TODO: from var
+            .flex_col()
+            .background(*config.get().get_color(LapceColor::EDITOR_BACKGROUND))
+            .border(1.0)
+            .border_radius(6.0)
+            .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+            .apply_if(!branches_active.get(), |s| s.hide())
+    })
+}
+
 pub fn dispose_on_ui_cleanup(scope: Scope) {
     on_cleanup(ViewContext::get_current().scope, move || {
         let send = create_ext_action(scope, move |_| {
@@ -2246,6 +2371,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
             code_action(window_tab_data.clone()),
             rename(window_tab_data.clone()),
             palette(window_tab_data.clone()),
+            source_branches(window_tab_data.clone()),
         )
     })
     .style(move || {
