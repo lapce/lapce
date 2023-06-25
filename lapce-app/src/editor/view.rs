@@ -161,7 +161,33 @@ pub fn editor_view(
 }
 
 impl EditorView {
-    fn get_screen_lines(&self) -> ScreenLines {
+    fn paint_diff_no_code(
+        &self,
+        cx: &mut PaintCx,
+        viewport: Rect,
+        start_line: usize,
+        height: usize,
+        config: &LapceConfig,
+    ) {
+        let line_height = config.editor.line_height();
+        let height = height * line_height;
+        let y = (start_line * line_height) as f64;
+
+        let start_x = viewport.x0.floor() as usize;
+        let start_x = start_x - start_x % 8;
+
+        for x in (start_x..viewport.x1.ceil() as usize + 1 + height).step_by(8) {
+            let p0 = Point::new(x as f64, y);
+            let p1 = Point::new(x as f64 - height as f64, y + height as f64);
+            cx.stroke(
+                &Line::new(p0, p1),
+                *config.get_color(LapceColor::EDITOR_DIM),
+                1.0,
+            );
+        }
+    }
+
+    fn get_screen_lines(&self, cx: &mut PaintCx) -> ScreenLines {
         let viewport = self.viewport.get_untracked();
         let (editor_view, config) = self
             .editor
@@ -204,25 +230,66 @@ impl EditorView {
                 while let Some(change) = changes.next() {
                     match (is_right, change) {
                         (true, DiffLines::Left(range)) => {
-                            let len = range.len();
-                            visual_line += len;
+                            let len =
+                                if let Some(DiffLines::Right(r)) = changes.peek() {
+                                    range.len() - r.len().min(range.len())
+                                } else {
+                                    range.len()
+                                };
+                            if len > 0 {
+                                self.paint_diff_no_code(
+                                    cx,
+                                    viewport,
+                                    visual_line,
+                                    len,
+                                    &config,
+                                );
+                                visual_line += len;
+                            }
                         }
                         (false, DiffLines::Right(range)) => {
-                            let len = range.len();
-                            visual_line += len;
-                            if let Some(DiffLines::Left(r)) = last_change {
-                                visual_line -= r.len().min(range.len());
+                            let len = if let Some(DiffLines::Left(r)) = last_change {
+                                range.len() - r.len().min(range.len())
+                            } else {
+                                range.len()
+                            };
+                            if len > 0 {
+                                self.paint_diff_no_code(
+                                    cx,
+                                    viewport,
+                                    visual_line,
+                                    len,
+                                    &config,
+                                );
+                                visual_line += len;
                             }
                         }
                         (true, DiffLines::Right(range))
                         | (false, DiffLines::Left(range)) => {
-                            if is_right {
-                                if let Some(DiffLines::Left(r)) = last_change {
-                                    visual_line -= r.len().min(range.len());
-                                }
-                            }
-
                             let len = range.len();
+
+                            let color = if is_right {
+                                config
+                                    .get_color(LapceColor::SOURCE_CONTROL_ADDED)
+                                    .with_alpha_factor(0.2)
+                            } else {
+                                config
+                                    .get_color(LapceColor::SOURCE_CONTROL_REMOVED)
+                                    .with_alpha_factor(0.2)
+                            };
+                            cx.fill(
+                                &Rect::ZERO
+                                    .with_size(Size::new(
+                                        viewport.width(),
+                                        line_height * len as f64,
+                                    ))
+                                    .with_origin(Point::new(
+                                        viewport.x0,
+                                        visual_line as f64 * line_height,
+                                    )),
+                                color,
+                            );
+
                             visual_line += len;
 
                             if visual_line < min_line {
@@ -825,7 +892,7 @@ impl View for EditorView {
         let config = self.editor.with_untracked(|e| e.common.config);
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
-        let screen_lines = self.get_screen_lines();
+        let screen_lines = self.get_screen_lines(cx);
 
         let min_line = (viewport.y0 / line_height).floor() as usize;
         let max_line = (viewport.y1 / line_height).ceil() as usize;
