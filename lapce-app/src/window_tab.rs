@@ -284,6 +284,7 @@ impl WindowTabData {
             workspace.clone(),
             main_split.clone(),
             keypress.read_only(),
+            source_control.clone(),
             common.clone(),
         );
 
@@ -794,6 +795,9 @@ impl WindowTabData {
             PaletteRunAndDebug => {
                 self.palette.run(cx, PaletteKind::RunAndDebug);
             }
+            PaletteSCMReferences => {
+                self.palette.run(cx, PaletteKind::SCMReferences);
+            }
             ChangeColorTheme => {
                 self.palette.run(cx, PaletteKind::ColorTheme);
             }
@@ -938,9 +942,14 @@ impl WindowTabData {
             SourceControlInit => {
                 self.proxy.proxy_rpc.git_init();
             }
-            CheckoutBranch => {
-                // TODO:
-            }
+            CheckoutReference => match data {
+                Some(reference) => {
+                    if let Some(reference) = reference.as_str() {
+                        self.proxy.proxy_rpc.git_checkout(reference.to_string());
+                    }
+                }
+                None => error!("No ref provided"),
+            },
             SourceControlCommit => {
                 self.source_control.commit();
             }
@@ -1210,6 +1219,9 @@ impl WindowTabData {
                 self.source_control
                     .branches
                     .set(diff.branches.iter().cloned().collect());
+                self.source_control
+                    .tags
+                    .set(diff.tags.iter().cloned().collect());
                 self.source_control.file_diffs.update(|file_diffs| {
                     *file_diffs = diff
                         .diffs

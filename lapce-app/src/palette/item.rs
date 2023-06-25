@@ -66,4 +66,7 @@ pub enum PaletteItemContent {
     Language {
         name: String,
     },
+    SCMReference {
+        name: String,
+    },
 }
