@@ -939,8 +939,8 @@ impl WindowTabData {
                 self.proxy.proxy_rpc.git_init();
             }
             CheckoutBranch => {
-                if let Some(branch) = data
-                .and_then(|data| serde_json::from_value::<String>(data).ok())
+                if let Some(branch) =
+                    data.and_then(|data| serde_json::from_value::<String>(data).ok())
                 {
                     self.proxy.proxy_rpc.git_checkout(branch)
                 }

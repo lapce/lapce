@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use floem::{
-    event::EventListener,
+    event::{Event, EventListener},
+    glazier::keyboard_types::Key,
     menu::{Menu, MenuItem},
     peniko::kurbo::Point,
     reactive::{
@@ -17,7 +18,7 @@ use lapce_core::meta;
 
 use crate::{
     app::clickable_icon,
-    command::{LapceWorkbenchCommand, LapceCommand, CommandKind},
+    command::{CommandKind, LapceCommand, LapceWorkbenchCommand},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     listener::Listener,
     main_split::MainSplitData,
@@ -35,7 +36,7 @@ fn left(
     let branch = source_control.branch;
     let branches_expanded = create_rw_signal(source_control.common.scope, false);
     let file_diffs = source_control.file_diffs;
-    let branch = move || {
+    let branch_label = move || {
         format!(
             "{}{}",
             branch.get(),
@@ -101,13 +102,8 @@ fn left(
                                     )
                                 },
                             ),
-                            label(branch).style(|| Style::BASE.margin_left_px(10.0))
-                            .on_click(move |_| {
-                                branches_expanded.update(|expanded| {
-                                    *expanded = !*expanded;
-                                });
-                                true
-                            }),
+                            label(branch_label).style(|| Style::BASE.margin_left_px(10.0))
+                            ,
                         )
                     }),
                     stack(move || {
@@ -129,11 +125,17 @@ fn left(
                                         source_control.branches.get()
                                     }
                                 },
-                                |item| item.clone(),
+                                move |item| item.clone(),
                                 move |item| {
-                                    let branch = item.clone();
+                                    let item_clone1= item.clone();
+                                    let item_clone2= item.clone();
                                     label(move || item.clone())
-                                    .style(|| Style::BASE.text_ellipsis().padding_horiz_px(10.0).padding_vert_px(5.0))
+                                    .style(move || Style::BASE.text_ellipsis()
+                                        .padding_horiz_px(10.0).padding_vert_px(5.0)
+                                        .apply_if(item_clone1.clone() == branch.get(), move |s| {
+                                            s.background(*config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND))
+                                        })
+                                    )
                                     .hover_style(move || {
                                         Style::BASE.cursor(CursorStyle::Pointer).background(
                                             *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -143,7 +145,7 @@ fn left(
                                             kind: CommandKind::Workbench(
                                                 LapceWorkbenchCommand::CheckoutBranch,
                                             ),
-                                            data: Some(serde_json::json!(branch.clone())),
+                                            data: Some(serde_json::json!(item_clone2.clone())),
                                         });
                                         true
                                     })
@@ -163,13 +165,23 @@ fn left(
                                 Style::BASE
                                     .width_pct(100.0)
                                     .max_height_px(350.0)
-                                    .min_width_px(100.0)
+                                    .min_width_px(150.0)
                             }),
                         )
                     })
                     .on_event(EventListener::FocusLost, move |_| {
                         if branches_expanded.get_untracked() {
                             branches_expanded.set(false);
+                        }
+                        true
+                    })
+                    .on_event(EventListener::KeyDown, move |event| {
+                        if let Event::KeyDown(key_event) = event {
+                            if let Key::Escape = key_event.key {
+                                if branches_expanded.get_untracked() {
+                                    branches_expanded.set(false);
+                                }
+                            }
                         }
                         true
                     })
@@ -180,7 +192,8 @@ fn left(
                             .inset_top_px(37.0)
                             .flex_col()
                             .width_pct(100.0)
-                            .z_index(11)
+                            .min_width_px(150.0)
+                            .z_index(2)
                             .background(*config.get().get_color(
                                 LapceColor::EDITOR_BACKGROUND,
                             ))
@@ -197,7 +210,7 @@ fn left(
             })
             .style(move || {
                 Style::BASE
-                    .display(if branch().is_empty() {
+                    .display(if branch.get().is_empty() {
                         Display::None
                     } else {
                         Display::Flex
@@ -207,6 +220,11 @@ fn left(
                     .border_right(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
                     .align_items(Some(AlignItems::Center))
+            }).on_click(move |_| {
+                branches_expanded.update(|expanded| {
+                    *expanded = !*expanded;
+                });
+                true
             }),
         )
     })

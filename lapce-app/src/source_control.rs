@@ -67,7 +67,11 @@ impl SourceControlData {
             branch: create_rw_signal(cx, "".to_string()),
             branches: create_rw_signal(cx, im::Vector::new()),
             editor: EditorData::new_local(cx, EditorId::next(), common.clone()),
-            filter_editor: EditorData::new_local(cx, EditorId::next(), common.clone()),
+            filter_editor: EditorData::new_local(
+                cx,
+                EditorId::next(),
+                common.clone(),
+            ),
             common,
         }
     }
