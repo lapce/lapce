@@ -19,6 +19,7 @@ use lapce_core::{
     command::EditCommand,
     cursor::Cursor,
     editor::{EditType, Editor},
+    language::LapceLanguage,
     register::{Clipboard, Register},
     selection::{SelRegion, Selection},
     style::line_styles,
@@ -300,6 +301,21 @@ impl Document {
         self.syntax.as_ref()
     }
 
+    pub fn set_syntax(&mut self, syntax: Option<Syntax>) {
+        self.syntax = syntax;
+        if self.semantic_styles.is_none() {
+            self.clear_style_cache();
+        }
+        self.clear_sticky_headers_cache();
+    }
+
+    /// Set the syntax highlighting this document should use.
+    pub fn set_language(&mut self, language: LapceLanguage) {
+        if let Ok(syn) = Syntax::from_language(language) {
+            self.syntax = Some(syn);
+        }
+    }
+
     pub fn find(&self) -> &Find {
         &self.find
     }
@@ -456,7 +472,10 @@ impl Document {
         }
     }
 
-    fn trigger_syntax_change(&mut self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
+    pub fn trigger_syntax_change(
+        &mut self,
+        edits: Option<SmallVec<[SyntaxEdit; 3]>>,
+    ) {
         let Some(syntax) = self.syntax.as_mut() else { return };
 
         let rev = self.buffer.rev();

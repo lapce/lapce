@@ -700,8 +700,12 @@ impl PaletteViewData {
                 if let Some(editor) = self.main_split.active_editor() {
                     let doc = self.main_split.content_doc(&editor.content);
                     if let Some(syntax) = doc.syntax() {
-                        let lang_name = format!("{}", syntax.language);
-                        self.preselect_matching(ctx, &lang_name);
+                        if let Some(lang_name) =
+                            strum::EnumMessage::get_message(&syntax.language)
+                        {
+                            // let lang_name = format!("{}", syntax.language.get_message());
+                            self.preselect_matching(ctx, lang_name);
+                        }
                     }
                 }
             }
@@ -1064,9 +1068,7 @@ impl PaletteViewData {
 
     fn get_languages(&mut self, _ctx: &mut EventCtx) {
         let palette = Arc::make_mut(&mut self.palette);
-        let mut langs = LapceLanguage::languages();
-        langs.push("Plain Text".to_string());
-        palette.total_items = langs
+        palette.total_items = LapceLanguage::languages()
             .iter()
             .sorted()
             .map(|n| PaletteItem {

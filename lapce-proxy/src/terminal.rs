@@ -13,7 +13,6 @@ use alacritty_terminal::{
     event_loop::Msg,
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
-use directories::BaseDirs;
 use lapce_rpc::{core::CoreRpcHandler, terminal::TermId};
 #[cfg(not(windows))]
 use mio::unix::UnixReady;
@@ -54,7 +53,7 @@ impl Terminal {
             if cwd.is_some() && cwd.clone().unwrap().exists() {
                 cwd
             } else {
-                BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
+                lapce_core::directory::Directory::home_dir()
             };
         config.env = env.unwrap_or_default();
 

@@ -71,6 +71,7 @@ use crate::{
     main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
     palette::{
         item::{PaletteItem, PaletteItemContent},
+        kind::PaletteKind,
         PaletteData, PaletteStatus,
     },
     panel::{
@@ -1037,7 +1038,9 @@ fn workbench(window_tab_data: Arc<WindowTabData>) -> impl View {
 fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
     let config = window_tab_data.common.config;
     let diagnostics = window_tab_data.main_split.diagnostics;
+    let editor = window_tab_data.main_split.active_editor;
     let panel = window_tab_data.panel.clone();
+    let palette = window_tab_data.palette.clone();
     let cx = ViewContext::get_current();
     let diagnostic_count = create_memo(cx.scope, move |_| {
         let mut errors = 0;
@@ -1252,11 +1255,79 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                 )
             })
             .style(|| Style::BASE.height_pct(100.0).items_center()),
-            label(|| "".to_string()).style(|| {
+            stack(|| {
+                let palette_clone = palette.clone();
+                let cursor_info = label(move || {
+                    if let Some(editor) = editor.get() {
+                        if let Some((line, column, character)) = editor
+                            .get()
+                            .cursor
+                            .get()
+                            .get_line_col_char(editor.get().doc.get().buffer())
+                        {
+                            return format!(
+                                "Ln {}, Col {}, Char {}",
+                                line, column, character,
+                            );
+                        }
+                    }
+                    String::from("No document")
+                })
+                .on_click(move |_| {
+                    palette_clone.run(cx.scope, PaletteKind::Line);
+                    true
+                })
+                .style(|| {
+                    Style::BASE
+                        .height_pct(100.0)
+                        .padding_horiz_px(10.0)
+                        .items_center()
+                })
+                .hover_style(move || {
+                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                });
+                let palette_clone = palette.clone();
+                let language_info = label(move || {
+                    if let Some(editor) = editor.get() {
+                        if let Some(syn) = editor.get().doc.get().syntax() {
+                            if let Some(lang) =
+                                strum::EnumMessage::get_message(&syn.language)
+                            {
+                                return lang.to_string();
+                            }
+                        }
+                    }
+                    "Plain Text".to_string() // FIXME: remove
+                })
+                .on_click(move |_| {
+                    palette_clone.run(cx.scope, PaletteKind::Language);
+                    true
+                })
+                .style(|| {
+                    Style::BASE
+                        .height_pct(100.0)
+                        .padding_horiz_px(10.0)
+                        .items_center()
+                })
+                .hover_style(move || {
+                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                });
+                (cursor_info, language_info)
+            })
+            .style(|| {
                 Style::BASE
                     .height_pct(100.0)
                     .flex_basis_px(0.0)
                     .flex_grow(1.0)
+                    .justify_end()
             }),
         )
     })
@@ -1732,6 +1803,7 @@ fn palette_item(
         PaletteItemContent::Line { .. }
         | PaletteItemContent::Workspace { .. }
         | PaletteItemContent::SshHost { .. }
+        | PaletteItemContent::Language { .. }
         | PaletteItemContent::ColorTheme { .. }
         | PaletteItemContent::IconTheme { .. } => {
             let text = item.filter_text;
