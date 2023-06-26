@@ -110,6 +110,11 @@ fn left(
                     .border_right(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
                     .align_items(Some(AlignItems::Center))
+            })
+            .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer))
+            .on_click(move |_| {
+                workbench_command.send(LapceWorkbenchCommand::PaletteSCMReferences);
+                true
             }),
         )
     })

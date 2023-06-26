@@ -301,6 +301,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "palette.run_and_debug")]
     PaletteRunAndDebug,
 
+    #[strum(message = "Source Control: Checkout")]
+    #[strum(serialize = "palette.scm_references")]
+    PaletteSCMReferences,
+
     #[strum(message = "Run and Debug Restart Current Running")]
     #[strum(serialize = "palette.run_and_debug_restart")]
     RunAndDebugRestart,
@@ -309,8 +313,8 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "palette.run_and_debug_stop")]
     RunAndDebugStop,
 
-    #[strum(serialize = "source_control.checkout_branch")]
-    CheckoutBranch,
+    #[strum(serialize = "source_control.checkout_reference")]
+    CheckoutReference,
 
     #[strum(serialize = "toggle_maximized_panel")]
     ToggleMaximizedPanel,

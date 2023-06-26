@@ -46,6 +46,7 @@ use crate::{
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     main_split::MainSplitData,
     proxy::path_from_url,
+    source_control::SourceControlData,
     window_tab::{CommonData, Focus},
     workspace::{LapceWorkspace, LapceWorkspaceType, SshHost},
 };
@@ -95,6 +96,7 @@ pub struct PaletteData {
     pub executed_run_configs: Rc<RefCell<HashMap<(RunDebugMode, String), Instant>>>,
     pub main_split: MainSplitData,
     pub references: RwSignal<Vec<EditorLocation>>,
+    pub source_control: SourceControlData,
     pub common: CommonData,
 }
 
@@ -104,6 +106,7 @@ impl PaletteData {
         workspace: Arc<LapceWorkspace>,
         main_split: MainSplitData,
         keypress: ReadSignal<KeyPressData>,
+        source_control: SourceControlData,
         common: CommonData,
     ) -> Self {
         let status = create_rw_signal(cx, PaletteStatus::Inactive);
@@ -207,6 +210,7 @@ impl PaletteData {
             executed_commands: Rc::new(RefCell::new(HashMap::new())),
             executed_run_configs: Rc::new(RefCell::new(HashMap::new())),
             references,
+            source_control,
             common,
         };
 
@@ -369,6 +373,9 @@ impl PaletteData {
                         self.preselect_matching(syn.language.to_string().as_str());
                     }
                 }
+            }
+            PaletteKind::SCMReferences => {
+                self.get_scm_references(cx);
             }
         }
     }
@@ -800,6 +807,33 @@ impl PaletteData {
         self.items.set(items);
     }
 
+    fn get_scm_references(&self, _cx: Scope) {
+        let branches = self.source_control.branches.get_untracked();
+        let tags = self.source_control.tags.get_untracked();
+        let mut items: im::Vector<PaletteItem> = im::Vector::new();
+        for refs in branches.into_iter() {
+            items.push_back(PaletteItem {
+                content: PaletteItemContent::SCMReference {
+                    name: refs.to_owned(),
+                },
+                filter_text: refs.to_owned(),
+                score: 0,
+                indices: Vec::new(),
+            });
+        }
+        for refs in tags.into_iter() {
+            items.push_back(PaletteItem {
+                content: PaletteItemContent::SCMReference {
+                    name: refs.to_owned(),
+                },
+                filter_text: refs.to_owned(),
+                score: 0,
+                indices: Vec::new(),
+            });
+        }
+        self.items.set(items);
+    }
+
     fn preselect_matching(&self, matching: &str) {
         let Some((idx, _)) = self.items.get_untracked().iter().find_position(|item| item.filter_text == matching) else { return };
 
@@ -949,6 +983,16 @@ impl PaletteData {
                         doc.trigger_syntax_change(None);
                     });
                 }
+                PaletteItemContent::SCMReference { name } => {
+                    self.common
+                        .lapce_command
+                        .send(crate::command::LapceCommand {
+                        kind: CommandKind::Workbench(
+                            crate::command::LapceWorkbenchCommand::CheckoutReference,
+                        ),
+                        data: Some(serde_json::json!(name.to_owned())),
+                    });
+                }
             }
         } else if self.kind.get_untracked() == PaletteKind::SshHost {
             let input = self.input.with_untracked(|input| input.input.clone());
@@ -1076,6 +1120,7 @@ impl PaletteData {
                         name: name.clone(),
                         save: false,
                     }),
+                PaletteItemContent::SCMReference { .. } => {}
             }
         }
     }
