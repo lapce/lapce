@@ -16,6 +16,8 @@
 
 ### Bug Fixes
 
+- [#2315](https://github.com/lapce/lapce/pull/2315): Fix `ce` motion to respect whitespace
+
 ## 0.2.7
 
 ### Features/Changes

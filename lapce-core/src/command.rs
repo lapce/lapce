@@ -36,6 +36,8 @@ pub enum EditCommand {
     DeleteForwardAndInsert,
     #[strum(serialize = "delete_word_and_insert")]
     DeleteWordAndInsert,
+    #[strum(serialize = "delete_word_end_and_insert")]
+    DeleteWordEndAndInsert,
     #[strum(serialize = "delete_line_and_insert")]
     DeleteLineAndInsert,
     #[strum(serialize = "delete_word_forward")]

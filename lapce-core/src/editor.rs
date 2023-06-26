@@ -1353,13 +1353,18 @@ impl Editor {
                 cursor.mode = CursorMode::Insert(selection);
                 vec![(delta, inval_lines, edits)]
             }
-            DeleteWordAndInsert => {
+            DeleteWordAndInsert | DeleteWordEndAndInsert => {
                 let selection = {
                     let mut new_selection = Selection::new();
                     let selection = cursor.edit_selection(buffer);
 
                     for region in selection.regions() {
-                        let end = buffer.move_word_forward(region.end);
+                        let end = if cmd == &DeleteWordEndAndInsert {
+                            buffer.move_n_wordends_forward(region.end, 1, true)
+                        } else { 
+                            buffer.move_word_forward(region.end)
+                        };
+                        
                         let new_region = SelRegion::new(region.start, end, None);
                         new_selection.add_region(new_region);
                     }
