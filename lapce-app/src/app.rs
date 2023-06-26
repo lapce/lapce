@@ -611,8 +611,9 @@ fn editor_tab_content(
                 }
             }
             EditorTabChild::DiffEditor(diff_editor_id) => {
-                let diff_editor_data = diff_editors
-                    .with(|diff_editors| diff_editors.get(&diff_editor_id).cloned());
+                let diff_editor_data = diff_editors.with_untracked(|diff_editors| {
+                    diff_editors.get(&diff_editor_id).cloned()
+                });
                 if let Some(diff_editor_data) = diff_editor_data {
                     let diff_editor_tab_id = diff_editor_data.editor_tab_id;
                     let is_active = move |tracked: bool| {
@@ -632,6 +633,21 @@ fn editor_tab_content(
                             false
                         }
                     };
+                    let diff_editor_scope = diff_editor_data.scope;
+                    on_cleanup(ViewContext::get_current().scope, move || {
+                        let exits = diff_editors.with_untracked(|diff_editors| {
+                            diff_editors.contains_key(&diff_editor_id)
+                        });
+                        if !exits {
+                            let send =
+                                create_ext_action(diff_editor_scope, move |_| {
+                                    diff_editor_scope.dispose();
+                                });
+                            std::thread::spawn(move || {
+                                send(());
+                            });
+                        }
+                    });
                     container_box(|| {
                         Box::new(
                             stack(|| {

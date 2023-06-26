@@ -256,7 +256,7 @@ impl EditorView {
         }
     }
 
-    fn get_screen_lines(&self, cx: &mut PaintCx) -> ScreenLines {
+    fn get_screen_lines(&self) -> ScreenLines {
         let viewport = self.viewport.get_untracked();
         let (editor_view, config) = self
             .editor
@@ -304,13 +304,9 @@ impl EditorView {
                 while let Some(change) = changes.next() {
                     match (is_right, change) {
                         (true, DiffLines::Left(range)) => {
-                            let len =
-                                if let Some(DiffLines::Right(r)) = changes.peek() {
-                                    range.len() - r.len().min(range.len())
-                                } else {
-                                    range.len()
-                                };
-                            if len > 0 {
+                            if let Some(DiffLines::Right(_)) = changes.peek() {
+                            } else {
+                                let len = range.len();
                                 diff_sections.push(DiffSection {
                                     start_line: visual_line,
                                     height: len,
@@ -376,8 +372,22 @@ impl EditorView {
                                     break;
                                 }
                             }
+
+                            if is_right {
+                                if let Some(DiffLines::Left(r)) = last_change {
+                                    let len = r.len() - r.len().min(range.len());
+                                    if len > 0 {
+                                        diff_sections.push(DiffSection {
+                                            start_line: visual_line,
+                                            height: len,
+                                            kind: DiffSectionKind::NoCode,
+                                        });
+                                        visual_line += len;
+                                    }
+                                };
+                            }
                         }
-                        (_, DiffLines::Skip(left, right)) => {
+                        (_, DiffLines::Skip(_left, _right)) => {
                             visual_line += 1;
                         }
                         (_, DiffLines::Both(left, right)) => {
@@ -953,7 +963,7 @@ impl View for EditorView {
         let config = self.editor.with_untracked(|e| e.common.config);
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
-        let screen_lines = self.get_screen_lines(cx);
+        let screen_lines = self.get_screen_lines();
 
         let min_line = (viewport.y0 / line_height).floor() as usize;
         let max_line = (viewport.y1 / line_height).ceil() as usize;
