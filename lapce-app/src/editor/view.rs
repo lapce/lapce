@@ -56,9 +56,22 @@ use crate::{
     workspace::LapceWorkspace,
 };
 
+enum DiffSectionKind {
+    NoCode,
+    Added,
+    Removed,
+}
+
+struct DiffSection {
+    start_line: usize,
+    height: usize,
+    kind: DiffSectionKind,
+}
+
 struct ScreenLines {
     lines: Vec<usize>,
     info: HashMap<usize, LineInfo>,
+    diff_sections: Vec<DiffSection>,
 }
 
 struct LineInfo {
@@ -161,6 +174,62 @@ pub fn editor_view(
 }
 
 impl EditorView {
+    fn paint_diff_sections(
+        &self,
+        cx: &mut PaintCx,
+        viewport: Rect,
+        screen_lines: &ScreenLines,
+        config: &LapceConfig,
+    ) {
+        for section in &screen_lines.diff_sections {
+            match section.kind {
+                DiffSectionKind::NoCode => self.paint_diff_no_code(
+                    cx,
+                    viewport,
+                    section.start_line,
+                    section.height,
+                    config,
+                ),
+                DiffSectionKind::Added => {
+                    cx.fill(
+                        &Rect::ZERO
+                            .with_size(Size::new(
+                                viewport.width(),
+                                (config.editor.line_height() * section.height)
+                                    as f64,
+                            ))
+                            .with_origin(Point::new(
+                                viewport.x0,
+                                (section.start_line * config.editor.line_height())
+                                    as f64,
+                            )),
+                        config
+                            .get_color(LapceColor::SOURCE_CONTROL_ADDED)
+                            .with_alpha_factor(0.2),
+                    );
+                }
+                DiffSectionKind::Removed => {
+                    cx.fill(
+                        &Rect::ZERO
+                            .with_size(Size::new(
+                                viewport.width(),
+                                (config.editor.line_height() * section.height)
+                                    as f64,
+                            ))
+                            .with_origin(Point::new(
+                                viewport.x0,
+                                (section.start_line * config.editor.line_height())
+                                    as f64,
+                            )),
+                        config
+                            .get_color(LapceColor::SOURCE_CONTROL_REMOVED)
+                            .with_alpha_factor(0.2),
+                    );
+                }
+            }
+        }
+    }
+
     fn paint_diff_no_code(
         &self,
         cx: &mut PaintCx,
@@ -216,7 +285,11 @@ impl EditorView {
                         },
                     );
                 }
-                ScreenLines { lines, info }
+                ScreenLines {
+                    lines,
+                    info,
+                    diff_sections: Vec::new(),
+                }
             }
             EditorViewKind::Diff(diff_info) => {
                 let font_size = config.editor.font_size();
@@ -224,6 +297,7 @@ impl EditorView {
                 let mut visual_line = 0;
                 let mut lines = Vec::new();
                 let mut info = HashMap::new();
+                let mut diff_sections = Vec::new();
                 let mut last_change: Option<&DiffLines> = None;
                 let mut changes = diff_info.changes.iter().peekable();
                 let is_right = diff_info.is_right;
@@ -237,13 +311,11 @@ impl EditorView {
                                     range.len()
                                 };
                             if len > 0 {
-                                self.paint_diff_no_code(
-                                    cx,
-                                    viewport,
-                                    visual_line,
-                                    len,
-                                    &config,
-                                );
+                                diff_sections.push(DiffSection {
+                                    start_line: visual_line,
+                                    height: len,
+                                    kind: DiffSectionKind::NoCode,
+                                });
                                 visual_line += len;
                             }
                         }
@@ -254,13 +326,11 @@ impl EditorView {
                                 range.len()
                             };
                             if len > 0 {
-                                self.paint_diff_no_code(
-                                    cx,
-                                    viewport,
-                                    visual_line,
-                                    len,
-                                    &config,
-                                );
+                                diff_sections.push(DiffSection {
+                                    start_line: visual_line,
+                                    height: len,
+                                    kind: DiffSectionKind::NoCode,
+                                });
                                 visual_line += len;
                             }
                         }
@@ -268,27 +338,15 @@ impl EditorView {
                         | (false, DiffLines::Left(range)) => {
                             let len = range.len();
 
-                            let color = if is_right {
-                                config
-                                    .get_color(LapceColor::SOURCE_CONTROL_ADDED)
-                                    .with_alpha_factor(0.2)
-                            } else {
-                                config
-                                    .get_color(LapceColor::SOURCE_CONTROL_REMOVED)
-                                    .with_alpha_factor(0.2)
-                            };
-                            cx.fill(
-                                &Rect::ZERO
-                                    .with_size(Size::new(
-                                        viewport.width(),
-                                        line_height * len as f64,
-                                    ))
-                                    .with_origin(Point::new(
-                                        viewport.x0,
-                                        visual_line as f64 * line_height,
-                                    )),
-                                color,
-                            );
+                            diff_sections.push(DiffSection {
+                                start_line: visual_line,
+                                height: len,
+                                kind: if is_right {
+                                    DiffSectionKind::Added
+                                } else {
+                                    DiffSectionKind::Removed
+                                },
+                            });
 
                             visual_line += len;
 
@@ -355,7 +413,11 @@ impl EditorView {
                     }
                     last_change = Some(change);
                 }
-                ScreenLines { lines, info }
+                ScreenLines {
+                    lines,
+                    info,
+                    diff_sections,
+                }
             }
         }
     }
@@ -901,6 +963,7 @@ impl View for EditorView {
         let is_local = doc.with_untracked(|doc| doc.content.is_local());
 
         self.paint_cursor(cx, min_line, max_line, is_local);
+        self.paint_diff_sections(cx, viewport, &screen_lines, &config);
         self.paint_find(cx, min_line, max_line);
         self.paint_text(cx, min_line, max_line, viewport, &screen_lines);
         self.paint_sticky_headers(cx, min_line, viewport);
