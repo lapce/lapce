@@ -1665,6 +1665,7 @@ fn palette_item(
         | PaletteItemContent::SshHost { .. }
         | PaletteItemContent::Language { .. }
         | PaletteItemContent::ColorTheme { .. }
+        | PaletteItemContent::SCMReference { .. }
         | PaletteItemContent::IconTheme { .. } => {
             let text = item.filter_text;
             let indices = item.indices;

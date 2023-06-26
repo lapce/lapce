@@ -229,7 +229,7 @@ pub enum ProxyNotification {
         diffs: Vec<FileDiff>,
     },
     GitCheckout {
-        branch: String,
+        reference: String,
     },
     GitDiscardFilesChanges {
         files: Vec<PathBuf>,
@@ -486,8 +486,8 @@ impl ProxyRpcHandler {
         self.notification(ProxyNotification::GitCommit { message, diffs });
     }
 
-    pub fn git_checkout(&self, branch: String) {
-        self.notification(ProxyNotification::GitCheckout { branch });
+    pub fn git_checkout(&self, reference: String) {
+        self.notification(ProxyNotification::GitCheckout { reference });
     }
 
     pub fn install_volt(&self, volt: VoltInfo) {

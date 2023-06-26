@@ -19,6 +19,7 @@ pub struct SourceControlData {
     pub file_diffs: RwSignal<IndexMap<PathBuf, (FileDiff, bool)>>,
     pub branch: RwSignal<String>,
     pub branches: RwSignal<im::Vector<String>>,
+    pub tags: RwSignal<im::Vector<String>>,
     pub editor: EditorData,
     pub common: CommonData,
 }
@@ -65,6 +66,7 @@ impl SourceControlData {
             file_diffs: create_rw_signal(cx, IndexMap::new()),
             branch: create_rw_signal(cx, "".to_string()),
             branches: create_rw_signal(cx, im::Vector::new()),
+            tags: create_rw_signal(cx, im::Vector::new()),
             editor: EditorData::new_local(cx, EditorId::next(), common.clone()),
             common,
         }
