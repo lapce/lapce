@@ -39,7 +39,8 @@ pub fn source_control_panel(
     let viewport = editor.viewport;
     let cx = ViewContext::get_current();
     let editor = create_rw_signal(cx.scope, editor);
-    let is_active = move || focus.get() == Focus::Panel(PanelKind::SourceControl);
+    let is_active =
+        move || focus.get_untracked() == Focus::Panel(PanelKind::SourceControl);
     let is_empty =
         create_memo(cx.scope, move |_| doc.with(|doc| doc.buffer().len() == 0));
 

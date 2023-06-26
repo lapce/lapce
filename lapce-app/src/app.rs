@@ -403,9 +403,9 @@ fn editor_tab_header(
 
         let confirmed = match local_child {
             EditorTabChild::Editor(editor_id) => {
-                let editor_data =
-                    editors.with(|editors| editors.get(&editor_id).cloned());
-                editor_data.map(|editor_data| editor_data.get().confirmed)
+                let editor_data = editors
+                    .with_untracked(|editors| editors.get(&editor_id).cloned());
+                editor_data.map(|editor_data| editor_data.get_untracked().confirmed)
             }
             _ => None,
         };
@@ -572,15 +572,27 @@ fn editor_tab_content(
         let common = common.clone();
         let child = match child {
             EditorTabChild::Editor(editor_id) => {
-                let editor_data =
-                    editors.with(|editors| editors.get(&editor_id).cloned());
+                let editor_data = editors
+                    .with_untracked(|editors| editors.get(&editor_id).cloned());
                 if let Some(editor_data) = editor_data {
-                    let is_active = move || {
-                        let focus = focus.get();
+                    let is_active = move |tracked: bool| {
+                        let focus = if tracked {
+                            focus.get()
+                        } else {
+                            focus.get_untracked()
+                        };
                         if let Focus::Workbench = focus {
-                            let active_editor_tab = active_editor_tab.get();
-                            let editor_tab =
-                                editor_data.with(|editor| editor.editor_tab_id);
+                            let active_editor_tab = if tracked {
+                                active_editor_tab.get()
+                            } else {
+                                active_editor_tab.get_untracked()
+                            };
+                            let editor_tab = if tracked {
+                                editor_data.with(|editor| editor.editor_tab_id)
+                            } else {
+                                editor_data
+                                    .with_untracked(|editor| editor.editor_tab_id)
+                            };
                             editor_tab.is_some() && editor_tab == active_editor_tab
                         } else {
                             false
@@ -603,10 +615,18 @@ fn editor_tab_content(
                     .with(|diff_editors| diff_editors.get(&diff_editor_id).cloned());
                 if let Some(diff_editor_data) = diff_editor_data {
                     let diff_editor_tab_id = diff_editor_data.editor_tab_id;
-                    let is_active = move || {
-                        let focus = focus.get();
+                    let is_active = move |tracked: bool| {
+                        let focus = if tracked {
+                            focus.get()
+                        } else {
+                            focus.get_untracked()
+                        };
                         if let Focus::Workbench = focus {
-                            let active_editor_tab = active_editor_tab.get();
+                            let active_editor_tab = if tracked {
+                                active_editor_tab.get()
+                            } else {
+                                active_editor_tab.get_untracked()
+                            };
                             Some(diff_editor_tab_id) == active_editor_tab
                         } else {
                             false
@@ -845,8 +865,8 @@ fn split_list(
     let view_fn = move |(_index, content), main_split: MainSplitData| {
         let child = match &content {
             SplitContent::EditorTab(editor_tab_id) => {
-                let editor_tab_data =
-                    editor_tabs.with(|tabs| tabs.get(editor_tab_id).cloned());
+                let editor_tab_data = editor_tabs
+                    .with_untracked(|tabs| tabs.get(editor_tab_id).cloned());
                 if let Some(editor_tab_data) = editor_tab_data {
                     container_box(|| {
                         Box::new(editor_tab(
@@ -932,7 +952,7 @@ fn main_split(window_tab_data: Arc<WindowTabData>) -> impl View {
     let root_split = window_tab_data
         .main_split
         .splits
-        .get()
+        .get_untracked()
         .get(&root_split)
         .unwrap()
         .read_only();
@@ -1993,7 +2013,12 @@ fn palette_preview(palette_data: PaletteData) -> impl View {
     let main_split = palette_data.main_split;
     container(|| {
         container(|| {
-            editor_container_view(main_split, workspace, || true, preview_editor)
+            editor_container_view(
+                main_split,
+                workspace,
+                |_tracked: bool| true,
+                preview_editor,
+            )
         })
         .style(move || {
             let config = config.get();

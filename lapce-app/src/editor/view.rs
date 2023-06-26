@@ -444,7 +444,6 @@ impl EditorView {
         let viewport = self.viewport.get_untracked();
         let is_active = (*self.is_active)() && !find_focus.get_untracked();
 
-        view.track_doc();
         let renders = cursor.with_untracked(|cursor| match &cursor.mode {
             CursorMode::Normal(offset) => {
                 let line = view.line_of_offset(*offset);
@@ -1275,7 +1274,7 @@ fn insert_cursor(
 pub fn editor_container_view(
     main_split: MainSplitData,
     workspace: Arc<LapceWorkspace>,
-    is_active: impl Fn() -> bool + 'static + Copy,
+    is_active: impl Fn(bool) -> bool + 'static + Copy,
     editor: RwSignal<EditorData>,
 ) -> impl View {
     let (find_focus, sticky_header_height, config, editor_id, editor_scope) = editor
@@ -1360,10 +1359,10 @@ pub fn editor_container_view(
 
 fn editor_gutter(
     editor: RwSignal<EditorData>,
-    is_active: impl Fn() -> bool + 'static + Copy,
+    is_active: impl Fn(bool) -> bool + 'static + Copy,
     gutter_rect: RwSignal<Rect>,
 ) -> impl View {
-    let (cursor, viewport, scroll_delta, config) = editor.with(|editor| {
+    let (cursor, viewport, scroll_delta, config) = editor.with_untracked(|editor| {
         (
             editor.cursor,
             editor.viewport,
@@ -1377,7 +1376,7 @@ fn editor_gutter(
 
     let cx = ViewContext::get_current();
     let code_action_line = create_memo(cx.scope, move |_| {
-        if is_active() {
+        if is_active(true) {
             let doc = editor.with(|editor| editor.doc);
             let offset = cursor.with(|cursor| cursor.offset());
             doc.with(|doc| {
@@ -1706,7 +1705,7 @@ fn editor_breadcrumbs(
 
 fn editor_content(
     editor: RwSignal<EditorData>,
-    is_active: impl Fn() -> bool + 'static + Copy,
+    is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
     let (
         cursor,
@@ -1729,18 +1728,20 @@ fn editor_content(
     });
 
     scroll(|| {
-        let editor_content_view = editor_view(editor, is_active).style(move || {
-            let config = config.get();
-            let padding_bottom = if config.editor.scroll_beyond_last_line {
-                viewport.get().height() as f32 - config.editor.line_height() as f32
-            } else {
-                0.0
-            };
-            Style::BASE
-                .padding_bottom_px(padding_bottom)
-                .cursor(CursorStyle::Text)
-                .min_size_pct(100.0, 100.0)
-        });
+        let editor_content_view = editor_view(editor, move || is_active(false))
+            .style(move || {
+                let config = config.get();
+                let padding_bottom = if config.editor.scroll_beyond_last_line {
+                    viewport.get().height() as f32
+                        - config.editor.line_height() as f32
+                } else {
+                    0.0
+                };
+                Style::BASE
+                    .padding_bottom_px(padding_bottom)
+                    .cursor(CursorStyle::Text)
+                    .min_size_pct(100.0, 100.0)
+            });
         let id = editor_content_view.id();
         editor_content_view
             .on_event(EventListener::PointerDown, move |event| {
@@ -1823,7 +1824,7 @@ fn editor_content(
 fn search_editor_view(
     find_editor: EditorData,
     find_focus: RwSignal<bool>,
-    is_active: impl Fn() -> bool + 'static + Copy,
+    is_active: impl Fn(bool) -> bool + 'static + Copy,
     replace_focus: RwSignal<bool>,
 ) -> impl View {
     let config = find_editor.common.config;
@@ -1836,7 +1837,7 @@ fn search_editor_view(
     stack(|| {
         (
             text_input(find_editor, move || {
-                is_active()
+                is_active(true)
                     && visual.get()
                     && find_focus.get()
                     && !replace_focus.get()
@@ -1903,7 +1904,7 @@ fn replace_editor_view(
     replace_editor: EditorData,
     replace_active: RwSignal<bool>,
     replace_focus: RwSignal<bool>,
-    is_active: impl Fn() -> bool + 'static + Copy,
+    is_active: impl Fn(bool) -> bool + 'static + Copy,
     find_focus: RwSignal<bool>,
 ) -> impl View {
     let config = replace_editor.common.config;
@@ -1912,7 +1913,7 @@ fn replace_editor_view(
     stack(|| {
         (
             text_input(replace_editor, move || {
-                is_active()
+                is_active(true)
                     && visual.get()
                     && find_focus.get()
                     && replace_active.get()
@@ -1950,7 +1951,7 @@ fn find_view(
     replace_editor: EditorData,
     replace_active: RwSignal<bool>,
     replace_focus: RwSignal<bool>,
-    is_active: impl Fn() -> bool + 'static + Copy,
+    is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
     let config = find_editor.common.config;
     let find_visual = find_editor.common.find.visual;
