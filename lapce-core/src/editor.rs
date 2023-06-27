@@ -120,6 +120,7 @@ impl Editor {
                     if region.start != region.end
                         && (matching_pair_type == Some(true)
                             || c == '"'
+                            || c == '`'
                             || c == '\'')
                     {
                         edits.push((
@@ -130,6 +131,7 @@ impl Editor {
                             idx,
                             match c {
                                 '"' => '"',
+                                '`' => '`',
                                 '\'' => '\'',
                                 _ => matching_char(c).unwrap(),
                             },
@@ -138,7 +140,9 @@ impl Editor {
                     }
 
                     if auto_closing_matching_pairs {
-                        if (c == '"' || c == '\'') && cursor_char == Some(c) {
+                        if (c == '"' || c == '`' || c == '\'')
+                            && cursor_char == Some(c)
+                        {
                             // Skip the closing character
                             let new_offset =
                                 buffer.next_grapheme_offset(offset, 1, buffer.len());
@@ -189,7 +193,10 @@ impl Editor {
                             }
                         }
 
-                        if matching_pair_type == Some(true) || c == '"' || c == '\''
+                        if matching_pair_type == Some(true)
+                            || c == '"'
+                            || c == '`'
+                            || c == '\''
                         {
                             // Create a late edit to insert the closing pair, if allowed.
                             let is_whitespace_or_punct = cursor_char
@@ -220,6 +227,7 @@ impl Editor {
                             if should_insert_pair {
                                 let insert_after = match c {
                                     '"' => '"',
+                                    '`' => '`',
                                     '\'' => '\'',
                                     _ => matching_char(c).unwrap(),
                                 };
@@ -1592,8 +1600,13 @@ mod test {
         selection.add_region(SelRegion::new(0, 4, None));
         selection.add_region(SelRegion::new(5, 9, None));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
-        Editor::insert(&mut cursor, &mut buffer, "{", None, true);
+
+        Editor::insert(&mut cursor.clone(), &mut buffer, "{", None, true);
         assert_eq!("{a bc}\n{e fg}\n", buffer.slice_to_cow(0..buffer.len()));
+
+        buffer.do_undo();
+        Editor::insert(&mut cursor.clone(), &mut buffer, "`", None, true);
+        assert_eq!("`a bc`\n`e fg`\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
     #[test]

@@ -54,6 +54,8 @@
 - [#1944](https://github.com/lapce/lapce/pull/1944): Add filter input in git branch selection
   - ![image](https://user-images.githubusercontent.com/4404609/211232461-293e3b31-4e17-457e-825c-3018699a6fc2.png)
 
+- [#1855](https://github.com/lapce/lapce/pull/1855): Support auto-closing/matching-pairs for backticks
+
 ### Bug Fixes
 - [#1911](https://github.com/lapce/lapce/pull/1911): Fix movement on selections with left/right arrow keys
 - [#1939](https://github.com/lapce/lapce/pull/1939): Fix saving/editing newly saved-as files
