@@ -1634,82 +1634,81 @@ fn editor_breadcrumbs(
     editor: RwSignal<EditorData>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    stack(move || {
-        (
-            label(|| " ".to_string()).style(|| Style::BASE.margin_vert_px(5.0)),
-            scroll(move || {
-                let workspace = workspace.clone();
-                list(
-                    move || {
-                        let doc = editor.with(|editor| editor.doc);
-                        let full_path = doc
-                            .with_untracked(|doc| doc.content.path().cloned())
-                            .unwrap_or_default();
-                        let mut path = full_path;
-                        if let Some(workspace_path) = workspace.clone().path.as_ref()
-                        {
-                            path = path
-                                .strip_prefix(workspace_path)
-                                .unwrap_or(&path)
-                                .to_path_buf();
-                        }
-                        path.ancestors()
-                            .collect::<Vec<_>>()
-                            .iter()
-                            .rev()
-                            .filter_map(|path| {
-                                Some(path.file_name()?.to_str()?.to_string())
-                            })
-                            .collect::<Vec<_>>()
-                            .into_iter()
-                            .enumerate()
-                    },
-                    |(i, section)| (*i, section.to_string()),
-                    move |(i, section)| {
-                        stack(move || {
-                            (
-                                svg(move || {
-                                    config
-                                        .get()
-                                        .ui_svg(LapceIcons::BREADCRUMB_SEPARATOR)
-                                })
-                                .style(move || {
-                                    let config = config.get();
-                                    let size = config.ui.icon_size() as f32;
-                                    Style::BASE
-                                        .apply_if(i == 0, |s| s.hide())
-                                        .size_px(size, size)
-                                        .color(*config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ))
-                                }),
-                                label(move || section.clone()),
-                            )
+    container(move || {
+        scroll(move || {
+            let workspace = workspace.clone();
+            list(
+                move || {
+                    let doc = editor.with(|editor| editor.doc);
+                    let full_path = doc
+                        .with_untracked(|doc| doc.content.path().cloned())
+                        .unwrap_or_default();
+                    let mut path = full_path;
+                    if let Some(workspace_path) = workspace.clone().path.as_ref() {
+                        path = path
+                            .strip_prefix(workspace_path)
+                            .unwrap_or(&path)
+                            .to_path_buf();
+                    }
+                    path.ancestors()
+                        .collect::<Vec<_>>()
+                        .iter()
+                        .rev()
+                        .filter_map(|path| {
+                            Some(path.file_name()?.to_str()?.to_string())
                         })
-                        .style(|| Style::BASE.items_center())
-                    },
-                )
-                .style(|| Style::BASE.padding_horiz_px(10.0))
-            })
-            .on_scroll_to(move || {
-                editor.with(|_editor| ());
-                Some(Point::new(3000.0, 0.0))
-            })
-            .hide_bar(|| true)
-            .style(move || {
-                Style::BASE
-                    .absolute()
-                    .size_pct(100.0, 100.0)
-                    .border_bottom(1.0)
-                    .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
-                    .items_center()
-            }),
-        )
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .enumerate()
+                },
+                |(i, section)| (*i, section.to_string()),
+                move |(i, section)| {
+                    stack(move || {
+                        (
+                            svg(move || {
+                                config.get().ui_svg(LapceIcons::BREADCRUMB_SEPARATOR)
+                            })
+                            .style(move || {
+                                let config = config.get();
+                                let size = config.ui.icon_size() as f32;
+                                Style::BASE
+                                    .apply_if(i == 0, |s| s.hide())
+                                    .size_px(size, size)
+                                    .color(
+                                        *config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ),
+                                    )
+                            }),
+                            label(move || section.clone()),
+                        )
+                    })
+                    .style(|| Style::BASE.items_center())
+                },
+            )
+            .style(|| Style::BASE.padding_horiz_px(10.0))
+        })
+        .on_scroll_to(move || {
+            editor.with(|_editor| ());
+            Some(Point::new(3000.0, 0.0))
+        })
+        .hide_bar(|| true)
+        .style(move || {
+            Style::BASE
+                .absolute()
+                .size_pct(100.0, 100.0)
+                .border_bottom(1.0)
+                .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+                .items_center()
+        })
     })
     .style(move || {
         let config = config.get_untracked();
         let line_height = config.editor.line_height();
-        Style::BASE.items_center().height_px(line_height as f32)
+        Style::BASE
+            .items_center()
+            .width_pct(100.0)
+            .height_px(line_height as f32)
     })
 }
 

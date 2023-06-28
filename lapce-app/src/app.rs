@@ -58,7 +58,7 @@ use crate::{
     debug::RunDebugMode,
     doc::DocContent,
     editor::{
-        diff::DiffEditorData,
+        diff::{diff_show_more_section, DiffEditorData},
         location::{EditorLocation, EditorPosition},
         view::editor_container_view,
         EditorData,
@@ -690,6 +690,7 @@ fn editor_tab_content(
                                                 .flex_basis_px(0.0)
                                         },
                                     ),
+                                    diff_show_more_section(diff_editor_data.right),
                                 )
                             })
                             .style(|| Style::BASE.size_pct(100.0, 100.0)),

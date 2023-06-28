@@ -7,11 +7,15 @@ use floem::{
         SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
         SignalWithUntracked,
     },
+    style::Style,
+    view::View,
+    views::{clip, empty, label, list, stack, Decorators},
 };
 use lapce_core::buffer::{rope_diff, rope_text::RopeText, DiffLines};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    config::color::LapceColor,
     doc::{DocContent, Document},
     id::{DiffEditorId, EditorId, EditorTabId},
     main_split::MainSplitData,
@@ -243,4 +247,106 @@ impl DiffEditorData {
             });
         });
     }
+}
+
+struct DiffShowMoreSection {
+    line: usize,
+    lines: usize,
+}
+
+pub fn diff_show_more_section(editor: RwSignal<EditorData>) -> impl View {
+    let (viewport, config) =
+        editor.with_untracked(|editor| (editor.viewport, editor.common.config));
+
+    let each_fn = move || {
+        let editor_view = editor.with(|editor| editor.new_view);
+        let editor_view = editor_view.get();
+        if let EditorViewKind::Diff(diff_info) = editor_view {
+            let viewport = viewport.get();
+            let config = config.get_untracked();
+            let line_height = config.editor.line_height() as f64;
+
+            let min_line = (viewport.y0 / line_height).floor() as usize;
+            let max_line = (viewport.y1 / line_height).ceil() as usize;
+
+            let mut visual_line = 0;
+            let mut last_change: Option<&DiffLines> = None;
+            let mut changes = diff_info.changes.iter().peekable();
+            let mut sections = Vec::new();
+            while let Some(change) = changes.next() {
+                match change {
+                    DiffLines::Left(range) => {
+                        if let Some(DiffLines::Right(_)) = changes.peek() {
+                        } else {
+                            let len = range.len();
+                            visual_line += len;
+                        }
+                    }
+                    DiffLines::Right(range) => {
+                        let len = range.len();
+                        visual_line += len;
+
+                        if let Some(DiffLines::Left(r)) = last_change {
+                            let len = r.len() - r.len().min(range.len());
+                            if len > 0 {
+                                visual_line += len;
+                            }
+                        };
+                    }
+                    DiffLines::Skip(_left, right) => {
+                        if visual_line + 1 >= min_line {
+                            sections.push(DiffShowMoreSection {
+                                line: visual_line,
+                                lines: right.len(),
+                            });
+                        }
+                        visual_line += 1;
+                    }
+                    DiffLines::Both(_left, right) => {
+                        let len = right.len();
+                        visual_line += len;
+                    }
+                }
+                if visual_line > max_line {
+                    break;
+                }
+                last_change = Some(change);
+            }
+            sections
+        } else {
+            Vec::new()
+        }
+    };
+
+    let key_fn = move |section: &DiffShowMoreSection| (section.line, section.lines);
+
+    let view_fn = move |section: DiffShowMoreSection| {
+        label(|| "Show more".to_string()).style(move || {
+            let config = config.get();
+            Style::BASE
+                .absolute()
+                .width_pct(100.0)
+                .height_px(config.editor.line_height() as f32)
+                .items_center()
+                .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+                .margin_top_px(
+                    (section.line * config.editor.line_height()) as f32
+                        - viewport.get().y0 as f32,
+                )
+        })
+    };
+
+    stack(move || {
+        (
+            empty().style(move || {
+                Style::BASE.height_px(config.get().editor.line_height() as f32 + 1.0)
+            }),
+            clip(|| {
+                list(each_fn, key_fn, view_fn)
+                    .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
+            })
+            .style(|| Style::BASE.size_pct(100.0, 100.0)),
+        )
+    })
+    .style(|| Style::BASE.absolute().flex_col().size_pct(100.0, 100.0))
 }
