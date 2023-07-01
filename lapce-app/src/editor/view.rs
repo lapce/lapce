@@ -239,15 +239,28 @@ impl EditorView {
         config: &LapceConfig,
     ) {
         let line_height = config.editor.line_height();
-        let height = height * line_height;
+        let height = (height * line_height) as f64;
         let y = (start_line * line_height) as f64;
+        let y_end = y + height;
+        let y = if y_end > viewport.y0 {
+            y.max(viewport.y0 - 10.0)
+        } else {
+            y
+        };
+        let height = if y_end > viewport.y1 {
+            viewport.height() + 10.0
+        } else {
+            y_end - y
+        };
 
         let start_x = viewport.x0.floor() as usize;
         let start_x = start_x - start_x % 8;
 
-        for x in (start_x..viewport.x1.ceil() as usize + 1 + height).step_by(8) {
+        for x in (start_x..viewport.x1.ceil() as usize + 1 + height.ceil() as usize)
+            .step_by(8)
+        {
             let p0 = Point::new(x as f64, y);
-            let p1 = Point::new(x as f64 - height as f64, y + height as f64);
+            let p1 = Point::new(x as f64 - height, y + height);
             cx.stroke(
                 &Line::new(p0, p1),
                 *config.get_color(LapceColor::EDITOR_DIM),
