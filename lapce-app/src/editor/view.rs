@@ -347,6 +347,20 @@ impl EditorView {
                             visual_line += len;
 
                             if visual_line < min_line {
+                                if is_right {
+                                    if let Some(DiffLines::Left(r)) = last_change {
+                                        let len = r.len() - r.len().min(range.len());
+                                        if len > 0 {
+                                            diff_sections.push(DiffSection {
+                                                start_line: visual_line,
+                                                height: len,
+                                                kind: DiffSectionKind::NoCode,
+                                            });
+                                            visual_line += len;
+                                        }
+                                    };
+                                }
+                                last_change = Some(change);
                                 continue;
                             }
 
@@ -402,6 +416,7 @@ impl EditorView {
                                     .unwrap_or(0);
                             if visual_line + diff_height < min_line {
                                 visual_line += diff_height;
+                                last_change = Some(change);
                                 continue;
                             }
 
@@ -415,16 +430,18 @@ impl EditorView {
                                     }
                                 }
 
-                                lines.push(actual_line);
-                                info.insert(
-                                    actual_line,
-                                    LineInfo {
-                                        font_size,
-                                        x: 0.0,
-                                        y: visual_line as f64 * line_height,
-                                        line_height,
-                                    },
-                                );
+                                if visual_line >= min_line {
+                                    lines.push(actual_line);
+                                    info.insert(
+                                        actual_line,
+                                        LineInfo {
+                                            font_size,
+                                            x: 0.0,
+                                            y: visual_line as f64 * line_height,
+                                            line_height,
+                                        },
+                                    );
+                                }
                                 visual_line += 1;
                                 actual_line += 1;
 
@@ -740,11 +757,14 @@ impl EditorView {
         start_line: usize,
         viewport: Rect,
     ) {
-        let (view, config) = self
-            .editor
-            .with_untracked(|editor| (editor.view.clone(), editor.common.config));
+        let (view, editor_view, config) = self.editor.with_untracked(|editor| {
+            (editor.view.clone(), editor.new_view, editor.common.config)
+        });
         let config = config.get_untracked();
         if !config.editor.sticky_header {
+            return;
+        }
+        if !editor_view.get_untracked().is_normal() {
             return;
         }
 

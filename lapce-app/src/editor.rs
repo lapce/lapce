@@ -119,6 +119,12 @@ pub enum EditorViewKind {
     Diff(DiffInfo),
 }
 
+impl EditorViewKind {
+    pub fn is_normal(&self) -> bool {
+        matches!(self, EditorViewKind::Normal)
+    }
+}
+
 #[derive(Clone)]
 pub struct EditorData {
     pub scope: Scope,
