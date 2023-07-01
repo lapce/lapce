@@ -27,8 +27,8 @@ use floem::{
 };
 use lapce_core::{
     buffer::{
+        diff::DiffLines,
         rope_text::{RopeText, RopeTextVal},
-        DiffLines,
     },
     char_buffer::CharBuffer,
     cursor::{ColPosition, CursorMode},

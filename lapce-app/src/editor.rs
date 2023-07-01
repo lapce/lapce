@@ -12,7 +12,7 @@ use floem::{
     },
 };
 use lapce_core::{
-    buffer::{rope_text::RopeText, DiffLines, InvalLines},
+    buffer::{rope_text::RopeText, InvalLines},
     command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
     cursor::{Cursor, CursorMode},
     editor::EditType,

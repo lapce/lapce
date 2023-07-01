@@ -14,7 +14,8 @@ use floem::{
     views::{clip, empty, label, list, stack, svg, Decorators},
 };
 use lapce_core::buffer::{
-    expand_diff_lines, rope_diff, rope_text::RopeText, DiffExpand, DiffLines,
+    diff::{expand_diff_lines, rope_diff, DiffExpand, DiffLines},
+    rope_text::RopeText,
 };
 use serde::{Deserialize, Serialize};
 

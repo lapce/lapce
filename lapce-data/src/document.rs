@@ -14,7 +14,7 @@ use druid::{
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::{rope_text::RopeText, Buffer, DiffLines, InvalLines},
+    buffer::{diff::DiffLines, rope_text::RopeText, Buffer, InvalLines},
     char_buffer::CharBuffer,
     command::{EditCommand, MultiSelectionCommand},
     cursor::{ColPosition, Cursor, CursorMode},

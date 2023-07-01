@@ -6,7 +6,7 @@ use druid::{
     UpdateCtx, Widget, WidgetId,
 };
 use lapce_core::{
-    buffer::{rope_text::RopeText, DiffLines},
+    buffer::{diff::DiffLines, rope_text::RopeText},
     command::FocusCommand,
 };
 use lapce_data::{

@@ -12,7 +12,11 @@ use druid::{
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::{rope_diff, rope_text::RopeText, Buffer, DiffLines},
+    buffer::{
+        diff::{rope_diff, DiffLines},
+        rope_text::RopeText,
+        Buffer,
+    },
     style::line_styles,
     syntax::Syntax,
 };

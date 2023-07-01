@@ -15,7 +15,11 @@ use floem::{
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::{rope_diff, rope_text::RopeText, Buffer, DiffLines, InvalLines},
+    buffer::{
+        diff::{rope_diff, DiffLines},
+        rope_text::RopeText,
+        Buffer, InvalLines,
+    },
     command::EditCommand,
     cursor::Cursor,
     editor::{EditType, Editor},

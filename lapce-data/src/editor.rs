@@ -19,7 +19,7 @@ use druid::{
 use indexmap::IndexMap;
 pub use lapce_core::syntax::Syntax;
 use lapce_core::{
-    buffer::{rope_text::RopeText, Buffer, DiffLines, InvalLines},
+    buffer::{diff::DiffLines, rope_text::RopeText, Buffer, InvalLines},
     command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
     editor::EditType,
     mode::{Mode, MotionMode},
