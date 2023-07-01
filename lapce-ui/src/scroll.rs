@@ -330,6 +330,14 @@ impl<T: Data, W: Widget<T>> Widget<T> for ClipBox<T, W> {
         bc.debug_check("ClipBox");
 
         let content_size = self.child.layout(ctx, bc, data, env);
+        
+        // Check if the content size is smaller than the viewport size.
+        if content_size.width <= self.port.rect.width() {
+            self.constrain_horizontal = false;
+        } else {
+            self.constrain_horizontal = true;
+        }
+
         self.port.content_size = content_size;
         self.child.set_origin(ctx, data, env, Point::ORIGIN);
 
