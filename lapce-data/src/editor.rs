@@ -1106,21 +1106,23 @@ impl LapceEditorBufferData {
                                         match next {
                                             DiffLines::Right(_) => {}
                                             DiffLines::Left(_) => {}
-                                            DiffLines::Both(_, r) => {
-                                                let start =
-                                                    buffer.offset_of_line(r.start);
-                                                positions.push(start);
-                                            }
-                                            DiffLines::Skip(_, r) => {
-                                                let start =
-                                                    buffer.offset_of_line(r.start);
-                                                positions.push(start);
-                                            }
+                                            // DiffLines::Both(_, r) => {
+                                            //     let start =
+                                            //         buffer.offset_of_line(r.start);
+                                            //     positions.push(start);
+                                            // }
+                                            // DiffLines::Skip(_, r) => {
+                                            //     let start =
+                                            //         buffer.offset_of_line(r.start);
+                                            //     positions.push(start);
+                                            // }
+                                            _ => {}
                                         }
                                     }
                                 }
-                                DiffLines::Both(_, _) => {}
-                                DiffLines::Skip(_, _) => {}
+                                // DiffLines::Both(_, _) => {}
+                                // DiffLines::Skip(_, _) => {}
+                                _ => {}
                                 DiffLines::Right(r) => {
                                     let start = buffer.offset_of_line(r.start);
                                     positions.push(start);

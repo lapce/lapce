@@ -207,23 +207,24 @@ impl Widget<LapceTabData> for DiffBox {
                             match next {
                                 DiffLines::Right(_) => {}
                                 DiffLines::Left(_) => {}
-                                DiffLines::Both(_, r) => {
-                                    diff_blocks.push(Range {
-                                        start: r.start,
-                                        end: r.start,
-                                    });
-                                }
-                                DiffLines::Skip(_, r) => {
-                                    diff_blocks.push(Range {
-                                        start: r.start,
-                                        end: r.start,
-                                    });
-                                }
+                                _ => {} // DiffLines::Both(_, r) => {
+                                        //     diff_blocks.push(Range {
+                                        //         start: r.start,
+                                        //         end: r.start,
+                                        //     });
+                                        // }
+                                        // DiffLines::Skip(_, r) => {
+                                        //     diff_blocks.push(Range {
+                                        //         start: r.start,
+                                        //         end: r.start,
+                                        //     });
+                                        // }
                             }
                         }
                     }
-                    DiffLines::Both(_, _) => {}
-                    DiffLines::Skip(_, _) => {}
+                    // DiffLines::Both(_, _) => {}
+                    // DiffLines::Skip(_, _) => {}
+                    _ => {}
                     DiffLines::Right(r) => {
                         diff_blocks.push(Range {
                             start: r.start,

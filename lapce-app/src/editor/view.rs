@@ -387,22 +387,33 @@ impl EditorView {
                                 };
                             }
                         }
-                        (_, DiffLines::Skip(_left, _right)) => {
-                            visual_line += 1;
-                        }
-                        (_, DiffLines::Both(left, right)) => {
-                            let start =
-                                if is_right { right.start } else { left.start };
-                            let len = right.len();
-                            visual_line += len;
-                            if visual_line < min_line {
+                        (_, DiffLines::Both(bothinfo)) => {
+                            let start = if is_right {
+                                bothinfo.right.start
+                            } else {
+                                bothinfo.left.start
+                            };
+                            let len = bothinfo.right.len();
+                            let diff_height = len
+                                - bothinfo
+                                    .skip
+                                    .as_ref()
+                                    .map(|skip| skip.len().saturating_sub(1))
+                                    .unwrap_or(0);
+                            if visual_line + diff_height < min_line {
+                                visual_line += diff_height;
                                 continue;
                             }
-                            for l in visual_line - len..visual_line {
-                                if l < min_line {
-                                    continue;
+
+                            let mut actual_line = start;
+                            while actual_line < start + len {
+                                if let Some(skip) = bothinfo.skip.as_ref() {
+                                    if skip.start == actual_line - start {
+                                        visual_line += 1;
+                                        actual_line += skip.len();
+                                        continue;
+                                    }
                                 }
-                                let actual_line = l - (visual_line - len) + start;
 
                                 lines.push(actual_line);
                                 info.insert(
@@ -410,12 +421,14 @@ impl EditorView {
                                     LineInfo {
                                         font_size,
                                         x: 0.0,
-                                        y: l as f64 * line_height,
+                                        y: visual_line as f64 * line_height,
                                         line_height,
                                     },
                                 );
+                                visual_line += 1;
+                                actual_line += 1;
 
-                                if l > max_line {
+                                if visual_line - 1 > max_line {
                                     break;
                                 }
                             }
@@ -2802,8 +2815,7 @@ fn changes_colors(
     for change in changes.iter() {
         let len = match change {
             DiffLines::Left(_range) => 0,
-            DiffLines::Skip(_left, right) => right.len(),
-            DiffLines::Both(_left, right) => right.len(),
+            DiffLines::Both(info) => info.right.len(),
             DiffLines::Right(range) => range.len(),
         };
         line += len;

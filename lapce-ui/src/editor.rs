@@ -453,9 +453,10 @@ impl LapceEditor {
                         for change in history.changes().iter() {
                             match change {
                                 DiffLines::Left(l) => lines += l.len(),
-                                DiffLines::Both(_l, r) => lines += r.len(),
-                                DiffLines::Skip(_l, _r) => lines += 1,
                                 DiffLines::Right(r) => lines += r.len(),
+                                // DiffLines::Both(_l, r) => lines += r.len(),
+                                // DiffLines::Skip(_l, _r) => lines += 1,
+                                _ => {}
                             }
                         }
                     }
@@ -711,74 +712,6 @@ impl LapceEditor {
                         }
                     }
                 }
-                DiffLines::Skip(left, right) => {
-                    let rect = Size::new(self_size.width, line_height)
-                        .to_rect()
-                        .with_origin(Point::new(0.0, line_height * line as f64));
-                    ctx.fill(
-                        rect,
-                        data.config
-                            .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
-                    );
-                    ctx.stroke(
-                        rect,
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                        1.0,
-                    );
-                    let text_layout = ctx
-                        .text()
-                        .new_text_layout(format!(
-                            " -{}, +{}",
-                            left.end + 1,
-                            right.end + 1
-                        ))
-                        .font(data.config.editor.font_family(), font_size as f64)
-                        .text_color(
-                            data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                                .clone(),
-                        )
-                        .build()
-                        .unwrap();
-                    ctx.draw_text(
-                        &text_layout,
-                        Point::new(
-                            0.0,
-                            line_height * line as f64
-                                + text_layout.y_offset(line_height),
-                        ),
-                    );
-                    line += 1;
-                }
-                DiffLines::Both(_left, right) => {
-                    let len = right.len();
-                    line += len;
-                    if line < start_line {
-                        continue;
-                    }
-                    for l in line - len..line {
-                        if l < start_line {
-                            continue;
-                        }
-                        let rope_line = l - (line - len) + right.start;
-
-                        lines.push(rope_line);
-                        info.insert(
-                            rope_line,
-                            LineInfo {
-                                font_size,
-                                x: 0.0,
-                                y: l as f64 * line_height,
-                                line_height,
-                            },
-                        );
-
-                        if l > end_line {
-                            break;
-                        }
-                    }
-                }
                 DiffLines::Right(range) => {
                     let len = range.len();
                     line += len;
@@ -820,6 +753,75 @@ impl LapceEditor {
                         }
                     }
                 }
+                // DiffLines::Skip(left, right) => {
+                //     let rect = Size::new(self_size.width, line_height)
+                //         .to_rect()
+                //         .with_origin(Point::new(0.0, line_height * line as f64));
+                //     ctx.fill(
+                //         rect,
+                //         data.config
+                //             .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                //     );
+                //     ctx.stroke(
+                //         rect,
+                //         data.config
+                //             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                //         1.0,
+                //     );
+                //     let text_layout = ctx
+                //         .text()
+                //         .new_text_layout(format!(
+                //             " -{}, +{}",
+                //             left.end + 1,
+                //             right.end + 1
+                //         ))
+                //         .font(data.config.editor.font_family(), font_size as f64)
+                //         .text_color(
+                //             data.config
+                //                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                //                 .clone(),
+                //         )
+                //         .build()
+                //         .unwrap();
+                //     ctx.draw_text(
+                //         &text_layout,
+                //         Point::new(
+                //             0.0,
+                //             line_height * line as f64
+                //                 + text_layout.y_offset(line_height),
+                //         ),
+                //     );
+                //     line += 1;
+                // }
+                // DiffLines::Both(_left, right) => {
+                //     let len = right.len();
+                //     line += len;
+                //     if line < start_line {
+                //         continue;
+                //     }
+                //     for l in line - len..line {
+                //         if l < start_line {
+                //             continue;
+                //         }
+                //         let rope_line = l - (line - len) + right.start;
+
+                //         lines.push(rope_line);
+                //         info.insert(
+                //             rope_line,
+                //             LineInfo {
+                //                 font_size,
+                //                 x: 0.0,
+                //                 y: l as f64 * line_height,
+                //                 line_height,
+                //             },
+                //         );
+
+                //         if l > end_line {
+                //             break;
+                //         }
+                //     }
+                // }
+                _ => {}
             }
         }
         ScreenLines { lines, info }

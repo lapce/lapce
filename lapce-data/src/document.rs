@@ -767,19 +767,19 @@ impl Document {
                     DiffLines::Left(range) => {
                         visual_line += range.len();
                     }
-                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                        if r.contains(&line) {
-                            visual_line += line - r.start;
-                            break;
-                        }
-                        visual_line += r.len();
-                    }
-                    DiffLines::Skip(_, r) => {
-                        if r.contains(&line) {
-                            break;
-                        }
-                        visual_line += 1;
-                    }
+                    _ => {} // DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                            //     if r.contains(&line) {
+                            //         visual_line += line - r.start;
+                            //         break;
+                            //     }
+                            //     visual_line += r.len();
+                            // }
+                            // DiffLines::Skip(_, r) => {
+                            //     if r.contains(&line) {
+                            //         break;
+                            //     }
+                            //     visual_line += 1;
+                            // }
                 }
             }
         }
@@ -802,41 +802,44 @@ impl Document {
                             if let Some(change) = history.changes().get(i + 1) {
                                 match change {
                                     DiffLines::Left(_) => {}
-                                    DiffLines::Both(_, r)
-                                    | DiffLines::Skip(_, r)
-                                    | DiffLines::Right(r) => {
-                                        line = r.start;
-                                    }
+                                    // DiffLines::Both(_, r)
+                                    // | DiffLines::Skip(_, r)
+                                    // | DiffLines::Right(r) => {
+                                    // line = r.start;
+                                    // }
+                                    _ => {}
                                 }
                             } else if i > 0 {
                                 if let Some(change) = history.changes().get(i - 1) {
                                     match change {
                                         DiffLines::Left(_) => {}
-                                        DiffLines::Both(_, r)
-                                        | DiffLines::Skip(_, r)
-                                        | DiffLines::Right(r) => {
-                                            line = r.end - 1;
-                                        }
+                                        // DiffLines::Both(_, r)
+                                        // | DiffLines::Skip(_, r)
+                                        // | DiffLines::Right(r) => {
+                                        // line = r.end - 1;
+                                        // }
+                                        _ => {}
                                     }
                                 }
                             }
                             break;
                         }
                     }
-                    DiffLines::Skip(_, r) => {
-                        current_visual_line += 1;
-                        if current_visual_line > visual_line {
-                            line = r.end;
-                            break;
-                        }
-                    }
-                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                        current_visual_line += r.len();
-                        if current_visual_line > visual_line {
-                            line = r.end - (current_visual_line - visual_line);
-                            break;
-                        }
-                    }
+                    // DiffLines::Skip(_, r) => {
+                    //     current_visual_line += 1;
+                    //     if current_visual_line > visual_line {
+                    //         line = r.end;
+                    //         break;
+                    //     }
+                    // }
+                    // DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                    //     current_visual_line += r.len();
+                    //     if current_visual_line > visual_line {
+                    //         line = r.end - (current_visual_line - visual_line);
+                    //         break;
+                    //     }
+                    // }
+                    _ => {}
                 }
             }
         }
@@ -1759,28 +1762,29 @@ impl Document {
                                 break;
                             }
                         }
-                        DiffLines::Skip(_l, r) => {
-                            // Skip only has one line rendered, so we only update this by 1
-                            lines += 1;
-                            if (lines * line_height) as f64 > point.y {
-                                break;
-                            }
-                            // However, skip moves forward multiple lines in the underlying
-                            // file so we need to update this.
-                            line += r.len();
-                        }
-                        DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                            lines += r.len();
-                            if (lines * line_height) as f64 > point.y {
-                                line += ((point.y
-                                    - ((lines - r.len()) * line_height) as f64)
-                                    / line_height as f64)
-                                    .floor()
-                                    as usize;
-                                break;
-                            }
-                            line += r.len();
-                        }
+                        // DiffLines::Skip(_l, r) => {
+                        //     // Skip only has one line rendered, so we only update this by 1
+                        //     lines += 1;
+                        //     if (lines * line_height) as f64 > point.y {
+                        //         break;
+                        //     }
+                        //     // However, skip moves forward multiple lines in the underlying
+                        //     // file so we need to update this.
+                        //     line += r.len();
+                        // }
+                        // DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                        //     lines += r.len();
+                        //     if (lines * line_height) as f64 > point.y {
+                        //         line += ((point.y
+                        //             - ((lines - r.len()) * line_height) as f64)
+                        //             / line_height as f64)
+                        //             .floor()
+                        //             as usize;
+                        //         break;
+                        //     }
+                        //     line += r.len();
+                        // }
+                        _ => {}
                     }
                 }
                 (line, config.editor.font_size)
@@ -1926,21 +1930,22 @@ impl Document {
                         DiffLines::Left(l) => {
                             y += l.len() * line_height;
                         }
-                        DiffLines::Skip(_l, r) => {
-                            if current_line + r.len() > line {
-                                break;
-                            }
-                            y += line_height;
-                            current_line += r.len();
-                        }
-                        DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                            if current_line + r.len() > line {
-                                y += line_height * (line - current_line);
-                                break;
-                            }
-                            y += r.len() * line_height;
-                            current_line += r.len();
-                        }
+                        // DiffLines::Skip(_l, r) => {
+                        //     if current_line + r.len() > line {
+                        //         break;
+                        //     }
+                        //     y += line_height;
+                        //     current_line += r.len();
+                        // }
+                        // DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                        //     if current_line + r.len() > line {
+                        //         y += line_height * (line - current_line);
+                        //         break;
+                        //     }
+                        //     y += r.len() * line_height;
+                        //     current_line += r.len();
+                        // }
+                        _ => {}
                     }
                 }
                 (y, config.editor.line_height(), config.editor.font_size)
@@ -2020,18 +2025,19 @@ impl Document {
             for (_i, change) in history.changes().iter().enumerate() {
                 match change {
                     DiffLines::Left(_range) => {}
-                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                        if r.contains(&line) {
-                            cursor_line += line - r.start;
-                            break;
-                        }
-                        cursor_line += r.len();
-                    }
-                    DiffLines::Skip(_, r) => {
-                        if r.contains(&line) {
-                            break;
-                        }
-                    }
+                    // DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                    //     if r.contains(&line) {
+                    //         cursor_line += line - r.start;
+                    //         break;
+                    //     }
+                    //     cursor_line += r.len();
+                    // }
+                    // DiffLines::Skip(_, r) => {
+                    //     if r.contains(&line) {
+                    //         break;
+                    //     }
+                    // }
+                    _ => {}
                 }
             }
         }
@@ -2045,14 +2051,15 @@ impl Document {
             for (_i, change) in history.changes().iter().enumerate() {
                 match change {
                     DiffLines::Left(_range) => {}
-                    DiffLines::Skip(_, _r) => {}
-                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                        current_cursor_line += r.len();
-                        if current_cursor_line > cursor_line {
-                            line = r.end - (current_cursor_line - cursor_line);
-                            break;
-                        }
-                    }
+                    // DiffLines::Skip(_, _r) => {}
+                    // DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                    //     current_cursor_line += r.len();
+                    //     if current_cursor_line > cursor_line {
+                    //         line = r.end - (current_cursor_line - cursor_line);
+                    //         break;
+                    //     }
+                    // }
+                    _ => {}
                 }
             }
         }
