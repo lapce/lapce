@@ -37,15 +37,16 @@ pub enum DiffExpand {
 }
 
 pub fn expand_diff_lines(
-    diff_lines: &mut Vec<DiffLines>,
+    diff_lines: &mut [DiffLines],
     line: usize,
     expand: DiffExpand,
+    is_right: bool,
 ) {
-    println!("expand at line {line}");
-    let total = diff_lines.len();
     for diff_line in diff_lines.iter_mut() {
         if let DiffLines::Both(info) = diff_line {
-            if info.right.start == line {
+            if (is_right && info.right.start == line)
+                || (!is_right && info.left.start == line)
+            {
                 match expand {
                     DiffExpand::All => {
                         info.skip = None;
@@ -71,65 +72,6 @@ pub fn expand_diff_lines(
                 }
                 break;
             }
-        }
-    }
-
-    for i in 0..total {
-        match &mut diff_lines[i] {
-            DiffLines::Left(_) => {}
-            DiffLines::Both(_) => {}
-            // DiffLines::Skip(left, right) => {
-            //     let skip_len = right.len();
-
-            //     let mut skip_change = 0;
-            //     if right.start == line {
-            //         match expand {
-            //             DiffExpand::Up(n) => {
-            //                 if i > 0 {
-            //                     if let DiffLines::Both(
-            //                         left_for_both,
-            //                         right_for_both,
-            //                     ) = &mut diff_lines[i - 1]
-            //                     {
-            //                         if n < skip_len {
-            //                             left_for_both.end += n;
-            //                             right_for_both.end += n;
-            //                             skip_change = n;
-            //                         } else {
-            //                             left_for_both.end += skip_len;
-            //                             right_for_both.end += skip_len;
-            //                             skip_change = skip_len;
-            //                         }
-            //                     }
-            //                 }
-            //             }
-            //             DiffExpand::Down(n) => {
-            //                 if i + 1 < total {
-            //                     if let DiffLines::Both(
-            //                         left_for_both,
-            //                         right_for_both,
-            //                     ) = &mut diff_lines[i + 1]
-            //                     {
-            //                         if n < skip_len {
-            //                             left_for_both.start -= n;
-            //                             right_for_both.start -= n;
-            //                             skip_change = n;
-            //                         } else {
-            //                             left_for_both.start -= skip_len;
-            //                             right_for_both.start -= skip_len;
-            //                             skip_change = skip_len;
-            //                         }
-            //                     }
-            //                 }
-            //             }
-            //             DiffExpand::All => {
-            //                 diff_lines[i] =
-            //                     DiffLines::Both(left.clone(), right.clone());
-            //             }
-            //         }
-            //     }
-            // }
-            DiffLines::Right(_) => {}
         }
     }
 }

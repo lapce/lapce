@@ -58,7 +58,7 @@ use crate::{
     debug::RunDebugMode,
     doc::DocContent,
     editor::{
-        diff::{diff_show_more_section, DiffEditorData},
+        diff::{diff_show_more_section_view, DiffEditorData},
         location::{EditorLocation, EditorPosition},
         view::editor_container_view,
         EditorData,
@@ -634,7 +634,8 @@ fn editor_tab_content(
                         }
                     };
                     let diff_editor_scope = diff_editor_data.scope;
-                    on_cleanup(ViewContext::get_current().scope, move || {
+                    let cx = ViewContext::get_current();
+                    on_cleanup(cx.scope, move || {
                         let exits = diff_editors.with_untracked(|diff_editors| {
                             diff_editors.contains_key(&diff_editor_id)
                         });
@@ -646,6 +647,28 @@ fn editor_tab_content(
                             std::thread::spawn(move || {
                                 send(());
                             });
+                        }
+                    });
+                    let (left_viewport, left_scroll_to) =
+                        diff_editor_data.left.with_untracked(|editor| {
+                            (editor.viewport, editor.scroll_to)
+                        });
+                    let (right_viewport, right_scroll_to) =
+                        diff_editor_data.right.with_untracked(|editor| {
+                            (editor.viewport, editor.scroll_to)
+                        });
+                    create_effect(cx.scope, move |_| {
+                        let left_viewport = left_viewport.get();
+                        if right_viewport.get_untracked() != left_viewport {
+                            right_scroll_to
+                                .set(Some(left_viewport.origin().to_vec2()));
+                        }
+                    });
+                    create_effect(cx.scope, move |_| {
+                        let right_viewport = right_viewport.get();
+                        if left_viewport.get_untracked() != right_viewport {
+                            left_scroll_to
+                                .set(Some(right_viewport.origin().to_vec2()));
                         }
                     });
                     container_box(|| {
@@ -690,7 +713,10 @@ fn editor_tab_content(
                                                 .flex_basis_px(0.0)
                                         },
                                     ),
-                                    diff_show_more_section(diff_editor_data.right),
+                                    diff_show_more_section_view(
+                                        diff_editor_data.left,
+                                        diff_editor_data.right,
+                                    ),
                                 )
                             })
                             .style(|| Style::BASE.size_pct(100.0, 100.0)),

@@ -864,6 +864,11 @@ impl EditorView {
             config.get_color(LapceColor::LAPCE_SCROLL_BAR),
         );
 
+        let editor_view = self.editor.with_untracked(|editor| editor.new_view);
+        if !editor_view.get_untracked().is_normal() {
+            return;
+        }
+
         let doc = self.editor.with_untracked(|e| e.doc);
         let total_len = doc.with_untracked(|doc| doc.buffer().last_line());
         let changes = doc.with_untracked(|doc| doc.head_changes);
@@ -1320,16 +1325,23 @@ pub fn editor_container_view(
     is_active: impl Fn(bool) -> bool + 'static + Copy,
     editor: RwSignal<EditorData>,
 ) -> impl View {
-    let (find_focus, sticky_header_height, config, editor_id, editor_scope) = editor
-        .with_untracked(|editor| {
-            (
-                editor.find_focus,
-                editor.sticky_header_height,
-                editor.common.config,
-                editor.editor_id,
-                editor.scope,
-            )
-        });
+    let (
+        find_focus,
+        sticky_header_height,
+        editor_view,
+        config,
+        editor_id,
+        editor_scope,
+    ) = editor.with_untracked(|editor| {
+        (
+            editor.find_focus,
+            editor.sticky_header_height,
+            editor.new_view,
+            editor.common.config,
+            editor.editor_id,
+            editor.scope,
+        )
+    });
     let editors = main_split.editors;
     on_cleanup(ViewContext::get_current().scope, move || {
         let exits =
@@ -1374,7 +1386,8 @@ pub fn editor_container_view(
                                 )
                                 .apply_if(
                                     !config.editor.sticky_header
-                                        || sticky_header_height.get() == 0.0,
+                                        || sticky_header_height.get() == 0.0
+                                        || !editor_view.get().is_normal(),
                                     |s| s.hide(),
                                 )
                         }),
@@ -1454,8 +1467,11 @@ fn editor_gutter(
     });
 
     let head_changes = move || {
+        let (doc, editor_view) = editor.with(|editor| (editor.doc, editor.new_view));
+        if !editor_view.get_untracked().is_normal() {
+            return Vec::new();
+        }
         let viewport = viewport.get();
-        let doc = editor.with(|editor| editor.doc);
         let changes = doc.with_untracked(|doc| doc.head_changes);
         let changes = changes.get();
         let config = config.get();

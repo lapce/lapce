@@ -250,18 +250,24 @@ impl DiffEditorData {
 }
 
 struct DiffShowMoreSection {
-    actual_line: usize,
+    left_actual_line: usize,
+    right_actual_line: usize,
     visual_line: usize,
     lines: usize,
 }
 
-pub fn diff_show_more_section(editor: RwSignal<EditorData>) -> impl View {
-    let (editor_view, viewport, config) = editor.with_untracked(|editor| {
-        (editor.new_view, editor.viewport, editor.common.config)
-    });
+pub fn diff_show_more_section_view(
+    left_editor: RwSignal<EditorData>,
+    right_editor: RwSignal<EditorData>,
+) -> impl View {
+    let left_editor_view = left_editor.with_untracked(|editor| editor.new_view);
+    let (right_editor_view, viewport, config) =
+        right_editor.with_untracked(|editor| {
+            (editor.new_view, editor.viewport, editor.common.config)
+        });
 
     let each_fn = move || {
-        let editor_view = editor.with(|editor| editor.new_view);
+        let editor_view = right_editor.with(|editor| editor.new_view);
         let editor_view = editor_view.get();
         if let EditorViewKind::Diff(diff_info) = editor_view {
             let viewport = viewport.get();
@@ -300,7 +306,8 @@ pub fn diff_show_more_section(editor: RwSignal<EditorData>) -> impl View {
                             visual_line += skip.start;
                             if visual_line + 1 >= min_line {
                                 sections.push(DiffShowMoreSection {
-                                    actual_line: info.right.start,
+                                    left_actual_line: info.left.start,
+                                    right_actual_line: info.right.start,
                                     visual_line,
                                     lines: skip.len(),
                                 });
@@ -354,12 +361,23 @@ pub fn diff_show_more_section(editor: RwSignal<EditorData>) -> impl View {
                 })
                 .on_event(EventListener::PointerDown, move |_| true)
                 .on_click(move |_event| {
-                    editor_view.update(|editor_view| {
+                    left_editor_view.update(|editor_view| {
                         if let EditorViewKind::Diff(diff_info) = editor_view {
                             expand_diff_lines(
                                 &mut diff_info.changes,
-                                section.actual_line,
+                                section.left_actual_line,
                                 DiffExpand::All,
+                                false,
+                            );
+                        }
+                    });
+                    right_editor_view.update(|editor_view| {
+                        if let EditorViewKind::Diff(diff_info) = editor_view {
+                            expand_diff_lines(
+                                &mut diff_info.changes,
+                                section.right_actual_line,
+                                DiffExpand::All,
+                                true,
                             );
                         }
                     });
@@ -390,12 +408,23 @@ pub fn diff_show_more_section(editor: RwSignal<EditorData>) -> impl View {
                 })
                 .on_event(EventListener::PointerDown, move |_| true)
                 .on_click(move |_event| {
-                    editor_view.update(|editor_view| {
+                    left_editor_view.update(|editor_view| {
                         if let EditorViewKind::Diff(diff_info) = editor_view {
                             expand_diff_lines(
                                 &mut diff_info.changes,
-                                section.actual_line,
+                                section.left_actual_line,
                                 DiffExpand::Up(10),
+                                false,
+                            );
+                        }
+                    });
+                    right_editor_view.update(|editor_view| {
+                        if let EditorViewKind::Diff(diff_info) = editor_view {
+                            expand_diff_lines(
+                                &mut diff_info.changes,
+                                section.right_actual_line,
+                                DiffExpand::Up(10),
+                                true,
                             );
                         }
                     });
@@ -425,12 +454,23 @@ pub fn diff_show_more_section(editor: RwSignal<EditorData>) -> impl View {
                 })
                 .on_event(EventListener::PointerDown, move |_| true)
                 .on_click(move |_event| {
-                    editor_view.update(|editor_view| {
+                    left_editor_view.update(|editor_view| {
                         if let EditorViewKind::Diff(diff_info) = editor_view {
                             expand_diff_lines(
                                 &mut diff_info.changes,
-                                section.actual_line,
+                                section.left_actual_line,
                                 DiffExpand::Down(10),
+                                false,
+                            );
+                        }
+                    });
+                    right_editor_view.update(|editor_view| {
+                        if let EditorViewKind::Diff(diff_info) = editor_view {
+                            expand_diff_lines(
+                                &mut diff_info.changes,
+                                section.right_actual_line,
+                                DiffExpand::Down(10),
+                                true,
                             );
                         }
                     });
