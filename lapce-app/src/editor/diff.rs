@@ -1,24 +1,29 @@
 use std::{path::PathBuf, sync::atomic};
 
 use floem::{
+    event::EventListener,
     ext_event::create_ext_action,
+    peniko::Color,
     reactive::{
         create_effect, create_memo, create_rw_signal, RwSignal, Scope, SignalGet,
         SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
         SignalWithUntracked,
     },
-    style::Style,
+    style::{CursorStyle, Style},
     view::View,
-    views::{clip, empty, label, list, stack, Decorators},
+    views::{clip, empty, label, list, stack, svg, Decorators},
 };
-use lapce_core::buffer::{rope_diff, rope_text::RopeText, DiffLines};
+use lapce_core::buffer::{
+    expand_diff_lines, rope_diff, rope_text::RopeText, DiffExpand, DiffLines,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::color::LapceColor,
+    config::{color::LapceColor, icon::LapceIcons},
     doc::{DocContent, Document},
     id::{DiffEditorId, EditorId, EditorTabId},
     main_split::MainSplitData,
+    wave::wave_box,
     window_tab::CommonData,
 };
 
@@ -27,7 +32,7 @@ use super::{location::EditorLocation, EditorData, EditorViewKind};
 #[derive(Clone)]
 pub struct DiffInfo {
     pub is_right: bool,
-    pub changes: im::Vector<DiffLines>,
+    pub changes: Vec<DiffLines>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -202,37 +207,31 @@ impl DiffEditorData {
 
             let send = {
                 let right_atomic_rev = right_atomic_rev.clone();
-                create_ext_action(
-                    cx,
-                    move |changes: Option<im::Vector<DiffLines>>| {
-                        let changes = if let Some(changes) = changes {
-                            changes
-                        } else {
-                            return;
-                        };
+                create_ext_action(cx, move |changes: Option<Vec<DiffLines>>| {
+                    let changes = if let Some(changes) = changes {
+                        changes
+                    } else {
+                        return;
+                    };
 
-                        if left_atomic_rev.load(atomic::Ordering::Acquire)
-                            != left_rev
-                        {
-                            return;
-                        }
+                    if left_atomic_rev.load(atomic::Ordering::Acquire) != left_rev {
+                        return;
+                    }
 
-                        if right_atomic_rev.load(atomic::Ordering::Acquire)
-                            != right_rev
-                        {
-                            return;
-                        }
+                    if right_atomic_rev.load(atomic::Ordering::Acquire) != right_rev
+                    {
+                        return;
+                    }
 
-                        left_editor_view.set(EditorViewKind::Diff(DiffInfo {
-                            is_right: false,
-                            changes: changes.clone(),
-                        }));
-                        right_editor_view.set(EditorViewKind::Diff(DiffInfo {
-                            is_right: true,
-                            changes,
-                        }));
-                    },
-                )
+                    left_editor_view.set(EditorViewKind::Diff(DiffInfo {
+                        is_right: false,
+                        changes: changes.clone(),
+                    }));
+                    right_editor_view.set(EditorViewKind::Diff(DiffInfo {
+                        is_right: true,
+                        changes,
+                    }));
+                })
             };
 
             rayon::spawn(move || {
@@ -243,20 +242,22 @@ impl DiffEditorData {
                     right_atomic_rev.clone(),
                     Some(3),
                 );
-                send(changes.map(im::Vector::from));
+                send(changes);
             });
         });
     }
 }
 
 struct DiffShowMoreSection {
-    line: usize,
+    actual_line: usize,
+    visual_line: usize,
     lines: usize,
 }
 
 pub fn diff_show_more_section(editor: RwSignal<EditorData>) -> impl View {
-    let (viewport, config) =
-        editor.with_untracked(|editor| (editor.viewport, editor.common.config));
+    let (editor_view, viewport, config) = editor.with_untracked(|editor| {
+        (editor.new_view, editor.viewport, editor.common.config)
+    });
 
     let each_fn = move || {
         let editor_view = editor.with(|editor| editor.new_view);
@@ -296,7 +297,8 @@ pub fn diff_show_more_section(editor: RwSignal<EditorData>) -> impl View {
                     DiffLines::Skip(_left, right) => {
                         if visual_line + 1 >= min_line {
                             sections.push(DiffShowMoreSection {
-                                line: visual_line,
+                                actual_line: right.start,
+                                visual_line,
                                 lines: right.len(),
                             });
                         }
@@ -318,22 +320,117 @@ pub fn diff_show_more_section(editor: RwSignal<EditorData>) -> impl View {
         }
     };
 
-    let key_fn = move |section: &DiffShowMoreSection| (section.line, section.lines);
+    let key_fn =
+        move |section: &DiffShowMoreSection| (section.visual_line, section.lines);
 
     let view_fn = move |section: DiffShowMoreSection| {
-        label(|| "Show more".to_string()).style(move || {
+        stack(|| {
+            (
+                wave_box().style(move || {
+                    Style::BASE
+                        .absolute()
+                        .size_pct(100.0, 100.0)
+                        .color(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
+                }),
+                label(move || format!("{} Hidden Lines", section.lines)),
+                label(|| "|".to_string()).style(|| Style::BASE.margin_left_px(10.0)),
+                stack(|| {
+                    (
+                        svg(move || config.get().ui_svg(LapceIcons::FOLD_UP)).style(
+                            move || {
+                                let config = config.get();
+                                let size = config.ui.icon_size() as f32;
+                                Style::BASE.size_px(size, size).color(
+                                    *config.get_color(LapceColor::EDITOR_FOREGROUND),
+                                )
+                            },
+                        ),
+                        label(|| "Expand Up".to_string())
+                            .style(|| Style::BASE.margin_left_px(6.0)),
+                    )
+                })
+                .style(|| {
+                    Style::BASE
+                        .margin_left_px(10.0)
+                        .height_pct(100.0)
+                        .items_center()
+                })
+                .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer)),
+                label(|| "|".to_string()).style(|| Style::BASE.margin_left_px(10.0)),
+                stack(|| {
+                    (
+                        svg(move || config.get().ui_svg(LapceIcons::FOLD_DOWN))
+                            .style(move || {
+                                let config = config.get();
+                                let size = config.ui.icon_size() as f32;
+                                Style::BASE.size_px(size, size).color(
+                                    *config.get_color(LapceColor::EDITOR_FOREGROUND),
+                                )
+                            }),
+                        label(|| "Expand Down".to_string())
+                            .style(|| Style::BASE.margin_left_px(6.0)),
+                    )
+                })
+                .style(|| {
+                    Style::BASE
+                        .margin_left_px(10.0)
+                        .height_pct(100.0)
+                        .items_center()
+                })
+                .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer)),
+                label(|| "|".to_string()).style(|| Style::BASE.margin_left_px(10.0)),
+                stack(|| {
+                    (
+                        svg(move || config.get().ui_svg(LapceIcons::FOLD)).style(
+                            move || {
+                                let config = config.get();
+                                let size = config.ui.icon_size() as f32;
+                                Style::BASE.size_px(size, size).color(
+                                    *config.get_color(LapceColor::EDITOR_FOREGROUND),
+                                )
+                            },
+                        ),
+                        label(|| "Expand All".to_string())
+                            .style(|| Style::BASE.margin_left_px(6.0)),
+                    )
+                })
+                .on_event(EventListener::PointerDown, move |_| true)
+                .on_click(move |_event| {
+                    editor_view.update(|editor_view| {
+                        if let EditorViewKind::Diff(diff_info) = editor_view {
+                            expand_diff_lines(
+                                &mut diff_info.changes,
+                                section.actual_line,
+                                DiffExpand::All,
+                            );
+                        }
+                    });
+                    true
+                })
+                .style(|| {
+                    Style::BASE
+                        .border(1.0)
+                        .margin_left_px(10.0)
+                        .height_pct(100.0)
+                        .items_center()
+                })
+                .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer)),
+            )
+        })
+        .style(move || {
             let config = config.get();
             Style::BASE
                 .absolute()
                 .width_pct(100.0)
                 .height_px(config.editor.line_height() as f32)
+                .justify_center()
                 .items_center()
-                .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
                 .margin_top_px(
-                    (section.line * config.editor.line_height()) as f32
+                    (section.visual_line * config.editor.line_height()) as f32
                         - viewport.get().y0 as f32,
                 )
         })
+        .hover_style(|| Style::BASE.cursor(CursorStyle::Default))
     };
 
     stack(move || {

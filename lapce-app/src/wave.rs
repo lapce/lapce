@@ -5,17 +5,17 @@ use floem::{
     Renderer, ViewContext,
 };
 
-pub fn wave_line() -> WaveLine {
+pub fn wave_box() -> WaveBox {
     let cx = ViewContext::get_current();
     let id = cx.new_id();
-    WaveLine { id }
+    WaveBox { id }
 }
 
-pub struct WaveLine {
+pub struct WaveBox {
     id: Id,
 }
 
-impl View for WaveLine {
+impl View for WaveBox {
     fn id(&self) -> Id {
         self.id
     }
@@ -65,9 +65,9 @@ impl View for WaveLine {
             let layout = cx.get_layout(self.id).unwrap();
             let size = layout.size;
             let size = Size::new(size.width as f64, size.height as f64);
-            let radius = 2.0;
+            let radius = 4.0;
 
-            let origin = Point::new(0.0, size.height + radius);
+            let origin = Point::new(0.0, size.height);
             let mut path = BezPath::new();
             path.move_to(origin);
 
@@ -75,14 +75,28 @@ impl View for WaveLine {
             let mut direction = -1.0;
             while x < size.width {
                 let point = origin + (x, 0.0);
-                let p1 = point + (radius, -radius * direction);
-                let p2 = point + (radius * 2.0, 0.0);
+                let p1 = point + (radius * 1.5, -radius * direction);
+                let p2 = point + (radius * 3.0, 0.0);
                 path.quad_to(p1, p2);
-                x += radius * 2.0;
+                x += radius * 3.0;
                 direction *= -1.0;
             }
+            {
+                let origin = Point::new(0.0, 0.0);
+                path.line_to(origin + (x, 0.0));
+                direction *= -1.0;
+                while x >= 0.0 {
+                    x -= radius * 3.0;
+                    let point = origin + (x, 0.0);
+                    let p1 = point + (radius * 1.5, -radius * direction);
+                    let p2 = point;
+                    path.quad_to(p1, p2);
+                    direction *= -1.0;
+                }
+            }
+            path.line_to(origin);
 
-            cx.stroke(&path, color, 1.0);
+            cx.fill(&path, color);
         }
     }
 }

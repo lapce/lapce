@@ -1759,7 +1759,7 @@ fn editor_content(
                     let editor = editor.get_untracked();
                     editor.pointer_down(pointer_event);
                 }
-                true
+                false
             })
             .on_event(EventListener::PointerMove, move |event| {
                 if let Event::PointerMove(pointer_event) = event {
