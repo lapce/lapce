@@ -1119,17 +1119,30 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                 let palette_clone = palette.clone();
                 let cursor_info = label(move || {
                     if let Some(editor) = editor.get() {
-                        if let Some((line, column, character)) = editor
-                            .get()
-                            .cursor
-                            .get()
-                            .get_line_col_char(editor.get().doc.get().buffer())
+                        let mut status = String::new();
+                        let cursor = editor.get().cursor.get();
+                        if let Some((line, column, character)) =
+                            cursor.get_line_col_char(editor.get().doc.get().buffer())
                         {
-                            return format!(
+                            status = format!(
                                 "Ln {}, Col {}, Char {}",
                                 line, column, character,
                             );
                         }
+                        if let Some(selection) = cursor.get_selection() {
+                            let selection_range = selection.0.abs_diff(selection.1);
+
+                            if selection.0 != selection.1 {
+                                status =
+                                    format!("{status} ({selection_range} selected)");
+                            }
+                        }
+                        let selection_count = cursor.get_selection_count();
+                        if selection_count > 1 {
+                            status =
+                                format!("{status} {selection_count} selections");
+                        }
+                        return status;
                     }
                     String::from("No document")
                 })
