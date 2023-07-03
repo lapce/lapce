@@ -9,7 +9,6 @@ use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
     Target,
 };
-use itertools::Itertools;
 use lapce_core::{
     buffer::{
         diff::{rope_diff, DiffLines},
@@ -210,23 +209,20 @@ impl DocumentHistory {
     pub fn trigger_increase_diff_extend_lines(
         &self,
         doc: &Document,
-        diff_skip: DiffLines,
+        _diff_skip: DiffLines,
     ) {
-        let incr = 5_usize;
         if self.buffer.is_none() {
             return;
         }
-        if let BufferContent::File(path) = &doc.content() {
-            let id = doc.id();
-            let rev = doc.rev();
-            let path = path.clone();
-            let event_sink = doc.event_sink.clone();
-            let tab_id = doc.tab_id;
+        if let BufferContent::File(_path) = &doc.content() {
+            // let id = doc.id();
+            // let rev = doc.rev();
+            // let path = path.clone();
+            // let event_sink = doc.event_sink.clone();
+            // let tab_id = doc.tab_id;
 
             let old_changes = self.changes.clone();
-            let changes_len = old_changes.len();
-            let mut changes = self.changes.clone().to_vec();
-            for (i, change) in old_changes.iter().enumerate() {
+            for (_i, _change) in old_changes.iter().enumerate() {
                 // if let DiffLines::Skip(left, right) = change {
                 //     if *change == diff_skip {
                 //         if i == 0 {
@@ -335,30 +331,30 @@ impl DocumentHistory {
                 //     }
                 // }
             }
-            let changes = changes
-                .iter()
-                .filter(|change| {
-                    // if let DiffLines::Skip(left, right) = change {
-                    //     if left.is_empty() && right.is_empty() {
-                    //         return false;
-                    //     }
-                    // }
-                    true
-                })
-                .cloned()
-                .collect_vec();
-            let _ = event_sink.submit_command(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateHistoryChanges {
-                    id,
-                    path,
-                    rev,
-                    history: "head".to_string(),
-                    changes: Arc::new(changes),
-                    diff_context_lines: self.diff_context_lines,
-                },
-                Target::Widget(tab_id),
-            );
+            // let changes = changes
+            //     .iter()
+            //     .filter(|change| {
+            //         // if let DiffLines::Skip(left, right) = change {
+            //         //     if left.is_empty() && right.is_empty() {
+            //         //         return false;
+            //         //     }
+            //         // }
+            //         true
+            //     })
+            //     .cloned()
+            //     .collect_vec();
+            // let _ = event_sink.submit_command(
+            //     LAPCE_UI_COMMAND,
+            //     LapceUICommand::UpdateHistoryChanges {
+            //         id,
+            //         path,
+            //         rev,
+            //         history: "head".to_string(),
+            //         changes: Arc::new(changes),
+            //         diff_context_lines: self.diff_context_lines,
+            //     },
+            //     Target::Widget(tab_id),
+            // );
         }
     }
 

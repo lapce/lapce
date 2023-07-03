@@ -486,7 +486,7 @@ impl LapceEditorGutter {
         ctx: &mut EventCtx,
         data: &LapceEditorBufferData,
         history: &DocumentHistory,
-        mouse_pos: Point,
+        _mouse_pos: Point,
     ) -> Option<DiffLines> {
         let line_height = data.config.editor.line_height() as f64;
         let self_size = ctx.size();

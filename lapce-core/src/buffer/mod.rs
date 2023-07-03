@@ -2,7 +2,6 @@ use std::{
     borrow::Cow,
     cmp::Ordering,
     collections::BTreeSet,
-    ops::Range,
     sync::{
         atomic::{self, AtomicU64},
         Arc,

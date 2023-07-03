@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use floem::{
     context::PaintCx,
@@ -21,7 +21,7 @@ use floem::{
     view::{ChangeFlags, View},
     views::{
         container, empty, label, list, scroll, stack, svg, virtual_list, Decorators,
-        VirtualListDirection, VirtualListItemSize, VirtualListVector,
+        VirtualListDirection, VirtualListItemSize,
     },
     Renderer, ViewContext,
 };
@@ -66,10 +66,10 @@ struct ScreenLines {
 }
 
 struct LineInfo {
-    font_size: usize,
-    x: f64,
+    // font_size: usize,
+    // line_height: f64,
+    // x: f64,
     y: f64,
-    line_height: f64,
 }
 
 struct StickyHeaderInfo {
@@ -274,7 +274,6 @@ impl EditorView {
         let editor_view = editor_view.get_untracked();
         match editor_view {
             EditorViewKind::Normal => {
-                let font_size = config.editor.font_size();
                 let mut lines = Vec::new();
                 let mut info = HashMap::new();
                 for line in min_line..max_line + 1 {
@@ -282,10 +281,7 @@ impl EditorView {
                     info.insert(
                         line,
                         LineInfo {
-                            font_size,
-                            x: 0.0,
                             y: line as f64 * line_height,
-                            line_height,
                         },
                     );
                 }
@@ -296,8 +292,6 @@ impl EditorView {
                 }
             }
             EditorViewKind::Diff(diff_info) => {
-                let font_size = config.editor.font_size();
-
                 let mut visual_line = 0;
                 let mut lines = Vec::new();
                 let mut info = HashMap::new();
@@ -379,10 +373,7 @@ impl EditorView {
                                 info.insert(
                                     actual_line,
                                     LineInfo {
-                                        font_size,
-                                        x: 0.0,
                                         y: l as f64 * line_height,
-                                        line_height,
                                     },
                                 );
 
@@ -439,10 +430,7 @@ impl EditorView {
                                     info.insert(
                                         actual_line,
                                         LineInfo {
-                                            font_size,
-                                            x: 0.0,
                                             y: visual_line as f64 * line_height,
-                                            line_height,
                                         },
                                     );
                                 }
@@ -621,8 +609,8 @@ impl EditorView {
     fn paint_text(
         &self,
         cx: &mut PaintCx,
-        min_line: usize,
-        max_line: usize,
+        _min_line: usize,
+        _max_line: usize,
         viewport: Rect,
         screen_lines: &ScreenLines,
     ) {

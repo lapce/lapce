@@ -9,7 +9,6 @@ use std::{
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
-    peniko::kurbo::Point,
     reactive::{
         create_rw_signal, ReadSignal, RwSignal, Scope, SignalGetUntracked,
         SignalSet, SignalUpdate, SignalWithUntracked,
@@ -1332,7 +1331,7 @@ impl Document {
             }
         });
 
-        let text_layout_width = text_layout.size().width;
+        // let text_layout_width = text_layout.size().width;
         // let max_width = self.max_width.get_untracked();
         // if text_layout_width > max_width {
         //     self.max_width.set(text_layout_width);
