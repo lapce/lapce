@@ -1,9 +1,8 @@
-use std::{path::PathBuf, sync::atomic};
+use std::sync::atomic;
 
 use floem::{
     event::EventListener,
     ext_event::create_ext_action,
-    peniko::Color,
     reactive::{
         create_effect, create_memo, create_rw_signal, RwSignal, Scope, SignalGet,
         SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
@@ -148,8 +147,14 @@ impl DiffEditorData {
 
     pub fn diff_editor_info(&self) -> DiffEditorInfo {
         DiffEditorInfo {
-            left_content: self.left.get_untracked().doc.get_untracked().content,
-            right_content: self.left.get_untracked().doc.get_untracked().content,
+            left_content: self.left.get_untracked().view.doc.get_untracked().content,
+            right_content: self
+                .left
+                .get_untracked()
+                .view
+                .doc
+                .get_untracked()
+                .content,
         }
     }
 
@@ -181,27 +186,27 @@ impl DiffEditorData {
 
         let left = self.left;
         let left_doc_rev = create_memo(cx, move |_| {
-            let left_doc = left.with(|editor| editor.doc);
+            let left_doc = left.with(|editor| editor.view.doc);
             left_doc.with(|doc| (doc.content.clone(), doc.rev()))
         });
 
         let right = self.right;
         let right_doc_rev = create_memo(cx, move |_| {
-            let right_doc = right.with(|editor| editor.doc);
+            let right_doc = right.with(|editor| editor.view.doc);
             right_doc.with(|doc| (doc.content.clone(), doc.rev()))
         });
 
         create_effect(cx, move |_| {
             let (_, left_rev) = left_doc_rev.get();
             let (left_editor_view, left_doc) =
-                left.with_untracked(|editor| (editor.new_view, editor.doc));
+                left.with_untracked(|editor| (editor.view.kind, editor.view.doc));
             let (left_atomic_rev, left_rope) = left_doc.with_untracked(|doc| {
                 (doc.buffer().atomic_rev(), doc.buffer().text().clone())
             });
 
             let (_, right_rev) = right_doc_rev.get();
             let (right_editor_view, right_doc) =
-                right.with_untracked(|editor| (editor.new_view, editor.doc));
+                right.with_untracked(|editor| (editor.view.kind, editor.view.doc));
             let (right_atomic_rev, right_rope) = right_doc.with_untracked(|doc| {
                 (doc.buffer().atomic_rev(), doc.buffer().text().clone())
             });
@@ -260,14 +265,14 @@ pub fn diff_show_more_section_view(
     left_editor: RwSignal<EditorData>,
     right_editor: RwSignal<EditorData>,
 ) -> impl View {
-    let left_editor_view = left_editor.with_untracked(|editor| editor.new_view);
+    let left_editor_view = left_editor.with_untracked(|editor| editor.view.kind);
     let (right_editor_view, viewport, config) =
         right_editor.with_untracked(|editor| {
-            (editor.new_view, editor.viewport, editor.common.config)
+            (editor.view.kind, editor.viewport, editor.common.config)
         });
 
     let each_fn = move || {
-        let editor_view = right_editor.with(|editor| editor.new_view);
+        let editor_view = right_editor.with(|editor| editor.view.kind);
         let editor_view = editor_view.get();
         if let EditorViewKind::Diff(diff_info) = editor_view {
             let viewport = viewport.get();

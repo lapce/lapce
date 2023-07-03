@@ -50,7 +50,7 @@ use smallvec::SmallVec;
 use self::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine};
 use crate::{
     config::{color::LapceColor, LapceConfig},
-    editor::view::{LineExtraStyle, TextLayoutCache, TextLayoutLine},
+    editor::view_data::{LineExtraStyle, TextLayoutCache, TextLayoutLine},
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     workspace::LapceWorkspace,
@@ -507,6 +507,7 @@ impl Document {
 
     /// Inform any dependents on this document that they should clear any cached text.
     pub fn clear_text_cache(&mut self) {
+        self.text_layouts.clear();
         let mut text_cache_listeners = self.text_cache_listeners.borrow_mut();
         for entry in text_cache_listeners.iter_mut() {
             entry.clear();
@@ -1418,72 +1419,5 @@ impl Document {
             .get(&line)
             .cloned()
             .unwrap()
-    }
-
-    /// Returns the point into the text layout of the line at the given offset.
-    /// `x` being the leading edge of the character, and `y` being the baseline.
-    pub fn line_point_of_offset(&self, offset: usize, font_size: usize) -> Point {
-        let (line, col) = self.buffer.offset_to_line_col(offset);
-        self.line_point_of_line_col(line, col, font_size)
-    }
-
-    /// Returns the point into the text layout of the line at the given line and column.
-    /// `x` being the leading edge of the character, and `y` being the baseline.
-    pub fn line_point_of_line_col(
-        &self,
-        line: usize,
-        col: usize,
-        font_size: usize,
-    ) -> Point {
-        let text_layout = self.get_text_layout(line, font_size);
-        text_layout.text.hit_position(col).point
-    }
-
-    /// Get the (point above, point below) of a particular offset within the editor.
-    pub fn points_of_offset(&self, offset: usize) -> (Point, Point) {
-        let (line, col) = self.buffer.offset_to_line_col(offset);
-        self.points_of_line_col(line, col)
-    }
-
-    /// Get the (point above, point below) of a particular (line, col) within the editor.
-    pub fn points_of_line_col(&self, line: usize, col: usize) -> (Point, Point) {
-        let config = self.config.get_untracked();
-        let (y, line_height, font_size) = (
-            config.editor.line_height() * line,
-            config.editor.line_height(),
-            config.editor.font_size(),
-        );
-
-        let line = line.min(self.buffer.last_line());
-
-        let phantom_text = self.line_phantom_text(line);
-        let col = phantom_text.col_after(col, false);
-
-        let mut x_shift = 0.0;
-        if font_size < config.editor.font_size() {
-            let line_content = self.buffer.line_content(line);
-            let mut col = 0usize;
-            for ch in line_content.chars() {
-                if ch == ' ' || ch == '\t' {
-                    col += 1;
-                } else {
-                    break;
-                }
-            }
-
-            if col > 0 {
-                let normal_text_layout =
-                    self.get_text_layout(line, config.editor.font_size());
-                let small_text_layout = self.get_text_layout(line, font_size);
-                x_shift = normal_text_layout.text.hit_position(col).point.x
-                    - small_text_layout.text.hit_position(col).point.x;
-            }
-        }
-
-        let x = self.line_point_of_line_col(line, col, font_size).x + x_shift;
-        (
-            Point::new(x, y as f64),
-            Point::new(x, (y + line_height) as f64),
-        )
     }
 }

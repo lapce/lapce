@@ -215,7 +215,7 @@ fn editor_tab_header(
                             let ((content, is_pristine), confirmed) = editor_data
                                 .with(|editor_data| {
                                     (
-                                        editor_data.doc.with(|doc| {
+                                        editor_data.view.doc.with(|doc| {
                                             (
                                                 doc.content.clone(),
                                                 doc.buffer().is_pristine(),
@@ -278,7 +278,7 @@ fn editor_tab_header(
                         let path = if let Some(diff_editor_data) = diff_editor_data {
                             let (content, is_pristine) =
                                 diff_editor_data.right.with(|editor_data| {
-                                    editor_data.doc.with(|doc| {
+                                    editor_data.view.doc.with(|doc| {
                                         (
                                             doc.content.clone(),
                                             doc.buffer().is_pristine(),
@@ -1322,11 +1322,10 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                 let palette_clone = palette.clone();
                 let cursor_info = label(move || {
                     if let Some(editor) = editor.get() {
-                        if let Some((line, column, character)) = editor
-                            .get()
-                            .cursor
-                            .get()
-                            .get_line_col_char(editor.get().doc.get().buffer())
+                        if let Some((line, column, character)) =
+                            editor.get().cursor.get().get_line_col_char(
+                                editor.get().view.doc.get().buffer(),
+                            )
                         {
                             return format!(
                                 "Ln {}, Col {}, Char {}",
@@ -1356,7 +1355,7 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                 let palette_clone = palette.clone();
                 let language_info = label(move || {
                     if let Some(editor) = editor.get() {
-                        if let Some(syn) = editor.get().doc.get().syntax() {
+                        if let Some(syn) = editor.get().view.doc.get().syntax() {
                             if let Some(lang) =
                                 strum::EnumMessage::get_message(&syn.language)
                             {

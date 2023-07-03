@@ -158,6 +158,7 @@ impl PluginData {
                 let query = plugin
                     .all
                     .query_editor
+                    .view
                     .doc
                     .with(|doc| doc.buffer().to_string());
                 if s.as_ref() == Some(&query) {
@@ -318,6 +319,7 @@ impl PluginData {
         let query = self
             .all
             .query_editor
+            .view
             .doc
             .with_untracked(|doc| doc.buffer().to_string());
         let offset = self.all.volts.with_untracked(|v| v.len());

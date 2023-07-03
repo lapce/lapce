@@ -182,7 +182,7 @@ impl EditorTabData {
             if let (_, EditorTabChild::Editor(editor_id)) = child {
                 if let Some(editor) = editors.get(editor_id) {
                     let e = editor.get_untracked();
-                    let is_path = e.doc.with_untracked(|doc| {
+                    let is_path = e.view.doc.with_untracked(|doc| {
                         if let DocContent::File(p) = &doc.content {
                             p == path
                         } else {

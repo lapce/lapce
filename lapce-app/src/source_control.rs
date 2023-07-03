@@ -94,6 +94,7 @@ impl SourceControlData {
 
         let message = self
             .editor
+            .view
             .doc
             .with_untracked(|doc| doc.buffer().to_string());
         let message = message.trim();

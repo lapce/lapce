@@ -16,8 +16,8 @@ use lsp_types::{
 };
 
 use crate::{
-    config::LapceConfig, doc::Document, editor::view::EditorViewData, id::EditorId,
-    snippet::Snippet,
+    config::LapceConfig, doc::Document, editor::view_data::EditorViewData,
+    id::EditorId, snippet::Snippet,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]

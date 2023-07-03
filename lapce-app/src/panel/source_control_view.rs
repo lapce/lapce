@@ -34,7 +34,7 @@ pub fn source_control_panel(
     let source_control = window_tab_data.source_control.clone();
     let focus = source_control.common.focus;
     let editor = source_control.editor.clone();
-    let doc = editor.doc;
+    let doc = editor.view.doc;
     let cursor = editor.cursor;
     let viewport = editor.viewport;
     let cx = ViewContext::get_current();

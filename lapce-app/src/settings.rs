@@ -202,7 +202,7 @@ pub fn settings_view(common: CommonData) -> impl View {
     let view_settings_data = settings_data.clone();
 
     let search_editor = EditorData::new_local(cx.scope, EditorId::next(), common);
-    let doc = search_editor.doc;
+    let doc = search_editor.view.doc;
 
     let items = settings_data.items.clone();
     let filtered_items_signal = settings_data.filtered_items;
@@ -346,7 +346,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     EditorId::next(),
                     settings_data.common,
                 );
-                let doc = editor.doc;
+                let doc = editor.view.doc;
 
                 let kind = item.kind.clone();
                 let field = item.field.clone();
@@ -368,6 +368,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                 });
 
                 editor
+                    .view
                     .doc
                     .update(|doc| doc.reload(Rope::from(editor_value), true));
                 container_box(move || {

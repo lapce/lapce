@@ -42,7 +42,7 @@ pub fn text_input(
     let cx = ViewContext::get_current();
     let id = cx.new_id();
 
-    let doc = editor.doc;
+    let doc = editor.view.doc;
     let cursor = editor.cursor;
     let config = editor.common.config;
     let keypress = editor.common.keypress;
