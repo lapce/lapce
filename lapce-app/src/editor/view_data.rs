@@ -425,12 +425,12 @@ impl EditorViewData {
         )
     }
 
-    pub fn actual_line(&self, visual_line: usize) -> usize {
+    pub fn actual_line(&self, visual_line: usize, bottom_affinity: bool) -> usize {
         self.kind.with_untracked(|kind| match kind {
             EditorViewKind::Normal => visual_line,
             EditorViewKind::Diff(diff) => {
                 let is_right = diff.is_right;
-                let mut actual_line = 0;
+                let mut actual_line: usize = 0;
                 let mut current_visual_line = 0;
                 let mut last_change: Option<&DiffLines> = None;
                 let mut changes = diff.changes.iter().peekable();
@@ -440,8 +440,12 @@ impl EditorViewData {
                             if let Some(DiffLines::Right(_)) = changes.peek() {
                             } else {
                                 current_visual_line += range.len();
-                                if current_visual_line > visual_line {
-                                    return actual_line;
+                                if current_visual_line >= visual_line {
+                                    return if bottom_affinity {
+                                        actual_line
+                                    } else {
+                                        actual_line.saturating_sub(1)
+                                    };
                                 }
                             }
                         }
@@ -453,7 +457,7 @@ impl EditorViewData {
                             };
                             if len > 0 {
                                 current_visual_line += len;
-                                if current_visual_line > visual_line {
+                                if current_visual_line >= visual_line {
                                     return actual_line;
                                 }
                             }
@@ -473,7 +477,11 @@ impl EditorViewData {
                                     if len > 0 {
                                         current_visual_line += len;
                                         if current_visual_line > visual_line {
-                                            return actual_line;
+                                            return if bottom_affinity {
+                                                actual_line
+                                            } else {
+                                                actual_line - range.len()
+                                            };
                                         }
                                     }
                                 }
@@ -493,7 +501,7 @@ impl EditorViewData {
                                     return actual_line + visual_line
                                         - current_visual_line;
                                 } else if current_visual_line + len - skip.len() + 1
-                                    > visual_line
+                                    >= visual_line
                                 {
                                     return actual_line
                                         + skip.end
@@ -549,8 +557,8 @@ impl EditorViewData {
                         }
                         (true, DiffLines::Right(range))
                         | (false, DiffLines::Left(range)) => {
-                            if line <= range.end {
-                                return visual_line + range.end - line;
+                            if line < range.end {
+                                return visual_line + line - range.start;
                             }
                             visual_line += range.len();
                             if is_right {
@@ -568,13 +576,14 @@ impl EditorViewData {
                             } else {
                                 info.left.end
                             };
-                            if line > end {
+                            if line >= end {
                                 visual_line += info.right.len()
                                     - info
                                         .skip
                                         .as_ref()
                                         .map(|skip| skip.len().saturating_sub(1))
                                         .unwrap_or(0);
+                                last_change = Some(change);
                                 continue;
                             }
 
@@ -626,7 +635,7 @@ impl EditorViewData {
 
         let visual_line =
             (point.y / config.editor.line_height() as f64).floor() as usize;
-        let line = self.actual_line(visual_line);
+        let line = self.actual_line(visual_line, true);
         let line = line.min(self.last_line());
         let font_size = config.editor.font_size();
         let text_layout = self.get_text_layout(line, font_size);

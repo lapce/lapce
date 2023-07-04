@@ -285,7 +285,7 @@ fn move_up(
     }
 
     let visual_line = view.visual_line(line).saturating_sub(count);
-    let line = view.actual_line(visual_line);
+    let line = view.actual_line(visual_line, false);
 
     let horiz = horiz.unwrap_or_else(|| {
         ColPosition::Col(view.line_point_of_offset(offset, font_size).x)
@@ -317,16 +317,8 @@ fn move_down(
         return (new_offset, horiz);
     }
 
-    println!("line is {line}");
     let visual_line = view.visual_line(line);
-    println!("visual_line is {visual_line}");
-    let new_line = view.actual_line(visual_line + count);
-    let line = if new_line == line {
-        view.actual_line(visual_line + count + 1)
-    } else {
-        new_line
-    };
-    println!("line is {line}");
+    let line = view.actual_line(visual_line + count, true);
     let line = line.min(last_line);
 
     let horiz = horiz.unwrap_or_else(|| {

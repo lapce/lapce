@@ -507,15 +507,17 @@ impl EditorView {
             match render {
                 CursorRender::CurrentLine { line } => {
                     if !is_local {
-                        cx.fill(
-                            &Rect::ZERO
-                                .with_size(Size::new(viewport.width(), line_height))
-                                .with_origin(Point::new(
-                                    viewport.x0,
-                                    line_height * line as f64,
-                                )),
-                            config.get_color(LapceColor::EDITOR_CURRENT_LINE),
-                        );
+                        if let Some(info) = screen_lines.info.get(&line) {
+                            cx.fill(
+                                &Rect::ZERO
+                                    .with_size(Size::new(
+                                        viewport.width(),
+                                        line_height,
+                                    ))
+                                    .with_origin(Point::new(viewport.x0, info.y)),
+                                config.get_color(LapceColor::EDITOR_CURRENT_LINE),
+                            );
+                        }
                     }
                 }
                 CursorRender::Selection { x, width, line } => {
