@@ -1356,8 +1356,8 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                     if let Some(editor) = editor.get() {
                         let mut status = String::new();
                         let cursor = editor.get().cursor.get();
-                        if let Some((line, column, character)) =
-                            cursor.get_line_col_char(editor.get().doc.get().buffer())
+                        if let Some((line, column, character)) = cursor
+                            .get_line_col_char(editor.get().view.doc.get().buffer())
                         {
                             status = format!(
                                 "Ln {}, Col {}, Char {}",
