@@ -129,14 +129,6 @@ pub struct DocInfo {
     pub cursor_offset: usize,
 }
 
-/// A trait for listening to when the text cache should be cleared, such as when the document is
-/// changed.
-pub trait TextCacheListener {
-    fn clear(&self);
-}
-
-type TextCacheListeners = Rc<RefCell<SmallVec<[Rc<dyn TextCacheListener>; 2]>>>;
-
 /// A single document that can be viewed by multiple [`EditorData`]'s
 /// [`EditorViewData`]s and [`EditorView]s.  
 #[derive(Clone)]
@@ -144,10 +136,7 @@ pub struct Document {
     pub scope: Scope,
     pub content: DocContent,
     pub buffer_id: BufferId,
-    style_rev: u64,
-    // TODO(minor): Perhaps use dyn-clone to avoid the need for Rc?
-    /// The text cache listeners, which are told to clear cached text when the document is changed.
-    text_cache_listeners: TextCacheListeners,
+    cache_rev: u64,
     buffer: Buffer,
     syntax: Option<Syntax>,
     line_styles: Rc<RefCell<LineStyles>>,
@@ -194,8 +183,7 @@ impl Document {
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
-            style_rev: 0,
-            text_cache_listeners: Rc::new(RefCell::new(SmallVec::new())),
+            cache_rev: 0,
             syntax: syntax.ok(),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
@@ -227,8 +215,7 @@ impl Document {
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
-            style_rev: 0,
-            text_cache_listeners: Rc::new(RefCell::new(SmallVec::new())),
+            cache_rev: 0,
             content: DocContent::Local,
             syntax: None,
             line_styles: Rc::new(RefCell::new(HashMap::new())),
@@ -270,8 +257,7 @@ impl Document {
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
-            style_rev: 0,
-            text_cache_listeners: Rc::new(RefCell::new(SmallVec::new())),
+            cache_rev: 0,
             content,
             syntax,
             line_styles: Rc::new(RefCell::new(HashMap::new())),
@@ -304,8 +290,8 @@ impl Document {
         &mut self.buffer
     }
 
-    pub fn style_rev(&self) -> u64 {
-        self.style_rev
+    pub fn cache_rev(&self) -> u64 {
+        self.cache_rev
     }
 
     pub fn syntax(&self) -> Option<&Syntax> {
@@ -506,29 +492,12 @@ impl Document {
 
     /// Inform any dependents on this document that they should clear any cached text.
     pub fn clear_text_cache(&mut self) {
-        self.text_layouts.clear();
-        let mut text_cache_listeners = self.text_cache_listeners.borrow_mut();
-        for entry in text_cache_listeners.iter_mut() {
-            entry.clear();
-        }
-
-        self.style_rev += 1;
+        self.cache_rev += 1;
+        self.text_layouts.borrow_mut().clear(self.cache_rev);
     }
 
     fn clear_sticky_headers_cache(&mut self) {
         self.sticky_headers.borrow_mut().clear();
-    }
-
-    /// Add a text cache listener which will be informed when the text cache should be cleared.
-    pub fn add_text_cache_listener(&self, listener: Rc<dyn TextCacheListener>) {
-        self.text_cache_listeners.borrow_mut().push(listener);
-    }
-
-    /// Remove any text cache listeners which only have our weak reference left.
-    pub fn clean_text_cache_listeners(&self) {
-        self.text_cache_listeners
-            .borrow_mut()
-            .retain(|entry| Rc::strong_count(entry) > 1);
     }
 
     /// Get the active style information, either the semantic styles or the

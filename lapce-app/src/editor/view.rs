@@ -130,7 +130,7 @@ pub fn editor_view(
             (
                 doc.content.clone(),
                 doc.buffer().rev(),
-                doc.style_rev(),
+                doc.cache_rev(),
                 rect,
             )
         });

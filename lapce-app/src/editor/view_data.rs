@@ -24,7 +24,7 @@ use lapce_xi_rope::Rope;
 
 use crate::{
     config::LapceConfig,
-    doc::{phantom_text::PhantomTextLine, Document, TextCacheListener},
+    doc::{phantom_text::PhantomTextLine, Document},
     find::{Find, FindResult},
 };
 
@@ -55,6 +55,7 @@ pub struct TextLayoutCache {
     /// The id of the last config, which lets us know when the config changes so we can update
     /// the cache.
     config_id: u64,
+    cache_rev: u64,
     /// (Font Size -> (Line Number -> Text Layout))  
     /// Different font-sizes are cached separately, which is useful for features like code lens
     /// where the text becomes small but you may wish to revert quickly.
@@ -66,19 +67,21 @@ impl TextLayoutCache {
     pub fn new() -> Self {
         Self {
             config_id: 0,
+            cache_rev: 0,
             layouts: HashMap::new(),
             max_width: 0.0,
         }
     }
 
-    fn clear(&mut self) {
+    pub fn clear(&mut self, cache_rev: u64) {
         self.layouts.clear();
+        self.cache_rev = cache_rev;
         self.max_width = 0.0;
     }
 
     pub fn check_attributes(&mut self, config_id: u64) {
         if self.config_id != config_id {
-            self.clear();
+            self.clear(self.cache_rev + 1);
             self.config_id = config_id;
         }
     }
@@ -147,19 +150,12 @@ impl EditorViewData {
         kind: RwSignal<EditorViewKind>,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> EditorViewData {
-        let view = EditorViewData {
+        EditorViewData {
             doc,
             kind,
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             config,
-        };
-
-        let listener = view.text_layouts.clone();
-        doc.with_untracked(|doc| {
-            doc.add_text_cache_listener(listener);
-        });
-
-        view
+        }
     }
 
     // Note: There is no document / buffer function as that would require cloning it
@@ -211,19 +207,12 @@ impl EditorViewData {
     // different views. However, we probably wouldn't.
 
     pub fn style_rev(&self) -> u64 {
-        self.doc.with_untracked(|doc| doc.style_rev())
+        self.doc.with_untracked(|doc| doc.cache_rev())
     }
 
     /// The document for the given view was swapped out.
     pub fn update_doc(&mut self, doc: RwSignal<Document>) {
-        let old_doc = self.doc;
-
-        // Just recreate the view. This is simpler than trying to reuse the text layout cache in the cases where it is possible.
-        *self = Self::new(doc, self.kind, self.config);
-
-        old_doc.with_untracked(|doc| {
-            doc.clean_text_cache_listeners();
-        });
+        self.doc = doc;
     }
 
     /// Duplicate as a new view which refers to the same document.
@@ -251,6 +240,15 @@ impl EditorViewData {
         line: usize,
         font_size: usize,
     ) -> Arc<TextLayoutLine> {
+        {
+            let mut text_layouts = self.text_layouts.borrow_mut();
+            self.doc.with_untracked(|doc| {
+                if doc.cache_rev() != text_layouts.cache_rev {
+                    text_layouts.clear(doc.cache_rev());
+                }
+            })
+        }
+
         // TODO: Should we just move the config cache check into `check_cache`?
         let config = self.config.get_untracked();
         // Check if the text layout needs to update due to the config being changed
@@ -745,11 +743,5 @@ impl EditorViewData {
                     .unwrap_or(offset)
             }
         })
-    }
-}
-
-impl TextCacheListener for RefCell<TextLayoutCache> {
-    fn clear(&self) {
-        self.borrow_mut().clear();
     }
 }
