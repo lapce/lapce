@@ -38,6 +38,13 @@ pub enum ProxyRpc {
     Shutdown,
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum ProxyStatus {
+    Connecting,
+    Connected,
+    Disconnected,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchMatch {
     pub line: usize,
@@ -166,6 +173,7 @@ pub enum ProxyRequest {
         to: PathBuf,
     },
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]

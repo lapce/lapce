@@ -10,6 +10,7 @@ use floem::{
     ViewContext,
 };
 use lapce_core::meta;
+use lapce_rpc::proxy::ProxyStatus;
 
 use crate::{
     app::clickable_icon,
@@ -18,20 +19,39 @@ use crate::{
     listener::Listener,
     main_split::MainSplitData,
     update::ReleaseInfo,
-    workspace::LapceWorkspace,
+    workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
 fn left(
+    workspace: Arc<LapceWorkspace>,
     workbench_command: Listener<LapceWorkbenchCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
+    proxy_status: RwSignal<Option<ProxyStatus>>,
 ) -> impl View {
+    let remote = workspace.kind.clone();
     let id = ViewContext::get_current().id;
     stack(move || {
         (container(move || {
             svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(move || {
-                Style::BASE
-                    .size_px(26.0, 26.0)
-                    .color(*config.get().get_color(LapceColor::LAPCE_REMOTE_ICON))
+                Style::BASE.size_px(26.0, 26.0).color(match remote {
+                    LapceWorkspaceType::Local => {
+                        *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL)
+                    }
+                    _ => match proxy_status.get() {
+                        Some(ProxyStatus::Connected) => *config
+                            .get()
+                            .get_color(LapceColor::LAPCE_REMOTE_CONNECTED),
+                        Some(ProxyStatus::Connecting) => *config
+                            .get()
+                            .get_color(LapceColor::LAPCE_REMOTE_CONNECTING),
+                        Some(ProxyStatus::Disconnected) => *config
+                            .get()
+                            .get_color(LapceColor::LAPCE_REMOTE_DISCONNECTED),
+                        None => {
+                            *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL)
+                        }
+                    },
+                })
             })
         })
         .on_click(move |_| {
@@ -51,13 +71,17 @@ fn left(
             id.show_context_menu(menu, Point::ZERO);
             true
         })
-        .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer))
+        .hover_style(move || {
+            Style::BASE.cursor(CursorStyle::Pointer).background(
+                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+            )
+        })
         .style(move || {
             Style::BASE
                 .height_pct(100.0)
                 .padding_horiz_px(10.0)
                 .items_center()
-                .background(*config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL))
+                .background(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
         }),)
     })
     .style(move || {
@@ -348,10 +372,11 @@ pub fn title(
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     update_in_progress: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
+    proxy_status: RwSignal<Option<ProxyStatus>>,
 ) -> impl View {
     stack(move || {
         (
-            left(workbench_command, config),
+            left(workspace.clone(), workbench_command, config, proxy_status),
             middle(workspace, main_split, workbench_command, config),
             right(
                 workbench_command,

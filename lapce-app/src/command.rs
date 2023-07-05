@@ -5,7 +5,10 @@ use indexmap::IndexMap;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
-use lapce_rpc::{dap_types::RunDebugConfig, plugin::PluginId, terminal::TermId};
+use lapce_rpc::{
+    dap_types::RunDebugConfig, plugin::PluginId, proxy::ProxyStatus,
+    terminal::TermId,
+};
 use lsp_types::{CodeActionOrCommand, Position, WorkspaceEdit};
 use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
@@ -616,6 +619,9 @@ pub enum InternalCommand {
     HideAlert,
     SaveScratchDoc {
         doc: RwSignal<Document>,
+    },
+    UpdateProxyStatus {
+        status: ProxyStatus,
     },
 }
 

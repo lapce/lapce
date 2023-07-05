@@ -19,6 +19,7 @@ use crate::{
     dap_types::{self, DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
     file::PathObject,
     plugin::{PluginId, VoltInfo, VoltMetadata},
+    proxy::ProxyStatus,
     source_control::DiffInfo,
     terminal::TermId,
     RequestId, RpcError, RpcMessage,
@@ -34,7 +35,9 @@ pub enum CoreRpc {
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "method", content = "params")]
 pub enum CoreNotification {
-    ProxyConnected {},
+    ProxyStatus {
+        status: ProxyStatus,
+    },
     OpenFileChanged {
         path: PathBuf,
         content: String,
@@ -213,10 +216,6 @@ impl CoreRpcHandler {
 
     pub fn notification(&self, notification: CoreNotification) {
         let _ = self.tx.send(CoreRpc::Notification(Box::new(notification)));
-    }
-
-    pub fn proxy_connected(&self) {
-        self.notification(CoreNotification::ProxyConnected {});
     }
 
     pub fn workspace_file_change(&self) {

@@ -2203,6 +2203,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let workbench_command = window_tab_data.common.workbench_command;
     let main_split = window_tab_data.main_split.clone();
     let window_tab_scope = window_tab_data.scope;
+    let proxy_status = window_tab_data.common.proxy_status;
 
     let view = stack(|| {
         (
@@ -2215,6 +2216,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
                         latest_release,
                         update_in_progress,
                         config,
+                        proxy_status,
                     ),
                     workbench(window_tab_data.clone()),
                     status(
