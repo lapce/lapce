@@ -496,7 +496,14 @@ impl EditorViewData {
                             };
 
                             if let Some(skip) = info.skip.as_ref() {
-                                if current_visual_line + skip.start + 1 > visual_line
+                                if current_visual_line + skip.start == visual_line {
+                                    return if bottom_affinity {
+                                        actual_line + skip.end
+                                    } else {
+                                        (actual_line + skip.start).saturating_sub(1)
+                                    };
+                                } else if current_visual_line + skip.start + 1
+                                    > visual_line
                                 {
                                     return actual_line + visual_line
                                         - current_visual_line;

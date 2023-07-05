@@ -457,8 +457,6 @@ impl EditorView {
     fn paint_cursor(
         &self,
         cx: &mut PaintCx,
-        min_line: usize,
-        max_line: usize,
         is_local: bool,
         screen_lines: &ScreenLines,
     ) {
@@ -493,13 +491,12 @@ impl EditorView {
                 *end,
                 mode,
                 cursor.horiz.as_ref(),
-                min_line,
-                max_line,
                 7.5,
                 is_active,
+                screen_lines,
             ),
             CursorMode::Insert(selection) => {
-                insert_cursor(&view, selection, min_line, max_line, 7.5, is_active)
+                insert_cursor(&view, selection, 7.5, is_active, screen_lines)
             }
         });
 
@@ -521,12 +518,14 @@ impl EditorView {
                     }
                 }
                 CursorRender::Selection { x, width, line } => {
-                    cx.fill(
-                        &Rect::ZERO
-                            .with_size(Size::new(width, line_height))
-                            .with_origin(Point::new(x, line_height * line as f64)),
-                        config.get_color(LapceColor::EDITOR_SELECTION),
-                    );
+                    if let Some(info) = screen_lines.info.get(&line) {
+                        cx.fill(
+                            &Rect::ZERO
+                                .with_size(Size::new(width, line_height))
+                                .with_origin(Point::new(x, info.y)),
+                            config.get_color(LapceColor::EDITOR_SELECTION),
+                        );
+                    }
                 }
                 CursorRender::Caret { x, width, line } => {
                     if let Some(info) = screen_lines.info.get(&line) {
@@ -611,8 +610,6 @@ impl EditorView {
     fn paint_text(
         &self,
         cx: &mut PaintCx,
-        _min_line: usize,
-        _max_line: usize,
         viewport: Rect,
         screen_lines: &ScreenLines,
     ) {
@@ -677,11 +674,17 @@ impl EditorView {
         }
     }
 
-    fn paint_find(&self, cx: &mut PaintCx, min_line: usize, max_line: usize) {
+    fn paint_find(&self, cx: &mut PaintCx, screen_lines: &ScreenLines) {
         let visual = self.editor.with_untracked(|e| e.common.find.visual);
         if !visual.get_untracked() {
             return;
         }
+        if screen_lines.lines.is_empty() {
+            return;
+        }
+
+        let min_line = *screen_lines.lines.first().unwrap();
+        let max_line = *screen_lines.lines.last().unwrap();
 
         let (view, config) = self
             .editor
@@ -696,14 +699,15 @@ impl EditorView {
         let end = view.offset_of_line(max_line + 1);
 
         let mut rects = Vec::new();
-        for region in occurrences
-            .with(|selection| selection.regions_in_range(start, end).to_vec())
-        {
+        for region in occurrences.with_untracked(|selection| {
+            selection.regions_in_range(start, end).to_vec()
+        }) {
             let start = region.min();
             let end = region.max();
             let (start_line, start_col) = view.offset_to_line_col(start);
             let (end_line, end_col) = view.offset_to_line_col(end);
-            for line in min_line..max_line + 1 {
+            for line in &screen_lines.lines {
+                let line = *line;
                 if line < start_line {
                     continue;
                 }
@@ -711,6 +715,8 @@ impl EditorView {
                 if line > end_line {
                     break;
                 }
+
+                let info = screen_lines.info.get(&line).unwrap();
 
                 let left_col = match line {
                     _ if line == start_line => start_col,
@@ -736,7 +742,7 @@ impl EditorView {
                     rects.push(
                         Size::new(x1 - x0, line_height)
                             .to_rect()
-                            .with_origin(Point::new(x0, line_height * line as f64)),
+                            .with_origin(Point::new(x0, info.y)),
                     );
                 }
             }
@@ -748,12 +754,7 @@ impl EditorView {
         }
     }
 
-    fn paint_sticky_headers(
-        &self,
-        cx: &mut PaintCx,
-        start_line: usize,
-        viewport: Rect,
-    ) {
+    fn paint_sticky_headers(&self, cx: &mut PaintCx, viewport: Rect) {
         let (view, editor_view, config) = self.editor.with_untracked(|editor| {
             (editor.view.clone(), editor.view.kind, editor.common.config)
         });
@@ -766,6 +767,7 @@ impl EditorView {
         }
 
         let line_height = config.editor.line_height() as f64;
+        let start_line = (viewport.y0 / line_height).floor() as usize;
 
         let total_sticky_lines = self.sticky_header_info.sticky_lines.len();
 
@@ -997,20 +999,16 @@ impl View for EditorView {
         let viewport = self.viewport.get_untracked();
         let config = self.editor.with_untracked(|e| e.common.config);
         let config = config.get_untracked();
-        let line_height = config.editor.line_height() as f64;
         let screen_lines = self.get_screen_lines();
-
-        let min_line = (viewport.y0 / line_height).floor() as usize;
-        let max_line = (viewport.y1 / line_height).ceil() as usize;
 
         let doc = self.editor.with_untracked(|e| e.view.doc);
         let is_local = doc.with_untracked(|doc| doc.content.is_local());
 
-        self.paint_cursor(cx, min_line, max_line, is_local, &screen_lines);
+        self.paint_cursor(cx, is_local, &screen_lines);
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
-        self.paint_find(cx, min_line, max_line);
-        self.paint_text(cx, min_line, max_line, viewport, &screen_lines);
-        self.paint_sticky_headers(cx, min_line, viewport);
+        self.paint_find(cx, &screen_lines);
+        self.paint_text(cx, viewport, &screen_lines);
+        self.paint_sticky_headers(cx, viewport);
         self.paint_scroll_bar(cx, viewport, is_local, config);
     }
 }
@@ -1149,10 +1147,9 @@ fn visual_cursor(
     end: usize,
     mode: &VisualMode,
     horiz: Option<&ColPosition>,
-    min_line: usize,
-    max_line: usize,
     char_width: f64,
     is_active: bool,
+    screen_lines: &ScreenLines,
 ) -> Vec<CursorRender> {
     let (start_line, start_col) = view.offset_to_line_col(start.min(end));
     let (end_line, end_col) = view.offset_to_line_col(start.max(end));
@@ -1160,7 +1157,8 @@ fn visual_cursor(
 
     let mut renders = Vec::new();
 
-    for line in min_line..max_line + 1 {
+    for line in &screen_lines.lines {
+        let line = *line;
         if line < start_line {
             continue;
         }
@@ -1245,13 +1243,17 @@ fn visual_cursor(
 fn insert_cursor(
     view: &EditorViewData,
     selection: &Selection,
-    min_line: usize,
-    max_line: usize,
     char_width: f64,
     is_active: bool,
+    screen_lines: &ScreenLines,
 ) -> Vec<CursorRender> {
-    let start = view.offset_of_line(min_line);
-    let end = view.offset_of_line(max_line + 1);
+    if screen_lines.lines.is_empty() {
+        return Vec::new();
+    }
+    let start_line = *screen_lines.lines.first().unwrap();
+    let end_line = *screen_lines.lines.last().unwrap();
+    let start = view.offset_of_line(start_line);
+    let end = view.offset_of_line(end_line + 1);
     let regions = selection.regions_in_range(start, end);
 
     let mut renders = Vec::new();
@@ -1263,7 +1265,8 @@ fn insert_cursor(
         let end = region.end;
         let (start_line, start_col) = view.offset_to_line_col(start.min(end));
         let (end_line, end_col) = view.offset_to_line_col(start.max(end));
-        for line in min_line..max_line + 1 {
+        for line in &screen_lines.lines {
+            let line = *line;
             if line < start_line {
                 continue;
             }
