@@ -297,7 +297,11 @@ impl MainSplitData {
                     self.diff_editors.with_untracked(|diff_editors| {
                         diff_editors.get(&diff_editor_id).cloned()
                     })?;
-                let editor = diff_editor.right.get_untracked();
+                let editor = if diff_editor.focus_right.get_untracked() {
+                    diff_editor.right.get_untracked()
+                } else {
+                    diff_editor.left.get_untracked()
+                };
                 keypress.key_down(key_event, &editor);
                 editor.get_code_actions();
             }
@@ -800,8 +804,16 @@ impl MainSplitData {
                     EditorTabChild::DiffEditor(diff_editor_id),
                     EditorTabChildSource::DiffEditor { left, right },
                 ) => {
-                    if !is_same_diff_editor(diff_editor_id, left, right) {}
-
+                    if !is_same_diff_editor(diff_editor_id, left, right) {
+                        if let Some(diff_editor) = diff_editors.get(diff_editor_id) {
+                            diff_editor.left.update(|editor| {
+                                editor.update_doc(*left);
+                            });
+                            diff_editor.right.update(|editor| {
+                                editor.update_doc(*right);
+                            });
+                        }
+                    }
                     true
                 }
                 (EditorTabChild::Settings(_), EditorTabChildSource::Settings) => {

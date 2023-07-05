@@ -275,6 +275,9 @@ fn editor_tab_header(
                         let diff_editor_data = diff_editors.with(|diff_editors| {
                             diff_editors.get(&diff_editor_id).cloned()
                         });
+                        let confirmed = diff_editor_data
+                            .as_ref()
+                            .map(|d| d.right.with_untracked(|e| e.confirmed));
                         let path = if let Some(diff_editor_data) = diff_editor_data {
                             let (content, is_pristine) =
                                 diff_editor_data.right.with(|editor_data| {
@@ -322,7 +325,7 @@ fn editor_tab_header(
                             icon,
                             color,
                             path,
-                            confirmed: None,
+                            confirmed,
                             is_pristine,
                         }
                     })
@@ -615,6 +618,7 @@ fn editor_tab_content(
                     diff_editors.get(&diff_editor_id).cloned()
                 });
                 if let Some(diff_editor_data) = diff_editor_data {
+                    let focus_right = diff_editor_data.focus_right;
                     let diff_editor_tab_id = diff_editor_data.editor_tab_id;
                     let is_active = move |tracked: bool| {
                         let focus = if tracked {
@@ -679,10 +683,24 @@ fn editor_tab_content(
                                         editor_container_view(
                                             main_split.clone(),
                                             workspace.clone(),
-                                            is_active,
+                                            move |track| {
+                                                is_active(track)
+                                                    && if track {
+                                                        !focus_right.get()
+                                                    } else {
+                                                        !focus_right.get_untracked()
+                                                    }
+                                            },
                                             diff_editor_data.left,
                                         )
                                     })
+                                    .on_event(
+                                        EventListener::PointerDown,
+                                        move |_| {
+                                            focus_right.set(false);
+                                            false
+                                        },
+                                    )
                                     .style(
                                         move || {
                                             Style::BASE
@@ -701,10 +719,24 @@ fn editor_tab_content(
                                         editor_container_view(
                                             main_split.clone(),
                                             workspace.clone(),
-                                            is_active,
+                                            move |track| {
+                                                is_active(track)
+                                                    && if track {
+                                                        focus_right.get()
+                                                    } else {
+                                                        focus_right.get_untracked()
+                                                    }
+                                            },
                                             diff_editor_data.right,
                                         )
                                     })
+                                    .on_event(
+                                        EventListener::PointerDown,
+                                        move |_| {
+                                            focus_right.set(true);
+                                            false
+                                        },
+                                    )
                                     .style(
                                         || {
                                             Style::BASE

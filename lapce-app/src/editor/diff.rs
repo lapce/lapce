@@ -95,6 +95,7 @@ impl DiffEditorInfo {
             scope: cx,
             left,
             right,
+            focus_right: create_rw_signal(cx, true),
         };
 
         data.diff_editors.update(|diff_editors| {
@@ -114,6 +115,7 @@ pub struct DiffEditorData {
     pub scope: Scope,
     pub left: RwSignal<EditorData>,
     pub right: RwSignal<EditorData>,
+    pub focus_right: RwSignal<bool>,
 }
 
 impl DiffEditorData {
@@ -138,6 +140,7 @@ impl DiffEditorData {
             scope: cx,
             left,
             right,
+            focus_right: create_rw_signal(cx, true),
         };
 
         data.listen_diff_changes();
