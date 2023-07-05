@@ -228,7 +228,7 @@ impl PaletteData {
 
         {
             let palette = palette.clone();
-            let doc = palette.input_editor.doc.read_only();
+            let doc = palette.input_editor.view.doc.read_only();
             let input = palette.input;
             let status = palette.status.read_only();
             let preset_kind = palette.kind.read_only();
@@ -310,6 +310,7 @@ impl PaletteData {
         self.kind.set(kind);
         // Refresh the palette input with only the symbol prefix, losing old content.
         self.input_editor
+            .view
             .doc
             .update(|doc| doc.reload(Rope::from(symbol), true));
         self.input_editor
@@ -368,7 +369,7 @@ impl PaletteData {
             PaletteKind::Language => {
                 self.get_languages(cx);
                 if let Some(editor) = self.main_split.active_editor.get_untracked() {
-                    let doc = editor.with_untracked(|editor| (editor.doc));
+                    let doc = editor.with_untracked(|editor| (editor.view.doc));
                     if let Some(syn) = doc.get_untracked().syntax() {
                         self.preselect_matching(syn.language.to_string().as_str());
                     }
@@ -421,7 +422,7 @@ impl PaletteData {
     fn get_lines(&self, _cx: Scope) {
         let editor = self.main_split.active_editor.get_untracked();
         let doc = match editor {
-            Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+            Some(editor) => editor.with_untracked(|editor| (editor.view.doc)),
             None => {
                 return;
             }
@@ -567,7 +568,7 @@ impl PaletteData {
     fn get_document_symbols(&self, _cx: Scope) {
         let editor = self.main_split.active_editor.get_untracked();
         let doc = match editor {
-            Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+            Some(editor) => editor.with_untracked(|editor| (editor.view.doc)),
             None => {
                 self.items.update(|items| items.clear());
                 return;
@@ -856,7 +857,9 @@ impl PaletteData {
                 PaletteItemContent::Line { line, .. } => {
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
-                        Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+                        Some(editor) => {
+                            editor.with_untracked(|editor| (editor.view.doc))
+                        }
                         None => {
                             return;
                         }
@@ -909,7 +912,9 @@ impl PaletteData {
                 PaletteItemContent::DocumentSymbol { range, .. } => {
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
-                        Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+                        Some(editor) => {
+                            editor.with_untracked(|editor| (editor.view.doc))
+                        }
                         None => {
                             return;
                         }
@@ -965,7 +970,9 @@ impl PaletteData {
                 PaletteItemContent::Language { name } => {
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
-                        Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+                        Some(editor) => {
+                            editor.with_untracked(|editor| (editor.view.doc))
+                        }
                         None => {
                             return;
                         }
@@ -1024,7 +1031,9 @@ impl PaletteData {
                     self.has_preview.set(true);
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
-                        Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+                        Some(editor) => {
+                            editor.with_untracked(|editor| (editor.view.doc))
+                        }
                         None => {
                             return;
                         }
@@ -1071,7 +1080,9 @@ impl PaletteData {
                     self.has_preview.set(true);
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
-                        Some(editor) => editor.with_untracked(|editor| (editor.doc)),
+                        Some(editor) => {
+                            editor.with_untracked(|editor| (editor.view.doc))
+                        }
                         None => {
                             return;
                         }
@@ -1148,6 +1159,7 @@ impl PaletteData {
         self.has_preview.set(false);
         self.items.update(|items| items.clear());
         self.input_editor
+            .view
             .doc
             .update(|doc| doc.reload(Rope::from(""), true));
         self.input_editor

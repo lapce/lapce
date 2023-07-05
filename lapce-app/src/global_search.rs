@@ -128,6 +128,7 @@ impl GlobalSearchData {
             create_effect(cx, move |_| {
                 let pattern = global_search
                     .editor
+                    .view
                     .doc
                     .with(|doc| doc.buffer().to_string());
                 if pattern.is_empty() {
@@ -160,7 +161,7 @@ impl GlobalSearchData {
         }
 
         {
-            let global_search_doc = global_search.editor.doc;
+            let global_search_doc = global_search.editor.view.doc;
             let main_split = global_search.main_split.clone();
             create_effect(cx, move |_| {
                 let content = global_search_doc.with(|doc| doc.buffer().to_string());
@@ -201,6 +202,7 @@ impl GlobalSearchData {
     pub fn set_pattern(&self, pattern: String) {
         let pattern_len = pattern.len();
         self.editor
+            .view
             .doc
             .update(|doc| doc.reload(Rope::from(pattern), true));
         self.editor

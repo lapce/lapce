@@ -1,7 +1,6 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
-    ops::Range,
     rc::Rc,
     sync::{atomic, Arc},
 };
@@ -10,9 +9,12 @@ use druid::{
     piet::{PietText, Text, TextAttribute, TextLayoutBuilder},
     Target,
 };
-use itertools::Itertools;
 use lapce_core::{
-    buffer::{rope_diff, rope_text::RopeText, Buffer, DiffLines},
+    buffer::{
+        diff::{rope_diff, DiffLines},
+        rope_text::RopeText,
+        Buffer,
+    },
     style::line_styles,
     syntax::Syntax,
 };
@@ -207,155 +209,152 @@ impl DocumentHistory {
     pub fn trigger_increase_diff_extend_lines(
         &self,
         doc: &Document,
-        diff_skip: DiffLines,
+        _diff_skip: DiffLines,
     ) {
-        let incr = 5_usize;
         if self.buffer.is_none() {
             return;
         }
-        if let BufferContent::File(path) = &doc.content() {
-            let id = doc.id();
-            let rev = doc.rev();
-            let path = path.clone();
-            let event_sink = doc.event_sink.clone();
-            let tab_id = doc.tab_id;
+        if let BufferContent::File(_path) = &doc.content() {
+            // let id = doc.id();
+            // let rev = doc.rev();
+            // let path = path.clone();
+            // let event_sink = doc.event_sink.clone();
+            // let tab_id = doc.tab_id;
 
             let old_changes = self.changes.clone();
-            let changes_len = old_changes.len();
-            let mut changes = self.changes.clone().to_vec();
-            for (i, change) in old_changes.iter().enumerate() {
-                if let DiffLines::Skip(left, right) = change {
-                    if *change == diff_skip {
-                        if i == 0 {
-                            let l_incr =
-                                if left.len() < incr { left.len() } else { incr };
-                            let r_incr =
-                                if right.len() < 5 { right.len() } else { incr };
-                            changes[i] = DiffLines::Skip(
-                                Range {
-                                    start: left.start,
-                                    end: left.end - l_incr,
-                                },
-                                Range {
-                                    start: right.start,
-                                    end: right.end - r_incr,
-                                },
-                            );
-                            if let DiffLines::Both(l, r) = &old_changes[i + 1] {
-                                changes[i + 1] = DiffLines::Both(
-                                    Range {
-                                        start: l.start - l_incr,
-                                        end: l.end,
-                                    },
-                                    Range {
-                                        start: r.start - r_incr,
-                                        end: r.end,
-                                    },
-                                );
-                            }
-                        } else if i == changes_len - 1 {
-                            let l_incr =
-                                if left.len() < incr { left.len() } else { incr };
-                            let r_incr =
-                                if right.len() < 5 { right.len() } else { incr };
-                            if let DiffLines::Both(l, r) = &old_changes[i - 1] {
-                                changes[i - 1] = DiffLines::Both(
-                                    Range {
-                                        start: l.start,
-                                        end: l.end + l_incr,
-                                    },
-                                    Range {
-                                        start: r.start,
-                                        end: r.end + r_incr,
-                                    },
-                                );
-                            }
-                            changes[i] = DiffLines::Skip(
-                                Range {
-                                    start: left.start + l_incr,
-                                    end: left.end,
-                                },
-                                Range {
-                                    start: right.start + r_incr,
-                                    end: right.end,
-                                },
-                            );
-                        } else {
-                            let mut l_s_incr = incr; // left start increasement
-                            let mut l_e_incr = incr; // left end increasement
-                            let mut r_s_incr = incr; // right start increasement
-                            let mut r_e_incr = incr; // right end increasement
-                            if left.len() < incr * 2 {
-                                l_s_incr = left.len();
-                                l_e_incr = 0;
-                            }
-                            if right.len() < incr * 2 {
-                                r_s_incr = right.len();
-                                r_e_incr = 0;
-                            }
+            for (_i, _change) in old_changes.iter().enumerate() {
+                // if let DiffLines::Skip(left, right) = change {
+                //     if *change == diff_skip {
+                //         if i == 0 {
+                //             let l_incr =
+                //                 if left.len() < incr { left.len() } else { incr };
+                //             let r_incr =
+                //                 if right.len() < 5 { right.len() } else { incr };
+                //             changes[i] = DiffLines::Skip(
+                //                 Range {
+                //                     start: left.start,
+                //                     end: left.end - l_incr,
+                //                 },
+                //                 Range {
+                //                     start: right.start,
+                //                     end: right.end - r_incr,
+                //                 },
+                //             );
+                //             if let DiffLines::Both(l, r) = &old_changes[i + 1] {
+                //                 changes[i + 1] = DiffLines::Both(
+                //                     Range {
+                //                         start: l.start - l_incr,
+                //                         end: l.end,
+                //                     },
+                //                     Range {
+                //                         start: r.start - r_incr,
+                //                         end: r.end,
+                //                     },
+                //                 );
+                //             }
+                //         } else if i == changes_len - 1 {
+                //             let l_incr =
+                //                 if left.len() < incr { left.len() } else { incr };
+                //             let r_incr =
+                //                 if right.len() < 5 { right.len() } else { incr };
+                //             if let DiffLines::Both(l, r) = &old_changes[i - 1] {
+                //                 changes[i - 1] = DiffLines::Both(
+                //                     Range {
+                //                         start: l.start,
+                //                         end: l.end + l_incr,
+                //                     },
+                //                     Range {
+                //                         start: r.start,
+                //                         end: r.end + r_incr,
+                //                     },
+                //                 );
+                //             }
+                //             changes[i] = DiffLines::Skip(
+                //                 Range {
+                //                     start: left.start + l_incr,
+                //                     end: left.end,
+                //                 },
+                //                 Range {
+                //                     start: right.start + r_incr,
+                //                     end: right.end,
+                //                 },
+                //             );
+                //         } else {
+                //             let mut l_s_incr = incr; // left start increasement
+                //             let mut l_e_incr = incr; // left end increasement
+                //             let mut r_s_incr = incr; // right start increasement
+                //             let mut r_e_incr = incr; // right end increasement
+                //             if left.len() < incr * 2 {
+                //                 l_s_incr = left.len();
+                //                 l_e_incr = 0;
+                //             }
+                //             if right.len() < incr * 2 {
+                //                 r_s_incr = right.len();
+                //                 r_e_incr = 0;
+                //             }
 
-                            if let DiffLines::Both(l, r) = &old_changes[i - 1] {
-                                changes[i - 1] = DiffLines::Both(
-                                    Range {
-                                        start: l.start,
-                                        end: l.end + l_s_incr,
-                                    },
-                                    Range {
-                                        start: r.start,
-                                        end: r.end + r_s_incr,
-                                    },
-                                );
-                            }
-                            changes[i] = DiffLines::Skip(
-                                Range {
-                                    start: left.start + l_s_incr,
-                                    end: left.end - l_e_incr,
-                                },
-                                Range {
-                                    start: right.start + r_s_incr,
-                                    end: right.end - r_e_incr,
-                                },
-                            );
-                            if let DiffLines::Both(l, r) = &old_changes[i + 1] {
-                                changes[i + 1] = DiffLines::Both(
-                                    Range {
-                                        start: l.start - l_e_incr,
-                                        end: l.end,
-                                    },
-                                    Range {
-                                        start: r.start - r_e_incr,
-                                        end: r.end,
-                                    },
-                                );
-                            }
-                        }
-                    }
-                }
+                //             if let DiffLines::Both(l, r) = &old_changes[i - 1] {
+                //                 changes[i - 1] = DiffLines::Both(
+                //                     Range {
+                //                         start: l.start,
+                //                         end: l.end + l_s_incr,
+                //                     },
+                //                     Range {
+                //                         start: r.start,
+                //                         end: r.end + r_s_incr,
+                //                     },
+                //                 );
+                //             }
+                //             changes[i] = DiffLines::Skip(
+                //                 Range {
+                //                     start: left.start + l_s_incr,
+                //                     end: left.end - l_e_incr,
+                //                 },
+                //                 Range {
+                //                     start: right.start + r_s_incr,
+                //                     end: right.end - r_e_incr,
+                //                 },
+                //             );
+                //             if let DiffLines::Both(l, r) = &old_changes[i + 1] {
+                //                 changes[i + 1] = DiffLines::Both(
+                //                     Range {
+                //                         start: l.start - l_e_incr,
+                //                         end: l.end,
+                //                     },
+                //                     Range {
+                //                         start: r.start - r_e_incr,
+                //                         end: r.end,
+                //                     },
+                //                 );
+                //             }
+                //         }
+                //     }
+                // }
             }
-            let changes = changes
-                .iter()
-                .filter(|change| {
-                    if let DiffLines::Skip(left, right) = change {
-                        if left.is_empty() && right.is_empty() {
-                            return false;
-                        }
-                    }
-                    true
-                })
-                .cloned()
-                .collect_vec();
-            let _ = event_sink.submit_command(
-                LAPCE_UI_COMMAND,
-                LapceUICommand::UpdateHistoryChanges {
-                    id,
-                    path,
-                    rev,
-                    history: "head".to_string(),
-                    changes: Arc::new(changes),
-                    diff_context_lines: self.diff_context_lines,
-                },
-                Target::Widget(tab_id),
-            );
+            // let changes = changes
+            //     .iter()
+            //     .filter(|change| {
+            //         // if let DiffLines::Skip(left, right) = change {
+            //         //     if left.is_empty() && right.is_empty() {
+            //         //         return false;
+            //         //     }
+            //         // }
+            //         true
+            //     })
+            //     .cloned()
+            //     .collect_vec();
+            // let _ = event_sink.submit_command(
+            //     LAPCE_UI_COMMAND,
+            //     LapceUICommand::UpdateHistoryChanges {
+            //         id,
+            //         path,
+            //         rev,
+            //         history: "head".to_string(),
+            //         changes: Arc::new(changes),
+            //         diff_context_lines: self.diff_context_lines,
+            //     },
+            //     Target::Widget(tab_id),
+            // );
         }
     }
 

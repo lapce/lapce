@@ -7,6 +7,7 @@ use std::{
 };
 
 use floem::{
+    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
     reactive::{
         create_rw_signal, ReadSignal, RwSignal, Scope, SignalGetUntracked,
@@ -15,7 +16,11 @@ use floem::{
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::{rope_diff, rope_text::RopeText, Buffer, DiffLines, InvalLines},
+    buffer::{
+        diff::{rope_diff, DiffLines},
+        rope_text::RopeText,
+        Buffer, InvalLines,
+    },
     command::EditCommand,
     cursor::Cursor,
     editor::{EditType, Editor},
@@ -44,6 +49,7 @@ use smallvec::SmallVec;
 use self::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine};
 use crate::{
     config::{color::LapceColor, LapceConfig},
+    editor::view_data::{LineExtraStyle, TextLayoutCache, TextLayoutLine},
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     workspace::LapceWorkspace,
@@ -82,11 +88,19 @@ pub struct EditorDiagnostic {
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct DocHistory {
+    pub path: PathBuf,
+    pub version: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DocContent {
     /// A file at some location. This can be a remote path.
     File(PathBuf),
     /// A local document, which doens't need to be sync to the disk.
     Local,
+    /// A document of an old version in the source control
+    History(DocHistory),
 }
 
 impl DocContent {
@@ -102,6 +116,7 @@ impl DocContent {
         match self {
             DocContent::File(path) => Some(path),
             DocContent::Local => None,
+            DocContent::History(_) => None,
         }
     }
 }
@@ -114,14 +129,6 @@ pub struct DocInfo {
     pub cursor_offset: usize,
 }
 
-/// A trait for listening to when the text cache should be cleared, such as when the document is
-/// changed.
-pub trait TextCacheListener {
-    fn clear(&self);
-}
-
-type TextCacheListeners = Rc<RefCell<SmallVec<[Rc<dyn TextCacheListener>; 2]>>>;
-
 /// A single document that can be viewed by multiple [`EditorData`]'s
 /// [`EditorViewData`]s and [`EditorView]s.  
 #[derive(Clone)]
@@ -129,10 +136,7 @@ pub struct Document {
     pub scope: Scope,
     pub content: DocContent,
     pub buffer_id: BufferId,
-    style_rev: u64,
-    // TODO(minor): Perhaps use dyn-clone to avoid the need for Rc?
-    /// The text cache listeners, which are told to clear cached text when the document is changed.
-    text_cache_listeners: TextCacheListeners,
+    cache_rev: u64,
     buffer: Buffer,
     syntax: Option<Syntax>,
     line_styles: Rc<RefCell<LineStyles>>,
@@ -154,6 +158,8 @@ pub struct Document {
     /// Stores information about different versions of the document from source control.
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
     pub head_changes: RwSignal<im::Vector<DiffLines>>,
+    /// The text layouts for the document. This may be shared with other views.
+    text_layouts: Rc<RefCell<TextLayoutCache>>,
 
     /// A cache for the sticky headers which maps a line to the lines it should show in the header.
     pub sticky_headers: Rc<RefCell<HashMap<usize, Option<Vec<usize>>>>>,
@@ -177,8 +183,7 @@ impl Document {
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
-            style_rev: 0,
-            text_cache_listeners: Rc::new(RefCell::new(SmallVec::new())),
+            cache_rev: 0,
             syntax: syntax.ok(),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
@@ -190,6 +195,7 @@ impl Document {
             loaded: false,
             histories: create_rw_signal(cx, im::HashMap::new()),
             head_changes: create_rw_signal(cx, im::Vector::new()),
+            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             code_actions: im::HashMap::new(),
             proxy,
@@ -209,8 +215,7 @@ impl Document {
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
-            style_rev: 0,
-            text_cache_listeners: Rc::new(RefCell::new(SmallVec::new())),
+            cache_rev: 0,
             content: DocContent::Local,
             syntax: None,
             line_styles: Rc::new(RefCell::new(HashMap::new())),
@@ -226,6 +231,49 @@ impl Document {
             loaded: true,
             histories: create_rw_signal(cx, im::HashMap::new()),
             head_changes: create_rw_signal(cx, im::Vector::new()),
+            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            code_actions: im::HashMap::new(),
+            proxy,
+            config,
+            find,
+            find_result: FindResult::new(cx),
+        }
+    }
+
+    pub fn new_hisotry(
+        cx: Scope,
+        content: DocContent,
+        find: Find,
+        proxy: ProxyRpcHandler,
+        config: ReadSignal<Arc<LapceConfig>>,
+    ) -> Self {
+        let syntax = if let DocContent::History(history) = &content {
+            Syntax::init(&history.path).ok()
+        } else {
+            None
+        };
+        let (cx, _) = cx.run_child_scope(|cx| cx);
+        Self {
+            scope: cx,
+            buffer_id: BufferId::next(),
+            buffer: Buffer::new(""),
+            cache_rev: 0,
+            content,
+            syntax,
+            line_styles: Rc::new(RefCell::new(HashMap::new())),
+            sticky_headers: Rc::new(RefCell::new(HashMap::new())),
+            semantic_styles: None,
+            inlay_hints: None,
+            diagnostics: DiagnosticData {
+                expanded: create_rw_signal(cx, true),
+                diagnostics: create_rw_signal(cx, im::Vector::new()),
+            },
+            completion_lens: None,
+            completion_pos: (0, 0),
+            loaded: true,
+            histories: create_rw_signal(cx, im::HashMap::new()),
+            head_changes: create_rw_signal(cx, im::Vector::new()),
+            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             code_actions: im::HashMap::new(),
             proxy,
             config,
@@ -242,8 +290,8 @@ impl Document {
         &mut self.buffer
     }
 
-    pub fn style_rev(&self) -> u64 {
-        self.style_rev
+    pub fn cache_rev(&self) -> u64 {
+        self.cache_rev
     }
 
     pub fn syntax(&self) -> Option<&Syntax> {
@@ -444,28 +492,12 @@ impl Document {
 
     /// Inform any dependents on this document that they should clear any cached text.
     pub fn clear_text_cache(&mut self) {
-        let mut text_cache_listeners = self.text_cache_listeners.borrow_mut();
-        for entry in text_cache_listeners.iter_mut() {
-            entry.clear();
-        }
-
-        self.style_rev += 1;
+        self.cache_rev += 1;
+        self.text_layouts.borrow_mut().clear(self.cache_rev);
     }
 
     fn clear_sticky_headers_cache(&mut self) {
         self.sticky_headers.borrow_mut().clear();
-    }
-
-    /// Add a text cache listener which will be informed when the text cache should be cleared.
-    pub fn add_text_cache_listener(&self, listener: Rc<dyn TextCacheListener>) {
-        self.text_cache_listeners.borrow_mut().push(listener);
-    }
-
-    /// Remove any text cache listeners which only have our weak reference left.
-    pub fn clean_text_cache_listeners(&self) {
-        self.text_cache_listeners
-            .borrow_mut()
-            .retain(|entry| Rc::strong_count(entry) > 1);
     }
 
     /// Get the active style information, either the semantic styles or the
@@ -516,6 +548,7 @@ impl Document {
         let path = match doc.with_untracked(|doc| doc.content.clone()) {
             DocContent::File(path) => path,
             DocContent::Local => return,
+            DocContent::History(_) => return,
         };
 
         let (rev, len) =
@@ -574,6 +607,7 @@ impl Document {
         let path = match doc.with_untracked(|doc| doc.content.clone()) {
             DocContent::File(path) => path,
             DocContent::Local => return,
+            DocContent::History(_) => return,
         };
 
         let (buffer, rev, len) = doc.with_untracked(|doc| {
@@ -1104,5 +1138,254 @@ impl Document {
                 rope_diff(left_rope, right_rope, rev, atomic_rev.clone(), None);
             send(changes.map(im::Vector::from));
         });
+    }
+
+    /// Create a new text layout for the given line.  
+    /// Typically you should use [`Document::get_text_layout`] instead.
+    fn new_text_layout(&self, line: usize, _font_size: usize) -> TextLayoutLine {
+        let config = self.config.get_untracked();
+        let line_content_original = self.buffer.line_content(line);
+
+        // Get the line content with newline characters replaced with spaces
+        // and the content without the newline characters
+        let (line_content, _line_content_original) =
+            if let Some(s) = line_content_original.strip_suffix("\r\n") {
+                (
+                    format!("{s}  "),
+                    &line_content_original[..line_content_original.len() - 2],
+                )
+            } else if let Some(s) = line_content_original.strip_suffix('\n') {
+                (
+                    format!("{s} ",),
+                    &line_content_original[..line_content_original.len() - 1],
+                )
+            } else {
+                (
+                    line_content_original.to_string(),
+                    &line_content_original[..],
+                )
+            };
+        // Combine the phantom text with the line content
+        let phantom_text = self.line_phantom_text(line);
+        let line_content = phantom_text.combine_with_text(line_content);
+
+        let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
+        let family: Vec<FamilyOwned> =
+            FamilyOwned::parse_list(&config.editor.font_family).collect();
+        let attrs = Attrs::new()
+            .color(*color)
+            .family(&family)
+            .font_size(config.editor.font_size() as f32);
+        let mut attrs_list = AttrsList::new(attrs);
+
+        // Apply various styles to the line's text based on our semantic/syntax highlighting
+        let styles = self.line_style(line);
+        for line_style in styles.iter() {
+            if let Some(fg_color) = line_style.style.fg_color.as_ref() {
+                if let Some(fg_color) = config.get_style_color(fg_color) {
+                    let start = phantom_text.col_at(line_style.start);
+                    let end = phantom_text.col_at(line_style.end);
+                    attrs_list.add_span(start..end, attrs.color(*fg_color));
+                }
+            }
+        }
+
+        let font_size = config.editor.font_size();
+
+        // Apply phantom text specific styling
+        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
+            let start = col + offset;
+            let end = start + size;
+
+            let mut attrs = attrs;
+            if let Some(fg) = phantom.fg {
+                attrs = attrs.color(fg);
+            }
+            if let Some(phantom_font_size) = phantom.font_size {
+                attrs = attrs.font_size(phantom_font_size.min(font_size) as f32);
+            }
+            attrs_list.add_span(start..end, attrs);
+            // if let Some(font_family) = phantom.font_family.clone() {
+            //     layout_builder = layout_builder.range_attribute(
+            //         start..end,
+            //         TextAttribute::FontFamily(font_family),
+            //     );
+            // }
+        }
+
+        let mut text_layout = TextLayout::new();
+        text_layout.set_text(&line_content, attrs_list);
+
+        // Keep track of background styling from phantom text, which is done separately
+        // from the text layout attributes
+        let mut extra_style = Vec::new();
+        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
+            if phantom.bg.is_some() || phantom.under_line.is_some() {
+                let start = col + offset;
+                let end = start + size;
+                let x0 = text_layout.hit_position(start).point.x;
+                let x1 = text_layout.hit_position(end).point.x;
+                extra_style.push(LineExtraStyle {
+                    x: x0,
+                    width: Some(x1 - x0),
+                    bg_color: phantom.bg,
+                    under_line: phantom.under_line,
+                    wave_line: None,
+                });
+            }
+        }
+
+        // Add the styling for the diagnostic severity, if applicable
+        if let Some(max_severity) = phantom_text.max_severity {
+            let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
+                LapceColor::ERROR_LENS_ERROR_BACKGROUND
+            } else if max_severity == DiagnosticSeverity::WARNING {
+                LapceColor::ERROR_LENS_WARNING_BACKGROUND
+            } else {
+                LapceColor::ERROR_LENS_OTHER_BACKGROUND
+            };
+
+            let x1 = (!config.editor.error_lens_end_of_line)
+                .then(|| text_layout.hit_position(line_content.len()).point.x);
+
+            extra_style.push(LineExtraStyle {
+                x: 0.0,
+                width: x1,
+                bg_color: Some(*config.get_color(theme_prop)),
+                under_line: None,
+                wave_line: None,
+            });
+        }
+
+        self.diagnostics.diagnostics.with_untracked(|diags| {
+            for diag in diags {
+                if diag.diagnostic.range.start.line as usize <= line
+                    && line <= diag.diagnostic.range.end.line as usize
+                {
+                    let start = if diag.diagnostic.range.start.line as usize == line
+                    {
+                        let (_, col) = self.buffer.offset_to_line_col(diag.range.0);
+                        col
+                    } else {
+                        let offset =
+                            self.buffer.first_non_blank_character_on_line(line);
+                        let (_, col) = self.buffer.offset_to_line_col(offset);
+                        col
+                    };
+                    let start = phantom_text.col_after(start, true);
+
+                    let end = if diag.diagnostic.range.end.line as usize == line {
+                        let (_, col) = self.buffer.offset_to_line_col(diag.range.1);
+                        col
+                    } else {
+                        self.buffer.line_end_col(line, true)
+                    };
+                    let end = phantom_text.col_after(end, false);
+
+                    let x0 = text_layout.hit_position(start).point.x;
+                    let x1 = text_layout.hit_position(end).point.x;
+                    let color_name = match diag.diagnostic.severity {
+                        Some(DiagnosticSeverity::ERROR) => LapceColor::LAPCE_ERROR,
+                        _ => LapceColor::LAPCE_WARN,
+                    };
+                    let color = *config.get_color(color_name);
+                    extra_style.push(LineExtraStyle {
+                        x: x0,
+                        width: Some(x1 - x0),
+                        bg_color: None,
+                        under_line: None,
+                        wave_line: Some(color),
+                    });
+                }
+            }
+        });
+
+        // let text_layout_width = text_layout.size().width;
+        // let max_width = self.max_width.get_untracked();
+        // if text_layout_width > max_width {
+        //     self.max_width.set(text_layout_width);
+        // }
+
+        let indent_line = if line_content_original.trim().is_empty() {
+            let offset = self.buffer.offset_of_line(line);
+            if let Some(offset) = self
+                .syntax
+                .as_ref()
+                .and_then(|syntax| syntax.parent_offset(offset))
+            {
+                self.buffer.line_of_offset(offset)
+            } else {
+                line
+            }
+        } else {
+            line
+        };
+
+        let indent = if indent_line != line {
+            self.get_text_layout(indent_line, font_size).indent + 1.0
+        } else {
+            let offset = self.buffer.first_non_blank_character_on_line(indent_line);
+            let (_, col) = self.buffer.offset_to_line_col(offset);
+            text_layout.hit_position(col).point.x
+        };
+
+        TextLayoutLine {
+            text: text_layout,
+            extra_style,
+            whitespaces: None,
+            indent,
+        }
+    }
+
+    /// Get the text layout for the given line.  
+    /// If the text layout is not cached, it will be created and cached.
+    pub fn get_text_layout(
+        &self,
+        line: usize,
+        font_size: usize,
+    ) -> Arc<TextLayoutLine> {
+        let config = self.config.get_untracked();
+        // Check if the text layout needs to update due to the config being changed
+        self.text_layouts.borrow_mut().check_attributes(config.id);
+        // If we don't have a second layer of the hashmap initialized for this specific font size,
+        // do it now
+        if self.text_layouts.borrow().layouts.get(&font_size).is_none() {
+            let mut cache = self.text_layouts.borrow_mut();
+            cache.layouts.insert(font_size, HashMap::new());
+        }
+
+        // Get whether there's an entry for this specific font size and line
+        let cache_exists = self
+            .text_layouts
+            .borrow()
+            .layouts
+            .get(&font_size)
+            .unwrap()
+            .get(&line)
+            .is_some();
+        // If there isn't an entry then we actually have to create it
+        if !cache_exists {
+            let text_layout = Arc::new(self.new_text_layout(line, font_size));
+            let mut cache = self.text_layouts.borrow_mut();
+            let width = text_layout.text.size().width;
+            if width > cache.max_width {
+                cache.max_width = width;
+            }
+            cache
+                .layouts
+                .get_mut(&font_size)
+                .unwrap()
+                .insert(line, text_layout);
+        }
+
+        // Just get the entry, assuming it has been created because we initialize it above.
+        self.text_layouts
+            .borrow()
+            .layouts
+            .get(&font_size)
+            .unwrap()
+            .get(&line)
+            .cloned()
+            .unwrap()
     }
 }

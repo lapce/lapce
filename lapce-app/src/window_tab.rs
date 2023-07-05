@@ -507,7 +507,7 @@ impl WindowTabData {
             RevealActiveFileInFileExplorer => {
                 if let Some(editor_data) = self.main_split.active_editor.get() {
                     editor_data.with_untracked(|editor_data| {
-                        let path = editor_data.doc.with_untracked(|doc| {
+                        let path = editor_data.view.doc.with_untracked(|doc| {
                             if let DocContent::File(path) = &doc.content {
                                 Some(path.clone())
                             } else {
@@ -527,7 +527,7 @@ impl WindowTabData {
                     let mut paths = HashSet::new();
                     for (_, editor_data) in editors.iter() {
                         editor_data.with_untracked(|editor_data| {
-                            let should_save = editor_data.doc.with_untracked(|doc| {
+                            let should_save = editor_data.view.doc.with_untracked(|doc| {
                                 let DocContent::File(path) = &doc.content else { return false };
 
                                 if paths.contains(path) {
@@ -1068,6 +1068,9 @@ impl WindowTabData {
                     },
                     None,
                 );
+            }
+            InternalCommand::OpenFileChanges { path } => {
+                self.main_split.open_file_changes(path);
             }
             InternalCommand::GoToLocation { location } => {
                 self.main_split.go_to_location(location, None);

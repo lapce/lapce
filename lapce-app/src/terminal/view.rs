@@ -136,11 +136,19 @@ impl View for TerminalView {
         self.id
     }
 
-    fn child(&mut self, _id: Id) -> Option<&mut dyn View> {
+    fn child(&self, _id: Id) -> Option<&dyn View> {
         None
     }
 
-    fn children(&mut self) -> Vec<&mut dyn View> {
+    fn child_mut(&mut self, _id: Id) -> Option<&mut dyn View> {
+        None
+    }
+
+    fn children(&self) -> Vec<&dyn View> {
+        Vec::new()
+    }
+
+    fn children_mut(&mut self) -> Vec<&mut dyn View> {
         Vec::new()
     }
 

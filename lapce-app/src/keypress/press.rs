@@ -33,6 +33,7 @@ impl KeyPress {
         }
         false
     }
+
     pub fn label(&self) -> String {
         let mut keys = String::from("");
         if self.mods.ctrl() {
@@ -55,6 +56,7 @@ impl KeyPress {
         keys.push_str(&self.key.to_string());
         keys.trim().to_string()
     }
+
     pub fn parse(key: &str) -> Vec<Self> {
         key.split(' ')
             .filter_map(|k| {

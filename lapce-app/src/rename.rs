@@ -94,6 +94,7 @@ impl RenameData {
         position: Position,
     ) {
         self.editor
+            .view
             .doc
             .update(|doc| doc.reload(Rope::from(&placeholder), true));
         self.editor.cursor.update(|cursor| {
@@ -129,6 +130,7 @@ impl RenameData {
     fn confirm(&self) {
         let new_name = self
             .editor
+            .view
             .doc
             .with_untracked(|doc| doc.buffer().to_string());
         let new_name = new_name.trim();

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use floem::{
     peniko::kurbo::{Point, Rect},
@@ -10,9 +10,11 @@ use floem::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    doc::DocContent,
-    editor::{location::EditorLocation, EditorData, EditorInfo},
-    id::{EditorId, EditorTabId, SettingsId, SplitId},
+    doc::{DocContent, Document},
+    editor::{
+        diff::DiffEditorInfo, location::EditorLocation, EditorData, EditorInfo,
+    },
+    id::{DiffEditorId, EditorId, EditorTabId, SettingsId, SplitId},
     main_split::MainSplitData,
     window_tab::WindowTabData,
 };
@@ -20,6 +22,7 @@ use crate::{
 #[derive(Clone, Serialize, Deserialize)]
 pub enum EditorTabChildInfo {
     Editor(EditorInfo),
+    DiffEditor(DiffEditorInfo),
     Settings,
 }
 
@@ -35,6 +38,10 @@ impl EditorTabChildInfo {
                 EditorTabChild::Editor(
                     editor_data.with_untracked(|editor_data| editor_data.editor_id),
                 )
+            }
+            EditorTabChildInfo::DiffEditor(diff_editor_info) => {
+                let diff_editor_data = diff_editor_info.to_data(data, editor_tab_id);
+                EditorTabChild::DiffEditor(diff_editor_data.id)
             }
             EditorTabChildInfo::Settings => {
                 EditorTabChild::Settings(SettingsId::next())
@@ -91,9 +98,22 @@ impl EditorTabInfo {
     }
 }
 
+pub enum EditorTabChildSource {
+    Editor {
+        path: PathBuf,
+        doc: RwSignal<Document>,
+    },
+    DiffEditor {
+        left: RwSignal<Document>,
+        right: RwSignal<Document>,
+    },
+    Settings,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorTabChild {
     Editor(EditorId),
+    DiffEditor(DiffEditorId),
     Settings(SettingsId),
 }
 
@@ -101,6 +121,7 @@ impl EditorTabChild {
     pub fn id(&self) -> u64 {
         match self {
             EditorTabChild::Editor(id) => id.to_raw(),
+            EditorTabChild::DiffEditor(id) => id.to_raw(),
             EditorTabChild::Settings(id) => id.to_raw(),
         }
     }
@@ -122,6 +143,16 @@ impl EditorTabChild {
                 EditorTabChildInfo::Editor(
                     editor_data.get_untracked().editor_info(data),
                 )
+            }
+            EditorTabChild::DiffEditor(diff_editor_id) => {
+                let diff_editor_data = data
+                    .main_split
+                    .diff_editors
+                    .get_untracked()
+                    .get(diff_editor_id)
+                    .cloned()
+                    .unwrap();
+                EditorTabChildInfo::DiffEditor(diff_editor_data.diff_editor_info())
             }
             EditorTabChild::Settings(_) => EditorTabChildInfo::Settings,
         }
@@ -151,7 +182,7 @@ impl EditorTabData {
             if let (_, EditorTabChild::Editor(editor_id)) = child {
                 if let Some(editor) = editors.get(editor_id) {
                     let e = editor.get_untracked();
-                    let is_path = e.doc.with_untracked(|doc| {
+                    let is_path = e.view.doc.with_untracked(|doc| {
                         if let DocContent::File(p) = &doc.content {
                             p == path
                         } else {

@@ -20,7 +20,7 @@ pub fn text_area(
 ) -> impl View {
     let cx = ViewContext::get_current();
     let config = editor.common.config;
-    let doc = editor.doc;
+    let doc = editor.view.doc;
     let cursor = editor.cursor;
     let text_area_rect = create_rw_signal(cx.scope, Rect::ZERO);
     let text_layout = create_rw_signal(cx.scope, TextLayout::new());
