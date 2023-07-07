@@ -659,14 +659,19 @@ impl MainSplitData {
                     .with_untracked(|editor_tab| {
                         editor_tab
                             .get_editor(&editors, path)
+                            .map(|(i, _)| i)
                             .or_else(|| {
                                 if ignore_unconfirmed {
                                     None
                                 } else {
-                                    editor_tab.get_unconfirmed_editor(&editors)
+                                    editor_tab
+                                        .get_unconfirmed_editor_tab_child(
+                                            &editors,
+                                            &diff_editors,
+                                        )
+                                        .map(|(i, _)| i)
                                 }
                             })
-                            .map(|(i, _)| i)
                     }),
                 EditorTabChildSource::DiffEditor { left, right } => {
                     if let Some(index) =
@@ -688,7 +693,10 @@ impl MainSplitData {
                     } else {
                         active_editor_tab.with_untracked(|editor_tab| {
                             editor_tab
-                                .get_unconfirmed_editor(&editors)
+                                .get_unconfirmed_editor_tab_child(
+                                    &editors,
+                                    &diff_editors,
+                                )
                                 .map(|(i, _)| i)
                         })
                     }
@@ -707,7 +715,10 @@ impl MainSplitData {
                     } else {
                         active_editor_tab.with_untracked(|editor_tab| {
                             editor_tab
-                                .get_unconfirmed_editor(&editors)
+                                .get_unconfirmed_editor_tab_child(
+                                    &editors,
+                                    &diff_editors,
+                                )
                                 .map(|(i, _)| i)
                         })
                     }
@@ -1121,11 +1132,11 @@ impl MainSplitData {
                     .diff_editors
                     .get_untracked()
                     .get(diff_editor_id)?
-                    .copy(cx, new_diff_editor_id);
+                    .copy(cx, editor_tab_id, new_diff_editor_id);
                 self.diff_editors.update(|diff_editors| {
                     diff_editors.insert(new_diff_editor_id, diff_editor);
                 });
-                EditorTabChild::Editor(new_diff_editor_id)
+                EditorTabChild::DiffEditor(new_diff_editor_id)
             }
             EditorTabChild::Settings(_) => {
                 EditorTabChild::Settings(SettingsId::next())

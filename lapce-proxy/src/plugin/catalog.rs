@@ -459,7 +459,6 @@ impl PluginCatalog {
                 process_id,
                 term_id,
             } => {
-                println!("dap process id {process_id:?}");
                 if let Some(dap) = self.daps.get(&dap_id) {
                     let _ = dap.termain_process_tx.send((term_id, process_id));
                 }

@@ -144,7 +144,6 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn test_relative_path() {
-        println!("{:?}", env::current_dir());
         assert_eq!(
             parse_file_line_column("./../Cargo.toml").unwrap(),
             PathObject::from_path(

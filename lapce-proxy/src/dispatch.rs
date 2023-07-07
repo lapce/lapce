@@ -206,7 +206,6 @@ impl ProxyHandler for Dispatcher {
                 }
             }
             TerminalClose { term_id } => {
-                println!("close terminal {term_id:?}");
                 if let Some(tx) = self.terminals.remove(&term_id) {
                     #[allow(deprecated)]
                     let _ = tx.send(Msg::Shutdown);

@@ -213,6 +213,7 @@ impl EditorViewData {
     /// The document for the given view was swapped out.
     pub fn update_doc(&mut self, doc: RwSignal<Document>) {
         self.doc = doc;
+        self.text_layouts.borrow_mut().clear(0);
     }
 
     /// Duplicate as a new view which refers to the same document.

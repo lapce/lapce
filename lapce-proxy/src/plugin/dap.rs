@@ -221,12 +221,6 @@ impl DapClient {
                 let _ = self.dap_rpc.request::<ConfigurationDone>(());
             }
             DapEvent::Stopped(stopped) => {
-                // println!("stopped {stopped:?}");
-                // if stopped.reason == "exception" {
-                //     self.dap_rpc
-                //         .continue_thread(stopped.thread_id.unwrap_or_default());
-                //     return Ok(());
-                // }
                 let all_threads_stopped =
                     stopped.all_threads_stopped.unwrap_or_default();
                 let mut stack_frames = HashMap::new();
@@ -265,7 +259,6 @@ impl DapClient {
             }
             DapEvent::Exited(_exited) => {}
             DapEvent::Terminated(_) => {
-                println!("dap process terminated");
                 self.terminated = true;
                 // self.plugin_rpc.core_rpc.dap_terminated(self.dap_rpc.dap_id);
                 if let Some(term_id) = self.term_id {
@@ -274,15 +267,13 @@ impl DapClient {
                 let _ = self.check_restart();
             }
             DapEvent::Thread { .. } => {}
-            DapEvent::Output(_) => todo!(),
-            DapEvent::Breakpoint { reason, breakpoint } => {
-                println!("breakpoint  {reason} {breakpoint:?}");
-            }
-            DapEvent::Module { .. } => todo!(),
-            DapEvent::LoadedSource { .. } => todo!(),
+            DapEvent::Output(_) => {}
+            DapEvent::Breakpoint { .. } => {}
+            DapEvent::Module { .. } => {}
+            DapEvent::LoadedSource { .. } => {}
             DapEvent::Process(_) => {}
-            DapEvent::Capabilities(_) => todo!(),
-            DapEvent::Memory(_) => todo!(),
+            DapEvent::Capabilities(_) => {}
+            DapEvent::Memory(_) => {}
         }
         Ok(())
     }
@@ -325,12 +316,10 @@ impl DapClient {
             .and_then(|c| c.supports_terminate_request)
             .unwrap_or(false)
         {
-            println!("terminate");
             thread::spawn(move || {
                 let _ = dap_rpc.terminate();
             });
         } else {
-            println!("discoonnect");
             thread::spawn(move || {
                 let _ = dap_rpc.disconnect();
             });
@@ -357,9 +346,7 @@ impl DapClient {
         self.restarted = false;
 
         if self.disconnected {
-            println!("now start process");
             self.start_process()?;
-            println!("now initialize");
             self.initialize()?;
         }
         self.terminated = false;
@@ -368,9 +355,7 @@ impl DapClient {
         let dap_rpc = self.dap_rpc.clone();
         let config = self.config.clone();
         thread::spawn(move || {
-            println!("now luanch");
             let _ = dap_rpc.launch(&config);
-            println!("launched");
         });
 
         Ok(())
@@ -432,7 +417,6 @@ impl DapRpcHandler {
         for msg in &self.rpc_rx {
             match msg {
                 DapRpc::HostRequest(req) => {
-                    // println!("got host request");
                     let result = dap_client.handle_host_request(&req);
                     let resp = DapResponse {
                         request_seq: req.seq,
@@ -442,12 +426,9 @@ impl DapRpcHandler {
                         body: result.ok(),
                     };
                     let _ = self.io_tx.send(DapPayload::Response(resp));
-                    // println!("finish host request");
                 }
                 DapRpc::HostEvent(event) => {
-                    // println!("got host event {event:?}");
                     let _ = dap_client.handle_host_event(&event);
-                    // println!("finish host event");
                 }
                 DapRpc::Stop => {
                     dap_client.stop();
@@ -459,7 +440,6 @@ impl DapRpcHandler {
                     if let Some(term_id) = dap_client.term_id {
                         dap_client.plugin_rpc.proxy_rpc.terminal_close(term_id);
                     }
-                    println!("dap shutdown");
                     return;
                 }
                 DapRpc::Disconnected => {
@@ -467,7 +447,6 @@ impl DapRpcHandler {
                     if let Some(term_id) = dap_client.term_id {
                         dap_client.plugin_rpc.proxy_rpc.terminal_close(term_id);
                     }
-                    println!("disconnected");
                     let _ = dap_client.check_restart();
                 }
             }
@@ -562,7 +541,6 @@ impl DapRpcHandler {
     }
 
     pub fn handle_server_message(&self, message_str: &str) {
-        // println!("received from dap server: {message_str}");
         if let Ok(payload) = serde_json::from_str::<DapPayload>(message_str) {
             match payload {
                 DapPayload::Request(req) => {
@@ -621,7 +599,6 @@ impl DapRpcHandler {
         breakpoints: Vec<SourceBreakpoint>,
         f: impl RpcCallback<SetBreakpointsResponse, RpcError> + 'static,
     ) {
-        println!("set breakpoints async");
         let params = SetBreakpointsArguments {
             source: Source {
                 path: Some(file),

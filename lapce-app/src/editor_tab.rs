@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     doc::{DocContent, Document},
     editor::{
-        diff::DiffEditorInfo, location::EditorLocation, EditorData, EditorInfo,
+        diff::{DiffEditorData, DiffEditorInfo},
+        location::EditorLocation,
+        EditorData, EditorInfo,
     },
     id::{DiffEditorId, EditorId, EditorTabId, SettingsId, SplitId},
     main_split::MainSplitData,
@@ -193,6 +195,43 @@ impl EditorTabData {
                         return Some((i, *editor));
                     }
                 }
+            }
+        }
+        None
+    }
+
+    pub fn get_unconfirmed_editor_tab_child(
+        &self,
+        editors: &im::HashMap<EditorId, RwSignal<EditorData>>,
+        diff_editors: &im::HashMap<EditorId, DiffEditorData>,
+    ) -> Option<(usize, EditorTabChild)> {
+        for (i, (_, child)) in self.children.iter().enumerate() {
+            match child {
+                EditorTabChild::Editor(editor_id) => {
+                    if let Some(editor) = editors.get(editor_id) {
+                        let e = editor.get_untracked();
+                        let confirmed = e.confirmed.get_untracked();
+                        if !confirmed {
+                            return Some((i, child.clone()));
+                        }
+                    }
+                }
+                EditorTabChild::DiffEditor(diff_editor_id) => {
+                    if let Some(diff_editor) = diff_editors.get(diff_editor_id) {
+                        let left_confirmed =
+                            diff_editor.left.with_untracked(|editor| {
+                                editor.confirmed.get_untracked()
+                            });
+                        let right_confirmed =
+                            diff_editor.right.with_untracked(|editor| {
+                                editor.confirmed.get_untracked()
+                            });
+                        if !left_confirmed && !right_confirmed {
+                            return Some((i, child.clone()));
+                        }
+                    }
+                }
+                _ => (),
             }
         }
         None

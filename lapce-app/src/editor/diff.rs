@@ -16,6 +16,8 @@ use lapce_core::buffer::{
     diff::{expand_diff_lines, rope_diff, DiffExpand, DiffLines},
     rope_text::RopeText,
 };
+use lapce_rpc::proxy::ProxyResponse;
+use lapce_xi_rope::Rope;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -27,7 +29,7 @@ use crate::{
     window_tab::CommonData,
 };
 
-use super::{location::EditorLocation, EditorData, EditorViewKind};
+use super::{EditorData, EditorViewKind};
 
 #[derive(Clone)]
 pub struct DiffInfo {
@@ -51,58 +53,70 @@ impl DiffEditorInfo {
 
         let diff_editor_id = DiffEditorId::next();
 
-        let new_editor = {
+        let new_doc = {
             let data = data.clone();
             let common = data.common.clone();
             move |content: &DocContent| match content {
                 DocContent::File(path) => {
-                    let editor_id = EditorId::next();
-                    let (doc, new_doc) = data.get_doc(path.clone());
-                    let editor_data =
-                        EditorData::new(cx, None, editor_id, doc, common.clone());
-                    editor_data.go_to_location(
-                        EditorLocation {
-                            path: path.clone(),
-                            position: None,
-                            scroll_offset: None,
-                            ignore_unconfirmed: false,
-                            same_editor_tab: false,
-                        },
-                        new_doc,
-                        None,
+                    let (doc, _) = data.get_doc(path.clone());
+                    doc
+                }
+                DocContent::Local => create_rw_signal(
+                    cx,
+                    Document::new_local(
+                        cx,
+                        common.find.clone(),
+                        common.proxy.clone(),
+                        common.config,
+                    ),
+                ),
+                DocContent::History(history) => {
+                    let doc = Document::new_hisotry(
+                        cx,
+                        content.clone(),
+                        common.find.clone(),
+                        common.proxy.clone(),
+                        common.config,
                     );
-                    editor_data
-                }
-                DocContent::Local => {
-                    let editor_id = EditorId::next();
-                    EditorData::new_local(data.scope, editor_id, common.clone())
-                }
-                DocContent::History(_) => {
-                    let editor_id = EditorId::next();
-                    EditorData::new_local(data.scope, editor_id, common.clone())
+                    let doc = create_rw_signal(doc.scope, doc);
+
+                    let send = create_ext_action(cx, move |result| {
+                        if let Ok(ProxyResponse::BufferHeadResponse {
+                            content,
+                            ..
+                        }) = result
+                        {
+                            doc.update(|doc| {
+                                doc.init_content(Rope::from(content));
+                            });
+                        }
+                    });
+                    common.proxy.get_buffer_head(
+                        history.path.clone(),
+                        move |result| {
+                            send(result);
+                        },
+                    );
+                    doc
                 }
             }
         };
 
-        let left = new_editor(&self.left_content);
-        let left = create_rw_signal(cx, left);
-        let right = new_editor(&self.right_content);
-        let right = create_rw_signal(cx, right);
+        let left_doc = new_doc(&self.left_content);
+        let right_doc = new_doc(&self.right_content);
 
-        let diff_editor_data = DiffEditorData {
-            id: diff_editor_id,
+        let diff_editor_data = DiffEditorData::new(
+            cx,
+            diff_editor_id,
             editor_tab_id,
-            scope: cx,
-            left,
-            right,
-            focus_right: create_rw_signal(cx, true),
-        };
+            left_doc,
+            right_doc,
+            data.common.clone(),
+        );
 
         data.diff_editors.update(|diff_editors| {
             diff_editors.insert(diff_editor_id, diff_editor_data.clone());
         });
-
-        diff_editor_data.listen_diff_changes();
 
         diff_editor_data
     }
@@ -152,7 +166,7 @@ impl DiffEditorData {
         DiffEditorInfo {
             left_content: self.left.get_untracked().view.doc.get_untracked().content,
             right_content: self
-                .left
+                .right
                 .get_untracked()
                 .view
                 .doc
@@ -161,25 +175,29 @@ impl DiffEditorData {
         }
     }
 
-    pub fn copy(&self, cx: Scope, diff_editor_id: EditorId) -> Self {
+    pub fn copy(
+        &self,
+        cx: Scope,
+        editor_tab_id: EditorTabId,
+        diff_editor_id: EditorId,
+    ) -> Self {
         let (cx, _) = cx.run_child_scope(|cx| cx);
-        let mut diff_editor = self.clone();
-        diff_editor.scope = cx;
-        diff_editor.id = diff_editor_id;
-        diff_editor.left = create_rw_signal(
-            cx,
-            diff_editor
-                .left
-                .get_untracked()
-                .copy(cx, None, EditorId::next()),
-        );
-        diff_editor.right = create_rw_signal(
-            cx,
-            diff_editor
-                .right
-                .get_untracked()
-                .copy(cx, None, EditorId::next()),
-        );
+
+        let diff_editor = DiffEditorData {
+            scope: cx,
+            id: diff_editor_id,
+            editor_tab_id,
+            focus_right: create_rw_signal(cx, true),
+            left: create_rw_signal(
+                cx,
+                self.left.get_untracked().copy(cx, None, EditorId::next()),
+            ),
+            right: create_rw_signal(
+                cx,
+                self.right.get_untracked().copy(cx, None, EditorId::next()),
+            ),
+        };
+
         diff_editor.listen_diff_changes();
         diff_editor
     }
