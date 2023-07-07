@@ -34,9 +34,6 @@ macro_rules! declare_language_highlights {
             use std::sync::Arc;
             use super::{HighlightConfiguration, HighlightIssue};
 
-            pub static Plaintext: Lazy<Result<Arc<HighlightConfiguration>, HighlightIssue>> = Lazy::new(|| {
-                LapceLanguage::Plaintext.new_highlight_config().map(Arc::new)
-            });
             // We use Arcs because in the future we may want to load highlight configurations at runtime
             $(
                 #[cfg(feature = $feature_name)]
@@ -52,7 +49,7 @@ macro_rules! declare_language_highlights {
                     #[cfg(feature = $feature_name)]
                     LapceLanguage::$name => highlights::$name.clone()
                 ),*,
-                _ => highlights::Plaintext.clone(),
+                _ => Err(HighlightIssue::NotAvailable),
             }
         }
     };

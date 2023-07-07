@@ -24,7 +24,7 @@ use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lapce_core::{
     buffer::rope_text::RopeText, command::FocusCommand, language::LapceLanguage,
-    mode::Mode, movement::Movement, selection::Selection,
+    mode::Mode, movement::Movement, selection::Selection, syntax::Syntax,
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
@@ -370,9 +370,9 @@ impl PaletteData {
                 self.get_languages(cx);
                 if let Some(editor) = self.main_split.active_editor.get_untracked() {
                     let doc = editor.with_untracked(|editor| (editor.view.doc));
-                    if let Some(syn) = doc.get_untracked().syntax() {
-                        self.preselect_matching(syn.language.to_string().as_str());
-                    }
+                    let language =
+                        doc.with_untracked(|doc| doc.syntax().language.to_string());
+                    self.preselect_matching(language.as_str());
                 }
             }
             PaletteKind::SCMReferences => {
@@ -979,7 +979,7 @@ impl PaletteData {
                     };
                     doc.update(|doc| {
                         if name.is_empty() || name.to_lowercase().eq("plain text") {
-                            doc.set_syntax(None)
+                            doc.set_syntax(Syntax::plaintext())
                         } else {
                             let lang = match LapceLanguage::from_name(name) {
                                 Some(v) => v,

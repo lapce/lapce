@@ -1401,15 +1401,11 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                 let palette_clone = palette.clone();
                 let language_info = label(move || {
                     if let Some(editor) = editor.get() {
-                        if let Some(syn) = editor.get().view.doc.get().syntax() {
-                            if let Some(lang) =
-                                strum::EnumMessage::get_message(&syn.language)
-                            {
-                                return lang.to_string();
-                            }
-                        }
+                        let doc = editor.with(|editor| editor.view.doc);
+                        doc.with(|doc| doc.syntax().language.to_string())
+                    } else {
+                        "Plain Text".to_string() // FIXME: remove
                     }
-                    "Plain Text".to_string() // FIXME: remove
                 })
                 .on_click(move |_| {
                     palette_clone.run(cx.scope, PaletteKind::Language);

@@ -3252,7 +3252,6 @@ dependencies = [
  "tree-sitter-javascript",
  "tree-sitter-json",
  "tree-sitter-md",
- "tree-sitter-plaintext",
  "tree-sitter-rust",
  "tree-sitter-toml",
  "tree-sitter-yaml",
@@ -6238,15 +6237,6 @@ dependencies = [
 name = "tree-sitter-md"
 version = "0.1.2"
 source = "git+https://github.com/MDeiml/tree-sitter-markdown.git?rev=272e080bca0efd19a06a7f4252d746417224959e#272e080bca0efd19a06a7f4252d746417224959e"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-plaintext"
-version = "0.0.1"
-source = "git+https://github.com/panekj/tree-sitter-plaintext?rev=38c37a098fea0eec26c6b0aeaa9feaec8bbe93fe#38c37a098fea0eec26c6b0aeaa9feaec8bbe93fe"
 dependencies = [
  "cc",
  "tree-sitter",

@@ -61,24 +61,6 @@ macro_rules! comment_properties {
     };
 }
 
-const EMPTY_LANGUAGE: SyntaxProperties = SyntaxProperties {
-    id: LapceLanguage::Plaintext,
-
-    indent: "    ",
-    files: &[],
-    extensions: &[],
-
-    comment: comment_properties!(),
-
-    tree_sitter: Some(TreeSitterProperties {
-        language: tree_sitter_plaintext::language,
-        highlight: Some(tree_sitter_plaintext::HIGHLIGHTS_QUERY),
-        injection: Some(tree_sitter_plaintext::INJECTIONS_QUERY),
-        code_lens: (&[], &[]),
-        sticky_headers: &[],
-    }),
-};
-
 #[derive(Eq, PartialEq, Hash, Clone, Copy, Debug, PartialOrd, Ord, Default)]
 pub struct SyntaxProperties {
     /// An extra check to make sure that the array elements are in the correct order.  
@@ -285,9 +267,18 @@ pub enum LapceLanguage {
 /// NOTE: Elements in the array must be in the same order as the enum variants of
 /// `LapceLanguage` as they will be accessed using the enum variants as indices.
 const LANGUAGES: &[SyntaxProperties] = &[
-    // Plaintext language
-    EMPTY_LANGUAGE,
     // Languages
+    SyntaxProperties {
+        id: LapceLanguage::Plaintext,
+
+        indent: "    ",
+        files: &[],
+        extensions: &[],
+
+        comment: comment_properties!(),
+
+        tree_sitter: None,
+    },
     SyntaxProperties {
         id: LapceLanguage::Bash,
 
@@ -1551,7 +1542,11 @@ impl LapceLanguage {
     #[cfg(unix)]
     const SYSTEM_QUERIES_DIRECTORY: &str = "/usr/share/tree-sitter/grammars";
 
-    pub fn from_path(path: &Path) -> Option<LapceLanguage> {
+    pub fn from_path(path: &Path) -> LapceLanguage {
+        Self::from_path_raw(path).unwrap_or(LapceLanguage::Plaintext)
+    }
+
+    fn from_path_raw(path: &Path) -> Option<LapceLanguage> {
         let filename = path.file_stem()?.to_str()?.to_lowercase();
         let extension = path.extension()?.to_str()?.to_lowercase();
         // NOTE: This is a linear search.  It is assumed that this function
@@ -1563,6 +1558,7 @@ impl LapceLanguage {
                 return Some(properties.id);
             }
         }
+
         None
     }
 
@@ -1601,12 +1597,8 @@ impl LapceLanguage {
         l
     }
 
-    fn tree_sitter(&self) -> TreeSitterProperties {
-        if let Some(ts) = self.properties().tree_sitter {
-            ts
-        } else {
-            EMPTY_LANGUAGE.tree_sitter.unwrap()
-        }
+    fn tree_sitter(&self) -> Option<TreeSitterProperties> {
+        self.properties().tree_sitter
     }
 
     pub fn sticky_header_tags(&self) -> &[&'static str] {
@@ -1635,7 +1627,7 @@ impl LapceLanguage {
 
         let mut language = match props.tree_sitter {
             Some(v) => (v.language)(),
-            None => tree_sitter_plaintext::language(),
+            None => return Err(HighlightIssue::NotAvailable),
         };
 
         if let Some(grammars_dir) = Directory::grammars_directory() {
@@ -1718,8 +1710,11 @@ impl LapceLanguage {
         cursor: &mut TreeCursor,
         normal_lines: &mut HashSet<usize>,
     ) {
-        let (list, ignore_list) = self.tree_sitter().code_lens;
-        walk_tree(cursor, normal_lines, list, ignore_list);
+        if let Some((list, ignore_list)) =
+            self.tree_sitter().as_ref().map(|p| p.code_lens)
+        {
+            walk_tree(cursor, normal_lines, list, ignore_list);
+        }
     }
 }
 

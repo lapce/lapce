@@ -451,20 +451,19 @@ impl DocumentHistory {
 
             let content = self.buffer.as_ref().unwrap().text().clone();
             rayon::spawn(move || {
-                if let Ok(mut syntax) = Syntax::init(&path) {
-                    syntax.parse(0, content, None);
-                    if let Some(styles) = syntax.styles {
-                        let _ = event_sink.submit_command(
-                            LAPCE_UI_COMMAND,
-                            LapceUICommand::UpdateHistoryStyle {
-                                id,
-                                path,
-                                history: version,
-                                highlights: styles,
-                            },
-                            Target::Widget(tab_id),
-                        );
-                    }
+                let mut syntax = Syntax::init(&path);
+                syntax.parse(0, content, None);
+                if let Some(styles) = syntax.styles {
+                    let _ = event_sink.submit_command(
+                        LAPCE_UI_COMMAND,
+                        LapceUICommand::UpdateHistoryStyle {
+                            id,
+                            path,
+                            history: version,
+                            highlights: styles,
+                        },
+                        Target::Widget(tab_id),
+                    );
                 }
             });
         }

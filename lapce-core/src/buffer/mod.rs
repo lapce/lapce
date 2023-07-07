@@ -267,13 +267,9 @@ impl Buffer {
         (delta, inval_lines, edits)
     }
 
-    pub fn detect_indent(&mut self, syntax: Option<&Syntax>) {
-        self.indent_style =
-            auto_detect_indent_style(&self.text).unwrap_or_else(|| {
-                syntax
-                    .map(|s| IndentStyle::from_str(s.language.indent_unit()))
-                    .unwrap_or(IndentStyle::DEFAULT_INDENT)
-            });
+    pub fn detect_indent(&mut self, syntax: &Syntax) {
+        self.indent_style = auto_detect_indent_style(&self.text)
+            .unwrap_or_else(|| IndentStyle::from_str(syntax.language.indent_unit()));
     }
 
     pub fn indent_unit(&self) -> &'static str {
@@ -733,11 +729,11 @@ impl Buffer {
 
     pub fn previous_unmatched(
         &self,
-        syntax: Option<&Syntax>,
+        syntax: &Syntax,
         c: char,
         offset: usize,
     ) -> Option<usize> {
-        if let Some(syntax) = syntax {
+        if syntax.layers.is_some() {
             syntax.find_tag(offset, true, &CharBuffer::new(c))
         } else {
             WordCursor::new(&self.text, offset).previous_unmatched(c)

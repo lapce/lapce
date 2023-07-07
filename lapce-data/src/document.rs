@@ -25,10 +25,7 @@ use lapce_core::{
     register::{Clipboard, Register, RegisterData},
     selection::{SelRegion, Selection},
     style::line_styles,
-    syntax::{
-        edit::SyntaxEdit, highlight::HighlightIssue, util::matching_pair_direction,
-        Syntax,
-    },
+    syntax::{edit::SyntaxEdit, util::matching_pair_direction, Syntax},
     word::WordCursor,
 };
 use lapce_rpc::{
@@ -44,7 +41,7 @@ use lapce_xi_rope::{
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, DiagnosticSeverity, InlayHint,
-    InlayHintLabel, MessageType, ShowMessageParams,
+    InlayHintLabel,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -456,9 +453,7 @@ impl Document {
         // Only files have syntax highlighing automatically,
         // though scratch buffer can have it be set manually by the user.
         let syntax = match &content {
-            BufferContent::File(path) => {
-                Self::syntax_to_option(&proxy, Syntax::init(path))
-            }
+            BufferContent::File(path) => Some(Syntax::init(path)),
             BufferContent::Local(_) => None,
             BufferContent::SettingsValue(..) => None,
             BufferContent::Scratch(..) => None,
@@ -502,28 +497,6 @@ impl Document {
         }
     }
 
-    /// Converts a syntax highlighting result into an option, showing an error message if it is
-    /// anything unexpected.
-    fn syntax_to_option(
-        proxy: &Arc<LapceProxy>,
-        syntax: Result<Syntax, HighlightIssue>,
-    ) -> Option<Syntax> {
-        match syntax {
-            Ok(x) => Some(x),
-            Err(HighlightIssue::NotAvailable) => None,
-            Err(HighlightIssue::Error(x)) => {
-                proxy.core_rpc.show_message(
-                    "Syntax Highlighting failed".to_owned(),
-                    ShowMessageParams {
-                        typ: MessageType::ERROR,
-                        message: format!("An error occurred trying to load syntax highlighting info: {x}."),
-                    },
-                );
-                None
-            }
-        }
-    }
-
     /// The id of the document's buffer
     pub fn id(&self) -> BufferId {
         self.id
@@ -537,9 +510,7 @@ impl Document {
     pub fn set_content(&mut self, content: BufferContent) {
         self.content = content;
         self.syntax = match &self.content {
-            BufferContent::File(path) => {
-                Self::syntax_to_option(&self.proxy, Syntax::init(path))
-            }
+            BufferContent::File(path) => Some(Syntax::init(path)),
             BufferContent::Local(_) => None,
             BufferContent::SettingsValue(..) => None,
             BufferContent::Scratch(..) => None,
@@ -559,15 +530,14 @@ impl Document {
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&mut self, content: Rope) {
         self.buffer.init_content(content);
-        self.buffer.detect_indent(self.syntax.as_ref());
+        self.buffer.detect_indent(self.syntax.as_ref().unwrap());
         self.loaded = true;
         self.on_update(None);
     }
 
     /// Set the syntax highlighting this document should use.
     pub fn set_language(&mut self, language: LapceLanguage) {
-        self.syntax =
-            Self::syntax_to_option(&self.proxy, Syntax::from_language(language));
+        self.syntax = Some(Syntax::from_language(language));
     }
 
     pub fn set_diagnostics(&mut self, diagnostics: &[EditorDiagnostic]) {
@@ -1399,7 +1369,7 @@ impl Document {
             cursor,
             &mut self.buffer,
             s,
-            self.syntax.as_ref(),
+            self.syntax.as_ref().unwrap(),
             auto_closing,
         );
         // Keep track of the change in the cursor mode for undo/redo
@@ -1432,7 +1402,7 @@ impl Document {
             cursor,
             &mut self.buffer,
             cmd,
-            self.syntax.as_ref(),
+            self.syntax.as_ref().unwrap(),
             &mut clipboard,
             modal,
             register,

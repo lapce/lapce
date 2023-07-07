@@ -712,7 +712,8 @@ impl EditorViewData {
         // This needs the doc's syntax, but it isn't cheap to clone
         // so this has to be a method on view for now.
         self.doc.with_untracked(|doc| {
-            if let Some(syntax) = doc.syntax() {
+            let syntax = doc.syntax();
+            if syntax.layers.is_some() {
                 syntax
                     .find_tag(offset, previous, &CharBuffer::from(ch))
                     .unwrap_or(offset)
@@ -736,7 +737,8 @@ impl EditorViewData {
         // This needs the doc's syntax, but it isn't cheap to clone
         // so this has to be a method on view for now.
         self.doc.with_untracked(|doc| {
-            if let Some(syntax) = doc.syntax() {
+            let syntax = doc.syntax();
+            if syntax.layers.is_some() {
                 syntax.find_matching_pair(offset).unwrap_or(offset)
             } else {
                 WordCursor::new(&self.text(), offset)

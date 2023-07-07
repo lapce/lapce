@@ -138,7 +138,7 @@ pub struct Document {
     pub buffer_id: BufferId,
     cache_rev: u64,
     buffer: Buffer,
-    syntax: Option<Syntax>,
+    syntax: Syntax,
     line_styles: Rc<RefCell<LineStyles>>,
     /// Semantic highlighting information (which is provided by the LSP)
     semantic_styles: Option<Arc<Spans<Style>>>,
@@ -184,7 +184,7 @@ impl Document {
             buffer_id: BufferId::next(),
             buffer: Buffer::new(""),
             cache_rev: 0,
-            syntax: syntax.ok(),
+            syntax,
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
             inlay_hints: None,
@@ -217,7 +217,7 @@ impl Document {
             buffer: Buffer::new(""),
             cache_rev: 0,
             content: DocContent::Local,
-            syntax: None,
+            syntax: Syntax::plaintext(),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: None,
@@ -248,9 +248,9 @@ impl Document {
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
         let syntax = if let DocContent::History(history) = &content {
-            Syntax::init(&history.path).ok()
+            Syntax::init(&history.path)
         } else {
-            None
+            Syntax::plaintext()
         };
         let (cx, _) = cx.run_child_scope(|cx| cx);
         Self {
@@ -294,11 +294,11 @@ impl Document {
         self.cache_rev
     }
 
-    pub fn syntax(&self) -> Option<&Syntax> {
-        self.syntax.as_ref()
+    pub fn syntax(&self) -> &Syntax {
+        &self.syntax
     }
 
-    pub fn set_syntax(&mut self, syntax: Option<Syntax>) {
+    pub fn set_syntax(&mut self, syntax: Syntax) {
         self.syntax = syntax;
         if self.semantic_styles.is_none() {
             self.clear_style_cache();
@@ -308,9 +308,7 @@ impl Document {
 
     /// Set the syntax highlighting this document should use.
     pub fn set_language(&mut self, language: LapceLanguage) {
-        if let Ok(syn) = Syntax::from_language(language) {
-            self.syntax = Some(syn);
-        }
+        self.syntax = Syntax::from_language(language);
     }
 
     pub fn find(&self) -> &Find {
@@ -325,7 +323,7 @@ impl Document {
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&mut self, content: Rope) {
         self.buffer.init_content(content);
-        self.buffer.detect_indent(self.syntax.as_ref());
+        self.buffer.detect_indent(&self.syntax);
         self.loaded = true;
         self.on_update(None);
         self.init_diagnostics();
@@ -358,7 +356,7 @@ impl Document {
             cursor,
             &mut self.buffer,
             s,
-            self.syntax.as_ref(),
+            &self.syntax,
             config.editor.auto_closing_matching_pairs,
         );
         // Keep track of the change in the cursor mode for undo/redo
@@ -391,7 +389,7 @@ impl Document {
             cursor,
             &mut self.buffer,
             cmd,
-            self.syntax.as_ref(),
+            &self.syntax,
             &mut clipboard,
             modal,
             register,
@@ -451,15 +449,11 @@ impl Document {
         if let Some(styles) = self.semantic_styles.as_mut() {
             Arc::make_mut(styles).apply_shape(delta);
         }
-        if let Some(syntax) = self.syntax.as_mut() {
-            if let Some(styles) = syntax.styles.as_mut() {
-                Arc::make_mut(styles).apply_shape(delta);
-            }
+        if let Some(styles) = self.syntax.styles.as_mut() {
+            Arc::make_mut(styles).apply_shape(delta);
         }
 
-        if let Some(syntax) = self.syntax.as_mut() {
-            syntax.lens.apply_delta(delta);
-        }
+        self.syntax.lens.apply_delta(delta);
     }
 
     /// Update the inlay hints so their positions are correct after an edit.
@@ -473,12 +467,10 @@ impl Document {
         &mut self,
         edits: Option<SmallVec<[SyntaxEdit; 3]>>,
     ) {
-        let Some(syntax) = self.syntax.as_mut() else { return };
-
         let rev = self.buffer.rev();
         let text = self.buffer.text().clone();
 
-        syntax.parse(rev, text, edits.as_deref());
+        self.syntax.parse(rev, text, edits.as_deref());
     }
 
     fn clear_style_cache(&mut self) {
@@ -506,7 +498,7 @@ impl Document {
         if let Some(semantic_styles) = self.semantic_styles.as_ref() {
             Some(semantic_styles)
         } else {
-            self.syntax.as_ref().and_then(|s| s.styles.as_ref())
+            self.syntax.styles.as_ref()
         }
     }
 
@@ -554,9 +546,7 @@ impl Document {
         let (rev, len) =
             doc.with_untracked(|doc| (doc.buffer.rev(), doc.buffer.len()));
 
-        let syntactic_styles = doc.with_untracked(|doc| {
-            doc.syntax.as_ref().and_then(|s| s.styles.as_ref()).cloned()
-        });
+        let syntactic_styles = doc.with_untracked(|doc| doc.syntax.styles.clone());
 
         let send = create_ext_action(cx, move |styles| {
             doc.update(|doc| {
@@ -1042,7 +1032,7 @@ impl Document {
             return lines.clone();
         }
         let offset = self.buffer.offset_of_line(line + 1);
-        let lines = self.syntax.as_ref()?.sticky_headers(offset).map(|offsets| {
+        let lines = self.syntax.sticky_headers(offset).map(|offsets| {
             offsets
                 .iter()
                 .filter_map(|offset| {
@@ -1308,11 +1298,7 @@ impl Document {
 
         let indent_line = if line_content_original.trim().is_empty() {
             let offset = self.buffer.offset_of_line(line);
-            if let Some(offset) = self
-                .syntax
-                .as_ref()
-                .and_then(|syntax| syntax.parent_offset(offset))
-            {
+            if let Some(offset) = self.syntax.parent_offset(offset) {
                 self.buffer.line_of_offset(offset)
             } else {
                 line
