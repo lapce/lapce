@@ -19,10 +19,7 @@ use floem::{
     style::{ComputedStyle, CursorStyle, Style},
     taffy::prelude::Node,
     view::{ChangeFlags, View},
-    views::{
-        container, empty, label, list, scroll, stack, svg, virtual_list, Decorators,
-        VirtualListDirection, VirtualListItemSize,
-    },
+    views::{container, empty, label, list, scroll, stack, svg, Decorators},
     Renderer, ViewContext,
 };
 use lapce_core::{
@@ -34,7 +31,7 @@ use lapce_core::{
 use lapce_xi_rope::find::CaseMatching;
 
 use super::{
-    view_data::{DocLine, EditorViewData, LineExtraStyle},
+    view_data::{EditorViewData, LineExtraStyle},
     EditorData,
 };
 use crate::{
