@@ -77,3 +77,8 @@ You can find the packages [here](https://github.com/microsoft/winget-pkgs/tree/m
 ```bash
 winget install lapce
 ```
+
+### Void Linux
+```bash
+sudo xbps-install -S lapce
+```
