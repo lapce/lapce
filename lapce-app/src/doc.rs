@@ -112,6 +112,14 @@ impl DocContent {
         matches!(self, DocContent::File(_))
     }
 
+    pub fn read_only(&self) -> bool {
+        match self {
+            DocContent::File(_) => false,
+            DocContent::Local => false,
+            DocContent::History(_) => true,
+        }
+    }
+
     pub fn path(&self) -> Option<&PathBuf> {
         match self {
             DocContent::File(path) => Some(path),
@@ -351,6 +359,10 @@ impl Document {
         s: &str,
         config: &LapceConfig,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
+        if self.content.read_only() {
+            return Vec::new();
+        }
+
         let old_cursor = cursor.mode.clone();
         let deltas = Editor::insert(
             cursor,
@@ -383,6 +395,10 @@ impl Document {
         modal: bool,
         register: &mut Register,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
+        if self.content.read_only() && !cmd.not_changing_buffer() {
+            return Vec::new();
+        }
+
         let mut clipboard = SystemClipboard {};
         let old_cursor = cursor.mode.clone();
         let deltas = Editor::do_edit(
