@@ -213,7 +213,8 @@ impl MainSplitData {
             im::HashMap<EditorTabId, RwSignal<EditorTabData>>,
         > = create_rw_signal(cx, im::HashMap::new());
         let editors = create_rw_signal(cx, im::HashMap::new());
-        let diff_editors = create_rw_signal(cx, im::HashMap::new());
+        let diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>> =
+            create_rw_signal(cx, im::HashMap::new());
         let docs = create_rw_signal(cx, im::HashMap::new());
         let locations = create_rw_signal(cx, im::Vector::new());
         let current_location = create_rw_signal(cx, 0);
@@ -236,6 +237,16 @@ impl MainSplitData {
                 let editor = match child {
                     EditorTabChild::Editor(editor_id) => {
                         editors.with(|editors| editors.get(&editor_id).copied())?
+                    }
+                    EditorTabChild::DiffEditor(diff_editor_id) => {
+                        let diff_editor = diff_editors.with(|diff_editors| {
+                            diff_editors.get(&diff_editor_id).cloned()
+                        })?;
+                        if diff_editor.focus_right.get() {
+                            diff_editor.right
+                        } else {
+                            diff_editor.left
+                        }
                     }
                     _ => return None,
                 };
