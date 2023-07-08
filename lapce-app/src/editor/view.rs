@@ -460,6 +460,44 @@ impl EditorView {
                 viewport,
             );
 
+            if let Some(whitespaces) = &text_layout.whitespaces {
+                let family: Vec<FamilyOwned> =
+                    FamilyOwned::parse_list(&config.editor.font_family).collect();
+                let attrs = Attrs::new()
+                    .color(*config.get_color(LapceColor::EDITOR_VISIBLE_WHITESPACE))
+                    .family(&family)
+                    .font_size(config.editor.font_size() as f32);
+                let attrs_list = AttrsList::new(attrs);
+                let mut space_text = TextLayout::new();
+                space_text.set_text("·", attrs_list.clone());
+                let mut tab_text = TextLayout::new();
+                tab_text.set_text("→", attrs_list);
+
+                for (c, (x0, _x1)) in whitespaces.iter() {
+                    match *c {
+                        '\t' => {
+                            cx.draw_text(
+                                &tab_text,
+                                Point::new(
+                                    *x0,
+                                    y as f64 + (line_height - height) / 2.0,
+                                ),
+                            );
+                        }
+                        ' ' => {
+                            cx.draw_text(
+                                &space_text,
+                                Point::new(
+                                    *x0,
+                                    y as f64 + (line_height - height) / 2.0,
+                                ),
+                            );
+                        }
+                        _ => {}
+                    }
+                }
+            }
+
             if config.editor.show_indent_guide {
                 let mut x = 0.0;
                 while x + 1.0 < text_layout.indent {

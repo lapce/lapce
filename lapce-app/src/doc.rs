@@ -1146,6 +1146,76 @@ impl Document {
         });
     }
 
+    /// Create rendable whitespace layout by creating a new text layout
+    /// with invisible spaces and special utf8 characters that display
+    /// the different white space characters.
+    fn new_whitespace_layout(
+        line_content: &str,
+        text_layout: &TextLayout,
+        phantom: &PhantomTextLine,
+        config: &LapceConfig,
+    ) -> Option<Vec<(char, (f64, f64))>> {
+        let mut render_leading = false;
+        let mut render_boundary = false;
+        let mut render_between = false;
+
+        // TODO: render whitespaces only on highlighted text
+        match config.editor.render_whitespace.as_str() {
+            "all" => {
+                render_leading = true;
+                render_boundary = true;
+                render_between = true;
+            }
+            "boundary" => {
+                render_leading = true;
+                render_boundary = true;
+            }
+            "trailing" => {} // All configs include rendering trailing whitespace
+            _ => return None,
+        }
+
+        let mut whitespace_buffer = Vec::new();
+        let mut rendered_whitespaces: Vec<(char, (f64, f64))> = Vec::new();
+        let mut char_found = false;
+        let mut col = 0;
+        for c in line_content.chars() {
+            match c {
+                '\t' => {
+                    let col_left = phantom.col_after(col, true);
+                    let col_right = phantom.col_after(col + 1, false);
+                    let x0 = text_layout.hit_position(col_left).point.x;
+                    let x1 = text_layout.hit_position(col_right).point.x;
+                    whitespace_buffer.push(('\t', (x0, x1)));
+                }
+                ' ' => {
+                    let col_left = phantom.col_after(col, true);
+                    let col_right = phantom.col_after(col + 1, false);
+                    let x0 = text_layout.hit_position(col_left).point.x;
+                    let x1 = text_layout.hit_position(col_right).point.x;
+                    whitespace_buffer.push((' ', (x0, x1)));
+                }
+                _ => {
+                    if (char_found && render_between)
+                        || (char_found
+                            && render_boundary
+                            && whitespace_buffer.len() > 1)
+                        || (!char_found && render_leading)
+                    {
+                        rendered_whitespaces.extend(whitespace_buffer.iter());
+                    } else {
+                    }
+
+                    char_found = true;
+                    whitespace_buffer.clear();
+                }
+            }
+            col += c.len_utf8();
+        }
+        rendered_whitespaces.extend(whitespace_buffer.iter());
+
+        Some(rendered_whitespaces)
+    }
+
     /// Create a new text layout for the given line.  
     /// Typically you should use [`Document::get_text_layout`] instead.
     fn new_text_layout(&self, line: usize, _font_size: usize) -> TextLayoutLine {
@@ -1154,7 +1224,7 @@ impl Document {
 
         // Get the line content with newline characters replaced with spaces
         // and the content without the newline characters
-        let (line_content, _line_content_original) =
+        let (line_content, line_content_original) =
             if let Some(s) = line_content_original.strip_suffix("\r\n") {
                 (
                     format!("{s}  "),
@@ -1306,11 +1376,12 @@ impl Document {
             }
         });
 
-        // let text_layout_width = text_layout.size().width;
-        // let max_width = self.max_width.get_untracked();
-        // if text_layout_width > max_width {
-        //     self.max_width.set(text_layout_width);
-        // }
+        let whitespaces = Self::new_whitespace_layout(
+            line_content_original,
+            &text_layout,
+            &phantom_text,
+            &config,
+        );
 
         let indent_line = if line_content_original.trim().is_empty() {
             let offset = self.buffer.offset_of_line(line);
@@ -1334,7 +1405,7 @@ impl Document {
         TextLayoutLine {
             text: text_layout,
             extra_style,
-            whitespaces: None,
+            whitespaces,
             indent,
         }
     }
