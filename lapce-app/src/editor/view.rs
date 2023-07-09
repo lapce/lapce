@@ -1315,7 +1315,7 @@ fn editor_gutter(
     let head_changes = move || {
         let (doc, editor_view) =
             editor.with(|editor| (editor.view.doc, editor.view.kind));
-        if !editor_view.get_untracked().is_normal() {
+        if !editor_view.with(|kind| kind.is_normal()) {
             return Vec::new();
         }
         let viewport = viewport.get();
