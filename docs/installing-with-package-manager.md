@@ -9,6 +9,7 @@ sudo pacman -Syu lapce
 ```
 
 ### Fedora
+
 ```bash
 sudo dnf copr enable titaniumtown/lapce
 sudo dnf install lapce
@@ -24,12 +25,12 @@ flatpak install flathub dev.lapce.lapce
 
 ### Gentoo
 
-Lapce is available in Gentoos user repository GURU. 
+Lapce is available in Gentoos user repository GURU.
 If the GURU is not activated, it can be with:
 
 ```bash
 emerge --ask app-eselect/eselect-repository # install eselect repository
-eselect repository enable guru 
+eselect repository enable guru
 emaint sync -r guru
 ```
 
@@ -59,9 +60,9 @@ nix-env -iA nixos.lapce
 # on non-NixOS installs, including macOS
 nix-env -iA nixpkgs.lapce
 
-# only if nix.settings.experimental-features is set to both "nix-command" and "flakes"
+# only if `nix.settings.experimental-features` includes both `nix-command` and `flakes`.
 # WARNING: THIS BREAKS nix-env, PROCEED AT YOUR OWN RISK. THIS ALSO INSTALLS FROM UNSTABLE BRANCH.
-nix profile install nixpkgs#hello
+nix profile install nixpkgs#lapce
 ```
 
 ### Scoop
