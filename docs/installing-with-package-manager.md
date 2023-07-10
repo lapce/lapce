@@ -71,6 +71,12 @@ nix profile install nixpkgs#lapce
 scoop install lapce
 ```
 
+### Void Linux
+
+```bash
+sudo xbps-install -S lapce
+```
+
 ### winget
 
 You can find the packages [here](https://github.com/microsoft/winget-pkgs/tree/master/manifests/l/Lapce/Lapce):
@@ -78,3 +84,4 @@ You can find the packages [here](https://github.com/microsoft/winget-pkgs/tree/m
 ```bash
 winget install lapce
 ```
+

@@ -14,6 +14,10 @@ sudo apt install clang libxkbcommon-x11-dev pkg-config libvulkan-dev
 ```sh
 sudo dnf install clang libxkbcommon-x11-devel libxcb-devel vulkan-loader-devel
 ```
+#### Void Linux
+```sh
+sudo xbps-install -S base-devel clang libxkbcommon-devel vulkan-loader
+```
 
 3. Clone this repository (this command will clone to your home directory):
 ```sh
