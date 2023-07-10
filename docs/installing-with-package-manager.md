@@ -59,9 +59,9 @@ nix-env -iA nixos.lapce
 # on non-NixOS installs, including macOS
 nix-env -iA nixpkgs.lapce
 
-# only if nix.settings.experimental-features is set to both "nix-command" and "flakes"
+# only if `nix.settings.experimental-features` includes both `nix-command` and `flakes`.
 # WARNING: THIS BREAKS nix-env, PROCEED AT YOUR OWN RISK. THIS ALSO INSTALLS FROM UNSTABLE BRANCH.
-nix profile install nixpkgs#hello
+nix profile install nixpkgs#lapce
 ```
 
 ### Scoop
