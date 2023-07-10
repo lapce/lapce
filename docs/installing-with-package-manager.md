@@ -9,6 +9,7 @@ sudo pacman -Syu lapce
 ```
 
 ### Fedora
+
 ```bash
 sudo dnf copr enable titaniumtown/lapce
 sudo dnf install lapce
@@ -24,12 +25,12 @@ flatpak install flathub dev.lapce.lapce
 
 ### Gentoo
 
-Lapce is available in Gentoos user repository GURU. 
+Lapce is available in Gentoos user repository GURU.
 If the GURU is not activated, it can be with:
 
 ```bash
 emerge --ask app-eselect/eselect-repository # install eselect repository
-eselect repository enable guru 
+eselect repository enable guru
 emaint sync -r guru
 ```
 
