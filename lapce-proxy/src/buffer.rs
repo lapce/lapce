@@ -46,11 +46,11 @@ impl Buffer {
         if self.rev != rev {
             return Err(anyhow!("not the right rev"));
         }
-        let tmp_extension = self.path.extension().map_or_else(
-            || OsString::from("swp"),
+        let bak_extension = self.path.extension().map_or_else(
+            || OsString::from("bak"),
             |ext| {
                 let mut ext = ext.to_os_string();
-                ext.push(".swp");
+                ext.push(".bak");
                 ext
             },
         );
@@ -59,20 +59,20 @@ impl Buffer {
         } else {
             self.path.clone()
         };
-        let tmp_path = &path.with_extension(tmp_extension);
 
-        let mut f = File::create(tmp_path)?;
+        let bak_file_path = &path.with_extension(bak_extension);
+        fs::copy(&path, bak_file_path)?;
+
+        let mut f = fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open(&path)?;
         for chunk in self.rope.iter_chunks(..self.rope.len()) {
             f.write_all(chunk.as_bytes())?;
         }
 
-        if let Ok(metadata) = fs::metadata(&path) {
-            let perm = metadata.permissions();
-            fs::set_permissions(tmp_path, perm)?;
-        }
-
-        fs::rename(tmp_path, &path)?;
         self.mod_time = get_mod_time(&path);
+        fs::remove_file(bak_file_path)?;
 
         Ok(())
     }
