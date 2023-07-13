@@ -2211,14 +2211,18 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
                     title(
                         workspace,
                         main_split,
-                        source_control,
                         workbench_command,
                         latest_release,
                         update_in_progress,
                         config,
                     ),
                     workbench(window_tab_data.clone()),
-                    status(window_tab_data.clone()),
+                    status(
+                        window_tab_data.clone(),
+                        source_control,
+                        workbench_command,
+                        config,
+                    ),
                 )
             })
             .on_resize(move |point, rect| {

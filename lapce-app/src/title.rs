@@ -4,7 +4,7 @@ use floem::{
     menu::{Menu, MenuItem},
     peniko::kurbo::Point,
     reactive::{create_memo, ReadSignal, RwSignal},
-    style::{AlignItems, CursorStyle, Dimension, Display, JustifyContent, Style},
+    style::{AlignItems, CursorStyle, Dimension, JustifyContent, Style},
     view::View,
     views::{container, label, stack, svg, Decorators},
     ViewContext,
@@ -17,104 +17,48 @@ use crate::{
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     listener::Listener,
     main_split::MainSplitData,
-    source_control::SourceControlData,
     update::ReleaseInfo,
     workspace::LapceWorkspace,
 };
 
 fn left(
-    source_control: SourceControlData,
     workbench_command: Listener<LapceWorkbenchCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let branch = source_control.branch;
-    let file_diffs = source_control.file_diffs;
-    let branch = move || {
-        format!(
-            "{}{}",
-            branch.get(),
-            if file_diffs.with(|diffs| diffs.is_empty()) {
-                ""
-            } else {
-                "*"
-            }
-        )
-    };
     let id = ViewContext::get_current().id;
     stack(move || {
-        (
-            container(move || {
-                svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(
-                    move || {
-                        Style::BASE.size_px(26.0, 26.0).color(
-                            *config.get().get_color(LapceColor::LAPCE_REMOTE_ICON),
-                        )
-                    },
-                )
-            })
-            .on_click(move |_| {
-                #[allow(unused_mut)]
-                let mut menu = Menu::new("").entry(
-                    MenuItem::new("Connect to SSH Host").action(move || {
-                        workbench_command
-                            .send(LapceWorkbenchCommand::ConnectSshHost);
-                    }),
-                );
-                #[cfg(windows)]
-                {
-                    menu = menu.entry(MenuItem::new("Connect to WSL").action(
-                        move || {
-                            workbench_command
-                                .send(LapceWorkbenchCommand::ConnectWsl);
-                        },
-                    ));
-                }
-                id.show_context_menu(menu, Point::ZERO);
-                true
-            })
-            .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer))
-            .style(move || {
+        (container(move || {
+            svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(move || {
                 Style::BASE
-                    .height_pct(100.0)
-                    .padding_horiz_px(10.0)
-                    .items_center()
-                    .background(
-                        *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL),
-                    )
-            }),
-            stack(move || {
-                (
-                    svg(move || config.get().ui_svg(LapceIcons::SCM)).style(
-                        move || {
-                            let config = config.get();
-                            let icon_size = config.ui.icon_size() as f32;
-                            Style::BASE.size_px(icon_size, icon_size).color(
-                                *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                            )
-                        },
-                    ),
-                    label(branch).style(|| Style::BASE.margin_left_px(10.0)),
-                )
+                    .size_px(26.0, 26.0)
+                    .color(*config.get().get_color(LapceColor::LAPCE_REMOTE_ICON))
             })
-            .style(move || {
-                Style::BASE
-                    .display(if branch().is_empty() {
-                        Display::None
-                    } else {
-                        Display::Flex
-                    })
-                    .height_pct(100.0)
-                    .padding_horiz_px(10.0)
-                    .border_right(1.0)
-                    .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
-                    .align_items(Some(AlignItems::Center))
-            })
-            .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer))
-            .on_click(move |_| {
-                workbench_command.send(LapceWorkbenchCommand::PaletteSCMReferences);
-                true
-            }),
-        )
+        })
+        .on_click(move |_| {
+            #[allow(unused_mut)]
+            let mut menu = Menu::new("").entry(
+                MenuItem::new("Connect to SSH Host").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::ConnectSshHost);
+                }),
+            );
+            #[cfg(windows)]
+            {
+                menu =
+                    menu.entry(MenuItem::new("Connect to WSL").action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::ConnectWsl);
+                    }));
+            }
+            id.show_context_menu(menu, Point::ZERO);
+            true
+        })
+        .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer))
+        .style(move || {
+            Style::BASE
+                .height_pct(100.0)
+                .padding_horiz_px(10.0)
+                .items_center()
+                .background(*config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL))
+        }),)
     })
     .style(move || {
         Style::BASE
@@ -400,7 +344,6 @@ fn right(
 pub fn title(
     workspace: Arc<LapceWorkspace>,
     main_split: MainSplitData,
-    source_control: SourceControlData,
     workbench_command: Listener<LapceWorkbenchCommand>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     update_in_progress: RwSignal<bool>,
@@ -408,7 +351,7 @@ pub fn title(
 ) -> impl View {
     stack(move || {
         (
-            left(source_control, workbench_command, config),
+            left(workbench_command, config),
             middle(workspace, main_split, workbench_command, config),
             right(
                 workbench_command,

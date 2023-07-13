@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use floem::{
-    reactive::create_memo,
+    reactive::{create_memo, ReadSignal},
     style::{AlignItems, CursorStyle, Display, Style},
     view::View,
     views::{label, stack, svg, Decorators},
@@ -11,13 +11,21 @@ use lsp_types::DiagnosticSeverity;
 
 use crate::{
     app::clickable_icon,
-    config::{color::LapceColor, icon::LapceIcons},
+    command::LapceWorkbenchCommand,
+    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    listener::Listener,
     palette::kind::PaletteKind,
     panel::{kind::PanelKind, position::PanelContainerPosition},
+    source_control::SourceControlData,
     window_tab::WindowTabData,
 };
 
-pub fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
+pub fn status(
+    window_tab_data: Arc<WindowTabData>,
+    source_control: SourceControlData,
+    workbench_command: Listener<LapceWorkbenchCommand>,
+    _config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
     let config = window_tab_data.common.config;
     let diagnostics = window_tab_data.main_split.diagnostics;
     let editor = window_tab_data.main_split.active_editor;
@@ -39,6 +47,19 @@ pub fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
         }
         (errors, warnings)
     });
+    let branch = source_control.branch;
+    let file_diffs = source_control.file_diffs;
+    let branch = move || {
+        format!(
+            "{}{}",
+            branch.get(),
+            if file_diffs.with(|diffs| diffs.is_empty()) {
+                ""
+            } else {
+                "*"
+            }
+        )
+    };
 
     let mode = create_memo(move |_| window_tab_data.mode());
 
@@ -89,6 +110,49 @@ pub fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                             .background(bg)
                             .height_pct(100.0)
                             .align_items(Some(AlignItems::Center))
+                    }),
+                    stack(move || {
+                        (
+                            svg(move || config.get().ui_svg(LapceIcons::SCM)).style(
+                                move || {
+                                    let config = config.get();
+                                    let icon_size = config.ui.icon_size() as f32;
+                                    Style::BASE.size_px(icon_size, icon_size).color(
+                                        *config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ),
+                                    )
+                                },
+                            ),
+                            label(branch).style(|| Style::BASE.margin_left_px(10.0)),
+                        )
+                    })
+                    .style(move || {
+                        Style::BASE
+                            .display(if branch().is_empty() {
+                                Display::None
+                            } else {
+                                Display::Flex
+                            })
+                            .height_pct(100.0)
+                            .padding_horiz_px(10.0)
+                            .border_right(1.0)
+                            .border_color(
+                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                            )
+                            .align_items(Some(AlignItems::Center))
+                    })
+                    .on_click(move |_| {
+                        workbench_command
+                            .send(LapceWorkbenchCommand::PaletteSCMReferences);
+                        true
+                    })
+                    .hover_style(move || {
+                        Style::BASE.cursor(CursorStyle::Pointer).background(
+                            *config
+                                .get()
+                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        )
                     }),
                     {
                         let panel = panel.clone();
