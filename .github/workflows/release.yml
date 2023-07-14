@@ -178,7 +178,7 @@ jobs:
         uses: jirutka/setup-alpine@v1
         with:
           arch: ${{ matrix.platform }}
-          branch: edge
+          branch: v3.18
           packages: ${{ env.PACKAGES }}
           shell-name: alpine-target.sh
 
@@ -186,7 +186,7 @@ jobs:
         uses: jirutka/setup-alpine@v1
         with:
           arch: x86_64
-          branch: edge
+          branch: v3.18
           packages: ${{ env.PACKAGES }}
           volumes: ${{ steps.alpine-target.outputs.root-path }}:${{ env.CROSS_SYSROOT }}
           shell-name: alpine.sh
