@@ -26,7 +26,7 @@ flatpak install flathub dev.lapce.lapce
 ### Gentoo
 
 Lapce is available in Gentoos user repository GURU.
-If the GURU is not activated, it can be with:
+If GURU is not activated, it can be with:
 
 ```bash
 emerge --ask app-eselect/eselect-repository # install eselect repository
@@ -34,11 +34,26 @@ eselect repository enable guru
 emaint sync -r guru
 ```
 
-After activating and syncing the GURU repository, lapce can be installed with
+After activating and syncing the GURU repository,
+if the package is not masked, lapce can be installed with:
 
 ```bash
-emerge app-editors/lapce
+emerge --ask app-editors/lapce
 ```
+
+Otherwise, it's necessary to manually unmask the package with:
+
+```bash
+emerge --autounmask=y --autounmask-write app-editors/lapce
+```
+
+Update the config file with [app-portage/cfg-update](https://wiki.gentoo.org/wiki/Cfg-update):
+
+```bash
+cfg-update -u
+```
+
+And then, once the package is unmasked, you can emerge it as normal.
 
 ### Homebrew
 
