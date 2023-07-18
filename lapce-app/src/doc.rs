@@ -923,7 +923,9 @@ impl Document {
 
     /// Update the completion lens position after an edit so that it appears in the correct place.
     pub fn update_completion_lens(&mut self, delta: &RopeDelta) {
-        let Some(completion) = self.completion_lens.as_ref() else { return };
+        let Some(completion) = self.completion_lens.as_ref() else {
+            return;
+        };
 
         let (line, col) = self.completion_pos;
         let offset = self.buffer().offset_of_line_col(line, col);

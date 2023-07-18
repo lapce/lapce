@@ -356,7 +356,9 @@ fn completion_lens_text(
             .unwrap_or(InsertTextFormat::PLAIN_TEXT);
 
         // We don't display insert and replace
-        let CompletionTextEdit::Edit(edit) = edit else { return None };
+        let CompletionTextEdit::Edit(edit) = edit else {
+            return None;
+        };
         // The completion offset can be different from the current cursor offset.
         let completion_offset = completion.offset;
 

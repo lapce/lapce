@@ -829,7 +829,14 @@ impl PaletteData {
     }
 
     fn preselect_matching(&self, matching: &str) {
-        let Some((idx, _)) = self.items.get_untracked().iter().find_position(|item| item.filter_text == matching) else { return };
+        let Some((idx, _)) = self
+            .items
+            .get_untracked()
+            .iter()
+            .find_position(|item| item.filter_text == matching)
+        else {
+            return;
+        };
 
         self.index.set(idx);
     }
