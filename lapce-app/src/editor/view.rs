@@ -1471,23 +1471,28 @@ fn editor_gutter(
                                 empty().style(move || {
                                     let line_height =
                                         config.get().editor.line_height();
+                                    let viewport = viewport.get();
+                                    let mut margin_top = (y * line_height) as f32
+                                        - viewport.y0 as f32;
+                                    if removed {
+                                        margin_top -= 5.0;
+                                    }
+                                    let height = if removed {
+                                        10.0
+                                    } else {
+                                        (height * line_height) as f32
+                                    };
                                     Style::BASE
                                         .absolute()
                                         .width_px(3.0)
-                                        .height_px((height * line_height) as f32)
-                                        .apply_if(removed, |s| s.height_px(10.0))
+                                        .height_px(height)
                                         .margin_left_px(
                                             gutter_width.get() as f32
                                                 - padding_right
                                                 + padding_left
                                                 - 3.0,
                                         )
-                                        .margin_top_px((y * line_height) as f32)
-                                        .apply_if(removed, |s| {
-                                            s.margin_top_px(
-                                                (y * line_height) as f32 - 5.0,
-                                            )
-                                        })
+                                        .margin_top_px(margin_top)
                                         .background(color)
                                 })
                             },
