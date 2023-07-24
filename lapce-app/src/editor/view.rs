@@ -246,13 +246,25 @@ impl EditorView {
         for x in (start_x..viewport.x1.ceil() as usize + 1 + height.ceil() as usize)
             .step_by(8)
         {
-            let p0 = Point::new(x as f64, y);
-            let p1 = Point::new(x as f64 - height, y + height);
-            cx.stroke(
-                &Line::new(p0, p1),
-                *config.get_color(LapceColor::EDITOR_DIM),
-                1.0,
-            );
+            let p0 = if x as f64 > viewport.x1.ceil() {
+                Point::new(viewport.x1.ceil(), y + (x as f64 - viewport.x1.ceil()))
+            } else {
+                Point::new(x as f64, y)
+            };
+
+            let height = if x as f64 - height < viewport.x0.floor() {
+                x as f64 - viewport.x0.floor()
+            } else {
+                height
+            };
+            if height > 0.0 {
+                let p1 = Point::new(x as f64 - height, y + height);
+                cx.stroke(
+                    &Line::new(p0, p1),
+                    *config.get_color(LapceColor::EDITOR_DIM),
+                    1.0,
+                );
+            }
         }
     }
 

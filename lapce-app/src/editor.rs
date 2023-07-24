@@ -1898,9 +1898,14 @@ impl EditorData {
         let editor_view = editor_view.get_untracked();
         match editor_view {
             EditorViewKind::Normal => {
+                let doc = self.view.doc;
+                let last_line = doc.with_untracked(|doc| doc.buffer().last_line());
                 let mut lines = Vec::new();
                 let mut info = HashMap::new();
                 for line in min_line..max_line + 1 {
+                    if line > last_line {
+                        break;
+                    }
                     lines.push(line);
                     info.insert(
                         line,
