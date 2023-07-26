@@ -47,17 +47,17 @@ pub fn text_input(
     let config = editor.common.config;
     let keypress = editor.common.keypress;
 
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         let content = doc.with(|doc| doc.buffer().to_string());
         id.update_state(TextInputState::Content(content), false);
     });
 
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         cursor.with(|_| ());
         id.request_layout();
     });
 
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         let focus = is_focused();
         id.update_state(TextInputState::Focus(focus), false);
     });
@@ -133,9 +133,8 @@ pub struct TextInput {
 
 impl TextInput {
     pub fn placeholder(self, placeholder: impl Fn() -> String + 'static) -> Self {
-        let cx = ViewContext::get_current();
         let id = self.id;
-        create_effect(cx.scope, move |_| {
+        create_effect(move |_| {
             let placeholder = placeholder();
             id.update_state(TextInputState::Placeholder(placeholder), false);
         });

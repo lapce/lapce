@@ -6,9 +6,8 @@ use floem::{
     glazier::{Modifiers, PointerButton, PointerEvent},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_effect, create_rw_signal, use_context, RwSignal, Scope,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked,
+        create_effect, create_rw_signal, use_context, RwSignal, SignalGetUntracked,
+        SignalSet, SignalUpdate, SignalWith, SignalWithUntracked,
     },
 };
 use lapce_core::{
@@ -79,7 +78,6 @@ impl EditorInfo {
             DocContent::File(path) => {
                 let (doc, new_doc) = data.get_doc(path.clone());
                 let editor_data = EditorData::new(
-                    data.scope,
                     Some(editor_tab_id),
                     editor_id,
                     doc,
@@ -101,14 +99,10 @@ impl EditorInfo {
                 );
                 editor_data
             }
-            DocContent::Local => {
-                EditorData::new_local(data.scope, editor_id, data.common)
-            }
-            DocContent::History(_) => {
-                EditorData::new_local(data.scope, editor_id, data.common)
-            }
+            DocContent::Local => EditorData::new_local(editor_id, data.common),
+            DocContent::History(_) => EditorData::new_local(editor_id, data.common),
         };
-        let editor_data = create_rw_signal(editor_data.scope, editor_data);
+        let editor_data = create_rw_signal(editor_data);
         data.editors.update(|editors| {
             editors.insert(editor_id, editor_data);
         });
@@ -120,7 +114,6 @@ pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 
 #[derive(Clone)]
 pub struct EditorData {
-    pub scope: Scope,
     pub editor_tab_id: Option<EditorTabId>,
     pub editor_id: EditorId,
     pub view: EditorViewData,
@@ -148,13 +141,11 @@ impl PartialEq for EditorData {
 
 impl EditorData {
     pub fn new(
-        cx: Scope,
         editor_tab_id: Option<EditorTabId>,
         editor_id: EditorId,
         doc: RwSignal<Document>,
         common: CommonData,
     ) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
         let is_local = doc.with_untracked(|doc| doc.content.is_local());
         let modal = common.config.with_untracked(|c| c.core.modal);
         let cursor = Cursor::new(
@@ -166,44 +157,41 @@ impl EditorData {
             None,
             None,
         );
-        let cursor = create_rw_signal(cx, cursor);
+        let cursor = create_rw_signal(cursor);
         let view = EditorViewData::new(
             doc,
-            create_rw_signal(cx, EditorViewKind::Normal),
+            create_rw_signal(EditorViewKind::Normal),
             common.config,
         );
         Self {
-            scope: cx,
             editor_tab_id,
             editor_id,
             view,
             cursor,
-            confirmed: create_rw_signal(cx, false),
-            snippet: create_rw_signal(cx, None),
-            window_origin: create_rw_signal(cx, Point::ZERO),
-            viewport: create_rw_signal(cx, Rect::ZERO),
-            scroll_delta: create_rw_signal(cx, Vec2::ZERO),
-            scroll_to: create_rw_signal(cx, None),
-            last_movement: create_rw_signal(cx, Movement::Left),
-            inline_find: create_rw_signal(cx, None),
-            last_inline_find: create_rw_signal(cx, None),
-            find_focus: create_rw_signal(cx, false),
-            active: create_rw_signal(cx, false),
-            sticky_header_height: create_rw_signal(cx, 0.0),
+            confirmed: create_rw_signal(false),
+            snippet: create_rw_signal(None),
+            window_origin: create_rw_signal(Point::ZERO),
+            viewport: create_rw_signal(Rect::ZERO),
+            scroll_delta: create_rw_signal(Vec2::ZERO),
+            scroll_to: create_rw_signal(None),
+            last_movement: create_rw_signal(Movement::Left),
+            inline_find: create_rw_signal(None),
+            last_inline_find: create_rw_signal(None),
+            find_focus: create_rw_signal(false),
+            active: create_rw_signal(false),
+            sticky_header_height: create_rw_signal(0.0),
             common,
         }
     }
 
-    pub fn new_local(cx: Scope, editor_id: EditorId, common: CommonData) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
+    pub fn new_local(editor_id: EditorId, common: CommonData) -> Self {
         let doc = Document::new_local(
-            cx,
             common.find.clone(),
             common.proxy.clone(),
             common.config,
         );
-        let doc = create_rw_signal(cx, doc);
-        Self::new(cx, None, editor_id, doc, common)
+        let doc = create_rw_signal(doc);
+        Self::new(None, editor_id, doc, common)
     }
 
     pub fn editor_info(&self, _data: &WindowTabData) -> EditorInfo {
@@ -224,32 +212,28 @@ impl EditorData {
 
     pub fn copy(
         &self,
-        cx: Scope,
         editor_tab_id: Option<EditorTabId>,
         editor_id: EditorId,
     ) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
         EditorData {
-            scope: cx,
             editor_id,
             editor_tab_id,
-            view: self.view.duplicate(cx),
-            cursor: create_rw_signal(cx, self.cursor.get_untracked()),
-            viewport: create_rw_signal(cx, self.viewport.get_untracked()),
-            scroll_delta: create_rw_signal(cx, Vec2::ZERO),
-            scroll_to: create_rw_signal(
-                cx,
-                Some(self.viewport.get_untracked().origin().to_vec2()),
-            ),
-            window_origin: create_rw_signal(cx, Point::ZERO),
-            confirmed: create_rw_signal(cx, true),
-            snippet: create_rw_signal(cx, None),
-            last_movement: create_rw_signal(cx, self.last_movement.get_untracked()),
-            inline_find: create_rw_signal(cx, None),
-            last_inline_find: create_rw_signal(cx, None),
-            find_focus: create_rw_signal(cx, false),
-            active: create_rw_signal(cx, false),
-            sticky_header_height: create_rw_signal(cx, 0.0),
+            view: self.view.duplicate(),
+            cursor: create_rw_signal(self.cursor.get_untracked()),
+            viewport: create_rw_signal(self.viewport.get_untracked()),
+            scroll_delta: create_rw_signal(Vec2::ZERO),
+            scroll_to: create_rw_signal(Some(
+                self.viewport.get_untracked().origin().to_vec2(),
+            )),
+            window_origin: create_rw_signal(Point::ZERO),
+            confirmed: create_rw_signal(true),
+            snippet: create_rw_signal(None),
+            last_movement: create_rw_signal(self.last_movement.get_untracked()),
+            inline_find: create_rw_signal(None),
+            last_inline_find: create_rw_signal(None),
+            find_focus: create_rw_signal(false),
+            active: create_rw_signal(false),
+            sticky_header_height: create_rw_signal(0.0),
             common: self.common.clone(),
         }
     }
@@ -718,7 +702,7 @@ impl EditorData {
 
         let internal_command = self.common.internal_command;
         let cursor = self.cursor.read_only();
-        let send = create_ext_action(self.scope, move |d| {
+        let send = create_ext_action(move |d| {
             let current_offset = cursor.with_untracked(|c| c.offset());
             if current_offset != offset {
                 return;
@@ -914,7 +898,7 @@ impl EditorData {
                     .doc
                     .with_untracked(|doc| (doc.rev(), doc.content.path().cloned()));
                 let offset = self.cursor.with_untracked(|c| c.offset());
-                let send = create_ext_action(self.scope, move |item| {
+                let send = create_ext_action(move |item| {
                     if editor.cursor.with_untracked(|c| c.offset() != offset) {
                         return;
                     }
@@ -1346,7 +1330,7 @@ impl EditorData {
         } else if let Some(edits) = edits.as_ref() {
             self.do_text_edit(edits);
         } else {
-            let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+            let db: Arc<LapceDb> = use_context().unwrap();
             if let Ok(info) = db.get_doc_info(&self.common.workspace, &location.path)
             {
                 self.go_to_position(
@@ -1367,13 +1351,11 @@ impl EditorData {
         if !new_doc {
             self.do_go_to_location(location, edits);
         } else {
-            let (cx, _) = self.scope.run_child_scope(|scope| scope);
             let doc = self.view.doc;
             let editor = self.clone();
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 let loaded = doc.with(|doc| doc.loaded());
                 if loaded {
-                    cx.dispose();
                     editor.do_go_to_location(location.clone(), edits.clone());
                 }
             });
@@ -1455,7 +1437,7 @@ impl EditorData {
         });
 
         let doc = self.view.doc;
-        let send = create_ext_action(self.scope, move |resp| {
+        let send = create_ext_action(move |resp| {
             if doc.with_untracked(|doc| doc.rev() == rev) {
                 doc.update(|doc| {
                     doc.code_actions.insert(offset, Arc::new(resp));
@@ -1505,7 +1487,7 @@ impl EditorData {
             .with_untracked(|doc| (doc.rev(), doc.content.clone()));
 
         let doc = self.view.doc;
-        let send = create_ext_action(self.scope, move |result| {
+        let send = create_ext_action(move |result| {
             if let Ok(ProxyResponse::SaveResponse {}) = result {
                 let current_rev = doc.with_untracked(|doc| doc.rev());
                 if current_rev == rev {
@@ -1538,7 +1520,7 @@ impl EditorData {
             let format_on_save = allow_formatting && config.editor.format_on_save;
             if format_on_save {
                 let editor = self.clone();
-                let send = create_ext_action(self.scope, move |result| {
+                let send = create_ext_action(move |result| {
                     if let Ok(Ok(ProxyResponse::GetDocumentFormatting { edits })) =
                         result
                     {
@@ -1632,7 +1614,7 @@ impl EditorData {
         let cursor_offset = self.cursor.with_untracked(|c| c.offset());
         let scroll_offset = self.viewport.with_untracked(|v| v.origin().to_vec2());
 
-        let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+        let db: Arc<LapceDb> = use_context().unwrap();
         db.save_doc_position(
             &self.common.workspace,
             path,
@@ -1662,7 +1644,7 @@ impl EditorData {
         let doc = self.view.doc;
         let internal_command = self.common.internal_command;
         let local_path = path.clone();
-        let send = create_ext_action(self.scope, move |result| {
+        let send = create_ext_action(move |result| {
             if let Ok(ProxyResponse::PrepareRename { resp }) = result {
                 if doc.with_untracked(|doc| doc.rev()) != rev {
                     return;

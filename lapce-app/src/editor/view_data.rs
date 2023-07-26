@@ -4,8 +4,8 @@ use floem::{
     cosmic_text::TextLayout,
     peniko::{kurbo::Point, Color},
     reactive::{
-        create_rw_signal, ReadSignal, RwSignal, Scope, SignalGetUntracked,
-        SignalWith, SignalWithUntracked,
+        create_rw_signal, ReadSignal, RwSignal, SignalGetUntracked, SignalWith,
+        SignalWithUntracked,
     },
     views::VirtualListVector,
 };
@@ -217,7 +217,7 @@ impl EditorViewData {
     }
 
     /// Duplicate as a new view which refers to the same document.
-    pub fn duplicate(&self, cx: Scope) -> Self {
+    pub fn duplicate(&self) -> Self {
         // TODO: This is correct right now, as it has the views share the same text layout cache.
         // However, once we have line wrapping or other view-specific rendering changes, this should check for whether they're different.
         // This will likely require more information to be passed into duplicate,
@@ -225,7 +225,7 @@ impl EditorViewData {
         EditorViewData {
             doc: self.doc,
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
-            kind: create_rw_signal(cx, self.kind.get_untracked()),
+            kind: create_rw_signal(self.kind.get_untracked()),
             config: self.config,
         }
     }

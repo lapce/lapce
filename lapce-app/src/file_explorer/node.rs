@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use floem::{
     ext_event::create_ext_action,
     reactive::{
-        create_rw_signal, Memo, RwSignal, Scope, SignalGet, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWithUntracked,
+        create_rw_signal, Memo, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
+        SignalUpdate, SignalWithUntracked,
     },
     views::VirtualListVector,
 };
@@ -15,7 +15,6 @@ use crate::{command::InternalCommand, listener::Listener};
 
 #[derive(Clone)]
 pub struct FileNode {
-    pub scope: Scope,
     pub path: PathBuf,
     pub is_dir: bool,
     pub read: RwSignal<bool>,
@@ -116,9 +115,8 @@ impl FileNode {
             return;
         }
         self.read.set(true);
-        let cx = self.scope;
         let file_node = self.clone();
-        let send = create_ext_action(self.scope, move |result| {
+        let send = create_ext_action(move |result| {
             if let Ok(ProxyResponse::ReadDirResponse { items }) = result {
                 let items = items
                     .into_iter()
@@ -126,13 +124,12 @@ impl FileNode {
                         (
                             item.path_buf.clone(),
                             FileNode {
-                                scope: cx,
                                 path: item.path_buf,
                                 is_dir: item.is_dir,
-                                read: create_rw_signal(cx, false),
-                                expanded: create_rw_signal(cx, false),
-                                children: create_rw_signal(cx, IndexMap::new()),
-                                children_open_count: create_rw_signal(cx, 0),
+                                read: create_rw_signal(false),
+                                expanded: create_rw_signal(false),
+                                children: create_rw_signal(IndexMap::new()),
+                                children_open_count: create_rw_signal(0),
                                 all_files: file_node.all_files,
                                 line_height: file_node.line_height,
                                 internal_command: file_node.internal_command,

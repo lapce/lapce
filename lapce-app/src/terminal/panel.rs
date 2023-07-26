@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use floem::{
     glazier::KeyEvent,
     reactive::{
-        create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
+        create_rw_signal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
         SignalUpdate, SignalWith, SignalWithUntracked,
     },
 };
@@ -30,7 +30,6 @@ pub struct TerminalTabInfo {
 
 #[derive(Clone)]
 pub struct TerminalPanelData {
-    pub cx: Scope,
     pub workspace: Arc<LapceWorkspace>,
     pub tab_info: RwSignal<TerminalTabInfo>,
     pub debug: RunDebugData,
@@ -46,17 +45,13 @@ impl TerminalPanelData {
         let terminal_tab =
             TerminalTabData::new(workspace.clone(), run_debug, common.clone());
 
-        let cx = common.scope;
-
-        let tabs =
-            im::vector![(create_rw_signal(terminal_tab.scope, 0), terminal_tab)];
+        let tabs = im::vector![(create_rw_signal(0), terminal_tab)];
         let tab_info = TerminalTabInfo { active: 0, tabs };
-        let tab_info = create_rw_signal(cx, tab_info);
+        let tab_info = create_rw_signal(tab_info);
 
-        let debug = RunDebugData::new(cx);
+        let debug = RunDebugData::new();
 
         Self {
-            cx,
             workspace,
             tab_info,
             debug,
@@ -114,10 +109,7 @@ impl TerminalPanelData {
                 } else {
                     (info.active + 1).min(info.tabs.len())
                 },
-                (
-                    create_rw_signal(terminal_tab.scope, 0),
-                    terminal_tab.clone(),
-                ),
+                (create_rw_signal(0), terminal_tab.clone()),
             );
             let new_active = (info.active + 1).min(info.tabs.len() - 1);
             info.active = new_active;
@@ -211,13 +203,9 @@ impl TerminalPanelData {
 
     pub fn split(&self, term_id: TermId) {
         if let Some((_, tab, index, _)) = self.get_terminal_in_tab(&term_id) {
-            let terminal_data = TerminalData::new(
-                tab.scope,
-                self.workspace.clone(),
-                None,
-                self.common.clone(),
-            );
-            let i = create_rw_signal(terminal_data.scope, 0);
+            let terminal_data =
+                TerminalData::new(self.workspace.clone(), None, self.common.clone());
+            let i = create_rw_signal(0);
             tab.terminals.update(|terminals| {
                 terminals.insert(index + 1, (i, terminal_data));
             });
@@ -342,15 +330,13 @@ impl TerminalPanelData {
                 let mut run_debug = run_debug;
                 run_debug.stopped = false;
                 let new_terminal = TerminalData::new(
-                    terminal_tab.scope,
                     self.workspace.clone(),
                     Some(run_debug),
                     self.common.clone(),
                 );
                 let new_term_id = new_terminal.term_id;
                 terminal_tab.terminals.update(|terminals| {
-                    terminals[index] =
-                        (create_rw_signal(new_terminal.scope, 0), new_terminal);
+                    terminals[index] = (create_rw_signal(0), new_terminal);
                 });
                 self.debug.active_term.set(Some(new_term_id));
                 new_term_id
@@ -492,7 +478,7 @@ impl TerminalPanelData {
             .daps
             .with_untracked(|daps| daps.get(dap_id).cloned());
         if let Some(dap) = dap {
-            dap.stopped(self.cx, stopped, stack_frames);
+            dap.stopped(stopped, stack_frames);
         }
     }
 

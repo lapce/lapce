@@ -16,7 +16,7 @@ use floem::{
     ext_event::{create_ext_action, create_signal_from_channel},
     reactive::{
         create_effect, create_rw_signal, create_signal, use_context, ReadSignal,
-        RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
+        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
         SignalWith, SignalWithUntracked,
     },
 };
@@ -102,32 +102,26 @@ pub struct PaletteData {
 
 impl PaletteData {
     pub fn new(
-        cx: Scope,
         workspace: Arc<LapceWorkspace>,
         main_split: MainSplitData,
         keypress: ReadSignal<KeyPressData>,
         source_control: SourceControlData,
         common: CommonData,
     ) -> Self {
-        let status = create_rw_signal(cx, PaletteStatus::Inactive);
-        let items = create_rw_signal(cx, im::Vector::new());
-        let index = create_rw_signal(cx, 0);
-        let references = create_rw_signal(cx, Vec::new());
-        let input = create_rw_signal(
-            cx,
-            PaletteInput {
-                input: "".to_string(),
-                kind: PaletteKind::File,
-            },
-        );
-        let kind = create_rw_signal(cx, PaletteKind::File);
-        let input_editor =
-            EditorData::new_local(cx, EditorId::next(), common.clone());
-        let preview_editor =
-            EditorData::new_local(cx, EditorId::next(), common.clone());
-        let preview_editor = create_rw_signal(cx, preview_editor);
-        let has_preview = create_rw_signal(cx, false);
-        let run_id = create_rw_signal(cx, 0);
+        let status = create_rw_signal(PaletteStatus::Inactive);
+        let items = create_rw_signal(im::Vector::new());
+        let index = create_rw_signal(0);
+        let references = create_rw_signal(Vec::new());
+        let input = create_rw_signal(PaletteInput {
+            input: "".to_string(),
+            kind: PaletteKind::File,
+        });
+        let kind = create_rw_signal(PaletteKind::File);
+        let input_editor = EditorData::new_local(EditorId::next(), common.clone());
+        let preview_editor = EditorData::new_local(EditorId::next(), common.clone());
+        let preview_editor = create_rw_signal(preview_editor);
+        let has_preview = create_rw_signal(false);
+        let run_id = create_rw_signal(0);
         let run_id_counter = Arc::new(AtomicU64::new(0));
 
         let (run_tx, run_rx) = crossbeam_channel::unbounded();
@@ -140,7 +134,7 @@ impl PaletteData {
             {
                 let tx = tx.clone();
                 // this effect only monitors items change
-                create_effect(cx, move |_| {
+                create_effect(move |_| {
                     let items = items.get();
                     let input = input.get_untracked();
                     let run_id = run_id.get_untracked();
@@ -149,7 +143,7 @@ impl PaletteData {
             }
 
             // this effect only monitors input change
-            create_effect(cx, move |last_kind| {
+            create_effect(move |last_kind| {
                 let input = input.get();
                 let kind = input.kind;
                 if last_kind != Some(kind) {
@@ -171,13 +165,12 @@ impl PaletteData {
             });
         }
 
-        let (filtered_items, set_filtered_items) =
-            create_signal(cx, im::Vector::new());
+        let (filtered_items, set_filtered_items) = create_signal(im::Vector::new());
         {
-            let resp = create_signal_from_channel(cx, resp_rx);
+            let resp = create_signal_from_channel(resp_rx);
             let run_id = run_id.read_only();
             let input = input.read_only();
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 if let Some((filter_run_id, filter_input, new_items)) = resp.get() {
                     if run_id.get_untracked() == filter_run_id
                         && input.get_untracked().input == filter_input
@@ -189,7 +182,7 @@ impl PaletteData {
             });
         }
 
-        let clicked_index = create_rw_signal(cx, Option::<usize>::None);
+        let clicked_index = create_rw_signal(Option::<usize>::None);
 
         let palette = Self {
             run_id_counter,
@@ -218,7 +211,7 @@ impl PaletteData {
             let palette = palette.clone();
             let clicked_index = clicked_index.read_only();
             let index = index.write_only();
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 if let Some(clicked_index) = clicked_index.get() {
                     index.set(clicked_index);
                     palette.select();
@@ -234,7 +227,7 @@ impl PaletteData {
             let preset_kind = palette.kind.read_only();
             // Monitors when the palette's input changes, so that it can update the stored input
             // and kind of palette.
-            create_effect(cx, move |last_input| {
+            create_effect(move |last_input| {
                 // TODO(minor, perf): this could have perf issues if the user accidentally pasted a huge amount of text into the palette.
                 let new_input = doc.with(|doc| doc.buffer().text().to_string());
 
@@ -268,11 +261,11 @@ impl PaletteData {
                         })
                         .unwrap();
                     if let Some(new_kind) = new_kind {
-                        palette.run_inner(cx, new_kind);
+                        palette.run_inner(new_kind);
                     } else if input
                         .with_untracked(|i| i.kind == PaletteKind::WorkspaceSymbol)
                     {
-                        palette.run_inner(cx, PaletteKind::WorkspaceSymbol);
+                        palette.run_inner(PaletteKind::WorkspaceSymbol);
                     }
                 }
                 Some(new_input)
@@ -281,15 +274,15 @@ impl PaletteData {
 
         {
             let palette = palette.clone();
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 let _ = palette.index.get();
-                palette.preview(cx);
+                palette.preview();
             });
         }
 
         {
             let palette = palette.clone();
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 let focus = palette.common.focus.get();
                 if focus != Focus::Palette
                     && palette.status.get_untracked() != PaletteStatus::Inactive
@@ -303,7 +296,7 @@ impl PaletteData {
     }
 
     /// Start and focus the palette for the given kind.  
-    pub fn run(&self, _cx: Scope, kind: PaletteKind) {
+    pub fn run(&self, kind: PaletteKind) {
         self.common.focus.set(Focus::Palette);
         self.status.set(PaletteStatus::Started);
         let symbol = kind.symbol();
@@ -320,7 +313,7 @@ impl PaletteData {
 
     /// Execute the internal behavior of the palette for the given kind. This ignores updating and
     /// focusing the palette input.
-    fn run_inner(&self, cx: Scope, kind: PaletteKind) {
+    fn run_inner(&self, kind: PaletteKind) {
         self.has_preview.set(false);
 
         let run_id = self.run_id_counter.fetch_add(1, Ordering::Relaxed) + 1;
@@ -328,46 +321,46 @@ impl PaletteData {
 
         match kind {
             PaletteKind::File => {
-                self.get_files(cx);
+                self.get_files();
             }
             PaletteKind::Line => {
-                self.get_lines(cx);
+                self.get_lines();
             }
             PaletteKind::Command => {
-                self.get_commands(cx);
+                self.get_commands();
             }
             PaletteKind::Workspace => {
-                self.get_workspaces(cx);
+                self.get_workspaces();
             }
             PaletteKind::Reference => {
-                self.get_references(cx);
+                self.get_references();
             }
             PaletteKind::DocumentSymbol => {
-                self.get_document_symbols(cx);
+                self.get_document_symbols();
             }
             PaletteKind::WorkspaceSymbol => {
-                self.get_workspace_symbols(cx);
+                self.get_workspace_symbols();
             }
             PaletteKind::SshHost => {
-                self.get_ssh_hosts(cx);
+                self.get_ssh_hosts();
             }
             PaletteKind::RunAndDebug => {
-                self.get_run_configs(cx);
+                self.get_run_configs();
             }
             PaletteKind::ColorTheme => {
-                self.get_color_themes(cx);
+                self.get_color_themes();
                 self.preselect_matching(
                     &self.common.config.get_untracked().color_theme.name,
                 );
             }
             PaletteKind::IconTheme => {
-                self.get_icon_themes(cx);
+                self.get_icon_themes();
                 self.preselect_matching(
                     &self.common.config.get_untracked().icon_theme.name,
                 );
             }
             PaletteKind::Language => {
-                self.get_languages(cx);
+                self.get_languages();
                 if let Some(editor) = self.main_split.active_editor.get_untracked() {
                     let doc = editor.with_untracked(|editor| (editor.view.doc));
                     let language =
@@ -376,41 +369,40 @@ impl PaletteData {
                 }
             }
             PaletteKind::SCMReferences => {
-                self.get_scm_references(cx);
+                self.get_scm_references();
             }
         }
     }
 
     /// Initialize the palette with the files in the current workspace.
-    fn get_files(&self, _cx: Scope) {
+    fn get_files(&self) {
         let workspace = self.workspace.clone();
         let set_items = self.items.write_only();
-        let send =
-            create_ext_action(self.common.scope, move |items: Vec<PathBuf>| {
-                let items = items
-                    .into_iter()
-                    .map(|path| {
-                        let full_path = path.clone();
-                        // Strip the workspace prefix off the path, to avoid clutter
-                        let path =
-                            if let Some(workspace_path) = workspace.path.as_ref() {
-                                path.strip_prefix(workspace_path)
-                                    .unwrap_or(&full_path)
-                                    .to_path_buf()
-                            } else {
-                                path
-                            };
-                        let filter_text = path.to_str().unwrap_or("").to_string();
-                        PaletteItem {
-                            content: PaletteItemContent::File { path, full_path },
-                            filter_text,
-                            score: 0,
-                            indices: Vec::new(),
-                        }
-                    })
-                    .collect::<im::Vector<_>>();
-                set_items.set(items);
-            });
+        let send = create_ext_action(move |items: Vec<PathBuf>| {
+            let items = items
+                .into_iter()
+                .map(|path| {
+                    let full_path = path.clone();
+                    // Strip the workspace prefix off the path, to avoid clutter
+                    let path = if let Some(workspace_path) = workspace.path.as_ref()
+                    {
+                        path.strip_prefix(workspace_path)
+                            .unwrap_or(&full_path)
+                            .to_path_buf()
+                    } else {
+                        path
+                    };
+                    let filter_text = path.to_str().unwrap_or("").to_string();
+                    PaletteItem {
+                        content: PaletteItemContent::File { path, full_path },
+                        filter_text,
+                        score: 0,
+                        indices: Vec::new(),
+                    }
+                })
+                .collect::<im::Vector<_>>();
+            set_items.set(items);
+        });
         self.common.proxy.get_files(move |result| {
             if let Ok(ProxyResponse::GetFilesResponse { items }) = result {
                 send(items);
@@ -419,7 +411,7 @@ impl PaletteData {
     }
 
     /// Initialize the palette with the lines in the current document.
-    fn get_lines(&self, _cx: Scope) {
+    fn get_lines(&self) {
         let editor = self.main_split.active_editor.get_untracked();
         let doc = match editor {
             Some(editor) => editor.with_untracked(|editor| (editor.view.doc)),
@@ -458,7 +450,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_commands(&self, _cx: Scope) {
+    fn get_commands(&self) {
         const EXCLUDED_ITEMS: &[&str] = &["palette.command"];
 
         let items = self.keypress.with_untracked(|keypress| {
@@ -507,8 +499,8 @@ impl PaletteData {
     }
 
     /// Initialize the palette with all the available workspaces, local and remote.
-    fn get_workspaces(&self, cx: Scope) {
-        let db: Arc<LapceDb> = use_context(cx).unwrap();
+    fn get_workspaces(&self) {
+        let db: Arc<LapceDb> = use_context().unwrap();
         let workspaces = db.recent_workspaces().unwrap_or_default();
 
         let items = workspaces
@@ -538,7 +530,7 @@ impl PaletteData {
     }
 
     /// Initialize the list of references in the file, from the current editor location.
-    fn get_references(&self, _cx: Scope) {
+    fn get_references(&self) {
         let items = self
             .references
             .get_untracked()
@@ -565,7 +557,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_document_symbols(&self, _cx: Scope) {
+    fn get_document_symbols(&self) {
         let editor = self.main_split.active_editor.get_untracked();
         let doc = match editor {
             Some(editor) => editor.with_untracked(|editor| (editor.view.doc)),
@@ -584,7 +576,7 @@ impl PaletteData {
         };
 
         let set_items = self.items.write_only();
-        let send = create_ext_action(self.common.scope, move |result| {
+        let send = create_ext_action(move |result| {
             if let Ok(ProxyResponse::GetDocumentSymbols { resp }) = result {
                 let items: im::Vector<PaletteItem> = match resp {
                     DocumentSymbolResponse::Flat(symbols) => symbols
@@ -633,11 +625,11 @@ impl PaletteData {
         });
     }
 
-    fn get_workspace_symbols(&self, _cx: Scope) {
+    fn get_workspace_symbols(&self) {
         let input = self.input.get_untracked().input;
 
         let set_items = self.items.write_only();
-        let send = create_ext_action(self.common.scope, move |result| {
+        let send = create_ext_action(move |result| {
             if let Ok(ProxyResponse::GetWorkspaceSymbols { symbols }) = result {
                 let items: im::Vector<PaletteItem> = symbols
                     .iter()
@@ -681,8 +673,8 @@ impl PaletteData {
             });
     }
 
-    fn get_ssh_hosts(&self, cx: Scope) {
-        let db: Arc<LapceDb> = use_context(cx).unwrap();
+    fn get_ssh_hosts(&self) {
+        let db: Arc<LapceDb> = use_context().unwrap();
         let workspaces = db.recent_workspaces().unwrap_or_default();
         let mut hosts = HashSet::new();
         for workspace in workspaces.iter() {
@@ -703,7 +695,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_run_configs(&self, _cx: Scope) {
+    fn get_run_configs(&self) {
         let configs = run_configs(self.common.workspace.path.as_deref());
         if configs.is_none() {
             if let Some(path) = self.workspace.path.as_ref() {
@@ -762,7 +754,7 @@ impl PaletteData {
             .set(items.into_iter().map(|(_, item)| item).collect());
     }
 
-    fn get_color_themes(&self, _cx: Scope) {
+    fn get_color_themes(&self) {
         let config = self.common.config.get_untracked();
         let items = config
             .color_theme_list()
@@ -777,7 +769,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_icon_themes(&self, _cx: Scope) {
+    fn get_icon_themes(&self) {
         let config = self.common.config.get_untracked();
         let items = config
             .icon_theme_list()
@@ -792,7 +784,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_languages(&self, _cx: Scope) {
+    fn get_languages(&self) {
         let langs = LapceLanguage::languages();
         let items = langs
             .iter()
@@ -808,7 +800,7 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_scm_references(&self, _cx: Scope) {
+    fn get_scm_references(&self) {
         let branches = self.source_control.branches.get_untracked();
         let tags = self.source_control.tags.get_untracked();
         let mut items: im::Vector<PaletteItem> = im::Vector::new();
@@ -1017,7 +1009,7 @@ impl PaletteData {
     }
 
     /// Update the preview for the currently active palette item, if it has one.
-    fn preview(&self, _cx: Scope) {
+    fn preview(&self) {
         if self.status.get_untracked() == PaletteStatus::Inactive {
             return;
         }

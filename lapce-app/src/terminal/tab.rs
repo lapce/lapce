@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use floem::reactive::{
-    create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalWith,
+    create_rw_signal, RwSignal, SignalGet, SignalGetUntracked, SignalWith,
     SignalWithUntracked,
 };
 
@@ -13,7 +13,6 @@ use crate::{
 
 #[derive(Clone)]
 pub struct TerminalTabData {
-    pub scope: Scope,
     pub terminal_tab_id: TerminalTabId,
     pub active: RwSignal<usize>,
     pub terminals: RwSignal<im::Vector<(RwSignal<usize>, TerminalData)>>,
@@ -25,14 +24,12 @@ impl TerminalTabData {
         run_debug: Option<RunDebugProcess>,
         common: CommonData,
     ) -> Self {
-        let (cx, _) = common.scope.run_child_scope(|cx| cx);
-        let terminal_data = TerminalData::new(cx, workspace, run_debug, common);
-        let terminals = im::vector![(create_rw_signal(cx, 0), terminal_data)];
-        let terminals = create_rw_signal(cx, terminals);
-        let active = create_rw_signal(cx, 0);
+        let terminal_data = TerminalData::new(workspace, run_debug, common);
+        let terminals = im::vector![(create_rw_signal(0), terminal_data)];
+        let terminals = create_rw_signal(terminals);
+        let active = create_rw_signal(0);
         let terminal_tab_id = TerminalTabId::next();
         Self {
-            scope: cx,
             terminal_tab_id,
             active,
             terminals,

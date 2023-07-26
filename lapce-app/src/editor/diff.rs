@@ -4,7 +4,7 @@ use floem::{
     event::EventListener,
     ext_event::create_ext_action,
     reactive::{
-        create_effect, create_memo, create_rw_signal, RwSignal, Scope, SignalGet,
+        create_effect, create_memo, create_rw_signal, RwSignal, SignalGet,
         SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
         SignalWithUntracked,
     },
@@ -49,8 +49,6 @@ impl DiffEditorInfo {
         data: MainSplitData,
         editor_tab_id: EditorTabId,
     ) -> DiffEditorData {
-        let (cx, _) = data.scope.run_child_scope(|cx| cx);
-
         let diff_editor_id = DiffEditorId::next();
 
         let new_doc = {
@@ -61,26 +59,21 @@ impl DiffEditorInfo {
                     let (doc, _) = data.get_doc(path.clone());
                     doc
                 }
-                DocContent::Local => create_rw_signal(
-                    cx,
-                    Document::new_local(
-                        cx,
-                        common.find.clone(),
-                        common.proxy.clone(),
-                        common.config,
-                    ),
-                ),
+                DocContent::Local => create_rw_signal(Document::new_local(
+                    common.find.clone(),
+                    common.proxy.clone(),
+                    common.config,
+                )),
                 DocContent::History(history) => {
                     let doc = Document::new_hisotry(
-                        cx,
                         content.clone(),
                         common.find.clone(),
                         common.proxy.clone(),
                         common.config,
                     );
-                    let doc = create_rw_signal(doc.scope, doc);
+                    let doc = create_rw_signal(doc);
 
-                    let send = create_ext_action(cx, move |result| {
+                    let send = create_ext_action(move |result| {
                         if let Ok(ProxyResponse::BufferHeadResponse {
                             content,
                             ..
@@ -106,7 +99,6 @@ impl DiffEditorInfo {
         let right_doc = new_doc(&self.right_content);
 
         let diff_editor_data = DiffEditorData::new(
-            cx,
             diff_editor_id,
             editor_tab_id,
             left_doc,
@@ -126,7 +118,6 @@ impl DiffEditorInfo {
 pub struct DiffEditorData {
     pub id: DiffEditorId,
     pub editor_tab_id: EditorTabId,
-    pub scope: Scope,
     pub left: RwSignal<EditorData>,
     pub right: RwSignal<EditorData>,
     pub focus_right: RwSignal<bool>,
@@ -134,27 +125,23 @@ pub struct DiffEditorData {
 
 impl DiffEditorData {
     pub fn new(
-        cx: Scope,
         id: DiffEditorId,
         editor_tab_id: EditorTabId,
         left_doc: RwSignal<Document>,
         right_doc: RwSignal<Document>,
         common: CommonData,
     ) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
-        let left =
-            EditorData::new(cx, None, EditorId::next(), left_doc, common.clone());
-        let left = create_rw_signal(left.scope, left);
-        let right = EditorData::new(cx, None, EditorId::next(), right_doc, common);
-        let right = create_rw_signal(right.scope, right);
+        let left = EditorData::new(None, EditorId::next(), left_doc, common.clone());
+        let left = create_rw_signal(left);
+        let right = EditorData::new(None, EditorId::next(), right_doc, common);
+        let right = create_rw_signal(right);
 
         let data = Self {
             id,
             editor_tab_id,
-            scope: cx,
             left,
             right,
-            focus_right: create_rw_signal(cx, true),
+            focus_right: create_rw_signal(true),
         };
 
         data.listen_diff_changes();
@@ -177,24 +164,18 @@ impl DiffEditorData {
 
     pub fn copy(
         &self,
-        cx: Scope,
         editor_tab_id: EditorTabId,
         diff_editor_id: EditorId,
     ) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
-
         let diff_editor = DiffEditorData {
-            scope: cx,
             id: diff_editor_id,
             editor_tab_id,
-            focus_right: create_rw_signal(cx, true),
+            focus_right: create_rw_signal(true),
             left: create_rw_signal(
-                cx,
-                self.left.get_untracked().copy(cx, None, EditorId::next()),
+                self.left.get_untracked().copy(None, EditorId::next()),
             ),
             right: create_rw_signal(
-                cx,
-                self.right.get_untracked().copy(cx, None, EditorId::next()),
+                self.right.get_untracked().copy(None, EditorId::next()),
             ),
         };
 
@@ -203,21 +184,19 @@ impl DiffEditorData {
     }
 
     fn listen_diff_changes(&self) {
-        let cx = self.scope;
-
         let left = self.left;
-        let left_doc_rev = create_memo(cx, move |_| {
+        let left_doc_rev = create_memo(move |_| {
             let left_doc = left.with(|editor| editor.view.doc);
             left_doc.with(|doc| (doc.content.clone(), doc.rev()))
         });
 
         let right = self.right;
-        let right_doc_rev = create_memo(cx, move |_| {
+        let right_doc_rev = create_memo(move |_| {
             let right_doc = right.with(|editor| editor.view.doc);
             right_doc.with(|doc| (doc.content.clone(), doc.rev()))
         });
 
-        create_effect(cx, move |_| {
+        create_effect(move |_| {
             let (_, left_rev) = left_doc_rev.get();
             let (left_editor_view, left_doc) =
                 left.with_untracked(|editor| (editor.view.kind, editor.view.doc));
@@ -234,7 +213,7 @@ impl DiffEditorData {
 
             let send = {
                 let right_atomic_rev = right_atomic_rev.clone();
-                create_ext_action(cx, move |changes: Option<Vec<DiffLines>>| {
+                create_ext_action(move |changes: Option<Vec<DiffLines>>| {
                     let changes = if let Some(changes) = changes {
                         changes
                     } else {

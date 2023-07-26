@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use floem::reactive::{create_rw_signal, RwSignal, Scope, SignalUpdate};
+use floem::reactive::{create_rw_signal, RwSignal, SignalUpdate};
 use indexmap::IndexMap;
 
 use super::node::FileNode;
@@ -14,17 +14,16 @@ pub struct FileExplorerData {
 }
 
 impl FileExplorerData {
-    pub fn new(cx: Scope, common: CommonData) -> Self {
+    pub fn new(common: CommonData) -> Self {
         let path = common.workspace.path.clone().unwrap_or_default();
-        let all_files = create_rw_signal(cx, im::HashMap::new());
+        let all_files = create_rw_signal(im::HashMap::new());
         let root = FileNode {
-            scope: cx,
             path: path.clone(),
             is_dir: true,
-            read: create_rw_signal(cx, false),
-            expanded: create_rw_signal(cx, false),
-            children: create_rw_signal(cx, IndexMap::new()),
-            children_open_count: create_rw_signal(cx, 0),
+            read: create_rw_signal(false),
+            expanded: create_rw_signal(false),
+            children: create_rw_signal(IndexMap::new()),
+            children_open_count: create_rw_signal(0),
             all_files,
             line_height: common.ui_line_height,
             internal_command: common.internal_command,

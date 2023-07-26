@@ -3,8 +3,8 @@ use std::{borrow::Cow, path::PathBuf, str::FromStr, sync::Arc};
 use floem::{
     peniko::kurbo::Rect,
     reactive::{
-        create_rw_signal, ReadSignal, RwSignal, Scope, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWithUntracked,
+        create_rw_signal, ReadSignal, RwSignal, SignalGetUntracked, SignalSet,
+        SignalUpdate, SignalWithUntracked,
     },
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
@@ -70,8 +70,8 @@ pub struct CompletionData {
 }
 
 impl CompletionData {
-    pub fn new(cx: Scope, config: ReadSignal<Arc<LapceConfig>>) -> Self {
-        let active = create_rw_signal(cx, 0);
+    pub fn new(config: ReadSignal<Arc<LapceConfig>>) -> Self {
+        let active = create_rw_signal(0);
         Self {
             status: CompletionStatus::Inactive,
             request_id: 0,

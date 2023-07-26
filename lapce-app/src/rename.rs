@@ -4,8 +4,8 @@ use floem::{
     ext_event::create_ext_action,
     peniko::kurbo::Rect,
     reactive::{
-        create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWithUntracked,
+        create_rw_signal, RwSignal, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalWithUntracked,
     },
 };
 use lapce_core::{command::FocusCommand, mode::Mode, selection::Selection};
@@ -68,13 +68,13 @@ impl KeyPressFocus for RenameData {
 }
 
 impl RenameData {
-    pub fn new(cx: Scope, common: CommonData) -> Self {
-        let active = create_rw_signal(cx, false);
-        let start = create_rw_signal(cx, 0);
-        let position = create_rw_signal(cx, Position::default());
-        let layout_rect = create_rw_signal(cx, Rect::ZERO);
-        let path = create_rw_signal(cx, PathBuf::new());
-        let editor = EditorData::new_local(cx, EditorId::next(), common.clone());
+    pub fn new(common: CommonData) -> Self {
+        let active = create_rw_signal(false);
+        let start = create_rw_signal(0);
+        let position = create_rw_signal(Position::default());
+        let layout_rect = create_rw_signal(Rect::ZERO);
+        let path = create_rw_signal(PathBuf::new());
+        let editor = EditorData::new_local(EditorId::next(), common.clone());
         Self {
             active,
             editor,
@@ -138,7 +138,7 @@ impl RenameData {
             let path = self.path.get_untracked();
             let position = self.position.get_untracked();
             let internal_command = self.common.internal_command;
-            let send = create_ext_action(self.common.scope, move |result| {
+            let send = create_ext_action(move |result| {
                 if let Ok(ProxyResponse::Rename { edit }) = result {
                     internal_command
                         .send(InternalCommand::ApplyWorkspaceEdit { edit });

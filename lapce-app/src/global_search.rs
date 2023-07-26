@@ -3,7 +3,7 @@ use std::{ops::Range, path::PathBuf};
 use floem::{
     ext_event::create_ext_action,
     reactive::{
-        create_effect, create_rw_signal, Memo, RwSignal, Scope, SignalGet,
+        create_effect, create_rw_signal, Memo, RwSignal, SignalGet,
         SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
     },
     views::VirtualListVector,
@@ -112,9 +112,9 @@ impl VirtualListVector<(PathBuf, SearchMatchData)> for GlobalSearchData {
 }
 
 impl GlobalSearchData {
-    pub fn new(cx: Scope, main_split: MainSplitData, common: CommonData) -> Self {
-        let editor = EditorData::new_local(cx, EditorId::next(), common.clone());
-        let search_result = create_rw_signal(cx, IndexMap::new());
+    pub fn new(main_split: MainSplitData, common: CommonData) -> Self {
+        let editor = EditorData::new_local(EditorId::next(), common.clone());
+        let search_result = create_rw_signal(IndexMap::new());
 
         let global_search = Self {
             editor,
@@ -125,7 +125,7 @@ impl GlobalSearchData {
 
         {
             let global_search = global_search.clone();
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 let pattern = global_search
                     .editor
                     .view
@@ -140,7 +140,7 @@ impl GlobalSearchData {
                 let is_regex = global_search.common.find.is_regex.get();
                 let send = {
                     let global_search = global_search.clone();
-                    create_ext_action(cx, move |result| {
+                    create_ext_action(move |result| {
                         if let Ok(ProxyResponse::GlobalSearchResponse { matches }) =
                             result
                         {
@@ -163,7 +163,7 @@ impl GlobalSearchData {
         {
             let global_search_doc = global_search.editor.view.doc;
             let main_split = global_search.main_split.clone();
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 let content = global_search_doc.with(|doc| doc.buffer().to_string());
                 main_split.set_find_pattern(Some(content));
             });
@@ -182,11 +182,8 @@ impl GlobalSearchData {
                     let match_data =
                         current.get(&path).cloned().unwrap_or_else(|| {
                             SearchMatchData {
-                                expanded: create_rw_signal(self.common.scope, true),
-                                matches: create_rw_signal(
-                                    self.common.scope,
-                                    im::Vector::new(),
-                                ),
+                                expanded: create_rw_signal(true),
+                                matches: create_rw_signal(im::Vector::new()),
                                 line_height: self.common.ui_line_height,
                             }
                         });
