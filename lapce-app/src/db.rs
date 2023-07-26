@@ -244,7 +244,7 @@ impl LapceDb {
     }
 
     pub fn save_app(&self, data: &AppData) -> Result<()> {
-        let windows = data.windows.get_untracked();
+        let windows = data.windows();
         for window in &windows {
             let _ = self.save_window(window.clone());
         }
@@ -270,7 +270,7 @@ impl LapceDb {
     }
 
     pub fn insert_app(&self, data: AppData) -> Result<()> {
-        let windows = data.windows.get_untracked();
+        let windows = data.windows();
         for window in &windows {
             let _ = self.insert_window(window.clone());
         }

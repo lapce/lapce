@@ -20,7 +20,7 @@ use floem::{
     },
     reactive::{
         create_effect, create_memo, create_rw_signal, provide_context, use_context,
-        ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
+        Disposer, ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
         SignalUpdate, SignalWith, SignalWithUntracked,
     },
     style::{
@@ -123,7 +123,7 @@ pub enum AppCommand {
 
 #[derive(Clone)]
 pub struct AppData {
-    pub windows: RwSignal<im::Vector<WindowData>>,
+    pub windows: RwSignal<Vec<(WindowData, Disposer)>>,
     pub window_scale: RwSignal<f64>,
     pub app_command: Listener<AppCommand>,
     /// The latest release information
@@ -133,16 +133,22 @@ pub struct AppData {
 }
 
 impl AppData {
+    pub fn windows(&self) -> Vec<WindowData> {
+        self.windows.with_untracked(|windows| {
+            windows.iter().map(|(window, _)| window.clone()).collect()
+        })
+    }
+
     pub fn reload_config(&self) {
-        let windows = self.windows.get_untracked();
+        let windows = self.windows();
         for window in windows {
             window.reload_config();
         }
     }
 
     pub fn active_window_tab(&self) -> Option<Arc<WindowTabData>> {
-        let windows = self.windows.get_untracked();
-        if let Some(window) = windows.iter().next() {
+        let windows = self.windows();
+        if let Some(window) = windows.first() {
             return window.active_window_tab();
         }
         None
@@ -2765,7 +2771,7 @@ pub fn launch() {
     let latest_release = create_rw_signal(Arc::new(None));
     let app_command = Listener::new_empty();
 
-    let mut windows = im::Vector::new();
+    let mut windows = Vec::new();
 
     app = create_windows(
         db.clone(),
@@ -2866,7 +2872,7 @@ fn create_windows(
     db: Arc<LapceDb>,
     mut app: floem::Application,
     paths: Vec<PathObject>,
-    windows: &mut im::Vector<WindowData>,
+    windows: &mut Vec<(WindowData, Disposer)>,
     window_scale: RwSignal<f64>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     app_command: Listener<AppCommand>,
@@ -2916,9 +2922,9 @@ fn create_windows(
             pos += (50.0, 50.0);
 
             let config = WindowConfig::default().size(info.size).position(info.pos);
-            let window_data =
+            let (window_data, disposer) =
                 WindowData::new(info, window_scale, latest_release, app_command);
-            windows.push_back(window_data.clone());
+            windows.push((window_data.clone(), disposer));
             app = app.window(move || app_view(window_data), Some(config));
         }
     } else if files.is_empty() {
@@ -2927,9 +2933,9 @@ fn create_windows(
             for info in app_info.windows {
                 let config =
                     WindowConfig::default().size(info.size).position(info.pos);
-                let window_data =
+                let (window_data, disposer) =
                     WindowData::new(info, window_scale, latest_release, app_command);
-                windows.push_back(window_data.clone());
+                windows.push((window_data.clone(), disposer));
                 app = app.window(move || app_view(window_data), Some(config));
             }
         }
@@ -2950,14 +2956,14 @@ fn create_windows(
             workspaces: vec![LapceWorkspace::default()],
         };
         let config = WindowConfig::default().size(info.size).position(info.pos);
-        let window_data =
+        let (window_data, disposer) =
             WindowData::new(info, window_scale, latest_release, app_command);
-        windows.push_back(window_data.clone());
+        windows.push((window_data.clone(), disposer));
         app = app.window(|| app_view(window_data), Some(config));
     }
 
     // Open any listed files in the first window
-    if let Some(window) = windows.iter().next() {
+    if let Some((window, _)) = windows.iter().next() {
         let cur_window_tab = window.active.get_untracked();
         let (_, window_tab) = &window.window_tabs.get_untracked()[cur_window_tab];
         for file in files {

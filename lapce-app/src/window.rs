@@ -4,8 +4,9 @@ use floem::{
     glazier::KeyEvent,
     peniko::kurbo::{Point, Size},
     reactive::{
-        create_rw_signal, use_context, ReadSignal, RwSignal, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWithUntracked,
+        as_child_of_current_owner, create_rw_signal, use_context, Disposer, Owner,
+        ReadSignal, RwSignal, SignalGetUntracked, SignalSet, SignalUpdate,
+        SignalWithUntracked,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -41,6 +42,7 @@ pub struct WindowInfo {
 /// normally only one window tab), size, position etc.
 #[derive(Clone)]
 pub struct WindowData {
+    pub owner: Owner,
     /// The set of tabs within the window. These tabs are high-level
     /// constructs for workspaces, in particular they are not **editor tabs**.
     pub window_tabs: RwSignal<im::Vector<(RwSignal<usize>, Arc<WindowTabData>)>>,
@@ -62,62 +64,66 @@ impl WindowData {
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
         app_command: Listener<AppCommand>,
-    ) -> Self {
-        let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
-        let config = create_rw_signal(Arc::new(config));
-        let root_view_id = create_rw_signal(floem::id::Id::next());
+    ) -> (Self, Disposer) {
+        as_child_of_current_owner(move |_| {
+            let owner = Owner::current().unwrap();
+            let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
+            let config = create_rw_signal(Arc::new(config));
+            let root_view_id = create_rw_signal(floem::id::Id::next());
 
-        let mut window_tabs = im::Vector::new();
-        let active = info.tabs.active_tab;
+            let mut window_tabs = im::Vector::new();
+            let active = info.tabs.active_tab;
 
-        let window_command = Listener::new_empty();
+            let window_command = Listener::new_empty();
 
-        for w in info.tabs.workspaces {
-            let window_tab = Arc::new(WindowTabData::new(
-                Arc::new(w),
+            for w in &info.tabs.workspaces {
+                let window_tab = Arc::new(WindowTabData::new(
+                    Arc::new(w.clone()),
+                    window_command,
+                    window_scale,
+                    latest_release,
+                ));
+                window_tabs.push_back((create_rw_signal(0), window_tab));
+            }
+
+            if window_tabs.is_empty() {
+                let window_tab = Arc::new(WindowTabData::new(
+                    Arc::new(LapceWorkspace::default()),
+                    window_command,
+                    window_scale,
+                    latest_release,
+                ));
+                window_tabs.push_back((create_rw_signal(0), window_tab));
+            }
+
+            let window_tabs = create_rw_signal(window_tabs);
+            let active = create_rw_signal(active);
+            let size = create_rw_signal(Size::ZERO);
+            let position = create_rw_signal(info.pos);
+
+            let window_data = Self {
+                owner,
+                window_tabs,
+                active,
                 window_command,
+                size,
+                position,
+                root_view_id,
                 window_scale,
                 latest_release,
-            ));
-            window_tabs.push_back((create_rw_signal(0), window_tab));
-        }
+                app_command,
+                config,
+            };
 
-        if window_tabs.is_empty() {
-            let window_tab = Arc::new(WindowTabData::new(
-                Arc::new(LapceWorkspace::default()),
-                window_command,
-                window_scale,
-                latest_release,
-            ));
-            window_tabs.push_back((create_rw_signal(0), window_tab));
-        }
+            {
+                let window_data = window_data.clone();
+                window_data.window_command.listen(move |cmd| {
+                    window_data.run_window_command(cmd);
+                });
+            }
 
-        let window_tabs = create_rw_signal(window_tabs);
-        let active = create_rw_signal(active);
-        let size = create_rw_signal(Size::ZERO);
-        let position = create_rw_signal(info.pos);
-
-        let window_data = Self {
-            window_tabs,
-            active,
-            window_command,
-            size,
-            position,
-            root_view_id,
-            window_scale,
-            latest_release,
-            app_command,
-            config,
-        };
-
-        {
-            let window_data = window_data.clone();
-            window_data.window_command.listen(move |cmd| {
-                window_data.run_window_command(cmd);
-            });
-        }
-
-        window_data
+            window_data
+        })(())
     }
 
     pub fn reload_config(&self) {
