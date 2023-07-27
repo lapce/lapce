@@ -61,8 +61,6 @@ impl Terminal {
         let flatpak_use_host_terminal = flatpak_should_use_host_terminal();
 
         if !shell.is_empty() || flatpak_use_host_terminal {
-            let mut parts = shell.split(' ');
-
             if flatpak_use_host_terminal {
                 let flatpak_spawn_path = "/usr/bin/flatpak-spawn".to_string();
                 let host_shell = flatpak_get_default_host_shell();
@@ -88,11 +86,13 @@ impl Terminal {
                     args,
                 })
             } else {
-                let program = parts.next().unwrap();
+                let (program, arguments) =
+                    Self::split_shell_into_program_and_arguments(shell);
+
                 if let Ok(p) = which::which(program) {
                     config.pty_config.shell = Some(Program::WithArgs {
                         program: p.to_str().unwrap().to_string(),
-                        args: parts.map(|p| p.to_string()).collect::<Vec<String>>(),
+                        args: arguments,
                     })
                 }
             }
@@ -268,6 +268,39 @@ impl Terminal {
 
         Ok(())
     }
+
+    /// Splits a given shell command into the program, and the arguments to be passed.
+    /// Takes into account double-quoted commands with spaces in their paths.
+    /// Does not take into account any double-quotes in the arguments.
+    /// For example:
+    /// `"test command/sh.exe" --foo -v --bla="an argument"`
+    /// Would return:
+    /// ("test command/sh.exe", ["--foo", "-v", r#"--bla="an"#, r#"argument""#])
+    fn split_shell_into_program_and_arguments(shell: &str) -> (String, Vec<String>) {
+        if shell.is_empty() {
+            return (String::new(), vec![]);
+        }
+
+        let mut parts;
+        let program;
+
+        if let Some(remainder) = shell.strip_prefix('"') {
+            if let Some(end) = remainder.find('"') {
+                program = remainder[..end].to_string();
+                parts = remainder[end + 1..].split_whitespace();
+            } else {
+                parts = shell.split_whitespace();
+                program = parts.next().unwrap().to_string();
+            }
+        } else {
+            parts = shell.split_whitespace();
+            program = parts.next().unwrap().to_string();
+        }
+
+        let arguments = parts.map(|p| p.to_string()).collect::<Vec<String>>();
+
+        (program, arguments)
+    }
 }
 
 struct Writing {
@@ -402,4 +435,43 @@ fn flatpak_should_use_host_terminal() -> bool {
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::terminal::Terminal;
+
+    #[test]
+    pub fn test_split_shell_with_spaces_in_path() {
+        assert_eq!(
+            Terminal::split_shell_into_program_and_arguments(
+                r#""test  path/sh.exe" --version   --help -w"#
+            ),
+            (
+                "test  path/sh.exe".to_string(),
+                vec![
+                    "--version".to_string(),
+                    "--help".to_string(),
+                    "-w".to_string()
+                ]
+            )
+        );
+    }
+
+    #[test]
+    pub fn test_split_shell_without_spaces_in_path() {
+        assert_eq!(
+            Terminal::split_shell_into_program_and_arguments(
+                r#"testpath/sh.exe --version   --help -w"#
+            ),
+            (
+                "testpath/sh.exe".to_string(),
+                vec![
+                    "--version".to_string(),
+                    "--help".to_string(),
+                    "-w".to_string()
+                ]
+            )
+        );
+    }
 }

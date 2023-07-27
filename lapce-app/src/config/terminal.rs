@@ -19,7 +19,9 @@ pub struct TerminalConfig {
         desc = "Set the terminal line height, If 0, it uses editor line height"
     )]
     pub line_height: usize,
-    #[field_names(desc = "Set the terminal Shell")]
+    #[field_names(
+        desc = "Set the terminal Shell. Put double quotes around the path if there is a space in it."
+    )]
     pub shell: String,
 
     #[serde(skip)]

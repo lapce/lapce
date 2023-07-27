@@ -4,6 +4,7 @@
 
 ### Features/Changes
 - [#2425](https://github.com/lapce/lapce/pull/2425): Reimplement completion lens
+- [#2522](https://github.com/lapce/lapce/pull/2522): Custom shell paths can now have spaces if the path is quoted.
 
 ### Bug Fixes
 
