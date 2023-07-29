@@ -49,6 +49,7 @@ use tracing::{error, metadata::LevelFilter, trace};
 use tracing_subscriber::{filter::FilterFn, reload::Handle};
 
 use crate::{
+    about,
     code_action::CodeActionStatus,
     command::{InternalCommand, WindowCommand},
     config::{
@@ -2496,6 +2497,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
             code_action(window_tab_data.clone()),
             rename(window_tab_data.clone()),
             palette(window_tab_data.clone()),
+            about::about_popup(window_tab_data.clone()),
         )
     })
     .style(move || {

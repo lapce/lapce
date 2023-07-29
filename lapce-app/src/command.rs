@@ -601,6 +601,9 @@ pub enum InternalCommand {
     UpdateLogLevel {
         level: tracing_subscriber::filter::LevelFilter,
     },
+    OpenWebUri {
+        uri: String,
+    },
 }
 
 #[derive(Clone)]
