@@ -7,9 +7,10 @@ use floem::{
     glazier::{FileDialogOptions, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_effect, create_memo, create_rw_signal, create_signal, use_context,
-        Memo, ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWith, SignalWithUntracked, WriteSignal,
+        as_child_of_current_owner, create_effect, create_memo, create_rw_signal,
+        create_signal, use_context, Disposer, Memo, ReadSignal, RwSignal, SignalGet,
+        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
+        SignalWithUntracked, WriteSignal,
     },
 };
 use itertools::Itertools;
@@ -157,237 +158,239 @@ impl WindowTabData {
         window_command: Listener<WindowCommand>,
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-    ) -> Self {
-        let db: Arc<LapceDb> = use_context().unwrap();
+    ) -> (Self, Disposer) {
+        as_child_of_current_owner(move |_| {
+            let db: Arc<LapceDb> = use_context().unwrap();
 
-        let disabled_volts = db.get_disabled_volts().unwrap_or_default();
-        let workspace_disabled_volts = db
-            .get_workspace_disabled_volts(&workspace)
-            .unwrap_or_default();
-        let mut all_disabled_volts = disabled_volts.clone();
-        all_disabled_volts.extend(workspace_disabled_volts.clone());
+            let disabled_volts = db.get_disabled_volts().unwrap_or_default();
+            let workspace_disabled_volts = db
+                .get_workspace_disabled_volts(&workspace)
+                .unwrap_or_default();
+            let mut all_disabled_volts = disabled_volts.clone();
+            all_disabled_volts.extend(workspace_disabled_volts.clone());
 
-        let workspace_info = if workspace.path.is_some() {
-            db.get_workspace_info(&workspace).ok()
-        } else {
-            let mut info = db.get_workspace_info(&workspace).ok();
-            if let Some(info) = info.as_mut() {
-                info.split.children.clear();
-            }
-            info
-        };
-
-        let config = LapceConfig::load(&workspace, &all_disabled_volts);
-        let lapce_command = Listener::new_empty();
-        let workbench_command = Listener::new_empty();
-        let internal_command = Listener::new_empty();
-        let keypress =
-            create_rw_signal(KeyPressData::new(&config, workbench_command));
-
-        let (term_tx, term_rx) = crossbeam_channel::unbounded();
-        let (term_notification_tx, term_notification_rx) =
-            crossbeam_channel::unbounded();
-        {
-            let term_notification_tx = term_notification_tx.clone();
-            std::thread::spawn(move || {
-                terminal_update_process(term_rx, term_notification_tx);
-            });
-        }
-
-        let proxy = start_proxy(
-            workspace.clone(),
-            all_disabled_volts,
-            config.plugins.clone(),
-            term_tx.clone(),
-        );
-        let (config, set_config) = create_signal(Arc::new(config));
-
-        let focus = create_rw_signal(Focus::Workbench);
-        let completion = create_rw_signal(CompletionData::new(config));
-
-        let register = create_rw_signal(Register::default());
-        let view_id = create_rw_signal(floem::id::Id::next());
-        let find = Find::new();
-
-        let ui_line_height = create_memo(move |_| {
-            let config = config.get();
-            let mut text_layout = TextLayout::new();
-
-            let family: Vec<FamilyOwned> =
-                FamilyOwned::parse_list(&config.ui.font_family).collect();
-            let attrs = Attrs::new()
-                .family(&family)
-                .font_size(config.ui.font_size() as f32)
-                .line_height(LineHeightValue::Normal(1.6));
-            let attrs_list = AttrsList::new(attrs);
-            text_layout.set_text("W", attrs_list);
-            text_layout.size().height
-        });
-
-        let common = CommonData {
-            workspace: workspace.clone(),
-            keypress,
-            focus,
-            completion,
-            register,
-            find,
-            window_command,
-            internal_command,
-            lapce_command,
-            workbench_command,
-            term_tx,
-            term_notification_tx,
-            proxy: proxy.proxy_rpc.clone(),
-            view_id,
-            ui_line_height,
-            dragging: create_rw_signal(None),
-            config,
-        };
-
-        let main_split = MainSplitData::new(common.clone());
-        let code_action = create_rw_signal(CodeActionData::new(common.clone()));
-        let source_control = SourceControlData::new(common.clone());
-        let file_explorer = FileExplorerData::new(common.clone());
-
-        if let Some(info) = workspace_info.as_ref() {
-            let root_split = main_split.root_split;
-            info.split.to_data(main_split.clone(), None, root_split);
-        } else {
-            let root_split = main_split.root_split;
-            let root_split_data = {
-                let root_split_data = SplitData {
-                    parent_split: None,
-                    split_id: root_split,
-                    children: Vec::new(),
-                    direction: SplitDirection::Horizontal,
-                    window_origin: Point::ZERO,
-                    layout_rect: Rect::ZERO,
-                };
-                create_rw_signal(root_split_data)
-            };
-            main_split.splits.update(|splits| {
-                splits.insert(root_split, root_split_data);
-            });
-        }
-
-        let palette = PaletteData::new(
-            workspace.clone(),
-            main_split.clone(),
-            keypress.read_only(),
-            source_control.clone(),
-            common.clone(),
-        );
-
-        let panel = workspace_info
-            .as_ref()
-            .map(|i| {
-                let panel_order = db
-                    .get_panel_orders()
-                    .unwrap_or_else(|_| i.panel.panels.clone());
-                PanelData {
-                    panels: create_rw_signal(panel_order),
-                    styles: create_rw_signal(i.panel.styles.clone()),
-                    size: create_rw_signal(i.panel.size.clone()),
-                    common: common.clone(),
+            let workspace_info = if workspace.path.is_some() {
+                db.get_workspace_info(&workspace).ok()
+            } else {
+                let mut info = db.get_workspace_info(&workspace).ok();
+                if let Some(info) = info.as_mut() {
+                    info.split.children.clear();
                 }
-            })
-            .unwrap_or_else(|| {
-                let panel_order = db
-                    .get_panel_orders()
-                    .unwrap_or_else(|_| default_panel_order());
-                PanelData::new(panel_order, common.clone())
+                info
+            };
+
+            let config = LapceConfig::load(&workspace, &all_disabled_volts);
+            let lapce_command = Listener::new_empty();
+            let workbench_command = Listener::new_empty();
+            let internal_command = Listener::new_empty();
+            let keypress =
+                create_rw_signal(KeyPressData::new(&config, workbench_command));
+
+            let (term_tx, term_rx) = crossbeam_channel::unbounded();
+            let (term_notification_tx, term_notification_rx) =
+                crossbeam_channel::unbounded();
+            {
+                let term_notification_tx = term_notification_tx.clone();
+                std::thread::spawn(move || {
+                    terminal_update_process(term_rx, term_notification_tx);
+                });
+            }
+
+            let proxy = start_proxy(
+                workspace.clone(),
+                all_disabled_volts,
+                config.plugins.clone(),
+                term_tx.clone(),
+            );
+            let (config, set_config) = create_signal(Arc::new(config));
+
+            let focus = create_rw_signal(Focus::Workbench);
+            let completion = create_rw_signal(CompletionData::new(config));
+
+            let register = create_rw_signal(Register::default());
+            let view_id = create_rw_signal(floem::id::Id::next());
+            let find = Find::new();
+
+            let ui_line_height = create_memo(move |_| {
+                let config = config.get();
+                let mut text_layout = TextLayout::new();
+
+                let family: Vec<FamilyOwned> =
+                    FamilyOwned::parse_list(&config.ui.font_family).collect();
+                let attrs = Attrs::new()
+                    .family(&family)
+                    .font_size(config.ui.font_size() as f32)
+                    .line_height(LineHeightValue::Normal(1.6));
+                let attrs_list = AttrsList::new(attrs);
+                text_layout.set_text("W", attrs_list);
+                text_layout.size().height
             });
 
-        let terminal =
-            TerminalPanelData::new(workspace.clone(), None, common.clone());
+            let common = CommonData {
+                workspace: workspace.clone(),
+                keypress,
+                focus,
+                completion,
+                register,
+                find,
+                window_command,
+                internal_command,
+                lapce_command,
+                workbench_command,
+                term_tx,
+                term_notification_tx,
+                proxy: proxy.proxy_rpc.clone(),
+                view_id,
+                ui_line_height,
+                dragging: create_rw_signal(None),
+                config,
+            };
 
-        let rename = RenameData::new(common.clone());
-        let global_search =
-            GlobalSearchData::new(main_split.clone(), common.clone());
+            let main_split = MainSplitData::new(common.clone());
+            let code_action = create_rw_signal(CodeActionData::new(common.clone()));
+            let source_control = SourceControlData::new(common.clone());
+            let file_explorer = FileExplorerData::new(common.clone());
 
-        let plugin = PluginData::new(
-            HashSet::from_iter(disabled_volts),
-            HashSet::from_iter(workspace_disabled_volts),
-            common.clone(),
-        );
+            if let Some(info) = workspace_info.as_ref() {
+                let root_split = main_split.root_split;
+                info.split.to_data(main_split.clone(), None, root_split);
+            } else {
+                let root_split = main_split.root_split;
+                let root_split_data = {
+                    let root_split_data = SplitData {
+                        parent_split: None,
+                        split_id: root_split,
+                        children: Vec::new(),
+                        direction: SplitDirection::Horizontal,
+                        window_origin: Point::ZERO,
+                        layout_rect: Rect::ZERO,
+                    };
+                    create_rw_signal(root_split_data)
+                };
+                main_split.splits.update(|splits| {
+                    splits.insert(root_split, root_split_data);
+                });
+            }
 
-        {
-            let notification = create_signal_from_channel(term_notification_rx);
-            let terminal = terminal.clone();
-            create_effect(move |_| {
-                notification.with(|notification| {
-                    if let Some(notification) = notification.as_ref() {
-                        match notification {
-                            TermNotification::SetTitle { term_id, title } => {
-                                terminal.set_title(term_id, title);
-                            }
-                            TermNotification::RequestPaint => {
-                                view_id.get_untracked().request_paint();
+            let palette = PaletteData::new(
+                workspace.clone(),
+                main_split.clone(),
+                keypress.read_only(),
+                source_control.clone(),
+                common.clone(),
+            );
+
+            let panel = workspace_info
+                .as_ref()
+                .map(|i| {
+                    let panel_order = db
+                        .get_panel_orders()
+                        .unwrap_or_else(|_| i.panel.panels.clone());
+                    PanelData {
+                        panels: create_rw_signal(panel_order),
+                        styles: create_rw_signal(i.panel.styles.clone()),
+                        size: create_rw_signal(i.panel.size.clone()),
+                        common: common.clone(),
+                    }
+                })
+                .unwrap_or_else(|| {
+                    let panel_order = db
+                        .get_panel_orders()
+                        .unwrap_or_else(|_| default_panel_order());
+                    PanelData::new(panel_order, common.clone())
+                });
+
+            let terminal =
+                TerminalPanelData::new(workspace.clone(), None, common.clone());
+
+            let rename = RenameData::new(common.clone());
+            let global_search =
+                GlobalSearchData::new(main_split.clone(), common.clone());
+
+            let plugin = PluginData::new(
+                HashSet::from_iter(disabled_volts),
+                HashSet::from_iter(workspace_disabled_volts),
+                common.clone(),
+            );
+
+            {
+                let notification = create_signal_from_channel(term_notification_rx);
+                let terminal = terminal.clone();
+                create_effect(move |_| {
+                    notification.with(|notification| {
+                        if let Some(notification) = notification.as_ref() {
+                            match notification {
+                                TermNotification::SetTitle { term_id, title } => {
+                                    terminal.set_title(term_id, title);
+                                }
+                                TermNotification::RequestPaint => {
+                                    view_id.get_untracked().request_paint();
+                                }
                             }
                         }
-                    }
+                    });
                 });
-            });
-        }
+            }
 
-        let window_tab_data = Self {
-            window_tab_id: WindowTabId::next(),
-            workspace,
-            palette,
-            main_split,
-            terminal,
-            panel,
-            file_explorer,
-            code_action,
-            source_control,
-            plugin,
-            rename,
-            global_search,
-            window_origin: create_rw_signal(Point::ZERO),
-            layout_rect: create_rw_signal(Rect::ZERO),
-            proxy,
-            window_scale,
-            set_config,
-            update_in_progress: create_rw_signal(false),
-            latest_release,
-            common,
-        };
+            let window_tab_data = Self {
+                window_tab_id: WindowTabId::next(),
+                workspace,
+                palette,
+                main_split,
+                terminal,
+                panel,
+                file_explorer,
+                code_action,
+                source_control,
+                plugin,
+                rename,
+                global_search,
+                window_origin: create_rw_signal(Point::ZERO),
+                layout_rect: create_rw_signal(Rect::ZERO),
+                proxy,
+                window_scale,
+                set_config,
+                update_in_progress: create_rw_signal(false),
+                latest_release,
+                common,
+            };
 
-        {
-            let window_tab_data = window_tab_data.clone();
-            window_tab_data.common.lapce_command.listen(move |cmd| {
-                window_tab_data.run_lapce_command(cmd);
-            });
-        }
-
-        {
-            let window_tab_data = window_tab_data.clone();
-            window_tab_data.common.workbench_command.listen(move |cmd| {
-                window_tab_data.run_workbench_command(cmd, None);
-            });
-        }
-
-        {
-            let window_tab_data = window_tab_data.clone();
-            let internal_command = window_tab_data.common.internal_command;
-            internal_command.listen(move |cmd| {
-                window_tab_data.run_internal_command(cmd);
-            });
-        }
-
-        {
-            let window_tab_data = window_tab_data.clone();
-            let notification = window_tab_data.proxy.notification;
-            create_effect(move |_| {
-                notification.with(|rpc| {
-                    if let Some(rpc) = rpc.as_ref() {
-                        window_tab_data.handle_core_notification(rpc);
-                    }
+            {
+                let window_tab_data = window_tab_data.clone();
+                window_tab_data.common.lapce_command.listen(move |cmd| {
+                    window_tab_data.run_lapce_command(cmd);
                 });
-            });
-        }
+            }
 
-        window_tab_data
+            {
+                let window_tab_data = window_tab_data.clone();
+                window_tab_data.common.workbench_command.listen(move |cmd| {
+                    window_tab_data.run_workbench_command(cmd, None);
+                });
+            }
+
+            {
+                let window_tab_data = window_tab_data.clone();
+                let internal_command = window_tab_data.common.internal_command;
+                internal_command.listen(move |cmd| {
+                    window_tab_data.run_internal_command(cmd);
+                });
+            }
+
+            {
+                let window_tab_data = window_tab_data.clone();
+                let notification = window_tab_data.proxy.notification;
+                create_effect(move |_| {
+                    notification.with(|rpc| {
+                        if let Some(rpc) = rpc.as_ref() {
+                            window_tab_data.handle_core_notification(rpc);
+                        }
+                    });
+                });
+            }
+
+            window_tab_data
+        })(())
     }
 
     pub fn reload_config(&self) {
