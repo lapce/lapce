@@ -109,56 +109,56 @@ pub fn about_popup(window_tab_data: Arc<WindowTabData>) -> impl View {
                     )
                 }),
                 label(|| "Lapce".to_string()).style(move || {
-                    Style::BASE.font_bold().color(
+                    Style::BASE.font_bold().margin_top_px(10.0).color(
                         *config.get().get_color(LapceColor::EDITOR_FOREGROUND),
                     )
                 }),
                 label(|| format!("Version: {}", VERSION)).style(move || {
                     Style::BASE
+                        .margin_top_px(10.0)
                         .color(*config.get().get_color(LapceColor::EDITOR_DIM))
-                }),
-                label(|| "Links".to_string()).style(move || {
-                    Style::BASE
-                        .font_bold()
-                        .color(*config.get().get_color(LapceColor::EDITOR_DIM))
-                        .margin_top_px(20.0)
                 }),
                 web_link(
                     || "Website".to_string(),
                     || AboutUri::LAPCE.to_string(),
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
-                ),
+                )
+                .style(|| Style::BASE.margin_top_px(20.0)),
                 web_link(
                     || "GitHub".to_string(),
                     || AboutUri::GITHUB.to_string(),
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
-                ),
+                )
+                .style(|| Style::BASE.margin_top_px(10.0)),
                 web_link(
                     || "Discord".to_string(),
                     || AboutUri::DISCORD.to_string(),
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
-                ),
+                )
+                .style(|| Style::BASE.margin_top_px(10.0)),
                 web_link(
                     || "Matrix".to_string(),
                     || AboutUri::MATRIX.to_string(),
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
-                ),
+                )
+                .style(|| Style::BASE.margin_top_px(10.0)),
                 label(|| "Attributions".to_string()).style(move || {
                     Style::BASE
                         .font_bold()
                         .color(*config.get().get_color(LapceColor::EDITOR_DIM))
-                        .margin_top_px(20.0)
+                        .margin_top_px(40.0)
                 }),
                 web_link(
                     || "Codicons (CC-BY-4.0)".to_string(),
                     || AboutUri::CODICONS.to_string(),
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
-                ),
+                )
+                .style(|| Style::BASE.margin_top_px(10.0)),
             )
         })
         .style(|| Style::BASE.flex_col().items_center())
@@ -179,7 +179,7 @@ fn exclusive_popup<V: View>(
                     let config = config.get();
                     Style::BASE
                         .padding_vert_px(25.0)
-                        .padding_horiz_px(50.0)
+                        .padding_horiz_px(100.0)
                         .border(1.0)
                         .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                         .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
@@ -206,7 +206,11 @@ fn exclusive_popup<V: View>(
             .size_pct(100.0, 100.0)
             .flex_col()
             .items_center()
-            .background(Color::rgba(0.0, 0.0, 0.0, 0.5))
+            .background(
+                config
+                    .get()
+                    .get_color(LapceColor::LAPCE_DROPDOWN_SHADOW)
+                    .with_alpha_factor(0.5),
+            )
     })
-    .hover_style(move || Style::BASE.cursor(CursorStyle::Pointer))
 }
