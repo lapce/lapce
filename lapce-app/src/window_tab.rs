@@ -22,6 +22,7 @@ use serde_json::Value;
 use tracing::{debug, error};
 
 use crate::{
+    about::AboutData,
     code_action::{CodeActionData, CodeActionStatus},
     command::{
         CommandExecuted, CommandKind, InternalCommand, LapceCommand,
@@ -65,6 +66,7 @@ pub enum Focus {
     Palette,
     CodeAction,
     Rename,
+    AboutPopup,
     Panel(PanelKind),
 }
 
@@ -117,6 +119,7 @@ pub struct WindowTabData {
     pub source_control: SourceControlData,
     pub rename: RenameData,
     pub global_search: GlobalSearchData,
+    pub about_data: AboutData,
     pub window_origin: RwSignal<Point>,
     pub layout_rect: RwSignal<Rect>,
     pub proxy: ProxyData,
@@ -341,6 +344,8 @@ impl WindowTabData {
             });
         }
 
+        let about_data = AboutData::new(cx, common.focus);
+
         let window_tab_data = Self {
             scope: cx,
             window_tab_id: WindowTabId::next(),
@@ -355,6 +360,7 @@ impl WindowTabData {
             plugin,
             rename,
             global_search,
+            about_data,
             window_origin: create_rw_signal(cx, Point::ZERO),
             layout_rect: create_rw_signal(cx, Rect::ZERO),
             proxy,
@@ -984,7 +990,9 @@ impl WindowTabData {
             }
 
             // ==== UI ====
-            ShowAbout => {}
+            ShowAbout => {
+                self.about_data.open();
+            }
 
             // ==== Updating ====
             RestartToUpdate => {
@@ -1211,6 +1219,18 @@ impl WindowTabData {
                     self.set_config.set(Arc::new(new_config));
                 }
             }
+            InternalCommand::OpenWebUri { uri } => {
+                if !uri.is_empty() {
+                    match open::that(&uri) {
+                        Ok(_) => {
+                            debug!("opened web uri: {uri:?}");
+                        }
+                        Err(e) => {
+                            error!("failed to open web uri: {uri:?}, error: {e}");
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1367,6 +1387,10 @@ impl WindowTabData {
             }
             Focus::Rename => {
                 keypress.key_down(key_event, &self.rename);
+                true
+            }
+            Focus::AboutPopup => {
+                keypress.key_down(key_event, &self.about_data);
                 true
             }
             Focus::Panel(PanelKind::Terminal) => {

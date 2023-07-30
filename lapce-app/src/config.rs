@@ -577,6 +577,10 @@ impl LapceConfig {
         Some(self.ui_svg(kind_str))
     }
 
+    pub fn logo_svg(&self) -> String {
+        self.svg_store.read().logo_svg()
+    }
+
     /// List of the color themes that are available by their display names.
     pub fn color_theme_list(&self) -> im::Vector<String> {
         self.color_theme_list.clone()

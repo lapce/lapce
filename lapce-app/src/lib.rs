@@ -1,3 +1,4 @@
+pub mod about;
 pub mod app;
 pub mod code_action;
 pub mod command;
@@ -31,6 +32,7 @@ pub mod text_input;
 pub mod title;
 pub mod update;
 pub mod wave;
+pub mod web_link;
 pub mod window;
 pub mod window_tab;
 pub mod workspace;
