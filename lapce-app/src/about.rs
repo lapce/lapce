@@ -181,6 +181,7 @@ fn exclusive_popup<V: View>(
                         .padding_vert_px(25.0)
                         .padding_horiz_px(100.0)
                         .border(1.0)
+                        .border_radius(6.0)
                         .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                         .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
                 })
