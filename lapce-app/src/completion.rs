@@ -2,10 +2,7 @@ use std::{borrow::Cow, path::PathBuf, str::FromStr, sync::Arc};
 
 use floem::{
     peniko::kurbo::Rect,
-    reactive::{
-        create_rw_signal, ReadSignal, RwSignal, Scope, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWithUntracked,
-    },
+    reactive::{create_rw_signal, ReadSignal, RwSignal, Scope},
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use lapce_core::{buffer::rope_text::RopeText, movement::Movement};
@@ -71,7 +68,7 @@ pub struct CompletionData {
 
 impl CompletionData {
     pub fn new(cx: Scope, config: ReadSignal<Arc<LapceConfig>>) -> Self {
-        let active = create_rw_signal(cx, 0);
+        let active = cx.create_rw_signal(0);
         Self {
             status: CompletionStatus::Inactive,
             request_id: 0,

@@ -9,10 +9,7 @@ use std::{
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
-    reactive::{
-        create_rw_signal, ReadSignal, RwSignal, Scope, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWithUntracked,
-    },
+    reactive::{create_rw_signal, ReadSignal, RwSignal, Scope},
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -201,8 +198,8 @@ impl Document {
             completion_pos: (0, 0),
             content: DocContent::File(path),
             loaded: false,
-            histories: create_rw_signal(cx, im::HashMap::new()),
-            head_changes: create_rw_signal(cx, im::Vector::new()),
+            histories: cx.create_rw_signal(im::HashMap::new()),
+            head_changes: cx.create_rw_signal(im::Vector::new()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             code_actions: im::HashMap::new(),
@@ -231,14 +228,14 @@ impl Document {
             semantic_styles: None,
             inlay_hints: None,
             diagnostics: DiagnosticData {
-                expanded: create_rw_signal(cx, true),
-                diagnostics: create_rw_signal(cx, im::Vector::new()),
+                expanded: cx.create_rw_signal(true),
+                diagnostics: cx.create_rw_signal(im::Vector::new()),
             },
             completion_lens: None,
             completion_pos: (0, 0),
             loaded: true,
-            histories: create_rw_signal(cx, im::HashMap::new()),
-            head_changes: create_rw_signal(cx, im::Vector::new()),
+            histories: cx.create_rw_signal(im::HashMap::new()),
+            head_changes: cx.create_rw_signal(im::Vector::new()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             code_actions: im::HashMap::new(),
             proxy,
@@ -260,7 +257,7 @@ impl Document {
         } else {
             Syntax::plaintext()
         };
-        let (cx, _) = cx.run_child_scope(|cx| cx);
+        let cx = cx.create_child();
         Self {
             scope: cx,
             buffer_id: BufferId::next(),
@@ -273,14 +270,14 @@ impl Document {
             semantic_styles: None,
             inlay_hints: None,
             diagnostics: DiagnosticData {
-                expanded: create_rw_signal(cx, true),
-                diagnostics: create_rw_signal(cx, im::Vector::new()),
+                expanded: cx.create_rw_signal(true),
+                diagnostics: cx.create_rw_signal(im::Vector::new()),
             },
             completion_lens: None,
             completion_pos: (0, 0),
             loaded: true,
-            histories: create_rw_signal(cx, im::HashMap::new()),
-            head_changes: create_rw_signal(cx, im::Vector::new()),
+            histories: cx.create_rw_signal(im::HashMap::new()),
+            head_changes: cx.create_rw_signal(im::Vector::new()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             code_actions: im::HashMap::new(),
             proxy,
@@ -564,7 +561,7 @@ impl Document {
 
         let syntactic_styles = doc.with_untracked(|doc| doc.syntax.styles.clone());
 
-        let send = create_ext_action(cx, move |styles| {
+        let send = create_ext_action(move |styles| {
             doc.update(|doc| {
                 if doc.buffer.rev() == rev {
                     doc.semantic_styles = Some(styles);
@@ -620,7 +617,7 @@ impl Document {
             (doc.buffer.clone(), doc.buffer.rev(), doc.buffer.len())
         });
 
-        let send = create_ext_action(cx, move |hints| {
+        let send = create_ext_action(move |hints| {
             doc.update(|doc| {
                 if doc.buffer.rev() == rev {
                     doc.inlay_hints = Some(hints);
@@ -1075,7 +1072,7 @@ impl Document {
             let send = {
                 let path = path.clone();
                 let doc = self.clone();
-                create_ext_action(self.scope, move |result| {
+                create_ext_action(move |result| {
                     if let Ok(ProxyResponse::BufferHeadResponse {
                         content, ..
                     }) = result
@@ -1124,7 +1121,7 @@ impl Document {
         let send = {
             let atomic_rev = atomic_rev.clone();
             let head_changes = self.head_changes;
-            create_ext_action(self.scope, move |changes| {
+            create_ext_action(move |changes| {
                 let changes = if let Some(changes) = changes {
                     changes
                 } else {

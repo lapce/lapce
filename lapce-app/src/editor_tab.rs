@@ -2,10 +2,7 @@ use std::path::{Path, PathBuf};
 
 use floem::{
     peniko::kurbo::{Point, Rect},
-    reactive::{
-        create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWithUntracked,
-    },
+    reactive::{create_rw_signal, RwSignal, Scope},
 };
 use serde::{Deserialize, Serialize};
 
@@ -67,7 +64,7 @@ impl EditorTabInfo {
     ) -> RwSignal<EditorTabData> {
         let editor_tab_id = EditorTabId::next();
         let editor_tab_data = {
-            let (cx, _) = data.scope.run_child_scope(|cx| cx);
+            let cx = data.scope.create_child();
             let editor_tab_data = EditorTabData {
                 scope: cx,
                 editor_tab_id,
@@ -78,17 +75,17 @@ impl EditorTabInfo {
                     .iter()
                     .map(|child| {
                         (
-                            create_rw_signal(cx, 0),
+                            cx.create_rw_signal(0),
                             child.to_data(data.clone(), editor_tab_id),
                         )
                     })
                     .collect(),
                 layout_rect: Rect::ZERO,
                 window_origin: Point::ZERO,
-                locations: create_rw_signal(cx, im::Vector::new()),
-                current_location: create_rw_signal(cx, 0),
+                locations: cx.create_rw_signal(im::Vector::new()),
+                current_location: cx.create_rw_signal(0),
             };
-            create_rw_signal(cx, editor_tab_data)
+            cx.create_rw_signal(editor_tab_data)
         };
         if self.is_focus {
             data.active_editor_tab.set(Some(editor_tab_id));

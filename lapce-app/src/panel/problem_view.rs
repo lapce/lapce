@@ -2,10 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use floem::{
     peniko::Color,
-    reactive::{
-        create_memo, create_rw_signal, ReadSignal, SignalGet, SignalUpdate,
-        SignalWith,
-    },
+    reactive::{create_memo, create_rw_signal, ReadSignal},
     style::{CursorStyle, Style},
     view::View,
     views::{container, label, list, scroll, stack, svg, Decorators},
@@ -111,9 +108,9 @@ fn file_view(
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let cx = ViewContext::get_current();
-    let collpased = create_rw_signal(cx.scope, false);
+    let collpased = create_rw_signal(false);
 
-    let diagnostics = create_memo(cx.scope, move |_| {
+    let diagnostics = create_memo(move |_| {
         let diagnostics = diagnostic_data.diagnostics.get();
         let diagnostics: im::Vector<EditorDiagnostic> = diagnostics
             .into_iter()

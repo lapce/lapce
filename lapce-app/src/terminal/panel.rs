@@ -2,10 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use floem::{
     glazier::KeyEvent,
-    reactive::{
-        create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWith, SignalWithUntracked,
-    },
+    reactive::{create_rw_signal, RwSignal, Scope},
 };
 use lapce_core::mode::Mode;
 use lapce_rpc::{
@@ -51,7 +48,7 @@ impl TerminalPanelData {
         let tabs =
             im::vector![(create_rw_signal(terminal_tab.scope, 0), terminal_tab)];
         let tab_info = TerminalTabInfo { active: 0, tabs };
-        let tab_info = create_rw_signal(cx, tab_info);
+        let tab_info = cx.create_rw_signal(tab_info);
 
         let debug = RunDebugData::new(cx);
 

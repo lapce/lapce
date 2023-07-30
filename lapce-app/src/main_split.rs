@@ -9,8 +9,6 @@ use floem::{
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, RwSignal, Scope,
-        SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked,
     },
 };
 use itertools::Itertools;
@@ -135,7 +133,7 @@ impl SplitInfo {
                 window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
             };
-            create_rw_signal(cx, split_data)
+            cx.create_rw_signal(split_data)
         };
         data.splits.update(|splits| {
             splits.insert(split_id, split_data);
@@ -207,18 +205,18 @@ pub struct MainSplitData {
 
 impl MainSplitData {
     pub fn new(cx: Scope, common: CommonData) -> Self {
-        let splits = create_rw_signal(cx, im::HashMap::new());
-        let active_editor_tab = create_rw_signal(cx, None);
+        let splits = cx.create_rw_signal(im::HashMap::new());
+        let active_editor_tab = cx.create_rw_signal(None);
         let editor_tabs: RwSignal<
             im::HashMap<EditorTabId, RwSignal<EditorTabData>>,
-        > = create_rw_signal(cx, im::HashMap::new());
-        let editors = create_rw_signal(cx, im::HashMap::new());
+        > = cx.create_rw_signal(im::HashMap::new());
+        let editors = cx.create_rw_signal(im::HashMap::new());
         let diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>> =
-            create_rw_signal(cx, im::HashMap::new());
-        let docs = create_rw_signal(cx, im::HashMap::new());
-        let locations = create_rw_signal(cx, im::Vector::new());
-        let current_location = create_rw_signal(cx, 0);
-        let diagnostics = create_rw_signal(cx, im::HashMap::new());
+            cx.create_rw_signal(im::HashMap::new());
+        let docs = cx.create_rw_signal(im::HashMap::new());
+        let locations = cx.create_rw_signal(im::Vector::new());
+        let current_location = cx.create_rw_signal(0);
+        let diagnostics = cx.create_rw_signal(im::HashMap::new());
         let find_editor =
             EditorData::new_local(cx, EditorId::next(), common.clone());
         let replace_editor =
@@ -257,7 +255,7 @@ impl MainSplitData {
         {
             let find_editor_doc = find_editor.view.doc;
             let find = common.find.clone();
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 let content = find_editor_doc.with(|doc| doc.buffer().to_string());
                 find.set_find(&content);
             });
@@ -410,14 +408,14 @@ impl MainSplitData {
                 self.common.proxy.clone(),
                 self.common.config,
             );
-            let doc = create_rw_signal(cx, doc);
+            let doc = cx.create_rw_signal(doc);
             self.docs.update(|docs| {
                 docs.insert(path.clone(), doc);
             });
 
             {
                 let proxy = self.common.proxy.clone();
-                create_effect(cx, move |last| {
+                create_effect(move |last| {
                     let rev = doc.with(|doc| doc.buffer().rev());
                     if last == Some(rev) {
                         return rev;
@@ -528,10 +526,10 @@ impl MainSplitData {
                 children: vec![],
                 window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
-                locations: create_rw_signal(cx, im::Vector::new()),
-                current_location: create_rw_signal(cx, 0),
+                locations: cx.create_rw_signal(im::Vector::new()),
+                current_location: cx.create_rw_signal(0),
             };
-            create_rw_signal(cx, editor_tab)
+            cx.create_rw_signal(editor_tab)
         };
         self.editor_tabs.update(|editor_tabs| {
             editor_tabs.insert(editor_tab_id, editor_tab);
@@ -1101,7 +1099,7 @@ impl MainSplitData {
                     window_origin: Point::ZERO,
                     layout_rect: Rect::ZERO,
                 };
-                create_rw_signal(cx, new_split)
+                cx.create_rw_signal(new_split)
             };
             self.splits.update(|splits| {
                 splits.insert(new_split_id, new_split);
@@ -1131,7 +1129,7 @@ impl MainSplitData {
                     self.editors.get_untracked().get(editor_id)?.with_untracked(
                         |editor| editor.copy(cx, Some(editor_tab_id), new_editor_id),
                     );
-                let editor = create_rw_signal(cx, editor);
+                let editor = cx.create_rw_signal(editor);
                 self.editors.update(|editors| {
                     editors.insert(new_editor_id, editor);
                 });
@@ -1161,7 +1159,7 @@ impl MainSplitData {
                 split: split_id,
                 editor_tab_id,
                 active: 0,
-                children: vec![(create_rw_signal(cx, 0), new_child)],
+                children: vec![(cx.create_rw_signal(0), new_child)],
                 window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
                 locations: create_rw_signal(
@@ -1173,7 +1171,7 @@ impl MainSplitData {
                     editor_tab.current_location.get_untracked(),
                 ),
             };
-            create_rw_signal(cx, editor_tab)
+            cx.create_rw_signal(editor_tab)
         };
         self.editor_tabs.update(|editor_tabs| {
             editor_tabs.insert(editor_tab_id, editor_tab);

@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use floem::{
     peniko::kurbo::Rect,
-    reactive::{
-        create_effect, create_rw_signal, RwSignal, Scope, SignalGet,
-        SignalGetUntracked, SignalSet,
-    },
+    reactive::{create_effect, create_rw_signal, RwSignal, Scope},
 };
 use lapce_core::{command::FocusCommand, mode::Mode, movement::Movement};
 use lapce_rpc::plugin::PluginId;
@@ -87,8 +84,8 @@ impl KeyPressFocus for CodeActionData {
 
 impl CodeActionData {
     pub fn new(cx: Scope, common: CommonData) -> Self {
-        let status = create_rw_signal(cx, CodeActionStatus::Inactive);
-        let active = create_rw_signal(cx, 0);
+        let status = cx.create_rw_signal(CodeActionStatus::Inactive);
+        let active = cx.create_rw_signal(0);
 
         let code_action = Self {
             status,
@@ -105,7 +102,7 @@ impl CodeActionData {
 
         {
             let code_action = code_action.clone();
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 let focus = code_action.common.focus.get();
                 if focus != Focus::CodeAction
                     && code_action.status.get_untracked()

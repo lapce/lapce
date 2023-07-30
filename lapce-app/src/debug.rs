@@ -5,9 +5,7 @@ use std::{
     time::Instant,
 };
 
-use floem::reactive::{
-    create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet, SignalUpdate,
-};
+use floem::reactive::{create_rw_signal, RwSignal, Scope};
 use lapce_rpc::{
     dap_types::{
         DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped, ThreadId,
@@ -71,9 +69,9 @@ pub struct RunDebugData {
 
 impl RunDebugData {
     pub fn new(cx: Scope) -> Self {
-        let active_term = create_rw_signal(cx, None);
-        let daps = create_rw_signal(cx, im::HashMap::new());
-        let breakpoints = create_rw_signal(cx, BTreeMap::new());
+        let active_term = cx.create_rw_signal(None);
+        let daps = cx.create_rw_signal(im::HashMap::new());
+        let breakpoints = cx.create_rw_signal(BTreeMap::new());
         Self {
             active_term,
             daps,
@@ -132,9 +130,9 @@ pub struct DapData {
 
 impl DapData {
     pub fn new(cx: Scope, dap_id: DapId, term_id: TermId) -> Self {
-        let stopped = create_rw_signal(cx, false);
-        let thread_id = create_rw_signal(cx, None);
-        let stack_traces = create_rw_signal(cx, BTreeMap::new());
+        let stopped = cx.create_rw_signal(false);
+        let thread_id = cx.create_rw_signal(None);
+        let stack_traces = cx.create_rw_signal(BTreeMap::new());
         Self {
             term_id,
             dap_id,
@@ -169,8 +167,8 @@ impl DapData {
                     current_stack_traces.insert(
                         *thread_id,
                         StackTraceData {
-                            expanded: create_rw_signal(cx, is_main_thread),
-                            frames: create_rw_signal(cx, frames.into()),
+                            expanded: cx.create_rw_signal(is_main_thread),
+                            frames: cx.create_rw_signal(frames.into()),
                             frames_shown: 20,
                         },
                     );

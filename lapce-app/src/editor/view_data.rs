@@ -3,10 +3,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 use floem::{
     cosmic_text::TextLayout,
     peniko::{kurbo::Point, Color},
-    reactive::{
-        create_rw_signal, ReadSignal, RwSignal, Scope, SignalGetUntracked,
-        SignalWith, SignalWithUntracked,
-    },
+    reactive::{create_rw_signal, ReadSignal, RwSignal, Scope},
     views::VirtualListVector,
 };
 use lapce_core::{
@@ -225,7 +222,7 @@ impl EditorViewData {
         EditorViewData {
             doc: self.doc,
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
-            kind: create_rw_signal(cx, self.kind.get_untracked()),
+            kind: cx.create_rw_signal(self.kind.get_untracked()),
             config: self.config,
         }
     }

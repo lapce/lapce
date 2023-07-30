@@ -8,10 +8,7 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
-    reactive::{
-        create_effect, ReadSignal, SignalGet, SignalGetUntracked, SignalWith,
-        SignalWithUntracked,
-    },
+    reactive::{create_effect, ReadSignal},
     view::{ChangeFlags, View},
     Renderer, ViewContext,
 };
@@ -56,20 +53,20 @@ pub fn terminal_view(
     let cx = ViewContext::get_current();
     let id = cx.new_id();
 
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         let raw = raw.get();
         id.update_state(TerminalViewState::Raw(raw), false);
     });
 
     let config = terminal_panel_data.common.config;
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         config.with(|_c| {});
         id.update_state(TerminalViewState::Config, false);
     });
 
     let proxy = terminal_panel_data.common.proxy.clone();
 
-    create_effect(cx.scope, move |last| {
+    create_effect(move |last| {
         let focus = terminal_panel_data.common.focus.get();
 
         let mut is_focused = false;

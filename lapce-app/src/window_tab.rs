@@ -7,9 +7,8 @@ use floem::{
     glazier::{FileDialogOptions, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_effect, create_memo, create_rw_signal, create_signal, use_context,
-        Memo, ReadSignal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWith, SignalWithUntracked, WriteSignal,
+        create_effect, create_memo, create_rw_signal, create_signal, Memo,
+        ReadSignal, RwSignal, Scope, WriteSignal,
     },
 };
 use itertools::Itertools;
@@ -189,7 +188,7 @@ impl WindowTabData {
         let workbench_command = Listener::new_empty(cx);
         let internal_command = Listener::new_empty(cx);
         let keypress =
-            create_rw_signal(cx, KeyPressData::new(&config, workbench_command));
+            cx.create_rw_signal(KeyPressData::new(&config, workbench_command));
 
         let (term_tx, term_rx) = crossbeam_channel::unbounded();
         let (term_notification_tx, term_notification_rx) =
@@ -210,11 +209,11 @@ impl WindowTabData {
         );
         let (config, set_config) = create_signal(cx, Arc::new(config));
 
-        let focus = create_rw_signal(cx, Focus::Workbench);
-        let completion = create_rw_signal(cx, CompletionData::new(cx, config));
+        let focus = cx.create_rw_signal(Focus::Workbench);
+        let completion = cx.create_rw_signal(CompletionData::new(cx, config));
 
-        let register = create_rw_signal(cx, Register::default());
-        let view_id = create_rw_signal(cx, floem::id::Id::next());
+        let register = cx.create_rw_signal(Register::default());
+        let view_id = cx.create_rw_signal(floem::id::Id::next());
         let find = Find::new(cx);
 
         let ui_line_height = create_memo(cx, move |_| {
@@ -249,13 +248,13 @@ impl WindowTabData {
             proxy: proxy.proxy_rpc.clone(),
             view_id,
             ui_line_height,
-            dragging: create_rw_signal(cx, None),
+            dragging: cx.create_rw_signal(None),
             config,
         };
 
         let main_split = MainSplitData::new(cx, common.clone());
         let code_action =
-            create_rw_signal(cx, CodeActionData::new(cx, common.clone()));
+            cx.create_rw_signal(CodeActionData::new(cx, common.clone()));
         let source_control = SourceControlData::new(cx, common.clone());
         let file_explorer = FileExplorerData::new(cx, common.clone());
 
@@ -275,7 +274,7 @@ impl WindowTabData {
                     window_origin: Point::ZERO,
                     layout_rect: Rect::ZERO,
                 };
-                create_rw_signal(cx, root_split_data)
+                cx.create_rw_signal(root_split_data)
             };
             main_split.splits.update(|splits| {
                 splits.insert(root_split, root_split_data);
@@ -298,9 +297,9 @@ impl WindowTabData {
                     .get_panel_orders()
                     .unwrap_or_else(|_| i.panel.panels.clone());
                 PanelData {
-                    panels: create_rw_signal(cx, panel_order),
-                    styles: create_rw_signal(cx, i.panel.styles.clone()),
-                    size: create_rw_signal(cx, i.panel.size.clone()),
+                    panels: cx.create_rw_signal(panel_order),
+                    styles: cx.create_rw_signal(i.panel.styles.clone()),
+                    size: cx.create_rw_signal(i.panel.size.clone()),
                     common: common.clone(),
                 }
             })
@@ -328,7 +327,7 @@ impl WindowTabData {
         {
             let notification = create_signal_from_channel(cx, term_notification_rx);
             let terminal = terminal.clone();
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 notification.with(|notification| {
                     if let Some(notification) = notification.as_ref() {
                         match notification {
@@ -361,12 +360,12 @@ impl WindowTabData {
             rename,
             global_search,
             about_data,
-            window_origin: create_rw_signal(cx, Point::ZERO),
-            layout_rect: create_rw_signal(cx, Rect::ZERO),
+            window_origin: cx.create_rw_signal(Point::ZERO),
+            layout_rect: cx.create_rw_signal(Rect::ZERO),
             proxy,
             window_scale,
             set_config,
-            update_in_progress: create_rw_signal(cx, false),
+            update_in_progress: cx.create_rw_signal(false),
             latest_release,
             common,
         };
@@ -396,7 +395,7 @@ impl WindowTabData {
         {
             let window_tab_data = window_tab_data.clone();
             let notification = window_tab_data.proxy.notification;
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 notification.with(|rpc| {
                     if let Some(rpc) = rpc.as_ref() {
                         window_tab_data.handle_core_notification(rpc);

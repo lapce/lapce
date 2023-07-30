@@ -1,6 +1,4 @@
-use floem::reactive::{
-    create_effect, create_rw_signal, RwSignal, Scope, SignalGet, SignalSet,
-};
+use floem::reactive::{create_effect, create_rw_signal, RwSignal, Scope};
 
 /// A signal listener that receives 'events' from the outside and runs the callback.  
 /// This is implemented using effects and normal rw signals. This should be used when it doesn't  
@@ -15,7 +13,7 @@ pub struct Listener<T: 'static> {
 
 impl<T: Clone + 'static> Listener<T> {
     pub fn new(cx: Scope, on_val: impl Fn(T) + 'static) -> Listener<T> {
-        let val = create_rw_signal(cx, None);
+        let val = cx.create_rw_signal(None);
 
         let listener = Listener { val, cx };
         listener.listen(on_val);
@@ -26,7 +24,7 @@ impl<T: Clone + 'static> Listener<T> {
     /// Construct a listener when you can't yet give it a callback.  
     /// Call `listen` to set a callback.
     pub fn new_empty(cx: Scope) -> Listener<T> {
-        let val = create_rw_signal(cx, None);
+        let val = cx.create_rw_signal(None);
         Listener { val, cx }
     }
 

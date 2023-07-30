@@ -2,10 +2,7 @@ use std::path::PathBuf;
 
 use floem::{
     ext_event::create_ext_action,
-    reactive::{
-        create_rw_signal, Memo, RwSignal, Scope, SignalGet, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWithUntracked,
-    },
+    reactive::{create_rw_signal, Memo, RwSignal, Scope},
     views::VirtualListVector,
 };
 use indexmap::IndexMap;
@@ -129,10 +126,10 @@ impl FileNode {
                                 scope: cx,
                                 path: item.path_buf,
                                 is_dir: item.is_dir,
-                                read: create_rw_signal(cx, false),
-                                expanded: create_rw_signal(cx, false),
-                                children: create_rw_signal(cx, IndexMap::new()),
-                                children_open_count: create_rw_signal(cx, 0),
+                                read: cx.create_rw_signal(false),
+                                expanded: cx.create_rw_signal(false),
+                                children: cx.create_rw_signal(IndexMap::new()),
+                                children_open_count: cx.create_rw_signal(0),
                                 all_files: file_node.all_files,
                                 line_height: file_node.line_height,
                                 internal_command: file_node.internal_command,

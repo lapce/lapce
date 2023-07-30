@@ -3,11 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use anyhow::Result;
 use floem::{
     ext_event::create_ext_action,
-    reactive::{
-        create_effect, create_rw_signal, use_context, RwSignal, Scope,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked,
-    },
+    reactive::{create_effect, create_rw_signal, RwSignal, Scope},
 };
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
@@ -101,20 +97,20 @@ impl PluginData {
         workspace_disabled: HashSet<VoltID>,
         common: CommonData,
     ) -> Self {
-        let installed = create_rw_signal(cx, IndexMap::new());
+        let installed = cx.create_rw_signal(IndexMap::new());
         let all = AvailableVoltList {
-            loading: create_rw_signal(cx, false),
-            volts: create_rw_signal(cx, IndexMap::new()),
-            total: create_rw_signal(cx, 0),
-            query_id: create_rw_signal(cx, 0),
+            loading: cx.create_rw_signal(false),
+            volts: cx.create_rw_signal(IndexMap::new()),
+            total: cx.create_rw_signal(0),
+            query_id: cx.create_rw_signal(0),
             query_editor: EditorData::new_local(
                 cx,
                 EditorId::next(),
                 common.clone(),
             ),
         };
-        let disabled = create_rw_signal(cx, disabled);
-        let workspace_disabled = create_rw_signal(cx, workspace_disabled);
+        let disabled = cx.create_rw_signal(disabled);
+        let workspace_disabled = cx.create_rw_signal(workspace_disabled);
 
         let plugin = Self {
             installed,
@@ -154,7 +150,7 @@ impl PluginData {
 
         {
             let plugin = plugin.clone();
-            create_effect(cx, move |s| {
+            create_effect(move |s| {
                 let query = plugin
                     .all
                     .query_editor
@@ -282,8 +278,8 @@ impl PluginData {
                             (
                                 volt.id(),
                                 AvailableVoltData {
-                                    info: create_rw_signal(cx, volt),
-                                    installing: create_rw_signal(cx, false),
+                                    info: cx.create_rw_signal(volt),
+                                    installing: cx.create_rw_signal(false),
                                 },
                             )
                         }));

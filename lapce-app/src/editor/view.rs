@@ -11,11 +11,7 @@ use floem::{
         kurbo::{BezPath, Line, Point, Rect, Size},
         Color,
     },
-    reactive::{
-        create_effect, create_memo, create_rw_signal, on_cleanup, ReadSignal,
-        RwSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate,
-        SignalWith, SignalWithUntracked,
-    },
+    reactive::{create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal},
     style::{ComputedStyle, CursorStyle, Style},
     taffy::prelude::Node,
     view::{ChangeFlags, View},
@@ -91,15 +87,15 @@ pub fn editor_view(
     let cx = ViewContext::get_current();
     let id = cx.new_id();
 
-    let viewport = create_rw_signal(cx.scope, Rect::ZERO);
+    let viewport = create_rw_signal(Rect::ZERO);
 
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         let kind = editor.with(|editor| editor.view.kind);
         kind.track();
         id.request_layout();
     });
 
-    create_effect(cx.scope, move |last_rev| {
+    create_effect(move |last_rev| {
         let doc = editor.with(|editor| editor.view.doc);
         let rev = doc.with(|doc| doc.rev());
         if last_rev == Some(rev) {
@@ -109,7 +105,7 @@ pub fn editor_view(
         rev
     });
 
-    create_effect(cx.scope, move |last_rev| {
+    create_effect(move |last_rev| {
         let (doc, sticky_header_height_signal, config) =
             editor.with_untracked(|editor| {
                 (
@@ -1198,18 +1194,6 @@ pub fn editor_container_view(
         )
     });
     let editors = main_split.editors;
-    on_cleanup(ViewContext::get_current().scope, move || {
-        let exits =
-            editors.with_untracked(|editors| editors.contains_key(&editor_id));
-        if !exits {
-            let send = create_ext_action(editor_scope, move |_| {
-                editor_scope.dispose();
-            });
-            std::thread::spawn(move || {
-                send(());
-            });
-        }
-    });
 
     let find_editor = main_split.find_editor;
     let replace_editor = main_split.replace_editor;
@@ -1217,8 +1201,8 @@ pub fn editor_container_view(
     let replace_focus = main_split.common.find.replace_focus;
 
     let cx = ViewContext::get_current();
-    let editor_rect = create_rw_signal(cx.scope, Rect::ZERO);
-    let gutter_rect = create_rw_signal(cx.scope, Rect::ZERO);
+    let editor_rect = create_rw_signal(Rect::ZERO);
+    let gutter_rect = create_rw_signal(Rect::ZERO);
 
     stack(move || {
         (
@@ -1289,7 +1273,7 @@ fn editor_gutter(
     let padding_right = 30.0;
 
     let cx = ViewContext::get_current();
-    let code_action_line = create_memo(cx.scope, move |_| {
+    let code_action_line = create_memo(move |_| {
         if is_active(true) {
             let doc = editor.with(|editor| editor.view.doc);
             let offset = cursor.with(|cursor| cursor.offset());
@@ -1311,9 +1295,9 @@ fn editor_gutter(
         }
     });
 
-    let gutter_width = create_memo(cx.scope, move |_| gutter_rect.get().width());
+    let gutter_width = create_memo(move |_| gutter_rect.get().width());
 
-    let current_line = create_memo(cx.scope, move |_| {
+    let current_line = create_memo(move |_| {
         let doc = editor.with(|editor| editor.view.doc);
         let (offset, mode) =
             cursor.with(|cursor| (cursor.offset(), cursor.get_mode()));

@@ -4,10 +4,7 @@ use floem::{
     event::EventListener,
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Size},
-    reactive::{
-        create_memo, create_rw_signal, RwSignal, SignalGet, SignalGetUntracked,
-        SignalSet, SignalWith, SignalWithUntracked,
-    },
+    reactive::{create_memo, create_rw_signal, RwSignal},
     style::{CursorStyle, Style},
     view::View,
     views::{
@@ -322,7 +319,7 @@ fn available_view(plugin: PluginData) -> impl View {
                                installing: RwSignal<bool>| {
         let plugin = local_plugin.clone();
         let cx = ViewContext::get_current();
-        let installed = create_memo(cx.scope, move |_| {
+        let installed = create_memo(move |_| {
             installed.with(|installed| installed.contains_key(&id))
         });
         label(move || {
@@ -424,12 +421,12 @@ fn available_view(plugin: PluginData) -> impl View {
     };
 
     let cx = ViewContext::get_current();
-    let content_rect = create_rw_signal(cx.scope, Rect::ZERO);
+    let content_rect = create_rw_signal(Rect::ZERO);
 
     let editor = plugin.all.query_editor.clone();
     let focus = plugin.common.focus;
     let is_focused = move || focus.get() == Focus::Panel(PanelKind::Plugin);
-    let cursor_x = create_rw_signal(cx.scope, 0.0);
+    let cursor_x = create_rw_signal(0.0);
 
     stack(move || {
         (

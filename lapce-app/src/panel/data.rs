@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use floem::reactive::{
-    create_rw_signal, use_context, RwSignal, Scope, SignalGet, SignalGetUntracked,
-    SignalUpdate, SignalWith, SignalWithUntracked,
-};
+use floem::reactive::{create_rw_signal, RwSignal, Scope};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -68,7 +65,7 @@ impl PanelData {
         panels: im::HashMap<PanelPosition, im::Vector<PanelKind>>,
         common: CommonData,
     ) -> Self {
-        let panels = create_rw_signal(cx, panels);
+        let panels = cx.create_rw_signal(panels);
 
         let mut styles = im::HashMap::new();
         styles.insert(
@@ -119,7 +116,7 @@ impl PanelData {
                 maximized: false,
             },
         );
-        let styles = create_rw_signal(cx, styles);
+        let styles = cx.create_rw_signal(styles);
         let size = create_rw_signal(
             cx,
             PanelSize {

@@ -3,9 +3,7 @@ use std::sync::Arc;
 use floem::{
     event::EventListener,
     peniko::Color,
-    reactive::{
-        create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
-    },
+    reactive::{create_rw_signal, RwSignal, Scope},
     style::{CursorStyle, Display, Position, Style},
     view::View,
     views::{container, label, stack, svg, Decorators},
@@ -38,7 +36,7 @@ pub struct AboutData {
 
 impl AboutData {
     pub fn new(cx: Scope, focus: RwSignal<Focus>) -> Self {
-        let visible = create_rw_signal(cx, false);
+        let visible = cx.create_rw_signal(false);
 
         Self { visible, focus }
     }

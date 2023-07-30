@@ -3,10 +3,7 @@ use std::sync::Arc;
 use floem::{
     glazier::KeyEvent,
     peniko::kurbo::{Point, Size},
-    reactive::{
-        create_rw_signal, use_context, ReadSignal, RwSignal, Scope,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWithUntracked,
-    },
+    reactive::{create_rw_signal, ReadSignal, RwSignal, Scope},
 };
 use serde::{Deserialize, Serialize};
 
@@ -66,8 +63,8 @@ impl WindowData {
         app_command: Listener<AppCommand>,
     ) -> Self {
         let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
-        let config = create_rw_signal(cx, Arc::new(config));
-        let root_view_id = create_rw_signal(cx, floem::id::Id::next());
+        let config = cx.create_rw_signal(Arc::new(config));
+        let root_view_id = cx.create_rw_signal(floem::id::Id::next());
 
         let mut window_tabs = im::Vector::new();
         let active = info.tabs.active_tab;
@@ -82,7 +79,7 @@ impl WindowData {
                 window_scale,
                 latest_release,
             ));
-            window_tabs.push_back((create_rw_signal(cx, 0), window_tab));
+            window_tabs.push_back((cx.create_rw_signal(0), window_tab));
         }
 
         if window_tabs.is_empty() {
@@ -93,13 +90,13 @@ impl WindowData {
                 window_scale,
                 latest_release,
             ));
-            window_tabs.push_back((create_rw_signal(cx, 0), window_tab));
+            window_tabs.push_back((cx.create_rw_signal(0), window_tab));
         }
 
-        let window_tabs = create_rw_signal(cx, window_tabs);
-        let active = create_rw_signal(cx, active);
-        let size = create_rw_signal(cx, Size::ZERO);
-        let position = create_rw_signal(cx, info.pos);
+        let window_tabs = cx.create_rw_signal(window_tabs);
+        let active = cx.create_rw_signal(active);
+        let size = cx.create_rw_signal(Size::ZERO);
+        let position = cx.create_rw_signal(info.pos);
 
         let window_data = Self {
             scope: cx,
