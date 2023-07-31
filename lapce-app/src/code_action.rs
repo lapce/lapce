@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use floem::{
     peniko::kurbo::Rect,
-    reactive::{create_effect, create_rw_signal, RwSignal, Scope},
+    reactive::{create_effect, RwSignal, Scope},
 };
 use lapce_core::{command::FocusCommand, mode::Mode, movement::Movement};
 use lapce_rpc::plugin::PluginId;

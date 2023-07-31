@@ -5,7 +5,6 @@ use floem::{
     style::Style,
     view::View,
     views::{container, label, rich_text, scroll, stack, Decorators},
-    ViewContext,
 };
 use lapce_core::buffer::rope_text::RopeText;
 
@@ -15,7 +14,6 @@ pub fn text_area(
     editor: EditorData,
     is_active: impl Fn() -> bool + 'static,
 ) -> impl View {
-    let cx = ViewContext::get_current();
     let config = editor.common.config;
     let doc = editor.view.doc;
     let cursor = editor.cursor;

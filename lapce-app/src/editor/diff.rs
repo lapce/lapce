@@ -3,7 +3,7 @@ use std::sync::atomic;
 use floem::{
     event::EventListener,
     ext_event::create_ext_action,
-    reactive::{create_effect, create_memo, create_rw_signal, RwSignal, Scope},
+    reactive::{create_effect, RwSignal, Scope},
     style::{CursorStyle, Style},
     view::View,
     views::{clip, empty, label, list, stack, svg, Decorators},
@@ -73,7 +73,7 @@ impl DiffEditorInfo {
                     );
                     let doc = doc.scope.create_rw_signal(doc);
 
-                    let send = create_ext_action(move |result| {
+                    let send = create_ext_action(cx, move |result| {
                         if let Ok(ProxyResponse::BufferHeadResponse {
                             content,
                             ..
@@ -229,7 +229,7 @@ impl DiffEditorData {
 
             let send = {
                 let right_atomic_rev = right_atomic_rev.clone();
-                create_ext_action(move |changes: Option<Vec<DiffLines>>| {
+                create_ext_action(cx, move |changes: Option<Vec<DiffLines>>| {
                     let changes = if let Some(changes) = changes {
                         changes
                     } else {

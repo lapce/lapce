@@ -5,7 +5,7 @@ use floem::{
     ext_event::create_ext_action,
     glazier::{Modifiers, PointerButton, PointerEvent},
     peniko::kurbo::{Point, Rect, Vec2},
-    reactive::{create_effect, create_rw_signal, RwSignal, Scope},
+    reactive::{create_effect, use_context, RwSignal, Scope},
 };
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, InvalLines},
@@ -285,6 +285,7 @@ impl EditorData {
             }
         }
 
+        println!("run edit command");
         self.cursor.set(cursor);
         self.common.register.set(register);
 
@@ -315,6 +316,7 @@ impl EditorData {
             movement::do_motion_mode(doc, &mut cursor, motion_mode, &mut register);
         });
 
+        println!("run motion mode command");
         self.cursor.set(cursor);
         self.common.register.set(register);
 
@@ -713,7 +715,7 @@ impl EditorData {
 
         let internal_command = self.common.internal_command;
         let cursor = self.cursor.read_only();
-        let send = create_ext_action(move |d| {
+        let send = create_ext_action(self.scope, move |d| {
             let current_offset = cursor.with_untracked(|c| c.offset());
             if current_offset != offset {
                 return;
@@ -909,7 +911,7 @@ impl EditorData {
                     .doc
                     .with_untracked(|doc| (doc.rev(), doc.content.path().cloned()));
                 let offset = self.cursor.with_untracked(|c| c.offset());
-                let send = create_ext_action(move |item| {
+                let send = create_ext_action(self.scope, move |item| {
                     if editor.cursor.with_untracked(|c| c.offset() != offset) {
                         return;
                     }
@@ -1341,7 +1343,7 @@ impl EditorData {
         } else if let Some(edits) = edits.as_ref() {
             self.do_text_edit(edits);
         } else {
-            let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+            let db: Arc<LapceDb> = use_context().unwrap();
             if let Ok(info) = db.get_doc_info(&self.common.workspace, &location.path)
             {
                 self.go_to_position(
@@ -1362,15 +1364,18 @@ impl EditorData {
         if !new_doc {
             self.do_go_to_location(location, edits);
         } else {
-            let (cx, _) = self.scope.run_child_scope(|scope| scope);
             let doc = self.view.doc;
             let editor = self.clone();
-            create_effect(move |_| {
+            create_effect(move |prev_loaded| {
+                if prev_loaded == Some(true) {
+                    return true;
+                }
+
                 let loaded = doc.with(|doc| doc.loaded());
                 if loaded {
-                    cx.dispose();
                     editor.do_go_to_location(location.clone(), edits.clone());
                 }
+                loaded
             });
         }
     }
@@ -1450,7 +1455,7 @@ impl EditorData {
         });
 
         let doc = self.view.doc;
-        let send = create_ext_action(move |resp| {
+        let send = create_ext_action(self.scope, move |resp| {
             if doc.with_untracked(|doc| doc.rev() == rev) {
                 doc.update(|doc| {
                     doc.code_actions.insert(offset, Arc::new(resp));
@@ -1500,7 +1505,7 @@ impl EditorData {
             .with_untracked(|doc| (doc.rev(), doc.content.clone()));
 
         let doc = self.view.doc;
-        let send = create_ext_action(move |result| {
+        let send = create_ext_action(self.scope, move |result| {
             if let Ok(ProxyResponse::SaveResponse {}) = result {
                 let current_rev = doc.with_untracked(|doc| doc.rev());
                 if current_rev == rev {
@@ -1533,7 +1538,7 @@ impl EditorData {
             let format_on_save = allow_formatting && config.editor.format_on_save;
             if format_on_save {
                 let editor = self.clone();
-                let send = create_ext_action(move |result| {
+                let send = create_ext_action(self.scope, move |result| {
                     if let Ok(Ok(ProxyResponse::GetDocumentFormatting { edits })) =
                         result
                     {
@@ -1627,7 +1632,7 @@ impl EditorData {
         let cursor_offset = self.cursor.with_untracked(|c| c.offset());
         let scroll_offset = self.viewport.with_untracked(|v| v.origin().to_vec2());
 
-        let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+        let db: Arc<LapceDb> = use_context().unwrap();
         db.save_doc_position(
             &self.common.workspace,
             path,

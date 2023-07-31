@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use floem::{
     ext_event::create_ext_action,
-    reactive::{create_rw_signal, Memo, RwSignal, Scope},
+    reactive::{Memo, RwSignal, Scope},
     views::VirtualListVector,
 };
 use indexmap::IndexMap;

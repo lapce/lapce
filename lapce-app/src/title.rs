@@ -132,7 +132,6 @@ fn middle(
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let local_workspace = workspace.clone();
-    let cx = ViewContext::get_current();
     let can_jump_backward = {
         let main_split = main_split.clone();
         create_memo(move |_| main_split.can_jump_location_backward(true))

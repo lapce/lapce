@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use floem::reactive::{create_rw_signal, RwSignal, Scope};
+use floem::reactive::{use_context, RwSignal, Scope};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -117,17 +117,14 @@ impl PanelData {
             },
         );
         let styles = cx.create_rw_signal(styles);
-        let size = create_rw_signal(
-            cx,
-            PanelSize {
-                left: 250.0,
-                left_split: 0.5,
-                bottom: 300.0,
-                bottom_split: 0.5,
-                right: 250.0,
-                right_split: 0.5,
-            },
-        );
+        let size = cx.create_rw_signal(PanelSize {
+            left: 250.0,
+            left_split: 0.5,
+            bottom: 300.0,
+            bottom_split: 0.5,
+            right: 250.0,
+            right_split: 0.5,
+        });
 
         Self {
             panels,
@@ -383,7 +380,7 @@ impl PanelData {
             style.shown = true;
         });
 
-        let db: Arc<LapceDb> = use_context(self.common.scope).unwrap();
+        let db: Arc<LapceDb> = use_context().unwrap();
         db.save_panel_orders(self.panels.get_untracked());
     }
 }

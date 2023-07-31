@@ -6,7 +6,6 @@ use floem::{
     style::Style,
     view::View,
     views::{container, container_box, empty, label, list, stack, tab, Decorators},
-    ViewContext,
 };
 
 use super::{
@@ -42,7 +41,6 @@ pub fn panel_container_view(
         let panel = panel.clone();
         move |position: PanelPosition| {
             let panel = panel.clone();
-            let cx = ViewContext::get_current();
             let dragging_over = create_rw_signal(false);
             empty()
                 .on_event(EventListener::DragEnter, move |_| {

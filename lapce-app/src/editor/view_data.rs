@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 use floem::{
     cosmic_text::TextLayout,
     peniko::{kurbo::Point, Color},
-    reactive::{create_rw_signal, ReadSignal, RwSignal, Scope},
+    reactive::{ReadSignal, RwSignal, Scope},
     views::VirtualListVector,
 };
 use lapce_core::{

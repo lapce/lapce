@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use floem::reactive::{create_rw_signal, RwSignal, Scope};
+use floem::reactive::{RwSignal, Scope};
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
 use lapce_rpc::source_control::FileDiff;

@@ -13,13 +13,14 @@ use crossbeam_channel::Sender;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener},
-    ext_event::{create_ext_action, create_signal_from_channel},
+    ext_event::create_signal_from_channel,
     peniko::{
         kurbo::{Point, Rect, Size},
         Color,
     },
     reactive::{
-        create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal, Scope,
+        create_effect, create_memo, create_rw_signal, provide_context, use_context,
+        ReadSignal, RwSignal, Scope,
     },
     style::{
         AlignItems, CursorStyle, Dimension, Display, FlexDirection, JustifyContent,
@@ -32,7 +33,6 @@ use floem::{
         VirtualListVector,
     },
     window::WindowConfig,
-    ViewContext,
 };
 use lapce_core::{directory::Directory, meta, mode::Mode};
 use lapce_rpc::{
@@ -152,7 +152,7 @@ impl AppData {
     pub fn run_app_command(&self, cmd: AppCommand) {
         match cmd {
             AppCommand::SaveApp => {
-                let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+                let db: Arc<LapceDb> = use_context().unwrap();
                 let _ = db.save_app(self);
             }
         }
@@ -203,7 +203,6 @@ fn editor_tab_header(
                 is_pristine: bool,
             }
 
-            let cx = ViewContext::get_current();
             let info = match child {
                 EditorTabChild::Editor(editor_id) => create_memo(move |_| {
                     let config = config.get();
@@ -572,7 +571,10 @@ fn editor_tab_content(
                 let editor_data = editors
                     .with_untracked(|editors| editors.get(&editor_id).cloned());
                 if let Some(editor_data) = editor_data {
+                    let editor_scope =
+                        editor_data.with_untracked(|editor_data| editor_data.scope);
                     let is_active = move |tracked: bool| {
+                        editor_scope.track();
                         let focus = if tracked {
                             focus.get()
                         } else {
@@ -614,6 +616,7 @@ fn editor_tab_content(
                 if let Some(diff_editor_data) = diff_editor_data {
                     let focus_right = diff_editor_data.focus_right;
                     let diff_editor_tab_id = diff_editor_data.editor_tab_id;
+                    let diff_editor_scope = diff_editor_data.scope;
                     let is_active = move |tracked: bool| {
                         let focus = if tracked {
                             focus.get()
@@ -631,8 +634,6 @@ fn editor_tab_content(
                             false
                         }
                     };
-                    let diff_editor_scope = diff_editor_data.scope;
-                    let cx = ViewContext::get_current();
                     let (left_viewport, left_scroll_to) =
                         diff_editor_data.left.with_untracked(|editor| {
                             (editor.viewport, editor.scroll_to)
@@ -734,6 +735,9 @@ fn editor_tab_content(
                             .style(|| Style::BASE.size_pct(100.0, 100.0)),
                         )
                     })
+                    .on_cleanup(move || {
+                        diff_editor_scope.dispose();
+                    })
                 } else {
                     container_box(|| {
                         Box::new(label(|| "emtpy diff editor".to_string()))
@@ -759,10 +763,6 @@ fn editor_tab(
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
     diff_editors: ReadSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
 ) -> impl View {
-    let (editor_tab_id, editor_tab_scope) =
-        editor_tab.with_untracked(|e| (e.editor_tab_id, e.scope));
-    let editor_tabs = main_split.editor_tabs;
-
     let common = main_split.common.clone();
     let focus = common.focus;
     let internal_command = main_split.common.internal_command;
@@ -792,6 +792,11 @@ fn editor_tab(
         let editor_tab_id = editor_tab.with_untracked(|t| t.editor_tab_id);
         internal_command.send(InternalCommand::FocusEditorTab { editor_tab_id });
         false
+    })
+    .on_cleanup(move || {
+        editor_tab
+            .with_untracked(|editor_tab| editor_tab.scope)
+            .dispose();
     })
     .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
 }
@@ -888,8 +893,6 @@ fn split_list(
     let diff_editors = main_split.diff_editors.read_only();
     let splits = main_split.splits.read_only();
     let config = main_split.common.config;
-    let (split_id, split_scope) =
-        split.with_untracked(|split| (split.split_id, split.scope));
 
     let direction = move || split.with(|split| split.direction);
     let items = move || split.get().children.into_iter().enumerate();
@@ -976,6 +979,11 @@ fn split_list(
             })
             .style(|| Style::BASE.size_pct(100.0, 100.0)),
         )
+    })
+    .on_cleanup(move || {
+        split
+            .with_untracked(|split_data| split_data.scope)
+            .dispose();
     })
 }
 
@@ -1093,7 +1101,6 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
     let editor = window_tab_data.main_split.active_editor;
     let panel = window_tab_data.panel.clone();
     let palette = window_tab_data.palette.clone();
-    let cx = ViewContext::get_current();
     let diagnostic_count = create_memo(move |_| {
         let mut errors = 0;
         let mut warnings = 0;
@@ -2414,6 +2421,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let workspace = window_tab_data.workspace.clone();
     let workbench_command = window_tab_data.common.workbench_command;
     let main_split = window_tab_data.main_split.clone();
+    let window_tab_scope = window_tab_data.scope;
 
     let view = stack(|| {
         (
@@ -2443,6 +2451,9 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
             palette(window_tab_data.clone()),
             about::about_popup(window_tab_data.clone()),
         )
+    })
+    .on_cleanup(move || {
+        window_tab_scope.dispose();
     })
     .style(move || {
         let config = config.get();
@@ -2475,7 +2486,6 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
     let tabs = window_data.window_tabs;
     let active = window_data.active;
     let config = window_data.config;
-    let cx = ViewContext::get_current();
     let available_width = create_rw_signal(0.0);
     let add_icon_width = create_rw_signal(0.0);
 
@@ -2773,7 +2783,7 @@ pub fn launch() {
     let db = Arc::new(LapceDb::new().unwrap());
     let mut app = floem::Application::new();
     let scope = Scope::current().create_child();
-    provide_context(scope, db.clone());
+    provide_context(db.clone());
 
     let window_scale = scope.create_rw_signal(1.0);
     let latest_release = scope.create_rw_signal(Arc::new(None));

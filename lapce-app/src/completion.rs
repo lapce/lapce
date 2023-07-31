@@ -2,7 +2,7 @@ use std::{borrow::Cow, path::PathBuf, str::FromStr, sync::Arc};
 
 use floem::{
     peniko::kurbo::Rect,
-    reactive::{create_rw_signal, ReadSignal, RwSignal, Scope},
+    reactive::{ReadSignal, RwSignal, Scope},
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use lapce_core::{buffer::rope_text::RopeText, movement::Movement};

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use floem::{
     peniko::kurbo::{Point, Rect},
-    reactive::{create_rw_signal, RwSignal, Scope},
+    reactive::{RwSignal, Scope},
 };
 use serde::{Deserialize, Serialize};
 

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use floem::{
     ext_event::create_ext_action,
     peniko::kurbo::Rect,
-    reactive::{create_rw_signal, RwSignal, Scope},
+    reactive::{RwSignal, Scope},
 };
 use lapce_core::{command::FocusCommand, mode::Mode, selection::Selection};
 use lapce_rpc::proxy::ProxyResponse;

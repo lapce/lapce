@@ -1,6 +1,6 @@
 use std::cmp::{max, min};
 
-use floem::reactive::{create_effect, create_rw_signal, RwSignal, Scope};
+use floem::reactive::{create_effect, RwSignal, Scope};
 use lapce_core::{
     selection::{SelRegion, Selection},
     word::WordCursor,

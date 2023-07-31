@@ -205,6 +205,7 @@ fn terminal_tab_split(
 ) -> impl View {
     let config = terminal_panel_data.common.config;
     let active = terminal_tab_data.active;
+    let terminal_tab_scope = terminal_tab_data.scope;
     list(
         move || {
             let terminals = terminal_tab_data.terminals.get();
@@ -218,6 +219,7 @@ fn terminal_tab_split(
         |(_, terminal)| terminal.term_id,
         move |(index, terminal)| {
             let terminal_panel_data = terminal_panel_data.clone();
+            let terminal_scope = terminal.scope;
             container(move || {
                 terminal_view(
                     terminal.term_id,
@@ -241,6 +243,9 @@ fn terminal_tab_split(
                         false
                     }
                 })
+                .on_cleanup(move || {
+                    terminal_scope.dispose();
+                })
                 .style(|| Style::BASE.size_pct(100.0, 100.0))
             })
             .style(move || {
@@ -255,6 +260,9 @@ fn terminal_tab_split(
             })
         },
     )
+    .on_cleanup(move || {
+        terminal_tab_scope.dispose();
+    })
     .style(|| Style::BASE.size_pct(100.0, 100.0))
 }
 

@@ -34,7 +34,6 @@ pub fn source_control_panel(
     let doc = editor.view.doc;
     let cursor = editor.cursor;
     let viewport = editor.viewport;
-    let cx = ViewContext::get_current();
     let editor = create_rw_signal(editor);
     let is_active =
         move || focus.get_untracked() == Focus::Panel(PanelKind::SourceControl);

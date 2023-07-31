@@ -9,7 +9,7 @@ use std::{
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
-    reactive::{create_rw_signal, ReadSignal, RwSignal, Scope},
+    reactive::{ReadSignal, RwSignal, Scope},
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -531,21 +531,13 @@ impl Document {
         self.line_styles.borrow().get(&line).cloned().unwrap()
     }
 
-    pub fn tigger_proxy_update(
-        cx: Scope,
-        doc: RwSignal<Document>,
-        proxy: &ProxyRpcHandler,
-    ) {
-        Self::get_inlay_hints(cx, doc, proxy);
-        Self::get_semantic_styles(cx, doc, proxy);
+    pub fn tigger_proxy_update(doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
+        Self::get_inlay_hints(doc, proxy);
+        Self::get_semantic_styles(doc, proxy);
     }
 
     /// Request semantic styles for the buffer from the LSP through the proxy.
-    fn get_semantic_styles(
-        cx: Scope,
-        doc: RwSignal<Document>,
-        proxy: &ProxyRpcHandler,
-    ) {
+    fn get_semantic_styles(doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
         if !doc.with_untracked(|doc| doc.loaded) {
             return;
         }
@@ -556,12 +548,12 @@ impl Document {
             DocContent::History(_) => return,
         };
 
-        let (rev, len) =
-            doc.with_untracked(|doc| (doc.buffer.rev(), doc.buffer.len()));
+        let (rev, len, cx) = doc
+            .with_untracked(|doc| (doc.buffer.rev(), doc.buffer.len(), doc.scope));
 
         let syntactic_styles = doc.with_untracked(|doc| doc.syntax.styles.clone());
 
-        let send = create_ext_action(move |styles| {
+        let send = create_ext_action(cx, move |styles| {
             doc.update(|doc| {
                 if doc.buffer.rev() == rev {
                     doc.semantic_styles = Some(styles);
@@ -602,7 +594,7 @@ impl Document {
     }
 
     /// Request inlay hints for the buffer from the LSP through the proxy.
-    fn get_inlay_hints(cx: Scope, doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
+    fn get_inlay_hints(doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
         if !doc.with_untracked(|doc| doc.loaded) {
             return;
         }
@@ -613,11 +605,16 @@ impl Document {
             DocContent::History(_) => return,
         };
 
-        let (buffer, rev, len) = doc.with_untracked(|doc| {
-            (doc.buffer.clone(), doc.buffer.rev(), doc.buffer.len())
+        let (buffer, rev, len, cx) = doc.with_untracked(|doc| {
+            (
+                doc.buffer.clone(),
+                doc.buffer.rev(),
+                doc.buffer.len(),
+                doc.scope,
+            )
         });
 
-        let send = create_ext_action(move |hints| {
+        let send = create_ext_action(cx, move |hints| {
             doc.update(|doc| {
                 if doc.buffer.rev() == rev {
                     doc.inlay_hints = Some(hints);
@@ -1072,7 +1069,7 @@ impl Document {
             let send = {
                 let path = path.clone();
                 let doc = self.clone();
-                create_ext_action(move |result| {
+                create_ext_action(self.scope, move |result| {
                     if let Ok(ProxyResponse::BufferHeadResponse {
                         content, ..
                     }) = result
@@ -1121,7 +1118,7 @@ impl Document {
         let send = {
             let atomic_rev = atomic_rev.clone();
             let head_changes = self.head_changes;
-            create_ext_action(move |changes| {
+            create_ext_action(self.scope, move |changes| {
                 let changes = if let Some(changes) = changes {
                     changes
                 } else {

@@ -2,7 +2,7 @@ use std::{ops::Range, path::PathBuf};
 
 use floem::{
     ext_event::create_ext_action,
-    reactive::{create_effect, create_rw_signal, Memo, RwSignal, Scope},
+    reactive::{create_effect, Memo, RwSignal, Scope},
     views::VirtualListVector,
 };
 use indexmap::IndexMap;
@@ -179,11 +179,11 @@ impl GlobalSearchData {
                     let match_data =
                         current.get(&path).cloned().unwrap_or_else(|| {
                             SearchMatchData {
-                                expanded: create_rw_signal(self.common.scope, true),
-                                matches: create_rw_signal(
-                                    self.common.scope,
-                                    im::Vector::new(),
-                                ),
+                                expanded: self.common.scope.create_rw_signal(true),
+                                matches: self
+                                    .common
+                                    .scope
+                                    .create_rw_signal(im::Vector::new()),
                                 line_height: self.common.ui_line_height,
                             }
                         });

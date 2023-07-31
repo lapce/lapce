@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 
-use floem::reactive::{create_rw_signal, RwSignal, Scope};
+use floem::reactive::{RwSignal, Scope};
 use lapce_rpc::{
     dap_types::{
         DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped, ThreadId,

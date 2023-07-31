@@ -4,7 +4,6 @@ use floem::{
     context::PaintCx,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     event::{Event, EventListener},
-    ext_event::create_ext_action,
     glazier::{Modifiers, PointerType},
     id::Id,
     peniko::{
@@ -106,14 +105,13 @@ pub fn editor_view(
     });
 
     create_effect(move |last_rev| {
-        let (doc, sticky_header_height_signal, config) =
-            editor.with_untracked(|editor| {
-                (
-                    editor.view.doc,
-                    editor.sticky_header_height,
-                    editor.common.config,
-                )
-            });
+        let (doc, sticky_header_height_signal, config) = editor.with(|editor| {
+            (
+                editor.view.doc,
+                editor.sticky_header_height,
+                editor.common.config,
+            )
+        });
         let config = config.get();
         if !config.editor.sticky_header {
             return (DocContent::Local, 0, 0, Rect::ZERO);
@@ -1176,31 +1174,21 @@ pub fn editor_container_view(
     is_active: impl Fn(bool) -> bool + 'static + Copy,
     editor: RwSignal<EditorData>,
 ) -> impl View {
-    let (
-        find_focus,
-        sticky_header_height,
-        editor_view,
-        config,
-        editor_id,
-        editor_scope,
-    ) = editor.with_untracked(|editor| {
-        (
-            editor.find_focus,
-            editor.sticky_header_height,
-            editor.view.kind,
-            editor.common.config,
-            editor.editor_id,
-            editor.scope,
-        )
-    });
-    let editors = main_split.editors;
+    let (find_focus, sticky_header_height, editor_view, config) = editor
+        .with_untracked(|editor| {
+            (
+                editor.find_focus,
+                editor.sticky_header_height,
+                editor.view.kind,
+                editor.common.config,
+            )
+        });
 
     let find_editor = main_split.find_editor;
     let replace_editor = main_split.replace_editor;
     let replace_active = main_split.common.find.replace_active;
     let replace_focus = main_split.common.find.replace_focus;
 
-    let cx = ViewContext::get_current();
     let editor_rect = create_rw_signal(Rect::ZERO);
     let gutter_rect = create_rw_signal(Rect::ZERO);
 
@@ -1249,6 +1237,10 @@ pub fn editor_container_view(
             .style(|| Style::BASE.size_pct(100.0, 100.0)),
         )
     })
+    .on_cleanup(move || {
+        let cx = editor.with_untracked(|editor| editor.scope);
+        cx.dispose();
+    })
     .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
 }
 
@@ -1272,7 +1264,6 @@ fn editor_gutter(
     let padding_left = 10.0;
     let padding_right = 30.0;
 
-    let cx = ViewContext::get_current();
     let code_action_line = create_memo(move |_| {
         if is_active(true) {
             let doc = editor.with(|editor| editor.view.doc);

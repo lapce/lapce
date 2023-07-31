@@ -10,7 +10,6 @@ use floem::{
         container, container_box, empty, label, list, scroll, stack, svg,
         virtual_list, Decorators, VirtualListDirection, VirtualListVector,
     },
-    ViewContext,
 };
 use inflector::Inflector;
 use lapce_core::mode::Mode;
@@ -384,7 +383,6 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     )
                 })
             } else if let SettingsValue::Dropdown(dropdown) = item.value {
-                let cx = Scope::current();
                 let expanded = create_rw_signal(false);
                 let current_value = dropdown
                     .items
@@ -578,7 +576,6 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             })
                     }),
                     if let Some(is_ticked) = is_ticked {
-                        let cx = ViewContext::get_current();
                         let checked = create_rw_signal(is_ticked);
 
                         let kind = item.kind.clone();

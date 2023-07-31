@@ -1,10 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, process::Command, sync::Arc};
 
 use crossbeam_channel::Sender;
-use floem::{
-    ext_event::create_signal_from_channel,
-    reactive::{ReadSignal, Scope},
-};
+use floem::{ext_event::create_signal_from_channel, reactive::ReadSignal};
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRpcHandler},
@@ -46,7 +43,6 @@ impl ProxyData {
 }
 
 pub fn start_proxy(
-    cx: Scope,
     workspace: Arc<LapceWorkspace>,
     disabled_volts: Vec<VoltID>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
@@ -116,7 +112,7 @@ pub fn start_proxy(
         })
     };
 
-    let notification = create_signal_from_channel(cx, rx);
+    let notification = create_signal_from_channel(rx);
 
     ProxyData {
         proxy_rpc,

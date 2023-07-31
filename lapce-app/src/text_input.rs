@@ -130,7 +130,6 @@ pub struct TextInput {
 
 impl TextInput {
     pub fn placeholder(self, placeholder: impl Fn() -> String + 'static) -> Self {
-        let cx = ViewContext::get_current();
         let id = self.id;
         create_effect(move |_| {
             let placeholder = placeholder();

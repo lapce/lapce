@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use floem::{
     event::EventListener,
-    peniko::Color,
-    reactive::{create_rw_signal, RwSignal, Scope},
+    reactive::{RwSignal, Scope},
     style::{CursorStyle, Display, Position, Style},
     view::View,
     views::{container, label, stack, svg, Decorators},
