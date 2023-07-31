@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use floem::{
     event::EventListener,
-    reactive::{ReadSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate},
+    reactive::ReadSignal,
     style::{CursorStyle, Style},
     view::View,
     views::{

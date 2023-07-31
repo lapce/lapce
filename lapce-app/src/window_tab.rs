@@ -7,9 +7,7 @@ use floem::{
     glazier::{FileDialogOptions, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{
-        create_effect, create_memo, create_rw_signal, create_signal, use_context,
-        Memo, ReadSignal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWith, SignalWithUntracked, WriteSignal,
+        create_effect, use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal,
     },
 };
 use itertools::Itertools;
@@ -164,8 +162,8 @@ impl WindowTabData {
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     ) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
-        let db: Arc<LapceDb> = use_context(cx).unwrap();
+        let cx = cx.create_child();
+        let db: Arc<LapceDb> = use_context().unwrap();
 
         let disabled_volts = db.get_disabled_volts().unwrap_or_default();
         let workspace_disabled_volts = db
@@ -189,7 +187,7 @@ impl WindowTabData {
         let workbench_command = Listener::new_empty(cx);
         let internal_command = Listener::new_empty(cx);
         let keypress =
-            create_rw_signal(cx, KeyPressData::new(&config, workbench_command));
+            cx.create_rw_signal(KeyPressData::new(&config, workbench_command));
 
         let (term_tx, term_rx) = crossbeam_channel::unbounded();
         let (term_notification_tx, term_notification_rx) =
@@ -202,22 +200,21 @@ impl WindowTabData {
         }
 
         let proxy = start_proxy(
-            cx,
             workspace.clone(),
             all_disabled_volts,
             config.plugins.clone(),
             term_tx.clone(),
         );
-        let (config, set_config) = create_signal(cx, Arc::new(config));
+        let (config, set_config) = cx.create_signal(Arc::new(config));
 
-        let focus = create_rw_signal(cx, Focus::Workbench);
-        let completion = create_rw_signal(cx, CompletionData::new(cx, config));
+        let focus = cx.create_rw_signal(Focus::Workbench);
+        let completion = cx.create_rw_signal(CompletionData::new(cx, config));
 
-        let register = create_rw_signal(cx, Register::default());
-        let view_id = create_rw_signal(cx, floem::id::Id::next());
+        let register = cx.create_rw_signal(Register::default());
+        let view_id = cx.create_rw_signal(floem::id::Id::next());
         let find = Find::new(cx);
 
-        let ui_line_height = create_memo(cx, move |_| {
+        let ui_line_height = cx.create_memo(move |_| {
             let config = config.get();
             let mut text_layout = TextLayout::new();
 
@@ -249,13 +246,13 @@ impl WindowTabData {
             proxy: proxy.proxy_rpc.clone(),
             view_id,
             ui_line_height,
-            dragging: create_rw_signal(cx, None),
+            dragging: cx.create_rw_signal(None),
             config,
         };
 
         let main_split = MainSplitData::new(cx, common.clone());
         let code_action =
-            create_rw_signal(cx, CodeActionData::new(cx, common.clone()));
+            cx.create_rw_signal(CodeActionData::new(cx, common.clone()));
         let source_control = SourceControlData::new(cx, common.clone());
         let file_explorer = FileExplorerData::new(cx, common.clone());
 
@@ -265,7 +262,7 @@ impl WindowTabData {
         } else {
             let root_split = main_split.root_split;
             let root_split_data = {
-                let (cx, _) = cx.run_child_scope(|cx| cx);
+                let cx = cx.create_child();
                 let root_split_data = SplitData {
                     scope: cx,
                     parent_split: None,
@@ -275,7 +272,7 @@ impl WindowTabData {
                     window_origin: Point::ZERO,
                     layout_rect: Rect::ZERO,
                 };
-                create_rw_signal(cx, root_split_data)
+                cx.create_rw_signal(root_split_data)
             };
             main_split.splits.update(|splits| {
                 splits.insert(root_split, root_split_data);
@@ -298,9 +295,9 @@ impl WindowTabData {
                     .get_panel_orders()
                     .unwrap_or_else(|_| i.panel.panels.clone());
                 PanelData {
-                    panels: create_rw_signal(cx, panel_order),
-                    styles: create_rw_signal(cx, i.panel.styles.clone()),
-                    size: create_rw_signal(cx, i.panel.size.clone()),
+                    panels: cx.create_rw_signal(panel_order),
+                    styles: cx.create_rw_signal(i.panel.styles.clone()),
+                    size: cx.create_rw_signal(i.panel.size.clone()),
                     common: common.clone(),
                 }
             })
@@ -326,9 +323,10 @@ impl WindowTabData {
         );
 
         {
-            let notification = create_signal_from_channel(cx, term_notification_rx);
+            let notification = create_signal_from_channel(term_notification_rx);
             let terminal = terminal.clone();
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
+                cx.track();
                 notification.with(|notification| {
                     if let Some(notification) = notification.as_ref() {
                         match notification {
@@ -361,12 +359,12 @@ impl WindowTabData {
             rename,
             global_search,
             about_data,
-            window_origin: create_rw_signal(cx, Point::ZERO),
-            layout_rect: create_rw_signal(cx, Rect::ZERO),
+            window_origin: cx.create_rw_signal(Point::ZERO),
+            layout_rect: cx.create_rw_signal(Rect::ZERO),
             proxy,
             window_scale,
             set_config,
-            update_in_progress: create_rw_signal(cx, false),
+            update_in_progress: cx.create_rw_signal(false),
             latest_release,
             common,
         };
@@ -396,7 +394,7 @@ impl WindowTabData {
         {
             let window_tab_data = window_tab_data.clone();
             let notification = window_tab_data.proxy.notification;
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 notification.with(|rpc| {
                     if let Some(rpc) = rpc.as_ref() {
                         window_tab_data.handle_core_notification(rpc);
@@ -409,7 +407,7 @@ impl WindowTabData {
     }
 
     pub fn reload_config(&self) {
-        let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+        let db: Arc<LapceDb> = use_context().unwrap();
 
         let disabled_volts = db.get_disabled_volts().unwrap_or_default();
         let workspace_disabled_volts = db
@@ -449,7 +447,6 @@ impl WindowTabData {
         cmd: LapceWorkbenchCommand,
         data: Option<Value>,
     ) {
-        let cx = self.scope;
         use LapceWorkbenchCommand::*;
         match cmd {
             // ==== Modal ====
@@ -764,7 +761,7 @@ impl WindowTabData {
 
             // ==== Remote ====
             ConnectSshHost => {
-                self.palette.run(cx, PaletteKind::SshHost);
+                self.palette.run(PaletteKind::SshHost);
             }
             ConnectWsl => {
                 // TODO:
@@ -783,35 +780,35 @@ impl WindowTabData {
 
             // ==== Palette Commands ====
             PaletteLine => {
-                self.palette.run(cx, PaletteKind::Line);
+                self.palette.run(PaletteKind::Line);
             }
             Palette => {
-                self.palette.run(cx, PaletteKind::File);
+                self.palette.run(PaletteKind::File);
             }
             PaletteSymbol => {
-                self.palette.run(cx, PaletteKind::DocumentSymbol);
+                self.palette.run(PaletteKind::DocumentSymbol);
             }
             PaletteWorkspaceSymbol => {}
             PaletteCommand => {
-                self.palette.run(cx, PaletteKind::Command);
+                self.palette.run(PaletteKind::Command);
             }
             PaletteWorkspace => {
-                self.palette.run(cx, PaletteKind::Workspace);
+                self.palette.run(PaletteKind::Workspace);
             }
             PaletteRunAndDebug => {
-                self.palette.run(cx, PaletteKind::RunAndDebug);
+                self.palette.run(PaletteKind::RunAndDebug);
             }
             PaletteSCMReferences => {
-                self.palette.run(cx, PaletteKind::SCMReferences);
+                self.palette.run(PaletteKind::SCMReferences);
             }
             ChangeColorTheme => {
-                self.palette.run(cx, PaletteKind::ColorTheme);
+                self.palette.run(PaletteKind::ColorTheme);
             }
             ChangeIconTheme => {
-                self.palette.run(cx, PaletteKind::IconTheme);
+                self.palette.run(PaletteKind::IconTheme);
             }
             ChangeFileLanguage => {
-                self.palette.run(cx, PaletteKind::Language);
+                self.palette.run(PaletteKind::Language);
             }
 
             // ==== Running / Debugging ====
@@ -821,7 +818,7 @@ impl WindowTabData {
                     .and_then(|term_id| self.terminal.restart_run_debug(term_id))
                     .is_none()
                 {
-                    self.palette.run(cx, PaletteKind::RunAndDebug);
+                    self.palette.run(PaletteKind::RunAndDebug);
                 }
             }
             RunAndDebugStop => {
@@ -1002,10 +999,12 @@ impl WindowTabData {
                     if release.version != *meta::VERSION {
                         if let Ok(process_path) = env::current_exe() {
                             update_in_progress.set(true);
-                            let send =
-                                create_ext_action(self.scope, move |_started| {
+                            let send = create_ext_action(
+                                self.common.scope,
+                                move |_started| {
                                     update_in_progress.set(false);
-                                });
+                                },
+                            );
                             std::thread::spawn(move || {
                                 let do_update = || -> anyhow::Result<()> {
                                     let src =
@@ -1088,7 +1087,7 @@ impl WindowTabData {
             }
             InternalCommand::PaletteReferences { references } => {
                 self.palette.references.set(references);
-                self.palette.run(cx, PaletteKind::Reference);
+                self.palette.run(PaletteKind::Reference);
             }
             InternalCommand::Split {
                 direction,

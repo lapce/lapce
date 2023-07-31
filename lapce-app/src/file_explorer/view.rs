@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use floem::{
     peniko::Color,
-    reactive::{ReadSignal, SignalGet},
+    reactive::ReadSignal,
     style::{CursorStyle, Style},
     view::View,
     views::{

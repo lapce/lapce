@@ -3,10 +3,7 @@ use std::sync::Arc;
 use floem::{
     glazier::KeyEvent,
     peniko::kurbo::{Point, Size},
-    reactive::{
-        create_rw_signal, use_context, ReadSignal, RwSignal, Scope,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWithUntracked,
-    },
+    reactive::{use_context, ReadSignal, RwSignal, Scope},
 };
 use serde::{Deserialize, Serialize};
 
@@ -66,8 +63,8 @@ impl WindowData {
         app_command: Listener<AppCommand>,
     ) -> Self {
         let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
-        let config = create_rw_signal(cx, Arc::new(config));
-        let root_view_id = create_rw_signal(cx, floem::id::Id::next());
+        let config = cx.create_rw_signal(Arc::new(config));
+        let root_view_id = cx.create_rw_signal(floem::id::Id::next());
 
         let mut window_tabs = im::Vector::new();
         let active = info.tabs.active_tab;
@@ -82,7 +79,7 @@ impl WindowData {
                 window_scale,
                 latest_release,
             ));
-            window_tabs.push_back((create_rw_signal(cx, 0), window_tab));
+            window_tabs.push_back((cx.create_rw_signal(0), window_tab));
         }
 
         if window_tabs.is_empty() {
@@ -93,13 +90,13 @@ impl WindowData {
                 window_scale,
                 latest_release,
             ));
-            window_tabs.push_back((create_rw_signal(cx, 0), window_tab));
+            window_tabs.push_back((cx.create_rw_signal(0), window_tab));
         }
 
-        let window_tabs = create_rw_signal(cx, window_tabs);
-        let active = create_rw_signal(cx, active);
-        let size = create_rw_signal(cx, Size::ZERO);
-        let position = create_rw_signal(cx, info.pos);
+        let window_tabs = cx.create_rw_signal(window_tabs);
+        let active = cx.create_rw_signal(active);
+        let size = cx.create_rw_signal(Size::ZERO);
+        let position = cx.create_rw_signal(info.pos);
 
         let window_data = Self {
             scope: cx,
@@ -137,7 +134,7 @@ impl WindowData {
     pub fn run_window_command(&self, cmd: WindowCommand) {
         match cmd {
             WindowCommand::SetWorkspace { workspace } => {
-                let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+                let db: Arc<LapceDb> = use_context().unwrap();
                 let _ = db.update_recent_workspace(&workspace);
 
                 let active = self.active.get_untracked();
@@ -157,22 +154,20 @@ impl WindowData {
                 ));
                 self.window_tabs.update(|window_tabs| {
                     if window_tabs.is_empty() {
-                        window_tabs.push_back((
-                            create_rw_signal(self.scope, 0),
-                            window_tab,
-                        ));
+                        window_tabs
+                            .push_back((self.scope.create_rw_signal(0), window_tab));
                     } else {
                         let active = window_tabs.len().saturating_sub(1).min(active);
                         let (_, old_window_tab) = window_tabs.set(
                             active,
-                            (create_rw_signal(self.scope, 0), window_tab),
+                            (self.scope.create_rw_signal(0), window_tab),
                         );
                         old_window_tab.proxy.shutdown();
                     }
                 })
             }
             WindowCommand::NewWorkspaceTab { workspace, end } => {
-                let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+                let db: Arc<LapceDb> = use_context().unwrap();
                 let _ = db.update_recent_workspace(&workspace);
 
                 let window_tab = Arc::new(WindowTabData::new(
@@ -188,7 +183,7 @@ impl WindowData {
                     .try_update(|tabs| {
                         if end || tabs.is_empty() {
                             tabs.push_back((
-                                create_rw_signal(self.scope, 0),
+                                self.scope.create_rw_signal(0),
                                 window_tab,
                             ));
                             tabs.len() - 1
@@ -196,7 +191,7 @@ impl WindowData {
                             let index = tabs.len().min(active + 1);
                             tabs.insert(
                                 index,
-                                (create_rw_signal(self.scope, 0), window_tab),
+                                (self.scope.create_rw_signal(0), window_tab),
                             );
                             index
                         }
@@ -215,7 +210,7 @@ impl WindowData {
                     if index < window_tabs.len() {
                         let (_, old_window_tab) = window_tabs.remove(index);
                         old_window_tab.proxy.shutdown();
-                        let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+                        let db: Arc<LapceDb> = use_context().unwrap();
                         let _ = db.save_window_tab(old_window_tab);
                     }
                 });

@@ -4,10 +4,7 @@ use floem::{
     event::{Event, EventListener},
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Size},
-    reactive::{
-        create_memo, create_rw_signal, SignalGet, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWith,
-    },
+    reactive::{create_memo, create_rw_signal},
     style::{CursorStyle, Style},
     view::View,
     views::{container, label, list, scroll, stack, svg, Decorators},
@@ -37,12 +34,10 @@ pub fn source_control_panel(
     let doc = editor.view.doc;
     let cursor = editor.cursor;
     let viewport = editor.viewport;
-    let cx = ViewContext::get_current();
-    let editor = create_rw_signal(cx.scope, editor);
+    let editor = create_rw_signal(editor);
     let is_active =
         move || focus.get_untracked() == Focus::Panel(PanelKind::SourceControl);
-    let is_empty =
-        create_memo(cx.scope, move |_| doc.with(|doc| doc.buffer().len() == 0));
+    let is_empty = create_memo(move |_| doc.with(|doc| doc.buffer().len() == 0));
 
     stack(|| {
         (
@@ -214,8 +209,8 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
     let config = source_control.common.config;
     let workspace = source_control.common.workspace;
     let cx = ViewContext::get_current();
-    let panel_rect = create_rw_signal(cx.scope, Rect::ZERO);
-    let panel_width = create_memo(cx.scope, move |_| panel_rect.get().width());
+    let panel_rect = create_rw_signal(Rect::ZERO);
+    let panel_width = create_memo(move |_| panel_rect.get().width());
     let lapce_command = source_control.common.lapce_command;
     let internal_command = source_control.common.internal_command;
 

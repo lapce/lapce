@@ -3,18 +3,13 @@ use std::sync::Arc;
 use floem::{
     event::EventListener,
     peniko::{kurbo::Size, Color},
-    reactive::{
-        create_effect, create_rw_signal, ReadSignal, RwSignal, Scope, SignalGet,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked,
-    },
+    reactive::{create_effect, create_rw_signal, ReadSignal, RwSignal, Scope},
     style::{CursorStyle, Style},
     view::View,
     views::{
         container, container_box, empty, label, list, scroll, stack, svg,
         virtual_list, Decorators, VirtualListDirection, VirtualListVector,
     },
-    ViewContext,
 };
 use inflector::Inflector;
 use lapce_core::mode::Mode;
@@ -180,13 +175,13 @@ impl SettingsData {
                     filter_text,
                     description: desc.to_string(),
                     value,
-                    size: create_rw_signal(cx, Size::ZERO),
+                    size: cx.create_rw_signal(Size::ZERO),
                 });
             }
         }
 
         Self {
-            filtered_items: create_rw_signal(cx, items.clone()),
+            filtered_items: cx.create_rw_signal(items.clone()),
             items,
             common,
         }
@@ -196,17 +191,16 @@ impl SettingsData {
 pub fn settings_view(common: CommonData) -> impl View {
     let config = common.config;
 
-    let cx = ViewContext::get_current();
-
-    let settings_data = SettingsData::new(cx.scope, common.clone());
+    let cx = Scope::current();
+    let settings_data = SettingsData::new(cx, common.clone());
     let view_settings_data = settings_data.clone();
 
-    let search_editor = EditorData::new_local(cx.scope, EditorId::next(), common);
+    let search_editor = EditorData::new_local(cx, EditorId::next(), common);
     let doc = search_editor.view.doc;
 
     let items = settings_data.items.clone();
     let filtered_items_signal = settings_data.filtered_items;
-    create_effect(cx.scope, move |last| {
+    create_effect(move |last| {
         let rev = doc.with(|doc| doc.rev());
 
         if last == Some(rev) {
@@ -339,10 +333,10 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
     let view = {
         let item = item.clone();
         move || {
-            let cx = ViewContext::get_current();
+            let cx = Scope::current();
             if let Some(editor_value) = editor_value {
                 let editor = EditorData::new_local(
-                    cx.scope,
+                    cx,
                     EditorId::next(),
                     settings_data.common,
                 );
@@ -350,7 +344,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
 
                 let kind = item.kind.clone();
                 let field = item.field.clone();
-                create_effect(cx.scope, move |last| {
+                create_effect(move |last| {
                     let rev = doc.with(|doc| doc.buffer().rev());
                     if last == Some(rev) {
                         return rev;
@@ -389,15 +383,14 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     )
                 })
             } else if let SettingsValue::Dropdown(dropdown) = item.value {
-                let cx = ViewContext::get_current();
-                let expanded = create_rw_signal(cx.scope, false);
+                let expanded = create_rw_signal(false);
                 let current_value = dropdown
                     .items
                     .get(dropdown.active_index)
                     .or_else(|| dropdown.items.last())
                     .map(|s| s.to_string())
                     .unwrap_or_default();
-                let current_value = create_rw_signal(cx.scope, current_value);
+                let current_value = create_rw_signal(current_value);
 
                 let kind = item.kind.clone();
                 let field = item.field.clone();
@@ -583,12 +576,11 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             })
                     }),
                     if let Some(is_ticked) = is_ticked {
-                        let cx = ViewContext::get_current();
-                        let checked = create_rw_signal(cx.scope, is_ticked);
+                        let checked = create_rw_signal(is_ticked);
 
                         let kind = item.kind.clone();
                         let field = item.field.clone();
-                        create_effect(cx.scope, move |_| {
+                        create_effect(move |_| {
                             let checked = checked.get();
                             if let Some(value) = toml_edit::ser::to_item(&checked)
                                 .ok()

@@ -2,7 +2,6 @@
 
 use std::collections::HashSet;
 
-use floem::reactive::{SignalGetUntracked, SignalUpdate};
 use lapce_core::{
     buffer::rope_text::RopeText,
     command::MultiSelectionCommand,

@@ -13,15 +13,14 @@ use crossbeam_channel::Sender;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener},
-    ext_event::{create_ext_action, create_signal_from_channel},
+    ext_event::create_signal_from_channel,
     peniko::{
         kurbo::{Point, Rect, Size},
         Color,
     },
     reactive::{
-        create_effect, create_memo, create_rw_signal, on_cleanup, provide_context,
-        use_context, ReadSignal, RwSignal, Scope, SignalGet, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWith, SignalWithUntracked,
+        create_effect, create_memo, create_rw_signal, provide_context, use_context,
+        ReadSignal, RwSignal, Scope,
     },
     style::{
         AlignItems, CursorStyle, Dimension, Display, FlexDirection, JustifyContent,
@@ -34,7 +33,6 @@ use floem::{
         VirtualListVector,
     },
     window::WindowConfig,
-    ViewContext,
 };
 use lapce_core::{directory::Directory, meta, mode::Mode};
 use lapce_rpc::{
@@ -154,7 +152,7 @@ impl AppData {
     pub fn run_app_command(&self, cmd: AppCommand) {
         match cmd {
             AppCommand::SaveApp => {
-                let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+                let db: Arc<LapceDb> = use_context().unwrap();
                 let _ = db.save_app(self);
             }
         }
@@ -205,73 +203,67 @@ fn editor_tab_header(
                 is_pristine: bool,
             }
 
-            let cx = ViewContext::get_current();
             let info = match child {
-                EditorTabChild::Editor(editor_id) => {
-                    create_memo(cx.scope, move |_| {
-                        let config = config.get();
-                        let editor_data =
-                            editors.with(|editors| editors.get(&editor_id).cloned());
-                        let path = if let Some(editor_data) = editor_data {
-                            let ((content, is_pristine), confirmed) = editor_data
-                                .with(|editor_data| {
-                                    (
-                                        editor_data.view.doc.with(|doc| {
-                                            (
-                                                doc.content.clone(),
-                                                doc.buffer().is_pristine(),
-                                            )
-                                        }),
-                                        editor_data.confirmed,
-                                    )
-                                });
-                            match content {
-                                DocContent::File(path) => {
-                                    Some((path, confirmed, is_pristine))
-                                }
-                                DocContent::Local => None,
-                                DocContent::History(_) => None,
-                            }
-                        } else {
-                            None
-                        };
-                        let (icon, color, path, confirmed, is_pristine) = match path
-                        {
-                            Some((path, confirmed, is_pritine)) => {
-                                let (svg, color) = config.file_svg(&path);
+                EditorTabChild::Editor(editor_id) => create_memo(move |_| {
+                    let config = config.get();
+                    let editor_data =
+                        editors.with(|editors| editors.get(&editor_id).cloned());
+                    let path = if let Some(editor_data) = editor_data {
+                        let ((content, is_pristine), confirmed) =
+                            editor_data.with(|editor_data| {
                                 (
-                                    svg,
-                                    color.cloned(),
-                                    path.file_name()
-                                        .unwrap_or_default()
-                                        .to_str()
-                                        .unwrap_or_default()
-                                        .to_string(),
-                                    confirmed,
-                                    is_pritine,
+                                    editor_data.view.doc.with(|doc| {
+                                        (
+                                            doc.content.clone(),
+                                            doc.buffer().is_pristine(),
+                                        )
+                                    }),
+                                    editor_data.confirmed,
                                 )
+                            });
+                        match content {
+                            DocContent::File(path) => {
+                                Some((path, confirmed, is_pristine))
                             }
-                            None => (
-                                config.ui_svg(LapceIcons::FILE),
-                                Some(
-                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                                ),
-                                "local".to_string(),
-                                create_rw_signal(cx.scope, true),
-                                true,
-                            ),
-                        };
-                        Info {
-                            icon,
-                            color,
-                            path,
-                            confirmed: Some(confirmed),
-                            is_pristine,
+                            DocContent::Local => None,
+                            DocContent::History(_) => None,
                         }
-                    })
-                }
+                    } else {
+                        None
+                    };
+                    let (icon, color, path, confirmed, is_pristine) = match path {
+                        Some((path, confirmed, is_pritine)) => {
+                            let (svg, color) = config.file_svg(&path);
+                            (
+                                svg,
+                                color.cloned(),
+                                path.file_name()
+                                    .unwrap_or_default()
+                                    .to_str()
+                                    .unwrap_or_default()
+                                    .to_string(),
+                                confirmed,
+                                is_pritine,
+                            )
+                        }
+                        None => (
+                            config.ui_svg(LapceIcons::FILE),
+                            Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                            "local".to_string(),
+                            create_rw_signal(true),
+                            true,
+                        ),
+                    };
+                    Info {
+                        icon,
+                        color,
+                        path,
+                        confirmed: Some(confirmed),
+                        is_pristine,
+                    }
+                }),
                 EditorTabChild::DiffEditor(diff_editor_id) => {
-                    create_memo(cx.scope, move |_| {
+                    create_memo(move |_| {
                         let config = config.get();
                         let diff_editor_data = diff_editors.with(|diff_editors| {
                             diff_editors.get(&diff_editor_id).cloned()
@@ -331,7 +323,7 @@ fn editor_tab_header(
                         }
                     })
                 }
-                EditorTabChild::Settings(_) => create_memo(cx.scope, move |_| {
+                EditorTabChild::Settings(_) => create_memo(move |_| {
                     let config = config.get();
                     Info {
                         icon: config.ui_svg(LapceIcons::SETTINGS),
@@ -579,7 +571,10 @@ fn editor_tab_content(
                 let editor_data = editors
                     .with_untracked(|editors| editors.get(&editor_id).cloned());
                 if let Some(editor_data) = editor_data {
+                    let editor_scope =
+                        editor_data.with_untracked(|editor_data| editor_data.scope);
                     let is_active = move |tracked: bool| {
+                        editor_scope.track();
                         let focus = if tracked {
                             focus.get()
                         } else {
@@ -621,6 +616,7 @@ fn editor_tab_content(
                 if let Some(diff_editor_data) = diff_editor_data {
                     let focus_right = diff_editor_data.focus_right;
                     let diff_editor_tab_id = diff_editor_data.editor_tab_id;
+                    let diff_editor_scope = diff_editor_data.scope;
                     let is_active = move |tracked: bool| {
                         let focus = if tracked {
                             focus.get()
@@ -638,22 +634,6 @@ fn editor_tab_content(
                             false
                         }
                     };
-                    let diff_editor_scope = diff_editor_data.scope;
-                    let cx = ViewContext::get_current();
-                    on_cleanup(cx.scope, move || {
-                        let exits = diff_editors.with_untracked(|diff_editors| {
-                            diff_editors.contains_key(&diff_editor_id)
-                        });
-                        if !exits {
-                            let send =
-                                create_ext_action(diff_editor_scope, move |_| {
-                                    diff_editor_scope.dispose();
-                                });
-                            std::thread::spawn(move || {
-                                send(());
-                            });
-                        }
-                    });
                     let (left_viewport, left_scroll_to) =
                         diff_editor_data.left.with_untracked(|editor| {
                             (editor.viewport, editor.scroll_to)
@@ -662,14 +642,14 @@ fn editor_tab_content(
                         diff_editor_data.right.with_untracked(|editor| {
                             (editor.viewport, editor.scroll_to)
                         });
-                    create_effect(cx.scope, move |_| {
+                    create_effect(move |_| {
                         let left_viewport = left_viewport.get();
                         if right_viewport.get_untracked() != left_viewport {
                             right_scroll_to
                                 .set(Some(left_viewport.origin().to_vec2()));
                         }
                     });
-                    create_effect(cx.scope, move |_| {
+                    create_effect(move |_| {
                         let right_viewport = right_viewport.get();
                         if left_viewport.get_untracked() != right_viewport {
                             left_scroll_to
@@ -755,6 +735,9 @@ fn editor_tab_content(
                             .style(|| Style::BASE.size_pct(100.0, 100.0)),
                         )
                     })
+                    .on_cleanup(move || {
+                        diff_editor_scope.dispose();
+                    })
                 } else {
                     container_box(|| {
                         Box::new(label(|| "emtpy diff editor".to_string()))
@@ -780,22 +763,6 @@ fn editor_tab(
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
     diff_editors: ReadSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
 ) -> impl View {
-    let (editor_tab_id, editor_tab_scope) =
-        editor_tab.with_untracked(|e| (e.editor_tab_id, e.scope));
-    let editor_tabs = main_split.editor_tabs;
-    on_cleanup(ViewContext::get_current().scope, move || {
-        let exits =
-            editor_tabs.with_untracked(|tabs| tabs.contains_key(&editor_tab_id));
-        if !exits {
-            let send = create_ext_action(editor_tab_scope, move |_| {
-                editor_tab_scope.dispose();
-            });
-            std::thread::spawn(move || {
-                send(());
-            });
-        }
-    });
-
     let common = main_split.common.clone();
     let focus = common.focus;
     let internal_command = main_split.common.internal_command;
@@ -825,6 +792,11 @@ fn editor_tab(
         let editor_tab_id = editor_tab.with_untracked(|t| t.editor_tab_id);
         internal_command.send(InternalCommand::FocusEditorTab { editor_tab_id });
         false
+    })
+    .on_cleanup(move || {
+        editor_tab
+            .with_untracked(|editor_tab| editor_tab.scope)
+            .dispose();
     })
     .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
 }
@@ -921,19 +893,6 @@ fn split_list(
     let diff_editors = main_split.diff_editors.read_only();
     let splits = main_split.splits.read_only();
     let config = main_split.common.config;
-    let (split_id, split_scope) =
-        split.with_untracked(|split| (split.split_id, split.scope));
-    on_cleanup(ViewContext::get_current().scope, move || {
-        let exits = splits.with_untracked(|splits| splits.contains_key(&split_id));
-        if !exits {
-            let send = create_ext_action(split_scope, move |_| {
-                split_scope.dispose();
-            });
-            std::thread::spawn(move || {
-                send(());
-            });
-        }
-    });
 
     let direction = move || split.with(|split| split.direction);
     let items = move || split.get().children.into_iter().enumerate();
@@ -1020,6 +979,11 @@ fn split_list(
             })
             .style(|| Style::BASE.size_pct(100.0, 100.0)),
         )
+    })
+    .on_cleanup(move || {
+        split
+            .with_untracked(|split_data| split_data.scope)
+            .dispose();
     })
 }
 
@@ -1137,8 +1101,7 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
     let editor = window_tab_data.main_split.active_editor;
     let panel = window_tab_data.panel.clone();
     let palette = window_tab_data.palette.clone();
-    let cx = ViewContext::get_current();
-    let diagnostic_count = create_memo(cx.scope, move |_| {
+    let diagnostic_count = create_memo(move |_| {
         let mut errors = 0;
         let mut warnings = 0;
         for (_, diagnostics) in diagnostics.get().iter() {
@@ -1155,7 +1118,7 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
         (errors, warnings)
     });
 
-    let mode = create_memo(cx.scope, move |_| window_tab_data.mode());
+    let mode = create_memo(move |_| window_tab_data.mode());
 
     stack(|| {
         (
@@ -1383,7 +1346,7 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                     String::from("No document")
                 })
                 .on_click(move |_| {
-                    palette_clone.run(cx.scope, PaletteKind::Line);
+                    palette_clone.run(PaletteKind::Line);
                     true
                 })
                 .style(|| {
@@ -1409,7 +1372,7 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                     }
                 })
                 .on_click(move |_| {
-                    palette_clone.run(cx.scope, PaletteKind::Language);
+                    palette_clone.run(PaletteKind::Language);
                     true
                 })
                 .style(|| {
@@ -2448,19 +2411,7 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
     })
 }
 
-pub fn dispose_on_ui_cleanup(scope: Scope) {
-    on_cleanup(ViewContext::get_current().scope, move || {
-        let send = create_ext_action(scope, move |_| {
-            scope.dispose();
-        });
-        std::thread::spawn(move || {
-            send(());
-        });
-    });
-}
-
 fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
-    dispose_on_ui_cleanup(window_tab_data.scope);
     let source_control = window_tab_data.source_control.clone();
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;
@@ -2470,6 +2421,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let workspace = window_tab_data.workspace.clone();
     let workbench_command = window_tab_data.common.workbench_command;
     let main_split = window_tab_data.main_split.clone();
+    let window_tab_scope = window_tab_data.scope;
 
     let view = stack(|| {
         (
@@ -2499,6 +2451,9 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
             palette(window_tab_data.clone()),
             about::about_popup(window_tab_data.clone()),
         )
+    })
+    .on_cleanup(move || {
+        window_tab_scope.dispose();
     })
     .style(move || {
         let config = config.get();
@@ -2531,11 +2486,10 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
     let tabs = window_data.window_tabs;
     let active = window_data.active;
     let config = window_data.config;
-    let cx = ViewContext::get_current();
-    let available_width = create_rw_signal(cx.scope, 0.0);
-    let add_icon_width = create_rw_signal(cx.scope, 0.0);
+    let available_width = create_rw_signal(0.0);
+    let add_icon_width = create_rw_signal(0.0);
 
-    let tab_width = create_memo(cx.scope, move |_| {
+    let tab_width = create_memo(move |_| {
         let available_width = available_width.get() - add_icon_width.get();
         let tabs_len = tabs.with(|tabs| tabs.len());
         if tabs_len > 0 {
@@ -2828,11 +2782,11 @@ pub fn launch() {
     let _ = lapce_proxy::register_lapce_path();
     let db = Arc::new(LapceDb::new().unwrap());
     let mut app = floem::Application::new();
-    let scope = app.scope();
-    provide_context(scope, db.clone());
+    let scope = Scope::current().create_child();
+    provide_context(db.clone());
 
-    let window_scale = create_rw_signal(scope, 1.0);
-    let latest_release = create_rw_signal(scope, Arc::new(None));
+    let window_scale = scope.create_rw_signal(1.0);
+    let latest_release = scope.create_rw_signal(Arc::new(None));
     let app_command = Listener::new_empty(scope);
 
     let mut windows = im::Vector::new();
@@ -2863,7 +2817,7 @@ pub fn launch() {
         let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
     }
 
-    let windows = create_rw_signal(scope, windows);
+    let windows = scope.create_rw_signal(windows);
     let app_data = AppData {
         scope,
         windows,
@@ -2876,8 +2830,8 @@ pub fn launch() {
 
     {
         let app_data = app_data.clone();
-        let notification = create_signal_from_channel(scope, rx);
-        create_effect(scope, move |_| {
+        let notification = create_signal_from_channel(rx);
+        create_effect(move |_| {
             if notification.get().is_some() {
                 app_data.reload_config();
             }
@@ -2887,9 +2841,9 @@ pub fn launch() {
     #[cfg(feature = "updater")]
     {
         let (tx, rx) = crossbeam_channel::bounded(1);
-        let notification = create_signal_from_channel(scope, rx);
+        let notification = create_signal_from_channel(rx);
         let latest_release = app_data.latest_release;
-        create_effect(scope, move |_| {
+        create_effect(move |_| {
             if let Some(release) = notification.get() {
                 latest_release.set(Arc::new(Some(release)));
             }
@@ -2904,9 +2858,9 @@ pub fn launch() {
 
     {
         let (tx, rx) = crossbeam_channel::bounded(1);
-        let notification = create_signal_from_channel(scope, rx);
+        let notification = create_signal_from_channel(rx);
         let app_data = app_data.clone();
-        create_effect(scope, move |_| {
+        create_effect(move |_| {
             if let Some(CoreNotification::OpenPaths { paths }) = notification.get() {
                 if let Some(window_tab) = app_data.active_window_tab() {
                     window_tab.open_paths(&paths);

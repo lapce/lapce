@@ -1,9 +1,6 @@
 use std::cmp::{max, min};
 
-use floem::reactive::{
-    create_effect, create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked,
-    SignalSet, SignalWith, SignalWithUntracked,
-};
+use floem::reactive::{create_effect, RwSignal, Scope};
 use lapce_core::{
     selection::{SelRegion, Selection},
     word::WordCursor,
@@ -81,18 +78,18 @@ pub struct Find {
 impl Find {
     pub fn new(cx: Scope) -> Self {
         let find = Self {
-            visual: create_rw_signal(cx, false),
-            search_string: create_rw_signal(cx, None),
-            case_matching: create_rw_signal(cx, CaseMatching::CaseInsensitive),
-            whole_words: create_rw_signal(cx, false),
-            is_regex: create_rw_signal(cx, false),
-            replace_active: create_rw_signal(cx, false),
-            replace_focus: create_rw_signal(cx, false),
+            visual: cx.create_rw_signal(false),
+            search_string: cx.create_rw_signal(None),
+            case_matching: cx.create_rw_signal(CaseMatching::CaseInsensitive),
+            whole_words: cx.create_rw_signal(false),
+            is_regex: cx.create_rw_signal(false),
+            replace_active: cx.create_rw_signal(false),
+            replace_focus: cx.create_rw_signal(false),
         };
 
         {
             let find = find.clone();
-            create_effect(cx, move |_| {
+            create_effect(move |_| {
                 find.is_regex.with(|_| ());
                 let s = find.search_string.with_untracked(|s| {
                     if let Some(s) = s.as_ref() {
@@ -434,12 +431,12 @@ pub struct FindResult {
 impl FindResult {
     pub fn new(cx: Scope) -> Self {
         Self {
-            progress: create_rw_signal(cx, FindProgress::Started),
-            occurrences: create_rw_signal(cx, Selection::new()),
-            search_string: create_rw_signal(cx, None),
-            case_matching: create_rw_signal(cx, CaseMatching::Exact),
-            whole_words: create_rw_signal(cx, false),
-            is_regex: create_rw_signal(cx, false),
+            progress: cx.create_rw_signal(FindProgress::Started),
+            occurrences: cx.create_rw_signal(Selection::new()),
+            search_string: cx.create_rw_signal(None),
+            case_matching: cx.create_rw_signal(CaseMatching::Exact),
+            whole_words: cx.create_rw_signal(false),
+            is_regex: cx.create_rw_signal(false),
         }
     }
 

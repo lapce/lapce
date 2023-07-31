@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use floem::reactive::{create_rw_signal, RwSignal, Scope, SignalWithUntracked};
+use floem::reactive::{RwSignal, Scope};
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
 use lapce_rpc::source_control::FileDiff;
@@ -63,10 +63,10 @@ impl KeyPressFocus for SourceControlData {
 impl SourceControlData {
     pub fn new(cx: Scope, common: CommonData) -> Self {
         Self {
-            file_diffs: create_rw_signal(cx, IndexMap::new()),
-            branch: create_rw_signal(cx, "".to_string()),
-            branches: create_rw_signal(cx, im::Vector::new()),
-            tags: create_rw_signal(cx, im::Vector::new()),
+            file_diffs: cx.create_rw_signal(IndexMap::new()),
+            branch: cx.create_rw_signal("".to_string()),
+            branches: cx.create_rw_signal(im::Vector::new()),
+            tags: cx.create_rw_signal(im::Vector::new()),
             editor: EditorData::new_local(cx, EditorId::next(), common.clone()),
             common,
         }

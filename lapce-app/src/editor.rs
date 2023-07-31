@@ -5,11 +5,7 @@ use floem::{
     ext_event::create_ext_action,
     glazier::{Modifiers, PointerButton, PointerEvent},
     peniko::kurbo::{Point, Rect, Vec2},
-    reactive::{
-        create_effect, create_rw_signal, use_context, RwSignal, Scope,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked,
-    },
+    reactive::{create_effect, use_context, RwSignal, Scope},
 };
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, InvalLines},
@@ -108,7 +104,7 @@ impl EditorInfo {
                 EditorData::new_local(data.scope, editor_id, data.common)
             }
         };
-        let editor_data = create_rw_signal(editor_data.scope, editor_data);
+        let editor_data = editor_data.scope.create_rw_signal(editor_data);
         data.editors.update(|editors| {
             editors.insert(editor_id, editor_data);
         });
@@ -154,7 +150,7 @@ impl EditorData {
         doc: RwSignal<Document>,
         common: CommonData,
     ) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
+        let cx = cx.create_child();
         let is_local = doc.with_untracked(|doc| doc.content.is_local());
         let modal = common.config.with_untracked(|c| c.core.modal);
         let cursor = Cursor::new(
@@ -166,10 +162,10 @@ impl EditorData {
             None,
             None,
         );
-        let cursor = create_rw_signal(cx, cursor);
+        let cursor = cx.create_rw_signal(cursor);
         let view = EditorViewData::new(
             doc,
-            create_rw_signal(cx, EditorViewKind::Normal),
+            cx.create_rw_signal(EditorViewKind::Normal),
             common.config,
         );
         Self {
@@ -178,31 +174,31 @@ impl EditorData {
             editor_id,
             view,
             cursor,
-            confirmed: create_rw_signal(cx, false),
-            snippet: create_rw_signal(cx, None),
-            window_origin: create_rw_signal(cx, Point::ZERO),
-            viewport: create_rw_signal(cx, Rect::ZERO),
-            scroll_delta: create_rw_signal(cx, Vec2::ZERO),
-            scroll_to: create_rw_signal(cx, None),
-            last_movement: create_rw_signal(cx, Movement::Left),
-            inline_find: create_rw_signal(cx, None),
-            last_inline_find: create_rw_signal(cx, None),
-            find_focus: create_rw_signal(cx, false),
-            active: create_rw_signal(cx, false),
-            sticky_header_height: create_rw_signal(cx, 0.0),
+            confirmed: cx.create_rw_signal(false),
+            snippet: cx.create_rw_signal(None),
+            window_origin: cx.create_rw_signal(Point::ZERO),
+            viewport: cx.create_rw_signal(Rect::ZERO),
+            scroll_delta: cx.create_rw_signal(Vec2::ZERO),
+            scroll_to: cx.create_rw_signal(None),
+            last_movement: cx.create_rw_signal(Movement::Left),
+            inline_find: cx.create_rw_signal(None),
+            last_inline_find: cx.create_rw_signal(None),
+            find_focus: cx.create_rw_signal(false),
+            active: cx.create_rw_signal(false),
+            sticky_header_height: cx.create_rw_signal(0.0),
             common,
         }
     }
 
     pub fn new_local(cx: Scope, editor_id: EditorId, common: CommonData) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
+        let cx = cx.create_child();
         let doc = Document::new_local(
             cx,
             common.find.clone(),
             common.proxy.clone(),
             common.config,
         );
-        let doc = create_rw_signal(cx, doc);
+        let doc = cx.create_rw_signal(doc);
         Self::new(cx, None, editor_id, doc, common)
     }
 
@@ -228,28 +224,27 @@ impl EditorData {
         editor_tab_id: Option<EditorTabId>,
         editor_id: EditorId,
     ) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
+        let cx = cx.create_child();
         EditorData {
             scope: cx,
             editor_id,
             editor_tab_id,
             view: self.view.duplicate(cx),
-            cursor: create_rw_signal(cx, self.cursor.get_untracked()),
-            viewport: create_rw_signal(cx, self.viewport.get_untracked()),
-            scroll_delta: create_rw_signal(cx, Vec2::ZERO),
-            scroll_to: create_rw_signal(
-                cx,
-                Some(self.viewport.get_untracked().origin().to_vec2()),
-            ),
-            window_origin: create_rw_signal(cx, Point::ZERO),
-            confirmed: create_rw_signal(cx, true),
-            snippet: create_rw_signal(cx, None),
-            last_movement: create_rw_signal(cx, self.last_movement.get_untracked()),
-            inline_find: create_rw_signal(cx, None),
-            last_inline_find: create_rw_signal(cx, None),
-            find_focus: create_rw_signal(cx, false),
-            active: create_rw_signal(cx, false),
-            sticky_header_height: create_rw_signal(cx, 0.0),
+            cursor: cx.create_rw_signal(self.cursor.get_untracked()),
+            viewport: cx.create_rw_signal(self.viewport.get_untracked()),
+            scroll_delta: cx.create_rw_signal(Vec2::ZERO),
+            scroll_to: cx.create_rw_signal(Some(
+                self.viewport.get_untracked().origin().to_vec2(),
+            )),
+            window_origin: cx.create_rw_signal(Point::ZERO),
+            confirmed: cx.create_rw_signal(true),
+            snippet: cx.create_rw_signal(None),
+            last_movement: cx.create_rw_signal(self.last_movement.get_untracked()),
+            inline_find: cx.create_rw_signal(None),
+            last_inline_find: cx.create_rw_signal(None),
+            find_focus: cx.create_rw_signal(false),
+            active: cx.create_rw_signal(false),
+            sticky_header_height: cx.create_rw_signal(0.0),
             common: self.common.clone(),
         }
     }
@@ -290,6 +285,7 @@ impl EditorData {
             }
         }
 
+        println!("run edit command");
         self.cursor.set(cursor);
         self.common.register.set(register);
 
@@ -320,6 +316,7 @@ impl EditorData {
             movement::do_motion_mode(doc, &mut cursor, motion_mode, &mut register);
         });
 
+        println!("run motion mode command");
         self.cursor.set(cursor);
         self.common.register.set(register);
 
@@ -1346,7 +1343,7 @@ impl EditorData {
         } else if let Some(edits) = edits.as_ref() {
             self.do_text_edit(edits);
         } else {
-            let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+            let db: Arc<LapceDb> = use_context().unwrap();
             if let Ok(info) = db.get_doc_info(&self.common.workspace, &location.path)
             {
                 self.go_to_position(
@@ -1367,15 +1364,18 @@ impl EditorData {
         if !new_doc {
             self.do_go_to_location(location, edits);
         } else {
-            let (cx, _) = self.scope.run_child_scope(|scope| scope);
             let doc = self.view.doc;
             let editor = self.clone();
-            create_effect(cx, move |_| {
+            create_effect(move |prev_loaded| {
+                if prev_loaded == Some(true) {
+                    return true;
+                }
+
                 let loaded = doc.with(|doc| doc.loaded());
                 if loaded {
-                    cx.dispose();
                     editor.do_go_to_location(location.clone(), edits.clone());
                 }
+                loaded
             });
         }
     }
@@ -1632,7 +1632,7 @@ impl EditorData {
         let cursor_offset = self.cursor.with_untracked(|c| c.offset());
         let scroll_offset = self.viewport.with_untracked(|v| v.origin().to_vec2());
 
-        let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+        let db: Arc<LapceDb> = use_context().unwrap();
         db.save_doc_position(
             &self.common.workspace,
             path,

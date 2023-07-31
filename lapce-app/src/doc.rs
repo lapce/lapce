@@ -9,10 +9,7 @@ use std::{
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
-    reactive::{
-        create_rw_signal, ReadSignal, RwSignal, Scope, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWithUntracked,
-    },
+    reactive::{ReadSignal, RwSignal, Scope},
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -201,8 +198,8 @@ impl Document {
             completion_pos: (0, 0),
             content: DocContent::File(path),
             loaded: false,
-            histories: create_rw_signal(cx, im::HashMap::new()),
-            head_changes: create_rw_signal(cx, im::Vector::new()),
+            histories: cx.create_rw_signal(im::HashMap::new()),
+            head_changes: cx.create_rw_signal(im::Vector::new()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             code_actions: im::HashMap::new(),
@@ -231,14 +228,14 @@ impl Document {
             semantic_styles: None,
             inlay_hints: None,
             diagnostics: DiagnosticData {
-                expanded: create_rw_signal(cx, true),
-                diagnostics: create_rw_signal(cx, im::Vector::new()),
+                expanded: cx.create_rw_signal(true),
+                diagnostics: cx.create_rw_signal(im::Vector::new()),
             },
             completion_lens: None,
             completion_pos: (0, 0),
             loaded: true,
-            histories: create_rw_signal(cx, im::HashMap::new()),
-            head_changes: create_rw_signal(cx, im::Vector::new()),
+            histories: cx.create_rw_signal(im::HashMap::new()),
+            head_changes: cx.create_rw_signal(im::Vector::new()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             code_actions: im::HashMap::new(),
             proxy,
@@ -260,7 +257,7 @@ impl Document {
         } else {
             Syntax::plaintext()
         };
-        let (cx, _) = cx.run_child_scope(|cx| cx);
+        let cx = cx.create_child();
         Self {
             scope: cx,
             buffer_id: BufferId::next(),
@@ -273,14 +270,14 @@ impl Document {
             semantic_styles: None,
             inlay_hints: None,
             diagnostics: DiagnosticData {
-                expanded: create_rw_signal(cx, true),
-                diagnostics: create_rw_signal(cx, im::Vector::new()),
+                expanded: cx.create_rw_signal(true),
+                diagnostics: cx.create_rw_signal(im::Vector::new()),
             },
             completion_lens: None,
             completion_pos: (0, 0),
             loaded: true,
-            histories: create_rw_signal(cx, im::HashMap::new()),
-            head_changes: create_rw_signal(cx, im::Vector::new()),
+            histories: cx.create_rw_signal(im::HashMap::new()),
+            head_changes: cx.create_rw_signal(im::Vector::new()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             code_actions: im::HashMap::new(),
             proxy,
@@ -534,21 +531,13 @@ impl Document {
         self.line_styles.borrow().get(&line).cloned().unwrap()
     }
 
-    pub fn tigger_proxy_update(
-        cx: Scope,
-        doc: RwSignal<Document>,
-        proxy: &ProxyRpcHandler,
-    ) {
-        Self::get_inlay_hints(cx, doc, proxy);
-        Self::get_semantic_styles(cx, doc, proxy);
+    pub fn tigger_proxy_update(doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
+        Self::get_inlay_hints(doc, proxy);
+        Self::get_semantic_styles(doc, proxy);
     }
 
     /// Request semantic styles for the buffer from the LSP through the proxy.
-    fn get_semantic_styles(
-        cx: Scope,
-        doc: RwSignal<Document>,
-        proxy: &ProxyRpcHandler,
-    ) {
+    fn get_semantic_styles(doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
         if !doc.with_untracked(|doc| doc.loaded) {
             return;
         }
@@ -559,8 +548,8 @@ impl Document {
             DocContent::History(_) => return,
         };
 
-        let (rev, len) =
-            doc.with_untracked(|doc| (doc.buffer.rev(), doc.buffer.len()));
+        let (rev, len, cx) = doc
+            .with_untracked(|doc| (doc.buffer.rev(), doc.buffer.len(), doc.scope));
 
         let syntactic_styles = doc.with_untracked(|doc| doc.syntax.styles.clone());
 
@@ -605,7 +594,7 @@ impl Document {
     }
 
     /// Request inlay hints for the buffer from the LSP through the proxy.
-    fn get_inlay_hints(cx: Scope, doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
+    fn get_inlay_hints(doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
         if !doc.with_untracked(|doc| doc.loaded) {
             return;
         }
@@ -616,8 +605,13 @@ impl Document {
             DocContent::History(_) => return,
         };
 
-        let (buffer, rev, len) = doc.with_untracked(|doc| {
-            (doc.buffer.clone(), doc.buffer.rev(), doc.buffer.len())
+        let (buffer, rev, len, cx) = doc.with_untracked(|doc| {
+            (
+                doc.buffer.clone(),
+                doc.buffer.rev(),
+                doc.buffer.len(),
+                doc.scope,
+            )
         });
 
         let send = create_ext_action(cx, move |hints| {

@@ -2,10 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use floem::{
     glazier::KeyEvent,
-    reactive::{
-        create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWith, SignalWithUntracked,
-    },
+    reactive::{RwSignal, Scope},
 };
 use lapce_core::mode::Mode;
 use lapce_rpc::{
@@ -49,9 +46,9 @@ impl TerminalPanelData {
         let cx = common.scope;
 
         let tabs =
-            im::vector![(create_rw_signal(terminal_tab.scope, 0), terminal_tab)];
+            im::vector![(terminal_tab.scope.create_rw_signal(0), terminal_tab)];
         let tab_info = TerminalTabInfo { active: 0, tabs };
-        let tab_info = create_rw_signal(cx, tab_info);
+        let tab_info = cx.create_rw_signal(tab_info);
 
         let debug = RunDebugData::new(cx);
 
@@ -114,10 +111,7 @@ impl TerminalPanelData {
                 } else {
                     (info.active + 1).min(info.tabs.len())
                 },
-                (
-                    create_rw_signal(terminal_tab.scope, 0),
-                    terminal_tab.clone(),
-                ),
+                (terminal_tab.scope.create_rw_signal(0), terminal_tab.clone()),
             );
             let new_active = (info.active + 1).min(info.tabs.len() - 1);
             info.active = new_active;
@@ -217,7 +211,7 @@ impl TerminalPanelData {
                 None,
                 self.common.clone(),
             );
-            let i = create_rw_signal(terminal_data.scope, 0);
+            let i = terminal_data.scope.create_rw_signal(0);
             tab.terminals.update(|terminals| {
                 terminals.insert(index + 1, (i, terminal_data));
             });
@@ -350,7 +344,7 @@ impl TerminalPanelData {
                 let new_term_id = new_terminal.term_id;
                 terminal_tab.terminals.update(|terminals| {
                     terminals[index] =
-                        (create_rw_signal(new_terminal.scope, 0), new_terminal);
+                        (new_terminal.scope.create_rw_signal(0), new_terminal);
                 });
                 self.debug.active_term.set(Some(new_term_id));
                 new_term_id

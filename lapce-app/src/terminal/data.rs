@@ -9,7 +9,7 @@ use alacritty_terminal::{
 };
 use floem::{
     glazier::{keyboard_types::Key, KeyEvent, Modifiers},
-    reactive::{create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet},
+    reactive::{RwSignal, Scope},
 };
 use lapce_core::{
     command::{EditCommand, FocusCommand},
@@ -301,10 +301,10 @@ impl TerminalData {
         run_debug: Option<RunDebugProcess>,
         common: CommonData,
     ) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
+        let cx = cx.create_child();
         let term_id = TermId::next();
 
-        let title = create_rw_signal(cx, "title".to_string());
+        let title = cx.create_rw_signal("title".to_string());
 
         let raw = Self::new_raw_terminal(
             workspace.clone(),
@@ -313,10 +313,10 @@ impl TerminalData {
             common.clone(),
         );
 
-        let run_debug = create_rw_signal(cx, run_debug);
-        let mode = create_rw_signal(cx, Mode::Terminal);
-        let visual_mode = create_rw_signal(cx, VisualMode::Normal);
-        let raw = create_rw_signal(cx, raw);
+        let run_debug = cx.create_rw_signal(run_debug);
+        let mode = cx.create_rw_signal(Mode::Terminal);
+        let visual_mode = cx.create_rw_signal(VisualMode::Normal);
+        let raw = cx.create_rw_signal(raw);
 
         Self {
             scope: cx,

@@ -1,9 +1,6 @@
 use std::sync::Arc;
 
-use floem::reactive::{
-    create_rw_signal, RwSignal, Scope, SignalGet, SignalGetUntracked, SignalWith,
-    SignalWithUntracked,
-};
+use floem::reactive::{RwSignal, Scope};
 
 use super::data::TerminalData;
 use crate::{
@@ -25,11 +22,11 @@ impl TerminalTabData {
         run_debug: Option<RunDebugProcess>,
         common: CommonData,
     ) -> Self {
-        let (cx, _) = common.scope.run_child_scope(|cx| cx);
+        let cx = common.scope.create_child();
         let terminal_data = TerminalData::new(cx, workspace, run_debug, common);
-        let terminals = im::vector![(create_rw_signal(cx, 0), terminal_data)];
-        let terminals = create_rw_signal(cx, terminals);
-        let active = create_rw_signal(cx, 0);
+        let terminals = im::vector![(cx.create_rw_signal(0), terminal_data)];
+        let terminals = cx.create_rw_signal(terminals);
+        let active = cx.create_rw_signal(0);
         let terminal_tab_id = TerminalTabId::next();
         Self {
             scope: cx,
