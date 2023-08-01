@@ -285,7 +285,6 @@ impl EditorData {
             }
         }
 
-        println!("run edit command");
         self.cursor.set(cursor);
         self.common.register.set(register);
 

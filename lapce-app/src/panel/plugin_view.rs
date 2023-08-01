@@ -435,7 +435,7 @@ fn available_view(plugin: PluginData) -> impl View {
                         })
                         .style(|| {
                             Style::BASE
-                                .padding_vert_px(6.0)
+                                .padding_vert_px(4.0)
                                 .padding_horiz_px(10.0)
                                 .min_width_pct(100.0)
                         })
@@ -451,15 +451,15 @@ fn available_view(plugin: PluginData) -> impl View {
                     false
                 })
                 .style(move || {
+                    let config = config.get();
                     Style::BASE
                         .width_pct(100.0)
                         .cursor(CursorStyle::Text)
                         .items_center()
+                        .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
                         .border(1.0)
                         .border_radius(6.0)
-                        .border_color(
-                            *config.get().get_color(LapceColor::LAPCE_BORDER),
-                        )
+                        .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                 })
             })
             .style(|| Style::BASE.padding_px(10.0).width_pct(100.0)),

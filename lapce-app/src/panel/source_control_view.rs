@@ -381,6 +381,9 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
             )
             .style(|| Style::BASE.line_height(1.6).flex_col().width_pct(100.0))
         })
+        .scroll_bar_color(move || {
+            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
+        })
         .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
     })
     .on_resize(move |_, rect| {
