@@ -45,6 +45,7 @@ use self::{
 };
 
 pub mod diff;
+pub mod gutter;
 pub mod location;
 pub mod movement;
 pub mod view;
