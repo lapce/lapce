@@ -7,7 +7,7 @@ use floem::{
     ext_event::create_ext_action,
     glazier::KeyEvent,
     peniko::kurbo::{Point, Rect, Vec2},
-    reactive::{create_effect, Memo, RwSignal, Scope},
+    reactive::{Memo, RwSignal, Scope},
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -253,7 +253,7 @@ impl MainSplitData {
         {
             let find_editor_doc = find_editor.view.doc;
             let find = common.find.clone();
-            create_effect(move |_| {
+            cx.create_effect(move |_| {
                 let content = find_editor_doc.with(|doc| doc.buffer().to_string());
                 find.set_find(&content);
             });
@@ -413,7 +413,7 @@ impl MainSplitData {
 
             {
                 let proxy = self.common.proxy.clone();
-                create_effect(move |last| {
+                cx.create_effect(move |last| {
                     let rev = doc.with(|doc| doc.buffer().rev());
                     if last == Some(rev) {
                         return rev;
@@ -455,7 +455,6 @@ impl MainSplitData {
         location: EditorLocation,
         edits: Option<Vec<TextEdit>>,
     ) {
-        println!("go to location");
         if self.common.focus.get_untracked() != Focus::Workbench {
             self.common.focus.set(Focus::Workbench);
         }
@@ -808,7 +807,6 @@ impl MainSplitData {
                                 editor.update_doc(*doc);
                             });
                             editor.with_untracked(|editor| {
-                                println!("get editor tab child");
                                 editor.cursor.set(Cursor::origin(
                                     self.common
                                         .config
@@ -944,7 +942,6 @@ impl MainSplitData {
     }
 
     pub fn jump_location_backward(&self, local: bool) {
-        println!("jump localtion backward");
         let (locations, current_location) = if local {
             let active_editor_tab_id = self.active_editor_tab.get_untracked();
             let editor_tabs = self.editor_tabs.get_untracked();

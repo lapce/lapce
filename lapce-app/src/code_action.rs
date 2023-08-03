@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use floem::{
     peniko::kurbo::Rect,
-    reactive::{create_effect, RwSignal, Scope},
+    reactive::{RwSignal, Scope},
 };
 use lapce_core::{command::FocusCommand, mode::Mode, movement::Movement};
 use lapce_rpc::plugin::PluginId;
@@ -102,7 +102,7 @@ impl CodeActionData {
 
         {
             let code_action = code_action.clone();
-            create_effect(move |_| {
+            cx.create_effect(move |_| {
                 let focus = code_action.common.focus.get();
                 if focus != Focus::CodeAction
                     && code_action.status.get_untracked()

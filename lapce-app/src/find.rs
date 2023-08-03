@@ -1,6 +1,6 @@
 use std::cmp::{max, min};
 
-use floem::reactive::{create_effect, RwSignal, Scope};
+use floem::reactive::{RwSignal, Scope};
 use lapce_core::{
     selection::{SelRegion, Selection},
     word::WordCursor,
@@ -89,7 +89,7 @@ impl Find {
 
         {
             let find = find.clone();
-            create_effect(move |_| {
+            cx.create_effect(move |_| {
                 find.is_regex.with(|_| ());
                 let s = find.search_string.with_untracked(|s| {
                     if let Some(s) = s.as_ref() {

@@ -3,7 +3,7 @@ use std::sync::atomic;
 use floem::{
     event::EventListener,
     ext_event::create_ext_action,
-    reactive::{create_effect, RwSignal, Scope},
+    reactive::{RwSignal, Scope},
     style::{CursorStyle, Style},
     view::View,
     views::{clip, empty, label, list, stack, svg, Decorators},
@@ -212,7 +212,7 @@ impl DiffEditorData {
             right_doc.with(|doc| (doc.content.clone(), doc.rev()))
         });
 
-        create_effect(move |_| {
+        cx.create_effect(move |_| {
             let (_, left_rev) = left_doc_rev.get();
             let (left_editor_view, left_doc) =
                 left.with_untracked(|editor| (editor.view.kind, editor.view.doc));

@@ -2,7 +2,7 @@ use std::{ops::Range, path::PathBuf};
 
 use floem::{
     ext_event::create_ext_action,
-    reactive::{create_effect, Memo, RwSignal, Scope},
+    reactive::{Memo, RwSignal, Scope},
     views::VirtualListVector,
 };
 use indexmap::IndexMap;
@@ -122,7 +122,7 @@ impl GlobalSearchData {
 
         {
             let global_search = global_search.clone();
-            create_effect(move |_| {
+            cx.create_effect(move |_| {
                 let pattern = global_search
                     .editor
                     .view
@@ -160,7 +160,7 @@ impl GlobalSearchData {
         {
             let global_search_doc = global_search.editor.view.doc;
             let main_split = global_search.main_split.clone();
-            create_effect(move |_| {
+            cx.create_effect(move |_| {
                 let content = global_search_doc.with(|doc| doc.buffer().to_string());
                 main_split.set_find_pattern(Some(content));
             });

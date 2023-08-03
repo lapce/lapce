@@ -5,7 +5,7 @@ use floem::{
     ext_event::create_ext_action,
     glazier::{Modifiers, PointerButton, PointerEvent},
     peniko::kurbo::{Point, Rect, Vec2},
-    reactive::{create_effect, use_context, RwSignal, Scope},
+    reactive::{use_context, RwSignal, Scope},
 };
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, InvalLines},
@@ -316,7 +316,6 @@ impl EditorData {
             movement::do_motion_mode(doc, &mut cursor, motion_mode, &mut register);
         });
 
-        println!("run motion mode command");
         self.cursor.set(cursor);
         self.common.register.set(register);
 
@@ -1366,7 +1365,7 @@ impl EditorData {
         } else {
             let doc = self.view.doc;
             let editor = self.clone();
-            create_effect(move |prev_loaded| {
+            self.scope.create_effect(move |prev_loaded| {
                 if prev_loaded == Some(true) {
                     return true;
                 }

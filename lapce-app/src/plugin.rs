@@ -3,7 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use anyhow::Result;
 use floem::{
     ext_event::create_ext_action,
-    reactive::{create_effect, use_context, RwSignal, Scope},
+    reactive::{use_context, RwSignal, Scope},
 };
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
@@ -150,7 +150,7 @@ impl PluginData {
 
         {
             let plugin = plugin.clone();
-            create_effect(move |s| {
+            cx.create_effect(move |s| {
                 let query = plugin
                     .all
                     .query_editor

@@ -6,9 +6,7 @@ use floem::{
     ext_event::{create_ext_action, create_signal_from_channel},
     glazier::{FileDialogOptions, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
-    reactive::{
-        create_effect, use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal,
-    },
+    reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
 };
 use itertools::Itertools;
 use lapce_core::{directory::Directory, meta, mode::Mode, register::Register};
@@ -325,8 +323,7 @@ impl WindowTabData {
         {
             let notification = create_signal_from_channel(term_notification_rx);
             let terminal = terminal.clone();
-            create_effect(move |_| {
-                cx.track();
+            cx.create_effect(move |_| {
                 notification.with(|notification| {
                     if let Some(notification) = notification.as_ref() {
                         match notification {
@@ -394,7 +391,7 @@ impl WindowTabData {
         {
             let window_tab_data = window_tab_data.clone();
             let notification = window_tab_data.proxy.notification;
-            create_effect(move |_| {
+            cx.create_effect(move |_| {
                 notification.with(|rpc| {
                     if let Some(rpc) = rpc.as_ref() {
                         window_tab_data.handle_core_notification(rpc);
