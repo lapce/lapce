@@ -2,10 +2,7 @@ use std::{ops::Range, path::PathBuf};
 
 use floem::{
     ext_event::create_ext_action,
-    reactive::{
-        create_effect, create_rw_signal, Memo, RwSignal, Scope, SignalGet,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-    },
+    reactive::{Memo, RwSignal, Scope},
     views::VirtualListVector,
 };
 use indexmap::IndexMap;
@@ -114,7 +111,7 @@ impl VirtualListVector<(PathBuf, SearchMatchData)> for GlobalSearchData {
 impl GlobalSearchData {
     pub fn new(cx: Scope, main_split: MainSplitData, common: CommonData) -> Self {
         let editor = EditorData::new_local(cx, EditorId::next(), common.clone());
-        let search_result = create_rw_signal(cx, IndexMap::new());
+        let search_result = cx.create_rw_signal(IndexMap::new());
 
         let global_search = Self {
             editor,
@@ -125,9 +122,10 @@ impl GlobalSearchData {
 
         {
             let global_search = global_search.clone();
-            create_effect(cx, move |_| {
+            cx.create_effect(move |_| {
                 let pattern = global_search
                     .editor
+                    .view
                     .doc
                     .with(|doc| doc.buffer().to_string());
                 if pattern.is_empty() {
@@ -160,9 +158,9 @@ impl GlobalSearchData {
         }
 
         {
-            let global_search_doc = global_search.editor.doc;
+            let global_search_doc = global_search.editor.view.doc;
             let main_split = global_search.main_split.clone();
-            create_effect(cx, move |_| {
+            cx.create_effect(move |_| {
                 let content = global_search_doc.with(|doc| doc.buffer().to_string());
                 main_split.set_find_pattern(Some(content));
             });
@@ -181,11 +179,11 @@ impl GlobalSearchData {
                     let match_data =
                         current.get(&path).cloned().unwrap_or_else(|| {
                             SearchMatchData {
-                                expanded: create_rw_signal(self.common.scope, true),
-                                matches: create_rw_signal(
-                                    self.common.scope,
-                                    im::Vector::new(),
-                                ),
+                                expanded: self.common.scope.create_rw_signal(true),
+                                matches: self
+                                    .common
+                                    .scope
+                                    .create_rw_signal(im::Vector::new()),
                                 line_height: self.common.ui_line_height,
                             }
                         });
@@ -201,6 +199,7 @@ impl GlobalSearchData {
     pub fn set_pattern(&self, pattern: String) {
         let pattern_len = pattern.len();
         self.editor
+            .view
             .doc
             .update(|doc| doc.reload(Rope::from(pattern), true));
         self.editor

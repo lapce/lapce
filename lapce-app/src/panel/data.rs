@@ -1,20 +1,16 @@
 use std::sync::Arc;
 
-use floem::reactive::{
-    create_rw_signal, use_context, RwSignal, Scope, SignalGet, SignalGetUntracked,
-    SignalUpdate, SignalWith, SignalWithUntracked,
-};
+use floem::reactive::{use_context, RwSignal, Scope};
 use serde::{Deserialize, Serialize};
-
-use crate::{
-    db::LapceDb,
-    window_tab::{CommonData, Focus},
-};
 
 use super::{
     kind::PanelKind,
     position::{PanelContainerPosition, PanelPosition},
     style::PanelStyle,
+};
+use crate::{
+    db::LapceDb,
+    window_tab::{CommonData, Focus},
 };
 
 pub type PanelOrder = im::HashMap<PanelPosition, im::Vector<PanelKind>>;
@@ -69,7 +65,7 @@ impl PanelData {
         panels: im::HashMap<PanelPosition, im::Vector<PanelKind>>,
         common: CommonData,
     ) -> Self {
-        let panels = create_rw_signal(cx, panels);
+        let panels = cx.create_rw_signal(panels);
 
         let mut styles = im::HashMap::new();
         styles.insert(
@@ -120,18 +116,15 @@ impl PanelData {
                 maximized: false,
             },
         );
-        let styles = create_rw_signal(cx, styles);
-        let size = create_rw_signal(
-            cx,
-            PanelSize {
-                left: 250.0,
-                left_split: 0.5,
-                bottom: 300.0,
-                bottom_split: 0.5,
-                right: 250.0,
-                right_split: 0.5,
-            },
-        );
+        let styles = cx.create_rw_signal(styles);
+        let size = cx.create_rw_signal(PanelSize {
+            left: 250.0,
+            left_split: 0.5,
+            bottom: 300.0,
+            bottom_split: 0.5,
+            right: 250.0,
+            right_split: 0.5,
+        });
 
         Self {
             panels,
@@ -387,7 +380,7 @@ impl PanelData {
             style.shown = true;
         });
 
-        let db: Arc<LapceDb> = use_context(self.common.scope).unwrap();
+        let db: Arc<LapceDb> = use_context().unwrap();
         db.save_panel_orders(self.panels.get_untracked());
     }
 }

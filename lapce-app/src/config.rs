@@ -14,8 +14,6 @@ use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use serde::Deserialize;
 
-use crate::workspace::{LapceWorkspace, LapceWorkspaceType};
-
 use self::{
     color::LapceColor,
     color_theme::{ColorThemeConfig, ThemeColor, ThemeColorPreference},
@@ -27,6 +25,7 @@ use self::{
     terminal::TerminalConfig,
     ui::UIConfig,
 };
+use crate::workspace::{LapceWorkspace, LapceWorkspaceType};
 
 pub mod color;
 pub mod color_theme;
@@ -580,6 +579,10 @@ impl LapceConfig {
         };
 
         Some(self.ui_svg(kind_str))
+    }
+
+    pub fn logo_svg(&self) -> String {
+        self.svg_store.read().logo_svg()
     }
 
     /// List of the color themes that are available by their display names.

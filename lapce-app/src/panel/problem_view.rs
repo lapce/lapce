@@ -2,17 +2,14 @@ use std::{path::PathBuf, sync::Arc};
 
 use floem::{
     peniko::Color,
-    reactive::{
-        create_memo, create_rw_signal, ReadSignal, SignalGet, SignalUpdate,
-        SignalWith,
-    },
+    reactive::{create_memo, create_rw_signal, ReadSignal},
     style::{CursorStyle, Style},
     view::View,
     views::{container, label, list, scroll, stack, svg, Decorators},
-    ViewContext,
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 
+use super::{position::PanelPosition, view::panel_header};
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
@@ -23,8 +20,6 @@ use crate::{
     window_tab::WindowTabData,
     workspace::LapceWorkspace,
 };
-
-use super::{position::PanelPosition, view::panel_header};
 
 pub fn problem_panel(
     window_tab_data: Arc<WindowTabData>,
@@ -111,10 +106,9 @@ fn file_view(
     internal_command: Listener<InternalCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let cx = ViewContext::get_current();
-    let collpased = create_rw_signal(cx.scope, false);
+    let collpased = create_rw_signal(false);
 
-    let diagnostics = create_memo(cx.scope, move |_| {
+    let diagnostics = create_memo(move |_| {
         let diagnostics = diagnostic_data.diagnostics.get();
         let diagnostics: im::Vector<EditorDiagnostic> = diagnostics
             .into_iter()

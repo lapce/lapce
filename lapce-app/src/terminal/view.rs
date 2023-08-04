@@ -8,10 +8,7 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
-    reactive::{
-        create_effect, ReadSignal, SignalGet, SignalGetUntracked, SignalWith,
-        SignalWithUntracked,
-    },
+    reactive::{create_effect, ReadSignal},
     view::{ChangeFlags, View},
     Renderer, ViewContext,
 };
@@ -20,14 +17,13 @@ use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 use parking_lot::RwLock;
 use unicode_width::UnicodeWidthChar;
 
+use super::{panel::TerminalPanelData, raw::RawTerminal};
 use crate::{
     config::{color::LapceColor, LapceConfig},
     debug::RunDebugProcess,
     panel::kind::PanelKind,
     window_tab::Focus,
 };
-
-use super::{panel::TerminalPanelData, raw::RawTerminal};
 
 enum TerminalViewState {
     Config,
@@ -57,20 +53,20 @@ pub fn terminal_view(
     let cx = ViewContext::get_current();
     let id = cx.new_id();
 
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         let raw = raw.get();
         id.update_state(TerminalViewState::Raw(raw), false);
     });
 
     let config = terminal_panel_data.common.config;
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         config.with(|_c| {});
         id.update_state(TerminalViewState::Config, false);
     });
 
     let proxy = terminal_panel_data.common.proxy.clone();
 
-    create_effect(cx.scope, move |last| {
+    create_effect(move |last| {
         let focus = terminal_panel_data.common.focus.get();
 
         let mut is_focused = false;
@@ -137,11 +133,19 @@ impl View for TerminalView {
         self.id
     }
 
-    fn child(&mut self, _id: Id) -> Option<&mut dyn View> {
+    fn child(&self, _id: Id) -> Option<&dyn View> {
         None
     }
 
-    fn children(&mut self) -> Vec<&mut dyn View> {
+    fn child_mut(&mut self, _id: Id) -> Option<&mut dyn View> {
+        None
+    }
+
+    fn children(&self) -> Vec<&dyn View> {
+        Vec::new()
+    }
+
+    fn children_mut(&mut self) -> Vec<&mut dyn View> {
         Vec::new()
     }
 

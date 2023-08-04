@@ -1,4 +1,5 @@
 use floem::glazier::{KbKey, Modifiers};
+use tracing::warn;
 
 use super::key::Key;
 
@@ -33,6 +34,29 @@ impl KeyPress {
         false
     }
 
+    pub fn label(&self) -> String {
+        let mut keys = String::from("");
+        if self.mods.ctrl() {
+            keys.push_str("Ctrl+");
+        }
+        if self.mods.alt() {
+            keys.push_str("Alt+");
+        }
+        if self.mods.meta() {
+            let keyname = match std::env::consts::OS {
+                "macos" => "Cmd+",
+                "windows" => "Win+",
+                _ => "Meta+",
+            };
+            keys.push_str(keyname);
+        }
+        if self.mods.shift() {
+            keys.push_str("Shift+");
+        }
+        keys.push_str(&self.key.to_string());
+        keys.trim().to_string()
+    }
+
     pub fn parse(key: &str) -> Vec<Self> {
         key.split(' ')
             .filter_map(|k| {
@@ -45,7 +69,7 @@ impl KeyPress {
                     Some(key) => key,
                     None => {
                         // Skip past unrecognized key definitions
-                        log::warn!("Unrecognized key: {key}");
+                        warn!("Unrecognized key: {key}");
                         return None;
                     }
                 };
@@ -58,7 +82,7 @@ impl KeyPress {
                         "shift" => mods.set(Modifiers::SHIFT, true),
                         "alt" => mods.set(Modifiers::ALT, true),
                         "" => (),
-                        other => log::warn!("Invalid key modifier: {}", other),
+                        other => warn!("Invalid key modifier: {}", other),
                     }
                 }
 

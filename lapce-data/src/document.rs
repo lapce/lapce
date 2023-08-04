@@ -14,7 +14,7 @@ use druid::{
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::{rope_text::RopeText, Buffer, DiffLines, InvalLines},
+    buffer::{diff::DiffLines, rope_text::RopeText, Buffer, InvalLines},
     char_buffer::CharBuffer,
     command::{EditCommand, MultiSelectionCommand},
     cursor::{ColPosition, Cursor, CursorMode},
@@ -25,10 +25,7 @@ use lapce_core::{
     register::{Clipboard, Register, RegisterData},
     selection::{SelRegion, Selection},
     style::line_styles,
-    syntax::{
-        edit::SyntaxEdit, highlight::HighlightIssue, util::matching_pair_direction,
-        Syntax,
-    },
+    syntax::{edit::SyntaxEdit, util::matching_pair_direction, Syntax},
     word::WordCursor,
 };
 use lapce_rpc::{
@@ -44,7 +41,7 @@ use lapce_xi_rope::{
 };
 use lsp_types::{
     CodeActionOrCommand, CodeActionResponse, DiagnosticSeverity, InlayHint,
-    InlayHintLabel, MessageType, ShowMessageParams,
+    InlayHintLabel,
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -456,9 +453,7 @@ impl Document {
         // Only files have syntax highlighing automatically,
         // though scratch buffer can have it be set manually by the user.
         let syntax = match &content {
-            BufferContent::File(path) => {
-                Self::syntax_to_option(&proxy, Syntax::init(path))
-            }
+            BufferContent::File(path) => Some(Syntax::init(path)),
             BufferContent::Local(_) => None,
             BufferContent::SettingsValue(..) => None,
             BufferContent::Scratch(..) => None,
@@ -502,28 +497,6 @@ impl Document {
         }
     }
 
-    /// Converts a syntax highlighting result into an option, showing an error message if it is
-    /// anything unexpected.
-    fn syntax_to_option(
-        proxy: &Arc<LapceProxy>,
-        syntax: Result<Syntax, HighlightIssue>,
-    ) -> Option<Syntax> {
-        match syntax {
-            Ok(x) => Some(x),
-            Err(HighlightIssue::NotAvailable) => None,
-            Err(HighlightIssue::Error(x)) => {
-                proxy.core_rpc.show_message(
-                    "Syntax Highlighting failed".to_owned(),
-                    ShowMessageParams {
-                        typ: MessageType::ERROR,
-                        message: format!("An error occurred trying to load syntax highlighting info: {x}."),
-                    },
-                );
-                None
-            }
-        }
-    }
-
     /// The id of the document's buffer
     pub fn id(&self) -> BufferId {
         self.id
@@ -537,9 +510,7 @@ impl Document {
     pub fn set_content(&mut self, content: BufferContent) {
         self.content = content;
         self.syntax = match &self.content {
-            BufferContent::File(path) => {
-                Self::syntax_to_option(&self.proxy, Syntax::init(path))
-            }
+            BufferContent::File(path) => Some(Syntax::init(path)),
             BufferContent::Local(_) => None,
             BufferContent::SettingsValue(..) => None,
             BufferContent::Scratch(..) => None,
@@ -559,15 +530,14 @@ impl Document {
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&mut self, content: Rope) {
         self.buffer.init_content(content);
-        self.buffer.detect_indent(self.syntax.as_ref());
+        self.buffer.detect_indent(self.syntax.as_ref().unwrap());
         self.loaded = true;
         self.on_update(None);
     }
 
     /// Set the syntax highlighting this document should use.
     pub fn set_language(&mut self, language: LapceLanguage) {
-        self.syntax =
-            Self::syntax_to_option(&self.proxy, Syntax::from_language(language));
+        self.syntax = Some(Syntax::from_language(language));
     }
 
     pub fn set_diagnostics(&mut self, diagnostics: &[EditorDiagnostic]) {
@@ -759,7 +729,7 @@ impl Document {
         self.histories.get(version)
     }
 
-    pub fn history_visual_line(&self, version: &str, line: usize) -> usize {
+    pub fn history_visual_line(&self, version: &str, _line: usize) -> usize {
         let mut visual_line = 0;
         if let Some(history) = self.histories.get(version) {
             for (_i, change) in history.changes().iter().enumerate() {
@@ -767,19 +737,20 @@ impl Document {
                     DiffLines::Left(range) => {
                         visual_line += range.len();
                     }
-                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                        if r.contains(&line) {
-                            visual_line += line - r.start;
-                            break;
-                        }
-                        visual_line += r.len();
-                    }
-                    DiffLines::Skip(_, r) => {
-                        if r.contains(&line) {
-                            break;
-                        }
-                        visual_line += 1;
-                    }
+                    DiffLines::Both(_) => {}
+                    DiffLines::Right(_) => {} // DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                                              //     if r.contains(&line) {
+                                              //         visual_line += line - r.start;
+                                              //         break;
+                                              //     }
+                                              //     visual_line += r.len();
+                                              // }
+                                              // DiffLines::Skip(_, r) => {
+                                              //     if r.contains(&line) {
+                                              //         break;
+                                              //     }
+                                              //     visual_line += 1;
+                                              // }
                 }
             }
         }
@@ -792,51 +763,54 @@ impl Document {
         visual_line: usize,
     ) -> usize {
         let mut current_visual_line = 0;
-        let mut line = 0;
+        let line = 0;
         if let Some(history) = self.histories.get(version) {
             for (i, change) in history.changes().iter().enumerate() {
                 match change {
                     DiffLines::Left(range) => {
                         current_visual_line += range.len();
                         if current_visual_line > visual_line {
-                            if let Some(change) = history.changes().get(i + 1) {
-                                match change {
-                                    DiffLines::Left(_) => {}
-                                    DiffLines::Both(_, r)
-                                    | DiffLines::Skip(_, r)
-                                    | DiffLines::Right(r) => {
-                                        line = r.start;
-                                    }
-                                }
+                            if let Some(_change) = history.changes().get(i + 1) {
+                                // match change {
+                                //     DiffLines::Left(_) => {}
+                                //     // DiffLines::Both(_, r)
+                                //     // | DiffLines::Skip(_, r)
+                                //     // | DiffLines::Right(r) => {
+                                //     // line = r.start;
+                                //     // }
+                                //     _ => {}
+                                // }
                             } else if i > 0 {
-                                if let Some(change) = history.changes().get(i - 1) {
-                                    match change {
-                                        DiffLines::Left(_) => {}
-                                        DiffLines::Both(_, r)
-                                        | DiffLines::Skip(_, r)
-                                        | DiffLines::Right(r) => {
-                                            line = r.end - 1;
-                                        }
-                                    }
+                                if let Some(_change) = history.changes().get(i - 1) {
+                                    // match change {
+                                    //     DiffLines::Left(_) => {}
+                                    //     // DiffLines::Both(_, r)
+                                    //     // | DiffLines::Skip(_, r)
+                                    //     // | DiffLines::Right(r) => {
+                                    //     // line = r.end - 1;
+                                    //     // }
+                                    //     _ => {}
+                                    // }
                                 }
                             }
                             break;
                         }
                     }
-                    DiffLines::Skip(_, r) => {
-                        current_visual_line += 1;
-                        if current_visual_line > visual_line {
-                            line = r.end;
-                            break;
-                        }
-                    }
-                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                        current_visual_line += r.len();
-                        if current_visual_line > visual_line {
-                            line = r.end - (current_visual_line - visual_line);
-                            break;
-                        }
-                    }
+                    DiffLines::Both(_) => {}
+                    DiffLines::Right(_) => {} // DiffLines::Skip(_, r) => {
+                                              //     current_visual_line += 1;
+                                              //     if current_visual_line > visual_line {
+                                              //         line = r.end;
+                                              //         break;
+                                              //     }
+                                              // }
+                                              // DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                                              //     current_visual_line += r.len();
+                                              //     if current_visual_line > visual_line {
+                                              //         line = r.end - (current_visual_line - visual_line);
+                                              //         break;
+                                              //     }
+                                              // }
                 }
             }
         }
@@ -1395,7 +1369,7 @@ impl Document {
             cursor,
             &mut self.buffer,
             s,
-            self.syntax.as_ref(),
+            self.syntax.as_ref().unwrap(),
             auto_closing,
         );
         // Keep track of the change in the cursor mode for undo/redo
@@ -1428,7 +1402,7 @@ impl Document {
             cursor,
             &mut self.buffer,
             cmd,
-            self.syntax.as_ref(),
+            self.syntax.as_ref().unwrap(),
             &mut clipboard,
             modal,
             register,
@@ -1748,7 +1722,7 @@ impl Document {
                     .unwrap_or_default();
                 let line_height = config.editor.line_height();
                 // Tracks the actual line in the file.
-                let mut line = 0;
+                let line = 0;
                 // Tracks the lines that are displayed in the editor.
                 let mut lines = 0;
                 for change in changes {
@@ -1759,28 +1733,29 @@ impl Document {
                                 break;
                             }
                         }
-                        DiffLines::Skip(_l, r) => {
-                            // Skip only has one line rendered, so we only update this by 1
-                            lines += 1;
-                            if (lines * line_height) as f64 > point.y {
-                                break;
-                            }
-                            // However, skip moves forward multiple lines in the underlying
-                            // file so we need to update this.
-                            line += r.len();
-                        }
-                        DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                            lines += r.len();
-                            if (lines * line_height) as f64 > point.y {
-                                line += ((point.y
-                                    - ((lines - r.len()) * line_height) as f64)
-                                    / line_height as f64)
-                                    .floor()
-                                    as usize;
-                                break;
-                            }
-                            line += r.len();
-                        }
+                        DiffLines::Both(_) => {}
+                        DiffLines::Right(_) => {} // DiffLines::Skip(_l, r) => {
+                                                  //     // Skip only has one line rendered, so we only update this by 1
+                                                  //     lines += 1;
+                                                  //     if (lines * line_height) as f64 > point.y {
+                                                  //         break;
+                                                  //     }
+                                                  //     // However, skip moves forward multiple lines in the underlying
+                                                  //     // file so we need to update this.
+                                                  //     line += r.len();
+                                                  // }
+                                                  // DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                                                  //     lines += r.len();
+                                                  //     if (lines * line_height) as f64 > point.y {
+                                                  //         line += ((point.y
+                                                  //             - ((lines - r.len()) * line_height) as f64)
+                                                  //             / line_height as f64)
+                                                  //             .floor()
+                                                  //             as usize;
+                                                  //         break;
+                                                  //     }
+                                                  //     line += r.len();
+                                                  // }
                     }
                 }
                 (line, config.editor.font_size)
@@ -1919,28 +1894,29 @@ impl Document {
                     .map(|h| h.changes())
                     .unwrap_or_default();
                 let line_height = config.editor.line_height();
-                let mut current_line = 0;
+                // let mut current_line = 0;
                 let mut y = 0;
                 for change in changes {
                     match change {
                         DiffLines::Left(l) => {
                             y += l.len() * line_height;
                         }
-                        DiffLines::Skip(_l, r) => {
-                            if current_line + r.len() > line {
-                                break;
-                            }
-                            y += line_height;
-                            current_line += r.len();
-                        }
-                        DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                            if current_line + r.len() > line {
-                                y += line_height * (line - current_line);
-                                break;
-                            }
-                            y += r.len() * line_height;
-                            current_line += r.len();
-                        }
+                        DiffLines::Both(_) => {}
+                        DiffLines::Right(_) => {} // DiffLines::Skip(_l, r) => {
+                                                  //     if current_line + r.len() > line {
+                                                  //         break;
+                                                  //     }
+                                                  //     y += line_height;
+                                                  //     current_line += r.len();
+                                                  // }
+                                                  // DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                                                  //     if current_line + r.len() > line {
+                                                  //         y += line_height * (line - current_line);
+                                                  //         break;
+                                                  //     }
+                                                  //     y += r.len() * line_height;
+                                                  //     current_line += r.len();
+                                                  // }
                     }
                 }
                 (y, config.editor.line_height(), config.editor.font_size)
@@ -2014,24 +1990,25 @@ impl Document {
         )
     }
 
-    fn diff_cursor_line(&self, version: &str, line: usize) -> usize {
-        let mut cursor_line = 0;
+    fn diff_cursor_line(&self, version: &str, _line: usize) -> usize {
+        let cursor_line = 0;
         if let Some(history) = self.get_history(version) {
             for (_i, change) in history.changes().iter().enumerate() {
                 match change {
                     DiffLines::Left(_range) => {}
-                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                        if r.contains(&line) {
-                            cursor_line += line - r.start;
-                            break;
-                        }
-                        cursor_line += r.len();
-                    }
-                    DiffLines::Skip(_, r) => {
-                        if r.contains(&line) {
-                            break;
-                        }
-                    }
+                    DiffLines::Both(_) => {}
+                    DiffLines::Right(_) => {} // DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                                              //     if r.contains(&line) {
+                                              //         cursor_line += line - r.start;
+                                              //         break;
+                                              //     }
+                                              //     cursor_line += r.len();
+                                              // }
+                                              // DiffLines::Skip(_, r) => {
+                                              //     if r.contains(&line) {
+                                              //         break;
+                                              //     }
+                                              // }
                 }
             }
         }
@@ -2039,20 +2016,21 @@ impl Document {
     }
 
     fn diff_actual_line(&self, version: &str, cursor_line: usize) -> usize {
-        let mut current_cursor_line = 0;
-        let mut line = 0;
+        let current_cursor_line = 0;
+        let line = 0;
         if let Some(history) = self.get_history(version) {
             for (_i, change) in history.changes().iter().enumerate() {
                 match change {
                     DiffLines::Left(_range) => {}
-                    DiffLines::Skip(_, _r) => {}
-                    DiffLines::Both(_, r) | DiffLines::Right(r) => {
-                        current_cursor_line += r.len();
-                        if current_cursor_line > cursor_line {
-                            line = r.end - (current_cursor_line - cursor_line);
-                            break;
-                        }
-                    }
+                    DiffLines::Both(_) => {}
+                    DiffLines::Right(_) => {} // DiffLines::Skip(_, _r) => {}
+                                              // DiffLines::Both(_, r) | DiffLines::Right(r) => {
+                                              //     current_cursor_line += r.len();
+                                              //     if current_cursor_line > cursor_line {
+                                              //         line = r.end - (current_cursor_line - cursor_line);
+                                              //         break;
+                                              //     }
+                                              // }
                 }
             }
         }

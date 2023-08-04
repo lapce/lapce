@@ -7,7 +7,6 @@ use std::{
     },
 };
 
-use super::plugin::VoltID;
 use crossbeam_channel::{Receiver, Sender};
 use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
@@ -20,6 +19,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
+use super::plugin::VoltID;
 use crate::{
     buffer::BufferId,
     dap_types::{DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
@@ -229,7 +229,7 @@ pub enum ProxyNotification {
         diffs: Vec<FileDiff>,
     },
     GitCheckout {
-        branch: String,
+        reference: String,
     },
     GitDiscardFilesChanges {
         files: Vec<PathBuf>,
@@ -486,8 +486,8 @@ impl ProxyRpcHandler {
         self.notification(ProxyNotification::GitCommit { message, diffs });
     }
 
-    pub fn git_checkout(&self, branch: String) {
-        self.notification(ProxyNotification::GitCheckout { branch });
+    pub fn git_checkout(&self, reference: String) {
+        self.notification(ProxyNotification::GitCheckout { reference });
     }
 
     pub fn install_volt(&self, volt: VoltInfo) {

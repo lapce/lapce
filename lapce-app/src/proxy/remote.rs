@@ -13,6 +13,7 @@ use lapce_rpc::{
     stdio_transport, RpcMessage,
 };
 use thiserror::Error;
+use tracing::{debug, error};
 
 const UNIX_PROXY_SCRIPT: &[u8] = include_bytes!("../../../extra/proxy.sh");
 const WINDOWS_PROXY_SCRIPT: &[u8] = include_bytes!("../../../extra/proxy.ps1");
@@ -72,22 +73,6 @@ pub fn start_remote(
     core_rpc: CoreRpcHandler,
     proxy_rpc: ProxyRpcHandler,
 ) -> Result<()> {
-    let proxy_version = meta::TAG;
-
-    // start ssh CM connection in case where it doesn't handle
-    // executing command properly on remote host
-    // also print ssh debug output when used with LAPCE_DEBUG env
-    match remote.command_builder().arg("lapce-no-command").output() {
-        Ok(cmd) => {
-            log::debug!(target: "lapce_app::proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stderr));
-            log::debug!(target: "lapce_app:proxy::start_remote::first_try", "{}", String::from_utf8_lossy(&cmd.stdout));
-        }
-        Err(err) => {
-            log::error!(target: "lapce_app::proxy::start_remote::first_try", "{err}");
-            return Err(anyhow!(err));
-        }
-    }
-
     // Note about platforms:
     // Windows can use either cmd.exe, powershell.exe or pwsh.exe as
     // SSH shell, syntax logic varies significantly that's why we bet on
@@ -102,7 +87,7 @@ pub fn start_remote(
     let (platform, architecture) = host_specification(&remote).unwrap();
 
     if platform == UnknownOS || architecture == HostArchitecture::UnknownArch {
-        log::error!(target: "lapce_app::proxy::start_remote", "detected remote host: {platform}/{architecture}");
+        error!("detected remote host: {platform}/{architecture}");
         return Err(anyhow!("Unknown OS and/or architecture"));
     }
 
@@ -122,139 +107,35 @@ pub fn start_remote(
         }
     };
 
-    let script_install = match platform {
-        Windows => {
-            let local_proxy_script =
-                Directory::proxy_directory().unwrap().join("proxy.ps1");
-
-            let mut proxy_script = std::fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .open(&local_proxy_script)?;
-            proxy_script.write_all(WINDOWS_PROXY_SCRIPT)?;
-
-            let remote_proxy_script = "${env:TEMP}\\lapce-proxy.ps1";
-            remote.upload_file(local_proxy_script, remote_proxy_script)?;
-
-            let cmd = remote
-                .command_builder()
-                .args([
-                    "powershell",
-                    "-c",
-                    remote_proxy_script,
-                    "-version",
-                    proxy_version,
-                    "-directory",
-                    &remote_proxy_path,
-                ])
-                .output()?;
-            log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stderr));
-            log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stdout));
-
-            cmd.status
-        }
-        _ => {
-            let local_proxy_script =
-                Directory::proxy_directory().unwrap().join("proxy.sh");
-
-            let mut proxy_script = std::fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .open(&local_proxy_script)?;
-            proxy_script.write_all(UNIX_PROXY_SCRIPT)?;
-
-            let remote_proxy_script = "/tmp/lapce-proxy.sh";
-            remote.upload_file(local_proxy_script, remote_proxy_script)?;
-
-            let cmd = remote
-                .command_builder()
-                .args(["chmod", "+x", remote_proxy_script])
-                .output()?;
-            log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stderr));
-            log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stdout));
-
-            let cmd = remote
-                .command_builder()
-                .args([remote_proxy_script, proxy_version, &remote_proxy_path])
-                .output()?;
-            log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stderr));
-            log::debug!(target: "lapce_app::proxy::upload_file", "{}", String::from_utf8_lossy(&cmd.stdout));
-
-            cmd.status
-        }
-    };
-
     let remote_proxy_file = match platform {
         Windows => format!("{remote_proxy_path}\\lapce.exe"),
         _ => format!("{remote_proxy_path}/lapce"),
     };
 
-    let proxy_filename = format!("lapce-proxy-{platform}-{architecture}");
-
-    log::debug!(target: "lapce_app::proxy::start_remote", "remote proxy path: {remote_proxy_path}");
-
-    if !script_install.success() {
-        let cmd = match platform {
-            Windows => remote
-                .command_builder()
-                .args(["dir", &remote_proxy_file])
-                .status()?,
-            _ => remote
-                .command_builder()
-                .arg("test")
-                .arg("-e")
-                .arg(&remote_proxy_file)
-                .status()?,
-        };
-        if !cmd.success() {
-            let local_proxy_file = Directory::proxy_directory()
-                .ok_or_else(|| anyhow!("can't find proxy directory"))?
-                .join(&proxy_filename);
-            // remove possibly outdated proxy
-            if local_proxy_file.exists() {
-                // TODO: add proper proxy version detection and update proxy
-                // when needed
-                std::fs::remove_file(&local_proxy_file)?;
-            }
-            let url = format!("https://github.com/lapce/lapce/releases/download/{proxy_version}/{proxy_filename}.gz");
-            log::debug!(target: "lapce_app::proxy::start_remote", "proxy download URI: {url}");
-            let mut resp = reqwest::blocking::get(url).expect("request failed");
-            if resp.status().is_success() {
-                let mut out = std::fs::File::create(&local_proxy_file)
-                    .expect("failed to create file");
-                let mut gz = GzDecoder::new(&mut resp);
-                std::io::copy(&mut gz, &mut out).expect("failed to copy content");
+    if !remote
+        .command_builder()
+        .args([&remote_proxy_file, "--version"])
+        .output()
+        .map(|output| {
+            if meta::VERSION == "debug" {
+                String::from_utf8_lossy(&output.stdout).starts_with("Lapce-proxy")
             } else {
-                log::error!(target: "lapce_app::proxy::start_remote", "proxy download failed with: {}", resp.status());
+                String::from_utf8_lossy(&output.stdout)
+                    == format!("Lapce-proxy {}", meta::VERSION)
             }
+        })
+        .unwrap_or(false)
+    {
+        download_remote(
+            &remote,
+            &platform,
+            &architecture,
+            &remote_proxy_path,
+            &remote_proxy_file,
+        )?;
+    };
 
-            match platform {
-                // Windows creates all dirs in provided path
-                Windows => remote
-                    .command_builder()
-                    .arg("mkdir")
-                    .arg(remote_proxy_path)
-                    .status()?,
-                // Unix needs -p to do same
-                _ => remote
-                    .command_builder()
-                    .arg("mkdir")
-                    .arg("-p")
-                    .arg(remote_proxy_path)
-                    .status()?,
-            };
-
-            remote.upload_file(&local_proxy_file, &remote_proxy_file)?;
-            if platform != Windows {
-                remote
-                    .command_builder()
-                    .arg("chmod")
-                    .arg("+x")
-                    .arg(&remote_proxy_file)
-                    .status()?;
-            }
-        }
-    }
+    debug!("remote proxy path: {remote_proxy_path}");
 
     let mut child = match platform {
         // Force cmd.exe usage to resolve %envvar% variables
@@ -284,7 +165,7 @@ pub fn start_remote(
             .take()
             .ok_or_else(|| anyhow!("can't find stdout"))?,
     );
-    log::debug!(target: "lapce_app::proxy::start_remote", "process id: {}", child.id());
+    debug!("process id: {}", child.id());
 
     let (writer_tx, writer_rx) = crossbeam_channel::unbounded();
     let (reader_tx, reader_rx) = crossbeam_channel::unbounded();
@@ -341,6 +222,151 @@ pub fn start_remote(
     Ok(())
 }
 
+fn download_remote(
+    remote: &impl Remote,
+    platform: &HostPlatform,
+    architecture: &HostArchitecture,
+    remote_proxy_path: &str,
+    remote_proxy_file: &str,
+) -> Result<()> {
+    let script_install = match platform {
+        HostPlatform::Windows => {
+            let local_proxy_script =
+                Directory::proxy_directory().unwrap().join("proxy.ps1");
+
+            let mut proxy_script = std::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(&local_proxy_script)?;
+            proxy_script.write_all(WINDOWS_PROXY_SCRIPT)?;
+
+            let remote_proxy_script = "${env:TEMP}\\lapce-proxy.ps1";
+            remote.upload_file(local_proxy_script, remote_proxy_script)?;
+
+            let cmd = remote
+                .command_builder()
+                .args([
+                    "powershell",
+                    "-c",
+                    remote_proxy_script,
+                    "-version",
+                    meta::VERSION,
+                    "-directory",
+                    remote_proxy_path,
+                ])
+                .output()?;
+            debug!("{}", String::from_utf8_lossy(&cmd.stderr));
+            debug!("{}", String::from_utf8_lossy(&cmd.stdout));
+
+            cmd.status
+        }
+        _ => {
+            let local_proxy_script =
+                Directory::proxy_directory().unwrap().join("proxy.sh");
+
+            let mut proxy_script = std::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(&local_proxy_script)?;
+            proxy_script.write_all(UNIX_PROXY_SCRIPT)?;
+
+            let remote_proxy_script = "/tmp/lapce-proxy.sh";
+            remote.upload_file(local_proxy_script, remote_proxy_script)?;
+
+            let cmd = remote
+                .command_builder()
+                .args(["chmod", "+x", remote_proxy_script])
+                .output()?;
+            debug!("{}", String::from_utf8_lossy(&cmd.stderr));
+            debug!("{}", String::from_utf8_lossy(&cmd.stdout));
+
+            let cmd = remote
+                .command_builder()
+                .args([
+                    remote_proxy_script,
+                    if meta::VERSION == "debug" {
+                        "nightly"
+                    } else {
+                        meta::VERSION
+                    },
+                    remote_proxy_path,
+                ])
+                .output()?;
+            debug!("{}", String::from_utf8_lossy(&cmd.stderr));
+            debug!("{}", String::from_utf8_lossy(&cmd.stdout));
+
+            cmd.status
+        }
+    };
+
+    if !script_install.success() {
+        let cmd = match platform {
+            HostPlatform::Windows => remote
+                .command_builder()
+                .args(["dir", remote_proxy_file])
+                .status()?,
+            _ => remote
+                .command_builder()
+                .arg("test")
+                .arg("-e")
+                .arg(remote_proxy_file)
+                .status()?,
+        };
+        if !cmd.success() {
+            let proxy_filename = format!("lapce-proxy-{platform}-{architecture}");
+            let local_proxy_file = Directory::proxy_directory()
+                .ok_or_else(|| anyhow!("can't find proxy directory"))?
+                .join(&proxy_filename);
+            // remove possibly outdated proxy
+            if local_proxy_file.exists() {
+                // TODO: add proper proxy version detection and update proxy
+                // when needed
+                std::fs::remove_file(&local_proxy_file)?;
+            }
+            let proxy_version = meta::VERSION;
+            let url = format!("https://github.com/lapce/lapce/releases/download/{proxy_version}/{proxy_filename}.gz");
+            debug!("proxy download URI: {url}");
+            let mut resp = reqwest::blocking::get(url).expect("request failed");
+            if resp.status().is_success() {
+                let mut out = std::fs::File::create(&local_proxy_file)
+                    .expect("failed to create file");
+                let mut gz = GzDecoder::new(&mut resp);
+                std::io::copy(&mut gz, &mut out).expect("failed to copy content");
+            } else {
+                error!("proxy download failed with: {}", resp.status());
+            }
+
+            match platform {
+                // Windows creates all dirs in provided path
+                HostPlatform::Windows => remote
+                    .command_builder()
+                    .arg("mkdir")
+                    .arg(remote_proxy_path)
+                    .status()?,
+                // Unix needs -p to do same
+                _ => remote
+                    .command_builder()
+                    .arg("mkdir")
+                    .arg("-p")
+                    .arg(remote_proxy_path)
+                    .status()?,
+            };
+
+            remote.upload_file(&local_proxy_file, remote_proxy_file)?;
+            if platform != &HostPlatform::Windows {
+                remote
+                    .command_builder()
+                    .arg("chmod")
+                    .arg("+x")
+                    .arg(remote_proxy_file)
+                    .status()?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn host_specification(
     remote: &impl Remote,
 ) -> Result<(HostPlatform, HostArchitecture)> {
@@ -353,7 +379,7 @@ fn host_specification(
         Ok(cmd) => {
             let stdout = String::from_utf8_lossy(&cmd.stdout).to_lowercase();
             let stdout = stdout.trim();
-            log::debug!(target: "lapce_app::proxy::host_specification", "{}", &stdout);
+            debug!("{}", &stdout);
             match stdout {
                 // If empty, then we probably deal with Windows and not Unix
                 // or something went wrong with command output
@@ -368,7 +394,7 @@ fn host_specification(
                             let stdout =
                                 String::from_utf8_lossy(&cmd.stdout).to_lowercase();
                             let stdout = stdout.trim();
-                            log::debug!(target: "lapce_app::proxy::host_specification", "{}", &stdout);
+                            debug!("{}", &stdout);
                             match stdout.split_once(' ') {
                                 Some((os, arch)) => (parse_os(os), parse_arch(arch)),
                                 None => {
@@ -383,7 +409,7 @@ fn host_specification(
                                                 String::from_utf8_lossy(&cmd.stdout)
                                                     .to_lowercase();
                                             let stdout = stdout.trim();
-                                            log::debug!(target: "lapce_app::proxy::host_specification", "{}", &stdout);
+                                            debug!("{}", &stdout);
                                             match stdout.split_once(' ') {
                                                 Some((os, arch)) => {
                                                     (parse_os(os), parse_arch(arch))
@@ -392,7 +418,7 @@ fn host_specification(
                                             }
                                         }
                                         Err(e) => {
-                                            log::error!(target: "lapce_app::proxy::host_specification", "{e}");
+                                            error!("{e}");
                                             (UnknownOS, UnknownArch)
                                         }
                                     }
@@ -400,7 +426,7 @@ fn host_specification(
                             }
                         }
                         Err(e) => {
-                            log::error!(target: "lapce_app::proxy::host_specification", "{e}");
+                            error!("{e}");
                             (UnknownOS, UnknownArch)
                         }
                     }
@@ -415,7 +441,7 @@ fn host_specification(
             }
         }
         Err(e) => {
-            log::error!(target: "lapce_app::proxy::host_specification", "{e}");
+            error!("{e}");
             (UnknownOS, UnknownArch)
         }
     };

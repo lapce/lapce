@@ -6,7 +6,7 @@ use druid::{
 };
 use indexmap::IndexMap;
 use lapce_core::{
-    buffer::{rope_text::RopeText, DiffLines},
+    buffer::{diff::DiffLines, rope_text::RopeText},
     command::{
         EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
         MultiSelectionCommand,

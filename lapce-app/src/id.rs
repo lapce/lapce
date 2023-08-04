@@ -19,4 +19,5 @@ pub type WindowTabId = Id;
 pub type EditorTabId = Id;
 pub type SettingsId = Id;
 pub type EditorId = Id;
+pub type DiffEditorId = Id;
 pub type TerminalTabId = Id;

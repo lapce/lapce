@@ -2,10 +2,7 @@ use std::sync::Arc;
 
 use floem::{
     cosmic_text::Style as FontStyle,
-    reactive::{
-        ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWith, SignalWithUntracked,
-    },
+    reactive::{ReadSignal, RwSignal},
     style::{CursorStyle, Style},
     view::View,
     views::{container, container_box, label, list, scroll, stack, svg, Decorators},
@@ -15,6 +12,7 @@ use lapce_rpc::{
     terminal::TermId,
 };
 
+use super::{position::PanelPosition, view::panel_header};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -25,8 +23,6 @@ use crate::{
     terminal::panel::TerminalPanelData,
     window_tab::WindowTabData,
 };
-
-use super::{position::PanelPosition, view::panel_header};
 
 pub fn debug_panel(
     window_tab_data: Arc<WindowTabData>,

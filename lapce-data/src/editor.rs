@@ -19,7 +19,7 @@ use druid::{
 use indexmap::IndexMap;
 pub use lapce_core::syntax::Syntax;
 use lapce_core::{
-    buffer::{rope_text::RopeText, Buffer, DiffLines, InvalLines},
+    buffer::{diff::DiffLines, rope_text::RopeText, Buffer, InvalLines},
     command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
     editor::EditType,
     mode::{Mode, MotionMode},
@@ -1106,21 +1106,23 @@ impl LapceEditorBufferData {
                                         match next {
                                             DiffLines::Right(_) => {}
                                             DiffLines::Left(_) => {}
-                                            DiffLines::Both(_, r) => {
-                                                let start =
-                                                    buffer.offset_of_line(r.start);
-                                                positions.push(start);
-                                            }
-                                            DiffLines::Skip(_, r) => {
-                                                let start =
-                                                    buffer.offset_of_line(r.start);
-                                                positions.push(start);
-                                            }
+                                            // DiffLines::Both(_, r) => {
+                                            //     let start =
+                                            //         buffer.offset_of_line(r.start);
+                                            //     positions.push(start);
+                                            // }
+                                            // DiffLines::Skip(_, r) => {
+                                            //     let start =
+                                            //         buffer.offset_of_line(r.start);
+                                            //     positions.push(start);
+                                            // }
+                                            _ => {}
                                         }
                                     }
                                 }
-                                DiffLines::Both(_, _) => {}
-                                DiffLines::Skip(_, _) => {}
+                                // DiffLines::Both(_, _) => {}
+                                // DiffLines::Skip(_, _) => {}
+                                _ => {}
                                 DiffLines::Right(r) => {
                                     let start = buffer.offset_of_line(r.start);
                                     positions.push(start);

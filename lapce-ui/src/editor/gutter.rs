@@ -4,7 +4,7 @@ use druid::{
     LifeCycleCtx, PaintCtx, Point, Rect, RenderContext, Size, Target, UpdateCtx,
     Widget, WidgetId,
 };
-use lapce_core::buffer::{rope_text::RopeText, DiffLines};
+use lapce_core::buffer::{diff::DiffLines, rope_text::RopeText};
 use lapce_data::document::BufferContent;
 use lapce_data::history::DocumentHistory;
 use lapce_data::{
@@ -299,120 +299,120 @@ impl LapceEditorGutter {
                         }
                     }
                 }
-                DiffLines::Both(left, r) => {
-                    let len = r.len();
-                    line += len;
-                    if line < start_line {
-                        continue;
-                    }
+                // DiffLines::Both(left, r) => {
+                //     let len = r.len();
+                //     line += len;
+                //     if line < start_line {
+                //         continue;
+                //     }
 
-                    for l in line - len..line {
-                        if l < start_line {
-                            continue;
-                        }
-                        let left_actual_line = l - (line - len) + left.start;
-                        let right_actual_line = l - (line - len) + r.start;
+                //     for l in line - len..line {
+                //         if l < start_line {
+                //             continue;
+                //         }
+                //         let left_actual_line = l - (line - len) + left.start;
+                //         let right_actual_line = l - (line - len) + r.start;
 
-                        let left_content = left_actual_line + 1;
+                //         let left_content = left_actual_line + 1;
 
-                        let text_layout = ctx
-                            .text()
-                            .new_text_layout(left_content.to_string())
-                            .font(
-                                data.config.editor.font_family(),
-                                data.config.editor.font_size as f64,
-                            )
-                            .text_color(
-                                data.config
-                                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                                    .clone(),
-                            )
-                            .build()
-                            .unwrap();
-                        let x = ((last_line + 1).to_string().len()
-                            - left_content.to_string().len())
-                            as f64
-                            * width;
-                        let y = line_height * l as f64
-                            + text_layout.y_offset(line_height)
-                            - scroll_offset.y;
-                        let pos = Point::new(x, y);
-                        ctx.draw_text(&text_layout, pos);
+                //         let text_layout = ctx
+                //             .text()
+                //             .new_text_layout(left_content.to_string())
+                //             .font(
+                //                 data.config.editor.font_family(),
+                //                 data.config.editor.font_size as f64,
+                //             )
+                //             .text_color(
+                //                 data.config
+                //                     .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                //                     .clone(),
+                //             )
+                //             .build()
+                //             .unwrap();
+                //         let x = ((last_line + 1).to_string().len()
+                //             - left_content.to_string().len())
+                //             as f64
+                //             * width;
+                //         let y = line_height * l as f64
+                //             + text_layout.y_offset(line_height)
+                //             - scroll_offset.y;
+                //         let pos = Point::new(x, y);
+                //         ctx.draw_text(&text_layout, pos);
 
-                        let right_content = right_actual_line + 1;
-                        let x = ((last_line + 1).to_string().len()
-                            - right_content.to_string().len())
-                            as f64
-                            * width
-                            + self.width
-                            + 2.0 * width;
-                        let pos = Point::new(x, y);
-                        let text_layout = ctx
-                            .text()
-                            .new_text_layout(right_content.to_string())
-                            .font(
-                                data.config.editor.font_family(),
-                                data.config.editor.font_size as f64,
-                            )
-                            .text_color(if right_actual_line == current_line {
-                                data.config
-                                    .get_color_unchecked(
-                                        LapceTheme::EDITOR_FOREGROUND,
-                                    )
-                                    .clone()
-                            } else {
-                                data.config
-                                    .get_color_unchecked(LapceTheme::EDITOR_DIM)
-                                    .clone()
-                            })
-                            .build()
-                            .unwrap();
-                        ctx.draw_text(&text_layout, pos);
+                //         let right_content = right_actual_line + 1;
+                //         let x = ((last_line + 1).to_string().len()
+                //             - right_content.to_string().len())
+                //             as f64
+                //             * width
+                //             + self.width
+                //             + 2.0 * width;
+                //         let pos = Point::new(x, y);
+                //         let text_layout = ctx
+                //             .text()
+                //             .new_text_layout(right_content.to_string())
+                //             .font(
+                //                 data.config.editor.font_family(),
+                //                 data.config.editor.font_size as f64,
+                //             )
+                //             .text_color(if right_actual_line == current_line {
+                //                 data.config
+                //                     .get_color_unchecked(
+                //                         LapceTheme::EDITOR_FOREGROUND,
+                //                     )
+                //                     .clone()
+                //             } else {
+                //                 data.config
+                //                     .get_color_unchecked(LapceTheme::EDITOR_DIM)
+                //                     .clone()
+                //             })
+                //             .build()
+                //             .unwrap();
+                //         ctx.draw_text(&text_layout, pos);
 
-                        if l > end_line {
-                            break;
-                        }
-                    }
-                }
-                DiffLines::Skip(_l, _r) => {
-                    let rect = Size::new(self_size.width, line_height)
-                        .to_rect()
-                        .with_origin(Point::new(
-                            0.0,
-                            line_height * line as f64 - scroll_offset.y,
-                        ));
-                    ctx.fill(
-                        rect,
-                        data.config
-                            .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
-                    );
-                    ctx.stroke(
-                        rect,
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                        1.0,
-                    );
-                    let pos = Point::new(
-                        (self_size.width - width * 3.0) / 2.0,
-                        line_height * line as f64 - scroll_offset.y,
-                    );
-                    let text_layout = ctx
-                        .text()
-                        .new_text_layout("...")
-                        .font(
-                            data.config.editor.font_family(),
-                            data.config.editor.font_size as f64,
-                        )
-                        .text_color(
-                            data.config
-                                .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                                .clone(),
-                        )
-                        .build()
-                        .unwrap();
-                    ctx.draw_text(&text_layout, pos);
-                    line += 1;
-                }
+                //         if l > end_line {
+                //             break;
+                //         }
+                //     }
+                // }
+                // DiffLines::Skip(_l, _r) => {
+                //     let rect = Size::new(self_size.width, line_height)
+                //         .to_rect()
+                //         .with_origin(Point::new(
+                //             0.0,
+                //             line_height * line as f64 - scroll_offset.y,
+                //         ));
+                //     ctx.fill(
+                //         rect,
+                //         data.config
+                //             .get_color_unchecked(LapceTheme::PANEL_BACKGROUND),
+                //     );
+                //     ctx.stroke(
+                //         rect,
+                //         data.config
+                //             .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                //         1.0,
+                //     );
+                //     let pos = Point::new(
+                //         (self_size.width - width * 3.0) / 2.0,
+                //         line_height * line as f64 - scroll_offset.y,
+                //     );
+                //     let text_layout = ctx
+                //         .text()
+                //         .new_text_layout("...")
+                //         .font(
+                //             data.config.editor.font_family(),
+                //             data.config.editor.font_size as f64,
+                //         )
+                //         .text_color(
+                //             data.config
+                //                 .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
+                //                 .clone(),
+                //         )
+                //         .build()
+                //         .unwrap();
+                //     ctx.draw_text(&text_layout, pos);
+                //     line += 1;
+                // }
                 DiffLines::Right(r) => {
                     let len = r.len();
                     line += len;
@@ -476,6 +476,7 @@ impl LapceEditorGutter {
                         }
                     }
                 }
+                _ => {}
             }
         }
     }
@@ -485,7 +486,7 @@ impl LapceEditorGutter {
         ctx: &mut EventCtx,
         data: &LapceEditorBufferData,
         history: &DocumentHistory,
-        mouse_pos: Point,
+        _mouse_pos: Point,
     ) -> Option<DiffLines> {
         let line_height = data.config.editor.line_height() as f64;
         let self_size = ctx.size();
@@ -501,26 +502,27 @@ impl LapceEditorGutter {
                     let len = r.len();
                     line += len;
                 }
-                DiffLines::Both(_, r) => {
-                    let len = r.len();
-                    line += len;
-                }
-                DiffLines::Skip(l, r) => {
-                    let rect = Size::new(self_size.width, line_height)
-                        .to_rect()
-                        .with_origin(Point::new(
-                            0.0,
-                            line_height * line as f64 - scroll_offset.y,
-                        ));
-                    if rect.contains(mouse_pos) {
-                        return Some(DiffLines::Skip(l.clone(), r.clone()));
-                    }
-                    line += 1;
-                }
                 DiffLines::Right(r) => {
                     let len = r.len();
                     line += len;
                 }
+                // DiffLines::Both(_, r) => {
+                //     let len = r.len();
+                //     line += len;
+                // }
+                // DiffLines::Skip(l, r) => {
+                //     let rect = Size::new(self_size.width, line_height)
+                //         .to_rect()
+                //         .with_origin(Point::new(
+                //             0.0,
+                //             line_height * line as f64 - scroll_offset.y,
+                //         ));
+                //     if rect.contains(mouse_pos) {
+                //         return Some(DiffLines::Skip(l.clone(), r.clone()));
+                //     }
+                //     line += 1;
+                // }
+                _ => {}
             }
             if line > end_line {
                 break;
@@ -838,9 +840,10 @@ impl LapceEditorGutter {
                 for change in history.changes().iter() {
                     let len = match change {
                         DiffLines::Left(_range) => 0,
-                        DiffLines::Skip(_left, right) => right.len(),
-                        DiffLines::Both(_left, right) => right.len(),
                         DiffLines::Right(range) => range.len(),
+                        // DiffLines::Skip(_left, right) => right.len(),
+                        // DiffLines::Both(_left, right) => right.len(),
+                        _ => 0,
                     };
                     line += len;
                     if line < start_line {

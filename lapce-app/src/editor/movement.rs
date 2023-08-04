@@ -2,7 +2,6 @@
 
 use std::collections::HashSet;
 
-use floem::reactive::{SignalGetUntracked, SignalUpdate};
 use lapce_core::{
     buffer::rope_text::RopeText,
     command::MultiSelectionCommand,
@@ -17,7 +16,7 @@ use lapce_core::{
 
 use crate::doc::Document;
 
-use super::view::EditorViewData;
+use super::view_data::EditorViewData;
 
 /// Move a selection region by a given movement.  
 /// Much of the time, this will just be a matter of moving the cursor, but
@@ -284,7 +283,8 @@ fn move_up(
         return (new_offset, horiz);
     }
 
-    let line = line.saturating_sub(count);
+    let visual_line = view.visual_line(line).saturating_sub(count);
+    let line = view.actual_line(visual_line, false);
 
     let horiz = horiz.unwrap_or_else(|| {
         ColPosition::Col(view.line_point_of_offset(offset, font_size).x)
@@ -316,7 +316,8 @@ fn move_down(
         return (new_offset, horiz);
     }
 
-    let line = line + count;
+    let visual_line = view.visual_line(line);
+    let line = view.actual_line(visual_line + count, true);
     let line = line.min(last_line);
 
     let horiz = horiz.unwrap_or_else(|| {

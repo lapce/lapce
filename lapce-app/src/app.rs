@@ -13,15 +13,14 @@ use crossbeam_channel::Sender;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener},
-    ext_event::{create_ext_action, create_signal_from_channel},
+    ext_event::create_signal_from_channel,
     peniko::{
         kurbo::{Point, Rect, Size},
         Color,
     },
     reactive::{
-        create_effect, create_memo, create_rw_signal, on_cleanup, provide_context,
-        use_context, ReadSignal, RwSignal, Scope, SignalGet, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWith, SignalWithUntracked,
+        create_effect, create_memo, create_rw_signal, provide_context, use_context,
+        ReadSignal, RwSignal, Scope,
     },
     style::{
         AlignItems, CursorStyle, Dimension, Display, FlexDirection, JustifyContent,
@@ -34,7 +33,6 @@ use floem::{
         VirtualListVector,
     },
     window::WindowConfig,
-    ViewContext,
 };
 use lapce_core::{directory::Directory, meta, mode::Mode};
 use lapce_rpc::{
@@ -45,8 +43,11 @@ use lapce_rpc::{
 use lsp_types::{CompletionItemKind, DiagnosticSeverity};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
+use tracing::{error, metadata::LevelFilter, trace};
+use tracing_subscriber::{filter::FilterFn, reload::Handle};
 
 use crate::{
+    about,
     code_action::CodeActionStatus,
     command::{InternalCommand, WindowCommand},
     config::{
@@ -56,17 +57,20 @@ use crate::{
     debug::RunDebugMode,
     doc::DocContent,
     editor::{
+        diff::{diff_show_more_section_view, DiffEditorData},
         location::{EditorLocation, EditorPosition},
         view::editor_container_view,
         EditorData,
     },
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
-    id::{EditorId, EditorTabId, SplitId},
+    id::{DiffEditorId, EditorId, EditorTabId, SplitId},
+    keypress::keymap::KeyMap,
     listener::Listener,
     main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
     palette::{
         item::{PaletteItem, PaletteItemContent},
+        kind::PaletteKind,
         PaletteData, PaletteStatus,
     },
     panel::{
@@ -93,6 +97,10 @@ struct Cli {
     /// Don't return instantly when opened in a terminal
     #[clap(short, long, action)]
     wait: bool,
+
+    /// Manually set log level
+    #[clap(short, long)]
+    log_level: Option<String>,
 
     /// Paths to file(s) and/or folder(s) to open.
     /// When path is a file (that exists or not),
@@ -122,6 +130,7 @@ pub struct AppData {
     /// The latest release information
     pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
     pub watcher: Arc<notify::RecommendedWatcher>,
+    pub tracing_handle: Handle<LevelFilter>,
 }
 
 impl AppData {
@@ -143,7 +152,7 @@ impl AppData {
     pub fn run_app_command(&self, cmd: AppCommand) {
         match cmd {
             AppCommand::SaveApp => {
-                let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+                let db: Arc<LapceDb> = use_context().unwrap();
                 let _ = db.save_app(self);
             }
         }
@@ -154,6 +163,7 @@ fn editor_tab_header(
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    diff_editors: ReadSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
     common: CommonData,
 ) -> impl View {
     let focus = common.focus;
@@ -193,48 +203,105 @@ fn editor_tab_header(
                 is_pristine: bool,
             }
 
-            let cx = ViewContext::get_current();
             let info = match child {
-                EditorTabChild::Editor(editor_id) => {
-                    create_memo(cx.scope, move |_| {
+                EditorTabChild::Editor(editor_id) => create_memo(move |_| {
+                    let config = config.get();
+                    let editor_data =
+                        editors.with(|editors| editors.get(&editor_id).cloned());
+                    let path = if let Some(editor_data) = editor_data {
+                        let ((content, is_pristine), confirmed) =
+                            editor_data.with(|editor_data| {
+                                (
+                                    editor_data.view.doc.with(|doc| {
+                                        (
+                                            doc.content.clone(),
+                                            doc.buffer().is_pristine(),
+                                        )
+                                    }),
+                                    editor_data.confirmed,
+                                )
+                            });
+                        match content {
+                            DocContent::File(path) => {
+                                Some((path, confirmed, is_pristine))
+                            }
+                            DocContent::Local => None,
+                            DocContent::History(_) => None,
+                        }
+                    } else {
+                        None
+                    };
+                    let (icon, color, path, confirmed, is_pristine) = match path {
+                        Some((path, confirmed, is_pritine)) => {
+                            let (svg, color) = config.file_svg(&path);
+                            (
+                                svg,
+                                color.cloned(),
+                                path.file_name()
+                                    .unwrap_or_default()
+                                    .to_str()
+                                    .unwrap_or_default()
+                                    .to_string(),
+                                confirmed,
+                                is_pritine,
+                            )
+                        }
+                        None => (
+                            config.ui_svg(LapceIcons::FILE),
+                            Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                            "local".to_string(),
+                            create_rw_signal(true),
+                            true,
+                        ),
+                    };
+                    Info {
+                        icon,
+                        color,
+                        path,
+                        confirmed: Some(confirmed),
+                        is_pristine,
+                    }
+                }),
+                EditorTabChild::DiffEditor(diff_editor_id) => {
+                    create_memo(move |_| {
                         let config = config.get();
-                        let editor_data =
-                            editors.with(|editors| editors.get(&editor_id).cloned());
-                        let path = if let Some(editor_data) = editor_data {
-                            let ((content, is_pristine), confirmed) = editor_data
-                                .with(|editor_data| {
-                                    (
-                                        editor_data.doc.with(|doc| {
-                                            (
-                                                doc.content.clone(),
-                                                doc.buffer().is_pristine(),
-                                            )
-                                        }),
-                                        editor_data.confirmed,
-                                    )
+                        let diff_editor_data = diff_editors.with(|diff_editors| {
+                            diff_editors.get(&diff_editor_id).cloned()
+                        });
+                        let confirmed = diff_editor_data
+                            .as_ref()
+                            .map(|d| d.right.with_untracked(|e| e.confirmed));
+                        let path = if let Some(diff_editor_data) = diff_editor_data {
+                            let (content, is_pristine) =
+                                diff_editor_data.right.with(|editor_data| {
+                                    editor_data.view.doc.with(|doc| {
+                                        (
+                                            doc.content.clone(),
+                                            doc.buffer().is_pristine(),
+                                        )
+                                    })
                                 });
                             match content {
-                                DocContent::File(path) => {
-                                    Some((path, confirmed, is_pristine))
-                                }
+                                DocContent::File(path) => Some((path, is_pristine)),
                                 DocContent::Local => None,
+                                DocContent::History(_) => None,
                             }
                         } else {
                             None
                         };
-                        let (icon, color, path, confirmed, is_pristine) = match path
-                        {
-                            Some((path, confirmed, is_pritine)) => {
+                        let (icon, color, path, is_pristine) = match path {
+                            Some((path, is_pritine)) => {
                                 let (svg, color) = config.file_svg(&path);
                                 (
                                     svg,
                                     color.cloned(),
-                                    path.file_name()
-                                        .unwrap_or_default()
-                                        .to_str()
-                                        .unwrap_or_default()
-                                        .to_string(),
-                                    confirmed,
+                                    format!(
+                                        "{} (Diff)",
+                                        path.file_name()
+                                            .unwrap_or_default()
+                                            .to_str()
+                                            .unwrap_or_default()
+                                    ),
                                     is_pritine,
                                 )
                             }
@@ -244,7 +311,6 @@ fn editor_tab_header(
                                     *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                                 ),
                                 "local".to_string(),
-                                create_rw_signal(cx.scope, true),
                                 true,
                             ),
                         };
@@ -252,12 +318,12 @@ fn editor_tab_header(
                             icon,
                             color,
                             path,
-                            confirmed: Some(confirmed),
+                            confirmed,
                             is_pristine,
                         }
                     })
                 }
-                EditorTabChild::Settings(_) => create_memo(cx.scope, move |_| {
+                EditorTabChild::Settings(_) => create_memo(move |_| {
                     let config = config.get();
                     Info {
                         icon: config.ui_svg(LapceIcons::SETTINGS),
@@ -333,9 +399,9 @@ fn editor_tab_header(
 
         let confirmed = match local_child {
             EditorTabChild::Editor(editor_id) => {
-                let editor_data =
-                    editors.with(|editors| editors.get(&editor_id).cloned());
-                editor_data.map(|editor_data| editor_data.get().confirmed)
+                let editor_data = editors
+                    .with_untracked(|editors| editors.get(&editor_id).cloned());
+                editor_data.map(|editor_data| editor_data.get_untracked().confirmed)
             }
             _ => None,
         };
@@ -485,8 +551,10 @@ fn editor_tab_content(
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    diff_editors: ReadSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
 ) -> impl View {
     let common = main_split.common.clone();
+    let config = common.config;
     let focus = common.focus;
     let items = move || {
         editor_tab
@@ -500,15 +568,30 @@ fn editor_tab_content(
         let common = common.clone();
         let child = match child {
             EditorTabChild::Editor(editor_id) => {
-                let editor_data =
-                    editors.with(|editors| editors.get(&editor_id).cloned());
+                let editor_data = editors
+                    .with_untracked(|editors| editors.get(&editor_id).cloned());
                 if let Some(editor_data) = editor_data {
-                    let is_active = move || {
-                        let focus = focus.get();
+                    let editor_scope =
+                        editor_data.with_untracked(|editor_data| editor_data.scope);
+                    let is_active = move |tracked: bool| {
+                        editor_scope.track();
+                        let focus = if tracked {
+                            focus.get()
+                        } else {
+                            focus.get_untracked()
+                        };
                         if let Focus::Workbench = focus {
-                            let active_editor_tab = active_editor_tab.get();
-                            let editor_tab =
-                                editor_data.with(|editor| editor.editor_tab_id);
+                            let active_editor_tab = if tracked {
+                                active_editor_tab.get()
+                            } else {
+                                active_editor_tab.get_untracked()
+                            };
+                            let editor_tab = if tracked {
+                                editor_data.with(|editor| editor.editor_tab_id)
+                            } else {
+                                editor_data
+                                    .with_untracked(|editor| editor.editor_tab_id)
+                            };
                             editor_tab.is_some() && editor_tab == active_editor_tab
                         } else {
                             false
@@ -524,6 +607,141 @@ fn editor_tab_content(
                     })
                 } else {
                     container_box(|| Box::new(label(|| "emtpy editor".to_string())))
+                }
+            }
+            EditorTabChild::DiffEditor(diff_editor_id) => {
+                let diff_editor_data = diff_editors.with_untracked(|diff_editors| {
+                    diff_editors.get(&diff_editor_id).cloned()
+                });
+                if let Some(diff_editor_data) = diff_editor_data {
+                    let focus_right = diff_editor_data.focus_right;
+                    let diff_editor_tab_id = diff_editor_data.editor_tab_id;
+                    let diff_editor_scope = diff_editor_data.scope;
+                    let is_active = move |tracked: bool| {
+                        let focus = if tracked {
+                            focus.get()
+                        } else {
+                            focus.get_untracked()
+                        };
+                        if let Focus::Workbench = focus {
+                            let active_editor_tab = if tracked {
+                                active_editor_tab.get()
+                            } else {
+                                active_editor_tab.get_untracked()
+                            };
+                            Some(diff_editor_tab_id) == active_editor_tab
+                        } else {
+                            false
+                        }
+                    };
+                    let (left_viewport, left_scroll_to) =
+                        diff_editor_data.left.with_untracked(|editor| {
+                            (editor.viewport, editor.scroll_to)
+                        });
+                    let (right_viewport, right_scroll_to) =
+                        diff_editor_data.right.with_untracked(|editor| {
+                            (editor.viewport, editor.scroll_to)
+                        });
+                    create_effect(move |_| {
+                        let left_viewport = left_viewport.get();
+                        if right_viewport.get_untracked() != left_viewport {
+                            right_scroll_to
+                                .set(Some(left_viewport.origin().to_vec2()));
+                        }
+                    });
+                    create_effect(move |_| {
+                        let right_viewport = right_viewport.get();
+                        if left_viewport.get_untracked() != right_viewport {
+                            left_scroll_to
+                                .set(Some(right_viewport.origin().to_vec2()));
+                        }
+                    });
+                    container_box(|| {
+                        Box::new(
+                            stack(|| {
+                                (
+                                    container(|| {
+                                        editor_container_view(
+                                            main_split.clone(),
+                                            workspace.clone(),
+                                            move |track| {
+                                                is_active(track)
+                                                    && if track {
+                                                        !focus_right.get()
+                                                    } else {
+                                                        !focus_right.get_untracked()
+                                                    }
+                                            },
+                                            diff_editor_data.left,
+                                        )
+                                    })
+                                    .on_event(
+                                        EventListener::PointerDown,
+                                        move |_| {
+                                            focus_right.set(false);
+                                            false
+                                        },
+                                    )
+                                    .style(
+                                        move || {
+                                            Style::BASE
+                                                .height_pct(100.0)
+                                                .flex_grow(1.0)
+                                                .flex_basis_px(0.0)
+                                                .border_right(1.0)
+                                                .border_color(
+                                                    *config.get().get_color(
+                                                        LapceColor::LAPCE_BORDER,
+                                                    ),
+                                                )
+                                        },
+                                    ),
+                                    container(|| {
+                                        editor_container_view(
+                                            main_split.clone(),
+                                            workspace.clone(),
+                                            move |track| {
+                                                is_active(track)
+                                                    && if track {
+                                                        focus_right.get()
+                                                    } else {
+                                                        focus_right.get_untracked()
+                                                    }
+                                            },
+                                            diff_editor_data.right,
+                                        )
+                                    })
+                                    .on_event(
+                                        EventListener::PointerDown,
+                                        move |_| {
+                                            focus_right.set(true);
+                                            false
+                                        },
+                                    )
+                                    .style(
+                                        || {
+                                            Style::BASE
+                                                .height_pct(100.0)
+                                                .flex_grow(1.0)
+                                                .flex_basis_px(0.0)
+                                        },
+                                    ),
+                                    diff_show_more_section_view(
+                                        diff_editor_data.left,
+                                        diff_editor_data.right,
+                                    ),
+                                )
+                            })
+                            .style(|| Style::BASE.size_pct(100.0, 100.0)),
+                        )
+                    })
+                    .on_cleanup(move || {
+                        diff_editor_scope.dispose();
+                    })
+                } else {
+                    container_box(|| {
+                        Box::new(label(|| "emtpy diff editor".to_string()))
+                    })
                 }
             }
             EditorTabChild::Settings(_) => {
@@ -543,35 +761,27 @@ fn editor_tab(
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    diff_editors: ReadSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
 ) -> impl View {
-    let (editor_tab_id, editor_tab_scope) =
-        editor_tab.with_untracked(|e| (e.editor_tab_id, e.scope));
-    let editor_tabs = main_split.editor_tabs;
-    on_cleanup(ViewContext::get_current().scope, move || {
-        let exits =
-            editor_tabs.with_untracked(|tabs| tabs.contains_key(&editor_tab_id));
-        if !exits {
-            let send = create_ext_action(editor_tab_scope, move |_| {
-                editor_tab_scope.dispose();
-            });
-            std::thread::spawn(move || {
-                send(());
-            });
-        }
-    });
-
     let common = main_split.common.clone();
     let focus = common.focus;
     let internal_command = main_split.common.internal_command;
     stack(|| {
         (
-            editor_tab_header(active_editor_tab, editor_tab, editors, common),
+            editor_tab_header(
+                active_editor_tab,
+                editor_tab,
+                editors,
+                diff_editors,
+                common,
+            ),
             editor_tab_content(
                 main_split.clone(),
                 workspace.clone(),
                 active_editor_tab,
                 editor_tab,
                 editors,
+                diff_editors,
             ),
         )
     })
@@ -582,6 +792,11 @@ fn editor_tab(
         let editor_tab_id = editor_tab.with_untracked(|t| t.editor_tab_id);
         internal_command.send(InternalCommand::FocusEditorTab { editor_tab_id });
         false
+    })
+    .on_cleanup(move || {
+        editor_tab
+            .with_untracked(|editor_tab| editor_tab.scope)
+            .dispose();
     })
     .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
 }
@@ -675,21 +890,9 @@ fn split_list(
     let editor_tabs = main_split.editor_tabs.read_only();
     let active_editor_tab = main_split.active_editor_tab.read_only();
     let editors = main_split.editors.read_only();
+    let diff_editors = main_split.diff_editors.read_only();
     let splits = main_split.splits.read_only();
     let config = main_split.common.config;
-    let (split_id, split_scope) =
-        split.with_untracked(|split| (split.split_id, split.scope));
-    on_cleanup(ViewContext::get_current().scope, move || {
-        let exits = splits.with_untracked(|splits| splits.contains_key(&split_id));
-        if !exits {
-            let send = create_ext_action(split_scope, move |_| {
-                split_scope.dispose();
-            });
-            std::thread::spawn(move || {
-                send(());
-            });
-        }
-    });
 
     let direction = move || split.with(|split| split.direction);
     let items = move || split.get().children.into_iter().enumerate();
@@ -697,8 +900,8 @@ fn split_list(
     let view_fn = move |(_index, content), main_split: MainSplitData| {
         let child = match &content {
             SplitContent::EditorTab(editor_tab_id) => {
-                let editor_tab_data =
-                    editor_tabs.with(|tabs| tabs.get(editor_tab_id).cloned());
+                let editor_tab_data = editor_tabs
+                    .with_untracked(|tabs| tabs.get(editor_tab_id).cloned());
                 if let Some(editor_tab_data) = editor_tab_data {
                     container_box(|| {
                         Box::new(editor_tab(
@@ -707,6 +910,7 @@ fn split_list(
                             active_editor_tab,
                             editor_tab_data,
                             editors,
+                            diff_editors,
                         ))
                     })
                 } else {
@@ -776,6 +980,11 @@ fn split_list(
             .style(|| Style::BASE.size_pct(100.0, 100.0)),
         )
     })
+    .on_cleanup(move || {
+        split
+            .with_untracked(|split_data| split_data.scope)
+            .dispose();
+    })
 }
 
 fn main_split(window_tab_data: Arc<WindowTabData>) -> impl View {
@@ -783,7 +992,7 @@ fn main_split(window_tab_data: Arc<WindowTabData>) -> impl View {
     let root_split = window_tab_data
         .main_split
         .splits
-        .get()
+        .get_untracked()
         .get(&root_split)
         .unwrap()
         .read_only();
@@ -889,9 +1098,10 @@ fn workbench(window_tab_data: Arc<WindowTabData>) -> impl View {
 fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
     let config = window_tab_data.common.config;
     let diagnostics = window_tab_data.main_split.diagnostics;
+    let editor = window_tab_data.main_split.active_editor;
     let panel = window_tab_data.panel.clone();
-    let cx = ViewContext::get_current();
-    let diagnostic_count = create_memo(cx.scope, move |_| {
+    let palette = window_tab_data.palette.clone();
+    let diagnostic_count = create_memo(move |_| {
         let mut errors = 0;
         let mut warnings = 0;
         for (_, diagnostics) in diagnostics.get().iter() {
@@ -908,7 +1118,7 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
         (errors, warnings)
     });
 
-    let mode = create_memo(cx.scope, move |_| window_tab_data.mode());
+    let mode = create_memo(move |_| window_tab_data.mode());
 
     stack(|| {
         (
@@ -1104,11 +1314,88 @@ fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
                 )
             })
             .style(|| Style::BASE.height_pct(100.0).items_center()),
-            label(|| "".to_string()).style(|| {
+            stack(|| {
+                let palette_clone = palette.clone();
+                let cursor_info = label(move || {
+                    if let Some(editor) = editor.get() {
+                        let mut status = String::new();
+                        let cursor = editor.get().cursor.get();
+                        if let Some((line, column, character)) = cursor
+                            .get_line_col_char(editor.get().view.doc.get().buffer())
+                        {
+                            status = format!(
+                                "Ln {}, Col {}, Char {}",
+                                line, column, character,
+                            );
+                        }
+                        if let Some(selection) = cursor.get_selection() {
+                            let selection_range = selection.0.abs_diff(selection.1);
+
+                            if selection.0 != selection.1 {
+                                status =
+                                    format!("{status} ({selection_range} selected)");
+                            }
+                        }
+                        let selection_count = cursor.get_selection_count();
+                        if selection_count > 1 {
+                            status =
+                                format!("{status} {selection_count} selections");
+                        }
+                        return status;
+                    }
+                    String::from("No document")
+                })
+                .on_click(move |_| {
+                    palette_clone.run(PaletteKind::Line);
+                    true
+                })
+                .style(|| {
+                    Style::BASE
+                        .height_pct(100.0)
+                        .padding_horiz_px(10.0)
+                        .items_center()
+                })
+                .hover_style(move || {
+                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                });
+                let palette_clone = palette.clone();
+                let language_info = label(move || {
+                    if let Some(editor) = editor.get() {
+                        let doc = editor.with(|editor| editor.view.doc);
+                        doc.with(|doc| doc.syntax().language.to_string())
+                    } else {
+                        "Plain Text".to_string() // FIXME: remove
+                    }
+                })
+                .on_click(move |_| {
+                    palette_clone.run(PaletteKind::Language);
+                    true
+                })
+                .style(|| {
+                    Style::BASE
+                        .height_pct(100.0)
+                        .padding_horiz_px(10.0)
+                        .items_center()
+                })
+                .hover_style(move || {
+                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                });
+                (cursor_info, language_info)
+            })
+            .style(|| {
                 Style::BASE
                     .height_pct(100.0)
                     .flex_basis_px(0.0)
                     .flex_grow(1.0)
+                    .justify_end()
             }),
         )
     })
@@ -1130,6 +1417,7 @@ fn palette_item(
     index: ReadSignal<usize>,
     palette_item_height: f64,
     config: ReadSignal<Arc<LapceConfig>>,
+    keymap: Option<&KeyMap>,
 ) -> impl View {
     match &item.content {
         PaletteItemContent::File { path, .. }
@@ -1523,11 +1811,69 @@ fn palette_item(
                 )
             })
         }
-        PaletteItemContent::Command { .. }
-        | PaletteItemContent::Line { .. }
+        PaletteItemContent::Command { .. } => {
+            let text = item.filter_text;
+            let indices = item.indices;
+            let keys = if let Some(keymap) = keymap {
+                keymap
+                    .key
+                    .iter()
+                    .map(|key| key.label().trim().to_string())
+                    .filter(|l| !l.is_empty())
+                    .collect()
+            } else {
+                vec![]
+            };
+            container_box(move || {
+                Box::new(
+                    stack(|| {
+                        (
+                            focus_text(
+                                move || text.clone(),
+                                move || indices.clone(),
+                                move || {
+                                    *config.get().get_color(LapceColor::EDITOR_FOCUS)
+                                },
+                            )
+                            .style(|| {
+                                Style::BASE
+                                    .flex_row()
+                                    .flex_grow(1.0)
+                                    .align_items(Some(AlignItems::Center))
+                            }),
+                            stack(|| {
+                                (list(
+                                    move || keys.clone(),
+                                    |k| k.clone(),
+                                    move |key| {
+                                        label(move || key.clone()).style(move || {
+                                            Style::BASE
+                                                .padding_horiz_px(5.0)
+                                                .padding_vert_px(1.0)
+                                                .margin_right_px(5.0)
+                                                .border(1.0)
+                                                .border_radius(6.0)
+                                                .border_color(
+                                                    *config.get().get_color(
+                                                        LapceColor::LAPCE_BORDER,
+                                                    ),
+                                                )
+                                        })
+                                    },
+                                ),)
+                            }),
+                        )
+                    })
+                    .style(|| Style::BASE.width_pct(100.0).items_center()),
+                )
+            })
+        }
+        PaletteItemContent::Line { .. }
         | PaletteItemContent::Workspace { .. }
         | PaletteItemContent::SshHost { .. }
+        | PaletteItemContent::Language { .. }
         | PaletteItemContent::ColorTheme { .. }
+        | PaletteItemContent::SCMReference { .. }
         | PaletteItemContent::IconTheme { .. } => {
             let text = item.filter_text;
             let indices = item.indices;
@@ -1611,6 +1957,11 @@ fn palette_content(
     layout_rect: ReadSignal<Rect>,
 ) -> impl View {
     let items = window_tab_data.palette.filtered_items;
+    let keymaps = window_tab_data
+        .palette
+        .keypress
+        .get_untracked()
+        .command_keymaps;
     let index = window_tab_data.palette.index.read_only();
     let clicked_index = window_tab_data.palette.clicked_index.write_only();
     let config = window_tab_data.common.config;
@@ -1633,6 +1984,13 @@ fn palette_content(
                     },
                     move |(i, item)| {
                         let workspace = workspace.clone();
+                        let keymap = if let PaletteItemContent::Command { cmd } =
+                            item.clone().content
+                        {
+                            keymaps.get(cmd.kind.str()).and_then(|maps| maps.get(0))
+                        } else {
+                            None
+                        };
                         container(move || {
                             palette_item(
                                 workspace,
@@ -1641,6 +1999,7 @@ fn palette_content(
                                 index,
                                 palette_item_height,
                                 config,
+                                keymap,
                             )
                         })
                         .on_click(move |_| {
@@ -1702,7 +2061,12 @@ fn palette_preview(palette_data: PaletteData) -> impl View {
     let main_split = palette_data.main_split;
     container(|| {
         container(|| {
-            editor_container_view(main_split, workspace, || true, preview_editor)
+            editor_container_view(
+                main_split,
+                workspace,
+                |_tracked: bool| true,
+                preview_editor,
+            )
         })
         .style(move || {
             let config = config.get();
@@ -2047,19 +2411,7 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
     })
 }
 
-pub fn dispose_on_ui_cleanup(scope: Scope) {
-    on_cleanup(ViewContext::get_current().scope, move || {
-        let send = create_ext_action(scope, move |_| {
-            scope.dispose();
-        });
-        std::thread::spawn(move || {
-            send(());
-        });
-    });
-}
-
 fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
-    dispose_on_ui_cleanup(window_tab_data.scope);
     let source_control = window_tab_data.source_control.clone();
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;
@@ -2069,6 +2421,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let workspace = window_tab_data.workspace.clone();
     let workbench_command = window_tab_data.common.workbench_command;
     let main_split = window_tab_data.main_split.clone();
+    let window_tab_scope = window_tab_data.scope;
 
     let view = stack(|| {
         (
@@ -2096,7 +2449,11 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
             code_action(window_tab_data.clone()),
             rename(window_tab_data.clone()),
             palette(window_tab_data.clone()),
+            about::about_popup(window_tab_data.clone()),
         )
+    })
+    .on_cleanup(move || {
+        window_tab_scope.dispose();
     })
     .style(move || {
         let config = config.get();
@@ -2129,11 +2486,10 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
     let tabs = window_data.window_tabs;
     let active = window_data.active;
     let config = window_data.config;
-    let cx = ViewContext::get_current();
-    let available_width = create_rw_signal(cx.scope, 0.0);
-    let add_icon_width = create_rw_signal(cx.scope, 0.0);
+    let available_width = create_rw_signal(0.0);
+    let add_icon_width = create_rw_signal(0.0);
 
-    let tab_width = create_memo(cx.scope, move |_| {
+    let tab_width = create_memo(move |_| {
         let available_width = available_width.get() - add_icon_width.get();
         let tabs_len = tabs.with(|tabs| tabs.len());
         if tabs_len > 0 {
@@ -2341,6 +2697,31 @@ fn app_view(window_data: WindowData) -> impl View {
 }
 
 pub fn launch() {
+    use tracing_subscriber::{filter, fmt, prelude::*, reload};
+    let file_appender = tracing_appender::rolling::Builder::new()
+        .max_log_files(10)
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix("lapce")
+        .filename_suffix("log")
+        .build(Directory::logs_directory().expect("Failed to obtain log directory"))
+        .expect("Couldn't create rolling appender");
+    let (log_file, _guard) = tracing_appender::non_blocking(file_appender);
+    let (filter, reload_handle) =
+        reload::Subscriber::new(filter::LevelFilter::ERROR);
+
+    let file_layer = tracing_subscriber::fmt::subscriber()
+        .with_ansi(false)
+        .with_writer(log_file);
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(file_layer)
+        .with(
+            fmt::Subscriber::default().with_filter(FilterFn::new(|metadata| {
+                metadata.target().starts_with("lapce_app")
+            })),
+        )
+        .init();
+
     // if PWD is not set, then we are not being launched via a terminal
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     if std::env::var("PWD").is_err() {
@@ -2348,6 +2729,24 @@ pub fn launch() {
     }
 
     let cli = Cli::parse();
+
+    if let Some(log_level) = cli.log_level {
+        if let Err(e) = reload_handle.modify(|filter| {
+            *filter = match log_level.to_lowercase().as_str() {
+                "off" => filter::LevelFilter::OFF,
+                "error" => filter::LevelFilter::ERROR,
+                "warn" => filter::LevelFilter::WARN,
+                "info" => filter::LevelFilter::INFO,
+                "debug" => filter::LevelFilter::DEBUG,
+                "trace" => filter::LevelFilter::TRACE,
+                val => {
+                    panic!("ignored unknown log level: '{val}'");
+                }
+            }
+        }) {
+            error!("Failed to modify log level: {e}");
+        };
+    }
 
     // small hack to unblock terminal if launched from it
     // launch it as a separate process that waits
@@ -2371,7 +2770,7 @@ pub fn launch() {
     if !cli.new {
         if let Ok(socket) = get_socket() {
             if let Err(e) = try_open_in_existing_process(socket, &cli.paths) {
-                log::error!("failed to open path(s): {e}");
+                error!("failed to open path(s): {e}");
             };
             return;
         }
@@ -2383,11 +2782,11 @@ pub fn launch() {
     let _ = lapce_proxy::register_lapce_path();
     let db = Arc::new(LapceDb::new().unwrap());
     let mut app = floem::Application::new();
-    let scope = app.scope();
-    provide_context(scope, db.clone());
+    let scope = Scope::current().create_child();
+    provide_context(db.clone());
 
-    let window_scale = create_rw_signal(scope, 1.0);
-    let latest_release = create_rw_signal(scope, Arc::new(None));
+    let window_scale = scope.create_rw_signal(1.0);
+    let latest_release = scope.create_rw_signal(Arc::new(None));
     let app_command = Listener::new_empty(scope);
 
     let mut windows = im::Vector::new();
@@ -2418,7 +2817,7 @@ pub fn launch() {
         let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
     }
 
-    let windows = create_rw_signal(scope, windows);
+    let windows = scope.create_rw_signal(windows);
     let app_data = AppData {
         scope,
         windows,
@@ -2426,12 +2825,13 @@ pub fn launch() {
         watcher: Arc::new(watcher),
         latest_release,
         app_command,
+        tracing_handle: reload_handle,
     };
 
     {
         let app_data = app_data.clone();
-        let notification = create_signal_from_channel(scope, rx);
-        create_effect(scope, move |_| {
+        let notification = create_signal_from_channel(rx);
+        create_effect(move |_| {
             if notification.get().is_some() {
                 app_data.reload_config();
             }
@@ -2441,9 +2841,9 @@ pub fn launch() {
     #[cfg(feature = "updater")]
     {
         let (tx, rx) = crossbeam_channel::bounded(1);
-        let notification = create_signal_from_channel(scope, rx);
+        let notification = create_signal_from_channel(rx);
         let latest_release = app_data.latest_release;
-        create_effect(scope, move |_| {
+        create_effect(move |_| {
             if let Some(release) = notification.get() {
                 latest_release.set(Arc::new(Some(release)));
             }
@@ -2458,9 +2858,9 @@ pub fn launch() {
 
     {
         let (tx, rx) = crossbeam_channel::bounded(1);
-        let notification = create_signal_from_channel(scope, rx);
+        let notification = create_signal_from_channel(rx);
         let app_data = app_data.clone();
-        create_effect(scope, move |_| {
+        create_effect(move |_| {
             if let Some(CoreNotification::OpenPaths { paths }) = notification.get() {
                 if let Some(window_tab) = app_data.active_window_tab() {
                     window_tab.open_paths(&paths);
@@ -2709,7 +3109,7 @@ fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
                 if let RpcMessage::Notification(msg) = msg {
                     tx.send(msg)?;
                 } else {
-                    log::trace!("Unhandled message: {msg:?}");
+                    trace!("Unhandled message: {msg:?}");
                 }
 
                 let stream_ref = reader.get_mut();

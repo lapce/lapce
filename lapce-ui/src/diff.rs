@@ -1,21 +1,16 @@
 use crate::tab::LapceIcon;
 use druid::{
-    piet::{Text, TextLayoutBuilder},
     BoxConstraints, Command, Env, Event, EventCtx, LayoutCtx, LifeCycle,
     LifeCycleCtx, MouseEvent, PaintCtx, Point, Rect, RenderContext, Size, Target,
     UpdateCtx, Widget, WidgetId,
 };
-use lapce_core::{
-    buffer::{rope_text::RopeText, DiffLines},
-    command::FocusCommand,
-};
+use lapce_core::{buffer::diff::DiffLines, command::FocusCommand};
 use lapce_data::{
     command::{CommandKind, LapceCommand, LAPCE_COMMAND},
     config::{LapceIcons, LapceTheme},
     data::EditorView,
     data::LapceTabData,
 };
-use std::ops::Range;
 
 // Diff tool box
 pub struct DiffBox {
@@ -197,7 +192,6 @@ impl Widget<LapceTabData> for DiffBox {
                 .get_color_unchecked(LapceTheme::EDITOR_BACKGROUND),
         );
 
-        let mut diff_blocks = Vec::new();
         // find all diff blocks, ignore Both and Skip
         if let Some(history) = editor_data.doc.get_history("head") {
             for (i, change) in history.changes().iter().enumerate() {
@@ -207,83 +201,26 @@ impl Widget<LapceTabData> for DiffBox {
                             match next {
                                 DiffLines::Right(_) => {}
                                 DiffLines::Left(_) => {}
-                                DiffLines::Both(_, r) => {
-                                    diff_blocks.push(Range {
-                                        start: r.start,
-                                        end: r.start,
-                                    });
-                                }
-                                DiffLines::Skip(_, r) => {
-                                    diff_blocks.push(Range {
-                                        start: r.start,
-                                        end: r.start,
-                                    });
-                                }
+                                _ => {} // DiffLines::Both(_, r) => {
+                                        //     diff_blocks.push(Range {
+                                        //         start: r.start,
+                                        //         end: r.start,
+                                        //     });
+                                        // }
+                                        // DiffLines::Skip(_, r) => {
+                                        //     diff_blocks.push(Range {
+                                        //         start: r.start,
+                                        //         end: r.start,
+                                        //     });
+                                        // }
                             }
                         }
                     }
-                    DiffLines::Both(_, _) => {}
-                    DiffLines::Skip(_, _) => {}
-                    DiffLines::Right(r) => {
-                        diff_blocks.push(Range {
-                            start: r.start,
-                            end: r.start,
-                        });
-                    }
+                    DiffLines::Both(_) => {}
+                    DiffLines::Right(_) => {}
                 }
             }
         }
-        let mut index = 0;
-        let buffer = editor_data.doc.buffer();
-        let line = buffer.line_of_offset(editor_data.editor.cursor.offset());
-        let count = diff_blocks.len();
-        if count > 0 {
-            // find the block where the cursor in
-            let mut prev_end = 0;
-            for (i, block) in diff_blocks.iter().enumerate() {
-                if (i == 0 && line < block.start)
-                    || (i == count - 1 && line > block.end - 1)
-                    || (line >= block.start && line < block.end)
-                {
-                    index = i + 1;
-                    break;
-                }
-                if line < block.start {
-                    let half = (block.start + prev_end) / 2;
-                    if line > half {
-                        index = i + 1;
-                        break;
-                    } else {
-                        index = i;
-                        break;
-                    }
-                }
-                prev_end = block.end;
-            }
-        }
-
-        let text_layout = ctx
-            .text()
-            .new_text_layout(format!("{index}/{count}"))
-            .font(
-                data.config.ui.font_family(),
-                data.config.ui.font_size() as f64,
-            )
-            .text_color(
-                data.config
-                    .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-                    .clone(),
-            )
-            .max_width(self.result_width)
-            .build()
-            .unwrap();
-        ctx.draw_text(
-            &text_layout,
-            Point::new(
-                10.0 + 35.0 * self.icons.len() as f64,
-                text_layout.y_offset(35.0),
-            ),
-        );
 
         for icon in self.icons.iter() {
             if icon.rect.contains(self.mouse_pos) {

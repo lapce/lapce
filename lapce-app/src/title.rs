@@ -3,13 +3,10 @@ use std::sync::Arc;
 use floem::{
     menu::{Menu, MenuItem},
     peniko::kurbo::Point,
-    reactive::{
-        create_memo, ReadSignal, RwSignal, SignalGet, SignalGetUntracked, SignalWith,
-    },
+    reactive::{create_memo, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Dimension, Display, JustifyContent, Style},
     view::View,
-    views::{container, stack, Decorators},
-    views::{label, svg},
+    views::{container, label, stack, svg, Decorators},
     ViewContext,
 };
 use lapce_core::meta;
@@ -111,6 +108,11 @@ fn left(
                     .border_right(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
                     .align_items(Some(AlignItems::Center))
+            })
+            .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer))
+            .on_click(move |_| {
+                workbench_command.send(LapceWorkbenchCommand::PaletteSCMReferences);
+                true
             }),
         )
     })
@@ -130,16 +132,12 @@ fn middle(
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let local_workspace = workspace.clone();
-    let cx = ViewContext::get_current();
     let can_jump_backward = {
         let main_split = main_split.clone();
-        create_memo(cx.scope, move |_| {
-            main_split.can_jump_location_backward(true)
-        })
+        create_memo(move |_| main_split.can_jump_location_backward(true))
     };
-    let can_jump_forward = create_memo(cx.scope, move |_| {
-        main_split.can_jump_location_forward(true)
-    });
+    let can_jump_forward =
+        create_memo(move |_| main_split.can_jump_location_forward(true));
 
     let jump_backward = move || {
         clickable_icon(
@@ -287,7 +285,7 @@ fn right(
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let cx = ViewContext::get_current();
-    let latest_version = create_memo(cx.scope, move |_| {
+    let latest_version = create_memo(move |_| {
         let latest_release = latest_release.get();
         let latest_version =
             latest_release.as_ref().as_ref().map(|r| r.version.clone());
@@ -345,7 +343,13 @@ fn right(
                                         MenuItem::new("No update available")
                                             .enabled(false)
                                     },
-                                ),
+                                )
+                                .separator()
+                                .entry(MenuItem::new("About Lapce").action(
+                                    move || {
+                                        workbench_command.send(LapceWorkbenchCommand::ShowAbout)
+                                    }
+                                )),
                             Point::ZERO,
                         );
                     },

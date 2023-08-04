@@ -74,9 +74,8 @@ mod test {
     use floem::glazier::Modifiers;
     use lapce_core::mode::Mode;
 
-    use crate::keypress::{condition::CheckCondition, KeyPressData, KeyPressFocus};
-
     use super::Condition;
+    use crate::keypress::{condition::CheckCondition, KeyPressData, KeyPressFocus};
 
     struct MockFocus {
         accepted_conditions: &'static [Condition],

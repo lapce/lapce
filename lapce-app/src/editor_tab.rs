@@ -1,18 +1,19 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use floem::{
     peniko::kurbo::{Point, Rect},
-    reactive::{
-        create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWithUntracked,
-    },
+    reactive::{RwSignal, Scope},
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    doc::DocContent,
-    editor::{location::EditorLocation, EditorData, EditorInfo},
-    id::{EditorId, EditorTabId, SettingsId, SplitId},
+    doc::{DocContent, Document},
+    editor::{
+        diff::{DiffEditorData, DiffEditorInfo},
+        location::EditorLocation,
+        EditorData, EditorInfo,
+    },
+    id::{DiffEditorId, EditorId, EditorTabId, SettingsId, SplitId},
     main_split::MainSplitData,
     window_tab::WindowTabData,
 };
@@ -20,6 +21,7 @@ use crate::{
 #[derive(Clone, Serialize, Deserialize)]
 pub enum EditorTabChildInfo {
     Editor(EditorInfo),
+    DiffEditor(DiffEditorInfo),
     Settings,
 }
 
@@ -35,6 +37,10 @@ impl EditorTabChildInfo {
                 EditorTabChild::Editor(
                     editor_data.with_untracked(|editor_data| editor_data.editor_id),
                 )
+            }
+            EditorTabChildInfo::DiffEditor(diff_editor_info) => {
+                let diff_editor_data = diff_editor_info.to_data(data, editor_tab_id);
+                EditorTabChild::DiffEditor(diff_editor_data.id)
             }
             EditorTabChildInfo::Settings => {
                 EditorTabChild::Settings(SettingsId::next())
@@ -58,7 +64,7 @@ impl EditorTabInfo {
     ) -> RwSignal<EditorTabData> {
         let editor_tab_id = EditorTabId::next();
         let editor_tab_data = {
-            let (cx, _) = data.scope.run_child_scope(|cx| cx);
+            let cx = data.scope.create_child();
             let editor_tab_data = EditorTabData {
                 scope: cx,
                 editor_tab_id,
@@ -69,17 +75,17 @@ impl EditorTabInfo {
                     .iter()
                     .map(|child| {
                         (
-                            create_rw_signal(cx, 0),
+                            cx.create_rw_signal(0),
                             child.to_data(data.clone(), editor_tab_id),
                         )
                     })
                     .collect(),
                 layout_rect: Rect::ZERO,
                 window_origin: Point::ZERO,
-                locations: create_rw_signal(cx, im::Vector::new()),
-                current_location: create_rw_signal(cx, 0),
+                locations: cx.create_rw_signal(im::Vector::new()),
+                current_location: cx.create_rw_signal(0),
             };
-            create_rw_signal(cx, editor_tab_data)
+            cx.create_rw_signal(editor_tab_data)
         };
         if self.is_focus {
             data.active_editor_tab.set(Some(editor_tab_id));
@@ -91,9 +97,22 @@ impl EditorTabInfo {
     }
 }
 
+pub enum EditorTabChildSource {
+    Editor {
+        path: PathBuf,
+        doc: RwSignal<Document>,
+    },
+    DiffEditor {
+        left: RwSignal<Document>,
+        right: RwSignal<Document>,
+    },
+    Settings,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EditorTabChild {
     Editor(EditorId),
+    DiffEditor(DiffEditorId),
     Settings(SettingsId),
 }
 
@@ -101,6 +120,7 @@ impl EditorTabChild {
     pub fn id(&self) -> u64 {
         match self {
             EditorTabChild::Editor(id) => id.to_raw(),
+            EditorTabChild::DiffEditor(id) => id.to_raw(),
             EditorTabChild::Settings(id) => id.to_raw(),
         }
     }
@@ -122,6 +142,16 @@ impl EditorTabChild {
                 EditorTabChildInfo::Editor(
                     editor_data.get_untracked().editor_info(data),
                 )
+            }
+            EditorTabChild::DiffEditor(diff_editor_id) => {
+                let diff_editor_data = data
+                    .main_split
+                    .diff_editors
+                    .get_untracked()
+                    .get(diff_editor_id)
+                    .cloned()
+                    .unwrap();
+                EditorTabChildInfo::DiffEditor(diff_editor_data.diff_editor_info())
             }
             EditorTabChild::Settings(_) => EditorTabChildInfo::Settings,
         }
@@ -151,7 +181,7 @@ impl EditorTabData {
             if let (_, EditorTabChild::Editor(editor_id)) = child {
                 if let Some(editor) = editors.get(editor_id) {
                     let e = editor.get_untracked();
-                    let is_path = e.doc.with_untracked(|doc| {
+                    let is_path = e.view.doc.with_untracked(|doc| {
                         if let DocContent::File(p) = &doc.content {
                             p == path
                         } else {
@@ -162,6 +192,43 @@ impl EditorTabData {
                         return Some((i, *editor));
                     }
                 }
+            }
+        }
+        None
+    }
+
+    pub fn get_unconfirmed_editor_tab_child(
+        &self,
+        editors: &im::HashMap<EditorId, RwSignal<EditorData>>,
+        diff_editors: &im::HashMap<EditorId, DiffEditorData>,
+    ) -> Option<(usize, EditorTabChild)> {
+        for (i, (_, child)) in self.children.iter().enumerate() {
+            match child {
+                EditorTabChild::Editor(editor_id) => {
+                    if let Some(editor) = editors.get(editor_id) {
+                        let e = editor.get_untracked();
+                        let confirmed = e.confirmed.get_untracked();
+                        if !confirmed {
+                            return Some((i, child.clone()));
+                        }
+                    }
+                }
+                EditorTabChild::DiffEditor(diff_editor_id) => {
+                    if let Some(diff_editor) = diff_editors.get(diff_editor_id) {
+                        let left_confirmed =
+                            diff_editor.left.with_untracked(|editor| {
+                                editor.confirmed.get_untracked()
+                            });
+                        let right_confirmed =
+                            diff_editor.right.with_untracked(|editor| {
+                                editor.confirmed.get_untracked()
+                            });
+                        if !left_confirmed && !right_confirmed {
+                            return Some((i, child.clone()));
+                        }
+                    }
+                }
+                _ => (),
             }
         }
         None

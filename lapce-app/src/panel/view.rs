@@ -2,21 +2,10 @@ use std::sync::Arc;
 
 use floem::{
     event::EventListener,
-    reactive::{
-        create_rw_signal, ReadSignal, SignalGet, SignalGetUntracked, SignalSet,
-        SignalWith, SignalWithUntracked,
-    },
+    reactive::{create_rw_signal, ReadSignal},
     style::Style,
     view::View,
     views::{container, container_box, empty, label, list, stack, tab, Decorators},
-    ViewContext,
-};
-
-use crate::{
-    app::clickable_icon,
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    file_explorer::view::file_explorer_panel,
-    window_tab::{DragContent, WindowTabData},
 };
 
 use super::{
@@ -28,6 +17,12 @@ use super::{
     problem_view::problem_panel,
     source_control_view::source_control_panel,
     terminal_view::terminal_panel,
+};
+use crate::{
+    app::clickable_icon,
+    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    file_explorer::view::file_explorer_panel,
+    window_tab::{DragContent, WindowTabData},
 };
 
 pub fn panel_container_view(
@@ -46,8 +41,7 @@ pub fn panel_container_view(
         let panel = panel.clone();
         move |position: PanelPosition| {
             let panel = panel.clone();
-            let cx = ViewContext::get_current();
-            let dragging_over = create_rw_signal(cx.scope, false);
+            let dragging_over = create_rw_signal(false);
             empty()
                 .on_event(EventListener::DragEnter, move |_| {
                     if is_dragging_panel() {

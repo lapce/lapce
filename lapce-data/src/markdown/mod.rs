@@ -1,10 +1,7 @@
 use std::str::FromStr;
 
 use druid::{FontStyle, FontWeight};
-use lapce_core::{
-    language::LapceLanguage,
-    syntax::{highlight::HighlightIssue, Syntax},
-};
+use lapce_core::{language::LapceLanguage, syntax::Syntax};
 use lapce_xi_rope::Rope;
 use lsp_types::{Documentation, MarkedString, MarkupKind};
 use pulldown_cmark::{CodeBlockKind, Tag};
@@ -215,9 +212,7 @@ pub fn highlight_as_code(
     text: &str,
     start_offset: usize,
 ) {
-    let syntax = language
-        .map(Syntax::from_language)
-        .unwrap_or(Err(HighlightIssue::NotAvailable));
+    let syntax = language.map(Syntax::from_language);
 
     let styles = syntax
         .map(|mut syntax| {

@@ -47,6 +47,10 @@ impl LapceIcons {
     pub const SCM_CHANGE_ADD: &str = "scm.change.add";
     pub const SCM_CHANGE_REMOVE: &str = "scm.change.remove";
 
+    pub const FOLD: &str = "fold";
+    pub const FOLD_UP: &str = "fold.up";
+    pub const FOLD_DOWN: &str = "fold.down";
+
     pub const PALETTE_MENU: &str = "palette.menu";
 
     pub const DROPDOWN_ARROW: &str = "dropdown.arrow";

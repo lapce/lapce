@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use floem::reactive::{create_rw_signal, RwSignal, Scope, SignalWithUntracked};
+use floem::reactive::{RwSignal, Scope};
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
 use lapce_rpc::source_control::FileDiff;
@@ -19,6 +19,7 @@ pub struct SourceControlData {
     pub file_diffs: RwSignal<IndexMap<PathBuf, (FileDiff, bool)>>,
     pub branch: RwSignal<String>,
     pub branches: RwSignal<im::Vector<String>>,
+    pub tags: RwSignal<im::Vector<String>>,
     pub editor: EditorData,
     pub common: CommonData,
 }
@@ -62,9 +63,10 @@ impl KeyPressFocus for SourceControlData {
 impl SourceControlData {
     pub fn new(cx: Scope, common: CommonData) -> Self {
         Self {
-            file_diffs: create_rw_signal(cx, IndexMap::new()),
-            branch: create_rw_signal(cx, "".to_string()),
-            branches: create_rw_signal(cx, im::Vector::new()),
+            file_diffs: cx.create_rw_signal(IndexMap::new()),
+            branch: cx.create_rw_signal("".to_string()),
+            branches: cx.create_rw_signal(im::Vector::new()),
+            tags: cx.create_rw_signal(im::Vector::new()),
             editor: EditorData::new_local(cx, EditorId::next(), common.clone()),
             common,
         }
@@ -92,6 +94,7 @@ impl SourceControlData {
 
         let message = self
             .editor
+            .view
             .doc
             .with_untracked(|doc| doc.buffer().to_string());
         let message = message.trim();

@@ -1,25 +1,22 @@
-use std::path::PathBuf;
-use std::process::Command;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, process::Command, sync::Arc};
 
 use crossbeam_channel::Sender;
-use floem::ext_event::create_signal_from_channel;
-use floem::reactive::ReadSignal;
-use floem::reactive::Scope;
+use floem::{ext_event::create_signal_from_channel, reactive::ReadSignal};
 use lapce_proxy::dispatch::Dispatcher;
-use lapce_rpc::plugin::VoltID;
-use lapce_rpc::terminal::TermId;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRpcHandler},
+    plugin::VoltID,
     proxy::ProxyRpcHandler,
+    terminal::TermId,
 };
 use lsp_types::Url;
+use tracing::error;
 
-use crate::terminal::event::TermEvent;
-use crate::workspace::{LapceWorkspace, LapceWorkspaceType};
-
-use self::remote::start_remote;
-use self::ssh::SshRemote;
+use self::{remote::start_remote, ssh::SshRemote};
+use crate::{
+    terminal::event::TermEvent,
+    workspace::{LapceWorkspace, LapceWorkspaceType},
+};
 
 mod remote;
 mod ssh;
@@ -46,7 +43,6 @@ impl ProxyData {
 }
 
 pub fn start_proxy(
-    cx: Scope,
     workspace: Arc<LapceWorkspace>,
     disabled_volts: Vec<VoltID>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
@@ -78,11 +74,13 @@ pub fn start_proxy(
                     });
                 }
                 LapceWorkspaceType::RemoteSSH(ssh) => {
-                    let _ = start_remote(
+                    if let Err(e) = start_remote(
                         SshRemote { ssh: ssh.clone() },
                         core_rpc.clone(),
                         proxy_rpc.clone(),
-                    );
+                    ) {
+                        error!("Failed to start SSH remote: {e}");
+                    }
                 }
                 #[cfg(windows)]
                 LapceWorkspaceType::RemoteWSL => {
@@ -92,11 +90,13 @@ pub fn start_proxy(
                         .and_then(|d| d.into_iter().find(|distro| distro.default))
                         .map(|d| d.name);
                     if let Some(distro) = distro {
-                        let _ = start_remote(
+                        if let Err(e) = start_remote(
                             WslRemote { distro },
                             core_rpc.clone(),
                             proxy_rpc.clone(),
-                        );
+                        ) {
+                            error!("Failed to start SSH remote: {e}");
+                        }
                     }
                 }
             }
@@ -112,7 +112,7 @@ pub fn start_proxy(
         })
     };
 
-    let notification = create_signal_from_channel(cx, rx);
+    let notification = create_signal_from_channel(rx);
 
     ProxyData {
         proxy_rpc,

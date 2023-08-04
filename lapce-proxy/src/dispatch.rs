@@ -206,7 +206,6 @@ impl ProxyHandler for Dispatcher {
                 }
             }
             TerminalClose { term_id } => {
-                println!("close terminal {term_id:?}");
                 if let Some(tx) = self.terminals.remove(&term_id) {
                     #[allow(deprecated)]
                     let _ = tx.send(Msg::Shutdown);
@@ -280,9 +279,9 @@ impl ProxyHandler for Dispatcher {
                     }
                 }
             }
-            GitCheckout { branch } => {
+            GitCheckout { reference } => {
                 if let Some(workspace) = self.workspace.as_ref() {
-                    match git_checkout(workspace, &branch) {
+                    match git_checkout(workspace, &reference) {
                         Ok(()) => (),
                         Err(e) => eprintln!("{e:?}"),
                     }
@@ -1070,9 +1069,9 @@ fn git_commit(
     Ok(())
 }
 
-fn git_checkout(workspace_path: &Path, branch: &str) -> Result<()> {
+fn git_checkout(workspace_path: &Path, reference: &str) -> Result<()> {
     let repo = Repository::discover(workspace_path)?;
-    let (object, reference) = repo.revparse_ext(branch)?;
+    let (object, reference) = repo.revparse_ext(reference)?;
     repo.checkout_tree(&object, None)?;
     repo.set_head(reference.unwrap().name().unwrap())?;
     Ok(())
@@ -1152,6 +1151,13 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
         branches.push(branch.ok()?.0.name().ok()??.to_string());
     }
 
+    let mut tags = Vec::new();
+    if let Ok(git_tags) = repo.tag_names(None) {
+        for tag in git_tags.into_iter().flatten() {
+            tags.push(tag.to_owned());
+        }
+    }
+
     let mut deltas = Vec::new();
     let mut diff_options = DiffOptions::new();
     let diff = repo
@@ -1227,6 +1233,7 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     Some(DiffInfo {
         head: name,
         branches,
+        tags,
         diffs: file_diffs,
     })
 }

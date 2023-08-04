@@ -4,21 +4,18 @@ use floem::{
     event::EventListener,
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Size},
-    reactive::{
-        create_memo, create_rw_signal, RwSignal, SignalGet, SignalGetUntracked,
-        SignalSet, SignalWith, SignalWithUntracked,
-    },
+    reactive::{create_memo, create_rw_signal, RwSignal},
     style::{CursorStyle, Style},
     view::View,
     views::{
         container, empty, label, scroll, stack, virtual_list, Decorators,
         VirtualListDirection, VirtualListItemSize, VirtualListVector,
     },
-    ViewContext,
 };
 use indexmap::IndexMap;
 use lapce_rpc::plugin::{VoltID, VoltInfo, VoltMetadata};
 
+use super::{kind::PanelKind, position::PanelPosition, view::panel_header};
 use crate::{
     app::clickable_icon,
     config::{color::LapceColor, icon::LapceIcons},
@@ -26,8 +23,6 @@ use crate::{
     text_input::text_input,
     window_tab::{Focus, WindowTabData},
 };
-
-use super::{kind::PanelKind, position::PanelPosition, view::panel_header};
 
 struct IndexMapItems<K, V>(IndexMap<K, V>);
 
@@ -322,8 +317,7 @@ fn available_view(plugin: PluginData) -> impl View {
                                info: RwSignal<VoltInfo>,
                                installing: RwSignal<bool>| {
         let plugin = local_plugin.clone();
-        let cx = ViewContext::get_current();
-        let installed = create_memo(cx.scope, move |_| {
+        let installed = create_memo(move |_| {
             installed.with(|installed| installed.contains_key(&id))
         });
         label(move || {
@@ -424,13 +418,12 @@ fn available_view(plugin: PluginData) -> impl View {
         })
     };
 
-    let cx = ViewContext::get_current();
-    let content_rect = create_rw_signal(cx.scope, Rect::ZERO);
+    let content_rect = create_rw_signal(Rect::ZERO);
 
     let editor = plugin.all.query_editor.clone();
     let focus = plugin.common.focus;
     let is_focused = move || focus.get() == Focus::Panel(PanelKind::Plugin);
-    let cursor_x = create_rw_signal(cx.scope, 0.0);
+    let cursor_x = create_rw_signal(0.0);
 
     stack(move || {
         (
@@ -442,7 +435,7 @@ fn available_view(plugin: PluginData) -> impl View {
                         })
                         .style(|| {
                             Style::BASE
-                                .padding_vert_px(6.0)
+                                .padding_vert_px(4.0)
                                 .padding_horiz_px(10.0)
                                 .min_width_pct(100.0)
                         })
@@ -458,15 +451,15 @@ fn available_view(plugin: PluginData) -> impl View {
                     false
                 })
                 .style(move || {
+                    let config = config.get();
                     Style::BASE
                         .width_pct(100.0)
                         .cursor(CursorStyle::Text)
                         .items_center()
+                        .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
                         .border(1.0)
                         .border_radius(6.0)
-                        .border_color(
-                            *config.get().get_color(LapceColor::LAPCE_BORDER),
-                        )
+                        .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                 })
             })
             .style(|| Style::BASE.padding_px(10.0).width_pct(100.0)),

@@ -103,6 +103,24 @@ pub enum EditCommand {
     DuplicateLineDown,
 }
 
+impl EditCommand {
+    pub fn not_changing_buffer(&self) -> bool {
+        matches!(
+            self,
+            &EditCommand::ClipboardCopy
+                | &EditCommand::Yank
+                | &EditCommand::NormalMode
+                | &EditCommand::InsertMode
+                | &EditCommand::InsertFirstNonBlank
+                | &EditCommand::Append
+                | &EditCommand::AppendEndOfLine
+                | &EditCommand::ToggleVisualMode
+                | &EditCommand::ToggleLinewiseVisualMode
+                | &EditCommand::ToggleBlockwiseVisualMode
+        )
+    }
+}
+
 #[derive(
     Display,
     EnumString,

@@ -294,6 +294,10 @@ name = ""
 
 "palette.menu" = "chevron-down.svg"
 
+"fold" = "fold.svg"
+"fold.up" = "fold-up.svg"
+"fold.down" = "fold-down.svg"
+
 "dropdown.arrow" = "chevron-down.svg"
 
 "location.forward" = "arrow-right.svg"

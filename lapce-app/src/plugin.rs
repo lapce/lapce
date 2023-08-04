@@ -3,11 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use anyhow::Result;
 use floem::{
     ext_event::create_ext_action,
-    reactive::{
-        create_effect, create_rw_signal, use_context, RwSignal, Scope,
-        SignalGetUntracked, SignalSet, SignalUpdate, SignalWith,
-        SignalWithUntracked,
-    },
+    reactive::{use_context, RwSignal, Scope},
 };
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
@@ -101,20 +97,20 @@ impl PluginData {
         workspace_disabled: HashSet<VoltID>,
         common: CommonData,
     ) -> Self {
-        let installed = create_rw_signal(cx, IndexMap::new());
+        let installed = cx.create_rw_signal(IndexMap::new());
         let all = AvailableVoltList {
-            loading: create_rw_signal(cx, false),
-            volts: create_rw_signal(cx, IndexMap::new()),
-            total: create_rw_signal(cx, 0),
-            query_id: create_rw_signal(cx, 0),
+            loading: cx.create_rw_signal(false),
+            volts: cx.create_rw_signal(IndexMap::new()),
+            total: cx.create_rw_signal(0),
+            query_id: cx.create_rw_signal(0),
             query_editor: EditorData::new_local(
                 cx,
                 EditorId::next(),
                 common.clone(),
             ),
         };
-        let disabled = create_rw_signal(cx, disabled);
-        let workspace_disabled = create_rw_signal(cx, workspace_disabled);
+        let disabled = cx.create_rw_signal(disabled);
+        let workspace_disabled = cx.create_rw_signal(workspace_disabled);
 
         let plugin = Self {
             installed,
@@ -154,10 +150,11 @@ impl PluginData {
 
         {
             let plugin = plugin.clone();
-            create_effect(cx, move |s| {
+            cx.create_effect(move |s| {
                 let query = plugin
                     .all
                     .query_editor
+                    .view
                     .doc
                     .with(|doc| doc.buffer().to_string());
                 if s.as_ref() == Some(&query) {
@@ -194,10 +191,10 @@ impl PluginData {
                         (volt.info(), false)
                     };
 
-                    let latest = create_rw_signal(self.common.scope, info);
+                    let latest = self.common.scope.create_rw_signal(info);
                     let data = InstalledVoltData {
-                        meta: create_rw_signal(self.common.scope, volt.clone()),
-                        icon: create_rw_signal(self.common.scope, icon.clone()),
+                        meta: self.common.scope.create_rw_signal(volt.clone()),
+                        icon: self.common.scope.create_rw_signal(icon.clone()),
                         latest,
                     };
                     installed.insert(volt_id, data);
@@ -235,7 +232,7 @@ impl PluginData {
             self.disabled.update(|d| {
                 d.remove(&id);
             });
-            let db: Arc<LapceDb> = use_context(self.common.scope).unwrap();
+            let db: Arc<LapceDb> = use_context().unwrap();
             db.save_disabled_volts(
                 self.disabled.get_untracked().into_iter().collect(),
             );
@@ -245,7 +242,7 @@ impl PluginData {
             self.workspace_disabled.update(|d| {
                 d.remove(&id);
             });
-            let db: Arc<LapceDb> = use_context(self.common.scope).unwrap();
+            let db: Arc<LapceDb> = use_context().unwrap();
             db.save_workspace_disabled_volts(
                 self.common.workspace.clone(),
                 self.workspace_disabled
@@ -281,8 +278,8 @@ impl PluginData {
                             (
                                 volt.id(),
                                 AvailableVoltData {
-                                    info: create_rw_signal(cx, volt),
-                                    installing: create_rw_signal(cx, false),
+                                    info: cx.create_rw_signal(volt),
+                                    installing: cx.create_rw_signal(false),
                                 },
                             )
                         }));
@@ -318,6 +315,7 @@ impl PluginData {
         let query = self
             .all
             .query_editor
+            .view
             .doc
             .with_untracked(|doc| doc.buffer().to_string());
         let offset = self.all.volts.with_untracked(|v| v.len());
@@ -364,7 +362,7 @@ impl PluginData {
         if !self.plugin_disabled(&id) {
             self.common.proxy.enable_volt(volt);
         }
-        let db: Arc<LapceDb> = use_context(self.common.scope).unwrap();
+        let db: Arc<LapceDb> = use_context().unwrap();
         db.save_disabled_volts(self.disabled.get_untracked().into_iter().collect());
     }
 
@@ -374,7 +372,7 @@ impl PluginData {
             d.insert(id);
         });
         self.common.proxy.disable_volt(volt);
-        let db: Arc<LapceDb> = use_context(self.common.scope).unwrap();
+        let db: Arc<LapceDb> = use_context().unwrap();
         db.save_disabled_volts(self.disabled.get_untracked().into_iter().collect());
     }
 
@@ -386,7 +384,7 @@ impl PluginData {
         if !self.plugin_disabled(&id) {
             self.common.proxy.enable_volt(volt);
         }
-        let db: Arc<LapceDb> = use_context(self.common.scope).unwrap();
+        let db: Arc<LapceDb> = use_context().unwrap();
         db.save_workspace_disabled_volts(
             self.common.workspace.clone(),
             self.disabled.get_untracked().into_iter().collect(),
@@ -399,7 +397,7 @@ impl PluginData {
             d.insert(id);
         });
         self.common.proxy.disable_volt(volt);
-        let db: Arc<LapceDb> = use_context(self.common.scope).unwrap();
+        let db: Arc<LapceDb> = use_context().unwrap();
         db.save_workspace_disabled_volts(
             self.common.workspace.clone(),
             self.disabled.get_untracked().into_iter().collect(),

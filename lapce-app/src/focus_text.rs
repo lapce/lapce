@@ -29,17 +29,17 @@ pub fn focus_text(
 
     let id = cx.new_id();
 
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         let new_text = text();
         id.update_state(FocusTextState::Text(new_text), false);
     });
 
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         let focus_color = focus_color();
         id.update_state(FocusTextState::FocusColor(focus_color), false);
     });
 
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         let focus_indices = focus_indices();
         id.update_state(FocusTextState::FocusIndices(focus_indices), false);
     });
@@ -166,11 +166,19 @@ impl View for FocusText {
         self.id
     }
 
-    fn child(&mut self, _id: floem::id::Id) -> Option<&mut dyn View> {
+    fn child(&self, _id: floem::id::Id) -> Option<&dyn View> {
         None
     }
 
-    fn children(&mut self) -> Vec<&mut dyn View> {
+    fn child_mut(&mut self, _id: floem::id::Id) -> Option<&mut dyn View> {
+        None
+    }
+
+    fn children(&self) -> Vec<&dyn View> {
+        Vec::new()
+    }
+
+    fn children_mut(&mut self) -> Vec<&mut dyn View> {
         Vec::new()
     }
 

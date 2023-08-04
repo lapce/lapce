@@ -13,10 +13,7 @@ use floem::{
         kurbo::{Line, Point, Rect, Size, Vec2},
         Color,
     },
-    reactive::{
-        create_effect, ReadSignal, RwSignal, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWith, SignalWithUntracked,
-    },
+    reactive::{create_effect, ReadSignal, RwSignal},
     style::{ComputedStyle, CursorStyle, Style},
     taffy::{self, prelude::Node},
     view::{ChangeFlags, View},
@@ -42,22 +39,22 @@ pub fn text_input(
     let cx = ViewContext::get_current();
     let id = cx.new_id();
 
-    let doc = editor.doc;
+    let doc = editor.view.doc;
     let cursor = editor.cursor;
     let config = editor.common.config;
     let keypress = editor.common.keypress;
 
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         let content = doc.with(|doc| doc.buffer().to_string());
         id.update_state(TextInputState::Content(content), false);
     });
 
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         cursor.with(|_| ());
         id.request_layout();
     });
 
-    create_effect(cx.scope, move |_| {
+    create_effect(move |_| {
         let focus = is_focused();
         id.update_state(TextInputState::Focus(focus), false);
     });
@@ -133,9 +130,8 @@ pub struct TextInput {
 
 impl TextInput {
     pub fn placeholder(self, placeholder: impl Fn() -> String + 'static) -> Self {
-        let cx = ViewContext::get_current();
         let id = self.id;
-        create_effect(cx.scope, move |_| {
+        create_effect(move |_| {
             let placeholder = placeholder();
             id.update_state(TextInputState::Placeholder(placeholder), false);
         });
@@ -292,11 +288,19 @@ impl View for TextInput {
         self.id
     }
 
-    fn child(&mut self, _id: Id) -> Option<&mut dyn View> {
+    fn child(&self, _id: Id) -> Option<&dyn View> {
         None
     }
 
-    fn children(&mut self) -> Vec<&mut dyn View> {
+    fn child_mut(&mut self, _id: Id) -> Option<&mut dyn View> {
+        None
+    }
+
+    fn children(&self) -> Vec<&dyn View> {
+        Vec::new()
+    }
+
+    fn children_mut(&mut self) -> Vec<&mut dyn View> {
         Vec::new()
     }
 

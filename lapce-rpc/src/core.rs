@@ -282,7 +282,7 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::RunInTerminal { config });
     }
 
-    pub fn log(&self, level: log::Level, message: String) {
+    pub fn log(&self, level: tracing::Level, message: String) {
         self.notification(CoreNotification::Log {
             level: level.as_str().to_string(),
             message,

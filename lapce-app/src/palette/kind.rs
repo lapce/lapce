@@ -11,6 +11,8 @@ pub enum PaletteKind {
     RunAndDebug,
     ColorTheme,
     IconTheme,
+    Language,
+    SCMReferences,
 }
 
 impl PaletteKind {
@@ -25,12 +27,12 @@ impl PaletteKind {
             PaletteKind::Command => ":",
             PaletteKind::File
             | PaletteKind::Reference
-            | PaletteKind::ColorTheme
-            | PaletteKind::IconTheme
             | PaletteKind::SshHost
             | PaletteKind::RunAndDebug
-            // | PaletteKind::Language 
-              => "",
+            | PaletteKind::ColorTheme
+            | PaletteKind::IconTheme
+            | PaletteKind::Language
+            | PaletteKind::SCMReferences => "",
         }
     }
 
@@ -61,12 +63,12 @@ impl PaletteKind {
         match self {
             PaletteKind::File
             | PaletteKind::Reference
+            | PaletteKind::SshHost
+            | PaletteKind::RunAndDebug
             | PaletteKind::ColorTheme
             | PaletteKind::IconTheme
-            // | PaletteKind::Language
-            | PaletteKind::RunAndDebug
-            | PaletteKind::SshHost
-             => input,
+            | PaletteKind::Language
+            | PaletteKind::SCMReferences => input,
             PaletteKind::Command
             | PaletteKind::Workspace
             | PaletteKind::DocumentSymbol

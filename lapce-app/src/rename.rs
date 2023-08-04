@@ -3,10 +3,7 @@ use std::path::PathBuf;
 use floem::{
     ext_event::create_ext_action,
     peniko::kurbo::Rect,
-    reactive::{
-        create_rw_signal, RwSignal, Scope, SignalGetUntracked, SignalSet,
-        SignalUpdate, SignalWithUntracked,
-    },
+    reactive::{RwSignal, Scope},
 };
 use lapce_core::{command::FocusCommand, mode::Mode, selection::Selection};
 use lapce_rpc::proxy::ProxyResponse;
@@ -69,11 +66,11 @@ impl KeyPressFocus for RenameData {
 
 impl RenameData {
     pub fn new(cx: Scope, common: CommonData) -> Self {
-        let active = create_rw_signal(cx, false);
-        let start = create_rw_signal(cx, 0);
-        let position = create_rw_signal(cx, Position::default());
-        let layout_rect = create_rw_signal(cx, Rect::ZERO);
-        let path = create_rw_signal(cx, PathBuf::new());
+        let active = cx.create_rw_signal(false);
+        let start = cx.create_rw_signal(0);
+        let position = cx.create_rw_signal(Position::default());
+        let layout_rect = cx.create_rw_signal(Rect::ZERO);
+        let path = cx.create_rw_signal(PathBuf::new());
         let editor = EditorData::new_local(cx, EditorId::next(), common.clone());
         Self {
             active,
@@ -94,6 +91,7 @@ impl RenameData {
         position: Position,
     ) {
         self.editor
+            .view
             .doc
             .update(|doc| doc.reload(Rope::from(&placeholder), true));
         self.editor.cursor.update(|cursor| {
@@ -129,6 +127,7 @@ impl RenameData {
     fn confirm(&self) {
         let new_name = self
             .editor
+            .view
             .doc
             .with_untracked(|doc| doc.buffer().to_string());
         let new_name = new_name.trim();

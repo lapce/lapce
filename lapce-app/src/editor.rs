@@ -1,17 +1,14 @@
-use std::{cmp::Ordering, str::FromStr, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap, str::FromStr, sync::Arc};
 
 use anyhow::Result;
 use floem::{
     ext_event::create_ext_action,
     glazier::{Modifiers, PointerButton, PointerEvent},
     peniko::kurbo::{Point, Rect, Vec2},
-    reactive::{
-        create_rw_signal, use_context, RwSignal, Scope, SignalGetUntracked,
-        SignalSet, SignalUpdate, SignalWithUntracked,
-    },
+    reactive::{use_context, RwSignal, Scope},
 };
 use lapce_core::{
-    buffer::{rope_text::RopeText, InvalLines},
+    buffer::{diff::DiffLines, rope_text::RopeText, InvalLines},
     command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
     cursor::{Cursor, CursorMode},
     editor::EditType,
@@ -42,11 +39,17 @@ use crate::{
     window_tab::{CommonData, Focus, WindowTabData},
 };
 
-use self::view::EditorViewData;
+use self::{
+    view::{DiffSection, DiffSectionKind, LineInfo, ScreenLines},
+    view_data::{EditorViewData, EditorViewKind},
+};
 
+pub mod diff;
+pub mod gutter;
 pub mod location;
 pub mod movement;
 pub mod view;
+pub mod view_data;
 
 #[derive(Clone, Debug)]
 pub enum InlineFindDirection {
@@ -98,8 +101,11 @@ impl EditorInfo {
             DocContent::Local => {
                 EditorData::new_local(data.scope, editor_id, data.common)
             }
+            DocContent::History(_) => {
+                EditorData::new_local(data.scope, editor_id, data.common)
+            }
         };
-        let editor_data = create_rw_signal(editor_data.scope, editor_data);
+        let editor_data = editor_data.scope.create_rw_signal(editor_data);
         data.editors.update(|editors| {
             editors.insert(editor_id, editor_data);
         });
@@ -114,9 +120,6 @@ pub struct EditorData {
     pub scope: Scope,
     pub editor_tab_id: Option<EditorTabId>,
     pub editor_id: EditorId,
-    /// The document this editor is for.  
-    /// To change out the current document, use [`EditorData::update_doc`].
-    pub doc: RwSignal<Document>,
     pub view: EditorViewData,
     pub confirmed: RwSignal<bool>,
     pub cursor: RwSignal<Cursor>,
@@ -148,7 +151,7 @@ impl EditorData {
         doc: RwSignal<Document>,
         common: CommonData,
     ) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
+        let cx = cx.create_child();
         let is_local = doc.with_untracked(|doc| doc.content.is_local());
         let modal = common.config.with_untracked(|c| c.core.modal);
         let cursor = Cursor::new(
@@ -160,67 +163,51 @@ impl EditorData {
             None,
             None,
         );
-        let cursor = create_rw_signal(cx, cursor);
-        let scroll_delta = create_rw_signal(cx, Vec2::ZERO);
-        let scroll_to = create_rw_signal(cx, None);
-        let snippet = create_rw_signal(cx, None);
-        let window_origin = create_rw_signal(cx, Point::ZERO);
-        let viewport = create_rw_signal(cx, Rect::ZERO);
-        let confirmed = create_rw_signal(cx, false);
-        let last_movement = create_rw_signal(cx, Movement::Left);
-        let inline_find = create_rw_signal(cx, None);
-        let last_inline_find = create_rw_signal(cx, None);
-        let find_focus = create_rw_signal(cx, false);
-        let active = create_rw_signal(cx, false);
-        let sticky_header_height = create_rw_signal(cx, 0.0);
-        let view = EditorViewData::new(doc, common.config);
+        let cursor = cx.create_rw_signal(cursor);
+        let view = EditorViewData::new(
+            doc,
+            cx.create_rw_signal(EditorViewKind::Normal),
+            common.config,
+        );
         Self {
             scope: cx,
             editor_tab_id,
             editor_id,
-            doc,
             view,
             cursor,
-            confirmed,
-            snippet,
-            window_origin,
-            viewport,
-            scroll_delta,
-            scroll_to,
-            last_movement,
-            inline_find,
-            last_inline_find,
-            find_focus,
-            active,
-            sticky_header_height,
+            confirmed: cx.create_rw_signal(false),
+            snippet: cx.create_rw_signal(None),
+            window_origin: cx.create_rw_signal(Point::ZERO),
+            viewport: cx.create_rw_signal(Rect::ZERO),
+            scroll_delta: cx.create_rw_signal(Vec2::ZERO),
+            scroll_to: cx.create_rw_signal(None),
+            last_movement: cx.create_rw_signal(Movement::Left),
+            inline_find: cx.create_rw_signal(None),
+            last_inline_find: cx.create_rw_signal(None),
+            find_focus: cx.create_rw_signal(false),
+            active: cx.create_rw_signal(false),
+            sticky_header_height: cx.create_rw_signal(0.0),
             common,
         }
     }
 
     pub fn new_local(cx: Scope, editor_id: EditorId, common: CommonData) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
+        let cx = cx.create_child();
         let doc = Document::new_local(
             cx,
             common.find.clone(),
             common.proxy.clone(),
             common.config,
         );
-        let doc = create_rw_signal(cx, doc);
+        let doc = cx.create_rw_signal(doc);
         Self::new(cx, None, editor_id, doc, common)
     }
 
     pub fn editor_info(&self, _data: &WindowTabData) -> EditorInfo {
-        // let unsaved = if let BufferContent::Scratch(id, _) = &self.content {
-        //     let doc = data.main_split.scratch_docs.get(id).unwrap();
-        //     Some(doc.buffer().to_string())
-        // } else {
-        //     None
-        // };
-
         let offset = self.cursor.get_untracked().offset();
         let scroll_offset = self.viewport.get_untracked().origin();
         EditorInfo {
-            content: self.doc.get_untracked().content,
+            content: self.view.doc.get_untracked().content,
             offset,
             scroll_offset: (scroll_offset.x, scroll_offset.y),
         }
@@ -228,7 +215,7 @@ impl EditorData {
 
     /// Swap out the document this editor is for.
     pub fn update_doc(&mut self, doc: RwSignal<Document>) {
-        self.doc = doc;
+        self.view.doc = doc;
         self.view.update_doc(doc);
     }
 
@@ -238,30 +225,29 @@ impl EditorData {
         editor_tab_id: Option<EditorTabId>,
         editor_id: EditorId,
     ) -> Self {
-        let (cx, _) = cx.run_child_scope(|cx| cx);
-        let mut editor = self.clone();
-        editor.scope = cx;
-        editor.view = self.view.duplicate();
-        editor.cursor = create_rw_signal(cx, editor.cursor.get_untracked());
-        editor.viewport = create_rw_signal(cx, editor.viewport.get_untracked());
-        editor.scroll_delta = create_rw_signal(cx, Vec2::ZERO);
-        editor.scroll_to = create_rw_signal(
-            cx,
-            Some(editor.viewport.get_untracked().origin().to_vec2()),
-        );
-        editor.window_origin = create_rw_signal(cx, Point::ZERO);
-        editor.confirmed = create_rw_signal(cx, true);
-        editor.snippet = create_rw_signal(cx, None);
-        editor.last_movement =
-            create_rw_signal(cx, editor.last_movement.get_untracked());
-        editor.inline_find = create_rw_signal(cx, None);
-        editor.last_inline_find = create_rw_signal(cx, None);
-        editor.find_focus = create_rw_signal(cx, false);
-        editor.active = create_rw_signal(cx, false);
-        editor.sticky_header_height = create_rw_signal(cx, 0.0);
-        editor.editor_tab_id = editor_tab_id;
-        editor.editor_id = editor_id;
-        editor
+        let cx = cx.create_child();
+        EditorData {
+            scope: cx,
+            editor_id,
+            editor_tab_id,
+            view: self.view.duplicate(cx),
+            cursor: cx.create_rw_signal(self.cursor.get_untracked()),
+            viewport: cx.create_rw_signal(self.viewport.get_untracked()),
+            scroll_delta: cx.create_rw_signal(Vec2::ZERO),
+            scroll_to: cx.create_rw_signal(Some(
+                self.viewport.get_untracked().origin().to_vec2(),
+            )),
+            window_origin: cx.create_rw_signal(Point::ZERO),
+            confirmed: cx.create_rw_signal(true),
+            snippet: cx.create_rw_signal(None),
+            last_movement: cx.create_rw_signal(self.last_movement.get_untracked()),
+            inline_find: cx.create_rw_signal(None),
+            last_inline_find: cx.create_rw_signal(None),
+            find_focus: cx.create_rw_signal(false),
+            active: cx.create_rw_signal(false),
+            sticky_header_height: cx.create_rw_signal(0.0),
+            common: self.common.clone(),
+        }
     }
 
     fn run_edit_command(&self, cmd: &EditCommand) -> CommandExecuted {
@@ -269,20 +255,27 @@ impl EditorData {
             .common
             .config
             .with_untracked(|config| config.core.modal)
-            && !self.doc.with_untracked(|doc| doc.content.is_local());
-        let doc_before_edit =
-            self.doc.with_untracked(|doc| doc.buffer().text().clone());
+            && !self.view.doc.with_untracked(|doc| doc.content.is_local());
+        let doc_before_edit = self
+            .view
+            .doc
+            .with_untracked(|doc| doc.buffer().text().clone());
         let mut cursor = self.cursor.get_untracked();
         let mut register = self.common.register.get_untracked();
 
         let yank_data =
             if let lapce_core::cursor::CursorMode::Visual { .. } = &cursor.mode {
-                Some(self.doc.with_untracked(|doc| cursor.yank(doc.buffer())))
+                Some(
+                    self.view
+                        .doc
+                        .with_untracked(|doc| cursor.yank(doc.buffer())),
+                )
             } else {
                 None
             };
 
         let deltas = self
+            .view
             .doc
             .try_update(|doc| doc.do_edit(&mut cursor, cmd, modal, &mut register))
             .unwrap();
@@ -319,7 +312,7 @@ impl EditorData {
         let mut cursor = self.cursor.get_untracked();
         let mut register = self.common.register.get_untracked();
 
-        self.doc.update(|doc| {
+        self.view.doc.update(|doc| {
             movement::do_motion_mode(doc, &mut cursor, motion_mode, &mut register);
         });
 
@@ -348,7 +341,10 @@ impl EditorData {
         mods: Modifiers,
     ) -> CommandExecuted {
         if movement.is_jump() && movement != &self.last_movement.get_untracked() {
-            let path = self.doc.with_untracked(|doc| doc.content.path().cloned());
+            let path = self
+                .view
+                .doc
+                .with_untracked(|doc| doc.content.path().cloned());
             if let Some(path) = path {
                 let offset = self.cursor.with_untracked(|c| c.offset());
                 let scroll_offset = self.viewport.get_untracked().origin().to_vec2();
@@ -654,12 +650,13 @@ impl EditorData {
     /// Jump to the next/previous column on the line which matches the given text
     fn inline_find(&self, direction: InlineFindDirection, c: &str) {
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let (line_content, line_start_offset) = self.doc.with_untracked(|doc| {
-            let line = doc.buffer().line_of_offset(offset);
-            let line_content = doc.buffer().line_content(line);
-            let line_start_offset = doc.buffer().offset_of_line(line);
-            (line_content.to_string(), line_start_offset)
-        });
+        let (line_content, line_start_offset) =
+            self.view.doc.with_untracked(|doc| {
+                let line = doc.buffer().line_of_offset(offset);
+                let line_content = doc.buffer().line_content(line);
+                let line_start_offset = doc.buffer().offset_of_line(line);
+                (line_content.to_string(), line_start_offset)
+            });
         let index = offset - line_start_offset;
         if let Some(new_index) = match direction {
             InlineFindDirection::Left => line_content[..index].rfind(c),
@@ -668,7 +665,7 @@ impl EditorData {
                     None
                 } else {
                     let index = index
-                        + self.doc.with_untracked(|doc| {
+                        + self.view.doc.with_untracked(|doc| {
                             doc.buffer().next_grapheme_offset(
                                 offset,
                                 1,
@@ -691,7 +688,7 @@ impl EditorData {
     }
 
     fn go_to_definition(&self) {
-        let path = match self.doc.with_untracked(|doc| {
+        let path = match self.view.doc.with_untracked(|doc| {
             if doc.loaded() {
                 doc.content.path().cloned()
             } else {
@@ -703,7 +700,7 @@ impl EditorData {
         };
 
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let (start_position, position) = self.doc.with_untracked(|doc| {
+        let (start_position, position) = self.view.doc.with_untracked(|doc| {
             let start_offset = doc.buffer().prev_code_boundary(offset);
             let start_position = doc.buffer().offset_to_position(start_offset);
             let position = doc.buffer().offset_to_position(offset);
@@ -858,6 +855,7 @@ impl EditorData {
 
         let offset = self.cursor.with_untracked(|cursor| cursor.offset());
         let (line, _col) = self
+            .view
             .doc
             .with_untracked(|doc| doc.buffer().offset_to_line_col(offset));
         let top = viewport.y0 + diff;
@@ -908,6 +906,7 @@ impl EditorData {
             if item.item.data.is_some() {
                 let editor = self.clone();
                 let (rev, path) = self
+                    .view
                     .doc
                     .with_untracked(|doc| (doc.rev(), doc.content.path().cloned()));
                 let offset = self.cursor.with_untracked(|c| c.offset());
@@ -915,7 +914,7 @@ impl EditorData {
                     if editor.cursor.with_untracked(|c| c.offset() != offset) {
                         return;
                     }
-                    if editor.doc.with_untracked(|doc| {
+                    if editor.view.doc.with_untracked(|doc| {
                         doc.rev() != rev || doc.content.path() != path.as_ref()
                     }) {
                         return;
@@ -954,7 +953,7 @@ impl EditorData {
             c.cancel();
         });
 
-        clear_completion_lens(self.doc);
+        clear_completion_lens(self.view.doc);
     }
 
     /// Update the displayed autocompletion box  
@@ -965,7 +964,7 @@ impl EditorData {
             return;
         }
 
-        let path = match self.doc.with_untracked(|doc| {
+        let path = match self.view.doc.with_untracked(|doc| {
             if doc.loaded() {
                 doc.content.path().cloned()
             } else {
@@ -977,7 +976,7 @@ impl EditorData {
         };
 
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let (start_offset, input, char) = self.doc.with_untracked(|doc| {
+        let (start_offset, input, char) = self.view.doc.with_untracked(|doc| {
             let start_offset = doc.buffer().prev_code_boundary(offset);
             let end_offset = doc.buffer().next_code_boundary(offset);
             let input = doc
@@ -1011,7 +1010,7 @@ impl EditorData {
                 completion.update_document_completion(&self.view, cursor_offset);
 
                 if !completion.input_items.contains_key("") {
-                    let start_pos = self.doc.with_untracked(|doc| {
+                    let start_pos = self.view.doc.with_untracked(|doc| {
                         doc.buffer().offset_to_position(start_offset)
                     });
                     completion.request(
@@ -1024,7 +1023,7 @@ impl EditorData {
                 }
 
                 if !completion.input_items.contains_key(&input) {
-                    let position = self.doc.with_untracked(|doc| {
+                    let position = self.view.doc.with_untracked(|doc| {
                         doc.buffer().offset_to_position(offset)
                     });
                     completion.request(
@@ -1047,6 +1046,7 @@ impl EditorData {
             completion.input_items.clear();
             completion.request_id += 1;
             let start_pos = self
+                .view
                 .doc
                 .with_untracked(|doc| doc.buffer().offset_to_position(start_offset));
             completion.request(
@@ -1059,6 +1059,7 @@ impl EditorData {
 
             if !input.is_empty() {
                 let position = self
+                    .view
                     .doc
                     .with_untracked(|doc| doc.buffer().offset_to_position(offset));
                 completion.request(
@@ -1081,7 +1082,7 @@ impl EditorData {
     }
 
     fn apply_completion_item(&self, item: &CompletionItem) -> Result<()> {
-        let doc = self.doc.get_untracked();
+        let doc = self.view.doc.get_untracked();
         let cursor = self.cursor.get_untracked();
         // Get all the edits which would be applied in places other than right where the cursor is
         let additional_edit: Vec<_> = item
@@ -1174,6 +1175,7 @@ impl EditorData {
         let mut cursor = self.cursor.get_untracked();
         let old_cursor = cursor.mode.clone();
         let (delta, inval_lines, edits) = self
+            .view
             .doc
             .try_update(|doc| {
                 doc.do_raw_edit(
@@ -1194,7 +1196,7 @@ impl EditorData {
         let snippet_tabs = snippet.tabs(offset);
 
         if snippet_tabs.is_empty() {
-            self.doc.update(|doc| {
+            self.view.doc.update(|doc| {
                 cursor.update_selection(doc.buffer(), selection);
                 doc.buffer_mut().set_cursor_before(old_cursor);
                 doc.buffer_mut().set_cursor_after(cursor.mode.clone());
@@ -1210,7 +1212,7 @@ impl EditorData {
         selection.add_region(region);
         cursor.set_insert(selection);
 
-        self.doc.update(|doc| {
+        self.view.doc.update(|doc| {
             doc.buffer_mut().set_cursor_before(old_cursor);
             doc.buffer_mut().set_cursor_after(cursor.mode.clone());
         });
@@ -1256,6 +1258,7 @@ impl EditorData {
     ) {
         let mut cursor = self.cursor.get_untracked();
         let (delta, inval_lines, edits) = self
+            .view
             .doc
             .try_update(|doc| {
                 let (delta, inval_lines, edits) =
@@ -1275,7 +1278,7 @@ impl EditorData {
     }
 
     pub fn do_text_edit(&self, edits: &[TextEdit]) {
-        let (selection, edits) = self.doc.with_untracked(|doc| {
+        let (selection, edits) = self.view.doc.with_untracked(|doc| {
             let selection = self.cursor.get_untracked().edit_selection(doc.buffer());
             let edits = edits
                 .iter()
@@ -1339,7 +1342,7 @@ impl EditorData {
         } else if let Some(edits) = edits.as_ref() {
             self.do_text_edit(edits);
         } else {
-            let db: Arc<LapceDb> = use_context(self.scope).unwrap();
+            let db: Arc<LapceDb> = use_context().unwrap();
             if let Ok(info) = db.get_doc_info(&self.common.workspace, &location.path)
             {
                 self.go_to_position(
@@ -1360,26 +1363,19 @@ impl EditorData {
         if !new_doc {
             self.do_go_to_location(location, edits);
         } else {
-            let buffer_id = self.doc.with_untracked(|doc| doc.buffer_id);
-            let set_doc = self.doc.write_only();
+            let doc = self.view.doc;
             let editor = self.clone();
-            let path = location.path.clone();
-            let send = create_ext_action(self.scope, move |content| {
-                set_doc.update(move |doc| {
-                    doc.init_content(content);
-                });
+            self.scope.create_effect(move |prev_loaded| {
+                if prev_loaded == Some(true) {
+                    return true;
+                }
 
-                editor.do_go_to_location(location.clone(), edits.clone());
+                let loaded = doc.with(|doc| doc.loaded());
+                if loaded {
+                    editor.do_go_to_location(location.clone(), edits.clone());
+                }
+                loaded
             });
-
-            self.common
-                .proxy
-                .new_buffer(buffer_id, path, move |result| {
-                    if let Ok(ProxyResponse::NewBufferResponse { content }) = result
-                    {
-                        send(Rope::from(content))
-                    }
-                });
         }
     }
 
@@ -1390,6 +1386,7 @@ impl EditorData {
         edits: Option<Vec<TextEdit>>,
     ) {
         let offset = self
+            .view
             .doc
             .with_untracked(|doc| position.to_offset(doc.buffer()));
         let config = self.common.config.get_untracked();
@@ -1407,7 +1404,7 @@ impl EditorData {
     }
 
     pub fn get_code_actions(&self) {
-        let path = match self.doc.with_untracked(|doc| {
+        let path = match self.view.doc.with_untracked(|doc| {
             if doc.loaded() {
                 doc.content.path().cloned()
             } else {
@@ -1420,6 +1417,7 @@ impl EditorData {
 
         let offset = self.cursor.with_untracked(|c| c.offset());
         let exists = self
+            .view
             .doc
             .with_untracked(|doc| doc.code_actions.contains_key(&offset));
 
@@ -1427,13 +1425,13 @@ impl EditorData {
             return;
         }
 
-        self.doc.update(|doc| {
+        self.view.doc.update(|doc| {
             // insert some empty data, so that we won't make the request again
             doc.code_actions
                 .insert(offset, Arc::new((PluginId(0), Vec::new())));
         });
 
-        let (position, rev, diagnostics) = self.doc.with_untracked(|doc| {
+        let (position, rev, diagnostics) = self.view.doc.with_untracked(|doc| {
             let position = doc.buffer().offset_to_position(offset);
             let rev = doc.rev();
 
@@ -1455,7 +1453,7 @@ impl EditorData {
             (position, rev, diagnostics)
         });
 
-        let doc = self.doc;
+        let doc = self.view.doc;
         let send = create_ext_action(self.scope, move |resp| {
             if doc.with_untracked(|doc| doc.rev() == rev) {
                 doc.update(|doc| {
@@ -1483,6 +1481,7 @@ impl EditorData {
     pub fn show_code_actions(&self, mouse_click: bool) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let code_actions = self
+            .view
             .doc
             .with_untracked(|doc| doc.code_actions.get(&offset).cloned());
         if let Some(code_actions) = code_actions {
@@ -1500,10 +1499,11 @@ impl EditorData {
 
     fn do_save(&self) {
         let (rev, content) = self
+            .view
             .doc
             .with_untracked(|doc| (doc.rev(), doc.content.clone()));
 
-        let doc = self.doc;
+        let doc = self.view.doc;
         let send = create_ext_action(self.scope, move |result| {
             if let Ok(ProxyResponse::SaveResponse {}) = result {
                 let current_rev = doc.with_untracked(|doc| doc.rev());
@@ -1523,7 +1523,7 @@ impl EditorData {
     }
 
     pub fn save(&self, exit: bool, allow_formatting: bool) {
-        let (rev, is_pristine, content) = self.doc.with_untracked(|doc| {
+        let (rev, is_pristine, content) = self.view.doc.with_untracked(|doc| {
             (doc.rev(), doc.buffer().is_pristine(), doc.content.clone())
         });
 
@@ -1541,7 +1541,8 @@ impl EditorData {
                     if let Ok(Ok(ProxyResponse::GetDocumentFormatting { edits })) =
                         result
                     {
-                        let current_rev = editor.doc.with_untracked(|doc| doc.rev());
+                        let current_rev =
+                            editor.view.doc.with_untracked(|doc| doc.rev());
                         if current_rev == rev {
                             editor.do_text_edit(&edits);
                         }
@@ -1566,7 +1567,7 @@ impl EditorData {
 
     fn search_whole_word_forward(&self, mods: Modifiers) {
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let (word, buffer) = self.doc.with_untracked(|doc| {
+        let (word, buffer) = self.view.doc.with_untracked(|doc| {
             let (start, end) = doc.buffer().select_word(offset);
             (
                 doc.buffer().slice_to_cow(start..end).to_string(),
@@ -1589,7 +1590,7 @@ impl EditorData {
 
     fn search_forward(&self, mods: Modifiers) {
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let buffer = self.doc.with_untracked(|doc| doc.buffer().clone());
+        let buffer = self.view.doc.with_untracked(|doc| doc.buffer().clone());
         let next = self.common.find.next(buffer.text(), offset, false, true);
 
         if let Some((start, _end)) = next {
@@ -1603,7 +1604,7 @@ impl EditorData {
 
     fn search_backward(&self, mods: Modifiers) {
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let buffer = self.doc.with_untracked(|doc| doc.buffer().clone());
+        let buffer = self.view.doc.with_untracked(|doc| doc.buffer().clone());
         let next = self.common.find.next(buffer.text(), offset, true, true);
 
         if let Some((start, _end)) = next {
@@ -1615,8 +1616,8 @@ impl EditorData {
         }
     }
 
-    pub fn save_doc_position(&self, cx: Scope) {
-        let path = match self.doc.with_untracked(|doc| {
+    pub fn save_doc_position(&self) {
+        let path = match self.view.doc.with_untracked(|doc| {
             if doc.loaded() {
                 doc.content.path().cloned()
             } else {
@@ -1630,7 +1631,7 @@ impl EditorData {
         let cursor_offset = self.cursor.with_untracked(|c| c.offset());
         let scroll_offset = self.viewport.with_untracked(|v| v.origin().to_vec2());
 
-        let db: Arc<LapceDb> = use_context(cx).unwrap();
+        let db: Arc<LapceDb> = use_context().unwrap();
         db.save_doc_position(
             &self.common.workspace,
             path,
@@ -1640,7 +1641,7 @@ impl EditorData {
     }
 
     fn rename(&self) {
-        let path = match self.doc.with_untracked(|doc| {
+        let path = match self.view.doc.with_untracked(|doc| {
             if doc.loaded() {
                 doc.content.path().cloned()
             } else {
@@ -1652,12 +1653,12 @@ impl EditorData {
         };
 
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let (position, rev) = self.doc.with_untracked(|doc| {
+        let (position, rev) = self.view.doc.with_untracked(|doc| {
             (doc.buffer().offset_to_position(offset), doc.rev())
         });
 
         let cursor = self.cursor;
-        let doc = self.doc;
+        let doc = self.view.doc;
         let internal_command = self.common.internal_command;
         let local_path = path.clone();
         let send = create_ext_action(self.scope, move |result| {
@@ -1732,7 +1733,7 @@ impl EditorData {
                 mode: _,
             } => lapce_core::selection::SelRegion::new(
                 *start.min(end),
-                self.doc.with_untracked(|doc| {
+                self.view.doc.with_untracked(|doc| {
                     doc.buffer().next_grapheme_offset(
                         *start.max(end),
                         1,
@@ -1747,12 +1748,12 @@ impl EditorData {
         });
 
         if region.is_caret() {
-            self.doc.with_untracked(|doc| {
+            self.view.doc.with_untracked(|doc| {
                 let (start, end) = doc.buffer().select_word(region.start);
                 doc.buffer().slice_to_cow(start..end).to_string()
             })
         } else {
-            self.doc.with_untracked(|doc| {
+            self.view.doc.with_untracked(|doc| {
                 doc.buffer()
                     .slice_to_cow(region.min()..region.max())
                     .to_string()
@@ -1788,7 +1789,7 @@ impl EditorData {
                 .internal_command
                 .send(InternalCommand::FocusEditorTab { editor_tab_id });
         }
-        if self.doc.with_untracked(|doc| !doc.content.is_local()) {
+        if self.view.doc.with_untracked(|doc| !doc.content.is_local()) {
             self.common.focus.set(Focus::Workbench);
             self.find_focus.set(false);
         }
@@ -1879,9 +1880,204 @@ impl EditorData {
 
     // reset the doc inside and move cursor back
     pub fn reset(&self) {
-        self.doc.update(|doc| doc.reload(Rope::from(""), true));
+        self.view.doc.update(|doc| doc.reload(Rope::from(""), true));
         self.cursor
             .update(|cursor| cursor.set_offset(0, false, false));
+    }
+
+    pub fn screen_lines(&self) -> ScreenLines {
+        let viewport = self.viewport.get_untracked();
+        let editor_view = self.view.kind;
+        let config = self.common.config.get_untracked();
+        let line_height = config.editor.line_height();
+
+        let min_line = (viewport.y0 / line_height as f64).floor() as usize;
+        let max_line = (viewport.y1 / line_height as f64).ceil() as usize;
+
+        let editor_view = editor_view.get_untracked();
+        match editor_view {
+            EditorViewKind::Normal => {
+                let doc = self.view.doc;
+                let last_line = doc.with_untracked(|doc| doc.buffer().last_line());
+                let mut lines = Vec::new();
+                let mut info = HashMap::new();
+                for line in min_line..max_line + 1 {
+                    if line > last_line {
+                        break;
+                    }
+                    lines.push(line);
+                    info.insert(
+                        line,
+                        LineInfo {
+                            y: line * line_height,
+                        },
+                    );
+                }
+                ScreenLines {
+                    lines,
+                    info,
+                    diff_sections: Vec::new(),
+                }
+            }
+            EditorViewKind::Diff(diff_info) => {
+                let mut visual_line = 0;
+                let mut lines = Vec::new();
+                let mut info = HashMap::new();
+                let mut diff_sections = Vec::new();
+                let mut last_change: Option<&DiffLines> = None;
+                let mut changes = diff_info.changes.iter().peekable();
+                let is_right = diff_info.is_right;
+                while let Some(change) = changes.next() {
+                    match (is_right, change) {
+                        (true, DiffLines::Left(range)) => {
+                            if let Some(DiffLines::Right(_)) = changes.peek() {
+                            } else {
+                                let len = range.len();
+                                diff_sections.push(DiffSection {
+                                    start_line: visual_line,
+                                    height: len,
+                                    kind: DiffSectionKind::NoCode,
+                                });
+                                visual_line += len;
+                            }
+                        }
+                        (false, DiffLines::Right(range)) => {
+                            let len = if let Some(DiffLines::Left(r)) = last_change {
+                                range.len() - r.len().min(range.len())
+                            } else {
+                                range.len()
+                            };
+                            if len > 0 {
+                                diff_sections.push(DiffSection {
+                                    start_line: visual_line,
+                                    height: len,
+                                    kind: DiffSectionKind::NoCode,
+                                });
+                                visual_line += len;
+                            }
+                        }
+                        (true, DiffLines::Right(range))
+                        | (false, DiffLines::Left(range)) => {
+                            let len = range.len();
+
+                            diff_sections.push(DiffSection {
+                                start_line: visual_line,
+                                height: len,
+                                kind: if is_right {
+                                    DiffSectionKind::Added
+                                } else {
+                                    DiffSectionKind::Removed
+                                },
+                            });
+
+                            visual_line += len;
+
+                            if visual_line < min_line {
+                                if is_right {
+                                    if let Some(DiffLines::Left(r)) = last_change {
+                                        let len = r.len() - r.len().min(range.len());
+                                        if len > 0 {
+                                            diff_sections.push(DiffSection {
+                                                start_line: visual_line,
+                                                height: len,
+                                                kind: DiffSectionKind::NoCode,
+                                            });
+                                            visual_line += len;
+                                        }
+                                    };
+                                }
+                                last_change = Some(change);
+                                continue;
+                            }
+
+                            for l in visual_line - len..visual_line {
+                                if l < min_line {
+                                    continue;
+                                }
+                                let actual_line =
+                                    l - (visual_line - len) + range.start;
+
+                                lines.push(actual_line);
+                                info.insert(
+                                    actual_line,
+                                    LineInfo { y: l * line_height },
+                                );
+
+                                if l > max_line {
+                                    break;
+                                }
+                            }
+
+                            if is_right {
+                                if let Some(DiffLines::Left(r)) = last_change {
+                                    let len = r.len() - r.len().min(range.len());
+                                    if len > 0 {
+                                        diff_sections.push(DiffSection {
+                                            start_line: visual_line,
+                                            height: len,
+                                            kind: DiffSectionKind::NoCode,
+                                        });
+                                        visual_line += len;
+                                    }
+                                };
+                            }
+                        }
+                        (_, DiffLines::Both(bothinfo)) => {
+                            let start = if is_right {
+                                bothinfo.right.start
+                            } else {
+                                bothinfo.left.start
+                            };
+                            let len = bothinfo.right.len();
+                            let diff_height = len
+                                - bothinfo
+                                    .skip
+                                    .as_ref()
+                                    .map(|skip| skip.len().saturating_sub(1))
+                                    .unwrap_or(0);
+                            if visual_line + diff_height < min_line {
+                                visual_line += diff_height;
+                                last_change = Some(change);
+                                continue;
+                            }
+
+                            let mut actual_line = start;
+                            while actual_line < start + len {
+                                if let Some(skip) = bothinfo.skip.as_ref() {
+                                    if skip.start == actual_line - start {
+                                        visual_line += 1;
+                                        actual_line += skip.len();
+                                        continue;
+                                    }
+                                }
+
+                                if visual_line >= min_line {
+                                    lines.push(actual_line);
+                                    info.insert(
+                                        actual_line,
+                                        LineInfo {
+                                            y: visual_line * line_height,
+                                        },
+                                    );
+                                }
+                                visual_line += 1;
+                                actual_line += 1;
+
+                                if visual_line - 1 > max_line {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    last_change = Some(change);
+                }
+                ScreenLines {
+                    lines,
+                    info,
+                    diff_sections,
+                }
+            }
+        }
     }
 }
 
@@ -1905,7 +2101,7 @@ impl KeyPressFocus for EditorData {
             Condition::CompletionFocus => self.has_completions(),
             Condition::InSnippet => self.snippet.with_untracked(|s| s.is_some()),
             Condition::EditorFocus => {
-                self.doc.with_untracked(|doc| !doc.content.is_local())
+                self.view.doc.with_untracked(|doc| !doc.content.is_local())
             }
             Condition::SearchFocus => {
                 self.common.find.visual.get_untracked()
@@ -1973,7 +2169,7 @@ impl KeyPressFocus for EditorData {
                 self.run_move_command(&movement, count, mods)
             }
             crate::command::CommandKind::Focus(cmd) => {
-                if self.doc.with_untracked(|doc| doc.content.is_local()) {
+                if self.view.doc.with_untracked(|doc| doc.content.is_local()) {
                     return CommandExecuted::No;
                 }
                 self.run_focus_command(cmd, count, mods)
@@ -2015,6 +2211,7 @@ impl KeyPressFocus for EditorData {
                 let mut cursor = self.cursor.get_untracked();
                 let config = self.common.config.get_untracked();
                 let deltas = self
+                    .view
                     .doc
                     .try_update(|doc| doc.do_insert(&mut cursor, c, &config))
                     .unwrap();
