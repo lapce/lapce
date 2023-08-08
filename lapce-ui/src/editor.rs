@@ -8,12 +8,15 @@ use druid::{
     PaintCtx, Point, Rect, RenderContext, Size, Target, TimerToken, UpdateCtx,
     Widget, WidgetId,
 };
+
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText},
     command::{EditCommand, FocusCommand},
     cursor::{ColPosition, CursorMode},
     mode::{Mode, VisualMode},
+    selection::SelRegion,
 };
+
 use lapce_data::{
     command::{
         CommandKind, LapceCommand, LapceUICommand, LapceWorkbenchCommand,
@@ -31,6 +34,7 @@ use lapce_data::{
     panel::{PanelData, PanelKind},
     selection_range::SyntaxSelectionRanges,
 };
+
 use lsp_types::{CodeActionOrCommand, DiagnosticSeverity};
 
 pub mod bread_crumb;
@@ -883,12 +887,12 @@ impl LapceEditor {
 
         Self::paint_current_line(ctx, data, &screen_lines);
         Self::paint_cursor_new(ctx, data, &screen_lines, is_focused, env);
-        Self::paint_selection_find(ctx, data, &screen_lines);
         Self::paint_find(ctx, data, &screen_lines);
         Self::paint_text(ctx, data, &screen_lines);
         Self::paint_diagnostics(ctx, data, &screen_lines);
         Self::paint_snippet(ctx, data, &screen_lines);
         Self::highlight_scope_and_brackets(ctx, data, &screen_lines);
+        Self::paint_selection_find(ctx, data, &screen_lines);
         Self::paint_sticky_headers(ctx, data, env);
 
         if data.doc.buffer().is_empty() {
@@ -1492,118 +1496,195 @@ impl LapceEditor {
         data: &LapceEditorBufferData,
         screen_lines: &ScreenLines,
     ) {
-        if !data.editor.content.is_file() {
+        if !data.editor.content.is_file()
+            || screen_lines.lines.is_empty()
+            || !data.config.editor.highlight_selection_occurrences
+        {
             return;
         }
-        if screen_lines.lines.is_empty() {
-            return;
-        }
-        if !data.config.editor.highlight_selection_occurrences {
-            return;
-        }
-        let region = match &data.editor.cursor.mode {
-            lapce_core::cursor::CursorMode::Normal(offset) => {
-                lapce_core::selection::SelRegion::caret(*offset)
-            }
-            lapce_core::cursor::CursorMode::Visual {
-                start,
-                end,
-                mode: _,
-            } => lapce_core::selection::SelRegion::new(
-                *start.min(end),
-                data.doc.buffer().next_grapheme_offset(
-                    *start.max(end),
-                    1,
-                    data.doc.buffer().len(),
-                ),
-                None,
-            ),
-            lapce_core::cursor::CursorMode::Insert(selection) => {
-                *selection.last_inserted().unwrap()
-            }
-        };
-        let selection = data
-            .doc
-            .buffer()
-            .slice_to_cow(region.min()..region.max())
-            .to_string();
 
-        if !selection.trim().is_empty() {
-            let cursor_offset = data.editor.cursor.offset();
-            let start_line = *screen_lines.lines.first().unwrap();
-            let end_line = *screen_lines.lines.last().unwrap();
-            let start = data.doc.buffer().offset_of_line(start_line);
-            let end = data.doc.buffer().offset_of_line(end_line + 1);
-            data.doc
-                .update_selection_find(&selection, start_line, end_line);
-            for region in data
-                .doc
-                .selection_find
-                .borrow()
-                .occurrences()
-                .regions_in_range(start, end)
-            {
-                let start = region.min();
-                let end = region.max();
-                let active = start <= cursor_offset && cursor_offset <= end;
-                let (start_line, start_col) =
-                    data.doc.buffer().offset_to_line_col(start);
-                let (end_line, end_col) = data.doc.buffer().offset_to_line_col(end);
-                for line in &screen_lines.lines {
-                    let line = *line;
-                    if line < start_line {
-                        continue;
-                    }
-                    if line > end_line {
-                        break;
-                    }
+        let buffer = data.doc.buffer();
 
-                    let info = screen_lines.info.get(&line).unwrap();
+        let mut search_string_map: HashMap<String, bool> = HashMap::new();
 
-                    let left_col = if line == start_line { start_col } else { 0 };
-                    let right_col = if line == end_line {
-                        end_col
-                    } else {
-                        data.doc.buffer().line_end_col(line, true) + 1
-                    };
+        let region_to_search_string = |r: &SelRegion| {
+            let (search_slice, match_whole_words) = if r.is_caret() {
+                // Select the word under the cursor
+                let (start, end) = buffer.select_word(r.start);
+                (start..end, true)
+            } else {
+                (r.min()..r.max(), false)
+            };
 
-                    let phantom_text =
-                        data.doc.line_phantom_text(&data.config, line);
-                    let left_col = phantom_text.col_at(left_col);
-                    let right_col = phantom_text.col_at(right_col);
+            if !search_slice.is_empty() {
+                let search_string = buffer.slice_to_cow(search_slice).to_string();
 
-                    let text_layout = data.doc.get_text_layout(
-                        ctx.text(),
-                        line,
-                        info.font_size,
-                        &data.config,
-                    );
-                    let x0 =
-                        text_layout.text.hit_test_text_position(left_col).point.x;
-                    let x1 =
-                        text_layout.text.hit_test_text_position(right_col).point.x;
-                    let y0 = info.y;
-                    let y1 = info.y + info.line_height;
-                    let rect = Rect::new(x0 + info.x, y0, x1 + info.x, y1);
-                    if active {
-                        ctx.fill(
-                            rect,
-                            &data
-                                .config
-                                .get_color_unchecked(LapceTheme::EDITOR_CARET)
-                                .clone()
-                                .with_alpha(0.5),
-                        );
-                    }
-                    ctx.stroke(
-                        rect,
-                        data.config
-                            .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
-                        1.0,
-                    );
+                let existing_setting =
+                    search_string_map.get_mut(search_string.as_str());
+                let search_string_exists = existing_setting.is_some();
+
+                // When one cursor is on a word as a caret and
+                // another cursor is on the same word as a selection range,
+                // we only need to do the search with match_whole_words set to false.
+                if let (false, Some(&mut mut _mww)) =
+                    (match_whole_words, existing_setting)
+                {
+                    _mww = false;
+                }
+
+                if !search_string.trim().is_empty() && !search_string_exists {
+                    search_string_map
+                        .insert(search_string.clone(), match_whole_words);
+
+                    return Some((search_string, match_whole_words));
                 }
             }
+
+            None
+        };
+
+        let mut selection_find = data.doc.selection_find.borrow_mut();
+        selection_find.unset();
+        // Take the case_matching setting from the finder box.
+        selection_find.case_matching = data.doc.find.borrow().case_matching;
+
+        let selection = data.editor.cursor.as_selection(buffer);
+
+        let search_strings: Vec<_> = selection
+            .regions()
+            .iter()
+            .filter_map(region_to_search_string)
+            .collect();
+
+        if search_strings.is_empty() {
+            return;
         }
+
+        let longest_search_string_length =
+            search_strings.iter().map(|(s, _)| s.len()).max().unwrap();
+
+        let [visible_search_range_start, visible_search_range_end] = [
+            *screen_lines.lines.first().unwrap(),
+            *screen_lines.lines.last().unwrap() + 1,
+        ]
+        .map(|line| buffer.offset_of_line(line));
+
+        let limited_search_range_start = visible_search_range_start
+            .saturating_sub(longest_search_string_length * 2);
+
+        let limited_search_range_end = visible_search_range_end
+            .saturating_add(longest_search_string_length * 2)
+            .max(buffer.max_len());
+
+        search_strings
+            .iter()
+            .for_each(|(search_string, match_whole_words)| {
+                selection_find.search_string = Some(search_string.to_string());
+                selection_find.whole_words = *match_whole_words;
+                selection_find.update_find(
+                    buffer.text(),
+                    limited_search_range_start,
+                    limited_search_range_end,
+                    false,
+                );
+            });
+
+        for region in selection_find.occurrences().regions() {
+            let [start, end] = [region.min(), region.max()]
+                .map(|offset| buffer.offset_to_line_col(offset));
+
+            let rect_tuples = (start.0..=end.0)
+                .filter_map(|line_nr| {
+                    screen_lines.info.get(&line_nr).map(|line_info| {
+                        Self::get_rect_points(
+                            ctx, data, line_nr, line_info, start, end,
+                        )
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            if !rect_tuples.is_empty() {
+                ctx.stroke(
+                    Self::join_rects_into_bezpath(&rect_tuples),
+                    data.config
+                        .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND),
+                    1.0,
+                );
+            }
+        }
+    }
+
+    /// Returns the rectangular selection points in the current line
+    /// for the given selection range.
+    fn get_rect_points(
+        ctx: &mut PaintCtx,
+        data: &LapceEditorBufferData,
+        line_nr: usize,
+        line_info: &LineInfo,
+        sel_start: (usize, usize),
+        sel_end: (usize, usize),
+    ) -> (f64, f64, f64, f64) {
+        let left_col = if line_nr == sel_start.0 {
+            sel_start.1
+        } else {
+            0
+        };
+
+        let right_col = if line_nr == sel_end.0 {
+            sel_end.1
+        } else {
+            data.doc.buffer().line_end_col(line_nr, true) + 1
+        };
+
+        let text_layout = data.doc.get_text_layout(
+            ctx.text(),
+            line_nr,
+            line_info.font_size,
+            &data.config,
+        );
+
+        let phantom_text = data.doc.line_phantom_text(&data.config, line_nr);
+
+        let [x0, x1] = [
+            phantom_text.col_at(left_col),
+            phantom_text.col_after(right_col, false),
+        ]
+        .map(|col| {
+            text_layout.text.hit_test_text_position(col).point.x + line_info.x
+        });
+
+        let (y0, y1) = (line_info.y, line_info.y + line_info.line_height);
+
+        (x0, y0, x1, y1)
+    }
+
+    /// Joins the given rectangular points into a single continuous shape.
+    fn join_rects_into_bezpath(rect_points: &[(f64, f64, f64, f64)]) -> BezPath {
+        let mut path = BezPath::new();
+
+        if let Some(first) = rect_points.first() {
+            path.move_to((first.0, first.1));
+        } else {
+            return path;
+        };
+
+        // first build the right-hand side downward
+        let rhs = rect_points.iter().map(|(_x0, y0, x1, y1)| (x1, y0, y1));
+
+        // then build the left-hand side upward
+        let lhs = rect_points
+            .iter()
+            .rev()
+            .map(|(x0, y0, _x1, y1)| (x0, y1, y0));
+
+        for (x, horiz_y, vert_y) in rhs.chain(lhs) {
+            path.line_to((*x, *horiz_y));
+            path.line_to((*x, *vert_y));
+        }
+
+        path.close_path();
+
+        path
     }
 
     fn paint_find(
@@ -1666,7 +1747,7 @@ impl LapceEditor {
                     let phantom_text =
                         data.doc.line_phantom_text(&data.config, line);
                     let left_col = phantom_text.col_at(left_col);
-                    let right_col = phantom_text.col_at(right_col);
+                    let right_col = phantom_text.col_after(right_col, false);
 
                     let text_layout = data.doc.get_text_layout(
                         ctx.text(),
