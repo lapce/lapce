@@ -1400,6 +1400,9 @@ impl WindowTabData {
     }
 
     pub fn key_down(&self, key_event: &KeyEvent) {
+        if self.alert_data.active.get_untracked() {
+            return;
+        }
         let focus = self.common.focus.get_untracked();
         let mut keypress = self.common.keypress.get_untracked();
         let executed = match focus {
