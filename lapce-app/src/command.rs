@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use floem::peniko::kurbo::Vec2;
+use floem::{peniko::kurbo::Vec2, reactive::RwSignal};
 use indexmap::IndexMap;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
@@ -14,6 +14,7 @@ use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use crate::{
     alert::AlertButton,
     debug::RunDebugMode,
+    doc::Document,
     editor::location::EditorLocation,
     editor_tab::EditorTabChild,
     id::EditorTabId,
@@ -611,6 +612,10 @@ pub enum InternalCommand {
         title: String,
         msg: String,
         buttons: Vec<AlertButton>,
+    },
+    HideAlert,
+    SaveScratchDoc {
+        doc: RwSignal<Document>,
     },
 }
 

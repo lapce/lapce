@@ -424,7 +424,7 @@ impl EditorData {
         CommandExecuted::Yes
     }
 
-    fn run_focus_command(
+    pub fn run_focus_command(
         &self,
         cmd: &FocusCommand,
         count: Option<usize>,
@@ -631,7 +631,7 @@ impl EditorData {
                 self.search_backward(mods);
             }
             FocusCommand::Save => {
-                self.save(false, true);
+                self.save(true, || {});
             }
             FocusCommand::InlineFindLeft => {
                 self.inline_find.set(Some(InlineFindDirection::Left));
@@ -1529,7 +1529,7 @@ impl EditorData {
         }
     }
 
-    fn do_save(&self) {
+    fn do_save(&self, after_action: impl Fn() + 'static) {
         let (rev, content) = self
             .view
             .doc
@@ -1543,6 +1543,7 @@ impl EditorData {
                     doc.update(|doc| {
                         doc.buffer_mut().set_pristine();
                     });
+                    after_action();
                 }
             }
         });
@@ -1554,13 +1555,23 @@ impl EditorData {
         }
     }
 
-    pub fn save(&self, exit: bool, allow_formatting: bool) {
+    pub fn save(
+        &self,
+        allow_formatting: bool,
+        after_action: impl Fn() + 'static + Copy,
+    ) {
         let (rev, is_pristine, content) = self.view.doc.with_untracked(|doc| {
             (doc.rev(), doc.buffer().is_pristine(), doc.content.clone())
         });
 
+        if let DocContent::Scratch { .. } = &content {
+            self.common
+                .internal_command
+                .send(InternalCommand::SaveScratchDoc { doc: self.view.doc });
+            return;
+        }
+
         if content.path().is_some() && is_pristine {
-            if exit {}
             return;
         }
 
@@ -1579,7 +1590,7 @@ impl EditorData {
                             editor.do_text_edit(&edits);
                         }
                     }
-                    editor.do_save();
+                    editor.do_save(after_action);
                 });
 
                 let (tx, rx) = crossbeam_channel::bounded(1);
@@ -1592,7 +1603,7 @@ impl EditorData {
                     send(result);
                 });
             } else {
-                self.do_save();
+                self.do_save(after_action);
             }
         }
     }

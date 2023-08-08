@@ -1387,6 +1387,16 @@ fn editor_breadcrumbs(
     editor: RwSignal<EditorData>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
+    let doc_path = create_memo(move |_| {
+        let doc = editor.with(|editor| editor.view.doc);
+        doc.with(|doc| {
+            if let DocContent::History(history) = &doc.content {
+                Some(history.path.clone())
+            } else {
+                doc.content.path().cloned()
+            }
+        })
+    });
     container(move || {
         scroll(move || {
             stack(|| {
@@ -1395,18 +1405,7 @@ fn editor_breadcrumbs(
                         let workspace = workspace.clone();
                         list(
                             move || {
-                                let doc = editor.with(|editor| editor.view.doc);
-                                let full_path = doc
-                                    .with_untracked(|doc| {
-                                        if let DocContent::History(history) =
-                                            &doc.content
-                                        {
-                                            Some(history.path.clone())
-                                        } else {
-                                            doc.content.path().cloned()
-                                        }
-                                    })
-                                    .unwrap_or_default();
+                                let full_path = doc_path.get().unwrap_or_default();
                                 let mut path = full_path;
                                 if let Some(workspace_path) =
                                     workspace.clone().path.as_ref()
@@ -1499,6 +1498,7 @@ fn editor_breadcrumbs(
             .items_center()
             .width_pct(100.0)
             .height_px(line_height as f32)
+            .apply_if(doc_path.get().is_none(), |s| s.hide())
     })
 }
 

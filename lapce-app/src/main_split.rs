@@ -6,13 +6,14 @@ use std::{
 
 use floem::{
     ext_event::create_ext_action,
-    glazier::KeyEvent,
+    glazier::{FileDialogOptions, FileInfo, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{Memo, RwSignal, Scope},
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::rope_text::RopeText, cursor::Cursor, selection::Selection,
+    buffer::rope_text::RopeText, command::FocusCommand, cursor::Cursor,
+    selection::Selection, syntax::Syntax,
 };
 use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::Rope;
@@ -1000,33 +1001,31 @@ impl MainSplitData {
             let editor = editor.get_untracked();
             editor.save_doc_position();
 
-            let (content, is_pristine) = editor.view.doc.with_untracked(|doc| {
+            let (content, _) = editor.view.doc.with_untracked(|doc| {
                 (doc.content.clone(), doc.buffer().is_pristine())
             });
             if let DocContent::Scratch { name, .. } = content {
-                if is_pristine {
-                    let doc_exists = self.editors.with_untracked(|editors| {
-                        editors.iter().any(|(_, editor_data)| {
-                            editor_data.with_untracked(|editor| {
-                                editor.view.doc.with_untracked(|doc| {
-                                    if let DocContent::Scratch {
-                                        name: current_name,
-                                        ..
-                                    } = &doc.content
-                                    {
-                                        current_name == &name
-                                    } else {
-                                        false
-                                    }
-                                })
+                let doc_exists = self.editors.with_untracked(|editors| {
+                    editors.iter().any(|(_, editor_data)| {
+                        editor_data.with_untracked(|editor| {
+                            editor.view.doc.with_untracked(|doc| {
+                                if let DocContent::Scratch {
+                                    name: current_name,
+                                    ..
+                                } = &doc.content
+                                {
+                                    current_name == &name
+                                } else {
+                                    false
+                                }
                             })
                         })
+                    })
+                });
+                if !doc_exists {
+                    self.scratch_docs.update(|scratch_docs| {
+                        scratch_docs.remove(&name);
                     });
-                    if !doc_exists {
-                        self.scratch_docs.update(|scratch_docs| {
-                            scratch_docs.remove(&name);
-                        });
-                    }
                 }
             }
         }
@@ -1505,7 +1504,7 @@ impl MainSplitData {
         let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
         let editor_tab = editor_tab.get_untracked();
         for (_, child) in editor_tab.children {
-            self.editor_tab_child_close(cx, editor_tab_id, child);
+            self.editor_tab_child_close(cx, editor_tab_id, child, false);
         }
 
         Some(())
@@ -1514,15 +1513,19 @@ impl MainSplitData {
     fn editor_tab_child_close_warning(
         &self,
         child: &EditorTabChild,
-    ) -> Option<String> {
+    ) -> Option<(String, RwSignal<Document>, RwSignal<EditorData>)> {
         match child {
             EditorTabChild::Editor(editor_id) => {
                 let editor = self
                     .editors
                     .with_untracked(|editors| editors.get(editor_id).copied())?;
-                let (doc_content, is_dirty) = editor.with_untracked(|editor| {
+                let (doc_content, is_dirty, doc) = editor.with_untracked(|editor| {
                     editor.view.doc.with_untracked(|doc| {
-                        (doc.content.clone(), !doc.buffer().is_pristine())
+                        (
+                            doc.content.clone(),
+                            !doc.buffer().is_pristine(),
+                            editor.view.doc,
+                        )
                     })
                 });
                 if is_dirty {
@@ -1538,12 +1541,16 @@ impl MainSplitData {
                     });
                     if !exists {
                         return match doc_content {
-                            DocContent::File(path) => {
-                                Some(path.file_name()?.to_str()?.to_string())
-                            }
+                            DocContent::File(path) => Some((
+                                path.file_name()?.to_str()?.to_string(),
+                                doc,
+                                editor,
+                            )),
                             DocContent::Local => None,
                             DocContent::History(_) => None,
-                            DocContent::Scratch { name, .. } => Some(name),
+                            DocContent::Scratch { name, .. } => {
+                                Some((name, doc, editor))
+                            }
                         };
                     }
                 }
@@ -1559,28 +1566,105 @@ impl MainSplitData {
         cx: Scope,
         editor_tab_id: EditorTabId,
         child: EditorTabChild,
+        force: bool,
     ) -> Option<()> {
-        if let Some(name) = self.editor_tab_child_close_warning(&child) {
-            self.common
-                .internal_command
-                .send(InternalCommand::ShowAlert {
-                    title: format!(
-                        "Do you want to save the changes you made to {name}?"
-                    ),
-                    msg: "Your changes will be lost if you don't save them."
-                        .to_string(),
-                    buttons: vec![
-                        AlertButton {
+        if !force {
+            if let Some((name, doc, editor)) =
+                self.editor_tab_child_close_warning(&child)
+            {
+                let view_id = self.common.view_id.get_untracked();
+                let internal_command = self.common.internal_command;
+                let main_split = self.clone();
+
+                let doc_content = doc.with_untracked(|doc| doc.content.clone());
+                let save_button = match doc_content {
+                    DocContent::Scratch { .. } => {
+                        let child = child.clone();
+                        let save_action = Rc::new(move || {
+                            let child = child.clone();
+                            let main_split = main_split.clone();
+                            internal_command.send(InternalCommand::HideAlert);
+                            view_id.save_as(
+                                FileDialogOptions::new(),
+                                move |file: Option<FileInfo>| {
+                                    let main_split = main_split.clone();
+                                    let child = child.clone();
+                                    let local_main_split = main_split.clone();
+                                    if let Some(file) = file {
+                                        main_split.save_as(
+                                            doc,
+                                            file.path,
+                                            move || {
+                                                local_main_split
+                                                    .clone()
+                                                    .editor_tab_child_close(
+                                                        cx,
+                                                        editor_tab_id,
+                                                        child.clone(),
+                                                        false,
+                                                    );
+                                            },
+                                        );
+                                    }
+                                },
+                            );
+                        });
+                        Some(AlertButton {
                             text: "Save".to_string(),
-                            action: Rc::new(|| {}),
-                        },
-                        AlertButton {
-                            text: "Don't Save".to_string(),
-                            action: Rc::new(|| {}),
-                        },
-                    ],
-                });
-            return Some(());
+                            action: save_action,
+                        })
+                    }
+                    DocContent::File(_) => {
+                        let save_action = Rc::new(move || {
+                            internal_command.send(InternalCommand::HideAlert);
+                            editor.get_untracked().save(false, move || {
+                                editor.get_untracked().run_focus_command(
+                                    &FocusCommand::SplitClose,
+                                    None,
+                                    Modifiers::default(),
+                                );
+                            });
+                        });
+                        Some(AlertButton {
+                            text: "Save".to_string(),
+                            action: save_action,
+                        })
+                    }
+                    DocContent::Local => None,
+                    DocContent::History(_) => None,
+                };
+                if let Some(save_button) = save_button {
+                    let main_split = self.clone();
+                    let child = child.clone();
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::ShowAlert {
+                            title: format!(
+                            "Do you want to save the changes you made to {name}?"
+                        ),
+                            msg: "Your changes will be lost if you don't save them."
+                                .to_string(),
+                            buttons: vec![
+                                save_button,
+                                AlertButton {
+                                    text: "Don't Save".to_string(),
+                                    action: Rc::new(move || {
+                                        internal_command
+                                            .send(InternalCommand::HideAlert);
+                                        main_split.editor_tab_child_close(
+                                            cx,
+                                            editor_tab_id,
+                                            child.clone(),
+                                            true,
+                                        );
+                                    }),
+                                },
+                            ],
+                        });
+                }
+
+                return Some(());
+            }
         }
 
         let editor_tabs = self.editor_tabs.get_untracked();
@@ -1825,6 +1909,53 @@ impl MainSplitData {
         self.get_editor_tab_child(EditorTabChildSource::NewFileEditor, false, false);
     }
 
+    pub fn save_as(
+        &self,
+        doc: RwSignal<Document>,
+        path: PathBuf,
+        action: impl Fn() + 'static,
+    ) {
+        let (buffer_id, doc_content, rev, content) = doc.with_untracked(|doc| {
+            (
+                doc.buffer_id,
+                doc.content.clone(),
+                doc.rev(),
+                doc.buffer().to_string(),
+            )
+        });
+        match doc_content {
+            DocContent::Scratch { .. } => {
+                let send = {
+                    let path = path.clone();
+                    create_ext_action(self.scope, move |result| {
+                        if let Ok(_r) = result {
+                            doc.update(|doc| {
+                                let syntax = Syntax::init(&path);
+                                doc.content = DocContent::File(path.clone());
+                                doc.buffer_mut().set_pristine();
+                                doc.set_syntax(syntax);
+                                doc.trigger_syntax_change(None);
+                            });
+                            action();
+                        }
+                    })
+                };
+                self.common.proxy.save_buffer_as(
+                    buffer_id,
+                    path,
+                    rev,
+                    content,
+                    Box::new(move |result| {
+                        send(result);
+                    }),
+                );
+            }
+            DocContent::Local => {}
+            DocContent::File(_) => {}
+            DocContent::History(_) => {}
+        }
+    }
+
     fn get_name_for_new_file(&self) -> String {
         const PREFIX: &str = "Untitled-";
 
@@ -1872,6 +2003,16 @@ impl MainSplitData {
                 || self.current_location.get_untracked()
                     >= self.locations.with_untracked(|l| l.len()) - 1)
         }
+    }
+
+    pub fn save_scratch_doc(&self, doc: RwSignal<Document>) {
+        let view_id = self.common.view_id.get_untracked();
+        let main_split = self.clone();
+        view_id.save_as(FileDialogOptions::new(), move |file: Option<FileInfo>| {
+            if let Some(file) = file {
+                main_split.save_as(doc, file.path, move || {});
+            }
+        });
     }
 }
 

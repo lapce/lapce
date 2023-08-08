@@ -550,7 +550,7 @@ impl WindowTabData {
                             });
 
                             if should_save {
-                                editor_data.save(false, true);
+                                editor_data.save( true,|| {});
                             }
                         });
                     }
@@ -1118,8 +1118,12 @@ impl WindowTabData {
                 editor_tab_id,
                 child,
             } => {
-                self.main_split
-                    .editor_tab_child_close(cx, editor_tab_id, child);
+                self.main_split.editor_tab_child_close(
+                    cx,
+                    editor_tab_id,
+                    child,
+                    false,
+                );
             }
             InternalCommand::ShowCodeActions {
                 offset,
@@ -1250,6 +1254,12 @@ impl WindowTabData {
                 buttons,
             } => {
                 self.show_alert(title, msg, buttons);
+            }
+            InternalCommand::HideAlert => {
+                self.alert_data.active.set(false);
+            }
+            InternalCommand::SaveScratchDoc { doc } => {
+                self.main_split.save_scratch_doc(doc);
             }
         }
     }
