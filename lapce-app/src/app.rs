@@ -3,6 +3,7 @@ use std::os::windows::process::CommandExt;
 use std::{
     io::{BufReader, Read, Write},
     ops::Range,
+    path::PathBuf,
     process::Stdio,
     sync::Arc,
 };
@@ -47,7 +48,7 @@ use tracing::{error, metadata::LevelFilter, trace};
 use tracing_subscriber::{filter::FilterFn, reload::Handle};
 
 use crate::{
-    about,
+    about, alert,
     code_action::CodeActionStatus,
     command::{InternalCommand, WindowCommand},
     config::{
@@ -227,6 +228,9 @@ fn editor_tab_header(
                             }
                             DocContent::Local => None,
                             DocContent::History(_) => None,
+                            DocContent::Scratch { name, .. } => {
+                                Some((PathBuf::from(name), confirmed, is_pristine))
+                            }
                         }
                     } else {
                         None
@@ -285,6 +289,9 @@ fn editor_tab_header(
                                 DocContent::File(path) => Some((path, is_pristine)),
                                 DocContent::Local => None,
                                 DocContent::History(_) => None,
+                                DocContent::Scratch { name, .. } => {
+                                    Some((PathBuf::from(name), is_pristine))
+                                }
                             }
                         } else {
                             None
@@ -2450,6 +2457,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
             rename(window_tab_data.clone()),
             palette(window_tab_data.clone()),
             about::about_popup(window_tab_data.clone()),
+            alert::alert_box(window_tab_data.alert_data.clone()),
         )
     })
     .on_cleanup(move || {

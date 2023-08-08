@@ -12,6 +12,7 @@ use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 
 use crate::{
+    alert::AlertButton,
     debug::RunDebugMode,
     editor::location::EditorLocation,
     editor_tab::EditorTabChild,
@@ -605,6 +606,11 @@ pub enum InternalCommand {
     },
     OpenWebUri {
         uri: String,
+    },
+    ShowAlert {
+        title: String,
+        msg: String,
+        buttons: Vec<AlertButton>,
     },
 }
 

@@ -17,7 +17,7 @@ use lapce_core::{
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
-use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
+use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     CompletionItem, CompletionTextEdit, GotoDefinitionResponse, Location, TextEdit,
@@ -103,6 +103,38 @@ impl EditorInfo {
             }
             DocContent::History(_) => {
                 EditorData::new_local(data.scope, editor_id, data.common)
+            }
+            DocContent::Scratch { name, .. } => {
+                let doc = data
+                    .scratch_docs
+                    .try_update(|scratch_docs| {
+                        if let Some(doc) = scratch_docs.get(name) {
+                            return *doc;
+                        }
+                        let content = DocContent::Scratch {
+                            id: BufferId::next(),
+                            name: name.to_string(),
+                        };
+                        let doc = Document::new_content(
+                            data.scope,
+                            content,
+                            data.common.find.clone(),
+                            data.common.proxy.clone(),
+                            data.common.config,
+                        );
+                        let doc = doc.scope.create_rw_signal(doc);
+                        scratch_docs.insert(name.to_string(), doc);
+                        doc
+                    })
+                    .unwrap();
+
+                EditorData::new(
+                    data.scope,
+                    Some(editor_tab_id),
+                    editor_id,
+                    doc,
+                    data.common,
+                )
             }
         };
         let editor_data = editor_data.scope.create_rw_signal(editor_data);

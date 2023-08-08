@@ -12,7 +12,7 @@ use lapce_core::buffer::{
     diff::{expand_diff_lines, rope_diff, DiffExpand, DiffLines},
     rope_text::RopeText,
 };
-use lapce_rpc::proxy::ProxyResponse;
+use lapce_rpc::{buffer::BufferId, proxy::ProxyResponse};
 use lapce_xi_rope::Rope;
 use serde::{Deserialize, Serialize};
 
@@ -90,6 +90,24 @@ impl DiffEditorInfo {
                             send(result);
                         },
                     );
+                    doc
+                }
+                DocContent::Scratch { name, .. } => {
+                    let doc_content = DocContent::Scratch {
+                        id: BufferId::next(),
+                        name: name.to_string(),
+                    };
+                    let doc = Document::new_content(
+                        cx,
+                        doc_content,
+                        common.find.clone(),
+                        common.proxy.clone(),
+                        common.config,
+                    );
+                    let doc = doc.scope.create_rw_signal(doc);
+                    data.scratch_docs.update(|scratch_docs| {
+                        scratch_docs.insert(name.to_string(), doc);
+                    });
                     doc
                 }
             }

@@ -19,6 +19,7 @@ use tracing::{debug, error};
 
 use crate::{
     about::AboutData,
+    alert::{AlertBoxData, AlertButton},
     code_action::{CodeActionData, CodeActionStatus},
     command::{
         CommandExecuted, CommandKind, InternalCommand, LapceCommand,
@@ -116,6 +117,7 @@ pub struct WindowTabData {
     pub rename: RenameData,
     pub global_search: GlobalSearchData,
     pub about_data: AboutData,
+    pub alert_data: AlertBoxData,
     pub window_origin: RwSignal<Point>,
     pub layout_rect: RwSignal<Rect>,
     pub proxy: ProxyData,
@@ -340,6 +342,7 @@ impl WindowTabData {
         }
 
         let about_data = AboutData::new(cx, common.focus);
+        let alert_data = AlertBoxData::new(cx, common.clone());
 
         let window_tab_data = Self {
             scope: cx,
@@ -356,6 +359,7 @@ impl WindowTabData {
             rename,
             global_search,
             about_data,
+            alert_data,
             window_origin: cx.create_rw_signal(Point::ZERO),
             layout_rect: cx.create_rw_signal(Rect::ZERO),
             proxy,
@@ -508,7 +512,7 @@ impl WindowTabData {
                 }
             }
             NewFile => {
-                // TODO: needs scratch files
+                self.main_split.new_file();
             }
             RevealActiveFileInFileExplorer => {
                 if let Some(editor_data) = self.main_split.active_editor.get() {
@@ -1240,6 +1244,13 @@ impl WindowTabData {
                     }
                 }
             }
+            InternalCommand::ShowAlert {
+                title,
+                msg,
+                buttons,
+            } => {
+                self.show_alert(title, msg, buttons);
+            }
         }
     }
 
@@ -1799,6 +1810,13 @@ impl WindowTabData {
                     },
                 });
         }
+    }
+
+    pub fn show_alert(&self, title: String, msg: String, buttons: Vec<AlertButton>) {
+        self.alert_data.title.set(title);
+        self.alert_data.msg.set(msg);
+        self.alert_data.buttons.set(buttons);
+        self.alert_data.active.set(true);
     }
 }
 

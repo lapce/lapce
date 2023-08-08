@@ -1,4 +1,4 @@
-use std::{iter::Iterator, path::PathBuf};
+use std::path::PathBuf;
 
 use druid::{
     piet::{Text, TextAttribute, TextLayoutBuilder},
@@ -128,7 +128,7 @@ impl LapceEditorHeader {
 
         let mut clip_rect = ctx.size().to_rect();
         if self.view_is_hot {
-            if let Some(icon) = self.icons.iter().rev().next().as_ref() {
+            if let Some(icon) = self.icons.iter().next_back().as_ref() {
                 clip_rect.x1 = icon.rect.x0;
             }
         }

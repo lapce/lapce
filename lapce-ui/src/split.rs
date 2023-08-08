@@ -1455,11 +1455,7 @@ impl Widget<LapceTabData> for LapceSplit {
         }
         if let Some(panel) = self.panel {
             if let Some((_, pos)) = data.panel.panel_position(&panel) {
-                if pos.is_bottom() {
-                    self.show_border = true
-                } else {
-                    self.show_border = false
-                }
+                self.show_border = pos.is_bottom();
             }
         }
         if self.show_border {
