@@ -106,6 +106,7 @@ pub enum EditorTabChildSource {
         left: RwSignal<Document>,
         right: RwSignal<Document>,
     },
+    NewFileEditor,
     Settings,
 }
 

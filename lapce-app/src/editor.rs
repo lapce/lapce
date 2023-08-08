@@ -17,7 +17,7 @@ use lapce_core::{
     selection::{InsertDrift, Selection},
     syntax::edit::SyntaxEdit,
 };
-use lapce_rpc::{plugin::PluginId, proxy::ProxyResponse};
+use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     CompletionItem, CompletionTextEdit, GotoDefinitionResponse, Location, TextEdit,
@@ -103,6 +103,38 @@ impl EditorInfo {
             }
             DocContent::History(_) => {
                 EditorData::new_local(data.scope, editor_id, data.common)
+            }
+            DocContent::Scratch { name, .. } => {
+                let doc = data
+                    .scratch_docs
+                    .try_update(|scratch_docs| {
+                        if let Some(doc) = scratch_docs.get(name) {
+                            return *doc;
+                        }
+                        let content = DocContent::Scratch {
+                            id: BufferId::next(),
+                            name: name.to_string(),
+                        };
+                        let doc = Document::new_content(
+                            data.scope,
+                            content,
+                            data.common.find.clone(),
+                            data.common.proxy.clone(),
+                            data.common.config,
+                        );
+                        let doc = doc.scope.create_rw_signal(doc);
+                        scratch_docs.insert(name.to_string(), doc);
+                        doc
+                    })
+                    .unwrap();
+
+                EditorData::new(
+                    data.scope,
+                    Some(editor_tab_id),
+                    editor_id,
+                    doc,
+                    data.common,
+                )
             }
         };
         let editor_data = editor_data.scope.create_rw_signal(editor_data);
@@ -392,7 +424,7 @@ impl EditorData {
         CommandExecuted::Yes
     }
 
-    fn run_focus_command(
+    pub fn run_focus_command(
         &self,
         cmd: &FocusCommand,
         count: Option<usize>,
@@ -599,7 +631,7 @@ impl EditorData {
                 self.search_backward(mods);
             }
             FocusCommand::Save => {
-                self.save(false, true);
+                self.save(true, || {});
             }
             FocusCommand::InlineFindLeft => {
                 self.inline_find.set(Some(InlineFindDirection::Left));
@@ -1497,7 +1529,7 @@ impl EditorData {
         }
     }
 
-    fn do_save(&self) {
+    fn do_save(&self, after_action: impl Fn() + 'static) {
         let (rev, content) = self
             .view
             .doc
@@ -1511,6 +1543,7 @@ impl EditorData {
                     doc.update(|doc| {
                         doc.buffer_mut().set_pristine();
                     });
+                    after_action();
                 }
             }
         });
@@ -1522,13 +1555,23 @@ impl EditorData {
         }
     }
 
-    pub fn save(&self, exit: bool, allow_formatting: bool) {
+    pub fn save(
+        &self,
+        allow_formatting: bool,
+        after_action: impl Fn() + 'static + Copy,
+    ) {
         let (rev, is_pristine, content) = self.view.doc.with_untracked(|doc| {
             (doc.rev(), doc.buffer().is_pristine(), doc.content.clone())
         });
 
+        if let DocContent::Scratch { .. } = &content {
+            self.common
+                .internal_command
+                .send(InternalCommand::SaveScratchDoc { doc: self.view.doc });
+            return;
+        }
+
         if content.path().is_some() && is_pristine {
-            if exit {}
             return;
         }
 
@@ -1547,7 +1590,7 @@ impl EditorData {
                             editor.do_text_edit(&edits);
                         }
                     }
-                    editor.do_save();
+                    editor.do_save(after_action);
                 });
 
                 let (tx, rx) = crossbeam_channel::bounded(1);
@@ -1560,7 +1603,7 @@ impl EditorData {
                     send(result);
                 });
             } else {
-                self.do_save();
+                self.do_save(after_action);
             }
         }
     }

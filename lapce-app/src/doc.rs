@@ -98,6 +98,8 @@ pub enum DocContent {
     Local,
     /// A document of an old version in the source control
     History(DocHistory),
+    /// A new file which doesn't exist in the file system
+    Scratch { id: BufferId, name: String },
 }
 
 impl DocContent {
@@ -114,6 +116,7 @@ impl DocContent {
             DocContent::File(_) => false,
             DocContent::Local => false,
             DocContent::History(_) => true,
+            DocContent::Scratch { .. } => false,
         }
     }
 
@@ -122,6 +125,7 @@ impl DocContent {
             DocContent::File(path) => Some(path),
             DocContent::Local => None,
             DocContent::History(_) => None,
+            DocContent::Scratch { .. } => None,
         }
     }
 }
@@ -222,6 +226,42 @@ impl Document {
             buffer: Buffer::new(""),
             cache_rev: 0,
             content: DocContent::Local,
+            syntax: Syntax::plaintext(),
+            line_styles: Rc::new(RefCell::new(HashMap::new())),
+            sticky_headers: Rc::new(RefCell::new(HashMap::new())),
+            semantic_styles: None,
+            inlay_hints: None,
+            diagnostics: DiagnosticData {
+                expanded: cx.create_rw_signal(true),
+                diagnostics: cx.create_rw_signal(im::Vector::new()),
+            },
+            completion_lens: None,
+            completion_pos: (0, 0),
+            loaded: true,
+            histories: cx.create_rw_signal(im::HashMap::new()),
+            head_changes: cx.create_rw_signal(im::Vector::new()),
+            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            code_actions: im::HashMap::new(),
+            proxy,
+            config,
+            find,
+            find_result: FindResult::new(cx),
+        }
+    }
+
+    pub fn new_content(
+        cx: Scope,
+        content: DocContent,
+        find: Find,
+        proxy: ProxyRpcHandler,
+        config: ReadSignal<Arc<LapceConfig>>,
+    ) -> Self {
+        Self {
+            scope: cx,
+            buffer_id: BufferId::next(),
+            buffer: Buffer::new(""),
+            cache_rev: 0,
+            content,
             syntax: Syntax::plaintext(),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
@@ -546,6 +586,7 @@ impl Document {
             DocContent::File(path) => path,
             DocContent::Local => return,
             DocContent::History(_) => return,
+            DocContent::Scratch { .. } => return,
         };
 
         let (rev, len, cx) = doc
@@ -603,6 +644,7 @@ impl Document {
             DocContent::File(path) => path,
             DocContent::Local => return,
             DocContent::History(_) => return,
+            DocContent::Scratch { .. } => return,
         };
 
         let (buffer, rev, len, cx) = doc.with_untracked(|doc| {

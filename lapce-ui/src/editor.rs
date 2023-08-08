@@ -2640,7 +2640,7 @@ impl Widget<LapceTabData> for LapceEditor {
                                 return;
                             }
 
-                            let mut doc = Arc::make_mut(&mut editor_data.doc);
+                            let doc = Arc::make_mut(&mut editor_data.doc);
                             if let (_, Some(ranges)) = (
                                 &doc.syntax_selection_range,
                                 ranges.first().cloned(),
