@@ -1185,6 +1185,7 @@ pub fn editor_container_view(
             )
         });
 
+    let scratch_docs = main_split.scratch_docs;
     let find_editor = main_split.find_editor;
     let replace_editor = main_split.replace_editor;
     let replace_active = main_split.common.find.replace_active;
@@ -1238,8 +1239,24 @@ pub fn editor_container_view(
         )
     })
     .on_cleanup(move || {
-        let cx = editor.with_untracked(|editor| editor.scope);
-        cx.dispose();
+        let (editor_cx, doc) =
+            editor.with_untracked(|editor| (editor.scope, editor.view.doc));
+        editor_cx.dispose();
+
+        let scratch_doc_name = doc.with_untracked(|doc| {
+            if let DocContent::Scratch { name, .. } = &doc.content {
+                Some(name.to_string())
+            } else {
+                None
+            }
+        });
+        if let Some(name) = scratch_doc_name {
+            if !scratch_docs
+                .with_untracked(|scratch_docs| scratch_docs.contains_key(&name))
+            {
+                doc.with_untracked(|doc| doc.scope).dispose();
+            }
+        }
     })
     .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
 }

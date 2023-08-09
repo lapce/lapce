@@ -66,6 +66,7 @@ use crate::{
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
     id::{DiffEditorId, EditorId, EditorTabId, SplitId},
+    keymap::keymap_view,
     keypress::keymap::KeyMap,
     listener::Listener,
     main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
@@ -338,6 +339,18 @@ fn editor_tab_header(
                             *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                         ),
                         path: "Settings".to_string(),
+                        confirmed: None,
+                        is_pristine: true,
+                    }
+                }),
+                EditorTabChild::Keymap(_) => create_memo(move |_| {
+                    let config = config.get();
+                    Info {
+                        icon: config.ui_svg(LapceIcons::KEYBOARD),
+                        color: Some(
+                            *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                        ),
+                        path: "Keyboard Shortcuts".to_string(),
                         confirmed: None,
                         is_pristine: true,
                     }
@@ -753,6 +766,9 @@ fn editor_tab_content(
             }
             EditorTabChild::Settings(_) => {
                 container_box(move || Box::new(settings_view(common)))
+            }
+            EditorTabChild::Keymap(_) => {
+                container_box(move || Box::new(keymap_view(common)))
             }
         };
         child.style(|| Style::BASE.size_pct(100.0, 100.0))

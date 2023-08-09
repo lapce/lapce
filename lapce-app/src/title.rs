@@ -323,6 +323,13 @@ fn right(
                                         )
                                     },
                                 ))
+                                .entry(MenuItem::new("Open Keyboard Shortcuts").action(
+                                    move || {
+                                        workbench_command.send(
+                                            LapceWorkbenchCommand::OpenKeyboardShortcuts,
+                                        )
+                                    },
+                                ))
                                 .separator()
                                 .entry(
                                     if let Some(v) = latest_version.get_untracked() {

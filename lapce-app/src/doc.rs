@@ -256,6 +256,7 @@ impl Document {
         proxy: ProxyRpcHandler,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Self {
+        let cx = cx.create_child();
         Self {
             scope: cx,
             buffer_id: BufferId::next(),

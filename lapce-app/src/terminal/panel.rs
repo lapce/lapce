@@ -81,7 +81,7 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn key_down(&self, key_event: &KeyEvent, keypress: &mut KeyPressData) {
+    pub fn key_down(&self, key_event: &KeyEvent, keypress: &KeyPressData) {
         if self.tab_info.with_untracked(|info| info.tabs.is_empty()) {
             self.new_tab(None);
         }

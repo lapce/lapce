@@ -89,10 +89,8 @@ pub fn text_input(
     })
     .on_event(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
-            let mut press = keypress.get_untracked();
-            let executed = press.key_down(key_event, &editor);
-            keypress.set(press);
-            executed
+            let keypress = keypress.get_untracked();
+            keypress.key_down(key_event, &editor)
         } else {
             false
         }

@@ -35,7 +35,7 @@ use crate::{
     editor_tab::{
         EditorTabChild, EditorTabChildSource, EditorTabData, EditorTabInfo,
     },
-    id::{DiffEditorId, EditorId, EditorTabId, SettingsId, SplitId},
+    id::{DiffEditorId, EditorId, EditorTabId, KeymapId, SettingsId, SplitId},
     keypress::KeyPressData,
     window_tab::{CommonData, Focus, WindowTabData},
 };
@@ -288,7 +288,7 @@ impl MainSplitData {
     pub fn key_down(
         &self,
         key_event: &KeyEvent,
-        keypress: &mut KeyPressData,
+        keypress: &KeyPressData,
     ) -> Option<()> {
         let active_editor_tab = self.active_editor_tab.get_untracked()?;
         let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
@@ -320,6 +320,9 @@ impl MainSplitData {
                 editor.get_code_actions();
             }
             EditorTabChild::Settings(_) => {
+                return None;
+            }
+            EditorTabChild::Keymap(_) => {
                 return None;
             }
         }
@@ -659,6 +662,7 @@ impl MainSplitData {
                             }
                         }
                         EditorTabChild::Settings(_) => true,
+                        EditorTabChild::Keymap(_) => true,
                     };
 
                     if can_be_selected {
@@ -751,6 +755,28 @@ impl MainSplitData {
                         })
                     }
                 }
+                EditorTabChildSource::Keymap => {
+                    if let Some(index) =
+                        active_editor_tab.with_untracked(|editor_tab| {
+                            editor_tab.children.iter().position(|(_, child)| {
+                                matches!(child, EditorTabChild::Keymap(_))
+                            })
+                        })
+                    {
+                        Some(index)
+                    } else if ignore_unconfirmed {
+                        None
+                    } else {
+                        active_editor_tab.with_untracked(|editor_tab| {
+                            editor_tab
+                                .get_unconfirmed_editor_tab_child(
+                                    &editors,
+                                    &diff_editors,
+                                )
+                                .map(|(i, _)| i)
+                        })
+                    }
+                }
             }
         };
 
@@ -806,6 +832,9 @@ impl MainSplitData {
                 EditorTabChildSource::Settings => {
                     EditorTabChild::Settings(SettingsId::next())
                 }
+                EditorTabChildSource::Keymap => {
+                    EditorTabChild::Keymap(KeymapId::next())
+                }
                 EditorTabChildSource::DiffEditor { left, right } => {
                     let diff_editor_id = DiffEditorId::next();
                     let diff_editor = DiffEditorData::new(
@@ -838,6 +867,7 @@ impl MainSplitData {
                         }
                         EditorTabChild::DiffEditor(_) => {}
                         EditorTabChild::Settings(_) => {}
+                        EditorTabChild::Keymap(_) => {}
                     }
                     (editor_tab_id, current_child.clone())
                 });
@@ -912,6 +942,7 @@ impl MainSplitData {
                     });
                 }
                 EditorTabChild::Settings(_) => {}
+                EditorTabChild::Keymap(_) => {}
             }
 
             // Now loading the new child
@@ -952,6 +983,11 @@ impl MainSplitData {
                             EditorTabChildSource::Settings => {
                                 editor_tab.children.iter().position(|(_, child)| {
                                     matches!(child, EditorTabChild::Settings(_))
+                                })
+                            }
+                            EditorTabChildSource::Keymap => {
+                                editor_tab.children.iter().position(|(_, child)| {
+                                    matches!(child, EditorTabChild::Keymap(_))
                                 })
                             }
                             EditorTabChildSource::NewFileEditor => None,
@@ -1237,6 +1273,7 @@ impl MainSplitData {
             EditorTabChild::Settings(_) => {
                 EditorTabChild::Settings(SettingsId::next())
             }
+            EditorTabChild::Keymap(_) => EditorTabChild::Keymap(KeymapId::next()),
         };
 
         let editor_tab = {
@@ -1558,6 +1595,7 @@ impl MainSplitData {
             }
             EditorTabChild::DiffEditor(_) => None,
             EditorTabChild::Settings(_) => None,
+            EditorTabChild::Keymap(_) => None,
         }
     }
 
@@ -1698,6 +1736,7 @@ impl MainSplitData {
                 }
             }
             EditorTabChild::Settings(_) => {}
+            EditorTabChild::Keymap(_) => {}
         }
 
         if editor_tab_children_len == 0 {
@@ -1903,6 +1942,10 @@ impl MainSplitData {
 
     pub fn open_settings(&self) {
         self.get_editor_tab_child(EditorTabChildSource::Settings, false, false);
+    }
+
+    pub fn open_keymap(&self) {
+        self.get_editor_tab_child(EditorTabChildSource::Keymap, false, false);
     }
 
     pub fn new_file(&self) {

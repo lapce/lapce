@@ -4,10 +4,13 @@ pub mod keymap;
 mod loader;
 mod press;
 
-use std::{path::PathBuf, str::FromStr};
+use std::{path::PathBuf, rc::Rc, str::FromStr};
 
 use anyhow::Result;
-use floem::glazier::{KbKey, KeyEvent, Modifiers, MouseEvent};
+use floem::{
+    glazier::{KbKey, KeyEvent, Modifiers, MouseEvent},
+    reactive::{RwSignal, Scope},
+};
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
 use tracing::{debug, error};
@@ -76,35 +79,44 @@ impl<'a> From<&'a MouseEvent> for EventRef<'a> {
 
 #[derive(Clone)]
 pub struct KeyPressData {
-    count: Option<usize>,
-    pending_keypress: Vec<KeyPress>,
+    count: RwSignal<Option<usize>>,
+    pending_keypress: RwSignal<Vec<KeyPress>>,
     workbench_cmd: Listener<LapceWorkbenchCommand>,
-    pub commands: IndexMap<String, LapceCommand>,
-    keymaps: IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
-    pub command_keymaps: IndexMap<String, Vec<KeyMap>>,
-    commands_with_keymap: Vec<KeyMap>,
-    commands_without_keymap: Vec<LapceCommand>,
+    pub commands: Rc<IndexMap<String, LapceCommand>>,
+    pub keymaps: Rc<IndexMap<Vec<KeyPress>, Vec<KeyMap>>>,
+    pub command_keymaps: Rc<IndexMap<String, Vec<KeyMap>>>,
+    pub commands_with_keymap: Rc<Vec<KeyMap>>,
+    pub commands_without_keymap: Rc<Vec<LapceCommand>>,
 }
 
 impl KeyPressData {
     pub fn new(
+        cx: Scope,
         config: &LapceConfig,
         workbench_cmd: Listener<LapceWorkbenchCommand>,
     ) -> Self {
         let (keymaps, command_keymaps) =
             Self::get_keymaps(config).unwrap_or((IndexMap::new(), IndexMap::new()));
         let mut keypress = Self {
-            count: None,
-            pending_keypress: Vec::new(),
-            keymaps,
-            command_keymaps,
-            commands: lapce_internal_commands(),
-            commands_with_keymap: Vec::new(),
-            commands_without_keymap: Vec::new(),
+            count: cx.create_rw_signal(None),
+            pending_keypress: cx.create_rw_signal(Vec::new()),
+            keymaps: Rc::new(keymaps),
+            command_keymaps: Rc::new(command_keymaps),
+            commands: Rc::new(lapce_internal_commands()),
+            commands_with_keymap: Rc::new(Vec::new()),
+            commands_without_keymap: Rc::new(Vec::new()),
             workbench_cmd,
         };
         keypress.load_commands();
         keypress
+    }
+
+    pub fn update_keymaps(&mut self, config: &LapceConfig) {
+        if let Ok((new_keymaps, new_command_keymaps)) = Self::get_keymaps(config) {
+            self.keymaps = Rc::new(new_keymaps);
+            self.command_keymaps = Rc::new(new_command_keymaps);
+            self.load_commands();
+        }
     }
 
     fn load_commands(&mut self) {
@@ -124,12 +136,12 @@ impl KeyPressData {
             }
         }
 
-        self.commands_with_keymap = commands_with_keymap;
-        self.commands_without_keymap = commands_without_keymap;
+        self.commands_with_keymap = Rc::new(commands_with_keymap);
+        self.commands_without_keymap = Rc::new(commands_without_keymap);
     }
 
     fn handle_count<T: KeyPressFocus>(
-        &mut self,
+        &self,
         focus: &T,
         keypress: &KeyPress,
     ) -> bool {
@@ -147,8 +159,9 @@ impl KeyPressData {
 
         if let Key::Keyboard(KbKey::Character(c)) = &keypress.key {
             if let Ok(n) = c.parse::<usize>() {
-                if self.count.is_some() || n > 0 {
-                    self.count = Some(self.count.unwrap_or(0) * 10 + n);
+                if self.count.with_untracked(|count| count.is_some()) || n > 0 {
+                    self.count
+                        .update(|count| *count = Some(count.unwrap_or(0) * 10 + n));
                     return true;
                 }
             }
@@ -184,7 +197,7 @@ impl KeyPressData {
     }
 
     pub fn key_down<'a, T: KeyPressFocus>(
-        &mut self,
+        &self,
         event: impl Into<EventRef<'a>>,
         focus: &T,
     ) -> bool {
@@ -214,19 +227,27 @@ impl KeyPressData {
             return false;
         }
 
-        self.pending_keypress.push(keypress.clone());
+        self.pending_keypress.update(|pending_keypress| {
+            pending_keypress.push(keypress.clone());
+        });
 
-        let keymatch = self.match_keymap(&self.pending_keypress, focus);
+        let keymatch = self.pending_keypress.with_untracked(|pending_keypress| {
+            self.match_keymap(pending_keypress, focus)
+        });
         match keymatch {
             KeymapMatch::Full(command) => {
-                self.pending_keypress.clear();
-                let count = self.count.take();
+                self.pending_keypress.update(|pending_keypress| {
+                    pending_keypress.clear();
+                });
+                let count = self.count.try_update(|count| count.take()).unwrap();
                 self.run_command(&command, count, mods, focus);
                 return true;
             }
             KeymapMatch::Multiple(commands) => {
-                self.pending_keypress.clear();
-                let count = self.count.take();
+                self.pending_keypress.update(|pending_keypress| {
+                    pending_keypress.clear();
+                });
+                let count = self.count.try_update(|count| count.take()).unwrap();
                 for command in commands {
                     if self.run_command(&command, count, mods, focus)
                         == CommandExecuted::Yes
@@ -243,7 +264,9 @@ impl KeyPressData {
                 return false;
             }
             KeymapMatch::None => {
-                self.pending_keypress.clear();
+                self.pending_keypress.update(|pending_keypress| {
+                    pending_keypress.clear();
+                });
                 if focus.get_mode() == Mode::Insert {
                     let mut keypress = keypress.clone();
                     keypress.mods.set(Modifiers::SHIFT, false);
@@ -268,7 +291,7 @@ impl KeyPressData {
             return false;
         }
 
-        self.count = None;
+        self.count.set(None);
 
         let mut mods = keypress.mods;
 
