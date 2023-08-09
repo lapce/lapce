@@ -15,7 +15,7 @@ use indexmap::IndexMap;
 use lapce_core::mode::Mode;
 use tracing::{debug, error};
 
-use self::{key::Key, keymap::KeyMap, loader::KeyMapLoader, press::KeyPress};
+use self::{key::Key, keymap::KeyMap, loader::KeyMapLoader};
 use crate::{
     command::{
         lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
@@ -28,6 +28,8 @@ use crate::{
     },
     listener::Listener,
 };
+
+pub use self::press::KeyPress;
 
 const DEFAULT_KEYMAPS_COMMON: &str =
     include_str!("../../defaults/keymaps-common.toml");
@@ -196,11 +198,7 @@ impl KeyPressData {
         }
     }
 
-    pub fn key_down<'a, T: KeyPressFocus>(
-        &self,
-        event: impl Into<EventRef<'a>>,
-        focus: &T,
-    ) -> bool {
+    pub fn keypress<'a>(event: impl Into<EventRef<'a>>) -> Option<KeyPress> {
         let event = event.into();
         debug!("{event:?}");
 
@@ -208,7 +206,7 @@ impl KeyPressData {
             EventRef::Keyboard(ev)
                 if ev.key == KbKey::Shift && ev.mods.is_empty() =>
             {
-                return false;
+                return None;
             }
             EventRef::Keyboard(ev) => KeyPress {
                 key: Key::Keyboard(ev.key.clone()),
@@ -219,6 +217,18 @@ impl KeyPressData {
                 key: Key::Mouse(ev.button),
                 mods: ev.mods,
             },
+        };
+        Some(keypress)
+    }
+
+    pub fn key_down<'a, T: KeyPressFocus>(
+        &self,
+        event: impl Into<EventRef<'a>>,
+        focus: &T,
+    ) -> bool {
+        let keypress = match Self::keypress(event) {
+            Some(keypress) => keypress,
+            None => return false,
         };
         let mods = keypress.mods;
 

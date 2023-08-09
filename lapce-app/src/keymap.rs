@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use floem::{
-    reactive::{create_memo, ReadSignal, Scope},
+    event::{Event, EventListener},
+    reactive::{
+        create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal, Scope,
+    },
     style::Style,
     view::View,
     views::{
@@ -16,16 +19,28 @@ use crate::{
     config::{color::LapceColor, LapceConfig},
     editor::EditorData,
     id::EditorId,
-    keypress::keymap::KeyMap,
+    keypress::{keymap::KeyMap, KeyPress, KeyPressData},
     text_input::text_input,
     window_tab::CommonData,
 };
+
+#[derive(Clone)]
+pub struct KeymapPicker {
+    cmd: RwSignal<Option<LapceCommand>>,
+    keymap: RwSignal<Option<KeyMap>>,
+    keys: RwSignal<Vec<KeyPress>>,
+}
 
 pub fn keymap_view(common: CommonData) -> impl View {
     let config = common.config;
     let keypress = common.keypress;
     let ui_line_height = move || common.ui_line_height.get() * 1.2;
     let modal = create_memo(move |_| config.get().core.modal);
+    let picker = KeymapPicker {
+        cmd: create_rw_signal(None),
+        keymap: create_rw_signal(None),
+        keys: create_rw_signal(Vec::new()),
+    };
 
     let cx = Scope::current();
     let editor = EditorData::new_local(cx, EditorId::next(), common.clone());
@@ -72,6 +87,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
 
     let view_fn =
         move |(i, (cmd, keymap)): (usize, (LapceCommand, Option<KeyMap>))| {
+            let local_keymap = keymap.clone();
+            let local_cmd = cmd.clone();
             stack(|| {
                 (
                     container(|| {
@@ -233,6 +250,24 @@ pub fn keymap_view(common: CommonData) -> impl View {
                     }),
                 )
             })
+            .on_click(move |_| {
+                let keymap = if let Some(keymap) = local_keymap.clone() {
+                    keymap
+                } else {
+                    KeyMap {
+                        command: local_cmd.kind.str().to_string(),
+                        key: Vec::new(),
+                        modes: Modes::empty(),
+                        when: None,
+                    }
+                };
+                picker.keymap.set(Some(keymap));
+                picker.cmd.set(Some(local_cmd.clone()));
+                picker.keys.update(|keys| {
+                    keys.clear();
+                });
+                true
+            })
             .style(move || {
                 let config = config.get();
                 Style::BASE
@@ -349,7 +384,7 @@ pub fn keymap_view(common: CommonData) -> impl View {
                     virtual_list(
                         VirtualListDirection::Vertical,
                         VirtualListItemSize::Fixed(Box::new(ui_line_height)),
-                        move || items(),
+                        items,
                         |(i, (cmd, keymap)): &(
                             usize,
                             (LapceCommand, Option<KeyMap>),
@@ -371,7 +406,7 @@ pub fn keymap_view(common: CommonData) -> impl View {
                     .flex_basis_px(0.0)
                     .flex_grow(1.0)
             }),
-            keyboard_picker_view(config),
+            keyboard_picker_view(picker, config),
         )
     })
     .style(|| {
@@ -385,9 +420,117 @@ pub fn keymap_view(common: CommonData) -> impl View {
     })
 }
 
-fn keyboard_picker_view(config: ReadSignal<Arc<LapceConfig>>) -> impl View {
-    container(|| {
-        stack(|| (label(|| "label".to_string()),)).style(move || {
+fn keyboard_picker_view(
+    picker: KeymapPicker,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    let picker_cmd = picker.cmd;
+    let view = container(|| {
+        stack(|| {
+            (
+                label(move || {
+                    picker_cmd.with(|cmd| {
+                        cmd.as_ref()
+                            .map(|cmd| {
+                                cmd.kind
+                                    .desc()
+                                    .map(|desc| desc.to_string())
+                                    .unwrap_or_else(|| {
+                                        cmd.kind.str().replace('_', " ")
+                                    })
+                            })
+                            .unwrap_or_default()
+                    })
+                }),
+                list(
+                    move || {
+                        picker
+                            .keys
+                            .get()
+                            .iter()
+                            .map(|key| key.label().trim().to_string())
+                            .filter(|l| !l.is_empty())
+                            .enumerate()
+                            .collect::<Vec<(usize, String)>>()
+                    },
+                    |(i, k)| (*i, k.clone()),
+                    move |(_, key)| {
+                        label(move || key.clone()).style(move || {
+                            Style::BASE
+                                .padding_horiz_px(5.0)
+                                .padding_vert_px(1.0)
+                                .margin_right_px(5.0)
+                                .border(1.0)
+                                .border_radius(6.0)
+                                .border_color(
+                                    *config
+                                        .get()
+                                        .get_color(LapceColor::LAPCE_BORDER),
+                                )
+                        })
+                    },
+                )
+                .style(move || {
+                    let config = config.get();
+                    Style::BASE
+                        .items_center()
+                        .justify_center()
+                        .width_pct(100.0)
+                        .margin_top_px(20.0)
+                        .padding_vert_px(8.0)
+                        .border(1.0)
+                        .border_radius(6.0)
+                        .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                        .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+                }),
+                stack(|| {
+                    (
+                        label(|| "Save".to_string()).style(move || {
+                            Style::BASE
+                                .width_px(100.0)
+                                .justify_center()
+                                .padding_vert_px(8.0)
+                                .border(1.0)
+                                .border_radius(6.0)
+                                .border_color(
+                                    *config
+                                        .get()
+                                        .get_color(LapceColor::LAPCE_BORDER),
+                                )
+                        }),
+                        label(|| "Cancel".to_string())
+                            .style(move || {
+                                Style::BASE
+                                    .margin_left_px(20.0)
+                                    .width_px(100.0)
+                                    .justify_center()
+                                    .padding_vert_px(8.0)
+                                    .border(1.0)
+                                    .border_radius(6.0)
+                                    .border_color(
+                                        *config
+                                            .get()
+                                            .get_color(LapceColor::LAPCE_BORDER),
+                                    )
+                            })
+                            .on_click(move |_| {
+                                picker.keymap.set(None);
+                                true
+                            }),
+                    )
+                })
+                .style(move || {
+                    let config = config.get();
+                    Style::BASE
+                        .items_center()
+                        .justify_center()
+                        .width_pct(100.0)
+                        .margin_top_px(20.0)
+                        .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                }),
+            )
+        })
+        .style(move || {
             let config = config.get();
             Style::BASE
                 .items_center()
@@ -400,11 +543,35 @@ fn keyboard_picker_view(config: ReadSignal<Arc<LapceConfig>>) -> impl View {
                 .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
         })
     })
-    .style(|| {
+    .keyboard_navigatable()
+    .on_event(EventListener::KeyDown, move |event| {
+        if let Event::KeyDown(key_event) = event {
+            if let Some(keypress) = KeyPressData::keypress(key_event) {
+                picker.keys.update(|keys| {
+                    if keys.len() == 2 {
+                        keys.clear();
+                    }
+                    keys.push(keypress);
+                })
+            }
+        }
+        true
+    })
+    .style(move || {
         Style::BASE
             .absolute()
             .size_pct(100.0, 100.0)
             .items_center()
             .justify_center()
-    })
+            .apply_if(picker.keymap.with(|keymap| keymap.is_none()), |s| s.hide())
+    });
+
+    let id = view.id();
+    create_effect(move |_| {
+        if picker.keymap.with(|k| k.is_some()) {
+            id.request_focus();
+        }
+    });
+
+    view
 }
