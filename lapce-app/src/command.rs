@@ -633,4 +633,6 @@ pub enum WindowCommand {
     },
     NextWorkspaceTab,
     PreviousWorkspaceTab,
+    NewWindow,
+    CloseWindow,
 }

@@ -9,7 +9,7 @@ use floem::glazier::KbKey;
 #[derive(Clone, Debug, Eq)]
 pub(crate) enum Key {
     Keyboard(floem::glazier::KbKey),
-    Mouse(floem::glazier::MouseButton),
+    Pointer(floem::glazier::PointerButton),
 }
 
 impl Key {
@@ -323,11 +323,11 @@ impl Key {
         })
     }
 
-    fn mouse_from_str(s: &str) -> Option<floem::glazier::MouseButton> {
-        use floem::glazier::MouseButton as B;
+    fn mouse_from_str(s: &str) -> Option<floem::glazier::PointerButton> {
+        use floem::glazier::PointerButton as B;
 
         Some(match s {
-            "mousemiddle" => B::Middle,
+            "mousemiddle" => B::Auxiliary,
             "mouseforward" => B::X2,
             "mousebackward" => B::X1,
             _ => return None,
@@ -337,14 +337,19 @@ impl Key {
 
 impl Display for Key {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use floem::glazier::MouseButton as B;
+        use floem::glazier::PointerButton as B;
 
         match self {
+            Self::Keyboard(KbKey::Meta) => match std::env::consts::OS {
+                "macos" => "Cmd",
+                "windows" => "Win",
+                _ => "Meta",
+            },
             Self::Keyboard(key) => return key.fmt(f),
-            Self::Mouse(B::Middle) => "MouseMiddle",
-            Self::Mouse(B::X2) => "MouseForward",
-            Self::Mouse(B::X1) => "MouseBackward",
-            Self::Mouse(_) => "MouseUnimplemented",
+            Self::Pointer(B::Auxiliary) => "MouseMiddle",
+            Self::Pointer(B::X2) => "MouseForward",
+            Self::Pointer(B::X1) => "MouseBackward",
+            Self::Pointer(_) => "MouseUnimplemented",
         }
         .fmt(f)
     }
@@ -358,7 +363,7 @@ impl FromStr for Key {
 
         Key::keyboard_from_str(&s)
             .map(Key::Keyboard)
-            .or_else(|| Key::mouse_from_str(&s).map(Key::Mouse))
+            .or_else(|| Key::mouse_from_str(&s).map(Key::Pointer))
             .ok_or(())
     }
 }
@@ -368,7 +373,7 @@ impl Hash for Key {
         match self {
             Self::Keyboard(key) => key.hash(state),
             // TODO: Implement `Hash` for `druid::MouseButton`
-            Self::Mouse(btn) => (*btn as u8).hash(state),
+            Self::Pointer(btn) => (*btn as u8).hash(state),
         }
     }
 }
@@ -377,7 +382,7 @@ impl PartialEq for Key {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Key::Keyboard(a), Key::Keyboard(b)) => a.eq(b),
-            (Key::Mouse(a), Key::Mouse(b)) => a.eq(b),
+            (Key::Pointer(a), Key::Pointer(b)) => a.eq(b),
             _ => false,
         }
     }

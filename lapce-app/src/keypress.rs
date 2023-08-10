@@ -8,11 +8,12 @@ use std::{path::PathBuf, rc::Rc, str::FromStr};
 
 use anyhow::Result;
 use floem::{
-    glazier::{KbKey, KeyEvent, Modifiers, MouseEvent},
+    glazier::{KbKey, KeyEvent, Modifiers, PointerEvent},
     reactive::{RwSignal, Scope},
 };
 use indexmap::IndexMap;
-use lapce_core::mode::Mode;
+use itertools::Itertools;
+use lapce_core::mode::{Mode, Modes};
 use tracing::{debug, error};
 
 use self::{key::Key, keymap::KeyMap, loader::KeyMapLoader};
@@ -64,7 +65,7 @@ pub trait KeyPressFocus {
 #[derive(Clone, Copy, Debug)]
 pub enum EventRef<'a> {
     Keyboard(&'a floem::glazier::KeyEvent),
-    Mouse(&'a floem::glazier::MouseEvent),
+    Pointer(&'a floem::glazier::PointerEvent),
 }
 
 impl<'a> From<&'a KeyEvent> for EventRef<'a> {
@@ -73,9 +74,9 @@ impl<'a> From<&'a KeyEvent> for EventRef<'a> {
     }
 }
 
-impl<'a> From<&'a MouseEvent> for EventRef<'a> {
-    fn from(ev: &'a MouseEvent) -> Self {
-        Self::Mouse(ev)
+impl<'a> From<&'a PointerEvent> for EventRef<'a> {
+    fn from(ev: &'a PointerEvent) -> Self {
+        Self::Pointer(ev)
     }
 }
 
@@ -213,9 +214,9 @@ impl KeyPressData {
                 // We are removing Shift modifier since the character is already upper case.
                 mods: Self::get_key_modifiers(ev),
             },
-            EventRef::Mouse(ev) => KeyPress {
-                key: Key::Mouse(ev.button),
-                mods: ev.mods,
+            EventRef::Pointer(ev) => KeyPress {
+                key: Key::Pointer(ev.button),
+                mods: ev.modifiers,
             },
         };
         Some(keypress)
@@ -333,7 +334,7 @@ impl KeyPressData {
 
     fn get_key_modifiers(key_event: &KeyEvent) -> Modifiers {
         // We only care about some modifiers
-        let mods = (Modifiers::ALT
+        let mut mods = (Modifiers::ALT
             | Modifiers::CONTROL
             | Modifiers::SHIFT
             | Modifiers::META)
@@ -347,6 +348,14 @@ impl KeyPressData {
                     return Modifiers::empty();
                 }
             }
+        }
+
+        match &key_event.key {
+            KbKey::Shift => mods.set(Modifiers::SHIFT, false),
+            KbKey::Alt => mods.set(Modifiers::ALT, false),
+            KbKey::Meta => mods.set(Modifiers::META, false),
+            KbKey::Control => mods.set(Modifiers::CONTROL, false),
+            _ => (),
         }
 
         mods
@@ -480,4 +489,105 @@ impl KeyPressData {
     pub fn file() -> Option<PathBuf> {
         LapceConfig::keymaps_file()
     }
+
+    fn get_file_array() -> Option<toml_edit::ArrayOfTables> {
+        let path = Self::file()?;
+        let content = std::fs::read_to_string(path).ok()?;
+        let document: toml_edit::Document = content.parse().ok()?;
+        document
+            .as_table()
+            .get("keymaps")?
+            .as_array_of_tables()
+            .cloned()
+    }
+
+    pub fn update_file(keymap: &KeyMap, keys: &[KeyPress]) -> Option<()> {
+        let mut array = Self::get_file_array().unwrap_or_default();
+        let index = array.iter().position(|value| {
+            Some(keymap.command.as_str())
+                == value.get("command").and_then(|c| c.as_str())
+                && keymap.when.as_deref()
+                    == value.get("when").and_then(|w| w.as_str())
+                && keymap.modes == get_modes(value)
+                && Some(keymap.key.clone())
+                    == value
+                        .get("key")
+                        .and_then(|v| v.as_str())
+                        .map(KeyPress::parse)
+        });
+
+        if let Some(index) = index {
+            if !keys.is_empty() {
+                array.get_mut(index)?.insert(
+                    "key",
+                    toml_edit::value(toml_edit::Value::from(
+                        keys.iter().map(|k| k.to_string()).join(" "),
+                    )),
+                );
+            } else {
+                array.remove(index);
+            };
+        } else {
+            let mut table = toml_edit::Table::new();
+            table.insert(
+                "command",
+                toml_edit::value(toml_edit::Value::from(keymap.command.clone())),
+            );
+            if !keymap.modes.is_empty() {
+                table.insert(
+                    "mode",
+                    toml_edit::value(toml_edit::Value::from(
+                        keymap.modes.to_string(),
+                    )),
+                );
+            }
+            if let Some(when) = keymap.when.as_ref() {
+                table.insert(
+                    "when",
+                    toml_edit::value(toml_edit::Value::from(when.to_string())),
+                );
+            }
+
+            if !keys.is_empty() {
+                table.insert(
+                    "key",
+                    toml_edit::value(toml_edit::Value::from(
+                        keys.iter().map(|k| k.to_string()).join(" "),
+                    )),
+                );
+                array.push(table.clone());
+            }
+
+            if !keymap.key.is_empty() {
+                table.insert(
+                    "key",
+                    toml_edit::value(toml_edit::Value::from(
+                        keymap.key.iter().map(|k| k.to_string()).join(" "),
+                    )),
+                );
+                table.insert(
+                    "command",
+                    toml_edit::value(toml_edit::Value::from(format!(
+                        "-{}",
+                        keymap.command
+                    ))),
+                );
+                array.push(table.clone());
+            }
+        }
+
+        let mut table = toml_edit::Document::new();
+        table.insert("keymaps", toml_edit::Item::ArrayOfTables(array));
+        let path = Self::file()?;
+        std::fs::write(path, table.to_string().as_bytes()).ok()?;
+        None
+    }
+}
+
+fn get_modes(toml_keymap: &toml_edit::Table) -> Modes {
+    toml_keymap
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .map(Modes::parse)
+        .unwrap_or_else(Modes::empty)
 }

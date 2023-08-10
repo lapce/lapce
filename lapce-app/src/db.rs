@@ -245,14 +245,14 @@ impl LapceDb {
 
     pub fn save_app(&self, data: &AppData) -> Result<()> {
         let windows = data.windows.get_untracked();
-        for window in &windows {
+        for (_, window) in &windows {
             let _ = self.save_window(window.clone());
         }
 
         let info = AppInfo {
             windows: windows
                 .iter()
-                .map(|window_data| window_data.info())
+                .map(|(_, window_data)| window_data.info())
                 .collect(),
         };
 
@@ -271,13 +271,13 @@ impl LapceDb {
 
     pub fn insert_app(&self, data: AppData) -> Result<()> {
         let windows = data.windows.get_untracked();
-        for window in &windows {
+        for (_, window) in &windows {
             let _ = self.insert_window(window.clone());
         }
         let info = AppInfo {
             windows: windows
                 .iter()
-                .map(|window_data| window_data.info())
+                .map(|(_, window_data)| window_data.info())
                 .collect(),
         };
         let info = serde_json::to_string(&info)?;

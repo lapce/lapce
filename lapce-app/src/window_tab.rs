@@ -645,12 +645,11 @@ impl WindowTabData {
                     });
             }
             NewWindow => {
-                // TODO:
+                self.common.window_command.send(WindowCommand::NewWindow);
             }
             CloseWindow => {
-                // TODO:
+                self.common.window_command.send(WindowCommand::CloseWindow);
             }
-
             // ==== Window Tabs ====
             NewWindowTab => {
                 self.common

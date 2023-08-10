@@ -3,9 +3,10 @@ use std::sync::Arc;
 use floem::{
     event::{Event, EventListener},
     reactive::{
-        create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal, Scope,
+        create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
+        Scope,
     },
-    style::Style,
+    style::{CursorStyle, Style},
     view::View,
     views::{
         container, label, list, scroll, stack, virtual_list, Decorators,
@@ -406,7 +407,7 @@ pub fn keymap_view(common: CommonData) -> impl View {
                     .flex_basis_px(0.0)
                     .flex_grow(1.0)
             }),
-            keyboard_picker_view(picker, config),
+            keyboard_picker_view(picker, common.ui_line_height, config),
         )
     })
     .style(|| {
@@ -422,6 +423,7 @@ pub fn keymap_view(common: CommonData) -> impl View {
 
 fn keyboard_picker_view(
     picker: KeymapPicker,
+    ui_line_height: Memo<f64>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let picker_cmd = picker.cmd;
@@ -477,7 +479,7 @@ fn keyboard_picker_view(
                         .justify_center()
                         .width_pct(100.0)
                         .margin_top_px(20.0)
-                        .padding_vert_px(8.0)
+                        .height_px(ui_line_height.get() as f32 + 16.0)
                         .border(1.0)
                         .border_radius(6.0)
                         .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
@@ -485,19 +487,41 @@ fn keyboard_picker_view(
                 }),
                 stack(|| {
                     (
-                        label(|| "Save".to_string()).style(move || {
-                            Style::BASE
-                                .width_px(100.0)
-                                .justify_center()
-                                .padding_vert_px(8.0)
-                                .border(1.0)
-                                .border_radius(6.0)
-                                .border_color(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::LAPCE_BORDER),
+                        label(|| "Save".to_string())
+                            .style(move || {
+                                Style::BASE
+                                    .width_px(100.0)
+                                    .justify_center()
+                                    .padding_vert_px(8.0)
+                                    .border(1.0)
+                                    .border_radius(6.0)
+                                    .border_color(
+                                        *config
+                                            .get()
+                                            .get_color(LapceColor::LAPCE_BORDER),
+                                    )
+                            })
+                            .on_click(move |_| {
+                                let keymap = picker.keymap.get_untracked();
+                                if let Some(keymap) = keymap {
+                                    let keys = picker.keys.get_untracked();
+                                    picker.keymap.set(None);
+                                    KeyPressData::update_file(&keymap, &keys);
+                                }
+                                true
+                            })
+                            .hover_style(move || {
+                                Style::BASE.cursor(CursorStyle::Pointer).background(
+                                    *config.get().get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
                                 )
-                        }),
+                            })
+                            .active_style(move || {
+                                Style::BASE.background(*config.get().get_color(
+                                    LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
+                                ))
+                            }),
                         label(|| "Cancel".to_string())
                             .style(move || {
                                 Style::BASE
@@ -516,6 +540,18 @@ fn keyboard_picker_view(
                             .on_click(move |_| {
                                 picker.keymap.set(None);
                                 true
+                            })
+                            .hover_style(move || {
+                                Style::BASE.cursor(CursorStyle::Pointer).background(
+                                    *config.get().get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
+                                )
+                            })
+                            .active_style(move || {
+                                Style::BASE.background(*config.get().get_color(
+                                    LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
+                                ))
                             }),
                     )
                 })

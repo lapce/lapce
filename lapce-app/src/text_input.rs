@@ -427,7 +427,7 @@ impl View for TextInput {
                 self.cursor.update(|cursor| {
                     cursor.set_insert(Selection::caret(offset));
                 });
-                if pointer.button.is_left() && pointer.count == 2 {
+                if pointer.button.is_primary() && pointer.count == 2 {
                     let offset = self.hit_index(cx, pointer.pos);
                     let (start, end) = self
                         .doc
@@ -435,7 +435,7 @@ impl View for TextInput {
                     self.cursor.update(|cursor| {
                         cursor.set_insert(Selection::region(start, end));
                     });
-                } else if pointer.button.is_left() && pointer.count == 3 {
+                } else if pointer.button.is_primary() && pointer.count == 3 {
                     self.cursor.update(|cursor| {
                         cursor.set_insert(Selection::region(0, self.content.len()));
                     });
@@ -458,7 +458,7 @@ impl View for TextInput {
                         Vec2::ZERO
                     };
                 self.clamp_text_viewport(self.text_viewport + delta);
-                return true;
+                return false;
             }
             _ => {}
         }

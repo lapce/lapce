@@ -524,9 +524,9 @@ impl TerminalData {
                 }
             }
             Key::Backspace => {
-                Some(if key.mods.ctrl() {
+                Some(if key.mods.contains(Modifiers::CONTROL) {
                     "\x08" // backspace
-                } else if key.mods.alt() {
+                } else if key.mods.contains(Modifiers::ALT) {
                     "\x1b\x7f"
                 } else {
                     "\x7f"
