@@ -2520,10 +2520,8 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let config = window_tab_data.common.config;
     let workspace = window_tab_data.workspace.clone();
     let workbench_command = window_tab_data.common.workbench_command;
-    let lapce_command = window_tab_data.common.lapce_command;
     let main_split = window_tab_data.main_split.clone();
     let window_tab_scope = window_tab_data.scope;
-    let keypress = window_tab_data.common.keypress;
 
     let view = stack(|| {
         (
@@ -2554,111 +2552,6 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
             about::about_popup(window_tab_data.clone()),
             alert::alert_box(window_tab_data.alert_data.clone()),
         )
-    })
-    .window_menu(move || {
-        keypress.get();
-        Menu::new("Lapce")
-            .entry(
-                Menu::new("Lapce")
-                    .entry(MenuItem::new("About Lapce").action(move || {
-                        workbench_command.send(LapceWorkbenchCommand::ShowAbout)
-                    }))
-                    .separator()
-                    .entry(
-                        Menu::new("Settings...")
-                            .entry(MenuItem::new("Open Settings").action(
-                                move || {
-                                    workbench_command
-                                        .send(LapceWorkbenchCommand::OpenSettings)
-                                },
-                            ))
-                            .entry(MenuItem::new("Open Keyboard Shortcuts").action(
-                                move || {
-                                    workbench_command.send(
-                                        LapceWorkbenchCommand::OpenKeyboardShortcuts,
-                                    )
-                                },
-                            )),
-                    )
-                    .separator()
-                    .entry(MenuItem::new("Hide Lapce"))
-                    .entry(MenuItem::new("Hide Others"))
-                    .entry(MenuItem::new("Show All"))
-                    .separator()
-                    .entry(MenuItem::new("Quit Lapce")),
-            )
-            .separator()
-            .entry(
-                Menu::new("File")
-                    .entry(MenuItem::new("New File").action(move || {
-                        workbench_command.send(LapceWorkbenchCommand::NewFile);
-                    }))
-                    .separator()
-                    .entry(MenuItem::new("Open").action(move || {
-                        workbench_command.send(LapceWorkbenchCommand::OpenFile);
-                    }))
-                    .entry(MenuItem::new("Open Folder").action(move || {
-                        workbench_command.send(LapceWorkbenchCommand::OpenFolder);
-                    }))
-                    .separator()
-                    .entry(MenuItem::new("Save").action(move || {
-                        lapce_command.send(LapceCommand {
-                            kind: CommandKind::Focus(FocusCommand::Save),
-                            data: None,
-                        });
-                    }))
-                    .entry(MenuItem::new("Save All").action(move || {
-                        workbench_command.send(LapceWorkbenchCommand::SaveAll);
-                    }))
-                    .separator()
-                    .entry(MenuItem::new("Close Folder").action(move || {
-                        workbench_command.send(LapceWorkbenchCommand::CloseFolder);
-                    }))
-                    .entry(MenuItem::new("Close Window").action(move || {
-                        workbench_command.send(LapceWorkbenchCommand::CloseWindow);
-                    })),
-            )
-            .entry(
-                Menu::new("Edit")
-                    .entry(MenuItem::new("Cut").action(move || {
-                        lapce_command.send(LapceCommand {
-                            kind: CommandKind::Edit(EditCommand::ClipboardCut),
-                            data: None,
-                        });
-                    }))
-                    .entry(MenuItem::new("Copy").action(move || {
-                        lapce_command.send(LapceCommand {
-                            kind: CommandKind::Edit(EditCommand::ClipboardCopy),
-                            data: None,
-                        });
-                    }))
-                    .entry(MenuItem::new("Paste").action(move || {
-                        lapce_command.send(LapceCommand {
-                            kind: CommandKind::Edit(EditCommand::ClipboardPaste),
-                            data: None,
-                        });
-                    }))
-                    .separator()
-                    .entry(MenuItem::new("Undo").action(move || {
-                        lapce_command.send(LapceCommand {
-                            kind: CommandKind::Edit(EditCommand::Undo),
-                            data: None,
-                        });
-                    }))
-                    .entry(MenuItem::new("Redo").action(move || {
-                        lapce_command.send(LapceCommand {
-                            kind: CommandKind::Edit(EditCommand::Redo),
-                            data: None,
-                        });
-                    }))
-                    .separator()
-                    .entry(MenuItem::new("Find").action(move || {
-                        lapce_command.send(LapceCommand {
-                            kind: CommandKind::Focus(FocusCommand::Search),
-                            data: None,
-                        });
-                    })),
-            )
     })
     .on_cleanup(move || {
         window_tab_scope.dispose();
@@ -2862,6 +2755,7 @@ fn window(window_data: WindowData) -> impl View {
         window_tab.window_tab_id
     };
     let active = move || active.get();
+    let window_focus = create_rw_signal(false);
 
     tab(active, items, key, |(_, window_tab_data)| {
         window_tab(window_tab_data)
@@ -2876,6 +2770,131 @@ fn window(window_data: WindowData) -> impl View {
         match workspace {
             Some(workspace) => format!("{workspace} - Lapce"),
             None => "Lapce".to_string(),
+        }
+    })
+    .on_event(EventListener::WindowGotFocus, move |_| {
+        window_focus.set(true);
+        false
+    })
+    .window_menu(move || {
+        window_focus.track();
+        let active = active();
+        let window_tabs = window_tabs.get();
+        let window_tab = window_tabs.get(active).or_else(|| window_tabs.last());
+        if let Some((_, window_tab)) = window_tab {
+            window_tab.common.keypress.track();
+            let workbench_command = window_tab.common.workbench_command;
+            let lapce_command = window_tab.common.lapce_command;
+            Menu::new("Lapce")
+                .entry(
+                    Menu::new("Lapce")
+                        .entry(MenuItem::new("About Lapce").action(move || {
+                            workbench_command.send(LapceWorkbenchCommand::ShowAbout)
+                        }))
+                        .separator()
+                        .entry(
+                            Menu::new("Settings...")
+                                .entry(MenuItem::new("Open Settings").action(
+                                    move || {
+                                        workbench_command.send(
+                                            LapceWorkbenchCommand::OpenSettings,
+                                        )
+                                    },
+                                ))
+                                .entry(
+                                    MenuItem::new("Open Keyboard Shortcuts").action(
+                                        move || {
+                                            workbench_command.send(
+                                        LapceWorkbenchCommand::OpenKeyboardShortcuts,
+                                    )
+                                        },
+                                    ),
+                                ),
+                        )
+                        .separator()
+                        .entry(MenuItem::new("Hide Lapce"))
+                        .entry(MenuItem::new("Hide Others"))
+                        .entry(MenuItem::new("Show All"))
+                        .separator()
+                        .entry(MenuItem::new("Quit Lapce")),
+                )
+                .separator()
+                .entry(
+                    Menu::new("File")
+                        .entry(MenuItem::new("New File").action(move || {
+                            workbench_command.send(LapceWorkbenchCommand::NewFile);
+                        }))
+                        .separator()
+                        .entry(MenuItem::new("Open").action(move || {
+                            workbench_command.send(LapceWorkbenchCommand::OpenFile);
+                        }))
+                        .entry(MenuItem::new("Open Folder").action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::OpenFolder);
+                        }))
+                        .separator()
+                        .entry(MenuItem::new("Save").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Focus(FocusCommand::Save),
+                                data: None,
+                            });
+                        }))
+                        .entry(MenuItem::new("Save All").action(move || {
+                            workbench_command.send(LapceWorkbenchCommand::SaveAll);
+                        }))
+                        .separator()
+                        .entry(MenuItem::new("Close Folder").action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::CloseFolder);
+                        }))
+                        .entry(MenuItem::new("Close Window").action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::CloseWindow);
+                        })),
+                )
+                .entry(
+                    Menu::new("Edit")
+                        .entry(MenuItem::new("Cut").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Edit(EditCommand::ClipboardCut),
+                                data: None,
+                            });
+                        }))
+                        .entry(MenuItem::new("Copy").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Edit(EditCommand::ClipboardCopy),
+                                data: None,
+                            });
+                        }))
+                        .entry(MenuItem::new("Paste").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Edit(EditCommand::ClipboardPaste),
+                                data: None,
+                            });
+                        }))
+                        .separator()
+                        .entry(MenuItem::new("Undo").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Edit(EditCommand::Undo),
+                                data: None,
+                            });
+                        }))
+                        .entry(MenuItem::new("Redo").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Edit(EditCommand::Redo),
+                                data: None,
+                            });
+                        }))
+                        .separator()
+                        .entry(MenuItem::new("Find").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Focus(FocusCommand::Search),
+                                data: None,
+                            });
+                        })),
+                )
+        } else {
+            Menu::new("Lapce")
         }
     })
     .style(|| Style::BASE.size_pct(100.0, 100.0))
