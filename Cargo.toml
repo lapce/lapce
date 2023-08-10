@@ -21,8 +21,6 @@ path = "lapce-proxy/src/bin/lapce-proxy.rs"
 [workspace]
 members = [
   "lapce-app",
-  "lapce-data",
-  "lapce-ui",
   "lapce-proxy",
   "lapce-rpc",
   "lapce-core",
@@ -70,14 +68,7 @@ lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
 
 lapce-core = { path = "./lapce-core" }
 lapce-rpc = { path = "./lapce-rpc" }
-lapce-data = { path = "./lapce-data" }
 lapce-proxy = { path = "./lapce-proxy" }
-
-[workspace.dependencies.druid]
-git = "https://github.com/lapce/druid"
-branch = "shell_opengl"
-# path = "../../druid/druid"
-features = ["svg", "im", "serde"]
 
 [workspace.dependencies.tracing]
 git = "https://github.com/tokio-rs/tracing"
