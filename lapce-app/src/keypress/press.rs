@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use floem::glazier::{KbKey, Modifiers};
 use tracing::warn;
 
@@ -36,13 +38,13 @@ impl KeyPress {
 
     pub fn label(&self) -> String {
         let mut keys = String::from("");
-        if self.mods.ctrl() {
+        if self.mods.contains(Modifiers::CONTROL) {
             keys.push_str("Ctrl+");
         }
-        if self.mods.alt() {
+        if self.mods.contains(Modifiers::ALT) {
             keys.push_str("Alt+");
         }
-        if self.mods.meta() {
+        if self.mods.contains(Modifiers::META) {
             let keyname = match std::env::consts::OS {
                 "macos" => "Cmd+",
                 "windows" => "Win+",
@@ -50,7 +52,7 @@ impl KeyPress {
             };
             keys.push_str(keyname);
         }
-        if self.mods.shift() {
+        if self.mods.contains(Modifiers::SHIFT) {
             keys.push_str("Shift+");
         }
         keys.push_str(&self.key.to_string());
@@ -89,5 +91,23 @@ impl KeyPress {
                 Some(KeyPress { key, mods })
             })
             .collect()
+    }
+}
+
+impl Display for KeyPress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.mods.contains(Modifiers::CONTROL) {
+            let _ = f.write_str("Ctrl+");
+        }
+        if self.mods.contains(Modifiers::ALT) {
+            let _ = f.write_str("Alt+");
+        }
+        if self.mods.contains(Modifiers::META) {
+            let _ = f.write_str("Meta+");
+        }
+        if self.mods.contains(Modifiers::SHIFT) {
+            let _ = f.write_str("Shift+");
+        }
+        f.write_str(&self.key.to_string())
     }
 }

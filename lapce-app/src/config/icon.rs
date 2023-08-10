@@ -30,6 +30,7 @@ impl LapceIcons {
     pub const SETTINGS: &str = "settings";
     pub const LIGHTBULB: &str = "lightbulb";
     pub const EXTENSIONS: &str = "extensions";
+    pub const KEYBOARD: &str = "keyboard";
     pub const BREADCRUMB_SEPARATOR: &str = "breadcrumb_separator";
 
     pub const FILE: &str = "file";

@@ -16,6 +16,7 @@ pub mod focus_text;
 pub mod global_search;
 pub mod history;
 pub mod id;
+pub mod keymap;
 pub mod keypress;
 pub mod listener;
 pub mod main_split;

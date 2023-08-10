@@ -187,7 +187,7 @@ impl WindowTabData {
         let workbench_command = Listener::new_empty(cx);
         let internal_command = Listener::new_empty(cx);
         let keypress =
-            cx.create_rw_signal(KeyPressData::new(&config, workbench_command));
+            cx.create_rw_signal(KeyPressData::new(cx, &config, workbench_command));
 
         let (term_tx, term_rx) = crossbeam_channel::unbounded();
         let (term_notification_tx, term_notification_rx) =
@@ -418,6 +418,9 @@ impl WindowTabData {
         all_disabled_volts.extend(workspace_disabled_volts);
 
         let config = LapceConfig::load(&self.workspace, &all_disabled_volts);
+        self.common.keypress.update(|keypress| {
+            keypress.update_keymaps(&config);
+        });
         self.set_config.set(Arc::new(config));
     }
 
@@ -581,7 +584,7 @@ impl WindowTabData {
                 }
             }
             OpenKeyboardShortcuts => {
-                // TODO: open keyboard shortcuts
+                self.main_split.open_keymap();
             }
             OpenKeyboardShortcutsFile => {
                 if let Some(path) = LapceConfig::keymaps_file() {
@@ -642,12 +645,11 @@ impl WindowTabData {
                     });
             }
             NewWindow => {
-                // TODO:
+                self.common.window_command.send(WindowCommand::NewWindow);
             }
             CloseWindow => {
-                // TODO:
+                self.common.window_command.send(WindowCommand::CloseWindow);
             }
-
             // ==== Window Tabs ====
             NewWindowTab => {
                 self.common
@@ -1404,10 +1406,10 @@ impl WindowTabData {
             return;
         }
         let focus = self.common.focus.get_untracked();
-        let mut keypress = self.common.keypress.get_untracked();
+        let keypress = self.common.keypress.get_untracked();
         let executed = match focus {
             Focus::Workbench => {
-                self.main_split.key_down(key_event, &mut keypress).is_some()
+                self.main_split.key_down(key_event, &keypress).is_some()
             }
             Focus::Palette => {
                 keypress.key_down(key_event, &self.palette);
@@ -1427,7 +1429,7 @@ impl WindowTabData {
                 true
             }
             Focus::Panel(PanelKind::Terminal) => {
-                self.terminal.key_down(key_event, &mut keypress);
+                self.terminal.key_down(key_event, &keypress);
                 true
             }
             Focus::Panel(PanelKind::Search) => {
@@ -1448,8 +1450,6 @@ impl WindowTabData {
         if !executed {
             keypress.key_down(key_event, self);
         }
-
-        self.common.keypress.set(keypress);
     }
 
     pub fn workspace_info(&self) -> WorkspaceInfo {

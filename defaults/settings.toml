@@ -270,6 +270,7 @@ name = ""
 "terminal" = "terminal.svg"
 "lightbulb" = "lightbulb.svg"
 "extensions" = "extensions.svg"
+"keyboard" = "keyboard.svg"
 "breadcrumb_separator" = "chevron-right.svg"
 
 "window.close" = "chrome-close.svg"

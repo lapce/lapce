@@ -341,11 +341,15 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     settings_data.common,
                 );
                 let doc = editor.view.doc;
+                doc.update(|doc| doc.reload(Rope::from(editor_value), true));
 
                 let kind = item.kind.clone();
                 let field = item.field.clone();
                 create_effect(move |last| {
                     let rev = doc.with(|doc| doc.buffer().rev());
+                    if last.is_none() {
+                        return rev;
+                    }
                     if last == Some(rev) {
                         return rev;
                     }
@@ -361,10 +365,6 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     rev
                 });
 
-                editor
-                    .view
-                    .doc
-                    .update(|doc| doc.reload(Rope::from(editor_value), true));
                 container_box(move || {
                     Box::new(
                         text_input(editor, || false).keyboard_navigatable().style(
@@ -580,8 +580,11 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
 
                         let kind = item.kind.clone();
                         let field = item.field.clone();
-                        create_effect(move |_| {
+                        create_effect(move |last| {
                             let checked = checked.get();
+                            if last.is_none() {
+                                return;
+                            }
                             if let Some(value) = toml_edit::ser::to_item(&checked)
                                 .ok()
                                 .and_then(|i| i.into_value().ok())

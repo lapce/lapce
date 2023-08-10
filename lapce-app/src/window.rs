@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use floem::{
     glazier::KeyEvent,
+    id::WindowId,
     peniko::kurbo::{Point, Size},
     reactive::{use_context, ReadSignal, RwSignal, Scope},
 };
@@ -38,6 +39,7 @@ pub struct WindowInfo {
 /// normally only one window tab), size, position etc.
 #[derive(Clone)]
 pub struct WindowData {
+    pub window_id: WindowId,
     pub scope: Scope,
     /// The set of tabs within the window. These tabs are high-level
     /// constructs for workspaces, in particular they are not **editor tabs**.
@@ -56,12 +58,12 @@ pub struct WindowData {
 
 impl WindowData {
     pub fn new(
-        cx: Scope,
         info: WindowInfo,
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
         app_command: Listener<AppCommand>,
     ) -> Self {
+        let cx = Scope::new();
         let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
         let config = cx.create_rw_signal(Arc::new(config));
         let root_view_id = cx.create_rw_signal(floem::id::Id::next());
@@ -99,6 +101,7 @@ impl WindowData {
         let position = cx.create_rw_signal(info.pos);
 
         let window_data = Self {
+            window_id: WindowId::next(),
             scope: cx,
             window_tabs,
             active,
@@ -246,6 +249,13 @@ impl WindowData {
                     };
                     self.active.set(active);
                 }
+            }
+            WindowCommand::NewWindow => {
+                self.app_command.send(AppCommand::NewWindow);
+            }
+            WindowCommand::CloseWindow => {
+                self.app_command
+                    .send(AppCommand::CloseWindow(self.window_id));
             }
         }
         self.app_command.send(AppCommand::SaveApp);

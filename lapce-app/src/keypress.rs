@@ -4,15 +4,19 @@ pub mod keymap;
 mod loader;
 mod press;
 
-use std::{path::PathBuf, str::FromStr};
+use std::{path::PathBuf, rc::Rc, str::FromStr};
 
 use anyhow::Result;
-use floem::glazier::{KbKey, KeyEvent, Modifiers, MouseEvent};
+use floem::{
+    glazier::{KbKey, KeyEvent, Modifiers, PointerEvent},
+    reactive::{RwSignal, Scope},
+};
 use indexmap::IndexMap;
-use lapce_core::mode::Mode;
+use itertools::Itertools;
+use lapce_core::mode::{Mode, Modes};
 use tracing::{debug, error};
 
-use self::{key::Key, keymap::KeyMap, loader::KeyMapLoader, press::KeyPress};
+use self::{key::Key, keymap::KeyMap, loader::KeyMapLoader};
 use crate::{
     command::{
         lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
@@ -25,6 +29,8 @@ use crate::{
     },
     listener::Listener,
 };
+
+pub use self::press::KeyPress;
 
 const DEFAULT_KEYMAPS_COMMON: &str =
     include_str!("../../defaults/keymaps-common.toml");
@@ -59,7 +65,7 @@ pub trait KeyPressFocus {
 #[derive(Clone, Copy, Debug)]
 pub enum EventRef<'a> {
     Keyboard(&'a floem::glazier::KeyEvent),
-    Mouse(&'a floem::glazier::MouseEvent),
+    Pointer(&'a floem::glazier::PointerEvent),
 }
 
 impl<'a> From<&'a KeyEvent> for EventRef<'a> {
@@ -68,43 +74,52 @@ impl<'a> From<&'a KeyEvent> for EventRef<'a> {
     }
 }
 
-impl<'a> From<&'a MouseEvent> for EventRef<'a> {
-    fn from(ev: &'a MouseEvent) -> Self {
-        Self::Mouse(ev)
+impl<'a> From<&'a PointerEvent> for EventRef<'a> {
+    fn from(ev: &'a PointerEvent) -> Self {
+        Self::Pointer(ev)
     }
 }
 
 #[derive(Clone)]
 pub struct KeyPressData {
-    count: Option<usize>,
-    pending_keypress: Vec<KeyPress>,
+    count: RwSignal<Option<usize>>,
+    pending_keypress: RwSignal<Vec<KeyPress>>,
     workbench_cmd: Listener<LapceWorkbenchCommand>,
-    pub commands: IndexMap<String, LapceCommand>,
-    keymaps: IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
-    pub command_keymaps: IndexMap<String, Vec<KeyMap>>,
-    commands_with_keymap: Vec<KeyMap>,
-    commands_without_keymap: Vec<LapceCommand>,
+    pub commands: Rc<IndexMap<String, LapceCommand>>,
+    pub keymaps: Rc<IndexMap<Vec<KeyPress>, Vec<KeyMap>>>,
+    pub command_keymaps: Rc<IndexMap<String, Vec<KeyMap>>>,
+    pub commands_with_keymap: Rc<Vec<KeyMap>>,
+    pub commands_without_keymap: Rc<Vec<LapceCommand>>,
 }
 
 impl KeyPressData {
     pub fn new(
+        cx: Scope,
         config: &LapceConfig,
         workbench_cmd: Listener<LapceWorkbenchCommand>,
     ) -> Self {
         let (keymaps, command_keymaps) =
             Self::get_keymaps(config).unwrap_or((IndexMap::new(), IndexMap::new()));
         let mut keypress = Self {
-            count: None,
-            pending_keypress: Vec::new(),
-            keymaps,
-            command_keymaps,
-            commands: lapce_internal_commands(),
-            commands_with_keymap: Vec::new(),
-            commands_without_keymap: Vec::new(),
+            count: cx.create_rw_signal(None),
+            pending_keypress: cx.create_rw_signal(Vec::new()),
+            keymaps: Rc::new(keymaps),
+            command_keymaps: Rc::new(command_keymaps),
+            commands: Rc::new(lapce_internal_commands()),
+            commands_with_keymap: Rc::new(Vec::new()),
+            commands_without_keymap: Rc::new(Vec::new()),
             workbench_cmd,
         };
         keypress.load_commands();
         keypress
+    }
+
+    pub fn update_keymaps(&mut self, config: &LapceConfig) {
+        if let Ok((new_keymaps, new_command_keymaps)) = Self::get_keymaps(config) {
+            self.keymaps = Rc::new(new_keymaps);
+            self.command_keymaps = Rc::new(new_command_keymaps);
+            self.load_commands();
+        }
     }
 
     fn load_commands(&mut self) {
@@ -124,12 +139,12 @@ impl KeyPressData {
             }
         }
 
-        self.commands_with_keymap = commands_with_keymap;
-        self.commands_without_keymap = commands_without_keymap;
+        self.commands_with_keymap = Rc::new(commands_with_keymap);
+        self.commands_without_keymap = Rc::new(commands_without_keymap);
     }
 
     fn handle_count<T: KeyPressFocus>(
-        &mut self,
+        &self,
         focus: &T,
         keypress: &KeyPress,
     ) -> bool {
@@ -147,8 +162,9 @@ impl KeyPressData {
 
         if let Key::Keyboard(KbKey::Character(c)) = &keypress.key {
             if let Ok(n) = c.parse::<usize>() {
-                if self.count.is_some() || n > 0 {
-                    self.count = Some(self.count.unwrap_or(0) * 10 + n);
+                if self.count.with_untracked(|count| count.is_some()) || n > 0 {
+                    self.count
+                        .update(|count| *count = Some(count.unwrap_or(0) * 10 + n));
                     return true;
                 }
             }
@@ -183,11 +199,7 @@ impl KeyPressData {
         }
     }
 
-    pub fn key_down<'a, T: KeyPressFocus>(
-        &mut self,
-        event: impl Into<EventRef<'a>>,
-        focus: &T,
-    ) -> bool {
+    pub fn keypress<'a>(event: impl Into<EventRef<'a>>) -> Option<KeyPress> {
         let event = event.into();
         debug!("{event:?}");
 
@@ -195,17 +207,29 @@ impl KeyPressData {
             EventRef::Keyboard(ev)
                 if ev.key == KbKey::Shift && ev.mods.is_empty() =>
             {
-                return false;
+                return None;
             }
             EventRef::Keyboard(ev) => KeyPress {
                 key: Key::Keyboard(ev.key.clone()),
                 // We are removing Shift modifier since the character is already upper case.
                 mods: Self::get_key_modifiers(ev),
             },
-            EventRef::Mouse(ev) => KeyPress {
-                key: Key::Mouse(ev.button),
-                mods: ev.mods,
+            EventRef::Pointer(ev) => KeyPress {
+                key: Key::Pointer(ev.button),
+                mods: ev.modifiers,
             },
+        };
+        Some(keypress)
+    }
+
+    pub fn key_down<'a, T: KeyPressFocus>(
+        &self,
+        event: impl Into<EventRef<'a>>,
+        focus: &T,
+    ) -> bool {
+        let keypress = match Self::keypress(event) {
+            Some(keypress) => keypress,
+            None => return false,
         };
         let mods = keypress.mods;
 
@@ -214,19 +238,27 @@ impl KeyPressData {
             return false;
         }
 
-        self.pending_keypress.push(keypress.clone());
+        self.pending_keypress.update(|pending_keypress| {
+            pending_keypress.push(keypress.clone());
+        });
 
-        let keymatch = self.match_keymap(&self.pending_keypress, focus);
+        let keymatch = self.pending_keypress.with_untracked(|pending_keypress| {
+            self.match_keymap(pending_keypress, focus)
+        });
         match keymatch {
             KeymapMatch::Full(command) => {
-                self.pending_keypress.clear();
-                let count = self.count.take();
+                self.pending_keypress.update(|pending_keypress| {
+                    pending_keypress.clear();
+                });
+                let count = self.count.try_update(|count| count.take()).unwrap();
                 self.run_command(&command, count, mods, focus);
                 return true;
             }
             KeymapMatch::Multiple(commands) => {
-                self.pending_keypress.clear();
-                let count = self.count.take();
+                self.pending_keypress.update(|pending_keypress| {
+                    pending_keypress.clear();
+                });
+                let count = self.count.try_update(|count| count.take()).unwrap();
                 for command in commands {
                     if self.run_command(&command, count, mods, focus)
                         == CommandExecuted::Yes
@@ -243,7 +275,9 @@ impl KeyPressData {
                 return false;
             }
             KeymapMatch::None => {
-                self.pending_keypress.clear();
+                self.pending_keypress.update(|pending_keypress| {
+                    pending_keypress.clear();
+                });
                 if focus.get_mode() == Mode::Insert {
                     let mut keypress = keypress.clone();
                     keypress.mods.set(Modifiers::SHIFT, false);
@@ -268,7 +302,7 @@ impl KeyPressData {
             return false;
         }
 
-        self.count = None;
+        self.count.set(None);
 
         let mut mods = keypress.mods;
 
@@ -300,7 +334,7 @@ impl KeyPressData {
 
     fn get_key_modifiers(key_event: &KeyEvent) -> Modifiers {
         // We only care about some modifiers
-        let mods = (Modifiers::ALT
+        let mut mods = (Modifiers::ALT
             | Modifiers::CONTROL
             | Modifiers::SHIFT
             | Modifiers::META)
@@ -314,6 +348,14 @@ impl KeyPressData {
                     return Modifiers::empty();
                 }
             }
+        }
+
+        match &key_event.key {
+            KbKey::Shift => mods.set(Modifiers::SHIFT, false),
+            KbKey::Alt => mods.set(Modifiers::ALT, false),
+            KbKey::Meta => mods.set(Modifiers::META, false),
+            KbKey::Control => mods.set(Modifiers::CONTROL, false),
+            _ => (),
         }
 
         mods
@@ -447,4 +489,105 @@ impl KeyPressData {
     pub fn file() -> Option<PathBuf> {
         LapceConfig::keymaps_file()
     }
+
+    fn get_file_array() -> Option<toml_edit::ArrayOfTables> {
+        let path = Self::file()?;
+        let content = std::fs::read_to_string(path).ok()?;
+        let document: toml_edit::Document = content.parse().ok()?;
+        document
+            .as_table()
+            .get("keymaps")?
+            .as_array_of_tables()
+            .cloned()
+    }
+
+    pub fn update_file(keymap: &KeyMap, keys: &[KeyPress]) -> Option<()> {
+        let mut array = Self::get_file_array().unwrap_or_default();
+        let index = array.iter().position(|value| {
+            Some(keymap.command.as_str())
+                == value.get("command").and_then(|c| c.as_str())
+                && keymap.when.as_deref()
+                    == value.get("when").and_then(|w| w.as_str())
+                && keymap.modes == get_modes(value)
+                && Some(keymap.key.clone())
+                    == value
+                        .get("key")
+                        .and_then(|v| v.as_str())
+                        .map(KeyPress::parse)
+        });
+
+        if let Some(index) = index {
+            if !keys.is_empty() {
+                array.get_mut(index)?.insert(
+                    "key",
+                    toml_edit::value(toml_edit::Value::from(
+                        keys.iter().map(|k| k.to_string()).join(" "),
+                    )),
+                );
+            } else {
+                array.remove(index);
+            };
+        } else {
+            let mut table = toml_edit::Table::new();
+            table.insert(
+                "command",
+                toml_edit::value(toml_edit::Value::from(keymap.command.clone())),
+            );
+            if !keymap.modes.is_empty() {
+                table.insert(
+                    "mode",
+                    toml_edit::value(toml_edit::Value::from(
+                        keymap.modes.to_string(),
+                    )),
+                );
+            }
+            if let Some(when) = keymap.when.as_ref() {
+                table.insert(
+                    "when",
+                    toml_edit::value(toml_edit::Value::from(when.to_string())),
+                );
+            }
+
+            if !keys.is_empty() {
+                table.insert(
+                    "key",
+                    toml_edit::value(toml_edit::Value::from(
+                        keys.iter().map(|k| k.to_string()).join(" "),
+                    )),
+                );
+                array.push(table.clone());
+            }
+
+            if !keymap.key.is_empty() {
+                table.insert(
+                    "key",
+                    toml_edit::value(toml_edit::Value::from(
+                        keymap.key.iter().map(|k| k.to_string()).join(" "),
+                    )),
+                );
+                table.insert(
+                    "command",
+                    toml_edit::value(toml_edit::Value::from(format!(
+                        "-{}",
+                        keymap.command
+                    ))),
+                );
+                array.push(table.clone());
+            }
+        }
+
+        let mut table = toml_edit::Document::new();
+        table.insert("keymaps", toml_edit::Item::ArrayOfTables(array));
+        let path = Self::file()?;
+        std::fs::write(path, table.to_string().as_bytes()).ok()?;
+        None
+    }
+}
+
+fn get_modes(toml_keymap: &toml_edit::Table) -> Modes {
+    toml_keymap
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .map(Modes::parse)
+        .unwrap_or_else(Modes::empty)
 }

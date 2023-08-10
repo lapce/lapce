@@ -13,7 +13,7 @@ use crate::{
         location::EditorLocation,
         EditorData, EditorInfo,
     },
-    id::{DiffEditorId, EditorId, EditorTabId, SettingsId, SplitId},
+    id::{DiffEditorId, EditorId, EditorTabId, KeymapId, SettingsId, SplitId},
     main_split::MainSplitData,
     window_tab::WindowTabData,
 };
@@ -23,6 +23,7 @@ pub enum EditorTabChildInfo {
     Editor(EditorInfo),
     DiffEditor(DiffEditorInfo),
     Settings,
+    Keymap,
 }
 
 impl EditorTabChildInfo {
@@ -45,6 +46,7 @@ impl EditorTabChildInfo {
             EditorTabChildInfo::Settings => {
                 EditorTabChild::Settings(SettingsId::next())
             }
+            EditorTabChildInfo::Keymap => EditorTabChild::Keymap(KeymapId::next()),
         }
     }
 }
@@ -108,6 +110,7 @@ pub enum EditorTabChildSource {
     },
     NewFileEditor,
     Settings,
+    Keymap,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -115,6 +118,7 @@ pub enum EditorTabChild {
     Editor(EditorId),
     DiffEditor(DiffEditorId),
     Settings(SettingsId),
+    Keymap(KeymapId),
 }
 
 impl EditorTabChild {
@@ -123,6 +127,7 @@ impl EditorTabChild {
             EditorTabChild::Editor(id) => id.to_raw(),
             EditorTabChild::DiffEditor(id) => id.to_raw(),
             EditorTabChild::Settings(id) => id.to_raw(),
+            EditorTabChild::Keymap(id) => id.to_raw(),
         }
     }
 
@@ -155,6 +160,7 @@ impl EditorTabChild {
                 EditorTabChildInfo::DiffEditor(diff_editor_data.diff_editor_info())
             }
             EditorTabChild::Settings(_) => EditorTabChildInfo::Settings,
+            EditorTabChild::Keymap(_) => EditorTabChildInfo::Keymap,
         }
     }
 }

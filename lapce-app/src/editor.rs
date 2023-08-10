@@ -398,7 +398,7 @@ impl EditorData {
                 &mut cursor,
                 movement,
                 count.unwrap_or(1),
-                mods.shift(),
+                mods.contains(Modifiers::SHIFT),
                 register,
             )
         });
@@ -1837,11 +1837,11 @@ impl EditorData {
             self.find_focus.set(false);
         }
         match pointer_event.button {
-            PointerButton::Left => {
+            PointerButton::Primary => {
                 self.active.set(true);
                 self.left_click(pointer_event);
             }
-            PointerButton::Right => {}
+            PointerButton::Secondary => {}
             _ => {}
         }
     }
@@ -1867,8 +1867,8 @@ impl EditorData {
         self.cursor.update(|cursor| {
             cursor.set_offset(
                 new_offset,
-                pointer_event.modifiers.shift(),
-                pointer_event.modifiers.alt(),
+                pointer_event.modifiers.contains(Modifiers::SHIFT),
+                pointer_event.modifiers.contains(Modifiers::ALT),
             )
         });
     }
@@ -1882,8 +1882,8 @@ impl EditorData {
             cursor.add_region(
                 start,
                 end,
-                pointer_event.modifiers.shift(),
-                pointer_event.modifiers.alt(),
+                pointer_event.modifiers.contains(Modifiers::SHIFT),
+                pointer_event.modifiers.contains(Modifiers::ALT),
             )
         });
     }
@@ -1899,8 +1899,8 @@ impl EditorData {
             cursor.add_region(
                 start,
                 end,
-                pointer_event.modifiers.shift(),
-                pointer_event.modifiers.alt(),
+                pointer_event.modifiers.contains(Modifiers::SHIFT),
+                pointer_event.modifiers.contains(Modifiers::ALT),
             )
         });
     }
@@ -1913,7 +1913,11 @@ impl EditorData {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (new_offset, _) = self.view.offset_of_point(mode, pointer_event.pos);
         self.cursor.update(|cursor| {
-            cursor.set_offset(new_offset, true, pointer_event.modifiers.alt())
+            cursor.set_offset(
+                new_offset,
+                true,
+                pointer_event.modifiers.contains(Modifiers::ALT),
+            )
         });
     }
 

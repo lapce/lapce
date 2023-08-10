@@ -346,7 +346,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
             };
 
             if let Event::PointerDown(pointer_event) = event {
-                if pointer_event.button.is_right() {
+                if pointer_event.button.is_secondary() {
                     let menu = Menu::new("")
                         .entry(MenuItem::new("Discard Changes").action(discard));
                     cx.id.show_context_menu(menu, Point::ZERO);

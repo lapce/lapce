@@ -15,6 +15,8 @@ use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener},
     ext_event::create_signal_from_channel,
+    id::WindowId,
+    menu::{Menu, MenuItem},
     peniko::{
         kurbo::{Point, Rect, Size},
         Color,
@@ -35,7 +37,12 @@ use floem::{
     },
     window::WindowConfig,
 };
-use lapce_core::{directory::Directory, meta, mode::Mode};
+use lapce_core::{
+    command::{EditCommand, FocusCommand},
+    directory::Directory,
+    meta,
+    mode::Mode,
+};
 use lapce_rpc::{
     core::{CoreMessage, CoreNotification},
     file::PathObject,
@@ -50,7 +57,10 @@ use tracing_subscriber::{filter::FilterFn, reload::Handle};
 use crate::{
     about, alert,
     code_action::CodeActionStatus,
-    command::{InternalCommand, WindowCommand},
+    command::{
+        CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand,
+        WindowCommand,
+    },
     config::{
         color::LapceColor, icon::LapceIcons, watcher::ConfigWatcher, LapceConfig,
     },
@@ -66,6 +76,7 @@ use crate::{
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
     id::{DiffEditorId, EditorId, EditorTabId, SplitId},
+    keymap::keymap_view,
     keypress::keymap::KeyMap,
     listener::Listener,
     main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
@@ -120,12 +131,16 @@ pub struct AppInfo {
 #[derive(Clone)]
 pub enum AppCommand {
     SaveApp,
+    NewWindow,
+    CloseWindow(WindowId),
+    WindowGotFocus(WindowId),
+    WindowClosed(WindowId),
 }
 
 #[derive(Clone)]
 pub struct AppData {
-    pub scope: Scope,
-    pub windows: RwSignal<im::Vector<WindowData>>,
+    pub windows: RwSignal<im::HashMap<WindowId, WindowData>>,
+    pub active_window: RwSignal<WindowId>,
     pub window_scale: RwSignal<f64>,
     pub app_command: Listener<AppCommand>,
     /// The latest release information
@@ -137,17 +152,60 @@ pub struct AppData {
 impl AppData {
     pub fn reload_config(&self) {
         let windows = self.windows.get_untracked();
-        for window in windows {
+        for (_, window) in windows {
             window.reload_config();
         }
     }
 
     pub fn active_window_tab(&self) -> Option<Arc<WindowTabData>> {
         let windows = self.windows.get_untracked();
-        if let Some(window) = windows.iter().next() {
+        if let Some((_, window)) = windows.iter().next() {
             return window.active_window_tab();
         }
         None
+    }
+
+    fn active_window(&self) -> Option<WindowData> {
+        let windows = self.windows.get_untracked();
+        let active_window = self.active_window.get_untracked();
+        windows
+            .get(&active_window)
+            .cloned()
+            .or_else(|| windows.iter().next().map(|(_, window)| window.clone()))
+    }
+
+    pub fn new_window(&self) {
+        let config = self
+            .active_window()
+            .map(|window| {
+                WindowConfig::default()
+                    .size(window.size.get_untracked())
+                    .position(window.position.get_untracked() + (50.0, 50.0))
+            })
+            .or_else(|| {
+                let db: Arc<LapceDb> = use_context().unwrap();
+                db.get_window().ok().map(|info| {
+                    WindowConfig::default().size(info.size).position(info.pos)
+                })
+            });
+        let window_data = WindowData::new(
+            WindowInfo {
+                size: Size::ZERO,
+                pos: Point::ZERO,
+                maximised: false,
+                tabs: TabsInfo {
+                    active_tab: 0,
+                    workspaces: vec![LapceWorkspace::default()],
+                },
+            },
+            self.window_scale,
+            self.latest_release.read_only(),
+            self.app_command,
+        );
+        self.windows.update(|windows| {
+            windows.insert(window_data.window_id, window_data.clone());
+        });
+        floem::new_window(window_data.window_id, || app_view(window_data), config);
     }
 
     pub fn run_app_command(&self, cmd: AppCommand) {
@@ -155,6 +213,26 @@ impl AppData {
             AppCommand::SaveApp => {
                 let db: Arc<LapceDb> = use_context().unwrap();
                 let _ = db.save_app(self);
+            }
+            AppCommand::WindowClosed(window_id) => {
+                let window_data = self
+                    .windows
+                    .try_update(|windows| windows.remove(&window_id))
+                    .unwrap();
+                if let Some(window_data) = window_data {
+                    window_data.scope.dispose();
+                }
+                let db: Arc<LapceDb> = use_context().unwrap();
+                let _ = db.save_app(self);
+            }
+            AppCommand::CloseWindow(window_id) => {
+                floem::close_window(window_id);
+            }
+            AppCommand::NewWindow => {
+                self.new_window();
+            }
+            AppCommand::WindowGotFocus(window_id) => {
+                self.active_window.set(window_id);
             }
         }
     }
@@ -338,6 +416,18 @@ fn editor_tab_header(
                             *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                         ),
                         path: "Settings".to_string(),
+                        confirmed: None,
+                        is_pristine: true,
+                    }
+                }),
+                EditorTabChild::Keymap(_) => create_memo(move |_| {
+                    let config = config.get();
+                    Info {
+                        icon: config.ui_svg(LapceIcons::KEYBOARD),
+                        color: Some(
+                            *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                        ),
+                        path: "Keyboard Shortcuts".to_string(),
                         confirmed: None,
                         is_pristine: true,
                     }
@@ -753,6 +843,9 @@ fn editor_tab_content(
             }
             EditorTabChild::Settings(_) => {
                 container_box(move || Box::new(settings_view(common)))
+            }
+            EditorTabChild::Keymap(_) => {
+                container_box(move || Box::new(keymap_view(common)))
             }
         };
         child.style(|| Style::BASE.size_pct(100.0, 100.0))
@@ -2474,6 +2567,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
                 s.font_family(config.ui.font_family.clone())
             })
     });
+
     let view_id = view.id();
     window_tab_data.common.view_id.set(view_id);
     view
@@ -2661,9 +2755,147 @@ fn window(window_data: WindowData) -> impl View {
         window_tab.window_tab_id
     };
     let active = move || active.get();
+    let window_focus = create_rw_signal(false);
 
     tab(active, items, key, |(_, window_tab_data)| {
         window_tab(window_tab_data)
+    })
+    .window_title(move || {
+        let active = active();
+        let window_tabs = window_tabs.get();
+        let workspace = window_tabs
+            .get(active)
+            .or_else(|| window_tabs.last())
+            .and_then(|(_, window_tab)| window_tab.workspace.display());
+        match workspace {
+            Some(workspace) => format!("{workspace} - Lapce"),
+            None => "Lapce".to_string(),
+        }
+    })
+    .on_event(EventListener::WindowGotFocus, move |_| {
+        window_focus.set(true);
+        false
+    })
+    .window_menu(move || {
+        window_focus.track();
+        let active = active();
+        let window_tabs = window_tabs.get();
+        let window_tab = window_tabs.get(active).or_else(|| window_tabs.last());
+        if let Some((_, window_tab)) = window_tab {
+            window_tab.common.keypress.track();
+            let workbench_command = window_tab.common.workbench_command;
+            let lapce_command = window_tab.common.lapce_command;
+            Menu::new("Lapce")
+                .entry(
+                    Menu::new("Lapce")
+                        .entry(MenuItem::new("About Lapce").action(move || {
+                            workbench_command.send(LapceWorkbenchCommand::ShowAbout)
+                        }))
+                        .separator()
+                        .entry(
+                            Menu::new("Settings...")
+                                .entry(MenuItem::new("Open Settings").action(
+                                    move || {
+                                        workbench_command.send(
+                                            LapceWorkbenchCommand::OpenSettings,
+                                        )
+                                    },
+                                ))
+                                .entry(
+                                    MenuItem::new("Open Keyboard Shortcuts").action(
+                                        move || {
+                                            workbench_command.send(
+                                        LapceWorkbenchCommand::OpenKeyboardShortcuts,
+                                    )
+                                        },
+                                    ),
+                                ),
+                        )
+                        .separator()
+                        .entry(MenuItem::new("Hide Lapce"))
+                        .entry(MenuItem::new("Hide Others"))
+                        .entry(MenuItem::new("Show All"))
+                        .separator()
+                        .entry(MenuItem::new("Quit Lapce")),
+                )
+                .separator()
+                .entry(
+                    Menu::new("File")
+                        .entry(MenuItem::new("New File").action(move || {
+                            workbench_command.send(LapceWorkbenchCommand::NewFile);
+                        }))
+                        .separator()
+                        .entry(MenuItem::new("Open").action(move || {
+                            workbench_command.send(LapceWorkbenchCommand::OpenFile);
+                        }))
+                        .entry(MenuItem::new("Open Folder").action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::OpenFolder);
+                        }))
+                        .separator()
+                        .entry(MenuItem::new("Save").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Focus(FocusCommand::Save),
+                                data: None,
+                            });
+                        }))
+                        .entry(MenuItem::new("Save All").action(move || {
+                            workbench_command.send(LapceWorkbenchCommand::SaveAll);
+                        }))
+                        .separator()
+                        .entry(MenuItem::new("Close Folder").action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::CloseFolder);
+                        }))
+                        .entry(MenuItem::new("Close Window").action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::CloseWindow);
+                        })),
+                )
+                .entry(
+                    Menu::new("Edit")
+                        .entry(MenuItem::new("Cut").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Edit(EditCommand::ClipboardCut),
+                                data: None,
+                            });
+                        }))
+                        .entry(MenuItem::new("Copy").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Edit(EditCommand::ClipboardCopy),
+                                data: None,
+                            });
+                        }))
+                        .entry(MenuItem::new("Paste").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Edit(EditCommand::ClipboardPaste),
+                                data: None,
+                            });
+                        }))
+                        .separator()
+                        .entry(MenuItem::new("Undo").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Edit(EditCommand::Undo),
+                                data: None,
+                            });
+                        }))
+                        .entry(MenuItem::new("Redo").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Edit(EditCommand::Redo),
+                                data: None,
+                            });
+                        }))
+                        .separator()
+                        .entry(MenuItem::new("Find").action(move || {
+                            lapce_command.send(LapceCommand {
+                                kind: CommandKind::Focus(FocusCommand::Search),
+                                data: None,
+                            });
+                        })),
+                )
+        } else {
+            Menu::new("Lapce")
+        }
     })
     .style(|| Style::BASE.size_pct(100.0, 100.0))
 }
@@ -2673,6 +2905,8 @@ fn app_view(window_data: WindowData) -> impl View {
     let window_size = window_data.size;
     let position = window_data.position;
     let window_scale = window_data.window_scale;
+    let window_id = window_data.window_id;
+    let app_command = window_data.app_command;
     stack(|| {
         (
             workspace_tab_header(window_data.clone()),
@@ -2700,6 +2934,14 @@ fn app_view(window_data: WindowData) -> impl View {
         if let Event::WindowMoved(point) = event {
             position.set(*point);
         }
+        true
+    })
+    .on_event(EventListener::WindowGotFocus, move |_| {
+        app_command.send(AppCommand::WindowGotFocus(window_id));
+        true
+    })
+    .on_event(EventListener::WindowClosed, move |_| {
+        app_command.send(AppCommand::WindowClosed(window_id));
         true
     })
 }
@@ -2790,17 +3032,16 @@ pub fn launch() {
     let _ = lapce_proxy::register_lapce_path();
     let db = Arc::new(LapceDb::new().unwrap());
     let mut app = floem::Application::new();
-    let scope = Scope::current().create_child();
+    let scope = Scope::new();
     provide_context(db.clone());
 
     let window_scale = scope.create_rw_signal(1.0);
     let latest_release = scope.create_rw_signal(Arc::new(None));
     let app_command = Listener::new_empty(scope);
 
-    let mut windows = im::Vector::new();
+    let mut windows = im::HashMap::new();
 
     app = create_windows(
-        scope,
         db.clone(),
         app,
         cli.paths,
@@ -2827,8 +3068,8 @@ pub fn launch() {
 
     let windows = scope.create_rw_signal(windows);
     let app_data = AppData {
-        scope,
         windows,
+        active_window: scope.create_rw_signal(WindowId::next()),
         window_scale,
         watcher: Arc::new(watcher),
         latest_release,
@@ -2891,17 +3132,23 @@ pub fn launch() {
         floem::AppEvent::WillTerminate => {
             let _ = db.insert_app(app_data.clone());
         }
+        floem::AppEvent::Reopen {
+            has_visible_windows,
+        } => {
+            if !has_visible_windows {
+                app_data.new_window();
+            }
+        }
     })
     .run();
 }
 
 #[allow(clippy::too_many_arguments)]
 fn create_windows(
-    scope: floem::reactive::Scope,
     db: Arc<LapceDb>,
     mut app: floem::Application,
     paths: Vec<PathObject>,
-    windows: &mut im::Vector<WindowData>,
+    windows: &mut im::HashMap<WindowId, WindowData>,
     window_scale: RwSignal<f64>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     app_command: Listener<AppCommand>,
@@ -2951,15 +3198,14 @@ fn create_windows(
             pos += (50.0, 50.0);
 
             let config = WindowConfig::default().size(info.size).position(info.pos);
-            let window_data = WindowData::new(
-                scope,
-                info,
-                window_scale,
-                latest_release,
-                app_command,
+            let window_data =
+                WindowData::new(info, window_scale, latest_release, app_command);
+            windows.insert(window_data.window_id, window_data.clone());
+            app = app.window(
+                window_data.window_id,
+                move || app_view(window_data),
+                Some(config),
             );
-            windows.push_back(window_data.clone());
-            app = app.window(move || app_view(window_data), Some(config));
         }
     } else if files.is_empty() {
         // There were no dirs and no files specified, so we'll load the last windows
@@ -2967,15 +3213,14 @@ fn create_windows(
             for info in app_info.windows {
                 let config =
                     WindowConfig::default().size(info.size).position(info.pos);
-                let window_data = WindowData::new(
-                    scope,
-                    info,
-                    window_scale,
-                    latest_release,
-                    app_command,
+                let window_data =
+                    WindowData::new(info, window_scale, latest_release, app_command);
+                windows.insert(window_data.window_id, window_data.clone());
+                app = app.window(
+                    window_data.window_id,
+                    move || app_view(window_data),
+                    Some(config),
                 );
-                windows.push_back(window_data.clone());
-                app = app.window(move || app_view(window_data), Some(config));
             }
         }
     }
@@ -2996,13 +3241,17 @@ fn create_windows(
         };
         let config = WindowConfig::default().size(info.size).position(info.pos);
         let window_data =
-            WindowData::new(scope, info, window_scale, latest_release, app_command);
-        windows.push_back(window_data.clone());
-        app = app.window(|| app_view(window_data), Some(config));
+            WindowData::new(info, window_scale, latest_release, app_command);
+        windows.insert(window_data.window_id, window_data.clone());
+        app = app.window(
+            window_data.window_id,
+            || app_view(window_data),
+            Some(config),
+        );
     }
 
     // Open any listed files in the first window
-    if let Some(window) = windows.iter().next() {
+    if let Some((_, window)) = windows.iter().next() {
         let cur_window_tab = window.active.get_untracked();
         let (_, window_tab) = &window.window_tabs.get_untracked()[cur_window_tab];
         for file in files {

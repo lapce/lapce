@@ -147,6 +147,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
+name = "as-raw-xcb-connection"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d5f312b0a56c5cdf967c0aeb67f6289603354951683bc97ddc595ab974ba9aa"
+
+[[package]]
 name = "ash"
 version = "0.37.2+1.3.238"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -157,9 +163,9 @@ dependencies = [
 
 [[package]]
 name = "ashpd"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31688b40eb5d739049f721d8405c33d3796b3f51f2bea84421a542dafe397e41"
+checksum = "7370b58af1d7e96df3ca0f454b57e69acf9aa42ed2d7337bd206923bae0d5754"
 dependencies = [
  "async-std",
  "enumflags2",
@@ -1702,7 +1708,7 @@ dependencies = [
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=28d20266b116ee04fe58aba4ffe0c5f0ce982893#28d20266b116ee04fe58aba4ffe0c5f0ce982893"
+source = "git+https://github.com/lapce/floem?rev=57865513fc0538357ef7e0b23283423443234b9c#57865513fc0538357ef7e0b23283423443234b9c"
 dependencies = [
  "bitflags 2.2.1",
  "crossbeam-channel",
@@ -1730,12 +1736,12 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=28d20266b116ee04fe58aba4ffe0c5f0ce982893#28d20266b116ee04fe58aba4ffe0c5f0ce982893"
+source = "git+https://github.com/lapce/floem?rev=57865513fc0538357ef7e0b23283423443234b9c#57865513fc0538357ef7e0b23283423443234b9c"
 
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=28d20266b116ee04fe58aba4ffe0c5f0ce982893#28d20266b116ee04fe58aba4ffe0c5f0ce982893"
+source = "git+https://github.com/lapce/floem?rev=57865513fc0538357ef7e0b23283423443234b9c#57865513fc0538357ef7e0b23283423443234b9c"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1745,7 +1751,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=28d20266b116ee04fe58aba4ffe0c5f0ce982893#28d20266b116ee04fe58aba4ffe0c5f0ce982893"
+source = "git+https://github.com/lapce/floem?rev=57865513fc0538357ef7e0b23283423443234b9c#57865513fc0538357ef7e0b23283423443234b9c"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -2229,9 +2235,9 @@ dependencies = [
 
 [[package]]
 name = "gethostname"
-version = "0.2.3"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1ebd34e35c46e00bb73e81363248d627782724609fe1b6396f553f68fe3862e"
+checksum = "bb65d4ba3173c56a500b555b532f72c42e8d1fe64962b518897f8959fae2c177"
 dependencies = [
  "libc",
  "winapi 0.3.9",
@@ -2378,8 +2384,8 @@ dependencies = [
 
 [[package]]
 name = "glazier"
-version = "0.7.0"
-source = "git+https://github.com/lapce/glazier?rev=86f0494fbf9ea6a4ba0754cac8412272860fa127#86f0494fbf9ea6a4ba0754cac8412272860fa127"
+version = "0.1.0"
+source = "git+https://github.com/lapce/glazier?rev=db03ea4295daef69cb8d0877f2b2e5734cc116be#db03ea4295daef69cb8d0877f2b2e5734cc116be"
 dependencies = [
  "anyhow",
  "ashpd",
@@ -3609,9 +3615,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.133"
+version = "0.2.147"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0f80d65747a3e43d1596c7c5492d95d5edddaabd45a7fcdb02b95f644164966"
+checksum = "b4668fb0ea861c1df094127ac5f1da3409a82116a4ba74fca2e58ef927159bb3"
 
 [[package]]
 name = "libgit2-sys"
@@ -3880,6 +3886,15 @@ dependencies = [
 
 [[package]]
 name = "memoffset"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5de893c32cde5f383baa4c04c5d6dbdd735cfd4a794b0debdb2bb1b421da5ff4"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
+name = "memoffset"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d61c719bcfbcf5d62b3a09efa6088de8c54bc0bfcd3ea7ae39fcc186108b8de1"
@@ -4101,6 +4116,19 @@ dependencies = [
  "libc",
  "memoffset 0.6.5",
  "pin-utils",
+]
+
+[[package]]
+name = "nix"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfdda3d196821d6af13126e40375cdf7da646a96114af134d5f417a9a1dc8e1a"
+dependencies = [
+ "bitflags 1.3.2",
+ "cfg-if 1.0.0",
+ "libc",
+ "memoffset 0.7.1",
+ "static_assertions",
 ]
 
 [[package]]
@@ -7718,13 +7746,14 @@ dependencies = [
 
 [[package]]
 name = "x11rb"
-version = "0.11.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdf3c79412dd91bae7a7366b8ad1565a85e35dd049affc3a6a2c549e97419617"
+checksum = "b1641b26d4dec61337c35a1b1aaf9e3cba8f46f0b43636c609ab0291a648040a"
 dependencies = [
+ "as-raw-xcb-connection",
  "gethostname",
  "libc",
- "nix 0.25.1",
+ "nix 0.26.2",
  "winapi 0.3.9",
  "winapi-wsapoll",
  "x11rb-protocol",
@@ -7732,11 +7761,11 @@ dependencies = [
 
 [[package]]
 name = "x11rb-protocol"
-version = "0.11.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0b1513b141123073ce54d5bb1d33f801f17508fbd61e02060b1214e96d39c56"
+checksum = "82d6c3f9a0fb6701fab8f6cea9b0c0bd5d6876f1f89f7fada07e558077c344bc"
 dependencies = [
- "nix 0.25.1",
+ "nix 0.26.2",
 ]
 
 [[package]]
