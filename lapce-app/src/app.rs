@@ -89,6 +89,7 @@ use crate::{
         kind::PanelKind, position::PanelContainerPosition,
         view::panel_container_view,
     },
+    plugin::PluginData,
     settings::settings_view,
     text_input::text_input,
     title::title,
@@ -644,13 +645,14 @@ fn editor_tab_header(
 
 fn editor_tab_content(
     main_split: MainSplitData,
-    workspace: Arc<LapceWorkspace>,
+    plugin: PluginData,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
-    editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
-    diff_editors: ReadSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
 ) -> impl View {
     let common = main_split.common.clone();
+    let workspace = common.workspace.clone();
+    let editors = main_split.editors;
+    let diff_editors = main_split.diff_editors;
     let config = common.config;
     let focus = common.focus;
     let items = move || {
@@ -841,9 +843,9 @@ fn editor_tab_content(
                     })
                 }
             }
-            EditorTabChild::Settings(_) => {
-                container_box(move || Box::new(settings_view(common)))
-            }
+            EditorTabChild::Settings(_) => container_box(move || {
+                Box::new(settings_view(plugin.installed, common))
+            }),
             EditorTabChild::Keymap(_) => {
                 container_box(move || Box::new(keymap_view(common)))
             }
@@ -857,7 +859,7 @@ fn editor_tab_content(
 
 fn editor_tab(
     main_split: MainSplitData,
-    workspace: Arc<LapceWorkspace>,
+    plugin: PluginData,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
     editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
@@ -877,11 +879,9 @@ fn editor_tab(
             ),
             editor_tab_content(
                 main_split.clone(),
-                workspace.clone(),
+                plugin.clone(),
                 active_editor_tab,
                 editor_tab,
-                editors,
-                diff_editors,
             ),
         )
     })
@@ -983,9 +983,9 @@ fn split_border(
 }
 
 fn split_list(
-    workspace: Arc<LapceWorkspace>,
     split: ReadSignal<SplitData>,
     main_split: MainSplitData,
+    plugin: PluginData,
 ) -> impl View {
     let editor_tabs = main_split.editor_tabs.read_only();
     let active_editor_tab = main_split.active_editor_tab.read_only();
@@ -998,6 +998,7 @@ fn split_list(
     let items = move || split.get().children.into_iter().enumerate();
     let key = |(_index, content): &(usize, SplitContent)| content.id();
     let view_fn = move |(_index, content), main_split: MainSplitData| {
+        let plugin = plugin.clone();
         let child = match &content {
             SplitContent::EditorTab(editor_tab_id) => {
                 let editor_tab_data = editor_tabs
@@ -1006,7 +1007,7 @@ fn split_list(
                     container_box(|| {
                         Box::new(editor_tab(
                             main_split.clone(),
-                            workspace.clone(),
+                            plugin.clone(),
                             active_editor_tab,
                             editor_tab_data,
                             editors,
@@ -1023,11 +1024,7 @@ fn split_list(
                 if let Some(split) =
                     splits.with(|splits| splits.get(split_id).cloned())
                 {
-                    split_list(
-                        workspace.clone(),
-                        split.read_only(),
-                        main_split.clone(),
-                    )
+                    split_list(split.read_only(), main_split.clone(), plugin.clone())
                 } else {
                     container_box(|| Box::new(label(|| "emtpy split".to_string())))
                 }
@@ -1097,20 +1094,23 @@ fn main_split(window_tab_data: Arc<WindowTabData>) -> impl View {
         .unwrap()
         .read_only();
     let config = window_tab_data.main_split.common.config;
-    let workspace = window_tab_data.workspace.clone();
     let panel = window_tab_data.panel.clone();
-    split_list(workspace, root_split, window_tab_data.main_split.clone()).style(
-        move || {
-            let config = config.get();
-            let is_hidden = panel.panel_bottom_maximized(true)
-                && panel.is_container_shown(&PanelContainerPosition::Bottom, true);
-            Style::BASE
-                .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-                .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
-                .apply_if(is_hidden, |s| s.display(Display::None))
-                .flex_grow(1.0)
-        },
+    let plugin = window_tab_data.plugin.clone();
+    split_list(
+        root_split,
+        window_tab_data.main_split.clone(),
+        plugin.clone(),
     )
+    .style(move || {
+        let config = config.get();
+        let is_hidden = panel.panel_bottom_maximized(true)
+            && panel.is_container_shown(&PanelContainerPosition::Bottom, true);
+        Style::BASE
+            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+            .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+            .apply_if(is_hidden, |s| s.display(Display::None))
+            .flex_grow(1.0)
+    })
 }
 
 pub fn clickable_icon(

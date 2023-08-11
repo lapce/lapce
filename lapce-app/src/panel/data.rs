@@ -159,11 +159,11 @@ impl PanelData {
         if tracked {
             self.panels
                 .with(|panels| panels.get(position).map(|p| p.is_empty()))
-                .unwrap_or(false)
+                .unwrap_or(true)
         } else {
             self.panels
                 .with_untracked(|panels| panels.get(position).map(|p| p.is_empty()))
-                .unwrap_or(false)
+                .unwrap_or(true)
         }
     }
 

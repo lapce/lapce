@@ -2,8 +2,13 @@ use std::sync::Arc;
 
 use floem::{
     event::EventListener,
-    peniko::{kurbo::Size, Color},
-    reactive::{create_effect, create_rw_signal, ReadSignal, RwSignal, Scope},
+    peniko::{
+        kurbo::{Point, Rect, Size},
+        Color,
+    },
+    reactive::{
+        create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal, Scope,
+    },
     style::{CursorStyle, Style},
     view::View,
     views::{
@@ -11,8 +16,10 @@ use floem::{
         virtual_list, Decorators, VirtualListDirection, VirtualListVector,
     },
 };
+use indexmap::IndexMap;
 use inflector::Inflector;
 use lapce_core::mode::Mode;
+use lapce_rpc::plugin::VoltID;
 use lapce_xi_rope::Rope;
 use serde::Serialize;
 
@@ -25,6 +32,7 @@ use crate::{
     editor::EditorData,
     id::EditorId,
     keypress::KeyPressFocus,
+    plugin::InstalledVoltData,
     text_input::text_input,
     window_tab::CommonData,
 };
@@ -64,12 +72,18 @@ struct SettingsItem {
     description: String,
     filter_text: String,
     value: SettingsValue,
+    pos: RwSignal<Point>,
     size: RwSignal<Size>,
+    // this is only the header that give an visual sepeartion between different type of settings
+    header: bool,
 }
 
 #[derive(Clone)]
 struct SettingsData {
     items: im::Vector<SettingsItem>,
+    kinds: im::Vector<(String, RwSignal<Point>)>,
+    plugin_items: RwSignal<im::Vector<SettingsItem>>,
+    plugin_kinds: RwSignal<im::Vector<(String, RwSignal<Point>)>>,
     filtered_items: RwSignal<im::Vector<SettingsItem>>,
     common: CommonData,
 }
@@ -111,7 +125,11 @@ impl VirtualListVector<SettingsItem> for SettingsData {
 }
 
 impl SettingsData {
-    pub fn new(cx: Scope, common: CommonData) -> Self {
+    pub fn new(
+        cx: Scope,
+        installed_plugin: RwSignal<IndexMap<VoltID, InstalledVoltData>>,
+        common: CommonData,
+    ) -> Self {
         fn into_settings_map(
             data: &impl Serialize,
         ) -> serde_json::Map<String, serde_json::Value> {
@@ -123,6 +141,8 @@ impl SettingsData {
 
         let config = common.config.get_untracked();
         let mut items = im::Vector::new();
+        let mut kinds = im::Vector::new();
+        let mut item_height_accum = 0.0;
 
         for (kind, fields, descs, mut settings_map) in [
             (
@@ -150,6 +170,19 @@ impl SettingsData {
                 into_settings_map(&config.terminal),
             ),
         ] {
+            let pos = cx.create_rw_signal(Point::new(0.0, item_height_accum));
+            items.push_back(SettingsItem {
+                kind: kind.to_string(),
+                name: "".to_string(),
+                field: "".to_string(),
+                filter_text: "".to_string(),
+                description: "".to_string(),
+                value: SettingsValue::Empty,
+                pos,
+                size: cx.create_rw_signal(Size::ZERO),
+                header: true,
+            });
+            kinds.push_back((format!("{kind} Settings"), pos));
             for (name, desc) in fields.iter().zip(descs.iter()) {
                 let field = name.replace('_', "-");
 
@@ -175,79 +208,278 @@ impl SettingsData {
                     filter_text,
                     description: desc.to_string(),
                     value,
+                    pos: cx.create_rw_signal(Point::ZERO),
                     size: cx.create_rw_signal(Size::ZERO),
+                    header: false,
                 });
+                item_height_accum += 50.0;
             }
         }
 
+        let plugin_items = cx.create_rw_signal(im::Vector::new());
+        let plugin_kinds = cx.create_rw_signal(im::Vector::new());
+
+        cx.create_effect(move |_| {
+            let mut item_height_accum = item_height_accum;
+            let plugins = installed_plugin.get();
+            let mut items = im::Vector::new();
+            let mut kinds = im::Vector::new();
+            for (_, volt) in plugins {
+                let meta = volt.meta.get();
+                let kind = meta.name;
+                let plugin_config = config.plugins.get(&kind);
+                if let Some(config) = meta.config {
+                    let pos =
+                        cx.create_rw_signal(Point::new(0.0, item_height_accum));
+                    items.push_back(SettingsItem {
+                        kind: meta.display_name.clone(),
+                        name: "".to_string(),
+                        field: "".to_string(),
+                        filter_text: "".to_string(),
+                        description: "".to_string(),
+                        value: SettingsValue::Empty,
+                        pos,
+                        size: cx.create_rw_signal(Size::ZERO),
+                        header: true,
+                    });
+                    kinds.push_back((meta.display_name.clone(), pos));
+
+                    {
+                        let mut local_items = Vec::new();
+                        for (name, config) in config {
+                            let field = name.clone();
+
+                            let name = format!(
+                                "{}: {}",
+                                meta.display_name,
+                                name.replace('_', " ").to_title_case()
+                            );
+                            let desc = config.description;
+                            let filter_text =
+                                format!("{kind} {name} {desc}").to_lowercase();
+                            let filter_text = format!(
+                                "{filter_text}{}",
+                                filter_text.replace(' ', "")
+                            );
+
+                            let value = plugin_config
+                                .and_then(|config| config.get(&field).cloned())
+                                .unwrap_or(config.default);
+                            let value = SettingsValue::from(value);
+
+                            let item = SettingsItem {
+                                kind: kind.clone(),
+                                name,
+                                field,
+                                filter_text,
+                                description: desc.to_string(),
+                                value,
+                                pos: cx.create_rw_signal(Point::ZERO),
+                                size: cx.create_rw_signal(Size::ZERO),
+                                header: false,
+                            };
+                            local_items.push(item);
+                            item_height_accum += 50.0;
+                        }
+                        local_items.sort_by_key(|i| i.name.clone());
+                        items.extend(local_items.into_iter());
+                    }
+                }
+            }
+            plugin_items.set(items);
+            plugin_kinds.set(kinds);
+        });
+
         Self {
             filtered_items: cx.create_rw_signal(items.clone()),
+            plugin_items,
+            plugin_kinds,
             items,
+            kinds,
             common,
         }
     }
 }
 
-pub fn settings_view(common: CommonData) -> impl View {
+pub fn settings_view(
+    installed_plugins: RwSignal<IndexMap<VoltID, InstalledVoltData>>,
+    common: CommonData,
+) -> impl View {
     let config = common.config;
 
     let cx = Scope::current();
-    let settings_data = SettingsData::new(cx, common.clone());
+    let settings_data = SettingsData::new(cx, installed_plugins, common.clone());
     let view_settings_data = settings_data.clone();
+    let plugin_kinds = settings_data.plugin_kinds;
 
     let search_editor = EditorData::new_local(cx, EditorId::next(), common);
     let doc = search_editor.view.doc;
 
     let items = settings_data.items.clone();
+    let kinds = settings_data.kinds.clone();
     let filtered_items_signal = settings_data.filtered_items;
-    create_effect(move |last| {
-        let rev = doc.with(|doc| doc.rev());
-
-        if last == Some(rev) {
-            return rev;
-        }
-
-        let pattern =
-            doc.with_untracked(|doc| doc.buffer().to_string().to_lowercase());
+    create_effect(move |_| {
+        let pattern = doc.with(|doc| doc.buffer().to_string().to_lowercase());
+        let plugin_items = settings_data.plugin_items.get();
 
         if pattern.is_empty() {
-            filtered_items_signal.set(items.clone());
-            return rev;
+            let mut items = items.clone();
+            items.extend(plugin_items.into_iter());
+            filtered_items_signal.set(items);
+            return;
         }
 
         let mut filtered_items = im::Vector::new();
         for item in &items {
-            if item.filter_text.contains(&pattern) {
+            if item.header || item.filter_text.contains(&pattern) {
                 filtered_items.push_back(item.clone());
             }
         }
+        for item in plugin_items {
+            if item.header || item.filter_text.contains(&pattern) {
+                filtered_items.push_back(item);
+            }
+        }
         filtered_items_signal.set(filtered_items);
-
-        rev
     });
+
+    let ensure_visible = create_rw_signal(Rect::ZERO);
+    let settings_content_size = create_rw_signal(Size::ZERO);
+    let scroll_pos = create_rw_signal(Point::ZERO);
+
+    let current_kind = {
+        let kinds = kinds.clone();
+        create_memo(move |_| {
+            let scroll_pos = scroll_pos.get();
+            let scroll_y = scroll_pos.y + 30.0;
+
+            let plugin_kinds = plugin_kinds.get_untracked();
+            for (kind, pos) in plugin_kinds.iter().rev() {
+                if pos.get_untracked().y < scroll_y {
+                    return kind.to_string();
+                }
+            }
+
+            for (kind, pos) in kinds.iter().rev() {
+                if pos.get_untracked().y < scroll_y {
+                    return kind.to_string();
+                }
+            }
+
+            kinds.get(0).unwrap().0.to_string()
+        })
+    };
+
+    let switcher_item = move |k: String,
+                              pos: Box<dyn Fn() -> Option<RwSignal<Point>>>,
+                              margin: f32| {
+        let kind = k.clone();
+        container(|| {
+            label(move || k.clone())
+                .style(move || Style::BASE.text_ellipsis().padding_left_px(margin))
+        })
+        .on_click(move |_| {
+            if let Some(pos) = pos() {
+                ensure_visible.set(
+                    settings_content_size
+                        .get_untracked()
+                        .to_rect()
+                        .with_origin(pos.get_untracked()),
+                );
+            }
+            true
+        })
+        .style(move || {
+            Style::BASE
+                .padding_horiz_px(20.0)
+                .width_pct(100.0)
+                .apply_if(kind == current_kind.get(), |s| {
+                    s.background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
+                    )
+                })
+        })
+        .hover_style(move || {
+            Style::BASE.cursor(CursorStyle::Pointer).background(
+                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+            )
+        })
+        .active_style(move || {
+            Style::BASE.background(
+                *config
+                    .get()
+                    .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+            )
+        })
+    };
+
+    let switcher = || {
+        stack(move || {
+            (
+                list(
+                    move || kinds.clone(),
+                    |(k, _)| k.clone(),
+                    move |(k, pos)| {
+                        switcher_item(k, Box::new(move || Some(pos)), 0.0)
+                    },
+                )
+                .style(|| Style::BASE.flex_col().width_pct(100.0)),
+                stack(|| {
+                    (
+                        switcher_item(
+                            "Plugin Settings".to_string(),
+                            Box::new(move || {
+                                plugin_kinds.with_untracked(|k| {
+                                    k.get(0).map(|(_, pos)| *pos)
+                                })
+                            }),
+                            0.0,
+                        ),
+                        list(
+                            move || plugin_kinds.get(),
+                            |(k, _)| k.clone(),
+                            move |(k, pos)| {
+                                switcher_item(k, Box::new(move || Some(pos)), 10.0)
+                            },
+                        )
+                        .style(|| Style::BASE.flex_col().width_pct(100.0)),
+                    )
+                })
+                .style(move || {
+                    Style::BASE
+                        .width_pct(100.0)
+                        .flex_col()
+                        .apply_if(plugin_kinds.with(|k| k.is_empty()), |s| s.hide())
+                }),
+            )
+        })
+        .style(move || {
+            Style::BASE
+                .width_pct(100.0)
+                .flex_col()
+                .line_height(1.6)
+                .font_size(config.get().ui.font_size() as f32 + 1.0)
+        })
+    };
 
     stack(move || {
         (
-            stack(move || {
-                (
-                    label(|| "Core Settings".to_string())
-                        .style(|| Style::BASE.text_ellipsis()),
-                    label(|| "Editor Settings".to_string())
-                        .style(|| Style::BASE.text_ellipsis()),
-                    label(|| "UI Settings".to_string())
-                        .style(|| Style::BASE.text_ellipsis()),
-                    label(|| "Terminal Settings".to_string())
-                        .style(|| Style::BASE.text_ellipsis()),
-                )
+            container(|| {
+                scroll(|| {
+                    container(switcher)
+                        .style(|| Style::BASE.padding_vert_px(20.0).width_pct(100.0))
+                })
+                .scroll_bar_color(move || {
+                    *config.get().get_color(LapceColor::LAPCE_BORDER)
+                })
+                .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
             })
             .style(move || {
                 Style::BASE
-                    .flex_col()
-                    .line_height(1.6)
+                    .height_pct(100.0)
                     .width_px(200.0)
-                    .padding_left_px(20.0)
-                    .padding_right_px(10.0)
-                    .padding_top_px(20.0)
                     .border_right(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
             }),
@@ -297,6 +529,13 @@ pub fn settings_view(common: CommonData) -> impl View {
                                     .min_width_pct(100.0)
                                     .max_width_px(400.0)
                             })
+                        })
+                        .on_scroll(move |rect| {
+                            scroll_pos.set(rect.origin());
+                        })
+                        .on_ensure_visible(move || ensure_visible.get())
+                        .on_resize(move |_, rect| {
+                            settings_content_size.set(rect.size());
                         })
                         .scroll_bar_color(move || {
                             *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
@@ -545,6 +784,21 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                         .style(move || Style::BASE.width_px(250.0).line_height(1.8)),
                     )
                 })
+            } else if item.header {
+                container_box(|| {
+                    Box::new(label(move || item.kind.clone()).style(move || {
+                        let config = config.get();
+                        Style::BASE
+                            .line_height(2.0)
+                            .font_bold()
+                            .width_pct(100.0)
+                            .padding_horiz_px(10.0)
+                            .font_size(config.ui.font_size() as f32 + 2.0)
+                            .background(
+                                *config.get_color(LapceColor::PANEL_BACKGROUND),
+                            )
+                    }))
+                })
             } else {
                 container_box(|| Box::new(empty()))
             }
@@ -574,6 +828,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                     config.get().ui.font_size() as f32 + 8.0,
                                 )
                             })
+                            .apply_if(item.header, |s| s.hide())
                     }),
                     if let Some(is_ticked) = is_ticked {
                         let checked = create_rw_signal(is_ticked);
@@ -624,10 +879,15 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     },
                 )
             }),
-            view().style(|| Style::BASE.margin_top_px(6.0)),
+            view().style(move || {
+                Style::BASE.apply_if(!item.header, |s| s.margin_top_px(6.0))
+            }),
         )
     })
     .on_resize(move |_, rect| {
+        if item.header {
+            item.pos.set(rect.origin());
+        }
         let old_size = item.size.get_untracked();
         let new_size = rect.size();
         if old_size != new_size {
