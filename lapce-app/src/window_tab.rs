@@ -553,7 +553,7 @@ impl WindowTabData {
                             });
 
                             if should_save {
-                                editor_data.save( true,|| {});
+                                editor_data.save(true, || {});
                             }
                         });
                     }
