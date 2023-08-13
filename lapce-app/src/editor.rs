@@ -1882,8 +1882,22 @@ impl EditorData {
             cursor.add_region(
                 start,
                 end,
-                pointer_event.modifiers.contains(Modifiers::SHIFT),
-                pointer_event.modifiers.contains(Modifiers::ALT),
+                pointer_event.modifiers.contains(
+                    self.common
+                        .config
+                        .get_untracked()
+                        .editor
+                        .multi_select_key_modifier
+                        .into(),
+                ),
+                pointer_event.modifiers.contains(
+                    self.common
+                        .config
+                        .get_untracked()
+                        .editor
+                        .multi_cursor_key_modifier
+                        .into(),
+                ),
             )
         });
     }
@@ -1899,8 +1913,22 @@ impl EditorData {
             cursor.add_region(
                 start,
                 end,
-                pointer_event.modifiers.contains(Modifiers::SHIFT),
-                pointer_event.modifiers.contains(Modifiers::ALT),
+                pointer_event.modifiers.contains(
+                    self.common
+                        .config
+                        .get_untracked()
+                        .editor
+                        .multi_select_key_modifier
+                        .into(),
+                ),
+                pointer_event.modifiers.contains(
+                    self.common
+                        .config
+                        .get_untracked()
+                        .editor
+                        .multi_cursor_key_modifier
+                        .into(),
+                ),
             )
         });
     }

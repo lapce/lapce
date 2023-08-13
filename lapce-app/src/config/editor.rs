@@ -153,6 +153,46 @@ pub struct EditorConfig {
         desc = "Set the default number of visible lines above and below the diff block (-1 for infinite)"
     )]
     pub diff_context_lines: i32,
+    #[field_names(desc = "Multi-cursor key modifier.")]
+    pub multi_cursor_key_modifier: ModifierKeys,
+    #[field_names(desc = "Selection key modifier.")]
+    pub multi_select_key_modifier: ModifierKeys,
+}
+
+type MultiCursorKeyModifier = ModifierKeys;
+
+impl Default for MultiCursorKeyModifier {
+    fn default() -> Self {
+        Self::Alt
+    }
+}
+
+type MultiSelectKeyModifier = ModifierKeys;
+
+impl Default for MultiSelectKeyModifier {
+    fn default() -> Self {
+        Self::CtrlCmd
+    }
+}
+
+enum ModifierKeys {
+    /// Maps to Alt on Windows/Linux and Option on macOS
+    Alt,
+    /// Maps to Control on Windows/Linux and to Command on macOS
+    CtrlCmd,
+}
+
+impl Into<floem::glazier::keyboard_types::modifiers::Modifiers> for ModifierKeys {
+    fn into(self) -> keyboard_types::modifiers::Modifiers {
+        use floem::glazier::keyboard_types::modifiers::Modifiers;
+        match self {
+            ModifierKeys::Alt => Modifiers::ALT,
+            #[cfg(not(target_os = "macos"))]
+            ModifierKeys::CtrlCmd => Modifiers::CONTROL,
+            #[cfg(target_os = "macos")]
+            ModifierKeys::CtrlCmd => Modifiers::META,
+        }
+    }
 }
 
 impl EditorConfig {
