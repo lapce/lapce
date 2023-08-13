@@ -51,7 +51,7 @@ use lsp_types::CompletionItemKind;
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use tracing::{error, metadata::LevelFilter, trace};
-use tracing_subscriber::{filter::FilterFn, reload::Handle};
+use tracing_subscriber::{filter::Targets, reload::Handle};
 
 use crate::{
     about, alert,
@@ -107,10 +107,6 @@ struct Cli {
     #[clap(short, long, action)]
     wait: bool,
 
-    /// Manually set log level
-    #[clap(short, long)]
-    log_level: Option<String>,
-
     /// Paths to file(s) and/or folder(s) to open.
     /// When path is a file (that exists or not),
     /// it accepts `path:line:column` syntax
@@ -143,7 +139,7 @@ pub struct AppData {
     /// The latest release information
     pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
     pub watcher: Arc<notify::RecommendedWatcher>,
-    pub tracing_handle: Handle<LevelFilter>,
+    pub tracing_handle: Handle<Targets>,
 }
 
 impl AppData {
@@ -2633,8 +2629,10 @@ fn app_view(window_data: WindowData) -> impl View {
     })
 }
 
-pub fn launch() {
+#[inline(always)]
+fn logging() -> Handle<Targets> {
     use tracing_subscriber::{filter, fmt, prelude::*, reload};
+
     let file_appender = tracing_appender::rolling::Builder::new()
         .max_log_files(10)
         .rotation(tracing_appender::rolling::Rotation::DAILY)
@@ -2643,21 +2641,31 @@ pub fn launch() {
         .build(Directory::logs_directory().expect("Failed to obtain log directory"))
         .expect("Couldn't create rolling appender");
     let (log_file, _guard) = tracing_appender::non_blocking(file_appender);
-    let (filter, reload_handle) =
-        reload::Subscriber::new(filter::LevelFilter::ERROR);
-
+    let log_file_filter_targets = filter::Targets::new()
+        .with_target("lapce_app", LevelFilter::DEBUG)
+        .with_target("lapce_proxy", LevelFilter::DEBUG);
+    let (log_file_filter, reload_handle) =
+        reload::Subscriber::new(log_file_filter_targets);
     let file_layer = tracing_subscriber::fmt::subscriber()
         .with_ansi(false)
-        .with_writer(log_file);
+        .with_writer(log_file)
+        .with_filter(log_file_filter);
+
+    let console_filter_targets = std::env::var("LAPCE_LOG")
+        .unwrap_or_default()
+        .parse::<filter::Targets>()
+        .unwrap_or_default();
+
     tracing_subscriber::registry()
-        .with(filter)
         .with(file_layer)
-        .with(
-            fmt::Subscriber::default().with_filter(FilterFn::new(|metadata| {
-                metadata.target().starts_with("lapce_app")
-            })),
-        )
+        .with(fmt::Subscriber::default().with_filter(console_filter_targets))
         .init();
+
+    reload_handle
+}
+
+pub fn launch() {
+    let reload_handle = logging();
 
     // if PWD is not set, then we are not being launched via a terminal
     #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -2666,24 +2674,6 @@ pub fn launch() {
     }
 
     let cli = Cli::parse();
-
-    if let Some(log_level) = cli.log_level {
-        if let Err(e) = reload_handle.modify(|filter| {
-            *filter = match log_level.to_lowercase().as_str() {
-                "off" => filter::LevelFilter::OFF,
-                "error" => filter::LevelFilter::ERROR,
-                "warn" => filter::LevelFilter::WARN,
-                "info" => filter::LevelFilter::INFO,
-                "debug" => filter::LevelFilter::DEBUG,
-                "trace" => filter::LevelFilter::TRACE,
-                val => {
-                    panic!("ignored unknown log level: '{val}'");
-                }
-            }
-        }) {
-            error!("Failed to modify log level: {e}");
-        };
-    }
 
     // small hack to unblock terminal if launched from it
     // launch it as a separate process that waits
