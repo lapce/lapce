@@ -151,8 +151,7 @@ impl AppData {
     }
 
     pub fn active_window_tab(&self) -> Option<Arc<WindowTabData>> {
-        let windows = self.windows.get_untracked();
-        if let Some((_, window)) = windows.iter().next() {
+        if let Some(window) = self.active_window() {
             return window.active_window_tab();
         }
         None
