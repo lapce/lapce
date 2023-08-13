@@ -59,11 +59,15 @@ impl Buffer {
         } else {
             self.path.clone()
         };
+        let new_file = !path.exists();
 
         let bak_file_path = &path.with_extension(bak_extension);
-        fs::copy(&path, bak_file_path)?;
+        if !new_file {
+            fs::copy(&path, bak_file_path)?;
+        }
 
         let mut f = fs::OpenOptions::new()
+            .create_new(true)
             .write(true)
             .truncate(true)
             .open(&path)?;
@@ -72,7 +76,9 @@ impl Buffer {
         }
 
         self.mod_time = get_mod_time(&path);
-        fs::remove_file(bak_file_path)?;
+        if !new_file {
+            fs::remove_file(bak_file_path)?;
+        }
 
         Ok(())
     }
