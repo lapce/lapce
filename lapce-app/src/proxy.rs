@@ -6,7 +6,7 @@ use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRpcHandler},
     plugin::VoltID,
-    proxy::ProxyRpcHandler,
+    proxy::{ProxyRpcHandler, ProxyStatus},
     terminal::TermId,
 };
 use lsp_types::Url;
@@ -55,6 +55,9 @@ pub fn start_proxy(
         let core_rpc = core_rpc.clone();
         let proxy_rpc = proxy_rpc.clone();
         std::thread::spawn(move || {
+            core_rpc.notification(CoreNotification::ProxyStatus {
+                status: ProxyStatus::Connecting,
+            });
             proxy_rpc.initialize(
                 workspace.path.clone(),
                 disabled_volts,
@@ -109,6 +112,9 @@ pub fn start_proxy(
         std::thread::spawn(move || {
             let mut proxy = Proxy { tx, term_tx };
             core_rpc.mainloop(&mut proxy);
+            core_rpc.notification(CoreNotification::ProxyStatus {
+                status: ProxyStatus::Connected,
+            });
         })
     };
 

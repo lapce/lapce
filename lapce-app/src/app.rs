@@ -41,14 +41,13 @@ use lapce_core::{
     command::{EditCommand, FocusCommand},
     directory::Directory,
     meta,
-    mode::Mode,
 };
 use lapce_rpc::{
     core::{CoreMessage, CoreNotification},
     file::PathObject,
     RpcMessage,
 };
-use lsp_types::{CompletionItemKind, DiagnosticSeverity};
+use lsp_types::CompletionItemKind;
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use tracing::{error, metadata::LevelFilter, trace};
@@ -82,15 +81,12 @@ use crate::{
     main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
     palette::{
         item::{PaletteItem, PaletteItemContent},
-        kind::PaletteKind,
         PaletteData, PaletteStatus,
     },
-    panel::{
-        kind::PanelKind, position::PanelContainerPosition,
-        view::panel_container_view,
-    },
+    panel::{position::PanelContainerPosition, view::panel_container_view},
     plugin::PluginData,
     settings::settings_view,
+    status::status,
     text_input::text_input,
     title::title,
     update::ReleaseInfo,
@@ -1195,321 +1191,6 @@ fn workbench(window_tab_data: Arc<WindowTabData>) -> impl View {
     .style(|| Style::BASE.size_pct(100.0, 100.0))
 }
 
-fn status(window_tab_data: Arc<WindowTabData>) -> impl View {
-    let config = window_tab_data.common.config;
-    let diagnostics = window_tab_data.main_split.diagnostics;
-    let editor = window_tab_data.main_split.active_editor;
-    let panel = window_tab_data.panel.clone();
-    let palette = window_tab_data.palette.clone();
-    let diagnostic_count = create_memo(move |_| {
-        let mut errors = 0;
-        let mut warnings = 0;
-        for (_, diagnostics) in diagnostics.get().iter() {
-            for diagnostic in diagnostics.diagnostics.get().iter() {
-                if let Some(severity) = diagnostic.diagnostic.severity {
-                    match severity {
-                        DiagnosticSeverity::ERROR => errors += 1,
-                        DiagnosticSeverity::WARNING => warnings += 1,
-                        _ => (),
-                    }
-                }
-            }
-        }
-        (errors, warnings)
-    });
-
-    let mode = create_memo(move |_| window_tab_data.mode());
-
-    stack(|| {
-        (
-            stack(|| {
-                (
-                    label(move || match mode.get() {
-                        Mode::Normal => "Normal".to_string(),
-                        Mode::Insert => "Insert".to_string(),
-                        Mode::Visual => "Visual".to_string(),
-                        Mode::Terminal => "Terminal".to_string(),
-                    })
-                    .style(move || {
-                        let config = config.get();
-                        let display = if config.core.modal {
-                            Display::Flex
-                        } else {
-                            Display::None
-                        };
-
-                        let (bg, fg) = match mode.get() {
-                            Mode::Normal => (
-                                LapceColor::STATUS_MODAL_NORMAL_BACKGROUND,
-                                LapceColor::STATUS_MODAL_NORMAL_FOREGROUND,
-                            ),
-                            Mode::Insert => (
-                                LapceColor::STATUS_MODAL_INSERT_BACKGROUND,
-                                LapceColor::STATUS_MODAL_INSERT_FOREGROUND,
-                            ),
-                            Mode::Visual => (
-                                LapceColor::STATUS_MODAL_VISUAL_BACKGROUND,
-                                LapceColor::STATUS_MODAL_VISUAL_FOREGROUND,
-                            ),
-                            Mode::Terminal => (
-                                LapceColor::STATUS_MODAL_TERMINAL_BACKGROUND,
-                                LapceColor::STATUS_MODAL_TERMINAL_FOREGROUND,
-                            ),
-                        };
-
-                        let bg = *config.get_color(bg);
-                        let fg = *config.get_color(fg);
-
-                        Style::BASE
-                            .display(display)
-                            .padding_horiz_px(10.0)
-                            .color(fg)
-                            .background(bg)
-                            .height_pct(100.0)
-                            .align_items(Some(AlignItems::Center))
-                    }),
-                    {
-                        let panel = panel.clone();
-                        stack(|| {
-                            (
-                                svg(move || config.get().ui_svg(LapceIcons::ERROR))
-                                    .style(move || {
-                                        let config = config.get();
-                                        let size = config.ui.icon_size() as f32;
-                                        Style::BASE.size_px(size, size).color(
-                                            *config.get_color(
-                                                LapceColor::LAPCE_ICON_ACTIVE,
-                                            ),
-                                        )
-                                    }),
-                                label(move || diagnostic_count.get().0.to_string())
-                                    .style(|| Style::BASE.margin_left_px(5.0)),
-                                svg(move || {
-                                    config.get().ui_svg(LapceIcons::WARNING)
-                                })
-                                .style(move || {
-                                    let config = config.get();
-                                    let size = config.ui.icon_size() as f32;
-                                    Style::BASE
-                                        .size_px(size, size)
-                                        .margin_left_px(5.0)
-                                        .color(*config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ))
-                                }),
-                                label(move || diagnostic_count.get().1.to_string())
-                                    .style(|| Style::BASE.margin_left_px(5.0)),
-                            )
-                        })
-                        .on_click(move |_| {
-                            panel.show_panel(&PanelKind::Problem);
-                            true
-                        })
-                        .style(|| {
-                            Style::BASE
-                                .height_pct(100.0)
-                                .padding_horiz_px(10.0)
-                                .items_center()
-                        })
-                        .hover_style(move || {
-                            Style::BASE.cursor(CursorStyle::Pointer).background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
-                        })
-                    },
-                )
-            })
-            .style(|| {
-                Style::BASE
-                    .height_pct(100.0)
-                    .flex_basis_px(0.0)
-                    .flex_grow(1.0)
-                    .items_center()
-            }),
-            stack(move || {
-                (
-                    {
-                        let panel = panel.clone();
-                        let icon = {
-                            let panel = panel.clone();
-                            move || {
-                                if panel.is_container_shown(
-                                    &PanelContainerPosition::Left,
-                                    true,
-                                ) {
-                                    LapceIcons::SIDEBAR_LEFT
-                                } else {
-                                    LapceIcons::SIDEBAR_LEFT_OFF
-                                }
-                            }
-                        };
-                        clickable_icon(
-                            icon,
-                            move || {
-                                panel.toggle_container_visual(
-                                    &PanelContainerPosition::Left,
-                                )
-                            },
-                            || false,
-                            || false,
-                            config,
-                        )
-                    },
-                    {
-                        let panel = panel.clone();
-                        let icon = {
-                            let panel = panel.clone();
-                            move || {
-                                if panel.is_container_shown(
-                                    &PanelContainerPosition::Bottom,
-                                    true,
-                                ) {
-                                    LapceIcons::LAYOUT_PANEL
-                                } else {
-                                    LapceIcons::LAYOUT_PANEL_OFF
-                                }
-                            }
-                        };
-                        clickable_icon(
-                            icon,
-                            move || {
-                                panel.toggle_container_visual(
-                                    &PanelContainerPosition::Bottom,
-                                )
-                            },
-                            || false,
-                            || false,
-                            config,
-                        )
-                    },
-                    {
-                        let panel = panel.clone();
-                        let icon = {
-                            let panel = panel.clone();
-                            move || {
-                                if panel.is_container_shown(
-                                    &PanelContainerPosition::Right,
-                                    true,
-                                ) {
-                                    LapceIcons::SIDEBAR_RIGHT
-                                } else {
-                                    LapceIcons::SIDEBAR_RIGHT_OFF
-                                }
-                            }
-                        };
-                        clickable_icon(
-                            icon,
-                            move || {
-                                panel.toggle_container_visual(
-                                    &PanelContainerPosition::Right,
-                                )
-                            },
-                            || false,
-                            || false,
-                            config,
-                        )
-                    },
-                )
-            })
-            .style(|| Style::BASE.height_pct(100.0).items_center()),
-            stack(|| {
-                let palette_clone = palette.clone();
-                let cursor_info = label(move || {
-                    if let Some(editor) = editor.get() {
-                        let mut status = String::new();
-                        let cursor = editor.get().cursor.get();
-                        if let Some((line, column, character)) = cursor
-                            .get_line_col_char(editor.get().view.doc.get().buffer())
-                        {
-                            status = format!(
-                                "Ln {}, Col {}, Char {}",
-                                line, column, character,
-                            );
-                        }
-                        if let Some(selection) = cursor.get_selection() {
-                            let selection_range = selection.0.abs_diff(selection.1);
-
-                            if selection.0 != selection.1 {
-                                status =
-                                    format!("{status} ({selection_range} selected)");
-                            }
-                        }
-                        let selection_count = cursor.get_selection_count();
-                        if selection_count > 1 {
-                            status =
-                                format!("{status} {selection_count} selections");
-                        }
-                        return status;
-                    }
-                    String::from("No document")
-                })
-                .on_click(move |_| {
-                    palette_clone.run(PaletteKind::Line);
-                    true
-                })
-                .style(|| {
-                    Style::BASE
-                        .height_pct(100.0)
-                        .padding_horiz_px(10.0)
-                        .items_center()
-                })
-                .hover_style(move || {
-                    Style::BASE.cursor(CursorStyle::Pointer).background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
-                });
-                let palette_clone = palette.clone();
-                let language_info = label(move || {
-                    if let Some(editor) = editor.get() {
-                        let doc = editor.with(|editor| editor.view.doc);
-                        doc.with(|doc| doc.syntax().language.to_string())
-                    } else {
-                        "Plain Text".to_string() // FIXME: remove
-                    }
-                })
-                .on_click(move |_| {
-                    palette_clone.run(PaletteKind::Language);
-                    true
-                })
-                .style(|| {
-                    Style::BASE
-                        .height_pct(100.0)
-                        .padding_horiz_px(10.0)
-                        .items_center()
-                })
-                .hover_style(move || {
-                    Style::BASE.cursor(CursorStyle::Pointer).background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
-                });
-                (cursor_info, language_info)
-            })
-            .style(|| {
-                Style::BASE
-                    .height_pct(100.0)
-                    .flex_basis_px(0.0)
-                    .flex_grow(1.0)
-                    .justify_end()
-            }),
-        )
-    })
-    .style(move || {
-        let config = config.get();
-        Style::BASE
-            .border_top(1.0)
-            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-            .background(*config.get_color(LapceColor::STATUS_BACKGROUND))
-            .height_px(config.ui.status_height() as f32)
-            .align_items(Some(AlignItems::Center))
-    })
-}
-
 fn palette_item(
     workspace: Arc<LapceWorkspace>,
     i: usize,
@@ -2522,6 +2203,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let workbench_command = window_tab_data.common.workbench_command;
     let main_split = window_tab_data.main_split.clone();
     let window_tab_scope = window_tab_data.scope;
+    let proxy_status = window_tab_data.common.proxy_status;
 
     let view = stack(|| {
         (
@@ -2530,14 +2212,19 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
                     title(
                         workspace,
                         main_split,
-                        source_control,
                         workbench_command,
                         latest_release,
                         update_in_progress,
                         config,
+                        proxy_status,
                     ),
                     workbench(window_tab_data.clone()),
-                    status(window_tab_data.clone()),
+                    status(
+                        window_tab_data.clone(),
+                        source_control,
+                        workbench_command,
+                        config,
+                    ),
                 )
             })
             .on_resize(move |point, rect| {

@@ -4,12 +4,13 @@ use floem::{
     menu::{Menu, MenuItem},
     peniko::kurbo::Point,
     reactive::{create_memo, ReadSignal, RwSignal},
-    style::{AlignItems, CursorStyle, Dimension, Display, JustifyContent, Style},
+    style::{AlignItems, CursorStyle, Dimension, JustifyContent, Style},
     view::View,
     views::{container, label, stack, svg, Decorators},
     ViewContext,
 };
 use lapce_core::meta;
+use lapce_rpc::proxy::ProxyStatus;
 
 use crate::{
     app::clickable_icon,
@@ -17,104 +18,71 @@ use crate::{
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     listener::Listener,
     main_split::MainSplitData,
-    source_control::SourceControlData,
     update::ReleaseInfo,
-    workspace::LapceWorkspace,
+    workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
 fn left(
-    source_control: SourceControlData,
+    workspace: Arc<LapceWorkspace>,
     workbench_command: Listener<LapceWorkbenchCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
+    proxy_status: RwSignal<Option<ProxyStatus>>,
 ) -> impl View {
-    let branch = source_control.branch;
-    let file_diffs = source_control.file_diffs;
-    let branch = move || {
-        format!(
-            "{}{}",
-            branch.get(),
-            if file_diffs.with(|diffs| diffs.is_empty()) {
-                ""
-            } else {
-                "*"
-            }
-        )
-    };
+    let remote = workspace.kind.clone();
     let id = ViewContext::get_current().id;
     stack(move || {
-        (
-            container(move || {
-                svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(
-                    move || {
-                        Style::BASE.size_px(26.0, 26.0).color(
-                            *config.get().get_color(LapceColor::LAPCE_REMOTE_ICON),
-                        )
+        (container(move || {
+            svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(move || {
+                Style::BASE.size_px(26.0, 26.0).color(match remote {
+                    LapceWorkspaceType::Local => {
+                        *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL)
+                    }
+                    _ => match proxy_status.get() {
+                        Some(ProxyStatus::Connected) => *config
+                            .get()
+                            .get_color(LapceColor::LAPCE_REMOTE_CONNECTED),
+                        Some(ProxyStatus::Connecting) => *config
+                            .get()
+                            .get_color(LapceColor::LAPCE_REMOTE_CONNECTING),
+                        Some(ProxyStatus::Disconnected) => *config
+                            .get()
+                            .get_color(LapceColor::LAPCE_REMOTE_DISCONNECTED),
+                        None => {
+                            *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL)
+                        }
                     },
-                )
+                })
             })
-            .on_click(move |_| {
-                #[allow(unused_mut)]
-                let mut menu = Menu::new("").entry(
-                    MenuItem::new("Connect to SSH Host").action(move || {
-                        workbench_command
-                            .send(LapceWorkbenchCommand::ConnectSshHost);
-                    }),
-                );
-                #[cfg(windows)]
-                {
-                    menu = menu.entry(MenuItem::new("Connect to WSL").action(
-                        move || {
-                            workbench_command
-                                .send(LapceWorkbenchCommand::ConnectWsl);
-                        },
-                    ));
-                }
-                id.show_context_menu(menu, Point::ZERO);
-                true
-            })
-            .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer))
-            .style(move || {
-                Style::BASE
-                    .height_pct(100.0)
-                    .padding_horiz_px(10.0)
-                    .items_center()
-                    .background(
-                        *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL),
-                    )
-            }),
-            stack(move || {
-                (
-                    svg(move || config.get().ui_svg(LapceIcons::SCM)).style(
-                        move || {
-                            let config = config.get();
-                            let icon_size = config.ui.icon_size() as f32;
-                            Style::BASE.size_px(icon_size, icon_size).color(
-                                *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                            )
-                        },
-                    ),
-                    label(branch).style(|| Style::BASE.margin_left_px(10.0)),
-                )
-            })
-            .style(move || {
-                Style::BASE
-                    .display(if branch().is_empty() {
-                        Display::None
-                    } else {
-                        Display::Flex
-                    })
-                    .height_pct(100.0)
-                    .padding_horiz_px(10.0)
-                    .border_right(1.0)
-                    .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
-                    .align_items(Some(AlignItems::Center))
-            })
-            .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer))
-            .on_click(move |_| {
-                workbench_command.send(LapceWorkbenchCommand::PaletteSCMReferences);
-                true
-            }),
-        )
+        })
+        .on_click(move |_| {
+            #[allow(unused_mut)]
+            let mut menu = Menu::new("").entry(
+                MenuItem::new("Connect to SSH Host").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::ConnectSshHost);
+                }),
+            );
+            #[cfg(windows)]
+            {
+                menu =
+                    menu.entry(MenuItem::new("Connect to WSL").action(move || {
+                        workbench_command.send(LapceWorkbenchCommand::ConnectWsl);
+                    }));
+            }
+            id.show_context_menu(menu, Point::ZERO);
+            true
+        })
+        .hover_style(move || {
+            Style::BASE.cursor(CursorStyle::Pointer).background(
+                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+            )
+        })
+        .style(move || {
+            Style::BASE
+                .height_pct(100.0)
+                .padding_horiz_px(10.0)
+                .items_center()
+                .background(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
+        }),)
     })
     .style(move || {
         Style::BASE
@@ -400,15 +368,15 @@ fn right(
 pub fn title(
     workspace: Arc<LapceWorkspace>,
     main_split: MainSplitData,
-    source_control: SourceControlData,
     workbench_command: Listener<LapceWorkbenchCommand>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     update_in_progress: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
+    proxy_status: RwSignal<Option<ProxyStatus>>,
 ) -> impl View {
     stack(move || {
         (
-            left(source_control, workbench_command, config),
+            left(workspace.clone(), workbench_command, config, proxy_status),
             middle(workspace, main_split, workbench_command, config),
             right(
                 workbench_command,

@@ -11,8 +11,12 @@ use floem::{
 use itertools::Itertools;
 use lapce_core::{directory::Directory, meta, mode::Mode, register::Register};
 use lapce_rpc::{
-    core::CoreNotification, dap_types::RunDebugConfig, file::PathObject,
-    proxy::ProxyRpcHandler, source_control::FileDiff, terminal::TermId,
+    core::CoreNotification,
+    dap_types::RunDebugConfig,
+    file::PathObject,
+    proxy::{ProxyRpcHandler, ProxyStatus},
+    source_control::FileDiff,
+    terminal::TermId,
 };
 use serde_json::Value;
 use tracing::{debug, error};
@@ -99,6 +103,7 @@ pub struct CommonData {
     pub ui_line_height: Memo<f64>,
     pub dragging: RwSignal<Option<DragContent>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
+    pub proxy_status: RwSignal<Option<ProxyStatus>>,
 }
 
 #[derive(Clone)]
@@ -188,6 +193,7 @@ impl WindowTabData {
         let internal_command = Listener::new_empty(cx);
         let keypress =
             cx.create_rw_signal(KeyPressData::new(cx, &config, workbench_command));
+        let proxy_status = cx.create_rw_signal(None);
 
         let (term_tx, term_rx) = crossbeam_channel::unbounded();
         let (term_notification_tx, term_notification_rx) =
@@ -248,6 +254,7 @@ impl WindowTabData {
             ui_line_height,
             dragging: cx.create_rw_signal(None),
             config,
+            proxy_status,
         };
 
         let main_split = MainSplitData::new(cx, common.clone());
@@ -1263,12 +1270,18 @@ impl WindowTabData {
             InternalCommand::SaveScratchDoc { doc } => {
                 self.main_split.save_scratch_doc(doc);
             }
+            InternalCommand::UpdateProxyStatus { status } => {
+                self.common.proxy_status.set(Some(status));
+            }
         }
     }
 
     fn handle_core_notification(&self, rpc: &CoreNotification) {
         let cx = self.scope;
         match rpc {
+            CoreNotification::ProxyStatus { status } => {
+                self.common.proxy_status.set(Some(status.to_owned()));
+            }
             CoreNotification::DiffInfo { diff } => {
                 self.source_control.branch.set(diff.head.clone());
                 self.source_control
