@@ -137,10 +137,6 @@ pub fn status(
                             })
                             .height_pct(100.0)
                             .padding_horiz_px(10.0)
-                            .border_right(1.0)
-                            .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
-                            )
                             .align_items(Some(AlignItems::Center))
                     })
                     .on_click(move |_| {
