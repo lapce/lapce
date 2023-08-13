@@ -1,6 +1,7 @@
 use std::{ops::Range, sync::Arc};
 
 use floem::{
+    action::show_context_menu,
     event::EventListener,
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Size},
@@ -112,7 +113,6 @@ fn installed_view(plugin: PluginData) -> impl View {
     let ui_line_height = plugin.common.ui_line_height;
     let volts = plugin.installed;
     let config = plugin.common.config;
-    let view_id = plugin.common.view_id;
     let disabled = plugin.disabled;
     let workspace_disabled = plugin.workspace_disabled;
 
@@ -187,7 +187,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                             plugin.uninstall_volt(meta.clone());
                         }
                     }));
-            view_id.get_untracked().show_context_menu(menu, Point::ZERO);
+            show_context_menu(menu, Point::ZERO);
         }
     };
 

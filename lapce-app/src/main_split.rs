@@ -5,6 +5,7 @@ use std::{
 };
 
 use floem::{
+    action::save_as,
     ext_event::create_ext_action,
     glazier::{FileDialogOptions, FileInfo, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
@@ -1610,7 +1611,6 @@ impl MainSplitData {
             if let Some((name, doc, editor)) =
                 self.editor_tab_child_close_warning(&child)
             {
-                let view_id = self.common.view_id.get_untracked();
                 let internal_command = self.common.internal_command;
                 let main_split = self.clone();
 
@@ -1622,7 +1622,7 @@ impl MainSplitData {
                             let child = child.clone();
                             let main_split = main_split.clone();
                             internal_command.send(InternalCommand::HideAlert);
-                            view_id.save_as(
+                            save_as(
                                 FileDialogOptions::new(),
                                 move |file: Option<FileInfo>| {
                                     let main_split = main_split.clone();
@@ -2049,9 +2049,8 @@ impl MainSplitData {
     }
 
     pub fn save_scratch_doc(&self, doc: RwSignal<Document>) {
-        let view_id = self.common.view_id.get_untracked();
         let main_split = self.clone();
-        view_id.save_as(FileDialogOptions::new(), move |file: Option<FileInfo>| {
+        save_as(FileDialogOptions::new(), move |file: Option<FileInfo>| {
             if let Some(file) = file {
                 main_split.save_as(doc, file.path, move || {});
             }

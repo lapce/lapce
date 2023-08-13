@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use floem::{
+    action::show_context_menu,
     menu::{Menu, MenuItem},
     peniko::kurbo::Point,
     reactive::{create_memo, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Dimension, JustifyContent, Style},
     view::View,
     views::{container, label, stack, svg, Decorators},
-    ViewContext,
 };
 use lapce_core::meta;
 use lapce_rpc::proxy::ProxyStatus;
@@ -29,7 +29,6 @@ fn left(
     proxy_status: RwSignal<Option<ProxyStatus>>,
 ) -> impl View {
     let remote = workspace.kind.clone();
-    let id = ViewContext::get_current().id;
     stack(move || {
         (container(move || {
             svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(move || {
@@ -68,7 +67,7 @@ fn left(
                         workbench_command.send(LapceWorkbenchCommand::ConnectWsl);
                     }));
             }
-            id.show_context_menu(menu, Point::ZERO);
+            show_context_menu(menu, Point::ZERO);
             true
         })
         .hover_style(move || {
@@ -133,11 +132,10 @@ fn middle(
     };
 
     let open_folder = move || {
-        let id = ViewContext::get_current().id;
         clickable_icon(
             || LapceIcons::PALETTE_MENU,
             move || {
-                id.show_context_menu(
+                show_context_menu(
                     Menu::new("")
                         .entry(MenuItem::new("Open Folder").action(move || {
                             workbench_command
@@ -252,7 +250,6 @@ fn right(
     update_in_progress: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let cx = ViewContext::get_current();
     let latest_version = create_memo(move |_| {
         let latest_release = latest_release.get();
         let latest_version =
@@ -274,7 +271,7 @@ fn right(
                 clickable_icon(
                     || LapceIcons::SETTINGS,
                     move || {
-                        cx.id.show_context_menu(
+                        show_context_menu(
                             Menu::new("")
                                 .entry(MenuItem::new("Command Palette").action(
                                     move || {

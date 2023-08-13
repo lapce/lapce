@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use floem::{
+    ext_event::create_signal_from_channel,
     glazier::KeyEvent,
     reactive::{RwSignal, Scope},
 };
@@ -10,7 +11,7 @@ use lapce_rpc::{
     terminal::TermId,
 };
 
-use super::{data::TerminalData, tab::TerminalTabData};
+use super::{data::TerminalData, event::TermNotification, tab::TerminalTabData};
 use crate::{
     debug::{DapData, RunDebugData, RunDebugMode, RunDebugProcess},
     id::TerminalTabId,
@@ -59,6 +60,27 @@ impl TerminalPanelData {
             debug,
             common,
         }
+    }
+
+    pub fn start_update_process(&self) {
+        let notification =
+            create_signal_from_channel(self.common.term_notification_rx.clone());
+        let terminal = self.clone();
+        let view_id = self.common.view_id;
+        self.common.scope.create_effect(move |_| {
+            notification.with(|notification| {
+                if let Some(notification) = notification.as_ref() {
+                    match notification {
+                        TermNotification::SetTitle { term_id, title } => {
+                            terminal.set_title(term_id, title);
+                        }
+                        TermNotification::RequestPaint => {
+                            view_id.get_untracked().request_paint();
+                        }
+                    }
+                }
+            });
+        });
     }
 
     pub fn active_tab(&self, tracked: bool) -> Option<TerminalTabData> {

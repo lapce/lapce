@@ -2189,6 +2189,7 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
 }
 
 fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
+    window_tab_data.start_running_processes();
     let source_control = window_tab_data.source_control.clone();
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;

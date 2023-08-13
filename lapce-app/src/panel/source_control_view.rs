@@ -1,6 +1,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use floem::{
+    action::show_context_menu,
     event::{Event, EventListener},
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Size},
@@ -8,7 +9,6 @@ use floem::{
     style::{CursorStyle, Style},
     view::View,
     views::{container, label, list, scroll, stack, svg, Decorators},
-    ViewContext,
 };
 use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;
@@ -208,7 +208,6 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
     let file_diffs = source_control.file_diffs;
     let config = source_control.common.config;
     let workspace = source_control.common.workspace;
-    let cx = ViewContext::get_current();
     let panel_rect = create_rw_signal(Rect::ZERO);
     let panel_width = create_memo(move |_| panel_rect.get().width());
     let lapce_command = source_control.common.lapce_command;
@@ -349,7 +348,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                 if pointer_event.button.is_secondary() {
                     let menu = Menu::new("")
                         .entry(MenuItem::new("Discard Changes").action(discard));
-                    cx.id.show_context_menu(menu, Point::ZERO);
+                    show_context_menu(menu, Point::ZERO);
                 }
             }
             false

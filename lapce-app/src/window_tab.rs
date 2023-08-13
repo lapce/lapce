@@ -1,9 +1,10 @@
 use std::{collections::HashSet, env, path::Path, sync::Arc, time::Instant};
 
-use crossbeam_channel::Sender;
+use crossbeam_channel::{Receiver, Sender};
 use floem::{
+    action::open_file,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
-    ext_event::{create_ext_action, create_signal_from_channel},
+    ext_event::create_ext_action,
     glazier::{FileDialogOptions, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
@@ -50,7 +51,7 @@ use crate::{
         position::PanelContainerPosition,
     },
     plugin::PluginData,
-    proxy::{path_from_url, start_proxy, ProxyData},
+    proxy::{new_proxy, path_from_url, ProxyData},
     rename::RenameData,
     source_control::SourceControlData,
     terminal::{
@@ -98,6 +99,7 @@ pub struct CommonData {
     pub workbench_command: Listener<LapceWorkbenchCommand>,
     pub term_tx: Sender<(TermId, TermEvent)>,
     pub term_notification_tx: Sender<TermNotification>,
+    pub term_notification_rx: Receiver<TermNotification>,
     pub proxy: ProxyRpcHandler,
     pub view_id: RwSignal<floem::id::Id>,
     pub ui_line_height: Memo<f64>,
@@ -205,7 +207,8 @@ impl WindowTabData {
             });
         }
 
-        let proxy = start_proxy(
+        let proxy = new_proxy(
+            cx,
             workspace.clone(),
             all_disabled_volts,
             config.plugins.clone(),
@@ -249,6 +252,7 @@ impl WindowTabData {
             workbench_command,
             term_tx,
             term_notification_tx,
+            term_notification_rx,
             proxy: proxy.proxy_rpc.clone(),
             view_id,
             ui_line_height,
@@ -329,25 +333,6 @@ impl WindowTabData {
             common.clone(),
         );
 
-        {
-            let notification = create_signal_from_channel(term_notification_rx);
-            let terminal = terminal.clone();
-            cx.create_effect(move |_| {
-                notification.with(|notification| {
-                    if let Some(notification) = notification.as_ref() {
-                        match notification {
-                            TermNotification::SetTitle { term_id, title } => {
-                                terminal.set_title(term_id, title);
-                            }
-                            TermNotification::RequestPaint => {
-                                view_id.get_untracked().request_paint();
-                            }
-                        }
-                    }
-                });
-            });
-        }
-
         let about_data = AboutData::new(cx, common.focus);
         let alert_data = AlertBoxData::new(cx, common.clone());
 
@@ -414,6 +399,12 @@ impl WindowTabData {
         window_tab_data
     }
 
+    pub fn start_running_processes(&self) {
+        self.proxy.start();
+        self.palette.start_update_process();
+        self.terminal.start_update_process();
+    }
+
     pub fn reload_config(&self) {
         let db: Arc<LapceDb> = use_context().unwrap();
 
@@ -475,23 +466,20 @@ impl WindowTabData {
                 if !self.workspace.kind.is_remote() {
                     let window_command = self.common.window_command;
                     let options = FileDialogOptions::new().select_directories();
-                    self.common.view_id.get_untracked().open_file(
-                        options,
-                        move |file| {
-                            if let Some(file) = file {
-                                let workspace = LapceWorkspace {
-                                    kind: LapceWorkspaceType::Local,
-                                    path: Some(file.path),
-                                    last_open: std::time::SystemTime::now()
-                                        .duration_since(std::time::UNIX_EPOCH)
-                                        .unwrap()
-                                        .as_secs(),
-                                };
-                                window_command
-                                    .send(WindowCommand::SetWorkspace { workspace });
-                            }
-                        },
-                    );
+                    open_file(options, move |file| {
+                        if let Some(file) = file {
+                            let workspace = LapceWorkspace {
+                                kind: LapceWorkspaceType::Local,
+                                path: Some(file.path),
+                                last_open: std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap()
+                                    .as_secs(),
+                            };
+                            window_command
+                                .send(WindowCommand::SetWorkspace { workspace });
+                        }
+                    });
                 }
             }
             CloseFolder => {
@@ -509,16 +497,12 @@ impl WindowTabData {
                 if !self.workspace.kind.is_remote() {
                     let internal_command = self.common.internal_command;
                     let options = FileDialogOptions::new();
-                    self.common.view_id.get_untracked().open_file(
-                        options,
-                        move |file| {
-                            if let Some(file) = file {
-                                internal_command.send(InternalCommand::OpenFile {
-                                    path: file.path,
-                                })
-                            }
-                        },
-                    );
+                    open_file(options, move |file| {
+                        if let Some(file) = file {
+                            internal_command
+                                .send(InternalCommand::OpenFile { path: file.path })
+                        }
+                    });
                 }
             }
             NewFile => {
