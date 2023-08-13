@@ -2299,6 +2299,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                 },
                 |(_, tab)| tab.window_tab_id,
                 move |(index, tab)| {
+                    let drag_over_left = create_rw_signal(None);
                     container(|| {
                         stack(|| {
                             (
@@ -2337,6 +2338,21 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                                         .style(|| Style::BASE.margin_horiz_px(6.0)),
                                     )
                                 })
+                                .on_event(EventListener::DragOver, move |event| {
+                                    if let Event::PointerMove(pointer_event) = event
+                                    {
+                                        if drag_over_left.get_untracked()
+                                            != Some(true)
+                                        {
+                                            drag_over_left.set(Some(false));
+                                        }
+                                    }
+                                    true
+                                })
+                                .on_event(EventListener::DragLeave, move |_| {
+                                    drag_over_left.set(None);
+                                    true
+                                })
                                 .style(move || {
                                     let config = config.get();
                                     Style::BASE
@@ -2347,6 +2363,25 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                                         .border_color(
                                             *config
                                                 .get_color(LapceColor::LAPCE_BORDER),
+                                        )
+                                        .apply_if(
+                                            drag_over_left.get().is_some(),
+                                                move |s| {
+                                                let drag_over_left = drag_over_left.get_untracked().unwrap();
+                                                if drag_over_left {
+                                                s.border_left(2.0).border_color(
+                                                    *config.get_color(
+                                                        LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE,
+                                                    ),
+                                                )
+                                                } else {
+                                                s.border_right(2.0).border_color(
+                                                    *config.get_color(
+                                                        LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE,
+                                                    ),
+                                                )
+                                                }
+                                            },
                                         )
                                 }),
                                 container(|| {
@@ -2372,6 +2407,21 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                         .style(move || {
                             Style::BASE.size_pct(100.0, 100.0).items_center()
                         })
+                    })
+                    .draggable()
+                    .dragging_style(move || {
+                        let config = config.get();
+                        Style::BASE
+                            .border(1.0)
+                            .border_radius(6.0)
+                            .border_color(
+                                *config.get_color(LapceColor::LAPCE_BORDER),
+                            )
+                            .background(
+                                config
+                                    .get_color(LapceColor::PANEL_BACKGROUND)
+                                    .with_alpha_factor(0.7),
+                            )
                     })
                     .on_click(move |_| {
                         active.set(index.get_untracked());
