@@ -3,7 +3,7 @@ use std::sync::Arc;
 use floem::{
     action::show_context_menu,
     menu::{Menu, MenuItem},
-    peniko::kurbo::Point,
+    peniko::{kurbo::Point, Color},
     reactive::{create_memo, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Dimension, JustifyContent, Style},
     view::View,
@@ -19,7 +19,7 @@ use crate::{
     listener::Listener,
     main_split::MainSplitData,
     update::ReleaseInfo,
-    workspace::{LapceWorkspace, LapceWorkspaceType},
+    workspace::LapceWorkspace,
 };
 
 fn left(
@@ -28,28 +28,19 @@ fn left(
     config: ReadSignal<Arc<LapceConfig>>,
     proxy_status: RwSignal<Option<ProxyStatus>>,
 ) -> impl View {
-    let remote = workspace.kind.clone();
+    let is_local = workspace.kind.is_local();
     stack(move || {
         (container(move || {
             svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(move || {
-                Style::BASE.size_px(26.0, 26.0).color(match remote {
-                    LapceWorkspaceType::Local => {
-                        *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL)
-                    }
-                    _ => match proxy_status.get() {
-                        Some(ProxyStatus::Connected) => *config
-                            .get()
-                            .get_color(LapceColor::LAPCE_REMOTE_CONNECTED),
-                        Some(ProxyStatus::Connecting) => *config
-                            .get()
-                            .get_color(LapceColor::LAPCE_REMOTE_CONNECTING),
-                        Some(ProxyStatus::Disconnected) => *config
-                            .get()
-                            .get_color(LapceColor::LAPCE_REMOTE_DISCONNECTED),
+                Style::BASE.size_px(26.0, 26.0).color(if is_local {
+                    *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL)
+                } else {
+                    match proxy_status.get() {
+                        Some(_) => Color::WHITE,
                         None => {
                             *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL)
                         }
-                    },
+                    }
                 })
             })
         })
@@ -75,12 +66,36 @@ fn left(
                 *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
             )
         })
+        .active_style(move || {
+            Style::BASE.cursor(CursorStyle::Pointer).background(
+                *config
+                    .get()
+                    .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+            )
+        })
         .style(move || {
+            let config = config.get();
+            let color = if is_local {
+                Color::TRANSPARENT
+            } else {
+                match proxy_status.get() {
+                    Some(ProxyStatus::Connected) => {
+                        *config.get_color(LapceColor::LAPCE_REMOTE_CONNECTED)
+                    }
+                    Some(ProxyStatus::Connecting) => {
+                        *config.get_color(LapceColor::LAPCE_REMOTE_CONNECTING)
+                    }
+                    Some(ProxyStatus::Disconnected) => {
+                        *config.get_color(LapceColor::LAPCE_REMOTE_DISCONNECTED)
+                    }
+                    None => Color::TRANSPARENT,
+                }
+            };
             Style::BASE
                 .height_pct(100.0)
                 .padding_horiz_px(10.0)
                 .items_center()
-                .background(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
+                .background(color)
         }),)
     })
     .style(move || {

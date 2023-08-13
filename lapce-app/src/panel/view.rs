@@ -336,6 +336,6 @@ fn panel_picker(
             .apply_if(is_bottom && is_first, |s| s.border_right(1.0))
             .apply_if(is_bottom && !is_first, |s| s.border_left(1.0))
             .apply_if(!is_bottom && is_first, |s| s.border_bottom(1.0))
-            .apply_if(is_bottom && !is_first, |s| s.border_top(1.0))
+            .apply_if(!is_bottom && !is_first, |s| s.border_top(1.0))
     })
 }

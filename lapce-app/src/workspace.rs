@@ -57,6 +57,10 @@ pub enum LapceWorkspaceType {
 }
 
 impl LapceWorkspaceType {
+    pub fn is_local(&self) -> bool {
+        matches!(self, LapceWorkspaceType::Local)
+    }
+
     #[cfg(windows)]
     pub fn is_remote(&self) -> bool {
         matches!(
