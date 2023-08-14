@@ -1,10 +1,10 @@
 use std::{collections::HashSet, env, path::Path, sync::Arc, time::Instant};
 
-use crossbeam_channel::{Receiver, Sender};
+use crossbeam_channel::Sender;
 use floem::{
     action::open_file,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
-    ext_event::create_ext_action,
+    ext_event::{create_ext_action, create_signal_from_channel},
     glazier::{FileDialogOptions, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
@@ -99,7 +99,6 @@ pub struct CommonData {
     pub workbench_command: Listener<LapceWorkbenchCommand>,
     pub term_tx: Sender<(TermId, TermEvent)>,
     pub term_notification_tx: Sender<TermNotification>,
-    pub term_notification_rx: Receiver<TermNotification>,
     pub proxy: ProxyRpcHandler,
     pub view_id: RwSignal<floem::id::Id>,
     pub ui_line_height: Memo<f64>,
@@ -208,7 +207,6 @@ impl WindowTabData {
         }
 
         let proxy = new_proxy(
-            cx,
             workspace.clone(),
             all_disabled_volts,
             config.plugins.clone(),
@@ -252,7 +250,6 @@ impl WindowTabData {
             workbench_command,
             term_tx,
             term_notification_tx,
-            term_notification_rx,
             proxy: proxy.proxy_rpc.clone(),
             view_id,
             ui_line_height,
@@ -333,6 +330,25 @@ impl WindowTabData {
             common.clone(),
         );
 
+        {
+            let notification = create_signal_from_channel(term_notification_rx);
+            let terminal = terminal.clone();
+            cx.create_effect(move |_| {
+                notification.with(|notification| {
+                    if let Some(notification) = notification.as_ref() {
+                        match notification {
+                            TermNotification::SetTitle { term_id, title } => {
+                                terminal.set_title(term_id, title);
+                            }
+                            TermNotification::RequestPaint => {
+                                view_id.get_untracked().request_paint();
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
         let about_data = AboutData::new(cx, common.focus);
         let alert_data = AlertBoxData::new(cx, common.clone());
 
@@ -397,12 +413,6 @@ impl WindowTabData {
         }
 
         window_tab_data
-    }
-
-    pub fn start_running_processes(&self) {
-        self.proxy.start();
-        self.palette.start_update_process();
-        self.terminal.start_update_process();
     }
 
     pub fn reload_config(&self) {

@@ -67,7 +67,7 @@ impl Buffer {
         }
 
         let mut f = fs::OpenOptions::new()
-            .create_new(true)
+            .create(true)
             .write(true)
             .truncate(true)
             .open(&path)?;

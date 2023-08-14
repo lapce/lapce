@@ -255,6 +255,9 @@ impl LapceDb {
                 .map(|(_, window_data)| window_data.info())
                 .collect(),
         };
+        if info.windows.is_empty() {
+            return Ok(());
+        }
 
         self.save_tx.send(SaveEvent::App(info))?;
 

@@ -136,6 +136,7 @@ pub struct AppData {
     pub active_window: RwSignal<WindowId>,
     pub window_scale: RwSignal<f64>,
     pub app_command: Listener<AppCommand>,
+    pub app_terminated: RwSignal<bool>,
     /// The latest release information
     pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
     pub watcher: Arc<notify::RecommendedWatcher>,
@@ -180,24 +181,26 @@ impl AppData {
                     WindowConfig::default().size(info.size).position(info.pos)
                 })
             });
-        let window_data = WindowData::new(
-            WindowInfo {
-                size: Size::ZERO,
-                pos: Point::ZERO,
-                maximised: false,
-                tabs: TabsInfo {
-                    active_tab: 0,
-                    workspaces: vec![LapceWorkspace::default()],
-                },
+        let window_id = WindowId::next();
+        let app_data = self.clone();
+        floem::new_window(
+            window_id,
+            move || {
+                app_data.app_view(
+                    window_id,
+                    WindowInfo {
+                        size: Size::ZERO,
+                        pos: Point::ZERO,
+                        maximised: false,
+                        tabs: TabsInfo {
+                            active_tab: 0,
+                            workspaces: vec![LapceWorkspace::default()],
+                        },
+                    },
+                )
             },
-            self.window_scale,
-            self.latest_release.read_only(),
-            self.app_command,
+            config,
         );
-        self.windows.update(|windows| {
-            windows.insert(window_data.window_id, window_data.clone());
-        });
-        floem::new_window(window_data.window_id, || app_view(window_data), config);
     }
 
     pub fn run_app_command(&self, cmd: AppCommand) {
@@ -207,6 +210,9 @@ impl AppData {
                 let _ = db.save_app(self);
             }
             AppCommand::WindowClosed(window_id) => {
+                if self.app_terminated.get_untracked() {
+                    return;
+                }
                 let window_data = self
                     .windows
                     .try_update(|windows| windows.remove(&window_id))
@@ -227,6 +233,198 @@ impl AppData {
                 self.active_window.set(window_id);
             }
         }
+    }
+
+    fn create_windows(
+        &self,
+        db: Arc<LapceDb>,
+        paths: Vec<PathObject>,
+    ) -> floem::Application {
+        let mut app = floem::Application::new();
+
+        // Split user input into known existing directors and
+        // file paths that exist or not
+        let (dirs, files): (Vec<&PathObject>, Vec<&PathObject>) =
+            paths.iter().partition(|p| p.is_dir);
+
+        if !dirs.is_empty() {
+            // There were directories specified, so we'll load those as windows
+
+            // Use the last opened window's size and position as the default
+            let (size, mut pos) = db
+                .get_window()
+                .map(|i| (i.size, i.pos))
+                .unwrap_or_else(|_| (Size::new(800.0, 600.0), Point::new(0.0, 0.0)));
+
+            for dir in dirs {
+                #[cfg(windows)]
+                let workspace_type = if !std::env::var("WSL_DISTRO_NAME")
+                    .unwrap_or_default()
+                    .is_empty()
+                    || !std::env::var("WSL_INTEROP").unwrap_or_default().is_empty()
+                {
+                    LapceWorkspaceType::RemoteWSL
+                } else {
+                    LapceWorkspaceType::Local
+                };
+                #[cfg(not(windows))]
+                let workspace_type = LapceWorkspaceType::Local;
+
+                let info = WindowInfo {
+                    size,
+                    pos,
+                    maximised: false,
+                    tabs: TabsInfo {
+                        active_tab: 0,
+                        workspaces: vec![LapceWorkspace {
+                            kind: workspace_type,
+                            path: Some(dir.path.to_owned()),
+                            last_open: 0,
+                        }],
+                    },
+                };
+
+                pos += (50.0, 50.0);
+
+                let config =
+                    WindowConfig::default().size(info.size).position(info.pos);
+                let app_data = self.clone();
+                let window_id = WindowId::next();
+                app = app.window(
+                    window_id,
+                    move || app_data.app_view(window_id, info),
+                    Some(config),
+                );
+            }
+        } else if files.is_empty() {
+            // There were no dirs and no files specified, so we'll load the last windows
+            if let Ok(app_info) = db.get_app() {
+                for info in app_info.windows {
+                    let config =
+                        WindowConfig::default().size(info.size).position(info.pos);
+                    let app_data = self.clone();
+                    let window_id = WindowId::next();
+                    app = app.window(
+                        window_id,
+                        move || app_data.app_view(window_id, info),
+                        Some(config),
+                    );
+                }
+            }
+        }
+
+        if self.windows.with_untracked(|windows| windows.is_empty()) {
+            let mut info = db.get_window().unwrap_or_else(|_| WindowInfo {
+                size: Size::new(800.0, 600.0),
+                pos: Point::ZERO,
+                maximised: false,
+                tabs: TabsInfo {
+                    active_tab: 0,
+                    workspaces: vec![LapceWorkspace::default()],
+                },
+            });
+            info.tabs = TabsInfo {
+                active_tab: 0,
+                workspaces: vec![LapceWorkspace::default()],
+            };
+            let config = WindowConfig::default().size(info.size).position(info.pos);
+            let app_data = self.clone();
+            let window_id = WindowId::next();
+            app = app.window(
+                window_id,
+                move || app_data.app_view(window_id, info),
+                Some(config),
+            );
+        }
+
+        // Open any listed files in the first window
+        if let Some(window) = self.windows.with_untracked(|windows| {
+            windows
+                .iter()
+                .next()
+                .map(|(_, window_data)| window_data.clone())
+        }) {
+            let cur_window_tab = window.active.get_untracked();
+            let (_, window_tab) =
+                &window.window_tabs.get_untracked()[cur_window_tab];
+            for file in files {
+                let position = file.linecol.map(|pos| {
+                    EditorPosition::Position(lsp_types::Position {
+                        line: pos.line.saturating_sub(1) as u32,
+                        character: pos.column.saturating_sub(1) as u32,
+                    })
+                });
+
+                window_tab.run_internal_command(InternalCommand::GoToLocation {
+                    location: EditorLocation {
+                        path: file.path.clone(),
+                        position,
+                        scroll_offset: None,
+                        // Create a new editor for the file, so we don't change any current unconfirmed
+                        // editor
+                        ignore_unconfirmed: true,
+                        same_editor_tab: false,
+                    },
+                });
+            }
+        }
+
+        app
+    }
+
+    fn app_view(&self, window_id: WindowId, info: WindowInfo) -> impl View {
+        let window_data = WindowData::new(
+            window_id,
+            info,
+            self.window_scale,
+            self.latest_release.read_only(),
+            self.app_command,
+        );
+        self.windows.update(|windows| {
+            windows.insert(window_id, window_data.clone());
+        });
+        let window_size = window_data.size;
+        let position = window_data.position;
+        let window_scale = window_data.window_scale;
+        let window_id = window_data.window_id;
+        let app_command = window_data.app_command;
+        stack(|| {
+            (
+                workspace_tab_header(window_data.clone()),
+                window(window_data.clone()),
+            )
+        })
+        .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
+        .window_scale(move || window_scale.get())
+        .keyboard_navigatable()
+        .on_event(EventListener::KeyDown, move |event| {
+            if let Event::KeyDown(key_event) = event {
+                window_data.key_down(key_event);
+                true
+            } else {
+                false
+            }
+        })
+        .on_event(EventListener::WindowResized, move |event| {
+            if let Event::WindowResized(size) = event {
+                window_size.set(*size);
+            }
+            true
+        })
+        .on_event(EventListener::WindowMoved, move |event| {
+            if let Event::WindowMoved(point) = event {
+                position.set(*point);
+            }
+            true
+        })
+        .on_event(EventListener::WindowGotFocus, move |_| {
+            app_command.send(AppCommand::WindowGotFocus(window_id));
+            true
+        })
+        .on_event(EventListener::WindowClosed, move |_| {
+            app_command.send(AppCommand::WindowClosed(window_id));
+            true
+        })
     }
 }
 
@@ -2188,7 +2386,6 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
 }
 
 fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
-    window_tab_data.start_running_processes();
     let source_control = window_tab_data.source_control.clone();
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;
@@ -2285,6 +2482,146 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
     });
 
     let local_window_data = window_data.clone();
+    let view_fn = move |(index, tab): (RwSignal<usize>, Arc<WindowTabData>)| {
+        let drag_over_left = create_rw_signal(None);
+        stack(|| {
+            (
+                container(|| {
+                    stack(|| {
+                        (
+                            stack(|| {
+                                let window_data = local_window_data.clone();
+                                (
+                                    label(move || {
+                                        workspace_title(&tab.workspace)
+                                            .unwrap_or_else(|| {
+                                                String::from("New Tab")
+                                            })
+                                    })
+                                    .style(
+                                        || {
+                                            Style::BASE
+                                                .margin_left_px(10.0)
+                                                .min_width_px(0.0)
+                                                .flex_basis_px(0.0)
+                                                .flex_grow(1.0)
+                                                .text_ellipsis()
+                                        },
+                                    ),
+                                    clickable_icon(
+                                        || LapceIcons::WINDOW_CLOSE,
+                                        move || {
+                                            window_data.run_window_command(
+                                                WindowCommand::CloseWorkspaceTab {
+                                                    index: Some(
+                                                        index.get_untracked(),
+                                                    ),
+                                                },
+                                            );
+                                        },
+                                        || false,
+                                        || false,
+                                        config.read_only(),
+                                    )
+                                    .style(|| Style::BASE.margin_horiz_px(6.0)),
+                                )
+                            })
+                            .on_event(EventListener::DragOver, move |event| {
+                                if let Event::PointerMove(pointer_event) = event {
+                                    let left = pointer_event.pos.x
+                                        < tab_width.get_untracked() / 2.0;
+                                    if drag_over_left.get_untracked() != Some(left) {
+                                        drag_over_left.set(Some(left));
+                                    }
+                                }
+                                true
+                            })
+                            .on_event(EventListener::DragLeave, move |_| {
+                                drag_over_left.set(None);
+                                true
+                            })
+                            .style(move || {
+                                let config = config.get();
+                                Style::BASE
+                                    .width_pct(100.0)
+                                    .min_width_px(0.0)
+                                    .items_center()
+                                    .border_right(1.0)
+                                    .border_color(
+                                        *config.get_color(LapceColor::LAPCE_BORDER),
+                                    )
+                            }),
+                            container(|| {
+                                label(|| "".to_string()).style(move || {
+                                    Style::BASE
+                                        .size_pct(100.0, 100.0)
+                                        .apply_if(active.get() == index.get(), |s| {
+                                            s.border_bottom(2.0)
+                                        })
+                                        .border_color(*config.get().get_color(
+                                            LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE,
+                                        ))
+                                })
+                            })
+                            .style(|| {
+                                Style::BASE
+                                    .position(Position::Absolute)
+                                    .padding_horiz_px(3.0)
+                                    .size_pct(100.0, 100.0)
+                            }),
+                        )
+                    })
+                    .style(move || Style::BASE.size_pct(100.0, 100.0).items_center())
+                })
+                .draggable()
+                .dragging_style(move || {
+                    let config = config.get();
+                    Style::BASE
+                        .border(1.0)
+                        .border_radius(6.0)
+                        .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                        .background(
+                            config
+                                .get_color(LapceColor::PANEL_BACKGROUND)
+                                .with_alpha_factor(0.7),
+                        )
+                })
+                .on_click(move |_| {
+                    active.set(index.get_untracked());
+                    true
+                })
+                .style(move || {
+                    Style::BASE
+                        .height_pct(100.0)
+                        .width_px(tab_width.get() as f32)
+                }),
+                empty().style(move || {
+                    Style::BASE
+                        .absolute()
+                        .margin_left_px(-2.0)
+                        .width_px(tab_width.get() as f32 + 3.0)
+                        .height_pct(100.0)
+                        .border_color(
+                            *config
+                                .get()
+                                .get_color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
+                        )
+                        .apply_if(drag_over_left.get().is_some(), move |s| {
+                            let drag_over_left =
+                                drag_over_left.get_untracked().unwrap();
+                            if drag_over_left {
+                                s.border_left(3.0)
+                            } else {
+                                s.border_right(3.0)
+                            }
+                        })
+                        .apply_if(drag_over_left.get().is_none(), move |s| s.hide())
+                }),
+            )
+        })
+        .style(move || Style::BASE.height_pct(100.0))
+    };
+
     stack(|| {
         (
             list(
@@ -2298,91 +2635,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                     tabs
                 },
                 |(_, tab)| tab.window_tab_id,
-                move |(index, tab)| {
-                    container(|| {
-                        stack(|| {
-                            (
-                                stack(|| {
-                                    let window_data = local_window_data.clone();
-                                    (
-                                        label(move || {
-                                            workspace_title(&tab.workspace)
-                                                .unwrap_or_else(|| {
-                                                    String::from("New Tab")
-                                                })
-                                        })
-                                        .style(|| {
-                                            Style::BASE
-                                                .margin_left_px(10.0)
-                                                .min_width_px(0.0)
-                                                .flex_basis_px(0.0)
-                                                .flex_grow(1.0)
-                                                .text_ellipsis()
-                                        }),
-                                        clickable_icon(
-                                            || LapceIcons::WINDOW_CLOSE,
-                                            move || {
-                                                window_data.run_window_command(
-                                                WindowCommand::CloseWorkspaceTab {
-                                                    index: Some(
-                                                        index.get_untracked(),
-                                                    ),
-                                                },
-                                            );
-                                            },
-                                            || false,
-                                            || false,
-                                            config.read_only(),
-                                        )
-                                        .style(|| Style::BASE.margin_horiz_px(6.0)),
-                                    )
-                                })
-                                .style(move || {
-                                    let config = config.get();
-                                    Style::BASE
-                                        .width_pct(100.0)
-                                        .min_width_px(0.0)
-                                        .items_center()
-                                        .border_right(1.0)
-                                        .border_color(
-                                            *config
-                                                .get_color(LapceColor::LAPCE_BORDER),
-                                        )
-                                }),
-                                container(|| {
-                                    label(|| "".to_string()).style(move || {
-                                        Style::BASE
-                                        .size_pct(100.0, 100.0)
-                                        .apply_if(active.get() == index.get(), |s| {
-                                            s.border_bottom(2.0)
-                                        })
-                                        .border_color(*config.get().get_color(
-                                            LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE,
-                                        ))
-                                    })
-                                })
-                                .style(|| {
-                                    Style::BASE
-                                        .position(Position::Absolute)
-                                        .padding_horiz_px(3.0)
-                                        .size_pct(100.0, 100.0)
-                                }),
-                            )
-                        })
-                        .style(move || {
-                            Style::BASE.size_pct(100.0, 100.0).items_center()
-                        })
-                    })
-                    .on_click(move |_| {
-                        active.set(index.get_untracked());
-                        true
-                    })
-                    .style(move || {
-                        Style::BASE
-                            .height_pct(100.0)
-                            .width_px(tab_width.get() as f32)
-                    })
-                },
+                view_fn,
             )
             .style(|| Style::BASE.height_pct(100.0)),
             clickable_icon(
@@ -2583,52 +2836,6 @@ fn window(window_data: WindowData) -> impl View {
     .style(|| Style::BASE.size_pct(100.0, 100.0))
 }
 
-fn app_view(window_data: WindowData) -> impl View {
-    // let window_data = WindowData::new(cx);
-    let window_size = window_data.size;
-    let position = window_data.position;
-    let window_scale = window_data.window_scale;
-    let window_id = window_data.window_id;
-    let app_command = window_data.app_command;
-    stack(|| {
-        (
-            workspace_tab_header(window_data.clone()),
-            window(window_data.clone()),
-        )
-    })
-    .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
-    .window_scale(move || window_scale.get())
-    .keyboard_navigatable()
-    .on_event(EventListener::KeyDown, move |event| {
-        if let Event::KeyDown(key_event) = event {
-            window_data.key_down(key_event);
-            true
-        } else {
-            false
-        }
-    })
-    .on_event(EventListener::WindowResized, move |event| {
-        if let Event::WindowResized(size) = event {
-            window_size.set(*size);
-        }
-        true
-    })
-    .on_event(EventListener::WindowMoved, move |event| {
-        if let Event::WindowMoved(point) = event {
-            position.set(*point);
-        }
-        true
-    })
-    .on_event(EventListener::WindowGotFocus, move |_| {
-        app_command.send(AppCommand::WindowGotFocus(window_id));
-        true
-    })
-    .on_event(EventListener::WindowClosed, move |_| {
-        app_command.send(AppCommand::WindowClosed(window_id));
-        true
-    })
-}
-
 #[inline(always)]
 fn logging() -> Handle<Targets> {
     use tracing_subscriber::{filter, fmt, prelude::*, reload};
@@ -2708,25 +2915,12 @@ pub fn launch() {
 
     let _ = lapce_proxy::register_lapce_path();
     let db = Arc::new(LapceDb::new().unwrap());
-    let mut app = floem::Application::new();
     let scope = Scope::new();
     provide_context(db.clone());
 
     let window_scale = scope.create_rw_signal(1.0);
     let latest_release = scope.create_rw_signal(Arc::new(None));
     let app_command = Listener::new_empty(scope);
-
-    let mut windows = im::HashMap::new();
-
-    app = create_windows(
-        db.clone(),
-        app,
-        cli.paths,
-        &mut windows,
-        window_scale,
-        latest_release.read_only(),
-        app_command,
-    );
 
     let (tx, rx) = crossbeam_channel::bounded(1);
     let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx)).unwrap();
@@ -2743,16 +2937,19 @@ pub fn launch() {
         let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
     }
 
-    let windows = scope.create_rw_signal(windows);
+    let windows = scope.create_rw_signal(im::HashMap::new());
     let app_data = AppData {
         windows,
         active_window: scope.create_rw_signal(WindowId::next()),
         window_scale,
+        app_terminated: scope.create_rw_signal(false),
         watcher: Arc::new(watcher),
         latest_release,
         app_command,
         tracing_handle: reload_handle,
     };
+
+    let app = app_data.create_windows(db.clone(), cli.paths);
 
     {
         let app_data = app_data.clone();
@@ -2807,6 +3004,7 @@ pub fn launch() {
 
     app.on_event(move |event| match event {
         floem::AppEvent::WillTerminate => {
+            app_data.app_terminated.set(true);
             let _ = db.insert_app(app_data.clone());
         }
         floem::AppEvent::Reopen {
@@ -2818,142 +3016,6 @@ pub fn launch() {
         }
     })
     .run();
-}
-
-#[allow(clippy::too_many_arguments)]
-fn create_windows(
-    db: Arc<LapceDb>,
-    mut app: floem::Application,
-    paths: Vec<PathObject>,
-    windows: &mut im::HashMap<WindowId, WindowData>,
-    window_scale: RwSignal<f64>,
-    latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-    app_command: Listener<AppCommand>,
-) -> floem::Application {
-    // Split user input into known existing directors and
-    // file paths that exist or not
-    let (dirs, files): (Vec<&PathObject>, Vec<&PathObject>) =
-        paths.iter().partition(|p| p.is_dir);
-
-    if !dirs.is_empty() {
-        // There were directories specified, so we'll load those as windows
-
-        // Use the last opened window's size and position as the default
-        let (size, mut pos) = db
-            .get_window()
-            .map(|i| (i.size, i.pos))
-            .unwrap_or_else(|_| (Size::new(800.0, 600.0), Point::new(0.0, 0.0)));
-
-        for dir in dirs {
-            #[cfg(windows)]
-            let workspace_type = if !std::env::var("WSL_DISTRO_NAME")
-                .unwrap_or_default()
-                .is_empty()
-                || !std::env::var("WSL_INTEROP").unwrap_or_default().is_empty()
-            {
-                LapceWorkspaceType::RemoteWSL
-            } else {
-                LapceWorkspaceType::Local
-            };
-            #[cfg(not(windows))]
-            let workspace_type = LapceWorkspaceType::Local;
-
-            let info = WindowInfo {
-                size,
-                pos,
-                maximised: false,
-                tabs: TabsInfo {
-                    active_tab: 0,
-                    workspaces: vec![LapceWorkspace {
-                        kind: workspace_type,
-                        path: Some(dir.path.to_owned()),
-                        last_open: 0,
-                    }],
-                },
-            };
-
-            pos += (50.0, 50.0);
-
-            let config = WindowConfig::default().size(info.size).position(info.pos);
-            let window_data =
-                WindowData::new(info, window_scale, latest_release, app_command);
-            windows.insert(window_data.window_id, window_data.clone());
-            app = app.window(
-                window_data.window_id,
-                move || app_view(window_data),
-                Some(config),
-            );
-        }
-    } else if files.is_empty() {
-        // There were no dirs and no files specified, so we'll load the last windows
-        if let Ok(app_info) = db.get_app() {
-            for info in app_info.windows {
-                let config =
-                    WindowConfig::default().size(info.size).position(info.pos);
-                let window_data =
-                    WindowData::new(info, window_scale, latest_release, app_command);
-                windows.insert(window_data.window_id, window_data.clone());
-                app = app.window(
-                    window_data.window_id,
-                    move || app_view(window_data),
-                    Some(config),
-                );
-            }
-        }
-    }
-
-    if windows.is_empty() {
-        let mut info = db.get_window().unwrap_or_else(|_| WindowInfo {
-            size: Size::new(800.0, 600.0),
-            pos: Point::ZERO,
-            maximised: false,
-            tabs: TabsInfo {
-                active_tab: 0,
-                workspaces: vec![LapceWorkspace::default()],
-            },
-        });
-        info.tabs = TabsInfo {
-            active_tab: 0,
-            workspaces: vec![LapceWorkspace::default()],
-        };
-        let config = WindowConfig::default().size(info.size).position(info.pos);
-        let window_data =
-            WindowData::new(info, window_scale, latest_release, app_command);
-        windows.insert(window_data.window_id, window_data.clone());
-        app = app.window(
-            window_data.window_id,
-            || app_view(window_data),
-            Some(config),
-        );
-    }
-
-    // Open any listed files in the first window
-    if let Some((_, window)) = windows.iter().next() {
-        let cur_window_tab = window.active.get_untracked();
-        let (_, window_tab) = &window.window_tabs.get_untracked()[cur_window_tab];
-        for file in files {
-            let position = file.linecol.map(|pos| {
-                EditorPosition::Position(lsp_types::Position {
-                    line: pos.line.saturating_sub(1) as u32,
-                    character: pos.column.saturating_sub(1) as u32,
-                })
-            });
-
-            window_tab.run_internal_command(InternalCommand::GoToLocation {
-                location: EditorLocation {
-                    path: file.path.clone(),
-                    position,
-                    scroll_offset: None,
-                    // Create a new editor for the file, so we don't change any current unconfirmed
-                    // editor
-                    ignore_unconfirmed: true,
-                    same_editor_tab: false,
-                },
-            });
-        }
-    }
-
-    app
 }
 
 /// Uses a login shell to load the correct shell environment for the current user.

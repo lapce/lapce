@@ -58,6 +58,7 @@ pub struct WindowData {
 
 impl WindowData {
     pub fn new(
+        window_id: WindowId,
         info: WindowInfo,
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
@@ -101,7 +102,7 @@ impl WindowData {
         let position = cx.create_rw_signal(info.pos);
 
         let window_data = Self {
-            window_id: WindowId::next(),
+            window_id,
             scope: cx,
             window_tabs,
             active,
