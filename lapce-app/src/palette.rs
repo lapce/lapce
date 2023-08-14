@@ -79,7 +79,7 @@ pub struct PaletteData {
     pub status: RwSignal<PaletteStatus>,
     pub index: RwSignal<usize>,
     pub items: RwSignal<im::Vector<PaletteItem>>,
-    pub filtered_items: RwSignal<im::Vector<PaletteItem>>,
+    pub filtered_items: ReadSignal<im::Vector<PaletteItem>>,
     pub input: RwSignal<PaletteInput>,
     kind: RwSignal<PaletteKind>,
     pub input_editor: EditorData,
@@ -122,7 +122,61 @@ impl PaletteData {
         let has_preview = cx.create_rw_signal(false);
         let run_id = cx.create_rw_signal(0);
         let run_id_counter = Arc::new(AtomicU64::new(0));
-        let filtered_items = cx.create_rw_signal(im::Vector::new());
+
+        let (run_tx, run_rx) = crossbeam_channel::unbounded();
+        {
+            let run_id = run_id.read_only();
+            let input = input.read_only();
+            let items = items.read_only();
+            let tx = run_tx;
+            {
+                let tx = tx.clone();
+                // this effect only monitors items change
+                cx.create_effect(move |_| {
+                    let items = items.get();
+                    let input = input.get_untracked();
+                    let run_id = run_id.get_untracked();
+                    let _ = tx.send((run_id, input.input, items));
+                });
+            }
+            // this effect only monitors input change
+            cx.create_effect(move |last_kind| {
+                let input = input.get();
+                let kind = input.kind;
+                if last_kind != Some(kind) {
+                    return kind;
+                }
+                let items = items.get_untracked();
+                let run_id = run_id.get_untracked();
+                let _ = tx.send((run_id, input.input, items));
+                kind
+            });
+        }
+        let (resp_tx, resp_rx) = crossbeam_channel::unbounded();
+        {
+            let run_id = run_id_counter.clone();
+            std::thread::spawn(move || {
+                Self::update_process(run_id, run_rx, resp_tx);
+            });
+        }
+        let (filtered_items, set_filtered_items) =
+            cx.create_signal(im::Vector::new());
+        {
+            let resp = create_signal_from_channel(resp_rx);
+            let run_id = run_id.read_only();
+            let input = input.read_only();
+            cx.create_effect(move |_| {
+                if let Some((filter_run_id, filter_input, new_items)) = resp.get() {
+                    if run_id.get_untracked() == filter_run_id
+                        && input.get_untracked().input == filter_input
+                    {
+                        set_filtered_items.set(new_items);
+                        index.set(0);
+                    }
+                }
+            });
+        }
+
         let clicked_index = cx.create_rw_signal(Option::<usize>::None);
 
         let palette = Self {
@@ -234,67 +288,6 @@ impl PaletteData {
         }
 
         palette
-    }
-
-    pub fn start_update_process(&self) {
-        let (run_tx, run_rx) = crossbeam_channel::unbounded();
-        {
-            let run_id = self.run_id.read_only();
-            let input = self.input.read_only();
-            let items = self.items.read_only();
-            let tx = run_tx;
-
-            {
-                let tx = tx.clone();
-                // this effect only monitors items change
-                self.common.scope.create_effect(move |_| {
-                    let items = items.get();
-                    let input = input.get_untracked();
-                    let run_id = run_id.get_untracked();
-                    let _ = tx.send((run_id, input.input, items));
-                });
-            }
-
-            // this effect only monitors input change
-            self.common.scope.create_effect(move |last_kind| {
-                let input = input.get();
-                let kind = input.kind;
-                if last_kind != Some(kind) {
-                    return kind;
-                }
-
-                let items = items.get_untracked();
-                let run_id = run_id.get_untracked();
-                let _ = tx.send((run_id, input.input, items));
-                kind
-            });
-        }
-
-        let (resp_tx, resp_rx) = crossbeam_channel::unbounded();
-        {
-            let run_id = self.run_id_counter.clone();
-            std::thread::spawn(move || {
-                Self::update_process(run_id, run_rx, resp_tx);
-            });
-        }
-
-        {
-            let resp = create_signal_from_channel(resp_rx);
-            let run_id = self.run_id.read_only();
-            let input = self.input.read_only();
-            let index = self.index;
-            let filtered_items = self.filtered_items;
-            self.common.scope.create_effect(move |_| {
-                if let Some((filter_run_id, filter_input, new_items)) = resp.get() {
-                    if run_id.get_untracked() == filter_run_id
-                        && input.get_untracked().input == filter_input
-                    {
-                        filtered_items.set(new_items);
-                        index.set(0);
-                    }
-                }
-            });
-        }
     }
 
     /// Start and focus the palette for the given kind.  

@@ -1,10 +1,7 @@
 use std::{collections::HashMap, path::PathBuf, process::Command, sync::Arc};
 
 use crossbeam_channel::Sender;
-use floem::{
-    ext_event::update_signal_from_channel,
-    reactive::{ReadSignal, Scope, WriteSignal},
-};
+use floem::{ext_event::create_signal_from_channel, reactive::ReadSignal};
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRpcHandler},
@@ -36,8 +33,6 @@ pub struct ProxyData {
     pub proxy_rpc: ProxyRpcHandler,
     pub core_rpc: CoreRpcHandler,
     pub notification: ReadSignal<Option<CoreNotification>>,
-    notification_writer: WriteSignal<Option<CoreNotification>>,
-    pub term_tx: Sender<(TermId, TermEvent)>,
 }
 
 impl ProxyData {
@@ -48,7 +43,6 @@ impl ProxyData {
 }
 
 pub fn new_proxy(
-    cx: Scope,
     workspace: Arc<LapceWorkspace>,
     disabled_volts: Vec<VoltID>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
@@ -112,33 +106,24 @@ pub fn new_proxy(
         });
     }
 
-    let (notification, notification_writer) = cx.create_signal(None);
+    let (tx, rx) = crossbeam_channel::unbounded();
+    {
+        let core_rpc = core_rpc.clone();
+        std::thread::spawn(move || {
+            let mut proxy = Proxy { tx, term_tx };
+            core_rpc.mainloop(&mut proxy);
+            core_rpc.notification(CoreNotification::ProxyStatus {
+                status: ProxyStatus::Connected,
+            });
+        })
+    };
+
+    let notification = create_signal_from_channel(rx);
 
     ProxyData {
         proxy_rpc,
         core_rpc,
         notification,
-        notification_writer,
-        term_tx,
-    }
-}
-
-impl ProxyData {
-    /// Start the actual proxy main loop
-    pub fn start(&self) {
-        let (tx, rx) = crossbeam_channel::unbounded();
-        {
-            let core_rpc = self.core_rpc.clone();
-            let term_tx = self.term_tx.clone();
-            std::thread::spawn(move || {
-                let mut proxy = Proxy { tx, term_tx };
-                core_rpc.mainloop(&mut proxy);
-                core_rpc.notification(CoreNotification::ProxyStatus {
-                    status: ProxyStatus::Disconnected,
-                });
-            })
-        };
-        update_signal_from_channel(self.notification_writer, rx);
     }
 }
 
