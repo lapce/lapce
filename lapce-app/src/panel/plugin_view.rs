@@ -143,7 +143,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                             }),
                     )
                     .entry(
-                        MenuItem::new("Disalbe")
+                        MenuItem::new("Disable")
                             .enabled(disabled.with_untracked(|disabled| {
                                 !disabled.contains(&volt_id)
                             }))
@@ -170,7 +170,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                             }),
                     )
                     .entry(
-                        MenuItem::new("Disalbe For Workspace")
+                        MenuItem::new("Disable For Workspace")
                             .enabled(workspace_disabled.with_untracked(|disabled| {
                                 !disabled.contains(&volt_id)
                             }))
