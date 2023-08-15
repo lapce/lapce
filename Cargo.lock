@@ -1421,7 +1421,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=799d2e49bc2123e8cbe207bce0d0f398e2e82991#799d2e49bc2123e8cbe207bce0d0f398e2e82991"
+source = "git+https://github.com/lapce/floem?rev=7a88c0b0979fe999c058377da7dffb83966a78a1#7a88c0b0979fe999c058377da7dffb83966a78a1"
 dependencies = [
  "bitflags 2.4.0",
  "crossbeam-channel",
@@ -1449,12 +1449,12 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=799d2e49bc2123e8cbe207bce0d0f398e2e82991#799d2e49bc2123e8cbe207bce0d0f398e2e82991"
+source = "git+https://github.com/lapce/floem?rev=7a88c0b0979fe999c058377da7dffb83966a78a1#7a88c0b0979fe999c058377da7dffb83966a78a1"
 
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=799d2e49bc2123e8cbe207bce0d0f398e2e82991#799d2e49bc2123e8cbe207bce0d0f398e2e82991"
+source = "git+https://github.com/lapce/floem?rev=7a88c0b0979fe999c058377da7dffb83966a78a1#7a88c0b0979fe999c058377da7dffb83966a78a1"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1464,7 +1464,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=799d2e49bc2123e8cbe207bce0d0f398e2e82991#799d2e49bc2123e8cbe207bce0d0f398e2e82991"
+source = "git+https://github.com/lapce/floem?rev=7a88c0b0979fe999c058377da7dffb83966a78a1#7a88c0b0979fe999c058377da7dffb83966a78a1"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -2001,12 +2001,9 @@ dependencies = [
 
 [[package]]
 name = "grid"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0634107a3a005070dd73e27e74ecb691a94e9e5ba7829f434db7fbf73a6b5c47"
-dependencies = [
- "no-std-compat",
-]
+checksum = "eec1c01eb1de97451ee0d60de7d81cf1e72aabefb021616027f3d1c3ec1c723c"
 
 [[package]]
 name = "h2"
@@ -3209,12 +3206,6 @@ dependencies = [
  "memoffset 0.7.1",
  "static_assertions",
 ]
-
-[[package]]
-name = "no-std-compat"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b93853da6d84c2e3c7d730d6473e8817692dd89be387eb01b94d7f108ecb5b8c"
 
 [[package]]
 name = "nom"
@@ -4606,9 +4597,9 @@ dependencies = [
 
 [[package]]
 name = "taffy"
-version = "0.3.12"
+version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3540ec65df399929a04a485feb50144475735920cc47eaf8eba09c70b1df4055"
+checksum = "82870da09c57a8a5a50f830ce8993a6637b9a4932f69257f12aea3fa68f588c9"
 dependencies = [
  "arrayvec",
  "grid",

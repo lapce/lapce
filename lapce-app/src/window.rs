@@ -301,4 +301,21 @@ impl WindowData {
             .min(window_tabs.len().saturating_sub(1));
         window_tabs.get(active).map(|(_, tab)| tab.clone())
     }
+
+    pub fn move_tab(&self, from_index: usize, to_index: usize) {
+        if from_index == to_index {
+            return;
+        }
+
+        let to_index = if from_index < to_index {
+            to_index - 1
+        } else {
+            to_index
+        };
+        self.window_tabs.update(|tabs| {
+            let tab = tabs.remove(from_index);
+            tabs.insert(to_index, tab);
+        });
+        self.active.set(to_index);
+    }
 }

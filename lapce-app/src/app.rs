@@ -2482,8 +2482,10 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
     });
 
     let local_window_data = window_data.clone();
+    let dragging_index: RwSignal<Option<RwSignal<usize>>> = create_rw_signal(None);
     let view_fn = move |(index, tab): (RwSignal<usize>, Arc<WindowTabData>)| {
         let drag_over_left = create_rw_signal(None);
+        let window_data = local_window_data.clone();
         stack(|| {
             (
                 container(|| {
@@ -2536,6 +2538,25 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                                 }
                                 true
                             })
+                            .on_event(EventListener::Drop, move |event| {
+                                drag_over_left.set(None);
+                                if let Event::PointerUp(pointer_event) = event {
+                                    let left = pointer_event.pos.x
+                                        < tab_width.get_untracked() / 2.0;
+                                    let index = index.get_untracked();
+                                    let new_index =
+                                        if left { index } else { index + 1 };
+                                    if let Some(from_index) =
+                                        dragging_index.get_untracked()
+                                    {
+                                        window_data.move_tab(
+                                            from_index.get_untracked(),
+                                            new_index,
+                                        );
+                                    }
+                                }
+                                true
+                            })
                             .on_event(EventListener::DragLeave, move |_| {
                                 drag_over_left.set(None);
                                 true
@@ -2574,12 +2595,21 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                     .style(move || Style::BASE.size_pct(100.0, 100.0).items_center())
                 })
                 .draggable()
+                .on_event(EventListener::DragStart, move |_| {
+                    dragging_index.set(Some(index));
+                    true
+                })
                 .dragging_style(move || {
                     let config = config.get();
                     Style::BASE
                         .border(1.0)
                         .border_radius(6.0)
                         .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                        .color(
+                            config
+                                .get_color(LapceColor::EDITOR_FOREGROUND)
+                                .with_alpha_factor(0.7),
+                        )
                         .background(
                             config
                                 .get_color(LapceColor::PANEL_BACKGROUND)
@@ -2590,16 +2620,16 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                     active.set(index.get_untracked());
                     true
                 })
-                .style(move || {
-                    Style::BASE
-                        .height_pct(100.0)
-                        .width_px(tab_width.get() as f32)
-                }),
+                .style(move || Style::BASE.size_pct(100.0, 100.0)),
                 empty().style(move || {
+                    let index = index.get();
                     Style::BASE
                         .absolute()
-                        .margin_left_px(-2.0)
-                        .width_px(tab_width.get() as f32 + 3.0)
+                        .margin_left_px(if index == 0 { 0.0 } else { -2.0 })
+                        .width_px(
+                            tab_width.get() as f32
+                                + if index == 0 { 1.0 } else { 3.0 },
+                        )
                         .height_pct(100.0)
                         .border_color(
                             *config
@@ -2619,7 +2649,11 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                 }),
             )
         })
-        .style(move || Style::BASE.height_pct(100.0))
+        .style(move || {
+            Style::BASE
+                .height_pct(100.0)
+                .width_px(tab_width.get() as f32)
+        })
     };
 
     stack(|| {
