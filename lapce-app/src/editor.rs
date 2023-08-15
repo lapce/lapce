@@ -334,7 +334,11 @@ impl EditorData {
         CommandExecuted::Yes
     }
 
-    fn run_motion_mode_command(&self, cmd: &MotionModeCommand) -> CommandExecuted {
+    fn run_motion_mode_command(
+        &self,
+        cmd: &MotionModeCommand,
+        count: Option<usize>,
+    ) -> CommandExecuted {
         let motion_mode = match cmd {
             MotionModeCommand::MotionModeDelete => MotionMode::Delete,
             MotionModeCommand::MotionModeIndent => MotionMode::Indent,
@@ -344,14 +348,21 @@ impl EditorData {
         let mut cursor = self.cursor.get_untracked();
         let mut register = self.common.register.get_untracked();
 
+        let mut executed = CommandExecuted::No;
         self.view.doc.update(|doc| {
-            movement::do_motion_mode(doc, &mut cursor, motion_mode, &mut register);
+            executed = movement::do_motion_mode(
+                doc,
+                &mut cursor,
+                motion_mode,
+                &mut register,
+                count.unwrap_or(1),
+            );
         });
 
         self.cursor.set(cursor);
         self.common.register.set(register);
 
-        CommandExecuted::Yes
+        executed
     }
 
     fn run_multi_selection_command(
@@ -2222,7 +2233,7 @@ impl KeyPressFocus for EditorData {
                 self.run_focus_command(cmd, count, mods)
             }
             crate::command::CommandKind::MotionMode(cmd) => {
-                self.run_motion_mode_command(cmd)
+                self.run_motion_mode_command(cmd, count)
             }
             crate::command::CommandKind::MultiSelection(cmd) => {
                 self.run_multi_selection_command(cmd)

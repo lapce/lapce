@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use crate::command::CommandExecuted;
 use lapce_core::{
     buffer::rope_text::RopeText,
     command::MultiSelectionCommand,
@@ -450,6 +451,7 @@ pub fn move_cursor(
                         end,
                         movement.is_vertical(),
                         register,
+                        count,
                     );
                     doc.apply_deltas(&deltas);
                 });
@@ -710,7 +712,8 @@ pub fn do_motion_mode(
     cursor: &mut Cursor,
     motion_mode: MotionMode,
     register: &mut Register,
-) {
+    count: usize,
+) -> CommandExecuted {
     if let Some(m) = &cursor.motion_mode {
         if m == &motion_mode {
             let offset = cursor.offset();
@@ -722,12 +725,15 @@ pub fn do_motion_mode(
                 offset,
                 true,
                 register,
+                count,
             );
             doc.apply_deltas(&deltas);
         }
         cursor.motion_mode = None;
+        CommandExecuted::Yes
     } else {
         cursor.motion_mode = Some(motion_mode);
+        CommandExecuted::No
     }
 }
 

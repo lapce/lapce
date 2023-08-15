@@ -423,6 +423,7 @@ impl Editor {
         deltas
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn execute_motion_mode(
         cursor: &mut Cursor,
         buffer: &mut Buffer,
@@ -431,12 +432,14 @@ impl Editor {
         end: usize,
         is_vertical: bool,
         register: &mut Register,
+        count: usize,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let mut deltas = Vec::new();
         match motion_mode {
             MotionMode::Delete => {
-                let (start, end) =
-                    format_start_end(buffer, start, end, is_vertical, false);
+                let start_line = buffer.line_of_offset(start.min(end));
+                let start = buffer.offset_of_line(start_line);
+                let end = buffer.offset_of_line(start_line + count);
                 register.add(
                     RegisterKind::Delete,
                     RegisterData {
@@ -455,8 +458,9 @@ impl Editor {
                 deltas.push((delta, inval_lines, edits));
             }
             MotionMode::Yank => {
-                let (start, end) =
-                    format_start_end(buffer, start, end, is_vertical, false);
+                let start_line = buffer.line_of_offset(start.min(end));
+                let start = buffer.offset_of_line(start_line);
+                let end = buffer.offset_of_line(start_line + count);
                 register.add(
                     RegisterKind::Yank,
                     RegisterData {
