@@ -594,10 +594,10 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     }
                     let value = doc.with_untracked(|doc| doc.buffer().to_string());
 
-                    if let Some(value) = toml_edit::ser::to_item(&value)
-                        .ok()
-                        .and_then(|i| i.into_value().ok())
-                    {
+                    if let Ok(value) = serde::Serialize::serialize(
+                        &value,
+                        toml_edit::ser::ValueSerializer::new(),
+                    ) {
                         LapceConfig::update_file(&kind, &field, value);
                     }
 
@@ -640,11 +640,10 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     label(move || local_item_string.clone())
                         .on_click(move |_| {
                             current_value.set(item_string.clone());
-                            if let Some(value) =
-                                toml_edit::ser::to_item(&item_string)
-                                    .ok()
-                                    .and_then(|i| i.into_value().ok())
-                            {
+                            if let Ok(value) = serde::Serialize::serialize(
+                                &item_string,
+                                toml_edit::ser::ValueSerializer::new(),
+                            ) {
                                 LapceConfig::update_file(&kind, &field, value);
                             }
                             expanded.set(false);
@@ -840,10 +839,10 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             if last.is_none() {
                                 return;
                             }
-                            if let Some(value) = toml_edit::ser::to_item(&checked)
-                                .ok()
-                                .and_then(|i| i.into_value().ok())
-                            {
+                            if let Ok(value) = serde::Serialize::serialize(
+                                &checked,
+                                toml_edit::ser::ValueSerializer::new(),
+                            ) {
                                 LapceConfig::update_file(&kind, &field, value);
                             }
                         });
