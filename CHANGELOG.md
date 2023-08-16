@@ -5,6 +5,7 @@
 ### Features/Changes
 - [#2425](https://github.com/lapce/lapce/pull/2425): Reimplement completion lens
 - [#2498](https://github.com/lapce/lapce/pull/2498): Show Lapce as an option when doing "Open With..." on Linux
+- [#2546](https://github.com/lapce/lapce/pull/2546): Fixed typo in the plugin view
 
 ### Bug Fixes
 
