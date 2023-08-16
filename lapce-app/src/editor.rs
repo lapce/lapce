@@ -339,30 +339,24 @@ impl EditorData {
         cmd: &MotionModeCommand,
         count: Option<usize>,
     ) -> CommandExecuted {
+        let count = count.unwrap_or(1);
         let motion_mode = match cmd {
-            MotionModeCommand::MotionModeDelete => MotionMode::Delete,
+            MotionModeCommand::MotionModeDelete => MotionMode::Delete { count },
             MotionModeCommand::MotionModeIndent => MotionMode::Indent,
             MotionModeCommand::MotionModeOutdent => MotionMode::Outdent,
-            MotionModeCommand::MotionModeYank => MotionMode::Yank,
+            MotionModeCommand::MotionModeYank => MotionMode::Yank { count },
         };
         let mut cursor = self.cursor.get_untracked();
         let mut register = self.common.register.get_untracked();
 
-        let mut executed = CommandExecuted::No;
         self.view.doc.update(|doc| {
-            executed = movement::do_motion_mode(
-                doc,
-                &mut cursor,
-                motion_mode,
-                &mut register,
-                count.unwrap_or(1),
-            );
+            movement::do_motion_mode(doc, &mut cursor, motion_mode, &mut register);
         });
 
         self.cursor.set(cursor);
         self.common.register.set(register);
 
-        executed
+        CommandExecuted::Yes
     }
 
     fn run_multi_selection_command(

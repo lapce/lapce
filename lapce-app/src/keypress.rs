@@ -250,24 +250,19 @@ impl KeyPressData {
                 self.pending_keypress.update(|pending_keypress| {
                     pending_keypress.clear();
                 });
-                let count = self.count.get();
-                if CommandExecuted::Yes
-                    == self.run_command(&command, count, mods, focus)
-                {
-                    self.count.set(None);
-                };
+                let count = self.count.try_update(|count| count.take()).unwrap();
+                self.run_command(&command, count, mods, focus);
                 return true;
             }
             KeymapMatch::Multiple(commands) => {
                 self.pending_keypress.update(|pending_keypress| {
                     pending_keypress.clear();
                 });
-                let count = self.count.get();
+                let count = self.count.try_update(|count| count.take()).unwrap();
                 for command in commands {
                     if self.run_command(&command, count, mods, focus)
                         == CommandExecuted::Yes
                     {
-                        self.count.set(None);
                         return true;
                     }
                 }
