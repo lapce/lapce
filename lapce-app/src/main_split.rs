@@ -1382,11 +1382,7 @@ impl MainSplitData {
         Some(())
     }
 
-    pub fn split_exchange(
-        &self,
-        cx: Scope,
-        editor_tab_id: EditorTabId,
-    ) -> Option<()> {
+    pub fn split_exchange(&self, editor_tab_id: EditorTabId) -> Option<()> {
         let editor_tabs = self.editor_tabs.get_untracked();
         let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
 
@@ -1403,31 +1399,31 @@ impl MainSplitData {
                 if index < split.children.len() - 1 {
                     split.children.swap(index, index + 1);
                 }
-                self.split_content_focus(cx, &split.children[index]);
+                self.split_content_focus(&split.children[index]);
             }
         });
 
         Some(())
     }
 
-    fn split_content_focus(&self, cx: Scope, content: &SplitContent) {
+    fn split_content_focus(&self, content: &SplitContent) {
         match content {
             SplitContent::EditorTab(editor_tab_id) => {
                 self.active_editor_tab.set(Some(*editor_tab_id));
             }
             SplitContent::Split(split_id) => {
-                self.split_focus(cx, *split_id);
+                self.split_focus(*split_id);
             }
         }
     }
 
-    fn split_focus(&self, cx: Scope, split_id: SplitId) -> Option<()> {
+    fn split_focus(&self, split_id: SplitId) -> Option<()> {
         let splits = self.splits.get_untracked();
         let split = splits.get(&split_id).copied()?;
 
         let split_chilren = split.with_untracked(|split| split.children.clone());
         let content = split_chilren.get(0)?;
-        self.split_content_focus(cx, content);
+        self.split_content_focus(content);
 
         Some(())
     }
@@ -1460,11 +1456,7 @@ impl MainSplitData {
         Some(())
     }
 
-    fn editor_tab_remove(
-        &self,
-        cx: Scope,
-        editor_tab_id: EditorTabId,
-    ) -> Option<()> {
+    fn editor_tab_remove(&self, editor_tab_id: EditorTabId) -> Option<()> {
         let editor_tabs = self.editor_tabs.get_untracked();
         let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
         self.editor_tabs.update(|editor_tabs| {
@@ -1518,11 +1510,11 @@ impl MainSplitData {
                         })
                     });
                 if let Some(content) = new_focus {
-                    self.split_content_focus(cx, &content);
+                    self.split_content_focus(&content);
                 }
             } else {
                 let content = split_children[index.min(split_children.len() - 1)];
-                self.split_content_focus(cx, &content);
+                self.split_content_focus(&content);
             }
         }
 
@@ -1533,16 +1525,12 @@ impl MainSplitData {
         Some(())
     }
 
-    pub fn editor_tab_close(
-        &self,
-        cx: Scope,
-        editor_tab_id: EditorTabId,
-    ) -> Option<()> {
+    pub fn editor_tab_close(&self, editor_tab_id: EditorTabId) -> Option<()> {
         let editor_tabs = self.editor_tabs.get_untracked();
         let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
         let editor_tab = editor_tab.get_untracked();
         for (_, child) in editor_tab.children {
-            self.editor_tab_child_close(cx, editor_tab_id, child, false);
+            self.editor_tab_child_close(editor_tab_id, child, false);
         }
 
         Some(())
@@ -1602,7 +1590,6 @@ impl MainSplitData {
 
     pub fn editor_tab_child_close(
         &self,
-        cx: Scope,
         editor_tab_id: EditorTabId,
         child: EditorTabChild,
         force: bool,
@@ -1636,7 +1623,6 @@ impl MainSplitData {
                                                 local_main_split
                                                     .clone()
                                                     .editor_tab_child_close(
-                                                        cx,
                                                         editor_tab_id,
                                                         child.clone(),
                                                         false,
@@ -1690,7 +1676,6 @@ impl MainSplitData {
                                         internal_command
                                             .send(InternalCommand::HideAlert);
                                         main_split.editor_tab_child_close(
-                                            cx,
                                             editor_tab_id,
                                             child.clone(),
                                             true,
@@ -1740,7 +1725,7 @@ impl MainSplitData {
         }
 
         if editor_tab_children_len == 0 {
-            self.editor_tab_remove(cx, editor_tab_id);
+            self.editor_tab_remove(editor_tab_id);
         }
 
         Some(())
@@ -2055,6 +2040,91 @@ impl MainSplitData {
                 main_split.save_as(doc, file.path, move || {});
             }
         });
+    }
+
+    pub fn move_editor_tab_child(
+        &self,
+        from_tab: EditorTabId,
+        to_tab: EditorTabId,
+        from_index: usize,
+        to_index: usize,
+    ) -> Option<()> {
+        println!("move from {from_tab:?} {from_index} to {to_tab:?} {to_index}");
+        let from_editor_tab = self
+            .editor_tabs
+            .with_untracked(|editor_tabs| editor_tabs.get(&from_tab).cloned())?;
+
+        if from_tab == to_tab {
+            if from_index == to_index {
+                return Some(());
+            }
+
+            let to_index = if from_index < to_index {
+                to_index - 1
+            } else {
+                to_index
+            };
+
+            from_editor_tab.update(|tab| {
+                let child = tab.children.remove(from_index);
+                tab.children.insert(to_index, child);
+                tab.active = to_index;
+            });
+        } else {
+            let to_editor_tab = self
+                .editor_tabs
+                .with_untracked(|editor_tabs| editor_tabs.get(&to_tab).cloned())?;
+
+            let (_, child) = from_editor_tab
+                .try_update(|tab| {
+                    let child = tab.children.remove(from_index);
+                    tab.active =
+                        tab.active.min(tab.children.len().saturating_sub(1));
+                    child
+                })
+                .unwrap();
+
+            self.editor_tab_child_set_parent(&child, to_tab);
+            to_editor_tab.update(|tab| {
+                tab.children
+                    .insert(to_index, (tab.scope.create_rw_signal(to_index), child));
+                tab.active = to_index;
+            });
+            self.active_editor_tab.set(Some(to_tab));
+
+            if from_editor_tab.with_untracked(|tab| tab.children.is_empty()) {
+                self.editor_tab_close(from_tab);
+            }
+        }
+
+        Some(())
+    }
+
+    fn editor_tab_child_set_parent(
+        &self,
+        child: &EditorTabChild,
+        editor_tab_id: EditorTabId,
+    ) -> Option<()> {
+        match child {
+            EditorTabChild::Editor(editor_id) => {
+                let editor = self
+                    .editors
+                    .with_untracked(|editors| editors.get(editor_id).cloned())?;
+                editor.update(|editor| {
+                    editor.editor_tab_id = Some(editor_tab_id);
+                });
+            }
+            EditorTabChild::DiffEditor(diff_editor_id) => {
+                let diff_editor =
+                    self.diff_editors.with_untracked(|diff_editors| {
+                        diff_editors.get(diff_editor_id).cloned()
+                    })?;
+                diff_editor.editor_tab_id.set(editor_tab_id);
+            }
+            EditorTabChild::Settings(_) => {}
+            EditorTabChild::Keymap(_) => {}
+        }
+        Some(())
     }
 }
 

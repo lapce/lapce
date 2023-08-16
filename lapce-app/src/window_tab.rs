@@ -1112,21 +1112,17 @@ impl WindowTabData {
                 self.main_split.split_move(cx, direction, editor_tab_id);
             }
             InternalCommand::SplitExchange { editor_tab_id } => {
-                self.main_split.split_exchange(cx, editor_tab_id);
+                self.main_split.split_exchange(editor_tab_id);
             }
             InternalCommand::EditorTabClose { editor_tab_id } => {
-                self.main_split.editor_tab_close(cx, editor_tab_id);
+                self.main_split.editor_tab_close(editor_tab_id);
             }
             InternalCommand::EditorTabChildClose {
                 editor_tab_id,
                 child,
             } => {
-                self.main_split.editor_tab_child_close(
-                    cx,
-                    editor_tab_id,
-                    child,
-                    false,
-                );
+                self.main_split
+                    .editor_tab_child_close(editor_tab_id, child, false);
             }
             InternalCommand::ShowCodeActions {
                 offset,

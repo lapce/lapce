@@ -1175,9 +1175,10 @@ pub fn editor_container_view(
     is_active: impl Fn(bool) -> bool + 'static + Copy,
     editor: RwSignal<EditorData>,
 ) -> impl View {
-    let (find_focus, sticky_header_height, editor_view, config) = editor
+    let (editor_id, find_focus, sticky_header_height, editor_view, config) = editor
         .with_untracked(|editor| {
             (
+                editor.editor_id,
                 editor.find_focus,
                 editor.sticky_header_height,
                 editor.view.kind,
@@ -1185,6 +1186,7 @@ pub fn editor_container_view(
             )
         });
 
+    let editors = main_split.editors;
     let scratch_docs = main_split.scratch_docs;
     let find_editor = main_split.find_editor;
     let replace_editor = main_split.replace_editor;
@@ -1239,6 +1241,10 @@ pub fn editor_container_view(
         )
     })
     .on_cleanup(move || {
+        if editors.with_untracked(|editors| editors.contains_key(&editor_id)) {
+            // editor still exist, so it might be moved to a different editor tab
+            return;
+        }
         let (editor_cx, doc) =
             editor.with_untracked(|editor| (editor.scope, editor.view.doc));
         editor_cx.dispose();
