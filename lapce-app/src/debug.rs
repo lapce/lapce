@@ -56,7 +56,7 @@ pub fn run_configs(workspace: Option<&Path>) -> Option<RunDebugConfigs> {
         return None;
     }
     let content = std::fs::read_to_string(run_toml).ok()?;
-    let configs: RunDebugConfigs = toml_edit::easy::from_str(&content).ok()?;
+    let configs: RunDebugConfigs = toml::from_str(&content).ok()?;
     Some(configs)
 }
 

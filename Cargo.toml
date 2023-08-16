@@ -59,7 +59,8 @@ strum = "0.21.0" # follow same version as system-deps in lockfile
 strum_macros = "0.21.1" # ditto
 tar = "0.4"
 thiserror = "1.0"
-toml_edit = { version = "0.14.4", features = ["easy"] }
+toml = { version = "*" }
+toml_edit = { version = "0.19.14", features = ["serde"] }
 
 lsp-types = { version = "0.93", features = ["proposed"] }
 psp-types = { git = "https://github.com/lapce/psp-types" }
