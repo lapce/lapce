@@ -711,13 +711,16 @@ pub fn do_motion_mode(
     motion_mode: MotionMode,
     register: &mut Register,
 ) {
-    if let Some(m) = &cursor.motion_mode {
-        if m == &motion_mode {
+    if let Some(cached_motion_mode) = cursor.motion_mode.take() {
+        // If it's the same MotionMode discriminant, continue, count is cached in the old motion_mode.
+        if core::mem::discriminant(&cached_motion_mode)
+            == core::mem::discriminant(&motion_mode)
+        {
             let offset = cursor.offset();
             let deltas = Editor::execute_motion_mode(
                 cursor,
                 doc.buffer_mut(),
-                motion_mode,
+                cached_motion_mode,
                 offset,
                 offset,
                 true,
@@ -725,7 +728,6 @@ pub fn do_motion_mode(
             );
             doc.apply_deltas(&deltas);
         }
-        cursor.motion_mode = None;
     } else {
         cursor.motion_mode = Some(motion_mode);
     }

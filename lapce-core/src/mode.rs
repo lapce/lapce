@@ -6,8 +6,8 @@ use tracing::warn;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MotionMode {
-    Delete,
-    Yank,
+    Delete { count: usize },
+    Yank { count: usize },
     Indent,
     Outdent,
 }
