@@ -500,6 +500,7 @@ pub enum InternalCommand {
     OpenFile {
         path: PathBuf,
     },
+    MakeConfirmed,
     OpenFileChanges {
         path: PathBuf,
     },

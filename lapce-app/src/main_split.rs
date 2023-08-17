@@ -55,6 +55,19 @@ pub enum SplitMoveDirection {
     Left,
 }
 
+impl SplitMoveDirection {
+    pub fn direction(&self) -> SplitDirection {
+        match self {
+            SplitMoveDirection::Up | SplitMoveDirection::Down => {
+                SplitDirection::Horizontal
+            }
+            SplitMoveDirection::Left | SplitMoveDirection::Right => {
+                SplitDirection::Vertical
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SplitContent {
     EditorTab(EditorTabId),
@@ -184,6 +197,16 @@ impl SplitData {
                 .collect(),
         };
         info
+    }
+
+    pub fn editor_tab_index(&self, editor_tab_id: EditorTabId) -> Option<usize> {
+        self.children
+            .iter()
+            .position(|c| c == &SplitContent::EditorTab(editor_tab_id))
+    }
+
+    pub fn content_index(&self, content: &SplitContent) -> Option<usize> {
+        self.children.iter().position(|c| c == content)
     }
 }
 
@@ -1382,11 +1405,7 @@ impl MainSplitData {
         Some(())
     }
 
-    pub fn split_exchange(
-        &self,
-        cx: Scope,
-        editor_tab_id: EditorTabId,
-    ) -> Option<()> {
+    pub fn split_exchange(&self, editor_tab_id: EditorTabId) -> Option<()> {
         let editor_tabs = self.editor_tabs.get_untracked();
         let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
 
@@ -1403,31 +1422,31 @@ impl MainSplitData {
                 if index < split.children.len() - 1 {
                     split.children.swap(index, index + 1);
                 }
-                self.split_content_focus(cx, &split.children[index]);
+                self.split_content_focus(&split.children[index]);
             }
         });
 
         Some(())
     }
 
-    fn split_content_focus(&self, cx: Scope, content: &SplitContent) {
+    fn split_content_focus(&self, content: &SplitContent) {
         match content {
             SplitContent::EditorTab(editor_tab_id) => {
                 self.active_editor_tab.set(Some(*editor_tab_id));
             }
             SplitContent::Split(split_id) => {
-                self.split_focus(cx, *split_id);
+                self.split_focus(*split_id);
             }
         }
     }
 
-    fn split_focus(&self, cx: Scope, split_id: SplitId) -> Option<()> {
+    fn split_focus(&self, split_id: SplitId) -> Option<()> {
         let splits = self.splits.get_untracked();
         let split = splits.get(&split_id).copied()?;
 
         let split_chilren = split.with_untracked(|split| split.children.clone());
         let content = split_chilren.get(0)?;
-        self.split_content_focus(cx, content);
+        self.split_content_focus(content);
 
         Some(())
     }
@@ -1454,17 +1473,30 @@ impl MainSplitData {
             })
             .unwrap();
         if split_len == 0 {
-            self.split_remove(split_id);
+            self.split_remove(parent_split_id);
+        } else if split_len == 1 {
+            let parent_parent_split_id =
+                parent_split.with_untracked(|split| split.parent_split)?;
+            let parent_parent_split =
+                splits.get(&parent_parent_split_id).copied()?;
+            let parent_split_index =
+                parent_parent_split.with_untracked(|split| {
+                    split.content_index(&SplitContent::Split(parent_split_id))
+                })?;
+            let orphan = parent_split
+                .try_update(|split| split.children.remove(0))
+                .unwrap();
+            self.split_content_set_parent(&orphan, parent_parent_split_id);
+            parent_parent_split.update(|parent_parent_split| {
+                parent_parent_split.children[parent_split_index] = orphan;
+            });
+            self.split_remove(parent_split_id);
         }
 
         Some(())
     }
 
-    fn editor_tab_remove(
-        &self,
-        cx: Scope,
-        editor_tab_id: EditorTabId,
-    ) -> Option<()> {
+    fn editor_tab_remove(&self, editor_tab_id: EditorTabId) -> Option<()> {
         let editor_tabs = self.editor_tabs.get_untracked();
         let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
         self.editor_tabs.update(|editor_tabs| {
@@ -1518,31 +1550,41 @@ impl MainSplitData {
                         })
                     });
                 if let Some(content) = new_focus {
-                    self.split_content_focus(cx, &content);
+                    self.split_content_focus(&content);
                 }
             } else {
                 let content = split_children[index.min(split_children.len() - 1)];
-                self.split_content_focus(cx, &content);
+                self.split_content_focus(&content);
             }
         }
 
         if split_children.is_empty() {
             self.split_remove(split_id);
+        } else if split_children.len() == 1 {
+            if let Some(parent_split_id) = parent_split_id {
+                let parent_split = splits.get(&parent_split_id).copied()?;
+                let split_index = parent_split.with_untracked(|split| {
+                    split.content_index(&SplitContent::Split(split_id))
+                })?;
+                let orphan =
+                    split.try_update(|split| split.children.remove(0)).unwrap();
+                self.split_content_set_parent(&orphan, parent_split_id);
+                parent_split.update(|parent_split| {
+                    parent_split.children[split_index] = orphan;
+                });
+                self.split_remove(split_id);
+            }
         }
 
         Some(())
     }
 
-    pub fn editor_tab_close(
-        &self,
-        cx: Scope,
-        editor_tab_id: EditorTabId,
-    ) -> Option<()> {
+    pub fn editor_tab_close(&self, editor_tab_id: EditorTabId) -> Option<()> {
         let editor_tabs = self.editor_tabs.get_untracked();
         let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
         let editor_tab = editor_tab.get_untracked();
         for (_, child) in editor_tab.children {
-            self.editor_tab_child_close(cx, editor_tab_id, child, false);
+            self.editor_tab_child_close(editor_tab_id, child, false);
         }
 
         Some(())
@@ -1602,7 +1644,6 @@ impl MainSplitData {
 
     pub fn editor_tab_child_close(
         &self,
-        cx: Scope,
         editor_tab_id: EditorTabId,
         child: EditorTabChild,
         force: bool,
@@ -1636,7 +1677,6 @@ impl MainSplitData {
                                                 local_main_split
                                                     .clone()
                                                     .editor_tab_child_close(
-                                                        cx,
                                                         editor_tab_id,
                                                         child.clone(),
                                                         false,
@@ -1690,7 +1730,6 @@ impl MainSplitData {
                                         internal_command
                                             .send(InternalCommand::HideAlert);
                                         main_split.editor_tab_child_close(
-                                            cx,
                                             editor_tab_id,
                                             child.clone(),
                                             true,
@@ -1740,7 +1779,7 @@ impl MainSplitData {
         }
 
         if editor_tab_children_len == 0 {
-            self.editor_tab_remove(cx, editor_tab_id);
+            self.editor_tab_remove(editor_tab_id);
         }
 
         Some(())
@@ -2055,6 +2094,292 @@ impl MainSplitData {
                 main_split.save_as(doc, file.path, move || {});
             }
         });
+    }
+
+    pub fn move_editor_tab_child(
+        &self,
+        from_tab: EditorTabId,
+        to_tab: EditorTabId,
+        from_index: usize,
+        to_index: usize,
+    ) -> Option<()> {
+        let from_editor_tab = self
+            .editor_tabs
+            .with_untracked(|editor_tabs| editor_tabs.get(&from_tab).cloned())?;
+
+        if from_tab == to_tab {
+            if from_index == to_index {
+                return Some(());
+            }
+
+            let to_index = if from_index < to_index {
+                to_index - 1
+            } else {
+                to_index
+            };
+
+            from_editor_tab.update(|tab| {
+                let child = tab.children.remove(from_index);
+                tab.children.insert(to_index, child);
+                tab.active = to_index;
+            });
+        } else {
+            let to_editor_tab = self
+                .editor_tabs
+                .with_untracked(|editor_tabs| editor_tabs.get(&to_tab).cloned())?;
+
+            let (_, child) = from_editor_tab
+                .try_update(|tab| {
+                    let child = tab.children.remove(from_index);
+                    tab.active =
+                        tab.active.min(tab.children.len().saturating_sub(1));
+                    child
+                })
+                .unwrap();
+
+            self.editor_tab_child_set_parent(&child, to_tab);
+            to_editor_tab.update(|tab| {
+                tab.children
+                    .insert(to_index, (tab.scope.create_rw_signal(to_index), child));
+                tab.active = to_index;
+            });
+            self.active_editor_tab.set(Some(to_tab));
+
+            if from_editor_tab.with_untracked(|tab| tab.children.is_empty()) {
+                self.editor_tab_remove(from_tab);
+            }
+        }
+
+        Some(())
+    }
+
+    fn split_content_set_parent(
+        &self,
+        content: &SplitContent,
+        parent_split_id: SplitId,
+    ) -> Option<()> {
+        match content {
+            SplitContent::EditorTab(editor_tab_id) => {
+                let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
+                    editor_tabs.get(editor_tab_id).copied()
+                })?;
+                editor_tab.update(|editor_tab| {
+                    editor_tab.split = parent_split_id;
+                });
+            }
+            SplitContent::Split(split_id) => {
+                let split = self
+                    .splits
+                    .with_untracked(|splits| splits.get(split_id).copied())?;
+                split.update(|split| {
+                    split.parent_split = Some(parent_split_id);
+                });
+            }
+        }
+        Some(())
+    }
+
+    fn editor_tab_child_set_parent(
+        &self,
+        child: &EditorTabChild,
+        editor_tab_id: EditorTabId,
+    ) -> Option<()> {
+        match child {
+            EditorTabChild::Editor(editor_id) => {
+                let editor = self
+                    .editors
+                    .with_untracked(|editors| editors.get(editor_id).cloned())?;
+                editor.update(|editor| {
+                    editor.editor_tab_id = Some(editor_tab_id);
+                });
+            }
+            EditorTabChild::DiffEditor(diff_editor_id) => {
+                let diff_editor =
+                    self.diff_editors.with_untracked(|diff_editors| {
+                        diff_editors.get(diff_editor_id).cloned()
+                    })?;
+                diff_editor.editor_tab_id.set(editor_tab_id);
+            }
+            EditorTabChild::Settings(_) => {}
+            EditorTabChild::Keymap(_) => {}
+        }
+        Some(())
+    }
+
+    pub fn move_editor_tab_child_to_new_split(
+        &self,
+        from_tab: EditorTabId,
+        from_index: usize,
+        to_tab: EditorTabId,
+        split: SplitMoveDirection,
+    ) -> Option<()> {
+        let from_editor_tab = self
+            .editor_tabs
+            .with_untracked(|editor_tabs| editor_tabs.get(&from_tab).cloned())?;
+        let to_editor_tab = self
+            .editor_tabs
+            .with_untracked(|editor_tabs| editor_tabs.get(&to_tab).cloned())?;
+        let to_split_id =
+            to_editor_tab.with_untracked(|editor_tab| editor_tab.split);
+        let to_split = self
+            .splits
+            .with_untracked(|splits| splits.get(&to_split_id).cloned())?;
+        {
+            let to_split_direction =
+                to_split.with_untracked(|split| split.direction);
+            if split.direction() != to_split_direction {
+                let children_len =
+                    to_split.with_untracked(|split| split.children.len());
+                if children_len <= 1 {
+                    to_split.update(|to_split| {
+                        to_split.direction = split.direction();
+                    });
+                }
+            }
+        }
+
+        let to_split_direction = to_split.with_untracked(|split| split.direction);
+        if split.direction() == to_split_direction {
+            let index =
+                to_split.with_untracked(|split| split.editor_tab_index(to_tab))?;
+            let index = match split {
+                SplitMoveDirection::Up => index,
+                SplitMoveDirection::Down => index + 1,
+                SplitMoveDirection::Right => index + 1,
+                SplitMoveDirection::Left => index,
+            };
+            let new_editor_tab_id = EditorTabId::next();
+
+            let (_, child) = from_editor_tab
+                .try_update(|tab| {
+                    let child = tab.children.remove(from_index);
+                    tab.active =
+                        tab.active.min(tab.children.len().saturating_sub(1));
+                    child
+                })
+                .unwrap();
+
+            self.editor_tab_child_set_parent(&child, new_editor_tab_id);
+
+            let cx = self.scope.create_child();
+            let new_editor_tab = EditorTabData {
+                scope: cx,
+                split: to_split_id,
+                editor_tab_id: new_editor_tab_id,
+                active: 0,
+                children: vec![(cx.create_rw_signal(0), child)],
+                window_origin: Point::ZERO,
+                layout_rect: Rect::ZERO,
+                locations: cx.create_rw_signal(im::Vector::new()),
+                current_location: cx.create_rw_signal(0),
+            };
+            self.editor_tabs.update(|editor_tabs| {
+                editor_tabs.insert(
+                    new_editor_tab.editor_tab_id,
+                    new_editor_tab.scope.create_rw_signal(new_editor_tab),
+                );
+            });
+            to_split.update(|split| {
+                split
+                    .children
+                    .insert(index, SplitContent::EditorTab(new_editor_tab_id));
+            });
+            self.active_editor_tab.set(Some(new_editor_tab_id));
+        } else {
+            let index =
+                to_split.with_untracked(|split| split.editor_tab_index(to_tab))?;
+            let existing_editor_tab = to_split
+                .try_update(|split| split.children.remove(index))
+                .unwrap();
+
+            let new_split_id = SplitId::next();
+
+            if let SplitContent::EditorTab(existing_editor_tab_id) =
+                existing_editor_tab
+            {
+                let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
+                    editor_tabs.get(&existing_editor_tab_id).cloned()
+                })?;
+                editor_tab.update(|editor_tab| {
+                    editor_tab.split = new_split_id;
+                });
+            }
+
+            let new_editor_tab_id = EditorTabId::next();
+
+            let (_, child) = from_editor_tab
+                .try_update(|tab| {
+                    let child = tab.children.remove(from_index);
+                    tab.active =
+                        tab.active.min(tab.children.len().saturating_sub(1));
+                    child
+                })
+                .unwrap();
+            self.editor_tab_child_set_parent(&child, new_editor_tab_id);
+
+            let new_editor_tab = {
+                let cx = self.scope.create_child();
+                EditorTabData {
+                    scope: cx,
+                    split: new_split_id,
+                    editor_tab_id: new_editor_tab_id,
+                    active: 0,
+                    children: vec![(cx.create_rw_signal(0), child)],
+                    window_origin: Point::ZERO,
+                    layout_rect: Rect::ZERO,
+                    locations: cx.create_rw_signal(im::Vector::new()),
+                    current_location: cx.create_rw_signal(0),
+                }
+            };
+            self.editor_tabs.update(|editor_tabs| {
+                editor_tabs.insert(
+                    new_editor_tab.editor_tab_id,
+                    new_editor_tab.scope.create_rw_signal(new_editor_tab),
+                );
+            });
+
+            let new_split_children = match split {
+                SplitMoveDirection::Up | SplitMoveDirection::Left => {
+                    vec![
+                        SplitContent::EditorTab(new_editor_tab_id),
+                        existing_editor_tab,
+                    ]
+                }
+                SplitMoveDirection::Down | SplitMoveDirection::Right => {
+                    vec![
+                        existing_editor_tab,
+                        SplitContent::EditorTab(new_editor_tab_id),
+                    ]
+                }
+            };
+            let new_split = SplitData {
+                scope: self.scope.create_child(),
+                split_id: new_split_id,
+                parent_split: Some(to_split_id),
+                children: new_split_children,
+                direction: split.direction(),
+                window_origin: Point::ZERO,
+                layout_rect: Rect::ZERO,
+            };
+            self.splits.update(|splits| {
+                splits.insert(
+                    new_split_id,
+                    new_split.scope.create_rw_signal(new_split),
+                );
+            });
+            to_split.update(|split| {
+                split
+                    .children
+                    .insert(index, SplitContent::Split(new_split_id));
+            });
+            self.active_editor_tab.set(Some(new_editor_tab_id));
+        }
+
+        if from_editor_tab.with_untracked(|tab| tab.children.is_empty()) {
+            self.editor_tab_remove(from_tab);
+        }
+
+        Some(())
     }
 }
 

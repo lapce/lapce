@@ -79,6 +79,7 @@ fn file_node_view(
                 (
                     {
                         let file_node = file_node.clone();
+                        let double_click_file_node = file_node.clone();
                         let proxy = proxy.clone();
                         let expanded = file_node.expanded;
                         let is_dir = file_node.is_dir;
@@ -163,6 +164,9 @@ fn file_node_view(
                         .on_click(move |_| {
                             file_node.click(&proxy);
                             true
+                        })
+                        .on_double_click(move |_| {
+                            double_click_file_node.double_click()
                         })
                         .style(move || {
                             Style::BASE

@@ -136,7 +136,7 @@ impl DiffEditorInfo {
 #[derive(Clone)]
 pub struct DiffEditorData {
     pub id: DiffEditorId,
-    pub editor_tab_id: EditorTabId,
+    pub editor_tab_id: RwSignal<EditorTabId>,
     pub scope: Scope,
     pub left: RwSignal<EditorData>,
     pub right: RwSignal<EditorData>,
@@ -161,7 +161,7 @@ impl DiffEditorData {
 
         let data = Self {
             id,
-            editor_tab_id,
+            editor_tab_id: cx.create_rw_signal(editor_tab_id),
             scope: cx,
             left,
             right,
@@ -197,7 +197,7 @@ impl DiffEditorData {
         let diff_editor = DiffEditorData {
             scope: cx,
             id: diff_editor_id,
-            editor_tab_id,
+            editor_tab_id: cx.create_rw_signal(editor_tab_id),
             focus_right: cx.create_rw_signal(true),
             left: cx.create_rw_signal(self.left.get_untracked().copy(
                 cx,
