@@ -78,7 +78,9 @@ use crate::{
     keymap::keymap_view,
     keypress::keymap::KeyMap,
     listener::Listener,
-    main_split::{MainSplitData, SplitContent, SplitData, SplitDirection},
+    main_split::{
+        MainSplitData, SplitContent, SplitData, SplitDirection, SplitMoveDirection,
+    },
     palette::{
         item::{PaletteItem, PaletteItemContent},
         PaletteData, PaletteStatus,
@@ -739,6 +741,7 @@ fn editor_tab_header(
                         if let Some((from_index, from_editor_tab_id)) =
                             dragging.get_untracked()
                         {
+                            drag_over_left.set(None);
                             if let Event::PointerUp(pointer_event) = event {
                                 let left = pointer_event.pos.x
                                     < header_content_size.get_untracked().width
@@ -1156,6 +1159,9 @@ fn editor_tab(
     dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>>,
 ) -> impl View {
     let common = main_split.common.clone();
+    let editor_tabs = main_split.editor_tabs;
+    let editor_tab_id =
+        editor_tab.with_untracked(|editor_tab| editor_tab.editor_tab_id);
     let config = common.config;
     let focus = common.focus;
     let internal_command = main_split.common.internal_command;
@@ -1265,6 +1271,68 @@ fn editor_tab(
                             drag_over.set(None);
                             true
                         })
+                        .on_event(EventListener::Drop, move |_| {
+                            if let Some((from_index, from_editor_tab_id)) =
+                                dragging.get_untracked()
+                            {
+                                if let Some(pos) = drag_over.get_untracked() {
+                                    match pos {
+                                        DragOverPosition::Top => {
+                                            main_split
+                                                .move_editor_tab_child_to_new_split(
+                                                    from_editor_tab_id,
+                                                    from_index.get_untracked(),
+                                                    editor_tab_id,
+                                                    SplitMoveDirection::Up,
+                                                );
+                                        }
+                                        DragOverPosition::Bottom => {
+                                            main_split
+                                                .move_editor_tab_child_to_new_split(
+                                                    from_editor_tab_id,
+                                                    from_index.get_untracked(),
+                                                    editor_tab_id,
+                                                    SplitMoveDirection::Down,
+                                                );
+                                        }
+                                        DragOverPosition::Left => {
+                                            main_split
+                                                .move_editor_tab_child_to_new_split(
+                                                    from_editor_tab_id,
+                                                    from_index.get_untracked(),
+                                                    editor_tab_id,
+                                                    SplitMoveDirection::Left,
+                                                );
+                                        }
+                                        DragOverPosition::Right => {
+                                            main_split
+                                                .move_editor_tab_child_to_new_split(
+                                                    from_editor_tab_id,
+                                                    from_index.get_untracked(),
+                                                    editor_tab_id,
+                                                    SplitMoveDirection::Right,
+                                                );
+                                        }
+                                        DragOverPosition::Middle => {
+                                            main_split.move_editor_tab_child(
+                                                from_editor_tab_id,
+                                                editor_tab_id,
+                                                from_index.get_untracked(),
+                                                editor_tab.with_untracked(
+                                                    |editor_tab| {
+                                                        editor_tab.active + 1
+                                                    },
+                                                ),
+                                            );
+                                        }
+                                    }
+                                }
+                                drag_over.set(None);
+                                true
+                            } else {
+                                false
+                            }
+                        })
                         .on_resize(move |_, rect| {
                             tab_size.set(rect.size());
                         })
@@ -1283,6 +1351,11 @@ fn editor_tab(
         false
     })
     .on_cleanup(move || {
+        if editor_tabs
+            .with_untracked(|editor_tabs| editor_tabs.contains_key(&editor_tab_id))
+        {
+            return;
+        }
         editor_tab
             .with_untracked(|editor_tab| editor_tab.scope)
             .dispose();
@@ -1383,6 +1456,7 @@ fn split_list(
     let diff_editors = main_split.diff_editors.read_only();
     let splits = main_split.splits.read_only();
     let config = main_split.common.config;
+    let split_id = split.with_untracked(|split| split.split_id);
 
     let direction = move || split.with(|split| split.direction);
     let items = move || split.get().children.into_iter().enumerate();
@@ -1474,6 +1548,9 @@ fn split_list(
         )
     })
     .on_cleanup(move || {
+        if splits.with_untracked(|splits| splits.contains_key(&split_id)) {
+            return;
+        }
         split
             .with_untracked(|split_data| split_data.scope)
             .dispose();

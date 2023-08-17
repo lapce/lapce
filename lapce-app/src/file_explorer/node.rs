@@ -63,6 +63,15 @@ impl FileNode {
         }
     }
 
+    pub fn double_click(&self) -> bool {
+        if self.is_dir {
+            false
+        } else {
+            self.internal_command.send(InternalCommand::MakeConfirmed);
+            true
+        }
+    }
+
     pub fn toggle_expand(&self, proxy: &ProxyRpcHandler) {
         if !self.is_dir {
             return;

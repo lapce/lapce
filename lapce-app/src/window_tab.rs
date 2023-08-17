@@ -1074,6 +1074,12 @@ impl WindowTabData {
                 // TODO: implement logging panel, runtime log level change
                 debug!("{level}");
             }
+            InternalCommand::MakeConfirmed => {
+                if let Some(editor) = self.main_split.active_editor.get_untracked() {
+                    let confirmed = editor.with_untracked(|editor| editor.confirmed);
+                    confirmed.set(true);
+                }
+            }
             InternalCommand::OpenFile { path } => {
                 self.main_split.jump_to_location(
                     EditorLocation {
