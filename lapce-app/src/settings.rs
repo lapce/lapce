@@ -534,7 +534,7 @@ pub fn settings_view(
                             scroll_pos.set(rect.origin());
                         })
                         .on_ensure_visible(move || ensure_visible.get())
-                        .on_resize(move |_, rect| {
+                        .on_resize(move |rect| {
                             settings_content_size.set(rect.size());
                         })
                         .scroll_bar_color(move || {
@@ -883,7 +883,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
             }),
         )
     })
-    .on_resize(move |_, rect| {
+    .on_resize(move |rect| {
         if item.header {
             item.pos.set(rect.origin());
         }

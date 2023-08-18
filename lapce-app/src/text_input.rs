@@ -457,6 +457,11 @@ impl View for TextInput {
                     } else {
                         Vec2::ZERO
                     };
+                let delta = if delta.x == 0.0 && delta.y != 0.0 {
+                    Vec2::new(delta.y, delta.x)
+                } else {
+                    delta
+                };
                 self.clamp_text_viewport(self.text_viewport + delta);
                 return false;
             }
@@ -493,6 +498,7 @@ impl View for TextInput {
                             .with_size(Size::new(max - min, height))
                             .with_origin(Point::new(min + point.x, point.y)),
                         *config.get_color(LapceColor::EDITOR_SELECTION),
+                        0.0,
                     );
                 }
             }

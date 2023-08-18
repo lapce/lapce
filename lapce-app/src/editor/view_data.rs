@@ -184,9 +184,8 @@ impl EditorViewData {
         self.doc.with_untracked(|doc| doc.find_result.clone())
     }
 
-    pub fn update_find(&self, min_line: usize, max_line: usize) {
-        self.doc
-            .with_untracked(|doc| doc.update_find(min_line, max_line));
+    pub fn update_find(&self) {
+        self.doc.with_untracked(|doc| doc.update_find());
     }
 
     /// The current revision of the underlying buffer. This is used to track when the buffer has

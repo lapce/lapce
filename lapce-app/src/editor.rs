@@ -1664,6 +1664,36 @@ impl EditorData {
         }
     }
 
+    fn replace_next(&self, text: &str) {
+        let offset = self.cursor.with_untracked(|c| c.offset());
+        let buffer = self.view.doc.with_untracked(|doc| doc.buffer().clone());
+        let next = self.common.find.next(buffer.text(), offset, false, true);
+
+        if let Some((start, end)) = next {
+            let selection = Selection::region(start, end);
+            self.do_edit(&selection, &[(selection.clone(), text)]);
+        }
+    }
+
+    fn replace_all(&self, text: &str) {
+        let offset = self.cursor.with_untracked(|c| c.offset());
+
+        self.view.update_find();
+
+        let edits: Vec<(Selection, &str)> = self
+            .view
+            .find_result()
+            .occurrences
+            .get_untracked()
+            .regions()
+            .iter()
+            .map(|region| (Selection::region(region.start, region.end), text))
+            .collect();
+        if !edits.is_empty() {
+            self.do_edit(&Selection::caret(offset), &edits);
+        }
+    }
+
     pub fn save_doc_position(&self) {
         let path = match self.view.doc.with_untracked(|doc| {
             if doc.loaded() {

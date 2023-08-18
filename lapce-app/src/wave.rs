@@ -96,7 +96,7 @@ impl View for WaveBox {
             }
             path.line_to(origin);
 
-            cx.fill(&path, color);
+            cx.fill(&path, color, 0.0);
         }
     }
 }

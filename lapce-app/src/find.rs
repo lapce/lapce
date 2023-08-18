@@ -59,6 +59,7 @@ pub struct FindSearchString {
 
 #[derive(Clone)]
 pub struct Find {
+    pub rev: RwSignal<u64>,
     /// If the find is shown
     pub visual: RwSignal<bool>,
     /// The currently active search string.
@@ -78,6 +79,7 @@ pub struct Find {
 impl Find {
     pub fn new(cx: Scope) -> Self {
         let find = Self {
+            rev: cx.create_rw_signal(0),
             visual: cx.create_rw_signal(false),
             search_string: cx.create_rw_signal(None),
             case_matching: cx.create_rw_signal(CaseMatching::CaseInsensitive),
@@ -101,6 +103,18 @@ impl Find {
                 if !s.is_empty() {
                     find.set_find(&s);
                 }
+            });
+        }
+
+        {
+            let find = find.clone();
+            cx.create_effect(move |_| {
+                find.search_string.track();
+                find.case_matching.track();
+                find.whole_words.track();
+                find.rev.update(|rev| {
+                    *rev += 1;
+                });
             });
         }
 
@@ -201,7 +215,7 @@ impl Find {
                         let end = find_cursor.pos();
 
                         if whole_words
-                            && !self.is_matching_whole_words(text, start, end)
+                            && !Self::is_matching_whole_words(text, start, end)
                         {
                             raw_lines =
                                 text.lines_raw(find_cursor.pos()..text.len());
@@ -226,7 +240,7 @@ impl Find {
                             let end = find_cursor.pos();
 
                             if whole_words
-                                && !self.is_matching_whole_words(text, start, end)
+                                && !Self::is_matching_whole_words(text, start, end)
                             {
                                 raw_lines =
                                     text.lines_raw(find_cursor.pos()..offset);
@@ -249,7 +263,7 @@ impl Find {
                         let end = find_cursor.pos();
                         raw_lines = text.lines_raw(find_cursor.pos()..offset);
                         if whole_words
-                            && !self.is_matching_whole_words(text, start, end)
+                            && !Self::is_matching_whole_words(text, start, end)
                         {
                             continue;
                         }
@@ -274,7 +288,7 @@ impl Find {
                             let end = find_cursor.pos();
 
                             if whole_words
-                                && !self.is_matching_whole_words(text, start, end)
+                                && !Self::is_matching_whole_words(text, start, end)
                             {
                                 raw_lines =
                                     text.lines_raw(find_cursor.pos()..text.len());
@@ -298,12 +312,7 @@ impl Find {
     }
 
     /// Checks if the start and end of a match is matching whole words.
-    fn is_matching_whole_words(
-        &self,
-        text: &Rope,
-        start: usize,
-        end: usize,
-    ) -> bool {
+    fn is_matching_whole_words(text: &Rope, start: usize, end: usize) -> bool {
         let mut word_end_cursor = WordCursor::new(text, end - 1);
         let mut word_start_cursor = WordCursor::new(text, start + 1);
 
@@ -319,7 +328,7 @@ impl Find {
     }
 
     /// Returns `true` if the search query is a multi-line regex.
-    pub(crate) fn is_multiline_regex(&self) -> bool {
+    pub fn is_multiline_regex(&self) -> bool {
         self.search_string.with_untracked(|search| {
             if let Some(search) = search.as_ref() {
                 search.regex.is_some() && is_multiline_regex(&search.content)
@@ -327,6 +336,88 @@ impl Find {
                 false
             }
         })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn find(
+        text: &Rope,
+        search: &FindSearchString,
+        start: usize,
+        end: usize,
+        case_matching: CaseMatching,
+        whole_words: bool,
+        include_slop: bool,
+        occurrences: &mut Selection,
+    ) {
+        let search_string = &search.content;
+
+        let slop = if include_slop {
+            search.content.len() * 2
+        } else {
+            0
+        };
+
+        // expand region to be able to find occurrences around the region's edges
+        let expanded_start = max(start, slop) - slop;
+        let expanded_end = min(end + slop, text.len());
+        let from = text
+            .at_or_prev_codepoint_boundary(expanded_start)
+            .unwrap_or(0);
+        let to = text
+            .at_or_next_codepoint_boundary(expanded_end)
+            .unwrap_or_else(|| text.len());
+        let mut to_cursor = Cursor::new(text, to);
+        let _ = to_cursor.next_leaf();
+
+        let sub_text = text.subseq(Interval::new(0, to_cursor.pos()));
+        let mut find_cursor = Cursor::new(&sub_text, from);
+
+        let mut raw_lines = text.lines_raw(from..to);
+
+        while let Some(start) = find(
+            &mut find_cursor,
+            &mut raw_lines,
+            case_matching,
+            search_string,
+            search.regex.as_ref(),
+        ) {
+            let end = find_cursor.pos();
+
+            if whole_words && !Self::is_matching_whole_words(text, start, end) {
+                raw_lines = text.lines_raw(find_cursor.pos()..to);
+                continue;
+            }
+
+            let region = SelRegion::new(start, end, None);
+            let (_, e) = occurrences.add_range_distinct(region);
+            // in case of ambiguous search results (e.g. search "aba" in "ababa"),
+            // the search result closer to the beginning of the file wins
+            if e != end {
+                // Skip the search result and keep the occurrence that is closer to
+                // the beginning of the file. Re-align the cursor to the kept
+                // occurrence
+                find_cursor.set(e);
+                raw_lines = text.lines_raw(find_cursor.pos()..to);
+                continue;
+            }
+
+            // in case current cursor matches search result (for example query a* matches)
+            // all cursor positions, then cursor needs to be increased so that search
+            // continues at next position. Otherwise, search will result in overflow since
+            // search will always repeat at current cursor position.
+            if start == end {
+                // determine whether end of text is reached and stop search or increase
+                // cursor manually
+                if end + 1 >= text.len() {
+                    break;
+                } else {
+                    find_cursor.set(end + 1);
+                }
+            }
+
+            // update line iterator so that line starts at current cursor position
+            raw_lines = text.lines_raw(find_cursor.pos()..to);
+        }
     }
 
     /// Execute the search on the provided text in the range provided by `start` and `end`.
@@ -380,7 +471,7 @@ impl Find {
         ) {
             let end = find_cursor.pos();
 
-            if whole_words && !self.is_matching_whole_words(text, start, end) {
+            if whole_words && !Self::is_matching_whole_words(text, start, end) {
                 raw_lines = text.lines_raw(find_cursor.pos()..to);
                 continue;
             }
@@ -420,6 +511,7 @@ impl Find {
 
 #[derive(Clone)]
 pub struct FindResult {
+    pub find_rev: RwSignal<u64>,
     pub progress: RwSignal<FindProgress>,
     pub occurrences: RwSignal<Selection>,
     pub search_string: RwSignal<Option<FindSearchString>>,
@@ -431,6 +523,7 @@ pub struct FindResult {
 impl FindResult {
     pub fn new(cx: Scope) -> Self {
         Self {
+            find_rev: cx.create_rw_signal(0),
             progress: cx.create_rw_signal(FindProgress::Started),
             occurrences: cx.create_rw_signal(Selection::new()),
             search_string: cx.create_rw_signal(None),
@@ -442,6 +535,5 @@ impl FindResult {
 
     pub fn reset(&self) {
         self.progress.set(FindProgress::Started);
-        self.occurrences.set(Selection::new());
     }
 }

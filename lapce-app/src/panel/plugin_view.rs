@@ -474,7 +474,7 @@ fn available_view(plugin: PluginData) -> impl View {
                         move |(_, id, _)| id.clone(),
                         view_fn,
                     )
-                    .on_resize(move |_, rect| {
+                    .on_resize(move |rect| {
                         content_rect.set(rect);
                     })
                     .style(|| Style::BASE.flex_col().width_pct(100.0))

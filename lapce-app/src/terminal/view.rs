@@ -252,6 +252,7 @@ impl View for TerminalView {
                 cx.fill(
                     &Rect::new(x0, y0, x1, y1),
                     config.get_color(LapceColor::EDITOR_SELECTION),
+                    0.0,
                 );
             }
         } else if mode != Mode::Terminal {
@@ -261,6 +262,7 @@ impl View for TerminalView {
             cx.fill(
                 &Rect::new(0.0, y, self.size.width, y + line_height),
                 config.get_color(LapceColor::EDITOR_CURRENT_LINE),
+                0.0,
             );
         }
 
@@ -293,7 +295,7 @@ impl View for TerminalView {
                 let rect = Size::new(char_width, line_height)
                     .to_rect()
                     .with_origin(Point::new(x, y));
-                cx.fill(&rect, bg);
+                cx.fill(&rect, bg, 0.0);
             }
 
             if cursor_point == &point {
@@ -319,7 +321,7 @@ impl View for TerminalView {
                     config.get_color(LapceColor::EDITOR_CARET)
                 };
                 if self.is_focused {
-                    cx.fill(&rect, cursor_color);
+                    cx.fill(&rect, cursor_color, 0.0);
                 } else {
                     cx.stroke(&rect, cursor_color, 1.0);
                 }

@@ -69,8 +69,47 @@ impl EditorGutterView {
                     .to_rect()
                     .with_origin(Point::new(self.width + 7.0, y)),
                 color,
+                0.0,
             )
         }
+    }
+
+    fn paint_sticky_headers(
+        &self,
+        cx: &mut PaintCx,
+        is_normal: bool,
+        config: &LapceConfig,
+    ) {
+        if !is_normal {
+            return;
+        }
+
+        if !config.editor.sticky_header {
+            return;
+        }
+        let sticky_header_height = self
+            .editor
+            .with_untracked(|editor| editor.sticky_header_height);
+        let sticky_header_height = sticky_header_height.get_untracked();
+        if sticky_header_height == 0.0 {
+            return;
+        }
+
+        let sticky_area_rect =
+            Size::new(self.width + 10.0 + 30.0, sticky_header_height)
+                .to_rect()
+                .with_origin(Point::new(-10.0, 0.0))
+                .inflate(10.0, 0.0);
+        cx.fill(
+            &sticky_area_rect,
+            config.get_color(LapceColor::LAPCE_DROPDOWN_SHADOW),
+            5.0,
+        );
+        cx.fill(
+            &sticky_area_rect,
+            config.get_color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
+            0.0,
+        );
     }
 }
 
@@ -204,5 +243,6 @@ impl View for EditorGutterView {
         }
 
         self.paint_head_changes(cx, view.doc, viewport, kind_is_normal, &config);
+        self.paint_sticky_headers(cx, kind_is_normal, &config);
     }
 }
