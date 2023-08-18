@@ -37,6 +37,7 @@ use crate::{
     doc::{DocContent, Document},
     main_split::MainSplitData,
     text_input::text_input,
+    window_tab::Focus,
     workspace::LapceWorkspace,
 };
 
@@ -1802,6 +1803,7 @@ fn find_view(
     let config = find_editor.common.config;
     let find_visual = find_editor.common.find.visual;
     let replace_doc = replace_editor.view.doc;
+    let focus = find_editor.common.focus;
 
     let find_pos = create_memo(move |_| {
         let visual = find_visual.get();
@@ -1965,6 +1967,7 @@ fn find_view(
                     .internal_command
                     .send(InternalCommand::FocusEditorTab { editor_tab_id });
             }
+            focus.set(Focus::Workbench);
             true
         })
     })
