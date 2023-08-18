@@ -37,6 +37,7 @@ use crate::{
     doc::{DocContent, Document},
     main_split::MainSplitData,
     text_input::text_input,
+    window_tab::Focus,
     workspace::LapceWorkspace,
 };
 
@@ -93,6 +94,13 @@ pub fn editor_view(
         let kind = editor.with(|editor| editor.view.kind);
         kind.track();
         id.request_layout();
+    });
+
+    create_effect(move |_| {
+        let doc = editor.with(|editor| editor.view.doc);
+        let occurrences = doc.with_untracked(|doc| doc.find_result.occurrences);
+        occurrences.track();
+        id.request_paint();
     });
 
     create_effect(move |last_rev| {
@@ -190,6 +198,7 @@ impl EditorView {
                         config
                             .get_color(LapceColor::SOURCE_CONTROL_ADDED)
                             .with_alpha_factor(0.2),
+                        0.0,
                     );
                 }
                 DiffSectionKind::Removed => {
@@ -208,6 +217,7 @@ impl EditorView {
                         config
                             .get_color(LapceColor::SOURCE_CONTROL_REMOVED)
                             .with_alpha_factor(0.2),
+                        0.0,
                     );
                 }
             }
@@ -325,6 +335,7 @@ impl EditorView {
                                         info.y as f64,
                                     )),
                                 config.get_color(LapceColor::EDITOR_CURRENT_LINE),
+                                0.0,
                             );
                         }
                     }
@@ -336,6 +347,7 @@ impl EditorView {
                                 .with_size(Size::new(width, line_height))
                                 .with_origin(Point::new(x, info.y as f64)),
                             config.get_color(LapceColor::EDITOR_SELECTION),
+                            0.0,
                         );
                     }
                 }
@@ -346,6 +358,7 @@ impl EditorView {
                                 .with_size(Size::new(width, line_height))
                                 .with_origin(Point::new(x, info.y as f64)),
                             config.get_color(LapceColor::EDITOR_CARET),
+                            0.0,
                         );
                     }
                 }
@@ -404,6 +417,7 @@ impl EditorView {
                         ),
                     ),
                     bg,
+                    0.0,
                 );
             }
 
@@ -547,7 +561,7 @@ impl EditorView {
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
 
-        view.update_find(min_line, max_line);
+        view.update_find();
         let start = view.offset_of_line(min_line);
         let end = view.offset_of_line(max_line + 1);
 
@@ -647,15 +661,21 @@ impl EditorView {
         };
 
         // Clear background
-        let area_height =
-            total_sticky_lines as f64 * line_height - scroll_offset + 1.0;
+        let area_height = total_sticky_lines as f64 * line_height - scroll_offset;
         let sticky_area_rect = Size::new(viewport.x1, area_height)
             .to_rect()
-            .with_origin(Point::new(0.0, viewport.y0));
+            .with_origin(Point::new(0.0, viewport.y0))
+            .inflate(10.0, 0.0);
 
         cx.fill(
             &sticky_area_rect,
+            config.get_color(LapceColor::LAPCE_DROPDOWN_SHADOW),
+            5.0,
+        );
+        cx.fill(
+            &sticky_area_rect,
             config.get_color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
+            0.0,
         );
 
         // Paint lines
@@ -714,6 +734,7 @@ impl EditorView {
                 ))
                 .inflate(0.0, 10.0),
             config.get_color(LapceColor::LAPCE_SCROLL_BAR),
+            0.0,
         );
 
         let editor_view = self.editor.with_untracked(|editor| editor.view.kind);
@@ -746,7 +767,7 @@ impl EditorView {
                     y + viewport.y0,
                 ),
             );
-            cx.fill(&rect, color);
+            cx.fill(&rect, color, 0.0);
         }
     }
 }
@@ -1210,10 +1231,11 @@ pub fn editor_container_view(
                                 .absolute()
                                 .width_pct(100.0)
                                 .height_px(sticky_header_height.get() as f32)
-                                .border_bottom(1.0)
-                                .border_color(
-                                    *config.get_color(LapceColor::LAPCE_BORDER),
-                                )
+                                // .box_shadow_blur(5.0)
+                                // .border_bottom(1.0)
+                                // .border_color(
+                                //     *config.get_color(LapceColor::LAPCE_BORDER),
+                                // )
                                 .apply_if(
                                     !config.editor.sticky_header
                                         || sticky_header_height.get() == 0.0
@@ -1232,7 +1254,7 @@ pub fn editor_container_view(
                         ),
                     )
                 })
-                .on_resize(move |_, rect| {
+                .on_resize(move |rect| {
                     editor_rect.set(rect);
                 })
                 .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
@@ -1319,7 +1341,7 @@ fn editor_gutter(
                 stack(|| {
                     (
                         editor_gutter_view(editor)
-                            .on_resize(move |_, rect| {
+                            .on_resize(move |rect| {
                                 gutter_rect.set(rect);
                             })
                             .on_event(EventListener::PointerWheel, move |event| {
@@ -1590,7 +1612,7 @@ fn editor_content(
             })
     })
     .scroll_bar_color(move || *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR))
-    .on_resize(move |point, _rect| {
+    .on_move(move |point| {
         window_origin.set(point);
     })
     .on_scroll(move |rect| {
@@ -1780,6 +1802,26 @@ fn find_view(
 ) -> impl View {
     let config = find_editor.common.config;
     let find_visual = find_editor.common.find.visual;
+    let replace_doc = replace_editor.view.doc;
+    let focus = find_editor.common.focus;
+
+    let find_pos = create_memo(move |_| {
+        let visual = find_visual.get();
+        if !visual {
+            return (0, 0);
+        }
+        let (curosr, doc) = editor.with(|editor| (editor.cursor, editor.view.doc));
+        let offset = curosr.with(|cursor| cursor.offset());
+        let occurrences = doc.with_untracked(|doc| doc.find_result.occurrences);
+        occurrences.with(|occurrences| {
+            for (i, region) in occurrences.regions().iter().enumerate() {
+                if offset <= region.max() {
+                    return (i + 1, occurrences.regions().len());
+                }
+            }
+            (occurrences.regions().len(), occurrences.regions().len())
+        })
+    });
 
     container(|| {
         stack(|| {
@@ -1808,6 +1850,17 @@ fn find_view(
                             is_active,
                             replace_focus,
                         ),
+                        label(move || {
+                            let (current, all) = find_pos.get();
+                            if all == 0 {
+                                "No Results".to_string()
+                            } else {
+                                format!("{current} of {all}")
+                            }
+                        })
+                        .style(|| {
+                            Style::BASE.margin_left_px(6.0).min_width_px(70.0)
+                        }),
                         clickable_icon(
                             || LapceIcons::SEARCH_BACKWARD,
                             move || {
@@ -1862,7 +1915,11 @@ fn find_view(
                         ),
                         clickable_icon(
                             || LapceIcons::SEARCH_REPLACE,
-                            move || {},
+                            move || {
+                                let text = replace_doc
+                                    .with_untracked(|doc| doc.buffer().to_string());
+                                editor.get_untracked().replace_next(&text);
+                            },
                             move || false,
                             || false,
                             config,
@@ -1870,7 +1927,11 @@ fn find_view(
                         .style(|| Style::BASE.padding_left_px(6.0)),
                         clickable_icon(
                             || LapceIcons::SEARCH_REPLACE_ALL,
-                            move || {},
+                            move || {
+                                let text = replace_doc
+                                    .with_untracked(|doc| doc.buffer().to_string());
+                                editor.get_untracked().replace_all(&text);
+                            },
                             move || false,
                             || false,
                             config,
@@ -1906,6 +1967,7 @@ fn find_view(
                     .internal_command
                     .send(InternalCommand::FocusEditorTab { editor_tab_id });
             }
+            focus.set(Focus::Workbench);
             true
         })
     })

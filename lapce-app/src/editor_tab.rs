@@ -78,6 +78,7 @@ impl EditorTabInfo {
                     .map(|child| {
                         (
                             cx.create_rw_signal(0),
+                            cx.create_rw_signal(Rect::ZERO),
                             child.to_data(data.clone(), editor_tab_id),
                         )
                     })
@@ -171,7 +172,7 @@ pub struct EditorTabData {
     pub split: SplitId,
     pub editor_tab_id: EditorTabId,
     pub active: usize,
-    pub children: Vec<(RwSignal<usize>, EditorTabChild)>,
+    pub children: Vec<(RwSignal<usize>, RwSignal<Rect>, EditorTabChild)>,
     pub window_origin: Point,
     pub layout_rect: Rect,
     pub locations: RwSignal<im::Vector<EditorLocation>>,
@@ -185,7 +186,7 @@ impl EditorTabData {
         path: &Path,
     ) -> Option<(usize, RwSignal<EditorData>)> {
         for (i, child) in self.children.iter().enumerate() {
-            if let (_, EditorTabChild::Editor(editor_id)) = child {
+            if let (_, _, EditorTabChild::Editor(editor_id)) = child {
                 if let Some(editor) = editors.get(editor_id) {
                     let e = editor.get_untracked();
                     let is_path = e.view.doc.with_untracked(|doc| {
@@ -209,7 +210,7 @@ impl EditorTabData {
         editors: &im::HashMap<EditorId, RwSignal<EditorData>>,
         diff_editors: &im::HashMap<EditorId, DiffEditorData>,
     ) -> Option<(usize, EditorTabChild)> {
-        for (i, (_, child)) in self.children.iter().enumerate() {
+        for (i, (_, _, child)) in self.children.iter().enumerate() {
             match child {
                 EditorTabChild::Editor(editor_id) => {
                     if let Some(editor) = editors.get(editor_id) {
@@ -246,7 +247,7 @@ impl EditorTabData {
         editors: &im::HashMap<EditorId, RwSignal<EditorData>>,
     ) -> Option<(usize, RwSignal<EditorData>)> {
         for (i, child) in self.children.iter().enumerate() {
-            if let (_, EditorTabChild::Editor(editor_id)) = child {
+            if let (_, _, EditorTabChild::Editor(editor_id)) = child {
                 if let Some(editor) = editors.get(editor_id) {
                     let e = editor.get_untracked();
                     let confirmed = e.confirmed.get_untracked();
@@ -267,7 +268,7 @@ impl EditorTabData {
             children: self
                 .children
                 .iter()
-                .map(|(_, child)| child.child_info(data))
+                .map(|(_, _, child)| child.child_info(data))
                 .collect(),
         };
         info

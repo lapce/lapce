@@ -240,7 +240,8 @@ impl MainSplitData {
         let editors = cx.create_rw_signal(im::HashMap::new());
         let diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>> =
             cx.create_rw_signal(im::HashMap::new());
-        let docs = cx.create_rw_signal(im::HashMap::new());
+        let docs: RwSignal<im::HashMap<PathBuf, RwSignal<Document>>> =
+            cx.create_rw_signal(im::HashMap::new());
         let scratch_docs = cx.create_rw_signal(im::HashMap::new());
         let locations = cx.create_rw_signal(im::Vector::new());
         let current_location = cx.create_rw_signal(0);
@@ -256,7 +257,7 @@ impl MainSplitData {
                 let editor_tab = editor_tabs.with(|editor_tabs| {
                     editor_tabs.get(&active_editor_tab).copied()
                 })?;
-                let (_, child) = editor_tab.with(|editor_tab| {
+                let (_, _, child) = editor_tab.with(|editor_tab| {
                     editor_tab.children.get(editor_tab.active).cloned()
                 })?;
 
@@ -318,7 +319,7 @@ impl MainSplitData {
         let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
             editor_tabs.get(&active_editor_tab).copied()
         })?;
-        let (_, child) = editor_tab.with_untracked(|editor_tab| {
+        let (_, _, child) = editor_tab.with_untracked(|editor_tab| {
             editor_tab.children.get(editor_tab.active).cloned()
         })?;
         match child {
@@ -628,7 +629,7 @@ impl MainSplitData {
 
         let selected = if !config.editor.show_tab {
             active_editor_tab.with_untracked(|editor_tab| {
-                for (i, (_, child)) in editor_tab.children.iter().enumerate() {
+                for (i, (_, _, child)) in editor_tab.children.iter().enumerate() {
                     let can_be_selected = match child {
                         EditorTabChild::Editor(editor_id) => {
                             if let Some(editor) = editors.get(editor_id) {
@@ -718,7 +719,7 @@ impl MainSplitData {
                 EditorTabChildSource::DiffEditor { left, right } => {
                     if let Some(index) =
                         active_editor_tab.with_untracked(|editor_tab| {
-                            editor_tab.children.iter().position(|(_, child)| {
+                            editor_tab.children.iter().position(|(_, _, child)| {
                                 if let EditorTabChild::DiffEditor(diff_editor_id) =
                                     child
                                 {
@@ -760,7 +761,7 @@ impl MainSplitData {
                 EditorTabChildSource::Settings => {
                     if let Some(index) =
                         active_editor_tab.with_untracked(|editor_tab| {
-                            editor_tab.children.iter().position(|(_, child)| {
+                            editor_tab.children.iter().position(|(_, _, child)| {
                                 matches!(child, EditorTabChild::Settings(_))
                             })
                         })
@@ -782,7 +783,7 @@ impl MainSplitData {
                 EditorTabChildSource::Keymap => {
                     if let Some(index) =
                         active_editor_tab.with_untracked(|editor_tab| {
-                            editor_tab.children.iter().position(|(_, child)| {
+                            editor_tab.children.iter().position(|(_, _, child)| {
                                 matches!(child, EditorTabChild::Keymap(_))
                             })
                         })
@@ -880,7 +881,7 @@ impl MainSplitData {
             let (editor_tab_id, current_child) =
                 active_editor_tab.with_untracked(|editor_tab| {
                     let editor_tab_id = editor_tab.editor_tab_id;
-                    let (_, current_child) = &editor_tab.children[selected];
+                    let (_, _, current_child) = &editor_tab.children[selected];
                     match current_child {
                         EditorTabChild::Editor(editor_id) => {
                             if let Some(editor) = editors.get(editor_id) {
@@ -946,7 +947,7 @@ impl MainSplitData {
                 _ => false,
             };
             if is_same {
-                let (_, child) = active_editor_tab.with_untracked(|editor_tab| {
+                let (_, _, child) = active_editor_tab.with_untracked(|editor_tab| {
                     editor_tab.children[selected].clone()
                 });
                 active_editor_tab.update(|editor_tab| {
@@ -972,8 +973,11 @@ impl MainSplitData {
             // Now loading the new child
             let child = new_child_from_source(editor_tab_id, &source);
             active_editor_tab.update(|editor_tab| {
-                editor_tab.children[selected] =
-                    (editor_tab.scope.create_rw_signal(0), child.clone());
+                editor_tab.children[selected] = (
+                    editor_tab.scope.create_rw_signal(0),
+                    editor_tab.scope.create_rw_signal(Rect::ZERO),
+                    child.clone(),
+                );
                 editor_tab.active = selected;
             });
             return child;
@@ -989,31 +993,35 @@ impl MainSplitData {
                                 .get_editor(&editors, path)
                                 .map(|(index, _)| index),
                             EditorTabChildSource::DiffEditor { left, right } => {
-                                editor_tab.children.iter().position(|(_, child)| {
-                                    if let EditorTabChild::DiffEditor(
-                                        diff_editor_id,
-                                    ) = child
-                                    {
-                                        is_same_diff_editor(
+                                editor_tab.children.iter().position(
+                                    |(_, _, child)| {
+                                        if let EditorTabChild::DiffEditor(
                                             diff_editor_id,
-                                            left,
-                                            right,
-                                        )
-                                    } else {
-                                        false
-                                    }
-                                })
+                                        ) = child
+                                        {
+                                            is_same_diff_editor(
+                                                diff_editor_id,
+                                                left,
+                                                right,
+                                            )
+                                        } else {
+                                            false
+                                        }
+                                    },
+                                )
                             }
-                            EditorTabChildSource::Settings => {
-                                editor_tab.children.iter().position(|(_, child)| {
+                            EditorTabChildSource::Settings => editor_tab
+                                .children
+                                .iter()
+                                .position(|(_, _, child)| {
                                     matches!(child, EditorTabChild::Settings(_))
-                                })
-                            }
-                            EditorTabChildSource::Keymap => {
-                                editor_tab.children.iter().position(|(_, child)| {
+                                }),
+                            EditorTabChildSource::Keymap => editor_tab
+                                .children
+                                .iter()
+                                .position(|(_, _, child)| {
                                     matches!(child, EditorTabChild::Keymap(_))
-                                })
-                            }
+                                }),
                             EditorTabChildSource::NewFileEditor => None,
                         })
                     {
@@ -1021,9 +1029,10 @@ impl MainSplitData {
                         editor_tab.update(|editor_tab| {
                             editor_tab.active = index;
                         });
-                        let (_, child) = editor_tab.with_untracked(|editor_tab| {
-                            editor_tab.children[index].clone()
-                        });
+                        let (_, _, child) =
+                            editor_tab.with_untracked(|editor_tab| {
+                                editor_tab.children[index].clone()
+                            });
                         return child;
                     }
                 }
@@ -1043,9 +1052,14 @@ impl MainSplitData {
             } else {
                 active + 1
             };
-            editor_tab
-                .children
-                .insert(new_active, (self.scope.create_rw_signal(0), child.clone()));
+            editor_tab.children.insert(
+                new_active,
+                (
+                    self.scope.create_rw_signal(0),
+                    self.scope.create_rw_signal(Rect::ZERO),
+                    child.clone(),
+                ),
+            );
             editor_tab.active = new_active;
         });
 
@@ -1265,7 +1279,7 @@ impl MainSplitData {
         split_id: SplitId,
         editor_tab: &EditorTabData,
     ) -> Option<RwSignal<EditorTabData>> {
-        let (_, child) = editor_tab.children.get(editor_tab.active)?;
+        let (_, _, child) = editor_tab.children.get(editor_tab.active)?;
 
         let editor_tab_id = EditorTabId::next();
 
@@ -1307,7 +1321,11 @@ impl MainSplitData {
                 split: split_id,
                 editor_tab_id,
                 active: 0,
-                children: vec![(cx.create_rw_signal(0), new_child)],
+                children: vec![(
+                    cx.create_rw_signal(0),
+                    cx.create_rw_signal(Rect::ZERO),
+                    new_child,
+                )],
                 window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
                 locations: cx.create_rw_signal(editor_tab.locations.get_untracked()),
@@ -1583,7 +1601,7 @@ impl MainSplitData {
         let editor_tabs = self.editor_tabs.get_untracked();
         let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
         let editor_tab = editor_tab.get_untracked();
-        for (_, child) in editor_tab.children {
+        for (_, _, child) in editor_tab.children {
             self.editor_tab_child_close(editor_tab_id, child, false);
         }
 
@@ -1748,7 +1766,7 @@ impl MainSplitData {
         let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
 
         let index = editor_tab.with_untracked(|editor_tab| {
-            editor_tab.children.iter().position(|(_, c)| c == &child)
+            editor_tab.children.iter().position(|(_, _, c)| c == &child)
         })?;
 
         let editor_tab_children_len = editor_tab
@@ -1788,14 +1806,18 @@ impl MainSplitData {
     pub fn editor_tab_update_layout(
         &self,
         editor_tab_id: &EditorTabId,
-        window_origin: Point,
-        rect: Rect,
+        window_origin: Option<Point>,
+        rect: Option<Rect>,
     ) -> Option<()> {
         let editor_tabs = self.editor_tabs.get_untracked();
         let editor_tab = editor_tabs.get(editor_tab_id).copied()?;
         editor_tab.update(|editor_tab| {
-            editor_tab.window_origin = window_origin;
-            editor_tab.layout_rect = rect;
+            if let Some(window_origin) = window_origin {
+                editor_tab.window_origin = window_origin;
+            }
+            if let Some(rect) = rect {
+                editor_tab.layout_rect = rect;
+            }
         });
         Some(())
     }
@@ -2128,7 +2150,7 @@ impl MainSplitData {
                 .editor_tabs
                 .with_untracked(|editor_tabs| editor_tabs.get(&to_tab).cloned())?;
 
-            let (_, child) = from_editor_tab
+            let (_, _, child) = from_editor_tab
                 .try_update(|tab| {
                     let child = tab.children.remove(from_index);
                     tab.active =
@@ -2139,8 +2161,14 @@ impl MainSplitData {
 
             self.editor_tab_child_set_parent(&child, to_tab);
             to_editor_tab.update(|tab| {
-                tab.children
-                    .insert(to_index, (tab.scope.create_rw_signal(to_index), child));
+                tab.children.insert(
+                    to_index,
+                    (
+                        tab.scope.create_rw_signal(to_index),
+                        tab.scope.create_rw_signal(Rect::ZERO),
+                        child,
+                    ),
+                );
                 tab.active = to_index;
             });
             self.active_editor_tab.set(Some(to_tab));
@@ -2250,7 +2278,7 @@ impl MainSplitData {
             };
             let new_editor_tab_id = EditorTabId::next();
 
-            let (_, child) = from_editor_tab
+            let (_, _, child) = from_editor_tab
                 .try_update(|tab| {
                     let child = tab.children.remove(from_index);
                     tab.active =
@@ -2267,7 +2295,11 @@ impl MainSplitData {
                 split: to_split_id,
                 editor_tab_id: new_editor_tab_id,
                 active: 0,
-                children: vec![(cx.create_rw_signal(0), child)],
+                children: vec![(
+                    cx.create_rw_signal(0),
+                    cx.create_rw_signal(Rect::ZERO),
+                    child,
+                )],
                 window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
                 locations: cx.create_rw_signal(im::Vector::new()),
@@ -2307,7 +2339,7 @@ impl MainSplitData {
 
             let new_editor_tab_id = EditorTabId::next();
 
-            let (_, child) = from_editor_tab
+            let (_, _, child) = from_editor_tab
                 .try_update(|tab| {
                     let child = tab.children.remove(from_index);
                     tab.active =
@@ -2324,7 +2356,11 @@ impl MainSplitData {
                     split: new_split_id,
                     editor_tab_id: new_editor_tab_id,
                     active: 0,
-                    children: vec![(cx.create_rw_signal(0), child)],
+                    children: vec![(
+                        cx.create_rw_signal(0),
+                        cx.create_rw_signal(Rect::ZERO),
+                        child,
+                    )],
                     window_origin: Point::ZERO,
                     layout_rect: Rect::ZERO,
                     locations: cx.create_rw_signal(im::Vector::new()),

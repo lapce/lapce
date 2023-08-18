@@ -385,7 +385,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
         })
         .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
     })
-    .on_resize(move |_, rect| {
+    .on_resize(move |rect| {
         panel_rect.set(rect);
     })
     .style(|| Style::BASE.size_pct(100.0, 100.0))

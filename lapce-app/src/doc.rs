@@ -23,7 +23,7 @@ use lapce_core::{
     editor::{EditType, Editor},
     language::LapceLanguage,
     register::{Clipboard, Register},
-    selection::{SelRegion, Selection},
+    selection::Selection,
     style::line_styles,
     syntax::{edit::SyntaxEdit, Syntax},
 };
@@ -957,126 +957,61 @@ impl Document {
         self.completion_pos = new_pos;
     }
 
-    pub fn update_find(&self, start_line: usize, end_line: usize) {
-        let search_string_same =
-            self.find_result
-                .search_string
-                .with_untracked(|current_search_string| {
-                    self.find.search_string.with_untracked(|search_string| {
-                        match (current_search_string, search_string) {
-                            (Some(old), Some(new)) => {
-                                old.content == new.content
-                                    && old.regex.is_some() == new.regex.is_some()
-                            }
-                            (None, None) => true,
-                            (None, Some(_)) => false,
-                            (Some(_), None) => false,
-                        }
-                    })
-                });
-        if !search_string_same {
-            self.find_result
-                .search_string
-                .set(self.find.search_string.get_untracked());
-        }
-        let is_regex_same = self.find_result.is_regex.get_untracked()
-            == self.find.is_regex.get_untracked();
-        if !is_regex_same {
-            self.find_result
-                .is_regex
-                .set(self.find.is_regex.get_untracked());
-        }
-        let case_matching_same = self.find_result.case_matching.get_untracked()
-            == self.find.case_matching.get_untracked();
-        if !case_matching_same {
-            self.find_result
-                .case_matching
-                .set(self.find.case_matching.get_untracked());
-        }
-        let whole_words_same = self.find_result.whole_words.get_untracked()
-            == self.find.whole_words.get_untracked();
-        if !whole_words_same {
-            self.find_result
-                .whole_words
-                .set(self.find.whole_words.get_untracked())
-        }
-
-        if !search_string_same
-            || !case_matching_same
-            || !whole_words_same
-            || !is_regex_same
-        {
+    pub fn update_find(&self) {
+        let find_rev = self.find.rev.get_untracked();
+        if self.find_result.find_rev.get_untracked() != find_rev {
+            if self.find.search_string.with_untracked(|search_string| {
+                search_string
+                    .as_ref()
+                    .map(|s| s.content.is_empty())
+                    .unwrap_or(true)
+            }) {
+                self.find_result.occurrences.set(Selection::new());
+            }
             self.find_result.reset();
+            self.find_result.find_rev.set(find_rev);
         }
 
-        let mut find_progress = self.find_result.progress.get_untracked();
-        let search_range = match &find_progress {
-            FindProgress::Started => {
-                // start incremental find on visible region
-                let start = self.buffer.offset_of_line(start_line);
-                let end = self.buffer.offset_of_line(end_line + 1);
-                find_progress =
-                    FindProgress::InProgress(Selection::region(start, end));
-                Some((start, end))
-            }
-            FindProgress::InProgress(searched_range) => {
-                if searched_range.regions().len() == 1
-                    && searched_range.min_offset() == 0
-                    && searched_range.max_offset() >= self.buffer.len()
-                {
-                    // the entire text has been searched
-                    // end find by executing multi-line regex queries on entire text
-                    // stop incremental find
-                    find_progress = FindProgress::Ready;
-                    Some((0, self.buffer.len()))
-                } else {
-                    let start = self.buffer.offset_of_line(start_line);
-                    let end = self.buffer.offset_of_line(end_line + 1);
-                    let mut range = Some((start, end));
-                    for region in searched_range.regions() {
-                        if region.min() <= start && region.max() >= end {
-                            range = None;
-                            break;
-                        }
-                    }
-                    if range.is_some() {
-                        let mut new_range = searched_range.clone();
-                        new_range.add_region(SelRegion::new(start, end, None));
-                        find_progress = FindProgress::InProgress(new_range);
-                    }
-                    range
-                }
-            }
-            FindProgress::Ready => None,
+        if self.find_result.progress.get_untracked() != FindProgress::Started {
+            return;
+        }
+
+        let search = self.find.search_string.get_untracked();
+        let search = match search {
+            Some(search) => search,
+            None => return,
         };
-        if search_range.is_some() {
-            self.find_result.progress.set(find_progress);
+        if search.content.is_empty() {
+            return;
         }
 
-        if let Some((search_range_start, search_range_end)) = search_range {
-            let mut occurrences = self.find_result.occurrences.get_untracked();
-            if !self.find.is_multiline_regex() {
-                self.find.update_find(
-                    self.buffer.text(),
-                    search_range_start,
-                    search_range_end,
-                    true,
-                    &mut occurrences,
-                );
-            } else {
-                // only execute multi-line regex queries if we are searching the entire text (last step)
-                if search_range_start == 0 && search_range_end == self.buffer.len() {
-                    self.find.update_find(
-                        self.buffer.text(),
-                        search_range_start,
-                        search_range_end,
-                        true,
-                        &mut occurrences,
-                    );
-                }
-            }
-            self.find_result.occurrences.set(occurrences);
-        }
+        self.find_result
+            .progress
+            .set(FindProgress::InProgress(Selection::new()));
+
+        let find_result = self.find_result.clone();
+        let send = create_ext_action(self.scope, move |occurrences| {
+            find_result.occurrences.set(occurrences);
+            find_result.progress.set(FindProgress::Ready);
+        });
+
+        let text = self.buffer.text().clone();
+        let case_matching = self.find.case_matching.get_untracked();
+        let whole_words = self.find.whole_words.get_untracked();
+        rayon::spawn(move || {
+            let mut occurrences = Selection::new();
+            Find::find(
+                &text,
+                &search,
+                0,
+                text.len(),
+                case_matching,
+                whole_words,
+                true,
+                &mut occurrences,
+            );
+            send(occurrences);
+        });
     }
 
     /// Get the sticky headers for a particular line, creating them if necessary.

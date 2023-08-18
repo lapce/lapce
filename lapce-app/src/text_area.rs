@@ -90,7 +90,7 @@ pub fn text_area(
             stack(|| {
                 (
                     rich_text(move || text_layout.get())
-                        .on_resize(move |_, rect| {
+                        .on_resize(move |rect| {
                             text_area_rect.set(rect);
                         })
                         .style(|| Style::BASE.width_pct(100.0)),

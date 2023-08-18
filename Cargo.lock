@@ -1411,7 +1411,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ba876921f04e37826b3ee7ab6484ba8b5ea302f0#ba876921f04e37826b3ee7ab6484ba8b5ea302f0"
+source = "git+https://github.com/lapce/floem?rev=246ba211c32b8cae550c0fb0f1c449365451d71c#246ba211c32b8cae550c0fb0f1c449365451d71c"
 dependencies = [
  "bitflags 2.4.0",
  "crossbeam-channel",
@@ -1435,12 +1435,12 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ba876921f04e37826b3ee7ab6484ba8b5ea302f0#ba876921f04e37826b3ee7ab6484ba8b5ea302f0"
+source = "git+https://github.com/lapce/floem?rev=246ba211c32b8cae550c0fb0f1c449365451d71c#246ba211c32b8cae550c0fb0f1c449365451d71c"
 
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ba876921f04e37826b3ee7ab6484ba8b5ea302f0#ba876921f04e37826b3ee7ab6484ba8b5ea302f0"
+source = "git+https://github.com/lapce/floem?rev=246ba211c32b8cae550c0fb0f1c449365451d71c#246ba211c32b8cae550c0fb0f1c449365451d71c"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1450,7 +1450,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ba876921f04e37826b3ee7ab6484ba8b5ea302f0#ba876921f04e37826b3ee7ab6484ba8b5ea302f0"
+source = "git+https://github.com/lapce/floem?rev=246ba211c32b8cae550c0fb0f1c449365451d71c#246ba211c32b8cae550c0fb0f1c449365451d71c"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -5220,7 +5220,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.7"
-source = "git+https://github.com/lapce/vger-rs?rev=d8054007a865a734d3aa5000af3aec9d4964ead6#d8054007a865a734d3aa5000af3aec9d4964ead6"
+source = "git+https://github.com/lapce/vger-rs?rev=952143f37d8822ef3754189734c62549025e7df5#952143f37d8822ef3754189734c62549025e7df5"
 dependencies = [
  "cosmic-text",
  "euclid",
