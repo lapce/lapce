@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Features/Changes
+- [#2190](https://github.com/lapce/lapce/pull/2190): Rewrite with Floem UI
 - [#2425](https://github.com/lapce/lapce/pull/2425): Reimplement completion lens
 - [#2498](https://github.com/lapce/lapce/pull/2498): Show Lapce as an option when doing "Open With..." on Linux
 - [#2549](https://github.com/lapce/lapce/pull/2549): Implement multi-line vim-motion yank and delete (`3dd`, `2yy`, etc.)
