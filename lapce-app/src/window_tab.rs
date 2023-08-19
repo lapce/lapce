@@ -131,6 +131,7 @@ pub struct WindowTabData {
     pub set_config: WriteSignal<Arc<LapceConfig>>,
     pub update_in_progress: RwSignal<bool>,
     pub latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
+    pub num_window_tabs: Memo<usize>,
     pub common: CommonData,
 }
 
@@ -167,6 +168,7 @@ impl WindowTabData {
         window_command: Listener<WindowCommand>,
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
+        num_window_tabs: Memo<usize>,
     ) -> Self {
         let cx = cx.create_child();
         let db: Arc<LapceDb> = use_context().unwrap();
@@ -374,6 +376,7 @@ impl WindowTabData {
             window_scale,
             set_config,
             update_in_progress: cx.create_rw_signal(false),
+            num_window_tabs,
             latest_release,
             common,
         };

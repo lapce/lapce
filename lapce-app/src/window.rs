@@ -4,7 +4,7 @@ use floem::{
     glazier::KeyEvent,
     id::WindowId,
     peniko::kurbo::{Point, Size},
-    reactive::{use_context, ReadSignal, RwSignal, Scope},
+    reactive::{use_context, Memo, ReadSignal, RwSignal, Scope},
 };
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +44,7 @@ pub struct WindowData {
     /// The set of tabs within the window. These tabs are high-level
     /// constructs for workspaces, in particular they are not **editor tabs**.
     pub window_tabs: RwSignal<im::Vector<(RwSignal<usize>, Arc<WindowTabData>)>>,
+    pub num_window_tabs: Memo<usize>,
     /// The index of the active window tab.
     pub active: RwSignal<usize>,
     pub window_command: Listener<WindowCommand>,
@@ -69,7 +70,9 @@ impl WindowData {
         let config = cx.create_rw_signal(Arc::new(config));
         let root_view_id = cx.create_rw_signal(floem::id::Id::next());
 
-        let mut window_tabs = im::Vector::new();
+        let window_tabs = cx.create_rw_signal(im::Vector::new());
+        let num_window_tabs =
+            cx.create_memo(move |_| window_tabs.with(|tabs| tabs.len()));
         let active = info.tabs.active_tab;
 
         let window_command = Listener::new_empty(cx);
@@ -81,22 +84,27 @@ impl WindowData {
                 window_command,
                 window_scale,
                 latest_release,
+                num_window_tabs,
             ));
-            window_tabs.push_back((cx.create_rw_signal(0), window_tab));
+            window_tabs.update(|window_tabs| {
+                window_tabs.push_back((cx.create_rw_signal(0), window_tab));
+            });
         }
 
-        if window_tabs.is_empty() {
+        if window_tabs.with_untracked(|window_tabs| window_tabs.is_empty()) {
             let window_tab = Arc::new(WindowTabData::new(
                 cx,
                 Arc::new(LapceWorkspace::default()),
                 window_command,
                 window_scale,
                 latest_release,
+                num_window_tabs,
             ));
-            window_tabs.push_back((cx.create_rw_signal(0), window_tab));
+            window_tabs.update(|window_tabs| {
+                window_tabs.push_back((cx.create_rw_signal(0), window_tab));
+            });
         }
 
-        let window_tabs = cx.create_rw_signal(window_tabs);
         let active = cx.create_rw_signal(active);
         let size = cx.create_rw_signal(Size::ZERO);
         let position = cx.create_rw_signal(info.pos);
@@ -105,6 +113,7 @@ impl WindowData {
             window_id,
             scope: cx,
             window_tabs,
+            num_window_tabs,
             active,
             window_command,
             size,
@@ -155,6 +164,7 @@ impl WindowData {
                     self.window_command,
                     self.window_scale,
                     self.latest_release,
+                    self.num_window_tabs,
                 ));
                 self.window_tabs.update(|window_tabs| {
                     if window_tabs.is_empty() {
@@ -180,6 +190,7 @@ impl WindowData {
                     self.window_command,
                     self.window_scale,
                     self.latest_release,
+                    self.num_window_tabs,
                 ));
                 let active = self.active.get_untracked();
                 let active = self

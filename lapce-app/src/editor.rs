@@ -895,8 +895,8 @@ impl EditorData {
             .view
             .doc
             .with_untracked(|doc| doc.buffer().offset_to_line_col(offset));
-        let top = viewport.y0 + diff;
-        let bottom = top + viewport.height();
+        let top = viewport.y0 + diff + self.sticky_header_height.get_untracked();
+        let bottom = viewport.y0 + diff + viewport.height();
 
         let new_line = if (line + 1) as f64 * line_height + line_height > bottom {
             let line = (bottom / line_height).floor() as usize;
