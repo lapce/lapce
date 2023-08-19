@@ -79,6 +79,7 @@ pub fn text_input(
         font_style: None,
         cursor_pos: Point::ZERO,
         on_cursor_pos: None,
+        hide_cursor: editor.common.hide_cursor,
         line_height: None,
     }
     .base_style(|| {
@@ -123,6 +124,7 @@ pub struct TextInput {
     line_height: Option<LineHeightValue>,
     cursor_pos: Point,
     on_cursor_pos: Option<Box<dyn Fn(Point)>>,
+    hide_cursor: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
 }
 
@@ -510,7 +512,9 @@ impl View for TextInput {
             cx.draw_text(self.placeholder_text_layout.as_ref().unwrap(), point);
         }
 
-        if self.focus || cx.is_focused(self.id) {
+        if !self.hide_cursor.get_untracked()
+            && (self.focus || cx.is_focused(self.id))
+        {
             cx.clip(&self.text_rect.inflate(2.0, 2.0));
             let offset = cursor.offset();
             let hit_position = text_layout.hit_position(offset);

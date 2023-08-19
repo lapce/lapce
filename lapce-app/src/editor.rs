@@ -6,9 +6,9 @@ use anyhow::Result;
 use floem::{
     action::exec_after,
     ext_event::create_ext_action,
-    glazier::{Modifiers, PointerButton, PointerEvent},
+    glazier::{Modifiers, PointerButton, PointerEvent, TimerToken},
     peniko::kurbo::{Point, Rect, Vec2},
-    reactive::{use_context, RwSignal, Scope},
+    reactive::{use_context, ReadSignal, RwSignal, Scope},
 };
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, InvalLines},
@@ -30,6 +30,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
     completion::{clear_completion_lens, CompletionStatus},
+    config::LapceConfig,
     db::LapceDb,
     doc::{DocContent, Document},
     editor::location::{EditorLocation, EditorPosition},
@@ -206,16 +207,11 @@ impl EditorData {
         );
         {
             let config = common.config;
+            let cursor_blink_timer = common.cursor_blink_timer;
+            let hide_cursor = common.hide_cursor;
             cx.create_effect(move |_| {
                 cursor.track();
-                let config = config.get_untracked();
-                let blink_interval = config.editor.blink_interval();
-                if blink_interval > 0 {
-                    let timer_token = exec_after(
-                        Duration::from_millis(blink_interval),
-                        move || {},
-                    );
-                }
+                reset_blink_cursor(cursor_blink_timer, hide_cursor, config);
             });
         }
         Self {
@@ -275,12 +271,22 @@ impl EditorData {
         editor_id: EditorId,
     ) -> Self {
         let cx = cx.create_child();
+        let cursor = cx.create_rw_signal(self.cursor.get_untracked());
+        {
+            let config = self.common.config;
+            let cursor_blink_timer = self.common.cursor_blink_timer;
+            let hide_cursor = self.common.hide_cursor;
+            cx.create_effect(move |_| {
+                cursor.track();
+                reset_blink_cursor(cursor_blink_timer, hide_cursor, config);
+            });
+        }
         EditorData {
             scope: cx,
             editor_id,
             editor_tab_id,
             view: self.view.duplicate(cx),
-            cursor: cx.create_rw_signal(self.cursor.get_untracked()),
+            cursor,
             viewport: cx.create_rw_signal(self.viewport.get_untracked()),
             scroll_delta: cx.create_rw_signal(Vec2::ZERO),
             scroll_to: cx.create_rw_signal(Some(
@@ -2369,4 +2375,37 @@ fn show_completion(
     };
 
     show_completion
+}
+
+pub fn reset_blink_cursor(
+    cursor_blink_timer: RwSignal<TimerToken>,
+    hide_cursor: RwSignal<bool>,
+    config: ReadSignal<Arc<LapceConfig>>,
+) {
+    if hide_cursor.get_untracked() {
+        hide_cursor.set(false);
+        cursor_blink_timer.set(TimerToken::INVALID);
+    }
+    blink_cursor(cursor_blink_timer, hide_cursor, config);
+}
+
+pub fn blink_cursor(
+    cursor_blink_timer: RwSignal<TimerToken>,
+    hide_cursor: RwSignal<bool>,
+    config: ReadSignal<Arc<LapceConfig>>,
+) {
+    let blink_interval =
+        config.with_untracked(|config| config.editor.blink_interval());
+    if blink_interval > 0 {
+        let timer_token =
+            exec_after(Duration::from_millis(blink_interval), move |timer_token| {
+                if cursor_blink_timer.get_untracked() == timer_token {
+                    hide_cursor.update(|hide| {
+                        *hide = !*hide;
+                    });
+                    blink_cursor(cursor_blink_timer, hide_cursor, config);
+                }
+            });
+        cursor_blink_timer.set(timer_token);
+    }
 }

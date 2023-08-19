@@ -5,7 +5,7 @@ use floem::{
     action::open_file,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
-    glazier::{FileDialogOptions, KeyEvent, Modifiers},
+    glazier::{FileDialogOptions, KeyEvent, Modifiers, TimerToken},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
 };
@@ -105,6 +105,8 @@ pub struct CommonData {
     pub dragging: RwSignal<Option<DragContent>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub proxy_status: RwSignal<Option<ProxyStatus>>,
+    pub cursor_blink_timer: RwSignal<TimerToken>,
+    pub hide_cursor: RwSignal<bool>,
 }
 
 #[derive(Clone)]
@@ -258,6 +260,8 @@ impl WindowTabData {
             dragging: cx.create_rw_signal(None),
             config,
             proxy_status,
+            cursor_blink_timer: cx.create_rw_signal(TimerToken::INVALID),
+            hide_cursor: cx.create_rw_signal(false),
         };
 
         let main_split = MainSplitData::new(cx, common.clone());

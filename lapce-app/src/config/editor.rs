@@ -212,6 +212,6 @@ impl EditorConfig {
         if self.blink_interval == 0 {
             return 0;
         }
-        self.blink_interval.max(500)
+        self.blink_interval.max(200)
     }
 }

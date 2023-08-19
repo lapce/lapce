@@ -464,7 +464,7 @@ impl MainSplitData {
                     if config.editor.autosave_interval > 0 {
                         exec_after(
                             Duration::from_millis(config.editor.autosave_interval),
-                            move || {
+                            move |_| {
                                 if doc.with_untracked(|doc| {
                                     doc.rev() == rev && !doc.buffer().is_pristine()
                                 }) {
