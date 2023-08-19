@@ -116,7 +116,7 @@ pub struct EditorConfig {
     #[field_names(
         desc = "Set the cursor blink interval (in milliseconds). Set to 0 to completely disable."
     )]
-    pub blink_interval: u64, // TODO: change to u128 when upgrading config-rs to >0.11
+    blink_interval: u64, // TODO: change to u128 when upgrading config-rs to >0.11
     #[field_names(
         desc = "Whether the multiple cursor selection is case sensitive."
     )]
@@ -206,5 +206,12 @@ impl EditorConfig {
         } else {
             None
         }
+    }
+
+    pub fn blink_interval(&self) -> u64 {
+        if self.blink_interval == 0 {
+            return 0;
+        }
+        self.blink_interval.max(500)
     }
 }

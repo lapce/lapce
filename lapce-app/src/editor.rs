@@ -1,7 +1,10 @@
-use std::{cmp::Ordering, collections::HashMap, str::FromStr, sync::Arc};
+use std::{
+    cmp::Ordering, collections::HashMap, str::FromStr, sync::Arc, time::Duration,
+};
 
 use anyhow::Result;
 use floem::{
+    action::exec_after,
     ext_event::create_ext_action,
     glazier::{Modifiers, PointerButton, PointerEvent},
     peniko::kurbo::{Point, Rect, Vec2},
@@ -201,6 +204,20 @@ impl EditorData {
             cx.create_rw_signal(EditorViewKind::Normal),
             common.config,
         );
+        {
+            let config = common.config;
+            cx.create_effect(move |_| {
+                cursor.track();
+                let config = config.get_untracked();
+                let blink_interval = config.editor.blink_interval();
+                if blink_interval > 0 {
+                    let timer_token = exec_after(
+                        Duration::from_millis(blink_interval),
+                        move || {},
+                    );
+                }
+            });
+        }
         Self {
             scope: cx,
             editor_tab_id,
