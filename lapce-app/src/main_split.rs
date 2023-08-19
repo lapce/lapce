@@ -2,10 +2,11 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     rc::Rc,
+    time::Duration,
 };
 
 use floem::{
-    action::save_as,
+    action::{exec_after, save_as},
     ext_event::create_ext_action,
     glazier::{FileDialogOptions, FileInfo, KeyEvent, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
@@ -446,12 +447,48 @@ impl MainSplitData {
                 docs.insert(path.clone(), doc);
             });
 
+            {}
+
             {
                 let proxy = self.common.proxy.clone();
+                let config = self.common.config;
+                let editors = self.editors;
+                let path = path.clone();
                 cx.create_effect(move |last| {
                     let rev = doc.with(|doc| doc.buffer().rev());
                     if last == Some(rev) {
                         return rev;
+                    }
+                    let config = config.get_untracked();
+                    let path = path.clone();
+                    if config.editor.autosave_interval > 0 {
+                        exec_after(
+                            Duration::from_millis(config.editor.autosave_interval),
+                            move || {
+                                if doc.with_untracked(|doc| {
+                                    doc.rev() == rev && !doc.buffer().is_pristine()
+                                }) {
+                                    let editor = editors.with_untracked(|editors| {
+                                        for (_, editor) in editors {
+                                            if editor.with_untracked(|editor| {
+                                                editor.view.doc.with_untracked(
+                                                    |doc| {
+                                                        doc.content.path()
+                                                            == Some(&path)
+                                                    },
+                                                )
+                                            }) {
+                                                return Some(*editor);
+                                            }
+                                        }
+                                        None
+                                    });
+                                    if let Some(editor) = editor {
+                                        editor.get_untracked().save(true, || {});
+                                    }
+                                }
+                            },
+                        );
                     }
                     let find_result =
                         doc.with_untracked(|doc| doc.find_result.clone());
