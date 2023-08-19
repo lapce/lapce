@@ -484,7 +484,7 @@ impl MainSplitData {
                                         None
                                     });
                                     if let Some(editor) = editor {
-                                        editor.get_untracked().save(true, || {});
+                                        editor.get_untracked().save(false, || {});
                                     }
                                 }
                             },
