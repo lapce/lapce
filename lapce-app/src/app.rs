@@ -31,9 +31,9 @@ use floem::{
     },
     view::View,
     views::{
-        clip, container, container_box, empty, label, list, scroll, stack, svg, tab,
-        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
-        VirtualListVector,
+        clip, container, container_box, empty, handle_titlebar_area, label, list,
+        scroll, stack, svg, tab, virtual_list, Decorators, VirtualListDirection,
+        VirtualListItemSize, VirtualListVector,
     },
     window::WindowConfig,
 };
@@ -182,7 +182,15 @@ impl AppData {
                 db.get_window().ok().map(|info| {
                     WindowConfig::default().size(info.size).position(info.pos)
                 })
+            })
+            .unwrap_or_else(|| {
+                WindowConfig::default().size(Size::new(800.0, 600.0))
             });
+        let config = if cfg!(target_os = "macos") {
+            config.show_titlebar(false)
+        } else {
+            config
+        };
         let window_id = WindowId::next();
         let app_data = self.clone();
         floem::new_window(
@@ -201,7 +209,7 @@ impl AppData {
                     },
                 )
             },
-            config,
+            Some(config),
         );
     }
 
@@ -290,6 +298,11 @@ impl AppData {
 
                 let config =
                     WindowConfig::default().size(info.size).position(info.pos);
+                let config = if cfg!(target_os = "macos") {
+                    config.show_titlebar(false)
+                } else {
+                    config
+                };
                 let app_data = self.clone();
                 let window_id = WindowId::next();
                 app = app.window(
@@ -304,6 +317,11 @@ impl AppData {
                 for info in app_info.windows {
                     let config =
                         WindowConfig::default().size(info.size).position(info.pos);
+                    let config = if cfg!(target_os = "macos") {
+                        config.show_titlebar(false)
+                    } else {
+                        config
+                    };
                     let app_data = self.clone();
                     let window_id = WindowId::next();
                     app = app.window(
@@ -330,6 +348,11 @@ impl AppData {
                 workspaces: vec![LapceWorkspace::default()],
             };
             let config = WindowConfig::default().size(info.size).position(info.pos);
+            let config = if cfg!(target_os = "macos") {
+                config.show_titlebar(false)
+            } else {
+                config
+            };
             let app_data = self.clone();
             let window_id = WindowId::next();
             app = app.window(
@@ -2827,6 +2850,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let main_split = window_tab_data.main_split.clone();
     let window_tab_scope = window_tab_data.scope;
     let proxy_status = window_tab_data.common.proxy_status;
+    let num_window_tabs = window_tab_data.num_window_tabs;
 
     let view = stack(|| {
         (
@@ -2840,6 +2864,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
                         update_in_progress,
                         config,
                         proxy_status,
+                        num_window_tabs,
                     ),
                     workbench(window_tab_data.clone()),
                     status(
@@ -2904,7 +2929,9 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
     let add_icon_width = create_rw_signal(0.0);
 
     let tab_width = create_memo(move |_| {
-        let available_width = available_width.get() - add_icon_width.get();
+        let available_width = available_width.get()
+            - add_icon_width.get()
+            - if cfg!(target_os = "macos") { 75.0 } else { 0.0 };
         let tabs_len = tabs.with(|tabs| tabs.len());
         if tabs_len > 0 {
             (available_width / tabs_len as f64).min(200.0)
@@ -3013,6 +3040,11 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                                     .border_color(
                                         *config.get_color(LapceColor::LAPCE_BORDER),
                                     )
+                                    .apply_if(
+                                        cfg!(target_os = "macos")
+                                            && index.get() == 0,
+                                        |s| s.border_left(1.0),
+                                    )
                             }),
                             container(|| {
                                 label(|| "".to_string()).style(move || {
@@ -3104,6 +3136,13 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
 
     stack(|| {
         (
+            empty().style(move || {
+                let is_macos = cfg!(target_os = "macos");
+                Style::BASE
+                    .min_width_px(75.0)
+                    .width_px(75.0)
+                    .apply_if(!is_macos, |s| s.hide())
+            }),
             list(
                 move || {
                     let tabs = tabs.get();
@@ -3118,25 +3157,41 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                 view_fn,
             )
             .style(|| Style::BASE.height_pct(100.0)),
-            clickable_icon(
-                || LapceIcons::ADD,
-                move || {
-                    window_data.run_window_command(WindowCommand::NewWorkspaceTab {
-                        workspace: LapceWorkspace::default(),
-                        end: true,
-                    });
-                },
-                || false,
-                || false,
-                config.read_only(),
-            )
+            handle_titlebar_area(|| {
+                clickable_icon(
+                    || LapceIcons::ADD,
+                    move || {
+                        window_data.run_window_command(
+                            WindowCommand::NewWorkspaceTab {
+                                workspace: LapceWorkspace::default(),
+                                end: true,
+                            },
+                        );
+                    },
+                    || false,
+                    || false,
+                    config.read_only(),
+                )
+            })
             .on_resize(move |rect| {
                 let current = add_icon_width.get_untracked();
                 if rect.width() != current {
                     add_icon_width.set(rect.width());
                 }
             })
-            .style(|| Style::BASE.padding_left_px(10.0).padding_right_px(20.0)),
+            .style(|| {
+                Style::BASE
+                    .height_pct(100.0)
+                    .padding_left_px(10.0)
+                    .padding_right_px(30.0)
+                    .items_center()
+            }),
+            handle_titlebar_area(empty).style(|| {
+                Style::BASE
+                    .height_pct(100.0)
+                    .flex_basis_px(0.0)
+                    .flex_grow(1.0)
+            }),
         )
     })
     .on_resize(move |rect| {

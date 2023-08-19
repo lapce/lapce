@@ -8,15 +8,15 @@ It is easy to build Lapce from source on a GNU/Linux distribution. Cargo handles
 
 #### Ubuntu
 ```sh
-sudo apt install clang libxkbcommon-x11-dev pkg-config libvulkan-dev
+sudo apt install clang libxkbcommon-x11-dev pkg-config libvulkan-dev libwayland-dev
 ```
 #### Fedora
 ```sh
-sudo dnf install clang libxkbcommon-x11-devel libxcb-devel vulkan-loader-devel
+sudo dnf install clang libxkbcommon-x11-devel libxcb-devel vulkan-loader-devel wayland-devel
 ```
 #### Void Linux
 ```sh
-sudo xbps-install -S base-devel clang libxkbcommon-devel vulkan-loader
+sudo xbps-install -S base-devel clang libxkbcommon-devel vulkan-loader wayland-devel
 ```
 
 3. Clone this repository (this command will clone to your home directory):
