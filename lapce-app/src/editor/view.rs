@@ -96,7 +96,9 @@ pub fn editor_view(
         id.request_layout();
     });
 
+    let hide_cursor = editor.with_untracked(|editor| editor.common.hide_cursor);
     create_effect(move |_| {
+        hide_cursor.track();
         let doc = editor.with(|editor| editor.view.doc);
         let occurrences = doc.with_untracked(|doc| doc.find_result.occurrences);
         occurrences.track();
@@ -279,12 +281,13 @@ impl EditorView {
         is_local: bool,
         screen_lines: &ScreenLines,
     ) {
-        let (view, cursor, find_focus, config) =
+        let (view, cursor, find_focus, hide_cursor, config) =
             self.editor.with_untracked(|editor| {
                 (
                     editor.view.clone(),
                     editor.cursor,
                     editor.find_focus,
+                    editor.common.hide_cursor,
                     editor.common.config,
                 )
             });
@@ -352,14 +355,16 @@ impl EditorView {
                     }
                 }
                 CursorRender::Caret { x, width, line } => {
-                    if let Some(info) = screen_lines.info.get(&line) {
-                        cx.fill(
-                            &Rect::ZERO
-                                .with_size(Size::new(width, line_height))
-                                .with_origin(Point::new(x, info.y as f64)),
-                            config.get_color(LapceColor::EDITOR_CARET),
-                            0.0,
-                        );
+                    if !hide_cursor.get_untracked() {
+                        if let Some(info) = screen_lines.info.get(&line) {
+                            cx.fill(
+                                &Rect::ZERO
+                                    .with_size(Size::new(width, line_height))
+                                    .with_origin(Point::new(x, info.y as f64)),
+                                config.get_color(LapceColor::EDITOR_CARET),
+                                0.0,
+                            );
+                        }
                     }
                 }
             }

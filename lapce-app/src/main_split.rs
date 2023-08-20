@@ -32,7 +32,7 @@ use crate::{
     editor::{
         diff::DiffEditorData,
         location::{EditorLocation, EditorPosition},
-        EditorData,
+        reset_blink_cursor, EditorData,
     },
     editor_tab::{
         EditorTabChild, EditorTabChildSource, EditorTabData, EditorTabInfo,
@@ -291,6 +291,18 @@ impl MainSplitData {
             });
         }
 
+        {
+            let focus = common.focus;
+            let cursor_blink_timer = common.cursor_blink_timer;
+            let hide_cursor = common.hide_cursor;
+            let config = common.config;
+            cx.create_effect(move |_| {
+                focus.track();
+                active_editor.track();
+                reset_blink_cursor(cursor_blink_timer, hide_cursor, config);
+            });
+        }
+
         Self {
             scope: cx,
             root_split: SplitId::next(),
@@ -464,7 +476,7 @@ impl MainSplitData {
                     if config.editor.autosave_interval > 0 {
                         exec_after(
                             Duration::from_millis(config.editor.autosave_interval),
-                            move || {
+                            move |_| {
                                 if doc.with_untracked(|doc| {
                                     doc.rev() == rev && !doc.buffer().is_pristine()
                                 }) {
