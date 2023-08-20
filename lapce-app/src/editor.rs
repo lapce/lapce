@@ -2389,7 +2389,7 @@ pub fn reset_blink_cursor(
     blink_cursor(cursor_blink_timer, hide_cursor, config);
 }
 
-pub fn blink_cursor(
+fn blink_cursor(
     cursor_blink_timer: RwSignal<TimerToken>,
     hide_cursor: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
