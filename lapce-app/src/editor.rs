@@ -2399,7 +2399,7 @@ fn blink_cursor(
     if blink_interval > 0 {
         let timer_token =
             exec_after(Duration::from_millis(blink_interval), move |timer_token| {
-                if cursor_blink_timer.get_untracked() == timer_token {
+                if cursor_blink_timer.try_get_untracked() == Some(timer_token) {
                     hide_cursor.update(|hide| {
                         *hide = !*hide;
                     });

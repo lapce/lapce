@@ -477,8 +477,13 @@ impl MainSplitData {
                         exec_after(
                             Duration::from_millis(config.editor.autosave_interval),
                             move |_| {
-                                if doc.with_untracked(|doc| {
-                                    doc.rev() == rev && !doc.buffer().is_pristine()
+                                if doc.try_with_untracked(|doc| {
+                                    if let Some(doc) = doc {
+                                        doc.rev() == rev
+                                            && !doc.buffer().is_pristine()
+                                    } else {
+                                        false
+                                    }
                                 }) {
                                     let editor = editors.with_untracked(|editors| {
                                         for (_, editor) in editors {
