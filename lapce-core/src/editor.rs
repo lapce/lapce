@@ -700,6 +700,7 @@ impl Editor {
         vec![(delta, inval_lines, edits)]
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn do_edit<T: Clipboard>(
         cursor: &mut Cursor,
         buffer: &mut Buffer,
@@ -708,6 +709,7 @@ impl Editor {
         clipboard: &mut T,
         modal: bool,
         register: &mut Register,
+        smart_tab: bool,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         use crate::command::EditCommand::*;
         match cmd {
@@ -800,35 +802,52 @@ impl Editor {
             InsertTab => {
                 let mut deltas = Vec::new();
                 if let CursorMode::Insert(selection) = &cursor.mode {
-                    let indent = buffer.indent_unit();
-                    let mut edits = Vec::new();
+                    if smart_tab {
+                        let indent = buffer.indent_unit();
+                        let mut edits = Vec::new();
 
-                    for region in selection.regions() {
-                        if region.is_caret() {
-                            edits.push(crate::indent::create_edit(
-                                buffer,
-                                region.start,
-                                indent,
-                            ))
-                        } else {
-                            let start_line = buffer.line_of_offset(region.min());
-                            let end_line = buffer.line_of_offset(region.max());
-                            for line in start_line..=end_line {
-                                let offset =
-                                    buffer.first_non_blank_character_on_line(line);
+                        for region in selection.regions() {
+                            if region.is_caret() {
                                 edits.push(crate::indent::create_edit(
-                                    buffer, offset, indent,
+                                    buffer,
+                                    region.start,
+                                    indent,
                                 ))
+                            } else {
+                                let start_line = buffer.line_of_offset(region.min());
+                                let end_line = buffer.line_of_offset(region.max());
+                                for line in start_line..=end_line {
+                                    let offset = buffer
+                                        .first_non_blank_character_on_line(line);
+                                    edits.push(crate::indent::create_edit(
+                                        buffer, offset, indent,
+                                    ))
+                                }
                             }
                         }
-                    }
 
-                    let (delta, inval_lines, edits) =
-                        buffer.edit(&edits, EditType::InsertChars);
-                    let selection =
-                        selection.apply_delta(&delta, true, InsertDrift::Default);
-                    deltas.push((delta, inval_lines, edits));
-                    cursor.mode = CursorMode::Insert(selection);
+                        let (delta, inval_lines, edits) =
+                            buffer.edit(&edits, EditType::InsertChars);
+                        let selection = selection.apply_delta(
+                            &delta,
+                            true,
+                            InsertDrift::Default,
+                        );
+                        deltas.push((delta, inval_lines, edits));
+                        cursor.mode = CursorMode::Insert(selection);
+                    } else {
+                        let (delta, inval_lines, edits) = buffer.edit(
+                            &[(selection.clone(), "\t")],
+                            EditType::InsertChars,
+                        );
+                        let selection = selection.apply_delta(
+                            &delta,
+                            true,
+                            InsertDrift::Default,
+                        );
+                        deltas.push((delta, inval_lines, edits));
+                        cursor.mode = CursorMode::Insert(selection);
+                    }
                 }
                 deltas
             }

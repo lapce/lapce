@@ -25,6 +25,10 @@ pub struct EditorConfig {
         desc = "Set the editor line height. If less than 5.0, line height will be a multiple of the font size."
     )]
     line_height: f64,
+    #[field_names(
+        desc = "If enabled, when you input a tab character, it will insert indent that's detected based on your files."
+    )]
+    pub smart_tab: bool,
     #[field_names(desc = "Set the tab width")]
     pub tab_width: usize,
     #[field_names(desc = "If opened editors are shown in a tab")]

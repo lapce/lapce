@@ -5,7 +5,7 @@ use std::{
     ops::Range,
     path::PathBuf,
     process::Stdio,
-    sync::Arc,
+    sync::{atomic::AtomicU64, Arc},
 };
 
 use anyhow::{anyhow, Result};
@@ -32,8 +32,8 @@ use floem::{
     view::View,
     views::{
         clip, container, container_box, empty, handle_titlebar_area, label, list,
-        scroll, stack, svg, tab, virtual_list, Decorators, VirtualListDirection,
-        VirtualListItemSize, VirtualListVector,
+        rich_text, scroll, stack, svg, tab, virtual_list, Decorators,
+        VirtualListDirection, VirtualListItemSize, VirtualListVector,
     },
     window::WindowConfig,
 };
@@ -81,6 +81,7 @@ use crate::{
     main_split::{
         MainSplitData, SplitContent, SplitData, SplitDirection, SplitMoveDirection,
     },
+    markdown::MarkdownContent,
     palette::{
         item::{PaletteItem, PaletteItemContent},
         PaletteData, PaletteStatus,
@@ -2609,6 +2610,70 @@ fn completion_kind_to_str(kind: CompletionItemKind) -> &'static str {
     }
 }
 
+fn hover(window_tab_data: Arc<WindowTabData>) -> impl View {
+    let hover_data = window_tab_data.common.hover.clone();
+    let config = window_tab_data.common.config;
+    let id = AtomicU64::new(0);
+    let layout_rect = window_tab_data.common.hover.layout_rect;
+
+    scroll(|| {
+        list(
+            move || hover_data.content.get(),
+            move |_| id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+            move |content| match content {
+                MarkdownContent::Text(text_layout) => container_box(|| {
+                    Box::new(
+                        rich_text(move || text_layout.clone())
+                            .style(|| Style::BASE.max_width_px(600.0)),
+                    )
+                })
+                .style(|| Style::BASE.max_width_pct(100.0)),
+                MarkdownContent::Image { .. } => container_box(|| Box::new(empty())),
+                MarkdownContent::Separator => container_box(|| {
+                    Box::new(empty().style(move || {
+                        Style::BASE
+                            .width_pct(100.0)
+                            .margin_vert_px(5.0)
+                            .height_px(1.0)
+                            .background(
+                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                            )
+                    }))
+                }),
+            },
+        )
+        .style(|| {
+            Style::BASE
+                .flex_col()
+                .padding_horiz_px(10.0)
+                .padding_vert_px(5.0)
+        })
+    })
+    .scroll_bar_color(move || *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR))
+    .on_resize(move |rect| {
+        layout_rect.set(rect);
+    })
+    .on_event(EventListener::PointerMove, |_| true)
+    .style(move || {
+        let active = window_tab_data.common.hover.active.get();
+        if !active {
+            Style::BASE.hide()
+        } else {
+            let config = config.get();
+            let origin = window_tab_data.hover_origin();
+            Style::BASE
+                .absolute()
+                .margin_left_px(origin.x as f32)
+                .margin_top_px(origin.y as f32)
+                .max_height_px(300.0)
+                .border(1.0)
+                .border_radius(10.0)
+                .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+        }
+    })
+}
+
 fn completion(window_tab_data: Arc<WindowTabData>) -> impl View {
     let completion_data = window_tab_data.common.completion;
     let config = window_tab_data.common.config;
@@ -2709,6 +2774,7 @@ fn completion(window_tab_data: Arc<WindowTabData>) -> impl View {
             c.layout_rect = rect;
         });
     })
+    .on_event(EventListener::PointerMove, |_| true)
     .style(move || {
         let config = config.get();
         let origin = window_tab_data.completion_origin();
@@ -2783,6 +2849,7 @@ fn code_action(window_tab_data: Arc<WindowTabData>) -> impl View {
             c.layout_rect = rect;
         });
     })
+    .on_event(EventListener::PointerMove, |_| true)
     .style(move || {
         let origin = window_tab_data.code_action_origin();
         Style::BASE
@@ -2825,6 +2892,7 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
     .on_resize(move |rect| {
         layout_rect.set(rect);
     })
+    .on_event(EventListener::PointerMove, |_| true)
     .style(move || {
         let origin = window_tab_data.rename_origin();
         Style::BASE
@@ -2851,6 +2919,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     let window_tab_scope = window_tab_data.scope;
     let proxy_status = window_tab_data.common.proxy_status;
     let num_window_tabs = window_tab_data.num_window_tabs;
+    let hover_active = window_tab_data.common.hover.active;
 
     let view = stack(|| {
         (
@@ -2883,6 +2952,7 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
             })
             .style(|| Style::BASE.size_pct(100.0, 100.0).flex_col()),
             completion(window_tab_data.clone()),
+            hover(window_tab_data.clone()),
             code_action(window_tab_data.clone()),
             rename(window_tab_data.clone()),
             palette(window_tab_data.clone()),
@@ -2892,6 +2962,12 @@ fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
     })
     .on_cleanup(move || {
         window_tab_scope.dispose();
+    })
+    .on_event(EventListener::PointerMove, move |_| {
+        if hover_active.get_untracked() {
+            hover_active.set(false);
+        }
+        false
     })
     .style(move || {
         let config = config.get();

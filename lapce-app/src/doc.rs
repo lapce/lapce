@@ -432,6 +432,7 @@ impl Document {
         cmd: &EditCommand,
         modal: bool,
         register: &mut Register,
+        smart_tab: bool,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         if self.content.read_only() && !cmd.not_changing_buffer() {
             return Vec::new();
@@ -447,6 +448,7 @@ impl Document {
             &mut clipboard,
             modal,
             register,
+            smart_tab,
         );
 
         if !deltas.is_empty() {

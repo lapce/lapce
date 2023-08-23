@@ -11,6 +11,7 @@ font-family = "Cascadia Code"
 font-size = 13
 code-lens-font-size = 2
 line-height = 1.5
+smart-tab = true
 tab-width = 4
 show-tab = true
 show-bread-crumbs = true

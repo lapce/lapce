@@ -40,6 +40,7 @@ use crate::{
     file_explorer::data::FileExplorerData,
     find::Find,
     global_search::GlobalSearchData,
+    hover::HoverData,
     id::WindowTabId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     listener::Listener,
@@ -91,6 +92,7 @@ pub struct CommonData {
     pub focus: RwSignal<Focus>,
     pub keypress: RwSignal<KeyPressData>,
     pub completion: RwSignal<CompletionData>,
+    pub hover: HoverData,
     pub register: RwSignal<Register>,
     pub find: Find,
     pub window_command: Listener<WindowCommand>,
@@ -220,6 +222,7 @@ impl WindowTabData {
 
         let focus = cx.create_rw_signal(Focus::Workbench);
         let completion = cx.create_rw_signal(CompletionData::new(cx, config));
+        let hover = HoverData::new(cx);
 
         let register = cx.create_rw_signal(Register::default());
         let view_id = cx.create_rw_signal(floem::id::Id::next());
@@ -246,6 +249,7 @@ impl WindowTabData {
             keypress,
             focus,
             completion,
+            hover,
             register,
             find,
             window_command,
@@ -1482,13 +1486,57 @@ impl WindowTabData {
         }
     }
 
-    pub fn completion_origin(&self) -> Point {
-        let completion = self.common.completion.get();
-        let config = self.common.config.get();
-        if completion.status == CompletionStatus::Inactive {
+    pub fn hover_origin(&self) -> Point {
+        if !self.common.hover.active.get_untracked() {
             return Point::ZERO;
         }
 
+        let editor_id = self.common.hover.editor_id.get_untracked();
+        let editor = if let Some(editor) = self
+            .main_split
+            .editors
+            .with_untracked(|editors| editors.get(&editor_id).copied())
+        {
+            editor
+        } else {
+            return Point::ZERO;
+        };
+
+        let (window_origin, viewport, view) =
+            editor.with_untracked(|e| (e.window_origin, e.viewport, e.view.clone()));
+
+        let (point_above, point_below) =
+            view.points_of_offset(self.common.hover.offset.get_untracked());
+
+        let window_origin = window_origin.get() - self.window_origin.get().to_vec2();
+        let viewport = viewport.get();
+        let hover_size = self.common.hover.layout_rect.get().size();
+        let tab_size = self.layout_rect.get().size();
+
+        let mut origin = window_origin
+            + Vec2::new(
+                point_below.x - viewport.x0,
+                (point_above.y - viewport.y0) - hover_size.height,
+            );
+        if origin.y < 0.0 {
+            origin.y = window_origin.y + point_below.y - viewport.y0;
+        }
+        if origin.x + hover_size.width + 1.0 > tab_size.width {
+            origin.x = tab_size.width - hover_size.width - 1.0;
+        }
+        if origin.x <= 0.0 {
+            origin.x = 0.0;
+        }
+
+        origin
+    }
+
+    pub fn completion_origin(&self) -> Point {
+        let completion = self.common.completion.get();
+        if completion.status == CompletionStatus::Inactive {
+            return Point::ZERO;
+        }
+        let config = self.common.config.get();
         let editor =
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor

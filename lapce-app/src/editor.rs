@@ -23,7 +23,8 @@ use lapce_core::{
 use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
-    CompletionItem, CompletionTextEdit, GotoDefinitionResponse, Location, TextEdit,
+    CompletionItem, CompletionTextEdit, GotoDefinitionResponse, HoverContents,
+    Location, MarkedString, MarkupKind, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 
@@ -38,6 +39,9 @@ use crate::{
     id::{EditorId, EditorTabId},
     keypress::{condition::Condition, KeyPressFocus},
     main_split::{MainSplitData, SplitDirection, SplitMoveDirection},
+    markdown::{
+        from_marked_string, from_plaintext, parse_markdown, MarkdownContent,
+    },
     proxy::path_from_url,
     snippet::Snippet,
     window_tab::{CommonData, Focus, WindowTabData},
@@ -170,6 +174,7 @@ pub struct EditorData {
     pub find_focus: RwSignal<bool>,
     pub active: RwSignal<bool>,
     pub sticky_header_height: RwSignal<f64>,
+    pub mouse_hover_timer: RwSignal<TimerToken>,
     pub common: CommonData,
 }
 
@@ -232,6 +237,7 @@ impl EditorData {
             find_focus: cx.create_rw_signal(false),
             active: cx.create_rw_signal(false),
             sticky_header_height: cx.create_rw_signal(0.0),
+            mouse_hover_timer: cx.create_rw_signal(TimerToken::INVALID),
             common,
         }
     }
@@ -301,6 +307,7 @@ impl EditorData {
             find_focus: cx.create_rw_signal(false),
             active: cx.create_rw_signal(false),
             sticky_header_height: cx.create_rw_signal(0.0),
+            mouse_hover_timer: cx.create_rw_signal(TimerToken::INVALID),
             common: self.common.clone(),
         }
     }
@@ -311,6 +318,10 @@ impl EditorData {
             .config
             .with_untracked(|config| config.core.modal)
             && !self.view.doc.with_untracked(|doc| doc.content.is_local());
+        let smart_tab = self
+            .common
+            .config
+            .with_untracked(|config| config.editor.smart_tab);
         let doc_before_edit = self
             .view
             .doc
@@ -332,7 +343,9 @@ impl EditorData {
         let deltas = self
             .view
             .doc
-            .try_update(|doc| doc.do_edit(&mut cursor, cmd, modal, &mut register))
+            .try_update(|doc| {
+                doc.do_edit(&mut cursor, cmd, modal, &mut register, smart_tab)
+            })
             .unwrap();
 
         if !deltas.is_empty() {
@@ -1964,23 +1977,85 @@ impl EditorData {
     }
 
     pub fn pointer_move(&self, pointer_event: &PointerEvent) {
-        if !self.active.get_untracked() {
-            return;
-        }
-
         let mode = self.cursor.with_untracked(|c| c.get_mode());
-        let (new_offset, _) = self.view.offset_of_point(mode, pointer_event.pos);
-        self.cursor.update(|cursor| {
-            cursor.set_offset(
-                new_offset,
-                true,
-                pointer_event.modifiers.contains(Modifiers::ALT),
-            )
-        });
+        let (offset, is_inside) = self.view.offset_of_point(mode, pointer_event.pos);
+        if self.active.get_untracked() {
+            self.cursor.update(|cursor| {
+                cursor.set_offset(
+                    offset,
+                    true,
+                    pointer_event.modifiers.contains(Modifiers::ALT),
+                )
+            });
+        }
+        if self.common.hover.active.get_untracked() {
+            let hover_editor_id = self.common.hover.editor_id.get_untracked();
+            if hover_editor_id != self.editor_id {
+                self.common.hover.active.set(false);
+            } else {
+                let current_offset = self.common.hover.offset.get_untracked();
+                let start_offset = self
+                    .view
+                    .doc
+                    .with_untracked(|doc| doc.buffer().prev_code_boundary(offset));
+                if current_offset != start_offset {
+                    self.common.hover.active.set(false);
+                }
+            }
+        }
+        let hover_delay = self.common.config.get_untracked().editor.hover_delay;
+        if hover_delay > 0 {
+            if is_inside {
+                let start_offset = self
+                    .view
+                    .doc
+                    .with_untracked(|doc| doc.buffer().prev_code_boundary(offset));
+
+                let editor = self.clone();
+                let mouse_hover_timer = self.mouse_hover_timer;
+                let timer_token =
+                    exec_after(Duration::from_millis(hover_delay), move |token| {
+                        if mouse_hover_timer.try_get_untracked() == Some(token) {
+                            editor.update_hover(start_offset);
+                        }
+                    });
+                mouse_hover_timer.set(timer_token);
+            } else {
+                self.mouse_hover_timer.set(TimerToken::INVALID);
+            }
+        }
     }
 
     pub fn pointer_up(&self, _pointer_event: &PointerEvent) {
         self.active.set(false);
+    }
+
+    fn update_hover(&self, offset: usize) {
+        let (path, position) = self.view.doc.with_untracked(|doc| {
+            (
+                doc.content.path().cloned(),
+                doc.buffer().offset_to_position(offset),
+            )
+        });
+        let path = match path {
+            Some(path) => path,
+            None => return,
+        };
+        let config = self.common.config;
+        let hover_data = self.common.hover.clone();
+        let editor_id = self.editor_id;
+        let send = create_ext_action(self.scope, move |resp| {
+            if let Ok(ProxyResponse::HoverResponse { hover, .. }) = resp {
+                let content = parse_hover_resp(hover, &config.get_untracked());
+                hover_data.content.set(content);
+                hover_data.offset.set(offset);
+                hover_data.editor_id.set(editor_id);
+                hover_data.active.set(true);
+            }
+        });
+        self.common.proxy.get_hover(0, path, position, |resp| {
+            send(resp);
+        });
     }
 
     // reset the doc inside and move cursor back
@@ -2407,5 +2482,39 @@ fn blink_cursor(
                 }
             });
         cursor_blink_timer.set(timer_token);
+    }
+}
+
+fn parse_hover_resp(
+    hover: lsp_types::Hover,
+    config: &LapceConfig,
+) -> Vec<MarkdownContent> {
+    match hover.contents {
+        HoverContents::Scalar(text) => match text {
+            MarkedString::String(text) => parse_markdown(&text, 1.5, config),
+            MarkedString::LanguageString(code) => parse_markdown(
+                &format!("```{}\n{}\n```", code.language, code.value),
+                1.5,
+                config,
+            ),
+        },
+        HoverContents::Array(array) => {
+            let entries = array
+                .into_iter()
+                .map(|t| from_marked_string(t, config))
+                .rev();
+
+            // TODO: It'd be nice to avoid this vec
+            itertools::Itertools::intersperse(
+                entries,
+                vec![MarkdownContent::Separator],
+            )
+            .flatten()
+            .collect()
+        }
+        HoverContents::Markup(content) => match content.kind {
+            MarkupKind::PlainText => from_plaintext(&content.value, 1.5, config),
+            MarkupKind::Markdown => parse_markdown(&content.value, 1.5, config),
+        },
     }
 }
