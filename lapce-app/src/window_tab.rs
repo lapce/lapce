@@ -108,6 +108,7 @@ pub struct CommonData {
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub proxy_status: RwSignal<Option<ProxyStatus>>,
     pub cursor_blink_timer: RwSignal<TimerToken>,
+    pub mouse_hover_timer: RwSignal<TimerToken>,
     pub hide_cursor: RwSignal<bool>,
 }
 
@@ -265,6 +266,7 @@ impl WindowTabData {
             config,
             proxy_status,
             cursor_blink_timer: cx.create_rw_signal(TimerToken::INVALID),
+            mouse_hover_timer: cx.create_rw_signal(TimerToken::INVALID),
             hide_cursor: cx.create_rw_signal(false),
         };
 

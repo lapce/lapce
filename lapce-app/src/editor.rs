@@ -174,7 +174,6 @@ pub struct EditorData {
     pub find_focus: RwSignal<bool>,
     pub active: RwSignal<bool>,
     pub sticky_header_height: RwSignal<f64>,
-    pub mouse_hover_timer: RwSignal<TimerToken>,
     pub common: CommonData,
 }
 
@@ -237,7 +236,6 @@ impl EditorData {
             find_focus: cx.create_rw_signal(false),
             active: cx.create_rw_signal(false),
             sticky_header_height: cx.create_rw_signal(0.0),
-            mouse_hover_timer: cx.create_rw_signal(TimerToken::INVALID),
             common,
         }
     }
@@ -307,7 +305,6 @@ impl EditorData {
             find_focus: cx.create_rw_signal(false),
             active: cx.create_rw_signal(false),
             sticky_header_height: cx.create_rw_signal(0.0),
-            mouse_hover_timer: cx.create_rw_signal(TimerToken::INVALID),
             common: self.common.clone(),
         }
     }
@@ -2012,7 +2009,7 @@ impl EditorData {
                     .with_untracked(|doc| doc.buffer().prev_code_boundary(offset));
 
                 let editor = self.clone();
-                let mouse_hover_timer = self.mouse_hover_timer;
+                let mouse_hover_timer = self.common.mouse_hover_timer;
                 let timer_token =
                     exec_after(Duration::from_millis(hover_delay), move |token| {
                         if mouse_hover_timer.try_get_untracked() == Some(token) {
@@ -2021,7 +2018,7 @@ impl EditorData {
                     });
                 mouse_hover_timer.set(timer_token);
             } else {
-                self.mouse_hover_timer.set(TimerToken::INVALID);
+                self.common.mouse_hover_timer.set(TimerToken::INVALID);
             }
         }
     }
