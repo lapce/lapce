@@ -65,6 +65,7 @@ zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
 default = ["all-languages", "updater"]
 portable = ["lapce-core/portable"]
 updater = []
+experimental-wayland = ["floem/experimental-wayland"]
 
 # To build lapce with only some of the supported languages, for example:
 #
@@ -82,4 +83,3 @@ all-languages = [
     "lapce-core/lang-toml",
     "lapce-core/lang-yaml",
 ]
-

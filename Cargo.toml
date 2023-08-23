@@ -18,6 +18,9 @@ path = "lapce-app/src/bin/lapce.rs"
 name = "lapce-proxy"
 path = "lapce-proxy/src/bin/lapce-proxy.rs"
 
+[features]
+experimental-wayland = ["lapce-app/experimental-wayland"]
+
 [workspace]
 members = [
   "lapce-app",
