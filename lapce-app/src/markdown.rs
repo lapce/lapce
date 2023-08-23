@@ -28,6 +28,7 @@ pub fn parse_markdown(
         FamilyOwned::parse_list(&config.editor.font_family).collect();
 
     let default_attrs = Attrs::new()
+        .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
         .font_size(config.ui.font_size() as f32)
         .line_height(LineHeightValue::Normal(line_height as f32));
     let mut attr_list = AttrsList::new(default_attrs);

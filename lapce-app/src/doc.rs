@@ -1264,6 +1264,7 @@ impl Document {
         }
 
         let mut text_layout = TextLayout::new();
+        text_layout.set_tab_width(config.editor.tab_width);
         text_layout.set_text(&line_content, attrs_list);
 
         // Keep track of background styling from phantom text, which is done separately

@@ -859,7 +859,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.7.0"
-source = "git+https://github.com/lapce/cosmic-text?rev=061ca70e105f920b21f1dd24c5d5c89592f3cf64#061ca70e105f920b21f1dd24c5d5c89592f3cf64"
+source = "git+https://github.com/lapce/cosmic-text?rev=96858440532d1e5ae2e50df734e44322b426d0de#96858440532d1e5ae2e50df734e44322b426d0de"
 dependencies = [
  "fontdb 0.13.1",
  "libm",
@@ -1440,7 +1440,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=6e86d1f5ce3d83ab68b7b266d0749d202f76eb08#6e86d1f5ce3d83ab68b7b266d0749d202f76eb08"
+source = "git+https://github.com/lapce/floem?rev=594dba3938015831a27129b56c33d070c62072e1#594dba3938015831a27129b56c33d070c62072e1"
 dependencies = [
  "bitflags 2.4.0",
  "crossbeam-channel",
@@ -1464,12 +1464,12 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=6e86d1f5ce3d83ab68b7b266d0749d202f76eb08#6e86d1f5ce3d83ab68b7b266d0749d202f76eb08"
+source = "git+https://github.com/lapce/floem?rev=594dba3938015831a27129b56c33d070c62072e1#594dba3938015831a27129b56c33d070c62072e1"
 
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=6e86d1f5ce3d83ab68b7b266d0749d202f76eb08#6e86d1f5ce3d83ab68b7b266d0749d202f76eb08"
+source = "git+https://github.com/lapce/floem?rev=594dba3938015831a27129b56c33d070c62072e1#594dba3938015831a27129b56c33d070c62072e1"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1479,7 +1479,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=6e86d1f5ce3d83ab68b7b266d0749d202f76eb08#6e86d1f5ce3d83ab68b7b266d0749d202f76eb08"
+source = "git+https://github.com/lapce/floem?rev=594dba3938015831a27129b56c33d070c62072e1#594dba3938015831a27129b56c33d070c62072e1"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -5326,7 +5326,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.7"
-source = "git+https://github.com/lapce/vger-rs?rev=952143f37d8822ef3754189734c62549025e7df5#952143f37d8822ef3754189734c62549025e7df5"
+source = "git+https://github.com/lapce/vger-rs?rev=4765fb2c0cc4507a4cc6133a326b4a05bf6d9a94#4765fb2c0cc4507a4cc6133a326b4a05bf6d9a94"
 dependencies = [
  "cosmic-text",
  "euclid",
