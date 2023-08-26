@@ -7,7 +7,6 @@ use floem::{
         TextLayout, Weight,
     },
     event::{Event, EventListener},
-    glazier::PointerType,
     id::Id,
     peniko::{
         kurbo::{Line, Point, Rect, Size, Vec2},
@@ -82,9 +81,8 @@ pub fn text_input(
         hide_cursor: editor.common.hide_cursor,
         line_height: None,
     }
-    .base_style(|| {
-        Style::BASE
-            .cursor(CursorStyle::Text)
+    .base_style(|s| {
+        s.cursor(CursorStyle::Text)
             .padding_horiz_px(10.0)
             .padding_vert_px(6.0)
     })
@@ -453,12 +451,7 @@ impl View for TextInput {
                 }
             }
             Event::PointerWheel(pointer_event) => {
-                let delta =
-                    if let PointerType::Mouse(info) = pointer_event.pointer_type {
-                        info.wheel_delta
-                    } else {
-                        Vec2::ZERO
-                    };
+                let delta = pointer_event.delta;
                 let delta = if delta.x == 0.0 && delta.y != 0.0 {
                     Vec2::new(delta.y, delta.x)
                 } else {

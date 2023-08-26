@@ -71,7 +71,7 @@ pub enum Condition {
 
 #[cfg(test)]
 mod test {
-    use floem::glazier::Modifiers;
+    use floem::keyboard::ModifiersState;
     use lapce_core::mode::Mode;
 
     use super::Condition;
@@ -94,7 +94,7 @@ mod test {
             &self,
             _command: &crate::command::LapceCommand,
             _count: Option<usize>,
-            _mods: Modifiers,
+            _mods: ModifiersState,
         ) -> crate::command::CommandExecuted {
             unimplemented!()
         }

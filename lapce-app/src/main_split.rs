@@ -8,7 +8,8 @@ use std::{
 use floem::{
     action::{exec_after, save_as},
     ext_event::create_ext_action,
-    glazier::{FileDialogOptions, FileInfo, KeyEvent, Modifiers},
+    file::{FileDialogOptions, FileInfo},
+    keyboard::{KeyEvent, ModifiersState},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{Memo, RwSignal, Scope},
 };
@@ -1771,7 +1772,7 @@ impl MainSplitData {
                                 editor.get_untracked().run_focus_command(
                                     &FocusCommand::SplitClose,
                                     None,
-                                    Modifiers::default(),
+                                    ModifiersState::empty(),
                                 );
                             });
                         });

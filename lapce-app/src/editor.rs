@@ -4,10 +4,11 @@ use std::{
 
 use anyhow::Result;
 use floem::{
-    action::exec_after,
+    action::{exec_after, TimerToken},
     ext_event::create_ext_action,
-    glazier::{Modifiers, PointerButton, PointerEvent, TimerToken},
+    keyboard::ModifiersState,
     peniko::kurbo::{Point, Rect, Vec2},
+    pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
     reactive::{use_context, ReadSignal, RwSignal, Scope},
 };
 use lapce_core::{
@@ -408,7 +409,7 @@ impl EditorData {
         &self,
         movement: &lapce_core::movement::Movement,
         count: Option<usize>,
-        mods: Modifiers,
+        mods: ModifiersState,
     ) -> CommandExecuted {
         if movement.is_jump() && movement != &self.last_movement.get_untracked() {
             let path = self
@@ -436,7 +437,7 @@ impl EditorData {
                 &mut cursor,
                 movement,
                 count.unwrap_or(1),
-                mods.contains(Modifiers::SHIFT),
+                mods.shift_key(),
                 register,
             )
         });
@@ -466,7 +467,7 @@ impl EditorData {
         &self,
         cmd: &FocusCommand,
         count: Option<usize>,
-        mods: Modifiers,
+        mods: ModifiersState,
     ) -> CommandExecuted {
         // TODO(minor): Evaluate whether we should split this into subenums,
         // such as actions specific to the actual editor pane, movement, and list movement.
@@ -752,7 +753,7 @@ impl EditorData {
                     new_index + line_start_offset,
                 ),
                 None,
-                Modifiers::empty(),
+                ModifiersState::empty(),
             );
         }
     }
@@ -897,7 +898,7 @@ impl EditorData {
         );
     }
 
-    fn page_move(&self, down: bool, mods: Modifiers) {
+    fn page_move(&self, down: bool, mods: ModifiersState) {
         let config = self.common.config.get_untracked();
         let viewport = self.viewport.get_untracked();
         let line_height = config.editor.line_height() as f64;
@@ -916,7 +917,7 @@ impl EditorData {
         );
     }
 
-    fn scroll(&self, down: bool, count: usize, mods: Modifiers) {
+    fn scroll(&self, down: bool, count: usize, mods: ModifiersState) {
         let config = self.common.config.get_untracked();
         let viewport = self.viewport.get_untracked();
         let line_height = config.editor.line_height() as f64;
@@ -1646,7 +1647,7 @@ impl EditorData {
         }
     }
 
-    fn search_whole_word_forward(&self, mods: Modifiers) {
+    fn search_whole_word_forward(&self, mods: ModifiersState) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let (word, buffer) = self.view.doc.with_untracked(|doc| {
             let (start, end) = doc.buffer().select_word(offset);
@@ -1669,7 +1670,7 @@ impl EditorData {
         }
     }
 
-    fn search_forward(&self, mods: Modifiers) {
+    fn search_forward(&self, mods: ModifiersState) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let buffer = self.view.doc.with_untracked(|doc| doc.buffer().clone());
         let next = self.common.find.next(buffer.text(), offset, false, true);
@@ -1683,7 +1684,7 @@ impl EditorData {
         }
     }
 
-    fn search_backward(&self, mods: Modifiers) {
+    fn search_backward(&self, mods: ModifiersState) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let buffer = self.view.doc.with_untracked(|doc| doc.buffer().clone());
         let next = self.common.find.next(buffer.text(), offset, true, true);
@@ -1894,7 +1895,7 @@ impl EditorData {
         self.common.find.replace_focus.set(false);
     }
 
-    pub fn pointer_down(&self, pointer_event: &PointerEvent) {
+    pub fn pointer_down(&self, pointer_event: &PointerInputEvent) {
         if let Some(editor_tab_id) = self.editor_tab_id {
             self.common
                 .internal_command
@@ -1914,7 +1915,7 @@ impl EditorData {
         }
     }
 
-    fn left_click(&self, pointer_event: &PointerEvent) {
+    fn left_click(&self, pointer_event: &PointerInputEvent) {
         match pointer_event.count {
             1 => {
                 self.single_click(pointer_event);
@@ -1929,19 +1930,19 @@ impl EditorData {
         }
     }
 
-    fn single_click(&self, pointer_event: &PointerEvent) {
+    fn single_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (new_offset, _) = self.view.offset_of_point(mode, pointer_event.pos);
         self.cursor.update(|cursor| {
             cursor.set_offset(
                 new_offset,
-                pointer_event.modifiers.contains(Modifiers::SHIFT),
-                pointer_event.modifiers.contains(Modifiers::ALT),
+                pointer_event.modifiers.shift_key(),
+                pointer_event.modifiers.alt_key(),
             )
         });
     }
 
-    fn double_click(&self, pointer_event: &PointerEvent) {
+    fn double_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (mouse_offset, _) = self.view.offset_of_point(mode, pointer_event.pos);
         let (start, end) = self.view.select_word(mouse_offset);
@@ -1950,13 +1951,13 @@ impl EditorData {
             cursor.add_region(
                 start,
                 end,
-                pointer_event.modifiers.contains(Modifiers::SHIFT),
-                pointer_event.modifiers.contains(Modifiers::ALT),
+                pointer_event.modifiers.shift_key(),
+                pointer_event.modifiers.alt_key(),
             )
         });
     }
 
-    fn triple_click(&self, pointer_event: &PointerEvent) {
+    fn triple_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (mouse_offset, _) = self.view.offset_of_point(mode, pointer_event.pos);
         let line = self.view.line_of_offset(mouse_offset);
@@ -1967,22 +1968,18 @@ impl EditorData {
             cursor.add_region(
                 start,
                 end,
-                pointer_event.modifiers.contains(Modifiers::SHIFT),
-                pointer_event.modifiers.contains(Modifiers::ALT),
+                pointer_event.modifiers.shift_key(),
+                pointer_event.modifiers.alt_key(),
             )
         });
     }
 
-    pub fn pointer_move(&self, pointer_event: &PointerEvent) {
+    pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (offset, is_inside) = self.view.offset_of_point(mode, pointer_event.pos);
         if self.active.get_untracked() {
             self.cursor.update(|cursor| {
-                cursor.set_offset(
-                    offset,
-                    true,
-                    pointer_event.modifiers.contains(Modifiers::ALT),
-                )
+                cursor.set_offset(offset, true, pointer_event.modifiers.alt_key())
             });
         }
         if self.common.hover.active.get_untracked() {
@@ -2023,7 +2020,7 @@ impl EditorData {
         }
     }
 
-    pub fn pointer_up(&self, _pointer_event: &PointerEvent) {
+    pub fn pointer_up(&self, _pointer_event: &PointerInputEvent) {
         self.active.set(false);
     }
 
@@ -2307,7 +2304,7 @@ impl KeyPressFocus for EditorData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        mods: floem::glazier::Modifiers,
+        mods: ModifiersState,
     ) -> crate::command::CommandExecuted {
         if self.common.find.visual.get_untracked() && self.find_focus.get_untracked()
         {

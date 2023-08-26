@@ -1,9 +1,8 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use floem::{
     event::EventListener,
     reactive::{create_rw_signal, ReadSignal},
-    style::Style,
     view::View,
     views::{container, container_box, empty, label, list, stack, tab, Decorators},
 };
@@ -26,7 +25,7 @@ use crate::{
 };
 
 pub fn panel_container_view(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     position: PanelContainerPosition,
 ) -> impl View {
     let panel = window_tab_data.panel.clone();
@@ -69,17 +68,14 @@ pub fn panel_container_view(
                         false
                     }
                 })
-                .style(move || {
-                    Style::BASE.size_pct(100.0, 100.0).apply_if(
-                        dragging_over.get(),
-                        |s| {
-                            s.background(
-                                *config.get().get_color(
-                                    LapceColor::EDITOR_DRAG_DROP_BACKGROUND,
-                                ),
-                            )
-                        },
-                    )
+                .style(move |s| {
+                    s.size_pct(100.0, 100.0).apply_if(dragging_over.get(), |s| {
+                        s.background(
+                            *config
+                                .get()
+                                .get_color(LapceColor::EDITOR_DRAG_DROP_BACKGROUND),
+                        )
+                    })
                 })
         }
     };
@@ -94,15 +90,14 @@ pub fn panel_container_view(
             stack(move || {
                 (drop_view(position.first()), drop_view(position.second()))
             })
-            .style(move || {
-                Style::BASE
-                    .absolute()
+            .style(move |s| {
+                s.absolute()
                     .size_pct(100.0, 100.0)
                     .apply_if(!is_bottom, |s| s.flex_col())
             }),
         )
     })
-    .style(move || {
+    .style(move |s| {
         let size = panel.size.with(|s| match position {
             PanelContainerPosition::Left => s.left,
             PanelContainerPosition::Bottom => s.bottom,
@@ -110,8 +105,7 @@ pub fn panel_container_view(
         });
         let is_maximized = panel.panel_bottom_maximized(true);
         let config = config.get();
-        Style::BASE
-            .apply_if(!panel.is_container_shown(&position, true), |s| s.hide())
+        s.apply_if(!panel.is_container_shown(&position, true), |s| s.hide())
             .apply_if(position == PanelContainerPosition::Bottom, |s| {
                 s.width_pct(100.0)
                     .apply_if(!is_maximized, |s| {
@@ -138,7 +132,7 @@ pub fn panel_container_view(
 }
 
 fn panel_view(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     position: PanelPosition,
 ) -> impl View {
     let panel = window_tab_data.panel.clone();
@@ -180,11 +174,11 @@ fn panel_view(
                     Box::new(debug_panel(window_tab_data.clone(), position))
                 }),
             };
-            view.style(|| Style::BASE.size_pct(100.0, 100.0))
+            view.style(|s| s.size_pct(100.0, 100.0))
         },
     )
-    .style(move || {
-        Style::BASE.size_pct(100.0, 100.0).apply_if(
+    .style(move |s| {
+        s.size_pct(100.0, 100.0).apply_if(
             !panel.is_position_shown(&position, true)
                 || panel.is_position_empty(&position, true),
             |s| s.hide(),
@@ -196,9 +190,8 @@ pub fn panel_header(
     header: String,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    container(|| label(move || header.clone())).style(move || {
-        Style::BASE
-            .padding_horiz_px(10.0)
+    container(|| label(move || header.clone())).style(move |s| {
+        s.padding_horiz_px(10.0)
             .padding_vert_px(6.0)
             .width_pct(100.0)
             .background(*config.get().get_color(LapceColor::EDITOR_BACKGROUND))
@@ -206,7 +199,7 @@ pub fn panel_header(
 }
 
 fn panel_picker(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     position: PanelPosition,
 ) -> impl View {
     let panel = window_tab_data.panel.clone();
@@ -267,10 +260,9 @@ fn panel_picker(
                             dragging.set(None);
                             true
                         })
-                        .dragging_style(move || {
+                        .dragging_style(move |s| {
                             let config = config.get();
-                            Style::BASE
-                                .border(1.0)
+                            s.border(1.0)
                                 .border_radius(6.0)
                                 .border_color(
                                     *config.get_color(LapceColor::LAPCE_BORDER),
@@ -282,10 +274,9 @@ fn panel_picker(
                                         .with_alpha_factor(0.7),
                                 )
                         })
-                        .style(|| Style::BASE.padding_px(1.0)),
-                        label(|| "".to_string()).style(move || {
-                            Style::BASE
-                                .absolute()
+                        .style(|s| s.padding_px(1.0)),
+                        label(|| "".to_string()).style(move |s| {
+                            s.absolute()
                                 .size_pct(100.0, 100.0)
                                 .apply_if(!is_bottom && is_first, |s| {
                                     s.margin_top_px(2.0)
@@ -320,12 +311,11 @@ fn panel_picker(
                     )
                 })
             })
-            .style(|| Style::BASE.padding_px(6.0))
+            .style(|s| s.padding_px(6.0))
         },
     )
-    .style(move || {
-        Style::BASE
-            .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+    .style(move |s| {
+        s.border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
             .apply_if(
                 panels.with(|p| {
                     p.get(&position).map(|p| p.is_empty()).unwrap_or(true)

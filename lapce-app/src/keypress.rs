@@ -8,7 +8,8 @@ use std::{path::PathBuf, rc::Rc, str::FromStr};
 
 use anyhow::Result;
 use floem::{
-    glazier::{KbKey, KeyEvent, Modifiers, PointerEvent},
+    keyboard::{Key, KeyEvent, ModifiersState},
+    pointer::PointerInputEvent,
     reactive::{RwSignal, Scope},
 };
 use indexmap::IndexMap;
@@ -16,7 +17,7 @@ use itertools::Itertools;
 use lapce_core::mode::{Mode, Modes};
 use tracing::{debug, error};
 
-use self::{key::Key, keymap::KeyMap, loader::KeyMapLoader};
+use self::{key::KeyInput, keymap::KeyMap, loader::KeyMapLoader};
 use crate::{
     command::{
         lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
@@ -48,7 +49,7 @@ pub trait KeyPressFocus {
         &self,
         command: &LapceCommand,
         count: Option<usize>,
-        mods: Modifiers,
+        mods: ModifiersState,
     ) -> CommandExecuted;
 
     fn expect_char(&self) -> bool {
@@ -64,8 +65,8 @@ pub trait KeyPressFocus {
 
 #[derive(Clone, Copy, Debug)]
 pub enum EventRef<'a> {
-    Keyboard(&'a floem::glazier::KeyEvent),
-    Pointer(&'a floem::glazier::PointerEvent),
+    Keyboard(&'a floem::keyboard::KeyEvent),
+    Pointer(&'a floem::pointer::PointerInputEvent),
 }
 
 impl<'a> From<&'a KeyEvent> for EventRef<'a> {
@@ -74,8 +75,8 @@ impl<'a> From<&'a KeyEvent> for EventRef<'a> {
     }
 }
 
-impl<'a> From<&'a PointerEvent> for EventRef<'a> {
-    fn from(ev: &'a PointerEvent) -> Self {
+impl<'a> From<&'a PointerInputEvent> for EventRef<'a> {
+    fn from(ev: &'a PointerInputEvent) -> Self {
         Self::Pointer(ev)
     }
 }
@@ -160,7 +161,7 @@ impl KeyPressData {
             return false;
         }
 
-        if let Key::Keyboard(KbKey::Character(c)) = &keypress.key {
+        if let KeyInput::Keyboard(Key::Character(c)) = &keypress.key {
             if let Ok(n) = c.parse::<usize>() {
                 if self.count.with_untracked(|count| count.is_some()) || n > 0 {
                     self.count
@@ -177,7 +178,7 @@ impl KeyPressData {
         &self,
         command: &str,
         count: Option<usize>,
-        mods: Modifiers,
+        mods: ModifiersState,
         focus: &T,
     ) -> CommandExecuted {
         if let Some(cmd) = self.commands.get(command) {
@@ -205,17 +206,17 @@ impl KeyPressData {
 
         let keypress = match event {
             EventRef::Keyboard(ev)
-                if ev.key == KbKey::Shift && ev.mods.is_empty() =>
+                if ev.key.logical_key == Key::Shift && ev.modifiers.is_empty() =>
             {
                 return None;
             }
             EventRef::Keyboard(ev) => KeyPress {
-                key: Key::Keyboard(ev.key.clone()),
+                key: KeyInput::Keyboard(ev.key.logical_key.clone()),
                 // We are removing Shift modifier since the character is already upper case.
                 mods: Self::get_key_modifiers(ev),
             },
             EventRef::Pointer(ev) => KeyPress {
-                key: Key::Pointer(ev.button),
+                key: KeyInput::Pointer(ev.button),
                 mods: ev.modifiers,
             },
         };
@@ -280,7 +281,7 @@ impl KeyPressData {
                 });
                 if focus.get_mode() == Mode::Insert {
                     let mut keypress = keypress.clone();
-                    keypress.mods.set(Modifiers::SHIFT, false);
+                    keypress.mods.set(ModifiersState::SHIFT, false);
                     if let KeymapMatch::Full(command) =
                         self.match_keymap(&[keypress], focus)
                     {
@@ -319,10 +320,10 @@ impl KeyPressData {
 
         #[cfg(target_os = "macos")]
         {
-            mods.set(Modifiers::SHIFT, false);
-            mods.set(Modifiers::ALT, false);
+            mods.set(ModifiersState::SHIFT, false);
+            mods.set(ModifiersState::ALT, false);
             if mods.is_empty() {
-                if let Key::Keyboard(KbKey::Character(c)) = &keypress.key {
+                if let KeyInput::Keyboard(Key::Character(c)) = &keypress.key {
                     focus.receive_char(c);
                     return true;
                 }
@@ -332,29 +333,25 @@ impl KeyPressData {
         false
     }
 
-    fn get_key_modifiers(key_event: &KeyEvent) -> Modifiers {
+    fn get_key_modifiers(key_event: &KeyEvent) -> ModifiersState {
         // We only care about some modifiers
-        let mut mods = (Modifiers::ALT
-            | Modifiers::CONTROL
-            | Modifiers::SHIFT
-            | Modifiers::META)
-            & key_event.mods;
+        let mut mods = key_event.modifiers;
 
-        if mods == Modifiers::SHIFT {
-            if let KbKey::Character(c) = &key_event.key {
+        if mods == ModifiersState::SHIFT {
+            if let Key::Character(c) = &key_event.key.logical_key {
                 if !c.chars().all(|c| c.is_alphabetic()) {
                     // We remove the shift if there's only shift pressed,
                     // and the character isn't a letter
-                    return Modifiers::empty();
+                    return ModifiersState::empty();
                 }
             }
         }
 
-        match &key_event.key {
-            KbKey::Shift => mods.set(Modifiers::SHIFT, false),
-            KbKey::Alt => mods.set(Modifiers::ALT, false),
-            KbKey::Meta => mods.set(Modifiers::META, false),
-            KbKey::Control => mods.set(Modifiers::CONTROL, false),
+        match &key_event.key.logical_key {
+            Key::Shift => mods.set(ModifiersState::SHIFT, false),
+            Key::Alt => mods.set(ModifiersState::ALT, false),
+            Key::Meta => mods.set(ModifiersState::SUPER, false),
+            Key::Control => mods.set(ModifiersState::CONTROL, false),
             _ => (),
         }
 

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use floem::{
     event::EventListener,
+    keyboard::ModifiersState,
     peniko::{
         kurbo::{Point, Rect, Size},
         Color,
@@ -9,7 +10,7 @@ use floem::{
     reactive::{
         create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal, Scope,
     },
-    style::{CursorStyle, Style},
+    style::CursorStyle,
     view::View,
     views::{
         container, container_box, empty, label, list, scroll, stack, svg,
@@ -104,7 +105,7 @@ impl KeyPressFocus for SettingsData {
         &self,
         _command: &crate::command::LapceCommand,
         _count: Option<usize>,
-        _mods: floem::glazier::Modifiers,
+        _mods: ModifiersState,
     ) -> crate::command::CommandExecuted {
         CommandExecuted::No
     }
@@ -324,7 +325,7 @@ pub fn settings_view(
 
         if pattern.is_empty() {
             let mut items = items.clone();
-            items.extend(plugin_items.into_iter());
+            items.extend(plugin_items);
             filtered_items_signal.set(items);
             return;
         }
@@ -376,7 +377,7 @@ pub fn settings_view(
         let kind = k.clone();
         container(|| {
             label(move || k.clone())
-                .style(move || Style::BASE.text_ellipsis().padding_left_px(margin))
+                .style(move |s| s.text_ellipsis().padding_left_px(margin))
         })
         .on_click(move |_| {
             if let Some(pos) = pos() {
@@ -389,25 +390,25 @@ pub fn settings_view(
             }
             true
         })
-        .style(move || {
-            Style::BASE
-                .padding_horiz_px(20.0)
-                .width_pct(100.0)
-                .apply_if(kind == current_kind.get(), |s| {
+        .style(move |s| {
+            s.padding_horiz_px(20.0).width_pct(100.0).apply_if(
+                kind == current_kind.get(),
+                |s| {
                     s.background(
                         *config
                             .get()
                             .get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
                     )
-                })
+                },
+            )
         })
-        .hover_style(move || {
-            Style::BASE.cursor(CursorStyle::Pointer).background(
+        .hover_style(move |s| {
+            s.cursor(CursorStyle::Pointer).background(
                 *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
             )
         })
-        .active_style(move || {
-            Style::BASE.background(
+        .active_style(move |s| {
+            s.background(
                 *config
                     .get()
                     .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
@@ -425,7 +426,7 @@ pub fn settings_view(
                         switcher_item(k, Box::new(move || Some(pos)), 0.0)
                     },
                 )
-                .style(|| Style::BASE.flex_col().width_pct(100.0)),
+                .style(|s| s.flex_col().width_pct(100.0)),
                 stack(|| {
                     (
                         switcher_item(
@@ -444,20 +445,18 @@ pub fn settings_view(
                                 switcher_item(k, Box::new(move || Some(pos)), 10.0)
                             },
                         )
-                        .style(|| Style::BASE.flex_col().width_pct(100.0)),
+                        .style(|s| s.flex_col().width_pct(100.0)),
                     )
                 })
-                .style(move || {
-                    Style::BASE
-                        .width_pct(100.0)
+                .style(move |s| {
+                    s.width_pct(100.0)
                         .flex_col()
                         .apply_if(plugin_kinds.with(|k| k.is_empty()), |s| s.hide())
                 }),
             )
         })
-        .style(move || {
-            Style::BASE
-                .width_pct(100.0)
+        .style(move |s| {
+            s.width_pct(100.0)
                 .flex_col()
                 .line_height(1.6)
                 .font_size(config.get().ui.font_size() as f32 + 1.0)
@@ -469,16 +468,12 @@ pub fn settings_view(
             container(|| {
                 scroll(|| {
                     container(switcher)
-                        .style(|| Style::BASE.padding_vert_px(20.0).width_pct(100.0))
+                        .style(|s| s.padding_vert_px(20.0).width_pct(100.0))
                 })
-                .scroll_bar_color(move || {
-                    *config.get().get_color(LapceColor::LAPCE_BORDER)
-                })
-                .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+                .style(|s| s.absolute().size_pct(100.0, 100.0))
             })
-            .style(move || {
-                Style::BASE
-                    .height_pct(100.0)
+            .style(move |s| {
+                s.height_pct(100.0)
                     .width_px(200.0)
                     .border_right(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
@@ -489,9 +484,8 @@ pub fn settings_view(
                         text_input(search_editor, || false)
                             .placeholder(|| "Search Settings".to_string())
                             .keyboard_navigatable()
-                            .style(move || {
-                                Style::BASE
-                                    .width_pct(100.0)
+                            .style(move |s| {
+                                s.width_pct(100.0)
                                     .border_radius(6.0)
                                     .border(1.0)
                                     .border_color(
@@ -501,9 +495,7 @@ pub fn settings_view(
                                     )
                             })
                     })
-                    .style(|| {
-                        Style::BASE.padding_horiz_px(50.0).padding_vert_px(20.0)
-                    }),
+                    .style(|s| s.padding_horiz_px(50.0).padding_vert_px(20.0)),
                     container(|| {
                         scroll(|| {
                             virtual_list(
@@ -522,9 +514,8 @@ pub fn settings_view(
                                     )
                                 },
                             )
-                            .style(|| {
-                                Style::BASE
-                                    .flex_col()
+                            .style(|s| {
+                                s.flex_col()
                                     .padding_horiz_px(50.0)
                                     .min_width_pct(100.0)
                                     .max_width_px(400.0)
@@ -537,18 +528,15 @@ pub fn settings_view(
                         .on_resize(move |rect| {
                             settings_content_size.set(rect.size());
                         })
-                        .scroll_bar_color(move || {
-                            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-                        })
-                        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+                        .style(|s| s.absolute().size_pct(100.0, 100.0))
                     })
-                    .style(|| Style::BASE.size_pct(100.0, 100.0)),
+                    .style(|s| s.size_pct(100.0, 100.0)),
                 )
             })
-            .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0)),
+            .style(|s| s.flex_col().size_pct(100.0, 100.0)),
         )
     })
-    .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+    .style(|s| s.absolute().size_pct(100.0, 100.0))
 }
 
 fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl View {
@@ -607,9 +595,8 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                 container_box(move || {
                     Box::new(
                         text_input(editor, || false).keyboard_navigatable().style(
-                            move || {
-                                Style::BASE
-                                    .width_px(300.0)
+                            move |s| {
+                                s.width_px(300.0)
                                     .border(1.0)
                                     .border_radius(6.0)
                                     .border_color(
@@ -649,9 +636,9 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             expanded.set(false);
                             true
                         })
-                        .style(|| Style::BASE.text_ellipsis().padding_horiz_px(10.0))
-                        .hover_style(move || {
-                            Style::BASE.cursor(CursorStyle::Pointer).background(
+                        .style(|s| s.text_ellipsis().padding_horiz_px(10.0))
+                        .hover_style(move |s| {
+                            s.cursor(CursorStyle::Pointer).background(
                                 *config
                                     .get()
                                     .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -665,9 +652,8 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 stack(|| {
                                     (
                                         label(move || current_value.get()).style(
-                                            move || {
-                                                Style::BASE
-                                                    .text_ellipsis()
+                                            move |s| {
+                                                s.text_ellipsis()
                                                     .width_pct(100.0)
                                                     .padding_horiz_px(10.0)
                                             },
@@ -678,18 +664,17 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                                     LapceIcons::DROPDOWN_ARROW,
                                                 )
                                             })
-                                            .style(move || {
+                                            .style(move |s| {
                                                 let config = config.get();
                                                 let size =
                                                     config.ui.icon_size() as f32;
-                                                Style::BASE
-                                                    .size_px(size, size)
+                                                s.size_px(size, size)
                                                     .color(*config.get_color(
                                                     LapceColor::LAPCE_ICON_ACTIVE,
                                                 ))
                                             })
                                         })
-                                        .style(|| Style::BASE.padding_right_px(4.0)),
+                                        .style(|s| s.padding_right_px(4.0)),
                                     )
                                 })
                                 .on_click(move |_| {
@@ -698,9 +683,8 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                     });
                                     true
                                 })
-                                .style(move || {
-                                    Style::BASE
-                                        .items_center()
+                                .style(move |s| {
+                                    s.items_center()
                                         .width_pct(100.0)
                                         .cursor(CursorStyle::Pointer)
                                         .border_color(Color::TRANSPARENT)
@@ -723,35 +707,28 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                                 |item| item.to_string(),
                                                 view_fn,
                                             )
-                                            .style(|| {
-                                                Style::BASE
-                                                    .flex_col()
+                                            .style(|s| {
+                                                s.flex_col()
                                                     .width_pct(100.0)
                                                     .cursor(CursorStyle::Pointer)
                                             })
                                         })
-                                        .scroll_bar_color(move || {
-                                            *config.get().get_color(
-                                                LapceColor::LAPCE_SCROLL_BAR,
-                                            )
-                                        })
-                                        .style(move || {
+                                        .style(move |s| {
                                             let config = config.get();
-                                            Style::BASE
-                                                .background(*config.get_color(
-                                                    LapceColor::EDITOR_BACKGROUND,
-                                                ))
-                                                .width_pct(100.0)
-                                                .max_height_px(300.0)
-                                                .z_index(1)
-                                                .border_top(1.0)
-                                                .border_radius(6.0)
-                                                .border_color(*config.get_color(
+                                            s.background(*config.get_color(
+                                                LapceColor::EDITOR_BACKGROUND,
+                                            ))
+                                            .width_pct(100.0)
+                                            .max_height_px(300.0)
+                                            .z_index(1)
+                                            .border_top(1.0)
+                                            .border_radius(6.0)
+                                            .border_color(
+                                                *config.get_color(
                                                     LapceColor::LAPCE_BORDER,
-                                                ))
-                                                .apply_if(!expanded.get(), |s| {
-                                                    s.hide()
-                                                })
+                                                ),
+                                            )
+                                            .apply_if(!expanded.get(), |s| s.hide())
                                         }),
                                     )
                                 })
@@ -762,9 +739,8 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                     }
                                     true
                                 })
-                                .style(move || {
-                                    Style::BASE
-                                        .absolute()
+                                .style(move |s| {
+                                    s.absolute()
                                         .flex_col()
                                         .width_pct(100.0)
                                         .border(1.0)
@@ -780,15 +756,14 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 }),
                             )
                         })
-                        .style(move || Style::BASE.width_px(250.0).line_height(1.8)),
+                        .style(move |s| s.width_px(250.0).line_height(1.8)),
                     )
                 })
             } else if item.header {
                 container_box(|| {
-                    Box::new(label(move || item.kind.clone()).style(move || {
+                    Box::new(label(move || item.kind.clone()).style(move |s| {
                         let config = config.get();
-                        Style::BASE
-                            .line_height(2.0)
+                        s.line_height(2.0)
                             .font_bold()
                             .width_pct(100.0)
                             .padding_horiz_px(10.0)
@@ -806,9 +781,8 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
 
     stack(move || {
         (
-            label(move || item.name.clone()).style(move || {
-                Style::BASE
-                    .font_bold()
+            label(move || item.name.clone()).style(move |s| {
+                s.font_bold()
                     .text_ellipsis()
                     .min_width_px(0.0)
                     .max_width_pct(100.0)
@@ -817,9 +791,8 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
             }),
             stack(move || {
                 (
-                    label(move || item.description.clone()).style(move || {
-                        Style::BASE
-                            .min_width_px(0.0)
+                    label(move || item.description.clone()).style(move |s| {
+                        s.min_width_px(0.0)
                             .max_width_pct(100.0)
                             .line_height(1.6)
                             .apply_if(is_ticked.is_some(), |s| {
@@ -853,10 +826,10 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                     (
                                         checkbox(move || checked.get(), config),
                                         label(|| " ".to_string())
-                                            .style(|| Style::BASE.line_height(1.6)),
+                                            .style(|s| s.line_height(1.6)),
                                     )
                                 })
-                                .style(|| Style::BASE.items_center()),
+                                .style(|s| s.items_center()),
                             )
                         })
                         .on_click(move |_| {
@@ -865,22 +838,19 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             });
                             true
                         })
-                        .style(|| {
-                            Style::BASE
-                                .absolute()
+                        .style(|s| {
+                            s.absolute()
                                 .cursor(CursorStyle::Pointer)
                                 .size_pct(100.0, 100.0)
                                 .items_start()
                         })
                     } else {
-                        container_box(|| Box::new(empty()))
-                            .style(|| Style::BASE.hide())
+                        container_box(|| Box::new(empty())).style(|s| s.hide())
                     },
                 )
             }),
-            view().style(move || {
-                Style::BASE.apply_if(!item.header, |s| s.margin_top_px(6.0))
-            }),
+            view()
+                .style(move |s| s.apply_if(!item.header, |s| s.margin_top_px(6.0))),
         )
     })
     .on_resize(move |rect| {
@@ -893,9 +863,8 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
             item.size.set(new_size);
         }
     })
-    .style(|| {
-        Style::BASE
-            .flex_col()
+    .style(|s| {
+        s.flex_col()
             .padding_vert_px(10.0)
             .min_width_pct(100.0)
             .max_width_px(300.0)
@@ -909,13 +878,12 @@ pub fn checkbox(
     const CHECKBOX_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 16 16"><polygon points="5.19,11.83 0.18,7.44 1.82,5.56 4.81,8.17 10,1.25 12,2.75" /></svg>"#;
     let svg_str = move || if checked() { CHECKBOX_SVG } else { "" }.to_string();
 
-    svg(svg_str).base_style(move || {
+    svg(svg_str).base_style(move |s| {
         let config = config.get();
         let size = config.ui.font_size() as f32;
         let color = *config.get_color(LapceColor::EDITOR_FOREGROUND);
 
-        Style::BASE
-            .min_width_px(size)
+        s.min_width_px(size)
             .size_px(size, size)
             .color(color)
             .border_color(color)

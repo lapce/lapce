@@ -2,6 +2,7 @@ use std::{ops::Range, path::PathBuf};
 
 use floem::{
     ext_event::create_ext_action,
+    keyboard::ModifiersState,
     reactive::{Memo, RwSignal, Scope},
     views::VirtualListVector,
 };
@@ -59,7 +60,7 @@ impl KeyPressFocus for GlobalSearchData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        mods: floem::glazier::Modifiers,
+        mods: ModifiersState,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}

@@ -8,7 +8,7 @@ use alacritty_terminal::{
     Term,
 };
 use floem::{
-    glazier::{keyboard_types::Key, KeyEvent, Modifiers},
+    keyboard::{Key, KeyEvent, ModifiersState},
     reactive::{RwSignal, Scope},
 };
 use lapce_core::{
@@ -59,7 +59,7 @@ impl KeyPressFocus for TerminalData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        _mods: floem::glazier::Modifiers,
+        _mods: ModifiersState,
     ) -> crate::command::CommandExecuted {
         self.common.view_id.get_untracked().request_paint();
         let config = self.common.config.get_untracked();
@@ -387,25 +387,20 @@ impl TerminalData {
     }
 
     pub fn resolve_key_event(key: &KeyEvent) -> Option<&str> {
-        let mut key = key.clone();
-        key.mods = (Modifiers::ALT
-            | Modifiers::CONTROL
-            | Modifiers::SHIFT
-            | Modifiers::META)
-            & key.mods;
+        let key = key.clone();
 
         // Generates a `Modifiers` value to check against.
         macro_rules! modifiers {
             (ctrl) => {
-                Modifiers::CONTROL
+                ModifiersState::CONTROL
             };
 
             (alt) => {
-                Modifiers::ALT
+                ModifiersState::ALT
             };
 
             (shift) => {
-                Modifiers::SHIFT
+                ModifiersState::SHIFT
             };
 
             ($mod:ident $(| $($mods:ident)|+)?) => {
@@ -459,13 +454,13 @@ impl TerminalData {
             };
             // No modifiers
             ([], $evt:ident, $no_mod:literal) => {
-                if $evt.mods.is_empty() {
+                if $evt.modifiers.is_empty() {
                     return Some($no_mod);
                 }
             };
             // A single modifier combination
             ([$($mod:ident)|+], $evt:ident, $pre:literal, $post:literal) => {
-                if $evt.mods == modifiers!($($mod)|+) {
+                if $evt.modifiers == modifiers!($($mod)|+) {
                     return Some(concat!($pre, modval!($($mod)|+), $post));
                 }
             };
@@ -477,9 +472,9 @@ impl TerminalData {
             };
         }
 
-        match key.key {
+        match key.key.logical_key {
             Key::Character(ref c) => {
-                if key.mods == Modifiers::CONTROL {
+                if key.modifiers == ModifiersState::CONTROL {
                     // Convert the character into its index (into a control character).
                     // In essence, this turns `ctrl+h` into `^h`
                     let str = match c.as_str() {
@@ -524,9 +519,9 @@ impl TerminalData {
                 }
             }
             Key::Backspace => {
-                Some(if key.mods.contains(Modifiers::CONTROL) {
+                Some(if key.modifiers.control_key() {
                     "\x08" // backspace
-                } else if key.mods.contains(Modifiers::ALT) {
+                } else if key.modifiers.alt_key() {
                     "\x1b\x7f"
                 } else {
                     "\x7f"

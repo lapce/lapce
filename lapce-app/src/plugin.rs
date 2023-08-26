@@ -3,6 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use anyhow::Result;
 use floem::{
     ext_event::create_ext_action,
+    keyboard::ModifiersState,
     reactive::{use_context, RwSignal, Scope},
 };
 use indexmap::IndexMap;
@@ -70,7 +71,7 @@ impl KeyPressFocus for PluginData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        mods: floem::glazier::Modifiers,
+        mods: ModifiersState,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}

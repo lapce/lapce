@@ -6,7 +6,7 @@ use floem::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
         Scope,
     },
-    style::{CursorStyle, Style},
+    style::CursorStyle,
     view::View,
     views::{
         container, label, list, scroll, stack, virtual_list, Decorators,
@@ -99,9 +99,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
                                 .map(|desc| desc.to_string())
                                 .unwrap_or_else(|| cmd.kind.str().replace('_', " "))
                         })
-                        .style(|| {
-                            Style::BASE
-                                .text_ellipsis()
+                        .style(|s| {
+                            s.text_ellipsis()
                                 .absolute()
                                 .items_center()
                                 .min_width_px(0.0)
@@ -109,9 +108,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
                                 .size_pct(100.0, 100.0)
                         })
                     })
-                    .style(move || {
-                        Style::BASE
-                            .height_pct(100.0)
+                    .style(move |s| {
+                        s.height_pct(100.0)
                             .min_width_px(0.0)
                             .flex_basis_px(0.0)
                             .flex_grow(1.0)
@@ -140,9 +138,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
                             },
                             |k| k.clone(),
                             move |key| {
-                                label(move || key.clone()).style(move || {
-                                    Style::BASE
-                                        .padding_horiz_px(5.0)
+                                label(move || key.clone()).style(move |s| {
+                                    s.padding_horiz_px(5.0)
                                         .padding_vert_px(1.0)
                                         .margin_right_px(5.0)
                                         .border(1.0)
@@ -155,9 +152,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
                                 })
                             },
                         )
-                        .style(move || {
-                            Style::BASE
-                                .items_center()
+                        .style(move |s| {
+                            s.items_center()
                                 .padding_horiz_px(10.0)
                                 .min_width_px(200.0)
                                 .height_pct(100.0)
@@ -195,9 +191,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
                             move || modes.clone(),
                             |m| m.clone(),
                             move |mode| {
-                                label(move || mode.clone()).style(move || {
-                                    Style::BASE
-                                        .padding_horiz_px(5.0)
+                                label(move || mode.clone()).style(move |s| {
+                                    s.padding_horiz_px(5.0)
                                         .padding_vert_px(1.0)
                                         .margin_right_px(5.0)
                                         .border(1.0)
@@ -210,9 +205,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
                                 })
                             },
                         )
-                        .style(move || {
-                            Style::BASE
-                                .items_center()
+                        .style(move |s| {
+                            s.items_center()
                                 .padding_horiz_px(10.0)
                                 .min_width_px(200.0)
                                 .height_pct(100.0)
@@ -232,9 +226,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
                                 .and_then(|keymap| keymap.when.clone())
                                 .unwrap_or_default()
                         })
-                        .style(|| {
-                            Style::BASE
-                                .text_ellipsis()
+                        .style(|s| {
+                            s.text_ellipsis()
                                 .absolute()
                                 .items_center()
                                 .min_width_px(0.0)
@@ -242,9 +235,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
                                 .size_pct(100.0, 100.0)
                         })
                     })
-                    .style(move || {
-                        Style::BASE
-                            .height_pct(100.0)
+                    .style(move |s| {
+                        s.height_pct(100.0)
                             .min_width_px(0.0)
                             .flex_basis_px(0.0)
                             .flex_grow(1.0)
@@ -269,10 +261,9 @@ pub fn keymap_view(common: CommonData) -> impl View {
                 });
                 true
             })
-            .style(move || {
+            .style(move |s| {
                 let config = config.get();
-                Style::BASE
-                    .items_center()
+                s.items_center()
                     .height_px(ui_line_height() as f32)
                     .width_pct(100.0)
                     .apply_if(i % 2 > 0, |s| {
@@ -292,9 +283,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
                     text_input(editor, || false)
                         .placeholder(|| "Search Key Bindings".to_string())
                         .keyboard_navigatable()
-                        .style(move || {
-                            Style::BASE
-                                .width_pct(100.0)
+                        .style(move |s| {
+                            s.width_pct(100.0)
                                 .border_radius(6.0)
                                 .border(1.0)
                                 .border_color(
@@ -304,21 +294,19 @@ pub fn keymap_view(common: CommonData) -> impl View {
                                 )
                         })
                 })
-                .style(|| Style::BASE.padding_bottom_px(10.0).width_pct(100.0))
+                .style(|s| s.padding_bottom_px(10.0).width_pct(100.0))
             },
             stack(move || {
                 (
                     container(|| {
-                        label(|| "Command".to_string()).style(move || {
-                            Style::BASE
-                                .text_ellipsis()
+                        label(|| "Command".to_string()).style(move |s| {
+                            s.text_ellipsis()
                                 .padding_horiz_px(10.0)
                                 .min_width_px(0.0)
                         })
                     })
-                    .style(move || {
-                        Style::BASE
-                            .items_center()
+                    .style(move |s| {
+                        s.items_center()
                             .height_pct(100.0)
                             .min_width_px(0.0)
                             .flex_basis_px(0.0)
@@ -328,9 +316,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
                                 *config.get().get_color(LapceColor::LAPCE_BORDER),
                             )
                     }),
-                    label(|| "Key Binding".to_string()).style(move || {
-                        Style::BASE
-                            .width_px(200.0)
+                    label(|| "Key Binding".to_string()).style(move |s| {
+                        s.width_px(200.0)
                             .items_center()
                             .padding_horiz_px(10.0)
                             .height_pct(100.0)
@@ -339,9 +326,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
                                 *config.get().get_color(LapceColor::LAPCE_BORDER),
                             )
                     }),
-                    label(|| "Modes".to_string()).style(move || {
-                        Style::BASE
-                            .width_px(200.0)
+                    label(|| "Modes".to_string()).style(move |s| {
+                        s.width_px(200.0)
                             .items_center()
                             .padding_horiz_px(10.0)
                             .height_pct(100.0)
@@ -352,16 +338,14 @@ pub fn keymap_view(common: CommonData) -> impl View {
                             .apply_if(!modal.get(), |s| s.hide())
                     }),
                     container(|| {
-                        label(|| "When".to_string()).style(move || {
-                            Style::BASE
-                                .text_ellipsis()
+                        label(|| "When".to_string()).style(move |s| {
+                            s.text_ellipsis()
                                 .padding_horiz_px(10.0)
                                 .min_width_px(0.0)
                         })
                     })
-                    .style(move || {
-                        Style::BASE
-                            .items_center()
+                    .style(move |s| {
+                        s.items_center()
                             .height_pct(100.0)
                             .min_width_px(0.0)
                             .flex_basis_px(0.0)
@@ -369,10 +353,9 @@ pub fn keymap_view(common: CommonData) -> impl View {
                     }),
                 )
             })
-            .style(move || {
+            .style(move |s| {
                 let config = config.get();
-                Style::BASE
-                    .font_bold()
+                s.font_bold()
                     .height_px(ui_line_height() as f32)
                     .width_pct(100.0)
                     .border_top(1.0)
@@ -394,25 +377,16 @@ pub fn keymap_view(common: CommonData) -> impl View {
                         },
                         view_fn,
                     )
-                    .style(|| Style::BASE.flex_col().width_pct(100.0))
+                    .style(|s| s.flex_col().width_pct(100.0))
                 })
-                .scroll_bar_color(move || {
-                    *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-                })
-                .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+                .style(|s| s.absolute().size_pct(100.0, 100.0))
             })
-            .style(|| {
-                Style::BASE
-                    .width_pct(100.0)
-                    .flex_basis_px(0.0)
-                    .flex_grow(1.0)
-            }),
+            .style(|s| s.width_pct(100.0).flex_basis_px(0.0).flex_grow(1.0)),
             keyboard_picker_view(picker, common.ui_line_height, config),
         )
     })
-    .style(|| {
-        Style::BASE
-            .absolute()
+    .style(|s| {
+        s.absolute()
             .size_pct(100.0, 100.0)
             .flex_col()
             .padding_top_px(20.0)
@@ -457,9 +431,8 @@ fn keyboard_picker_view(
                     },
                     |(i, k)| (*i, k.clone()),
                     move |(_, key)| {
-                        label(move || key.clone()).style(move || {
-                            Style::BASE
-                                .padding_horiz_px(5.0)
+                        label(move || key.clone()).style(move |s| {
+                            s.padding_horiz_px(5.0)
                                 .padding_vert_px(1.0)
                                 .margin_right_px(5.0)
                                 .border(1.0)
@@ -472,10 +445,9 @@ fn keyboard_picker_view(
                         })
                     },
                 )
-                .style(move || {
+                .style(move |s| {
                     let config = config.get();
-                    Style::BASE
-                        .items_center()
+                    s.items_center()
                         .justify_center()
                         .width_pct(100.0)
                         .margin_top_px(20.0)
@@ -488,9 +460,8 @@ fn keyboard_picker_view(
                 stack(|| {
                     (
                         label(|| "Save".to_string())
-                            .style(move || {
-                                Style::BASE
-                                    .width_px(100.0)
+                            .style(move |s| {
+                                s.width_px(100.0)
                                     .justify_center()
                                     .padding_vert_px(8.0)
                                     .border(1.0)
@@ -510,22 +481,21 @@ fn keyboard_picker_view(
                                 }
                                 true
                             })
-                            .hover_style(move || {
-                                Style::BASE.cursor(CursorStyle::Pointer).background(
+                            .hover_style(move |s| {
+                                s.cursor(CursorStyle::Pointer).background(
                                     *config.get().get_color(
                                         LapceColor::PANEL_HOVERED_BACKGROUND,
                                     ),
                                 )
                             })
-                            .active_style(move || {
-                                Style::BASE.background(*config.get().get_color(
+                            .active_style(move |s| {
+                                s.background(*config.get().get_color(
                                     LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
                             }),
                         label(|| "Cancel".to_string())
-                            .style(move || {
-                                Style::BASE
-                                    .margin_left_px(20.0)
+                            .style(move |s| {
+                                s.margin_left_px(20.0)
                                     .width_px(100.0)
                                     .justify_center()
                                     .padding_vert_px(8.0)
@@ -541,24 +511,23 @@ fn keyboard_picker_view(
                                 picker.keymap.set(None);
                                 true
                             })
-                            .hover_style(move || {
-                                Style::BASE.cursor(CursorStyle::Pointer).background(
+                            .hover_style(move |s| {
+                                s.cursor(CursorStyle::Pointer).background(
                                     *config.get().get_color(
                                         LapceColor::PANEL_HOVERED_BACKGROUND,
                                     ),
                                 )
                             })
-                            .active_style(move || {
-                                Style::BASE.background(*config.get().get_color(
+                            .active_style(move |s| {
+                                s.background(*config.get().get_color(
                                     LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
                             }),
                     )
                 })
-                .style(move || {
+                .style(move |s| {
                     let config = config.get();
-                    Style::BASE
-                        .items_center()
+                    s.items_center()
                         .justify_center()
                         .width_pct(100.0)
                         .margin_top_px(20.0)
@@ -566,10 +535,9 @@ fn keyboard_picker_view(
                 }),
             )
         })
-        .style(move || {
+        .style(move |s| {
             let config = config.get();
-            Style::BASE
-                .items_center()
+            s.items_center()
                 .flex_col()
                 .padding_px(20.0)
                 .width_px(400.0)
@@ -593,9 +561,8 @@ fn keyboard_picker_view(
         }
         true
     })
-    .style(move || {
-        Style::BASE
-            .absolute()
+    .style(move |s| {
+        s.absolute()
             .size_pct(100.0, 100.0)
             .items_center()
             .justify_center()

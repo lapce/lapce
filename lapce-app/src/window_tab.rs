@@ -2,10 +2,11 @@ use std::{collections::HashSet, env, path::Path, sync::Arc, time::Instant};
 
 use crossbeam_channel::Sender;
 use floem::{
-    action::open_file,
+    action::{open_file, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
-    glazier::{FileDialogOptions, KeyEvent, Modifiers, TimerToken},
+    file::FileDialogOptions,
+    keyboard::{KeyEvent, ModifiersState},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
 };
@@ -158,7 +159,7 @@ impl KeyPressFocus for WindowTabData {
         &self,
         _command: &LapceCommand,
         _count: Option<usize>,
-        _mods: Modifiers,
+        _mods: ModifiersState,
     ) -> CommandExecuted {
         CommandExecuted::No
     }
@@ -452,12 +453,13 @@ impl WindowTabData {
             }
             CommandKind::Focus(_) | CommandKind::Edit(_) | CommandKind::Move(_) => {
                 if self.palette.status.get_untracked() != PaletteStatus::Inactive {
-                    self.palette.run_command(&cmd, None, Modifiers::default());
+                    self.palette
+                        .run_command(&cmd, None, ModifiersState::empty());
                 } else if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
                     let editor_data = editor_data.get_untracked();
-                    editor_data.run_command(&cmd, None, Modifiers::default());
+                    editor_data.run_command(&cmd, None, ModifiersState::empty());
                 } else {
                     // TODO: dispatch to current focused view?
                 }
@@ -1488,21 +1490,16 @@ impl WindowTabData {
         }
     }
 
-    pub fn hover_origin(&self) -> Point {
+    pub fn hover_origin(&self) -> Option<Point> {
         if !self.common.hover.active.get_untracked() {
-            return Point::ZERO;
+            return None;
         }
 
         let editor_id = self.common.hover.editor_id.get_untracked();
-        let editor = if let Some(editor) = self
+        let editor = self
             .main_split
             .editors
-            .with_untracked(|editors| editors.get(&editor_id).copied())
-        {
-            editor
-        } else {
-            return Point::ZERO;
-        };
+            .with(|editors| editors.get(&editor_id).copied())?;
 
         let (window_origin, viewport, view) =
             editor.with_untracked(|e| (e.window_origin, e.viewport, e.view.clone()));
@@ -1530,7 +1527,7 @@ impl WindowTabData {
             origin.x = 0.0;
         }
 
-        origin
+        Some(origin)
     }
 
     pub fn completion_origin(&self) -> Point {

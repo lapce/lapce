@@ -1,21 +1,21 @@
 use std::fmt::Display;
 
-use floem::glazier::{KbKey, Modifiers};
+use floem::keyboard::{Key, ModifiersState};
 use tracing::warn;
 
-use super::key::Key;
+use super::key::KeyInput;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KeyPress {
-    pub(super) key: Key,
-    pub(super) mods: Modifiers,
+    pub(super) key: KeyInput,
+    pub(super) mods: ModifiersState,
 }
 
 impl KeyPress {
     pub fn to_lowercase(&self) -> Self {
         let key = match &self.key {
-            Key::Keyboard(KbKey::Character(c)) => {
-                Key::Keyboard(KbKey::Character(c.to_lowercase()))
+            KeyInput::Keyboard(Key::Character(c)) => {
+                KeyInput::Keyboard(Key::Character(c.to_lowercase().into()))
             }
             _ => self.key.clone(),
         };
@@ -27,9 +27,9 @@ impl KeyPress {
 
     pub fn is_char(&self) -> bool {
         let mut mods = self.mods;
-        mods.set(Modifiers::SHIFT, false);
+        mods.set(ModifiersState::SHIFT, false);
         if mods.is_empty() {
-            if let Key::Keyboard(KbKey::Character(_c)) = &self.key {
+            if let KeyInput::Keyboard(Key::Character(_c)) = &self.key {
                 return true;
             }
         }
@@ -38,13 +38,13 @@ impl KeyPress {
 
     pub fn label(&self) -> String {
         let mut keys = String::from("");
-        if self.mods.contains(Modifiers::CONTROL) {
+        if self.mods.control_key() {
             keys.push_str("Ctrl+");
         }
-        if self.mods.contains(Modifiers::ALT) {
+        if self.mods.alt_key() {
             keys.push_str("Alt+");
         }
-        if self.mods.contains(Modifiers::META) {
+        if self.mods.super_key() {
             let keyname = match std::env::consts::OS {
                 "macos" => "Cmd+",
                 "windows" => "Win+",
@@ -52,7 +52,7 @@ impl KeyPress {
             };
             keys.push_str(keyname);
         }
-        if self.mods.contains(Modifiers::SHIFT) {
+        if self.mods.shift_key() {
             keys.push_str("Shift+");
         }
         keys.push_str(&self.key.to_string());
@@ -76,13 +76,13 @@ impl KeyPress {
                     }
                 };
 
-                let mut mods = Modifiers::default();
+                let mut mods = ModifiersState::empty();
                 for part in modifiers.to_lowercase().split('+') {
                     match part {
-                        "ctrl" => mods.set(Modifiers::CONTROL, true),
-                        "meta" => mods.set(Modifiers::META, true),
-                        "shift" => mods.set(Modifiers::SHIFT, true),
-                        "alt" => mods.set(Modifiers::ALT, true),
+                        "ctrl" => mods.set(ModifiersState::CONTROL, true),
+                        "meta" => mods.set(ModifiersState::SUPER, true),
+                        "shift" => mods.set(ModifiersState::SHIFT, true),
+                        "alt" => mods.set(ModifiersState::ALT, true),
                         "" => (),
                         other => warn!("Invalid key modifier: {}", other),
                     }
@@ -96,16 +96,16 @@ impl KeyPress {
 
 impl Display for KeyPress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.mods.contains(Modifiers::CONTROL) {
+        if self.mods.contains(ModifiersState::CONTROL) {
             let _ = f.write_str("Ctrl+");
         }
-        if self.mods.contains(Modifiers::ALT) {
+        if self.mods.contains(ModifiersState::ALT) {
             let _ = f.write_str("Alt+");
         }
-        if self.mods.contains(Modifiers::META) {
+        if self.mods.contains(ModifiersState::SUPER) {
             let _ = f.write_str("Meta+");
         }
-        if self.mods.contains(Modifiers::SHIFT) {
+        if self.mods.contains(ModifiersState::SHIFT) {
             let _ = f.write_str("Shift+");
         }
         f.write_str(&self.key.to_string())

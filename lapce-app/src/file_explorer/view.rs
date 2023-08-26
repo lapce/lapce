@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     peniko::Color,
@@ -20,7 +20,7 @@ use crate::{
 };
 
 pub fn file_explorer_panel(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     position: PanelPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;
@@ -29,7 +29,7 @@ pub fn file_explorer_panel(
     stack(|| {
         (
             stack(move || (panel_header("Open Editors".to_string(), config),))
-                .style(|| Style::BASE.width_pct(100.0).flex_col().height_px(150.0)),
+                .style(|s| s.width_pct(100.0).flex_col().height_px(150.0)),
             stack(|| {
                 (
                     panel_header("File Explorer".to_string(), config),
@@ -42,20 +42,16 @@ pub fn file_explorer_panel(
                                 config,
                             )
                         })
-                        .scroll_bar_color(move || {
-                            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-                        })
-                        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+                        .style(|s| s.absolute().size_pct(100.0, 100.0))
                     })
-                    .style(|| Style::BASE.size_pct(100.0, 100.0).line_height(1.6)),
+                    .style(|s| s.size_pct(100.0, 100.0).line_height(1.6)),
                 )
             })
-            .style(|| Style::BASE.width_pct(100.0).height_pct(100.0).flex_col()),
+            .style(|s| s.width_pct(100.0).height_pct(100.0).flex_col()),
         )
     })
-    .style(move || {
-        Style::BASE
-            .width_pct(100.0)
+    .style(move |s| {
+        s.width_pct(100.0)
             .apply_if(!position.is_bottom(), |s| s.flex_col())
     })
 }
@@ -94,7 +90,7 @@ fn file_node_view(
                                     };
                                     config.ui_svg(svg_str)
                                 })
-                                .style(move || {
+                                .style(move |s| {
                                     let config = config.get();
                                     let size = config.ui.icon_size() as f32;
 
@@ -104,8 +100,7 @@ fn file_node_view(
                                     } else {
                                         Color::TRANSPARENT
                                     };
-                                    Style::BASE
-                                        .size_px(size, size)
+                                    s.size_px(size, size)
                                         .margin_left_px(10.0)
                                         .color(color)
                                 }),
@@ -128,12 +123,11 @@ fn file_node_view(
                                         }
                                     })
                                     .style(
-                                        move || {
+                                        move |s| {
                                             let config = config.get();
                                             let size = config.ui.icon_size() as f32;
 
-                                            Style::BASE
-                                                .size_px(size, size)
+                                            s.size_px(size, size)
                                                 .margin_horiz_px(6.0)
                                                 .apply_if(is_dir, |s| {
                                                     s.color(*config.get_color(
@@ -168,21 +162,19 @@ fn file_node_view(
                         .on_double_click(move |_| {
                             double_click_file_node.double_click()
                         })
-                        .style(move || {
-                            Style::BASE
-                                .items_center()
+                        .style(move |s| {
+                            s.items_center()
                                 .padding_right_px(10.0)
                                 .padding_left_px((level * 10) as f32)
                                 .min_width_pct(100.0)
                         })
-                        .hover_style(move || {
-                            Style::BASE
-                                .background(
-                                    *config.get().get_color(
-                                        LapceColor::PANEL_HOVERED_BACKGROUND,
-                                    ),
-                                )
-                                .cursor(CursorStyle::Pointer)
+                        .hover_style(move |s| {
+                            s.background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                            .cursor(CursorStyle::Pointer)
                         })
                     },
                     container_box(move || {
@@ -195,8 +187,8 @@ fn file_node_view(
                     }),
                 )
             })
-            .style(|| Style::BASE.flex_col().min_width_pct(100.0))
+            .style(|s| s.flex_col().min_width_pct(100.0))
         },
     )
-    .style(|| Style::BASE.flex_col().min_width_pct(100.0))
+    .style(|s| s.flex_col().min_width_pct(100.0))
 }

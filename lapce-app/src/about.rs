@@ -1,9 +1,10 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use floem::{
     event::EventListener,
+    keyboard::ModifiersState,
     reactive::{RwSignal, Scope},
-    style::{CursorStyle, Display, Position, Style},
+    style::{CursorStyle, Display, Position},
     view::View,
     views::{container, label, stack, svg, Decorators},
 };
@@ -67,7 +68,7 @@ impl KeyPressFocus for AboutData {
         &self,
         command: &crate::command::LapceCommand,
         _count: Option<usize>,
-        _mods: floem::glazier::Modifiers,
+        _mods: ModifiersState,
     ) -> crate::command::CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}
@@ -91,7 +92,7 @@ impl KeyPressFocus for AboutData {
     }
 }
 
-pub fn about_popup(window_tab_data: Arc<WindowTabData>) -> impl View {
+pub fn about_popup(window_tab_data: Rc<WindowTabData>) -> impl View {
     let about_data = window_tab_data.about_data.clone();
     let config = window_tab_data.common.config;
     let internal_command = window_tab_data.common.internal_command;
@@ -100,19 +101,18 @@ pub fn about_popup(window_tab_data: Arc<WindowTabData>) -> impl View {
     exclusive_popup(window_tab_data, about_data.visible, move || {
         stack(move || {
             (
-                svg(move || (*config.get()).logo_svg()).style(move || {
-                    Style::BASE.size_px(logo_size, logo_size).color(
+                svg(move || (*config.get()).logo_svg()).style(move |s| {
+                    s.size_px(logo_size, logo_size).color(
                         *config.get().get_color(LapceColor::EDITOR_FOREGROUND),
                     )
                 }),
-                label(|| "Lapce".to_string()).style(move || {
-                    Style::BASE.font_bold().margin_top_px(10.0).color(
+                label(|| "Lapce".to_string()).style(move |s| {
+                    s.font_bold().margin_top_px(10.0).color(
                         *config.get().get_color(LapceColor::EDITOR_FOREGROUND),
                     )
                 }),
-                label(|| format!("Version: {}", VERSION)).style(move || {
-                    Style::BASE
-                        .margin_top_px(10.0)
+                label(|| format!("Version: {}", VERSION)).style(move |s| {
+                    s.margin_top_px(10.0)
                         .color(*config.get().get_color(LapceColor::EDITOR_DIM))
                 }),
                 web_link(
@@ -121,31 +121,30 @@ pub fn about_popup(window_tab_data: Arc<WindowTabData>) -> impl View {
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
                 )
-                .style(|| Style::BASE.margin_top_px(20.0)),
+                .style(|s| s.margin_top_px(20.0)),
                 web_link(
                     || "GitHub".to_string(),
                     || AboutUri::GITHUB.to_string(),
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
                 )
-                .style(|| Style::BASE.margin_top_px(10.0)),
+                .style(|s| s.margin_top_px(10.0)),
                 web_link(
                     || "Discord".to_string(),
                     || AboutUri::DISCORD.to_string(),
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
                 )
-                .style(|| Style::BASE.margin_top_px(10.0)),
+                .style(|s| s.margin_top_px(10.0)),
                 web_link(
                     || "Matrix".to_string(),
                     || AboutUri::MATRIX.to_string(),
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
                 )
-                .style(|| Style::BASE.margin_top_px(10.0)),
-                label(|| "Attributions".to_string()).style(move || {
-                    Style::BASE
-                        .font_bold()
+                .style(|s| s.margin_top_px(10.0)),
+                label(|| "Attributions".to_string()).style(move |s| {
+                    s.font_bold()
                         .color(*config.get().get_color(LapceColor::EDITOR_DIM))
                         .margin_top_px(40.0)
                 }),
@@ -155,15 +154,15 @@ pub fn about_popup(window_tab_data: Arc<WindowTabData>) -> impl View {
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
                 )
-                .style(|| Style::BASE.margin_top_px(10.0)),
+                .style(|s| s.margin_top_px(10.0)),
             )
         })
-        .style(|| Style::BASE.flex_col().items_center())
+        .style(|s| s.flex_col().items_center())
     })
 }
 
 fn exclusive_popup<V: View>(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     visibility: RwSignal<bool>,
     content: impl FnOnce() -> V,
 ) -> impl View {
@@ -172,10 +171,9 @@ fn exclusive_popup<V: View>(
     container(move || {
         container(move || {
             container(content)
-                .style(move || {
+                .style(move |s| {
                     let config = config.get();
-                    Style::BASE
-                        .padding_vert_px(25.0)
+                    s.padding_vert_px(25.0)
                         .padding_horiz_px(100.0)
                         .border(1.0)
                         .border_radius(6.0)
@@ -184,8 +182,8 @@ fn exclusive_popup<V: View>(
                 })
                 .on_event(EventListener::PointerDown, move |_| true)
         })
-        .style(move || Style::BASE.flex_grow(1.0).flex_row().items_center())
-        .hover_style(move || Style::BASE.cursor(CursorStyle::Default))
+        .style(move |s| s.flex_grow(1.0).flex_row().items_center())
+        .hover_style(move |s| s.cursor(CursorStyle::Default))
     })
     .on_event(EventListener::PointerDown, move |_| {
         window_tab_data.about_data.close();
@@ -193,22 +191,21 @@ fn exclusive_popup<V: View>(
     })
     // Prevent things behind the grayed out area from being hovered.
     .on_event(EventListener::PointerMove, move |_| true)
-    .style(move || {
-        Style::BASE
-            .display(if visibility.get() {
-                Display::Flex
-            } else {
-                Display::None
-            })
-            .position(Position::Absolute)
-            .size_pct(100.0, 100.0)
-            .flex_col()
-            .items_center()
-            .background(
-                config
-                    .get()
-                    .get_color(LapceColor::LAPCE_DROPDOWN_SHADOW)
-                    .with_alpha_factor(0.5),
-            )
+    .style(move |s| {
+        s.display(if visibility.get() {
+            Display::Flex
+        } else {
+            Display::None
+        })
+        .position(Position::Absolute)
+        .size_pct(100.0, 100.0)
+        .flex_col()
+        .items_center()
+        .background(
+            config
+                .get()
+                .get_color(LapceColor::LAPCE_DROPDOWN_SHADOW)
+                .with_alpha_factor(0.5),
+        )
     })
 }

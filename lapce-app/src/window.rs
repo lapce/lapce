@@ -1,10 +1,10 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use floem::{
-    glazier::KeyEvent,
-    id::WindowId,
+    keyboard::KeyEvent,
     peniko::kurbo::{Point, Size},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope},
+    window::WindowId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -43,7 +43,7 @@ pub struct WindowData {
     pub scope: Scope,
     /// The set of tabs within the window. These tabs are high-level
     /// constructs for workspaces, in particular they are not **editor tabs**.
-    pub window_tabs: RwSignal<im::Vector<(RwSignal<usize>, Arc<WindowTabData>)>>,
+    pub window_tabs: RwSignal<im::Vector<(RwSignal<usize>, Rc<WindowTabData>)>>,
     pub num_window_tabs: Memo<usize>,
     /// The index of the active window tab.
     pub active: RwSignal<usize>,
@@ -78,7 +78,7 @@ impl WindowData {
         let window_command = Listener::new_empty(cx);
 
         for w in info.tabs.workspaces {
-            let window_tab = Arc::new(WindowTabData::new(
+            let window_tab = Rc::new(WindowTabData::new(
                 cx,
                 Arc::new(w),
                 window_command,
@@ -92,7 +92,7 @@ impl WindowData {
         }
 
         if window_tabs.with_untracked(|window_tabs| window_tabs.is_empty()) {
-            let window_tab = Arc::new(WindowTabData::new(
+            let window_tab = Rc::new(WindowTabData::new(
                 cx,
                 Arc::new(LapceWorkspace::default()),
                 window_command,
@@ -158,7 +158,7 @@ impl WindowData {
                     }
                 });
 
-                let window_tab = Arc::new(WindowTabData::new(
+                let window_tab = Rc::new(WindowTabData::new(
                     self.scope,
                     Arc::new(workspace),
                     self.window_command,
@@ -184,7 +184,7 @@ impl WindowData {
                 let db: Arc<LapceDb> = use_context().unwrap();
                 let _ = db.update_recent_workspace(&workspace);
 
-                let window_tab = Arc::new(WindowTabData::new(
+                let window_tab = Rc::new(WindowTabData::new(
                     self.scope,
                     Arc::new(workspace),
                     self.window_command,
@@ -304,7 +304,7 @@ impl WindowData {
         }
     }
 
-    pub fn active_window_tab(&self) -> Option<Arc<WindowTabData>> {
+    pub fn active_window_tab(&self) -> Option<Rc<WindowTabData>> {
         let window_tabs = self.window_tabs.get_untracked();
         let active = self
             .active

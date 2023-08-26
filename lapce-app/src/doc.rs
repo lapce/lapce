@@ -57,18 +57,19 @@ pub mod phantom_text;
 pub struct SystemClipboard {}
 
 impl SystemClipboard {
-    fn clipboard() -> floem::glazier::Clipboard {
-        floem::glazier::Application::global().clipboard()
-    }
+    // fn clipboard() -> floem::glazier::Clipboard {
+    //     floem::glazier::Application::global().clipboard()
+    // }
 }
 
 impl Clipboard for SystemClipboard {
     fn get_string(&self) -> Option<String> {
-        Self::clipboard().get_string()
+        None
+        // Self::clipboard().get_string()
     }
 
-    fn put_string(&mut self, s: impl AsRef<str>) {
-        Self::clipboard().put_string(s)
+    fn put_string(&mut self, _s: impl AsRef<str>) {
+        // Self::clipboard().put_string(s)
     }
 }
 
@@ -925,7 +926,9 @@ impl Document {
 
     /// Update the completion lens position after an edit so that it appears in the correct place.
     pub fn update_completion_lens(&mut self, delta: &RopeDelta) {
-        let Some(completion) = self.completion_lens.as_ref() else { return };
+        let Some(completion) = self.completion_lens.as_ref() else {
+            return;
+        };
 
         let (line, col) = self.completion_pos;
         let offset = self.buffer().offset_of_line_col(line, col);
@@ -1176,7 +1179,6 @@ impl Document {
                         || (!char_found && render_leading)
                     {
                         rendered_whitespaces.extend(whitespace_buffer.iter());
-                    } else {
                     }
 
                     char_found = true;

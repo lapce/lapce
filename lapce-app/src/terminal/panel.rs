@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use floem::{
-    glazier::KeyEvent,
+    keyboard::KeyEvent,
     reactive::{RwSignal, Scope},
 };
 use lapce_core::mode::Mode;

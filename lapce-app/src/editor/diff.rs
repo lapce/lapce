@@ -4,7 +4,7 @@ use floem::{
     event::EventListener,
     ext_event::create_ext_action,
     reactive::{RwSignal, Scope},
-    style::{CursorStyle, Style},
+    style::CursorStyle,
     view::View,
     views::{clip, empty, label, list, stack, svg, Decorators},
 };
@@ -375,27 +375,26 @@ pub fn diff_show_more_section_view(
     let view_fn = move |section: DiffShowMoreSection| {
         stack(|| {
             (
-                wave_box().style(move || {
-                    Style::BASE
-                        .absolute()
+                wave_box().style(move |s| {
+                    s.absolute()
                         .size_pct(100.0, 100.0)
                         .color(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
                 }),
                 label(move || format!("{} Hidden Lines", section.lines)),
-                label(|| "|".to_string()).style(|| Style::BASE.margin_left_px(10.0)),
+                label(|| "|".to_string()).style(|s| s.margin_left_px(10.0)),
                 stack(|| {
                     (
                         svg(move || config.get().ui_svg(LapceIcons::FOLD)).style(
-                            move || {
+                            move |s| {
                                 let config = config.get();
                                 let size = config.ui.icon_size() as f32;
-                                Style::BASE.size_px(size, size).color(
+                                s.size_px(size, size).color(
                                     *config.get_color(LapceColor::EDITOR_FOREGROUND),
                                 )
                             },
                         ),
                         label(|| "Expand All".to_string())
-                            .style(|| Style::BASE.margin_left_px(6.0)),
+                            .style(|s| s.margin_left_px(6.0)),
                     )
                 })
                 .on_event(EventListener::PointerDown, move |_| true)
@@ -422,27 +421,22 @@ pub fn diff_show_more_section_view(
                     });
                     true
                 })
-                .style(|| {
-                    Style::BASE
-                        .margin_left_px(10.0)
-                        .height_pct(100.0)
-                        .items_center()
-                })
-                .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer)),
-                label(|| "|".to_string()).style(|| Style::BASE.margin_left_px(10.0)),
+                .style(|s| s.margin_left_px(10.0).height_pct(100.0).items_center())
+                .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+                label(|| "|".to_string()).style(|s| s.margin_left_px(10.0)),
                 stack(|| {
                     (
                         svg(move || config.get().ui_svg(LapceIcons::FOLD_UP)).style(
-                            move || {
+                            move |s| {
                                 let config = config.get();
                                 let size = config.ui.icon_size() as f32;
-                                Style::BASE.size_px(size, size).color(
+                                s.size_px(size, size).color(
                                     *config.get_color(LapceColor::EDITOR_FOREGROUND),
                                 )
                             },
                         ),
                         label(|| "Expand Up".to_string())
-                            .style(|| Style::BASE.margin_left_px(6.0)),
+                            .style(|s| s.margin_left_px(6.0)),
                     )
                 })
                 .on_event(EventListener::PointerDown, move |_| true)
@@ -469,26 +463,23 @@ pub fn diff_show_more_section_view(
                     });
                     true
                 })
-                .style(move || {
-                    Style::BASE
-                        .margin_left_px(10.0)
-                        .height_pct(100.0)
-                        .items_center()
+                .style(move |s| {
+                    s.margin_left_px(10.0).height_pct(100.0).items_center()
                 })
-                .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer)),
-                label(|| "|".to_string()).style(|| Style::BASE.margin_left_px(10.0)),
+                .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+                label(|| "|".to_string()).style(|s| s.margin_left_px(10.0)),
                 stack(|| {
                     (
                         svg(move || config.get().ui_svg(LapceIcons::FOLD_DOWN))
-                            .style(move || {
+                            .style(move |s| {
                                 let config = config.get();
                                 let size = config.ui.icon_size() as f32;
-                                Style::BASE.size_px(size, size).color(
+                                s.size_px(size, size).color(
                                     *config.get_color(LapceColor::EDITOR_FOREGROUND),
                                 )
                             }),
                         label(|| "Expand Down".to_string())
-                            .style(|| Style::BASE.margin_left_px(6.0)),
+                            .style(|s| s.margin_left_px(6.0)),
                     )
                 })
                 .on_event(EventListener::PointerDown, move |_| true)
@@ -515,19 +506,15 @@ pub fn diff_show_more_section_view(
                     });
                     true
                 })
-                .style(move || {
-                    Style::BASE
-                        .margin_left_px(10.0)
-                        .height_pct(100.0)
-                        .items_center()
+                .style(move |s| {
+                    s.margin_left_px(10.0).height_pct(100.0).items_center()
                 })
-                .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer)),
+                .hover_style(|s| s.cursor(CursorStyle::Pointer)),
             )
         })
-        .style(move || {
+        .style(move |s| {
             let config = config.get();
-            Style::BASE
-                .absolute()
+            s.absolute()
                 .width_pct(100.0)
                 .height_px(config.editor.line_height() as f32)
                 .justify_center()
@@ -537,20 +524,20 @@ pub fn diff_show_more_section_view(
                         - viewport.get().y0 as f32,
                 )
         })
-        .hover_style(|| Style::BASE.cursor(CursorStyle::Default))
+        .hover_style(|s| s.cursor(CursorStyle::Default))
     };
 
     stack(move || {
         (
-            empty().style(move || {
-                Style::BASE.height_px(config.get().editor.line_height() as f32 + 1.0)
+            empty().style(move |s| {
+                s.height_px(config.get().editor.line_height() as f32 + 1.0)
             }),
             clip(|| {
                 list(each_fn, key_fn, view_fn)
-                    .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
+                    .style(|s| s.flex_col().size_pct(100.0, 100.0))
             })
-            .style(|| Style::BASE.size_pct(100.0, 100.0)),
+            .style(|s| s.size_pct(100.0, 100.0)),
         )
     })
-    .style(|| Style::BASE.absolute().flex_col().size_pct(100.0, 100.0))
+    .style(|s| s.absolute().flex_col().size_pct(100.0, 100.0))
 }

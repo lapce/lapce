@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use floem::{
+    keyboard::ModifiersState,
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope},
 };
@@ -64,7 +65,7 @@ impl KeyPressFocus for CodeActionData {
         &self,
         command: &crate::command::LapceCommand,
         _count: Option<usize>,
-        _mods: floem::glazier::Modifiers,
+        _mods: ModifiersState,
     ) -> crate::command::CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}

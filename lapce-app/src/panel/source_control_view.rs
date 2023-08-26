@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, rc::Rc};
 
 use floem::{
     action::show_context_menu,
@@ -24,7 +24,7 @@ use crate::{
 };
 
 pub fn source_control_panel(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     _position: PanelPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;
@@ -47,14 +47,12 @@ pub fn source_control_panel(
                         scroll(|| {
                             let view = stack(|| {
                                 (
-                                    editor_view(editor, is_active).style(|| {
-                                        Style::BASE.min_size_pct(100.0, 100.0)
-                                    }),
+                                    editor_view(editor, is_active)
+                                        .style(|s| s.min_size_pct(100.0, 100.0)),
                                     label(|| "Commit Message".to_string()).style(
-                                        move || {
+                                        move |s| {
                                             let config = config.get();
-                                            Style::BASE
-                                                .absolute()
+                                            s.absolute()
                                                 .items_center()
                                                 .height_px(
                                                     config.editor.line_height()
@@ -70,9 +68,8 @@ pub fn source_control_panel(
                                     ),
                                 )
                             })
-                            .style(|| {
-                                Style::BASE
-                                    .min_size_pct(100.0, 100.0)
+                            .style(|s| {
+                                s.min_size_pct(100.0, 100.0)
                                     .padding_left_px(10.0)
                                     .padding_vert_px(6.0)
                             });
@@ -109,9 +106,6 @@ pub fn source_control_panel(
                         .on_scroll(move |rect| {
                             viewport.set(rect);
                         })
-                        .scroll_bar_color(move || {
-                            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-                        })
                         .on_ensure_visible(move || {
                             let cursor = cursor.get();
                             let offset = cursor.offset();
@@ -132,12 +126,11 @@ pub fn source_control_panel(
                                 Rect::ZERO
                             }
                         })
-                        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+                        .style(|s| s.absolute().size_pct(100.0, 100.0))
                     })
-                    .style(move || {
+                    .style(move |s| {
                         let config = config.get();
-                        Style::BASE
-                            .width_pct(100.0)
+                        s.width_pct(100.0)
                             .height_px(120.0)
                             .border(1.0)
                             .padding_px(-1.0)
@@ -152,9 +145,8 @@ pub fn source_control_panel(
                     {
                         let source_control = source_control.clone();
                         label(|| "Commit".to_string())
-                            .style(move || {
-                                Style::BASE
-                                    .margin_top_px(10.0)
+                            .style(move |s| {
+                                s.margin_top_px(10.0)
                                     .line_height(1.6)
                                     .width_pct(100.0)
                                     .justify_center()
@@ -170,29 +162,29 @@ pub fn source_control_panel(
                                 source_control.commit();
                                 true
                             })
-                            .hover_style(move || {
-                                Style::BASE.cursor(CursorStyle::Pointer).background(
+                            .hover_style(move |s| {
+                                s.cursor(CursorStyle::Pointer).background(
                                     *config.get().get_color(
                                         LapceColor::PANEL_HOVERED_BACKGROUND,
                                     ),
                                 )
                             })
-                            .active_style(move || {
-                                Style::BASE.background(*config.get().get_color(
+                            .active_style(move |s| {
+                                s.background(*config.get().get_color(
                                     LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
                             })
                     },
                 )
             })
-            .style(|| Style::BASE.flex_col().width_pct(100.0).padding_px(10.0)),
+            .style(|s| s.flex_col().width_pct(100.0).padding_px(10.0)),
             stack(|| {
                 (
                     panel_header("Changes".to_string(), config),
                     file_diffs_view(source_control),
                 )
             })
-            .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0)),
+            .style(|s| s.flex_col().size_pct(100.0, 100.0)),
         )
     })
     .on_event(EventListener::PointerDown, move |_| {
@@ -201,7 +193,7 @@ pub fn source_control_panel(
         }
         true
     })
-    .style(|| Style::BASE.flex_col().size_pct(100.0, 100.0))
+    .style(|s| s.flex_col().size_pct(100.0, 100.0))
 }
 
 fn file_diffs_view(source_control: SourceControlData) -> impl View {
@@ -248,18 +240,17 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                         });
                         true
                     })
-                    .hover_style(|| Style::BASE.cursor(CursorStyle::Pointer)),
-                svg(move || config.get().file_svg(&path).0).style(move || {
+                    .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+                svg(move || config.get().file_svg(&path).0).style(move |s| {
                     let config = config.get();
                     let size = config.ui.icon_size() as f32;
                     let color = config.file_svg(&style_path).1.copied();
-                    Style::BASE
-                        .min_width_px(size)
+                    s.min_width_px(size)
                         .size_px(size, size)
                         .margin_px(6.0)
                         .apply_opt(color, Style::color)
                 }),
-                label(move || file_name.clone()).style(move || {
+                label(move || file_name.clone()).style(move |s| {
                     let config = config.get();
                     let size = config.ui.icon_size() as f32;
                     let max_width = panel_width.get() as f32
@@ -271,14 +262,12 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                         - 10.0
                         - size
                         - 6.0;
-                    Style::BASE
-                        .text_ellipsis()
+                    s.text_ellipsis()
                         .margin_right_px(6.0)
                         .max_width_px(max_width)
                 }),
-                label(move || folder.clone()).style(move || {
-                    Style::BASE
-                        .text_ellipsis()
+                label(move || folder.clone()).style(move |s| {
+                    s.text_ellipsis()
                         .flex_grow(1.0)
                         .flex_basis_px(0.0)
                         .color(*config.get().get_color(LapceColor::EDITOR_DIM))
@@ -294,7 +283,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                         };
                         config.get().ui_svg(svg)
                     })
-                    .style(move || {
+                    .style(move |s| {
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
                         let color = match &diff_for_style {
@@ -310,15 +299,11 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                             }
                         };
                         let color = config.get_color(color);
-                        Style::BASE
-                            .min_width_px(size)
-                            .size_px(size, size)
-                            .color(*color)
+                        s.min_width_px(size).size_px(size, size).color(*color)
                     })
                 })
-                .style(|| {
-                    Style::BASE
-                        .absolute()
+                .style(|s| {
+                    s.absolute()
                         .size_pct(100.0, 100.0)
                         .padding_right_px(20.0)
                         .items_center()
@@ -348,22 +333,21 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                 if pointer_event.button.is_secondary() {
                     let menu = Menu::new("")
                         .entry(MenuItem::new("Discard Changes").action(discard));
-                    show_context_menu(menu, Point::ZERO);
+                    show_context_menu(menu, None);
                 }
             }
             false
         })
-        .style(move || {
+        .style(move |s| {
             let config = config.get();
             let size = config.ui.icon_size() as f32;
-            Style::BASE
-                .padding_left_px(10.0)
+            s.padding_left_px(10.0)
                 .padding_right_px(10.0 + size + 6.0)
                 .width_pct(100.0)
                 .items_center()
         })
-        .hover_style(move || {
-            Style::BASE.background(
+        .hover_style(move |s| {
+            s.background(
                 *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
             )
         })
@@ -378,15 +362,12 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                 },
                 view_fn,
             )
-            .style(|| Style::BASE.line_height(1.6).flex_col().width_pct(100.0))
+            .style(|s| s.line_height(1.6).flex_col().width_pct(100.0))
         })
-        .scroll_bar_color(move || {
-            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-        })
-        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+        .style(|s| s.absolute().size_pct(100.0, 100.0))
     })
     .on_resize(move |rect| {
         panel_rect.set(rect);
     })
-    .style(|| Style::BASE.size_pct(100.0, 100.0))
+    .style(|s| s.size_pct(100.0, 100.0))
 }
