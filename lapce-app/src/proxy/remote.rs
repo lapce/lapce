@@ -261,37 +261,31 @@ fn download_remote(
             cmd.status
         }
         _ => {
-            let local_proxy_script =
-                Directory::proxy_directory().unwrap().join("proxy.sh");
+            let proxy_script = UNIX_PROXY_SCRIPT.to_owned();
+            let proxy_script =
+                base64::engine::general_purpose::STANDARD.encode(UNIX_PROXY_SCRIPT);
 
-            let mut proxy_script = std::fs::OpenOptions::new()
-                .create(true)
-                .write(true)
-                .open(&local_proxy_script)?;
-            proxy_script.write_all(UNIX_PROXY_SCRIPT)?;
-
-            let remote_proxy_script = "/tmp/lapce-proxy.sh";
-            remote.upload_file(local_proxy_script, remote_proxy_script)?;
-
-            let cmd = remote
-                .command_builder()
-                .args(["chmod", "+x", remote_proxy_script])
-                .output()?;
-            debug!("{}", String::from_utf8_lossy(&cmd.stderr));
-            debug!("{}", String::from_utf8_lossy(&cmd.stdout));
-
-            let cmd = remote
+            let version = if meta::VERSION == "debug" {
+                "nightly"
+            } else {
+                meta::VERSION
+            };
+            let mut cmd = remote
                 .command_builder()
                 .args([
-                    remote_proxy_script,
-                    if meta::VERSION == "debug" {
-                        "nightly"
-                    } else {
-                        meta::VERSION
-                    },
+                    "echo",
+                    &proxy_script,
+                    "|",
+                    "base64",
+                    "-d",
+                    "|",
+                    "sh",
+                    "/dev/stdin",
+                    version,
                     remote_proxy_path,
                 ])
                 .output()?;
+
             debug!("{}", String::from_utf8_lossy(&cmd.stderr));
             debug!("{}", String::from_utf8_lossy(&cmd.stdout));
 
