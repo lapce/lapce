@@ -556,17 +556,20 @@ impl WindowTabData {
                     let mut paths = HashSet::new();
                     for (_, editor_data) in editors.iter() {
                         editor_data.with_untracked(|editor_data| {
-                            let should_save = editor_data.view.doc.with_untracked(|doc| {
-                                let DocContent::File(path) = &doc.content else { return false };
+                            let should_save =
+                                editor_data.view.doc.with_untracked(|doc| {
+                                    let DocContent::File(path) = &doc.content else {
+                                        return false;
+                                    };
 
-                                if paths.contains(path) {
-                                    return false;
-                                }
+                                    if paths.contains(path) {
+                                        return false;
+                                    }
 
-                                paths.insert(path.clone());
+                                    paths.insert(path.clone());
 
-                                true
-                            });
+                                    true
+                                });
 
                             if should_save {
                                 editor_data.save(true, || {});
@@ -697,12 +700,17 @@ impl WindowTabData {
                     self.main_split.active_editor_tab.get_untracked()
                 {
                     self.main_split.editor_tabs.with_untracked(|editor_tabs| {
-                        let Some(editor_tab) = editor_tabs.get(&editor_tab_id) else { return };
+                        let Some(editor_tab) = editor_tabs.get(&editor_tab_id)
+                        else {
+                            return;
+                        };
 
                         let new_index = editor_tab.with_untracked(|editor_tab| {
                             if editor_tab.children.is_empty() {
                                 None
-                            } else if editor_tab.active == editor_tab.children.len() - 1 {
+                            } else if editor_tab.active
+                                == editor_tab.children.len() - 1
+                            {
                                 Some(0)
                             } else {
                                 Some(editor_tab.active + 1)
@@ -722,7 +730,10 @@ impl WindowTabData {
                     self.main_split.active_editor_tab.get_untracked()
                 {
                     self.main_split.editor_tabs.with_untracked(|editor_tabs| {
-                        let Some(editor_tab) = editor_tabs.get(&editor_tab_id) else { return };
+                        let Some(editor_tab) = editor_tabs.get(&editor_tab_id)
+                        else {
+                            return;
+                        };
 
                         let new_index = editor_tab.with_untracked(|editor_tab| {
                             if editor_tab.children.is_empty() {
