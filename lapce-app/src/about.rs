@@ -3,7 +3,7 @@ use std::sync::Arc;
 use floem::{
     event::EventListener,
     reactive::{RwSignal, Scope},
-    style::{CursorStyle, Display, Position, Style},
+    style::{CursorStyle, Display, Position},
     view::View,
     views::{container, label, stack, svg, Decorators},
 };
@@ -100,18 +100,18 @@ pub fn about_popup(window_tab_data: Arc<WindowTabData>) -> impl View {
     exclusive_popup(window_tab_data, about_data.visible, move || {
         stack(move || {
             (
-                svg(move || (*config.get()).logo_svg()).style(move || {
-                    Style::BASE.size_px(logo_size, logo_size).color(
+                svg(move || (*config.get()).logo_svg()).style(move  |base| {
+                     base.size_px(logo_size, logo_size).color(
                         *config.get().get_color(LapceColor::EDITOR_FOREGROUND),
                     )
                 }),
-                label(|| "Lapce".to_string()).style(move || {
-                    Style::BASE.font_bold().margin_top_px(10.0).color(
+                label(|| "Lapce".to_string()).style(move  |base| {
+                     base.font_bold().margin_top_px(10.0).color(
                         *config.get().get_color(LapceColor::EDITOR_FOREGROUND),
                     )
                 }),
-                label(|| format!("Version: {}", VERSION)).style(move || {
-                    Style::BASE
+                label(|| format!("Version: {}", VERSION)).style(move  |base| {
+                     base
                         .margin_top_px(10.0)
                         .color(*config.get().get_color(LapceColor::EDITOR_DIM))
                 }),
@@ -121,30 +121,30 @@ pub fn about_popup(window_tab_data: Arc<WindowTabData>) -> impl View {
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
                 )
-                .style(|| Style::BASE.margin_top_px(20.0)),
+                .style( |base|  base.margin_top_px(20.0)),
                 web_link(
                     || "GitHub".to_string(),
                     || AboutUri::GITHUB.to_string(),
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
                 )
-                .style(|| Style::BASE.margin_top_px(10.0)),
+                .style( |base|  base.margin_top_px(10.0)),
                 web_link(
                     || "Discord".to_string(),
                     || AboutUri::DISCORD.to_string(),
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
                 )
-                .style(|| Style::BASE.margin_top_px(10.0)),
+                .style( |base|  base.margin_top_px(10.0)),
                 web_link(
                     || "Matrix".to_string(),
                     || AboutUri::MATRIX.to_string(),
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
                 )
-                .style(|| Style::BASE.margin_top_px(10.0)),
-                label(|| "Attributions".to_string()).style(move || {
-                    Style::BASE
+                .style( |base|  base.margin_top_px(10.0)),
+                label(|| "Attributions".to_string()).style(move  |base| {
+                     base
                         .font_bold()
                         .color(*config.get().get_color(LapceColor::EDITOR_DIM))
                         .margin_top_px(40.0)
@@ -155,10 +155,10 @@ pub fn about_popup(window_tab_data: Arc<WindowTabData>) -> impl View {
                     move || *config.get().get_color(LapceColor::EDITOR_LINK),
                     internal_command,
                 )
-                .style(|| Style::BASE.margin_top_px(10.0)),
+                .style( |base|  base.margin_top_px(10.0)),
             )
         })
-        .style(|| Style::BASE.flex_col().items_center())
+        .style( |base|  base.flex_col().items_center())
     })
 }
 
@@ -172,9 +172,9 @@ fn exclusive_popup<V: View>(
     container(move || {
         container(move || {
             container(content)
-                .style(move || {
+                .style(move  |base| {
                     let config = config.get();
-                    Style::BASE
+                     base
                         .padding_vert_px(25.0)
                         .padding_horiz_px(100.0)
                         .border(1.0)
@@ -184,8 +184,8 @@ fn exclusive_popup<V: View>(
                 })
                 .on_event(EventListener::PointerDown, move |_| true)
         })
-        .style(move || Style::BASE.flex_grow(1.0).flex_row().items_center())
-        .hover_style(move || Style::BASE.cursor(CursorStyle::Default))
+        .style(move  |base|  base.flex_grow(1.0).flex_row().items_center())
+        .hover_style(move  |base|  base.cursor(CursorStyle::Default))
     })
     .on_event(EventListener::PointerDown, move |_| {
         window_tab_data.about_data.close();
@@ -193,8 +193,8 @@ fn exclusive_popup<V: View>(
     })
     // Prevent things behind the grayed out area from being hovered.
     .on_event(EventListener::PointerMove, move |_| true)
-    .style(move || {
-        Style::BASE
+    .style(move  |base| {
+         base
             .display(if visibility.get() {
                 Display::Flex
             } else {

@@ -48,7 +48,7 @@ pub fn global_search_panel(
                 stack(|| {
                     (
                         text_input(editor, is_focused)
-                            .style(|| Style::BASE.width_pct(100.0)),
+                            .style(|base| base.width_pct(100.0)),
                         clickable_icon(
                             || LapceIcons::SEARCH_CASE_SENSITIVE,
                             move || {
@@ -66,7 +66,7 @@ pub fn global_search_panel(
                             || false,
                             config,
                         )
-                        .style(|| Style::BASE.padding_vert_px(4.0)),
+                        .style(|base| base.padding_vert_px(4.0)),
                         clickable_icon(
                             || LapceIcons::SEARCH_WHOLE_WORD,
                             move || {
@@ -78,7 +78,7 @@ pub fn global_search_panel(
                             || false,
                             config,
                         )
-                        .style(|| Style::BASE.padding_left_px(6.0)),
+                        .style(|base| base.padding_left_px(6.0)),
                         clickable_icon(
                             || LapceIcons::SEARCH_REGEX,
                             move || {
@@ -90,16 +90,15 @@ pub fn global_search_panel(
                             || false,
                             config,
                         )
-                        .style(|| Style::BASE.padding_left_px(6.0)),
+                        .style(|base| base.padding_left_px(6.0)),
                     )
                 })
                 .on_event(EventListener::PointerDown, move |_| {
                     focus.set(Focus::Panel(PanelKind::Search));
                     false
                 })
-                .style(move || {
-                    Style::BASE
-                        .width_pct(100.0)
+                .style(move |base| {
+                    base.width_pct(100.0)
                         .padding_right_px(6.0)
                         .items_center()
                         .border(1.0)
@@ -109,11 +108,11 @@ pub fn global_search_panel(
                         )
                 })
             })
-            .style(|| Style::BASE.width_pct(100.0).padding_px(10.0)),
+            .style(|base| base.width_pct(100.0).padding_px(10.0)),
             search_result(workspace, global_search, internal_command, config),
         )
     })
-    .style(|| Style::BASE.absolute().size_pct(100.0, 100.0).flex_col())
+    .style(|base| base.absolute().size_pct(100.0, 100.0).flex_col())
 }
 
 fn search_result(
@@ -172,11 +171,10 @@ fn search_result(
                                         })
                                     })
                                     .style(
-                                        move || {
+                                        move |base| {
                                             let config = config.get();
                                             let size = config.ui.icon_size() as f32;
-                                            Style::BASE
-                                                .margin_left_px(10.0)
+                                            base.margin_left_px(10.0)
                                                 .margin_right_px(6.0)
                                                 .size_px(size, size)
                                                 .min_size_px(size, size)
@@ -186,15 +184,14 @@ fn search_result(
                                         },
                                     ),
                                     svg(move || config.get().file_svg(&path).0)
-                                        .style(move || {
+                                        .style(move |base| {
                                             let config = config.get();
                                             let size = config.ui.icon_size() as f32;
                                             let color = config
                                                 .file_svg(&style_path)
                                                 .1
                                                 .copied();
-                                            Style::BASE
-                                                .margin_right_px(6.0)
+                                            base.margin_right_px(6.0)
                                                 .size_px(size, size)
                                                 .min_size_px(size, size)
                                                 .apply_opt(color, Style::color)
@@ -202,19 +199,19 @@ fn search_result(
                                     stack(|| {
                                         (
                                             label(move || file_name.clone()).style(
-                                                || {
-                                                    Style::BASE
-                                                        .margin_right_px(6.0)
+                                                |base| {
+                                                    base.margin_right_px(6.0)
                                                         .max_width_pct(100.0)
                                                         .text_ellipsis()
                                                 },
                                             ),
                                             label(move || folder.clone()).style(
-                                                move || {
-                                                    Style::BASE
-                                                    .color(*config.get().get_color(
-                                                        LapceColor::EDITOR_DIM,
-                                                    ))
+                                                move |base| {
+                                                    base.color(
+                                                        *config.get().get_color(
+                                                            LapceColor::EDITOR_DIM,
+                                                        ),
+                                                    )
                                                     .min_width_px(0.0)
                                                     .text_ellipsis()
                                                 },
@@ -222,10 +219,8 @@ fn search_result(
                                         )
                                     })
                                     .style(
-                                        move || {
-                                            Style::BASE
-                                                .min_width_px(0.0)
-                                                .items_center()
+                                        move |base| {
+                                            base.min_width_px(0.0).items_center()
                                         },
                                     ),
                                 )
@@ -234,14 +229,13 @@ fn search_result(
                                 expanded.update(|expanded| *expanded = !*expanded);
                                 true
                             })
-                            .style(move || {
-                                Style::BASE
-                                    .width_pct(100.0)
+                            .style(move |base| {
+                                base.width_pct(100.0)
                                     .min_width_pct(100.0)
                                     .items_center()
                             })
-                            .hover_style(move || {
-                                Style::BASE.cursor(CursorStyle::Pointer).background(
+                            .hover_style(move |base| {
+                                base.cursor(CursorStyle::Pointer).background(
                                     *config.get().get_color(
                                         LapceColor::PANEL_HOVERED_BACKGROUND,
                                     ),
@@ -306,11 +300,10 @@ fn search_result(
                                                 .get_color(LapceColor::EDITOR_FOCUS)
                                         },
                                     )
-                                    .style(move || {
+                                    .style(move |base| {
                                         let config = config.get();
                                         let icon_size = config.ui.icon_size() as f32;
-                                        Style::BASE
-                                            .margin_left_px(10.0 + icon_size + 6.0)
+                                        base.margin_left_px(10.0 + icon_size + 6.0)
                                     })
                                     .on_click(move |_| {
                                         internal_command.send(
@@ -331,27 +324,24 @@ fn search_result(
                                         );
                                         true
                                     })
-                                    .hover_style(move || {
-                                        Style::BASE
-                                            .cursor(CursorStyle::Pointer)
-                                            .background(*config.get().get_color(
+                                    .hover_style(move |base| {
+                                        base.cursor(CursorStyle::Pointer).background(
+                                            *config.get().get_color(
                                                 LapceColor::PANEL_HOVERED_BACKGROUND,
-                                            ))
+                                            ),
+                                        )
                                     })
                                 },
                             )
-                            .style(|| Style::BASE.flex_col()),
+                            .style(|base| base.flex_col()),
                         )
                     })
-                    .style(|| Style::BASE.flex_col())
+                    .style(|base| base.flex_col())
                 },
             )
-            .style(|| Style::BASE.flex_col().min_width_pct(100.0).line_height(1.6))
+            .style(|base| base.flex_col().min_width_pct(100.0).line_height(1.6))
         })
-        .scroll_bar_color(move || {
-            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-        })
-        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+        .style(|base| base.absolute().size_pct(100.0, 100.0))
     })
-    .style(|| Style::BASE.size_pct(100.0, 100.0))
+    .style(|base| base.size_pct(100.0, 100.0))
 }

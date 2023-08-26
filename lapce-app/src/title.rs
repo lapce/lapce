@@ -6,7 +6,7 @@ use floem::{
     menu::{Menu, MenuItem},
     peniko::{kurbo::Point, Color},
     reactive::{create_memo, Memo, ReadSignal, RwSignal},
-    style::{AlignItems, CursorStyle, Dimension, JustifyContent, Style},
+    style::{AlignItems, CursorStyle, Dimension, JustifyContent},
     view::View,
     views::{container, empty, handle_titlebar_area, label, stack, svg, Decorators},
 };
@@ -33,21 +33,21 @@ fn left(
     let is_local = workspace.kind.is_local();
     stack(move || {
         (
-            empty().style(move || {
+            empty().style(move  |base| {
                 let is_macos = cfg!(target_os = "macos");
                 let should_hide = if is_macos {
                     num_window_tabs.get() > 1
                 } else {
                     true
                 };
-                Style::BASE
+                 base
                     .width_px(75.0)
                     .apply_if(should_hide, |s| s.hide())
             }),
             container(move || {
                 svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(
-                    move || {
-                        Style::BASE.size_px(26.0, 26.0).color(if is_local {
+                    move  |base| {
+                         base.size_px(26.0, 26.0).color(if is_local {
                             *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL)
                         } else {
                             match proxy_status.get() {
@@ -80,19 +80,19 @@ fn left(
                 show_context_menu(menu, Point::ZERO);
                 true
             })
-            .hover_style(move || {
-                Style::BASE.cursor(CursorStyle::Pointer).background(
+            .hover_style(move  |base| {
+                 base.cursor(CursorStyle::Pointer).background(
                     *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
                 )
             })
-            .active_style(move || {
-                Style::BASE.cursor(CursorStyle::Pointer).background(
+            .active_style(move  |base| {
+                 base.cursor(CursorStyle::Pointer).background(
                     *config
                         .get()
                         .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
                 )
             })
-            .style(move || {
+            .style(move  |base| {
                 let config = config.get();
                 let color =
                     if is_local {
@@ -109,7 +109,7 @@ fn left(
                             None => Color::TRANSPARENT,
                         }
                     };
-                Style::BASE
+                 base
                     .height_pct(100.0)
                     .padding_horiz_px(10.0)
                     .items_center()
@@ -117,8 +117,8 @@ fn left(
             }),
         )
     })
-    .style(move || {
-        Style::BASE
+    .style(move  |base| {
+         base
             .height_pct(100.0)
             .flex_basis(Dimension::Points(0.0))
             .flex_grow(1.0)
@@ -150,7 +150,7 @@ fn middle(
             move || !can_jump_backward.get(),
             config,
         )
-        .style(move || Style::BASE.margin_horiz_px(6.0))
+        .style(move  |base|  base.margin_horiz_px(6.0))
     };
     let jump_forward = move || {
         clickable_icon(
@@ -162,7 +162,7 @@ fn middle(
             move || !can_jump_forward.get(),
             config,
         )
-        .style(move || Style::BASE.margin_right_px(6.0))
+        .style(move  |base|  base.margin_right_px(6.0))
     };
 
     let open_folder = move || {
@@ -192,8 +192,8 @@ fn middle(
 
     stack(move || {
         (
-            stack(move || (jump_backward(), jump_forward())).style(|| {
-                Style::BASE
+            stack(move || (jump_backward(), jump_forward())).style( |base| {
+                 base
                     .flex_basis(Dimension::Points(0.0))
                     .flex_grow(1.0)
                     .justify_content(Some(JustifyContent::FlexEnd))
@@ -202,10 +202,10 @@ fn middle(
                 stack(|| {
                     (
                         svg(move || config.get().ui_svg(LapceIcons::SEARCH)).style(
-                            move || {
+                            move  |base| {
                                 let config = config.get();
                                 let icon_size = config.ui.icon_size() as f32;
-                                Style::BASE.size_px(icon_size, icon_size).color(
+                                 base.size_px(icon_size, icon_size).color(
                                     *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                                 )
                             },
@@ -217,13 +217,13 @@ fn middle(
                                 "Open Folder".to_string()
                             }
                         })
-                        .style(|| {
-                            Style::BASE.padding_left_px(10.0).padding_right_px(5.0)
+                        .style( |base| {
+                             base.padding_left_px(10.0).padding_right_px(5.0)
                         }),
                         open_folder(),
                     )
                 })
-                .style(|| Style::BASE.align_items(Some(AlignItems::Center)))
+                .style( |base|  base.align_items(Some(AlignItems::Center)))
             })
             .on_event(EventListener::PointerDown, |_| true)
             .on_click(move |_| {
@@ -234,9 +234,9 @@ fn middle(
                 }
                 true
             })
-            .style(move || {
+            .style(move  |base| {
                 let config = config.get();
-                Style::BASE
+                 base
                     .flex_basis(Dimension::Points(0.0))
                     .flex_grow(10.0)
                     .min_width_px(200.0)
@@ -260,18 +260,18 @@ fn middle(
                     || false,
                     config,
                 )
-                .style(move || Style::BASE.margin_horiz_px(6.0))
+                .style(move  |base|  base.margin_horiz_px(6.0))
             })
-            .style(move || {
-                Style::BASE
+            .style(move  |base| {
+                 base
                     .flex_basis(Dimension::Points(0.0))
                     .flex_grow(1.0)
                     .justify_content(Some(JustifyContent::FlexStart))
             }),
         )
     })
-    .style(|| {
-        Style::BASE
+    .style( |base| {
+         base
             .flex_basis(Dimension::Points(0.0))
             .flex_grow(2.0)
             .align_items(Some(AlignItems::Center))
@@ -365,9 +365,9 @@ fn right(
                     config,
                 ),
                 container(|| {
-                    label(|| "1".to_string()).style(move || {
+                    label(|| "1".to_string()).style(move  |base| {
                         let config = config.get();
-                        Style::BASE
+                         base
                             .font_size(10.0)
                             .color(*config.get_color(LapceColor::EDITOR_BACKGROUND))
                             .border_radius(100.0)
@@ -376,9 +376,9 @@ fn right(
                             .background(*config.get_color(LapceColor::EDITOR_CARET))
                     })
                 })
-                .style(move || {
+                .style(move  |base| {
                     let has_update = has_update();
-                    Style::BASE
+                     base
                         .absolute()
                         .size_pct(100.0, 100.0)
                         .justify_end()
@@ -387,10 +387,10 @@ fn right(
                 }),
             )
         })
-        .style(move || Style::BASE.margin_horiz_px(6.0))
+        .style(move  |base|  base.margin_horiz_px(6.0))
     })
-    .style(|| {
-        Style::BASE
+    .style( |base| {
+         base
             .flex_basis(Dimension::Points(0.0))
             .flex_grow(1.0)
             .justify_content(Some(JustifyContent::FlexEnd))
@@ -427,9 +427,9 @@ pub fn title(
                 ),
             )
         })
-        .style(move || {
+        .style(move  |base| {
             let config = config.get();
-            Style::BASE
+             base
                 .width_pct(100.0)
                 .height_px(37.0)
                 .items_center()
@@ -438,5 +438,5 @@ pub fn title(
                 .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
         })
     })
-    .style(|| Style::BASE.width_pct(100.0))
+    .style( |base|  base.width_pct(100.0))
 }

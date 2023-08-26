@@ -6,7 +6,7 @@ use floem::{
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Size},
     reactive::{create_memo, create_rw_signal, RwSignal},
-    style::{CursorStyle, Style},
+    style::{CursorStyle},
     view::View,
     views::{
         container, empty, label, scroll, stack, virtual_list, Decorators,
@@ -76,9 +76,8 @@ pub fn plugin_panel(
                         installed_view(plugin),
                     )
                 })
-                .style(|| {
-                    Style::BASE
-                        .flex_col()
+                .style(|base| {
+                    base.flex_col()
                         .width_pct(100.0)
                         .flex_grow(1.0)
                         .flex_basis_px(0.0)
@@ -92,9 +91,8 @@ pub fn plugin_panel(
                         available_view(plugin),
                     )
                 })
-                .style(|| {
-                    Style::BASE
-                        .flex_col()
+                .style(|base| {
+                    base.flex_col()
                         .width_pct(100.0)
                         .flex_grow(1.0)
                         .flex_basis_px(0.0)
@@ -102,9 +100,8 @@ pub fn plugin_panel(
             },
         )
     })
-    .style(move || {
-        Style::BASE
-            .width_pct(100.0)
+    .style(move |base| {
+        base.width_pct(100.0)
             .apply_if(!position.is_bottom(), |s| s.flex_col())
     })
 }
@@ -197,28 +194,26 @@ fn installed_view(plugin: PluginData) -> impl View {
         let volt_id = meta.id();
         stack(move || {
             (
-                empty().style(|| {
-                    Style::BASE
-                        .min_size_px(50.0, 50.0)
+                empty().style(|base| {
+                    base.min_size_px(50.0, 50.0)
                         .size_px(50.0, 50.0)
                         .margin_top_px(5.0)
                         .margin_right_px(10.0)
                 }),
                 stack(move || {
                     (
-                        label(move || meta.display_name.clone()).style(|| {
-                            Style::BASE.font_bold().text_ellipsis().min_width_px(0.0)
+                        label(move || meta.display_name.clone()).style(|base| {
+                            base.font_bold().text_ellipsis().min_width_px(0.0)
                         }),
                         label(move || meta.description.clone())
-                            .style(|| Style::BASE.text_ellipsis().min_width_px(0.0)),
+                            .style(|base| base.text_ellipsis().min_width_px(0.0)),
                         stack(move || {
                             (
                                 stack(|| {
                                     (
                                         label(move || meta.author.clone()).style(
-                                            || {
-                                                Style::BASE
-                                                    .text_ellipsis()
+                                            |base| {
+                                                base.text_ellipsis()
                                                     .max_width_pct(100.0)
                                             },
                                         ),
@@ -233,12 +228,11 @@ fn installed_view(plugin: PluginData) -> impl View {
                                                 format!("v{}", meta.version.clone())
                                             }
                                         })
-                                        .style(|| Style::BASE.text_ellipsis()),
+                                        .style(|base| base.text_ellipsis()),
                                     )
                                 })
-                                .style(|| {
-                                    Style::BASE
-                                        .justify_between()
+                                .style(|base| {
+                                    base.justify_between()
                                         .flex_grow(1.0)
                                         .flex_basis_px(0.0)
                                         .min_width_px(0.0)
@@ -256,24 +250,22 @@ fn installed_view(plugin: PluginData) -> impl View {
                                     || false,
                                     config,
                                 )
-                                .style(|| Style::BASE.padding_left_px(6.0)),
+                                .style(|base| base.padding_left_px(6.0)),
                             )
                         })
-                        .style(|| Style::BASE.width_pct(100.0).items_center()),
+                        .style(|base| base.width_pct(100.0).items_center()),
                     )
                 })
-                .style(|| {
-                    Style::BASE
-                        .flex_col()
+                .style(|base| {
+                    base.flex_col()
                         .flex_grow(1.0)
                         .flex_basis_px(0.0)
                         .min_width_px(0.0)
                 }),
             )
         })
-        .style(|| {
-            Style::BASE
-                .width_pct(100.0)
+        .style(|base| {
+            base.width_pct(100.0)
                 .padding_horiz_px(10.0)
                 .padding_vert_px(5.0)
         })
@@ -290,16 +282,12 @@ fn installed_view(plugin: PluginData) -> impl View {
                 move |(_, id, _)| id.clone(),
                 move |(_, _, volt)| view_fn(volt, plugin.clone()),
             )
-            .style(|| Style::BASE.flex_col().width_pct(100.0))
+            .style(|base| base.flex_col().width_pct(100.0))
         })
-        .scroll_bar_color(move || {
-            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-        })
-        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+        .style(|base| base.absolute().size_pct(100.0, 100.0))
     })
-    .style(|| {
-        Style::BASE
-            .width_pct(100.0)
+    .style(|base| {
+        base.width_pct(100.0)
             .line_height(1.6)
             .flex_grow(1.0)
             .flex_basis_px(0.0)
@@ -313,27 +301,25 @@ fn available_view(plugin: PluginData) -> impl View {
     let config = plugin.common.config;
 
     let local_plugin = plugin.clone();
-    let install_button = move |id: VoltID,
-                               info: RwSignal<VoltInfo>,
-                               installing: RwSignal<bool>| {
-        let plugin = local_plugin.clone();
-        let installed = create_memo(move |_| {
-            installed.with(|installed| installed.contains_key(&id))
-        });
-        label(move || {
-            if installed.get() {
-                "Installed".to_string()
-            } else if installing.get() {
-                "Installing".to_string()
-            } else {
-                "Install".to_string()
-            }
-        })
-        .disabled(move || installed.get() || installing.get())
-        .style(move || {
-            let config = config.get();
-            Style::BASE
-                .color(
+    let install_button =
+        move |id: VoltID, info: RwSignal<VoltInfo>, installing: RwSignal<bool>| {
+            let plugin = local_plugin.clone();
+            let installed = create_memo(move |_| {
+                installed.with(|installed| installed.contains_key(&id))
+            });
+            label(move || {
+                if installed.get() {
+                    "Installed".to_string()
+                } else if installing.get() {
+                    "Installing".to_string()
+                } else {
+                    "Install".to_string()
+                }
+            })
+            .disabled(move || installed.get() || installing.get())
+            .style(move |base| {
+                let config = config.get();
+                base.color(
                     *config.get_color(LapceColor::LAPCE_BUTTON_PRIMARY_FOREGROUND),
                 )
                 .background(
@@ -342,55 +328,53 @@ fn available_view(plugin: PluginData) -> impl View {
                 .margin_left_px(6.0)
                 .padding_horiz_px(6.0)
                 .border_radius(6.0)
-        })
-        .on_click(move |_| {
-            plugin.install_volt(info.get_untracked());
-            true
-        })
-        .hover_style(move || {
-            Style::BASE.cursor(CursorStyle::Pointer).background(
-                config
-                    .get()
-                    .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
-                    .with_alpha_factor(0.8),
-            )
-        })
-        .active_style(move || {
-            Style::BASE.background(
-                config
-                    .get()
-                    .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
-                    .with_alpha_factor(0.6),
-            )
-        })
-        .disabled_style(move || {
-            Style::BASE.background(*config.get().get_color(LapceColor::EDITOR_DIM))
-        })
-    };
+            })
+            .on_click(move |_| {
+                plugin.install_volt(info.get_untracked());
+                true
+            })
+            .hover_style(move |base| {
+                base.cursor(CursorStyle::Pointer).background(
+                    config
+                        .get()
+                        .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
+                        .with_alpha_factor(0.8),
+                )
+            })
+            .active_style(move |base| {
+                base.background(
+                    config
+                        .get()
+                        .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
+                        .with_alpha_factor(0.6),
+                )
+            })
+            .disabled_style(move |base| {
+                base.background(*config.get().get_color(LapceColor::EDITOR_DIM))
+            })
+        };
 
     let view_fn = move |(_, id, volt): (usize, VoltID, AvailableVoltData)| {
         let info = volt.info.get_untracked();
         stack(|| {
             (
-                empty().style(|| {
-                    Style::BASE
-                        .min_size_px(50.0, 50.0)
+                empty().style(|base| {
+                    base.min_size_px(50.0, 50.0)
                         .size_px(50.0, 50.0)
                         .margin_top_px(5.0)
                         .margin_right_px(10.0)
                 }),
                 stack(|| {
                     (
-                        label(move || info.display_name.clone()).style(|| {
-                            Style::BASE.font_bold().text_ellipsis().min_width_px(0.0)
+                        label(move || info.display_name.clone()).style(|base| {
+                            base.font_bold().text_ellipsis().min_width_px(0.0)
                         }),
                         label(move || info.description.clone())
-                            .style(|| Style::BASE.text_ellipsis().min_width_px(0.0)),
+                            .style(|base| base.text_ellipsis().min_width_px(0.0)),
                         stack(|| {
                             (
-                                label(move || info.author.clone()).style(|| {
-                                    Style::BASE
-                                        .text_ellipsis()
+                                label(move || info.author.clone()).style(|base| {
+                                    base.text_ellipsis()
                                         .min_width_px(0.0)
                                         .flex_grow(1.0)
                                         .flex_basis_px(0.0)
@@ -398,21 +382,19 @@ fn available_view(plugin: PluginData) -> impl View {
                                 install_button(id, volt.info, volt.installing),
                             )
                         })
-                        .style(|| Style::BASE.width_pct(100.0).items_center()),
+                        .style(|base| base.width_pct(100.0).items_center()),
                     )
                 })
-                .style(|| {
-                    Style::BASE
-                        .flex_col()
+                .style(|base| {
+                    base.flex_col()
                         .flex_grow(1.0)
                         .flex_basis_px(0.0)
                         .min_width_px(0.0)
                 }),
             )
         })
-        .style(|| {
-            Style::BASE
-                .width_pct(100.0)
+        .style(|base| {
+            base.width_pct(100.0)
                 .padding_horiz_px(10.0)
                 .padding_vert_px(5.0)
         })
@@ -433,9 +415,8 @@ fn available_view(plugin: PluginData) -> impl View {
                         .on_cursor_pos(move |point| {
                             cursor_x.set(point.x);
                         })
-                        .style(|| {
-                            Style::BASE
-                                .padding_vert_px(4.0)
+                        .style(|base| {
+                            base.padding_vert_px(4.0)
                                 .padding_horiz_px(10.0)
                                 .min_width_pct(100.0)
                         })
@@ -450,10 +431,9 @@ fn available_view(plugin: PluginData) -> impl View {
                     focus.set(Focus::Panel(PanelKind::Plugin));
                     false
                 })
-                .style(move || {
+                .style(move |base| {
                     let config = config.get();
-                    Style::BASE
-                        .width_pct(100.0)
+                    base.width_pct(100.0)
                         .cursor(CursorStyle::Text)
                         .items_center()
                         .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
@@ -462,7 +442,7 @@ fn available_view(plugin: PluginData) -> impl View {
                         .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                 })
             })
-            .style(|| Style::BASE.padding_px(10.0).width_pct(100.0)),
+            .style(|base| base.padding_px(10.0).width_pct(100.0)),
             container(|| {
                 scroll(|| {
                     virtual_list(
@@ -477,24 +457,20 @@ fn available_view(plugin: PluginData) -> impl View {
                     .on_resize(move |rect| {
                         content_rect.set(rect);
                     })
-                    .style(|| Style::BASE.flex_col().width_pct(100.0))
+                    .style(|base| base.flex_col().width_pct(100.0))
                 })
                 .on_scroll(move |rect| {
                     if rect.y1 + 30.0 > content_rect.get_untracked().y1 {
                         plugin.load_more_available();
                     }
                 })
-                .scroll_bar_color(move || {
-                    *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-                })
-                .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+                .style(|base| base.absolute().size_pct(100.0, 100.0))
             })
-            .style(|| Style::BASE.size_pct(100.0, 100.0)),
+            .style(|base| base.size_pct(100.0, 100.0)),
         )
     })
-    .style(|| {
-        Style::BASE
-            .width_pct(100.0)
+    .style(|base| {
+        base.width_pct(100.0)
             .line_height(1.6)
             .flex_grow(1.0)
             .flex_basis_px(0.0)

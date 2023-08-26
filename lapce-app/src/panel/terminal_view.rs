@@ -3,7 +3,6 @@ use std::sync::Arc;
 use floem::{
     event::{Event, EventListener},
     glazier::PointerType,
-    style::Style,
     view::View,
     views::{container, label, list, stack, svg, tab, Decorators},
 };
@@ -33,7 +32,7 @@ pub fn terminal_panel(window_tab_data: Arc<WindowTabData>) -> impl View {
         }
         false
     })
-    .style(|| Style::BASE.size_pct(100.0, 100.0).flex_col())
+    .style( |base|  base.size_pct(100.0, 100.0).flex_col())
 }
 
 fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
@@ -104,23 +103,23 @@ fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
                             (
                                 container(|| {
                                     svg(move || config.get().ui_svg(svg_string()))
-                                        .style(move || {
+                                        .style(move  |base| {
                                             let config = config.get();
                                             let size = config.ui.icon_size() as f32;
-                                            Style::BASE.size_px(size, size).color(
+                                             base.size_px(size, size).color(
                                                 *config.get_color(
                                                     LapceColor::LAPCE_ICON_ACTIVE,
                                                 ),
                                             )
                                         })
                                 })
-                                .style(|| {
-                                    Style::BASE
+                                .style( |base| {
+                                     base
                                         .padding_horiz_px(10.0)
                                         .padding_vert_px(11.0)
                                 }),
-                                label(title).style(|| {
-                                    Style::BASE
+                                label(title).style( |base| {
+                                     base
                                         .min_width_px(0.0)
                                         .flex_basis_px(0.0)
                                         .flex_grow(1.0)
@@ -135,11 +134,11 @@ fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
                                     || false,
                                     config,
                                 )
-                                .style(|| Style::BASE.margin_horiz_px(6.0)),
+                                .style( |base|  base.margin_horiz_px(6.0)),
                             )
                         })
-                        .style(move || {
-                            Style::BASE
+                        .style(move  |base| {
+                             base
                                 .items_center()
                                 .width_px(200.0)
                                 .border_right(1.0)
@@ -150,10 +149,10 @@ fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
                                 )
                         })
                     })
-                    .style(|| Style::BASE.items_center()),
+                    .style( |base|  base.items_center()),
                     container(|| {
-                        label(|| "".to_string()).style(move || {
-                            Style::BASE
+                        label(|| "".to_string()).style(move  |base| {
+                             base
                                 .size_pct(100.0, 100.0)
                                 .border_bottom(if active_index() == index.get() {
                                     2.0
@@ -171,8 +170,8 @@ fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
                                 ))
                         })
                     })
-                    .style(|| {
-                        Style::BASE
+                    .style( |base| {
+                         base
                             .absolute()
                             .padding_horiz_px(3.0)
                             .size_pct(100.0, 100.0)
@@ -190,9 +189,9 @@ fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
             })
         },
     )
-    .style(move || {
+    .style(move  |base| {
         let config = config.get();
-        Style::BASE
+         base
             .width_pct(100.0)
             .border_bottom(1.0)
             .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
@@ -246,10 +245,10 @@ fn terminal_tab_split(
                 .on_cleanup(move || {
                     terminal_scope.dispose();
                 })
-                .style(|| Style::BASE.size_pct(100.0, 100.0))
+                .style( |base|  base.size_pct(100.0, 100.0))
             })
-            .style(move || {
-                Style::BASE
+            .style(move  |base| {
+                 base
                     .size_pct(100.0, 100.0)
                     .padding_horiz_px(10.0)
                     .apply_if(index.get() > 0, |s| {
@@ -263,7 +262,7 @@ fn terminal_tab_split(
     .on_cleanup(move || {
         terminal_tab_scope.dispose();
     })
-    .style(|| Style::BASE.size_pct(100.0, 100.0))
+    .style( |base|  base.size_pct(100.0, 100.0))
 }
 
 fn terminal_tab_content(window_tab_data: Arc<WindowTabData>) -> impl View {
@@ -274,5 +273,5 @@ fn terminal_tab_content(window_tab_data: Arc<WindowTabData>) -> impl View {
         |(_, tab)| tab.terminal_tab_id,
         move |(_, tab)| terminal_tab_split(terminal.clone(), tab),
     )
-    .style(|| Style::BASE.size_pct(100.0, 100.0))
+    .style( |base|  base.size_pct(100.0, 100.0))
 }

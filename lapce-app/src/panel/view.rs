@@ -3,7 +3,6 @@ use std::sync::Arc;
 use floem::{
     event::EventListener,
     reactive::{create_rw_signal, ReadSignal},
-    style::Style,
     view::View,
     views::{container, container_box, empty, label, list, stack, tab, Decorators},
 };
@@ -69,8 +68,8 @@ pub fn panel_container_view(
                         false
                     }
                 })
-                .style(move || {
-                    Style::BASE.size_pct(100.0, 100.0).apply_if(
+                .style(move  |base| {
+                     base.size_pct(100.0, 100.0).apply_if(
                         dragging_over.get(),
                         |s| {
                             s.background(
@@ -94,15 +93,15 @@ pub fn panel_container_view(
             stack(move || {
                 (drop_view(position.first()), drop_view(position.second()))
             })
-            .style(move || {
-                Style::BASE
+            .style(move  |base| {
+                 base
                     .absolute()
                     .size_pct(100.0, 100.0)
                     .apply_if(!is_bottom, |s| s.flex_col())
             }),
         )
     })
-    .style(move || {
+    .style(move  |base| {
         let size = panel.size.with(|s| match position {
             PanelContainerPosition::Left => s.left,
             PanelContainerPosition::Bottom => s.bottom,
@@ -110,7 +109,7 @@ pub fn panel_container_view(
         });
         let is_maximized = panel.panel_bottom_maximized(true);
         let config = config.get();
-        Style::BASE
+         base
             .apply_if(!panel.is_container_shown(&position, true), |s| s.hide())
             .apply_if(position == PanelContainerPosition::Bottom, |s| {
                 s.width_pct(100.0)
@@ -180,11 +179,11 @@ fn panel_view(
                     Box::new(debug_panel(window_tab_data.clone(), position))
                 }),
             };
-            view.style(|| Style::BASE.size_pct(100.0, 100.0))
+            view.style( |base|  base.size_pct(100.0, 100.0))
         },
     )
-    .style(move || {
-        Style::BASE.size_pct(100.0, 100.0).apply_if(
+    .style(move  |base| {
+         base.size_pct(100.0, 100.0).apply_if(
             !panel.is_position_shown(&position, true)
                 || panel.is_position_empty(&position, true),
             |s| s.hide(),
@@ -196,8 +195,8 @@ pub fn panel_header(
     header: String,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    container(|| label(move || header.clone())).style(move || {
-        Style::BASE
+    container(|| label(move || header.clone())).style(move  |base| {
+         base
             .padding_horiz_px(10.0)
             .padding_vert_px(6.0)
             .width_pct(100.0)
@@ -267,9 +266,9 @@ fn panel_picker(
                             dragging.set(None);
                             true
                         })
-                        .dragging_style(move || {
+                        .dragging_style(move  |base| {
                             let config = config.get();
-                            Style::BASE
+                             base
                                 .border(1.0)
                                 .border_radius(6.0)
                                 .border_color(
@@ -282,9 +281,9 @@ fn panel_picker(
                                         .with_alpha_factor(0.7),
                                 )
                         })
-                        .style(|| Style::BASE.padding_px(1.0)),
-                        label(|| "".to_string()).style(move || {
-                            Style::BASE
+                        .style( |base|  base.padding_px(1.0)),
+                        label(|| "".to_string()).style(move  |base| {
+                             base
                                 .absolute()
                                 .size_pct(100.0, 100.0)
                                 .apply_if(!is_bottom && is_first, |s| {
@@ -320,11 +319,11 @@ fn panel_picker(
                     )
                 })
             })
-            .style(|| Style::BASE.padding_px(6.0))
+            .style( |base|  base.padding_px(6.0))
         },
     )
-    .style(move || {
-        Style::BASE
+    .style(move  |base| {
+         base
             .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
             .apply_if(
                 panels.with(|p| {

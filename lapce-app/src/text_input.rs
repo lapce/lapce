@@ -82,9 +82,8 @@ pub fn text_input(
         hide_cursor: editor.common.hide_cursor,
         line_height: None,
     }
-    .base_style(|| {
-        Style::BASE
-            .cursor(CursorStyle::Text)
+    .base_style(|base| {
+        base.cursor(CursorStyle::Text)
             .padding_horiz_px(10.0)
             .padding_vert_px(6.0)
     })

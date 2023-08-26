@@ -7,7 +7,7 @@ use std::{
 use floem::{
     event::EventListener,
     reactive::{ReadSignal, RwSignal, Scope},
-    style::{CursorStyle, Style},
+    style::{CursorStyle},
     view::View,
     views::{container, label, list, stack, svg, Decorators},
 };
@@ -65,21 +65,21 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
             stack(|| {
                 (
                     svg(move || config.get().ui_svg(LapceIcons::WARNING)).style(
-                        move || {
-                            Style::BASE.size_px(50.0, 50.0).color(
+                        move  |base| {
+                             base.size_px(50.0, 50.0).color(
                                 *config.get().get_color(LapceColor::LAPCE_WARN),
                             )
                         },
                     ),
-                    label(move || title.get()).style(move || {
-                        Style::BASE
+                    label(move || title.get()).style(move  |base| {
+                         base
                             .margin_top_px(20.0)
                             .width_pct(100.0)
                             .font_bold()
                             .font_size((config.get().ui.font_size() + 1) as f32)
                     }),
-                    label(move || msg.get()).style(move || {
-                        Style::BASE.width_pct(100.0).margin_top_px(10.0)
+                    label(move || msg.get()).style(move  |base| {
+                         base.width_pct(100.0).margin_top_px(10.0)
                     }),
                     list(
                         move || buttons.get(),
@@ -93,9 +93,9 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                                     (button.action)();
                                     true
                                 })
-                                .style(move || {
+                                .style(move  |base| {
                                     let config = config.get();
-                                    Style::BASE
+                                     base
                                         .margin_top_px(10.0)
                                         .width_pct(100.0)
                                         .justify_center()
@@ -110,31 +110,31 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                                                 .get_color(LapceColor::LAPCE_BORDER),
                                         )
                                 })
-                                .hover_style(move || {
-                                    Style::BASE
+                                .hover_style(move  |base| {
+                                     base
                                         .cursor(CursorStyle::Pointer)
                                         .background(*config.get().get_color(
                                             LapceColor::PANEL_HOVERED_BACKGROUND,
                                         ))
                                 })
-                                .active_style(move || {
-                                    Style::BASE.background(*config.get().get_color(
+                                .active_style(move  |base| {
+                                     base.background(*config.get().get_color(
                                         LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                     ))
                                 })
                         },
                     )
-                    .style(|| {
-                        Style::BASE.flex_col().width_pct(100.0).margin_top_px(10.0)
+                    .style( |base| {
+                         base.flex_col().width_pct(100.0).margin_top_px(10.0)
                     }),
                     label(|| "Cancel".to_string())
                         .on_click(move |_| {
                             active.set(false);
                             true
                         })
-                        .style(move || {
+                        .style(move  |base| {
                             let config = config.get();
-                            Style::BASE
+                             base
                                 .margin_top_px(20.0)
                                 .width_pct(100.0)
                                 .justify_center()
@@ -146,26 +146,26 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                                     *config.get_color(LapceColor::LAPCE_BORDER),
                                 )
                         })
-                        .hover_style(move || {
-                            Style::BASE.cursor(CursorStyle::Pointer).background(
+                        .hover_style(move  |base| {
+                             base.cursor(CursorStyle::Pointer).background(
                                 *config
                                     .get()
                                     .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
                         })
-                        .active_style(move || {
-                            Style::BASE.background(*config.get().get_color(
+                        .active_style(move  |base| {
+                             base.background(*config.get().get_color(
                                 LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                             ))
                         }),
                 )
             })
-            .style(|| Style::BASE.flex_col().items_center().width_pct(100.0))
+            .style( |base|  base.flex_col().items_center().width_pct(100.0))
         })
         .on_event(EventListener::PointerDown, |_| true)
-        .style(move || {
+        .style(move  |base| {
             let config = config.get();
-            Style::BASE
+             base
                 .padding_px(20.0)
                 .width_px(250.0)
                 .border(1.0)
@@ -176,8 +176,8 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
         })
     })
     .on_event(EventListener::PointerDown, move |_| true)
-    .style(move || {
-        Style::BASE
+    .style(move  |base| {
+         base
             .absolute()
             .size_pct(100.0, 100.0)
             .items_center()

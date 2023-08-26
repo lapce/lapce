@@ -1,6 +1,6 @@
 use floem::{
     peniko::Color,
-    style::{CursorStyle, Style},
+    style::{CursorStyle},
     view::View,
     views::{label, Decorators},
 };
@@ -18,6 +18,6 @@ pub fn web_link(
             internal_command.send(InternalCommand::OpenWebUri { uri: uri() });
             true
         })
-        .base_style(move || Style::BASE.color(color()))
-        .hover_style(move || Style::BASE.cursor(CursorStyle::Pointer))
+        .base_style(move  |base|  base.color(color()))
+        .hover_style(move  |base|  base.cursor(CursorStyle::Pointer))
 }
