@@ -43,7 +43,7 @@ use crate::{
     global_search::GlobalSearchData,
     hover::HoverData,
     id::WindowTabId,
-    keypress::{condition::Condition, KeyPressData, KeyPressFocus},
+    keypress::{condition::Condition, EventRef, KeyPressData, KeyPressFocus},
     listener::Listener,
     main_split::{MainSplitData, SplitData, SplitDirection},
     palette::{kind::PaletteKind, PaletteData, PaletteStatus},
@@ -1436,54 +1436,52 @@ impl WindowTabData {
         }
     }
 
-    pub fn key_down(&self, key_event: &KeyEvent) {
+    pub fn key_down<'a>(&self, event: impl Into<EventRef<'a>> + Copy) {
         if self.alert_data.active.get_untracked() {
             return;
         }
         let focus = self.common.focus.get_untracked();
         let keypress = self.common.keypress.get_untracked();
         let executed = match focus {
-            Focus::Workbench => {
-                self.main_split.key_down(key_event, &keypress).is_some()
-            }
+            Focus::Workbench => self.main_split.key_down(event, &keypress).is_some(),
             Focus::Palette => {
-                keypress.key_down(key_event, &self.palette);
+                keypress.key_down(event, &self.palette);
                 true
             }
             Focus::CodeAction => {
                 let code_action = self.code_action.get_untracked();
-                keypress.key_down(key_event, &code_action);
+                keypress.key_down(event, &code_action);
                 true
             }
             Focus::Rename => {
-                keypress.key_down(key_event, &self.rename);
+                keypress.key_down(event, &self.rename);
                 true
             }
             Focus::AboutPopup => {
-                keypress.key_down(key_event, &self.about_data);
+                keypress.key_down(event, &self.about_data);
                 true
             }
             Focus::Panel(PanelKind::Terminal) => {
-                self.terminal.key_down(key_event, &keypress);
+                self.terminal.key_down(event, &keypress);
                 true
             }
             Focus::Panel(PanelKind::Search) => {
-                keypress.key_down(key_event, &self.global_search);
+                keypress.key_down(event, &self.global_search);
                 true
             }
             Focus::Panel(PanelKind::Plugin) => {
-                keypress.key_down(key_event, &self.plugin);
+                keypress.key_down(event, &self.plugin);
                 true
             }
             Focus::Panel(PanelKind::SourceControl) => {
-                keypress.key_down(key_event, &self.source_control);
+                keypress.key_down(event, &self.source_control);
                 true
             }
             _ => false,
         };
 
         if !executed {
-            keypress.key_down(key_event, self);
+            keypress.key_down(event, self);
         }
     }
 

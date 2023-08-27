@@ -1,7 +1,6 @@
 use std::{ops::Range, rc::Rc};
 
 use floem::{
-    action::show_context_menu,
     event::EventListener,
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Size},
@@ -113,10 +112,10 @@ fn installed_view(plugin: PluginData) -> impl View {
     let disabled = plugin.disabled;
     let workspace_disabled = plugin.workspace_disabled;
 
-    let plugin_controls = {
-        move |plugin: PluginData, volt: VoltInfo, meta: VoltMetadata| {
-            let volt_id = volt.id();
-            let menu =
+    let plugin_controls =
+        {
+            move |plugin: PluginData, volt: VoltInfo, meta: VoltMetadata| {
+                let volt_id = volt.id();
                 Menu::new("")
                     .entry(MenuItem::new("Reload Plugin").action({
                         let plugin = plugin.clone();
@@ -183,10 +182,9 @@ fn installed_view(plugin: PluginData) -> impl View {
                         move || {
                             plugin.uninstall_volt(meta.clone());
                         }
-                    }));
-            show_context_menu(menu, None);
-        }
-    };
+                    }))
+            }
+        };
 
     let view_fn = move |volt: InstalledVoltData, plugin: PluginData| {
         let meta = volt.meta.get_untracked();
@@ -239,6 +237,13 @@ fn installed_view(plugin: PluginData) -> impl View {
                                 }),
                                 clickable_icon(
                                     || LapceIcons::SETTINGS,
+                                    || {},
+                                    || false,
+                                    || false,
+                                    config,
+                                )
+                                .style(|| Style::BASE.padding_left_px(6.0))
+                                .popout_menu(
                                     move || {
                                         plugin_controls(
                                             plugin.clone(),
@@ -246,11 +251,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                                             local_meta.clone(),
                                         )
                                     },
-                                    || false,
-                                    || false,
-                                    config,
-                                )
-                                .style(|s| s.padding_left_px(6.0)),
+                                ),
                             )
                         })
                         .style(|s| s.width_pct(100.0).items_center()),

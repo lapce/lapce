@@ -8,27 +8,25 @@ fn main() -> Result<()> {
     println!("cargo:rerun-if-env-changed=CARGO_PKG_VERSION");
 
     #[cfg(not(debug_assertions))]
-    let (tag, release, version) = {
+    let (version, release) = {
         let tag = env::var("RELEASE_TAG_NAME").unwrap_or(String::from("nightly"));
 
-        let (release, version) = if tag.starts_with('v') {
-            ("Stable", tag.clone())
+        let release = if tag.starts_with('v') {
+            "Stable"
         } else {
-            ("Nightly", tag.clone())
+            "Nightly"
         };
 
-        (tag, release, version)
+        (tag, release)
     };
 
     #[cfg(debug_assertions)]
-    let (tag, release, version) =
-        (String::from("debug"), "Debug", String::from("debug"));
+    let (version, release) = (String::from("debug"), "Debug");
 
     let meta_file = Path::new(&env::var("OUT_DIR")?).join("meta.rs");
 
     #[rustfmt::skip]
     let meta = format!(r#"
-        pub const TAG: &str = "{tag}";
         pub const NAME: &str = "Lapce-{release}";
         pub const VERSION: &str = "{version}";
         pub const RELEASE: ReleaseType = ReleaseType::{release};
