@@ -55,7 +55,7 @@ impl Remote for WslRemote {
     fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
         let mut wsl_path = Path::new(r"\\wsl.localhost\").join(&self.distro);
         if !wsl_path.exists() {
-            wsl_path = Path::new(r#"\\wsl$"#).join(&self.distro);
+            wsl_path = Path::new(r"\\wsl$").join(&self.distro);
         }
         wsl_path = if remote.starts_with('~') {
             let home_dir = self.home_dir()?;
