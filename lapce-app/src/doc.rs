@@ -1176,7 +1176,6 @@ impl Document {
                         || (!char_found && render_leading)
                     {
                         rendered_whitespaces.extend(whitespace_buffer.iter());
-                    } else {
                     }
 
                     char_found = true;
