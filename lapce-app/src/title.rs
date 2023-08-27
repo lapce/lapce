@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use floem::{
-    action::show_context_menu,
     event::EventListener,
     menu::{Menu, MenuItem},
-    peniko::{kurbo::Point, Color},
+    peniko::Color,
     reactive::{create_memo, Memo, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Dimension, JustifyContent, Style},
     view::View,
@@ -167,35 +166,11 @@ fn middle(
     let open_folder = move || {
         clickable_icon(
             || LapceIcons::PALETTE_MENU,
-            move || {
-                show_context_menu(
-                    Menu::new("")
-                        .entry(MenuItem::new("Open Folder").action(move || {
-                            workbench_command
-                                .send(LapceWorkbenchCommand::OpenFolder);
-                        }))
-                        .entry(MenuItem::new("Open Recent Workspace").action(
-                            move || {
-                                workbench_command
-                                    .send(LapceWorkbenchCommand::PaletteWorkspace);
-                            },
-                        )),
-                    Point::ZERO,
-                );
-            },
+            move || (),
             || false,
             || false,
             config,
         )
-        .popout_menu(move || {
-            Menu::new("")
-                .entry(MenuItem::new("Open Folder").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::OpenFolder);
-                }))
-                .entry(MenuItem::new("Open Recent Workspace").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::PaletteWorkspace);
-                }))
-        })
         .popout_menu(move || {
             Menu::new("")
                 .entry(MenuItem::new("Open Folder").action(move || {

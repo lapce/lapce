@@ -1,7 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
 use floem::{
-    action::show_context_menu,
     event::{Event, EventListener},
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Size},
@@ -332,7 +331,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
             });
             true
         })
-        .on_event(EventListener::PointerDown, move |event| {
+        .context_menu(move || {
             let diff_for_menu = diff_for_menu.clone();
 
             let discard = move || {
@@ -343,15 +342,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                     data: Some(serde_json::json!(diff_for_menu.clone())),
                 });
             };
-
-            if let Event::PointerDown(pointer_event) = event {
-                if pointer_event.button.is_secondary() {
-                    let menu = Menu::new("")
-                        .entry(MenuItem::new("Discard Changes").action(discard));
-                    show_context_menu(menu, Point::ZERO);
-                }
-            }
-            false
+            Menu::new("").entry(MenuItem::new("Discard Changes").action(discard))
         })
         .style(move || {
             let config = config.get();

@@ -1,7 +1,6 @@
 use std::{ops::Range, sync::Arc};
 
 use floem::{
-    action::show_context_menu,
     event::EventListener,
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Size},
@@ -187,7 +186,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                             plugin.uninstall_volt(meta.clone());
                         }
                     }));
-            show_context_menu(menu, Point::ZERO);
+            menu
         }
     };
 
@@ -245,17 +244,18 @@ fn installed_view(plugin: PluginData) -> impl View {
                                 }),
                                 clickable_icon(
                                     || LapceIcons::SETTINGS,
-                                    move || {
-                                        plugin_controls(
-                                            plugin.clone(),
-                                            local_meta.info(),
-                                            local_meta.clone(),
-                                        )
-                                    },
+                                    move || (),
                                     || false,
                                     || false,
                                     config,
                                 )
+                                .popout_menu(move || {
+                                    plugin_controls(
+                                        plugin.clone(),
+                                        local_meta.info(),
+                                        local_meta.clone(),
+                                    )
+                                })
                                 .style(|| Style::BASE.padding_left_px(6.0)),
                             )
                         })
