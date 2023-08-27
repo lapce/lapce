@@ -9,7 +9,7 @@ use floem::{
     action::{exec_after, save_as},
     ext_event::create_ext_action,
     file::{FileDialogOptions, FileInfo},
-    keyboard::{KeyEvent, ModifiersState},
+    keyboard::ModifiersState,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{Memo, RwSignal, Scope},
 };

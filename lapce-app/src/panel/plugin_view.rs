@@ -242,7 +242,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                                     || false,
                                     config,
                                 )
-                                .style(|| Style::BASE.padding_left_px(6.0))
+                                .style(|s| s.padding_left_px(6.0))
                                 .popout_menu(
                                     move || {
                                         plugin_controls(

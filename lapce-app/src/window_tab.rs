@@ -6,7 +6,7 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
     file::FileDialogOptions,
-    keyboard::{KeyEvent, ModifiersState},
+    keyboard::ModifiersState,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
 };
