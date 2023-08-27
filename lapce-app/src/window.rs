@@ -1,7 +1,6 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::{
-    glazier::KeyEvent,
     id::WindowId,
     peniko::kurbo::{Point, Size},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope},
@@ -10,8 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     app::AppCommand, command::WindowCommand, config::LapceConfig, db::LapceDb,
-    listener::Listener, update::ReleaseInfo, window_tab::WindowTabData,
-    workspace::LapceWorkspace,
+    keypress::EventRef, listener::Listener, update::ReleaseInfo,
+    window_tab::WindowTabData, workspace::LapceWorkspace,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -273,7 +272,7 @@ impl WindowData {
         self.app_command.send(AppCommand::SaveApp);
     }
 
-    pub fn key_down(&self, key_event: &KeyEvent) {
+    pub fn key_down<'a>(&self, event: impl Into<EventRef<'a>> + Copy) {
         let active = self.active.get_untracked();
         let window_tab = self.window_tabs.with_untracked(|window_tabs| {
             window_tabs
@@ -282,7 +281,7 @@ impl WindowData {
                 .cloned()
         });
         if let Some((_, window_tab)) = window_tab {
-            window_tab.key_down(key_event);
+            window_tab.key_down(event);
         }
     }
 

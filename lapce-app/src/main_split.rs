@@ -8,7 +8,7 @@ use std::{
 use floem::{
     action::{exec_after, save_as},
     ext_event::create_ext_action,
-    glazier::{FileDialogOptions, FileInfo, KeyEvent, Modifiers},
+    glazier::{FileDialogOptions, FileInfo, Modifiers},
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{Memo, RwSignal, Scope},
 };
@@ -38,7 +38,7 @@ use crate::{
         EditorTabChild, EditorTabChildSource, EditorTabData, EditorTabInfo,
     },
     id::{DiffEditorId, EditorId, EditorTabId, KeymapId, SettingsId, SplitId},
-    keypress::KeyPressData,
+    keypress::{EventRef, KeyPressData},
     window_tab::{CommonData, Focus, WindowTabData},
 };
 
@@ -323,9 +323,9 @@ impl MainSplitData {
         }
     }
 
-    pub fn key_down(
+    pub fn key_down<'a>(
         &self,
-        key_event: &KeyEvent,
+        event: impl Into<EventRef<'a>>,
         keypress: &KeyPressData,
     ) -> Option<()> {
         let active_editor_tab = self.active_editor_tab.get_untracked()?;
@@ -341,7 +341,7 @@ impl MainSplitData {
                     .editors
                     .with_untracked(|editors| editors.get(&editor_id).copied())?;
                 let editor = editor.get_untracked();
-                keypress.key_down(key_event, &editor);
+                keypress.key_down(event, &editor);
                 editor.get_code_actions();
             }
             EditorTabChild::DiffEditor(diff_editor_id) => {
@@ -354,7 +354,7 @@ impl MainSplitData {
                 } else {
                     diff_editor.left.get_untracked()
                 };
-                keypress.key_down(key_event, &editor);
+                keypress.key_down(event, &editor);
                 editor.get_code_actions();
             }
             EditorTabChild::Settings(_) => {
