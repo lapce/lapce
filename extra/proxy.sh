@@ -8,21 +8,33 @@ test_cmd() {
   command -v "$1" >/dev/null
 }
 
-tmp_dir='/tmp'
 # proxy version
 lapce_new_ver="${1}"
 # proxy directory
 # eval to resolve '~' into proper user dir
 eval lapce_dir="'${2}'"
 
-if [ -e "${lapce_dir}/lapce" ]; then
-  chmod +x "${lapce_dir}/lapce"
+case "${lapce_new_ver}" in
+  v*)
+    lapce_new_version=$(echo "${lapce_new_ver}" | cut -d'v' -f2)
+    lapce_new_ver_tag="${lapce_new_ver}"
+  ;;
+  nightly*)
+    lapce_new_version="${lapce_new_ver}"
+    lapce_new_ver_tag=$(echo ${lapce_new_ver} | cut -d '-' -f1)
+  ;;
+  *)
+    printf 'Unknown version\n'
+    exit 1
+  ;;
+esac
 
+if [ -e "${lapce_dir}/lapce" ]; then
   lapce_installed_ver=$("${lapce_dir}/lapce" --version | cut -d' ' -f2)
 
   printf '[DEBUG]: Current proxy version: %s\n' "${lapce_installed_ver}"
-  printf '[DEBUG]: New proxy version: %s\n' "${lapce_new_ver}"
-  if [ "${lapce_installed_ver}" = "${lapce_new_ver}" ]; then
+  printf '[DEBUG]: New proxy version: %s\n' "${lapce_new_version}"
+  if [ "${lapce_installed_ver}" = "${lapce_new_version}" ]; then
     printf 'Proxy already exists\n'
     exit 0
   else
@@ -57,11 +69,7 @@ case $(uname -m) in
   ;;
 esac
 
-printf 'Switching to "%s"\n' "${tmp_dir}"
-cd "${tmp_dir}"
-
-lapce_new_ver_real_tag=$(echo ${lapce_new_ver} | cut -d '-' -f1)
-lapce_download_url="https://github.com/lapce/lapce/releases/download/${lapce_new_ver_real_tag}/lapce-proxy-${os_name}-${arch_name}.gz"
+lapce_download_url="https://github.com/lapce/lapce/releases/download/${lapce_new_ver_tag}/lapce-proxy-${os_name}-${arch_name}.gz"
 
 if test_cmd 'curl'; then
   # How old curl has these options? we'll find out
@@ -80,10 +88,10 @@ printf 'Creating "%s"\n' "${lapce_dir}"
 mkdir -p "${lapce_dir}"
 
 printf 'Decompressing gzip\n'
-gzip -d "${tmp_dir}/lapce-proxy-${os_name}-${arch_name}.gz"
+gzip -d "${lapce_dir}/lapce-proxy-${os_name}-${arch_name}.gz"
 
-printf 'Moving proxy to our dir\n'
-mv -v "${tmp_dir}/lapce-proxy-${os_name}-${arch_name}" "${lapce_dir}/lapce"
+printf 'Renaming proxy \n'
+mv -v "${lapce_dir}/lapce-proxy-${os_name}-${arch_name}" "${lapce_dir}/lapce"
 
 printf 'Making it executable\n'
 chmod +x "${lapce_dir}/lapce"
