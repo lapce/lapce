@@ -55,7 +55,8 @@ case $(uname -s) in
   Linux) os_name=linux ;;
   Darwin) os_name=darwin ;;
   *)
-    printf '[ERROR] unsupported os'
+    printf '[ERROR] unsupported os\n'
+    exit 1
   ;;
 esac
 
@@ -65,11 +66,16 @@ case $(uname -m) in
   arm64|aarch64) arch_name=aarch64 ;;
   # riscv64) arch_name=riscv64 ;;
   *)
-    printf '[ERROR] unsupported arch'
+    printf '[ERROR] unsupported arch\n'
+    exit 1
   ;;
 esac
 
 lapce_download_url="https://github.com/lapce/lapce/releases/download/${lapce_new_ver_tag}/lapce-proxy-${os_name}-${arch_name}.gz"
+
+printf 'Creating "%s"\n' "${lapce_dir}"
+mkdir -p "${lapce_dir}"
+cd "${lapce_dir}"
 
 if test_cmd 'curl'; then
   # How old curl has these options? we'll find out
@@ -83,9 +89,6 @@ else
   printf 'curl/wget not found, failed to download proxy\n'
   exit 1
 fi
-
-printf 'Creating "%s"\n' "${lapce_dir}"
-mkdir -p "${lapce_dir}"
 
 printf 'Decompressing gzip\n'
 gzip -d "${lapce_dir}/lapce-proxy-${os_name}-${arch_name}.gz"
