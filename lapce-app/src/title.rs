@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
 use floem::{
-    action::show_context_menu,
     event::EventListener,
     menu::{Menu, MenuItem},
-    peniko::{kurbo::Point, Color},
+    peniko::Color,
     reactive::{create_memo, Memo, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Dimension, JustifyContent, Style},
     view::View,
@@ -60,7 +59,7 @@ fn left(
                     },
                 )
             })
-            .on_click(move |_| {
+            .popout_menu(move || {
                 #[allow(unused_mut)]
                 let mut menu = Menu::new("").entry(
                     MenuItem::new("Connect to SSH Host").action(move || {
@@ -77,8 +76,7 @@ fn left(
                         },
                     ));
                 }
-                show_context_menu(menu, Point::ZERO);
-                true
+                menu
             })
             .hover_style(move || {
                 Style::BASE.cursor(CursorStyle::Pointer).background(
@@ -168,26 +166,20 @@ fn middle(
     let open_folder = move || {
         clickable_icon(
             || LapceIcons::PALETTE_MENU,
-            move || {
-                show_context_menu(
-                    Menu::new("")
-                        .entry(MenuItem::new("Open Folder").action(move || {
-                            workbench_command
-                                .send(LapceWorkbenchCommand::OpenFolder);
-                        }))
-                        .entry(MenuItem::new("Open Recent Workspace").action(
-                            move || {
-                                workbench_command
-                                    .send(LapceWorkbenchCommand::PaletteWorkspace);
-                            },
-                        )),
-                    Point::ZERO,
-                );
-            },
+            move || {},
             || false,
             || false,
             config,
         )
+        .popout_menu(move || {
+            Menu::new("")
+                .entry(MenuItem::new("Open Folder").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::OpenFolder);
+                }))
+                .entry(MenuItem::new("Open Recent Workspace").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::PaletteWorkspace);
+                }))
+        })
     };
 
     stack(move || {
@@ -305,65 +297,50 @@ fn right(
             (
                 clickable_icon(
                     || LapceIcons::SETTINGS,
-                    move || {
-                        show_context_menu(
-                            Menu::new("")
-                                .entry(MenuItem::new("Command Palette").action(
-                                    move || {
-                                        workbench_command.send(
-                                            LapceWorkbenchCommand::PaletteCommand,
-                                        )
-                                    },
-                                ))
-                                .separator()
-                                .entry(MenuItem::new("Open Settings").action(
-                                    move || {
-                                        workbench_command.send(
-                                            LapceWorkbenchCommand::OpenSettings,
-                                        )
-                                    },
-                                ))
-                                .entry(MenuItem::new("Open Keyboard Shortcuts").action(
-                                    move || {
-                                        workbench_command.send(
-                                            LapceWorkbenchCommand::OpenKeyboardShortcuts,
-                                        )
-                                    },
-                                ))
-                                .separator()
-                                .entry(
-                                    if let Some(v) = latest_version.get_untracked() {
-                                        if update_in_progress.get_untracked() {
-                                            MenuItem::new(format!(
-                                                "Update in progress ({v})"
-                                            ))
-                                            .enabled(false)
-                                        } else {
-                                            MenuItem::new(format!(
-                                                "Restart to update ({v})"
-                                            ))
-                                            .action(move || {
-                                                workbench_command.send(LapceWorkbenchCommand::RestartToUpdate)
-                                            })
-                                        }
-                                    } else {
-                                        MenuItem::new("No update available")
-                                            .enabled(false)
-                                    },
-                                )
-                                .separator()
-                                .entry(MenuItem::new("About Lapce").action(
-                                    move || {
-                                        workbench_command.send(LapceWorkbenchCommand::ShowAbout)
-                                    }
-                                )),
-                            Point::ZERO,
-                        );
-                    },
+                    || {},
                     || false,
                     || false,
                     config,
-                ),
+                )
+                .popout_menu(move || {
+                    Menu::new("")
+                        .entry(MenuItem::new("Command Palette").action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::PaletteCommand)
+                        }))
+                        .separator()
+                        .entry(MenuItem::new("Open Settings").action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::OpenSettings)
+                        }))
+                        .entry(MenuItem::new("Open Keyboard Shortcuts").action(
+                            move || {
+                                workbench_command.send(
+                                    LapceWorkbenchCommand::OpenKeyboardShortcuts,
+                                )
+                            },
+                        ))
+                        .separator()
+                        .entry(if let Some(v) = latest_version.get_untracked() {
+                            if update_in_progress.get_untracked() {
+                                MenuItem::new(format!("Update in progress ({v})"))
+                                    .enabled(false)
+                            } else {
+                                MenuItem::new(format!("Restart to update ({v})"))
+                                    .action(move || {
+                                        workbench_command.send(
+                                            LapceWorkbenchCommand::RestartToUpdate,
+                                        )
+                                    })
+                            }
+                        } else {
+                            MenuItem::new("No update available").enabled(false)
+                        })
+                        .separator()
+                        .entry(MenuItem::new("About Lapce").action(move || {
+                            workbench_command.send(LapceWorkbenchCommand::ShowAbout)
+                        }))
+                }),
                 container(|| {
                     label(|| "1".to_string()).style(move || {
                         let config = config.get();
