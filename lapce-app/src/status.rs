@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use floem::{
     reactive::{create_memo, ReadSignal},
@@ -21,7 +21,7 @@ use crate::{
 };
 
 pub fn status(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     source_control: SourceControlData,
     workbench_command: Listener<LapceWorkbenchCommand>,
     _config: ReadSignal<Arc<LapceConfig>>,

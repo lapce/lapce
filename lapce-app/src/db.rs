@@ -1,5 +1,6 @@
 use std::{
     path::{Path, PathBuf},
+    rc::Rc,
     sync::Arc,
 };
 
@@ -219,7 +220,7 @@ impl LapceDb {
         Ok(info)
     }
 
-    pub fn save_window_tab(&self, data: Arc<WindowTabData>) -> Result<()> {
+    pub fn save_window_tab(&self, data: Rc<WindowTabData>) -> Result<()> {
         let workspace = (*data.workspace).clone();
         let workspace_info = data.workspace_info();
 
@@ -329,7 +330,7 @@ impl LapceDb {
         Ok(())
     }
 
-    pub fn insert_window_tab(&self, data: Arc<WindowTabData>) -> Result<()> {
+    pub fn insert_window_tab(&self, data: Rc<WindowTabData>) -> Result<()> {
         let workspace = (*data.workspace).clone();
         let workspace_info = data.workspace_info();
 

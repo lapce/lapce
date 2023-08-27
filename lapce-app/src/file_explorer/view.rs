@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     peniko::Color,
@@ -20,7 +20,7 @@ use crate::{
 };
 
 pub fn file_explorer_panel(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     position: PanelPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;

@@ -1,4 +1,4 @@
-use std::{ops::Range, sync::Arc};
+use std::{ops::Range, rc::Rc};
 
 use floem::{
     action::show_context_menu,
@@ -60,7 +60,7 @@ impl<K: Clone + 'static, V: Clone + 'static> VirtualListVector<(usize, K, V)>
 }
 
 pub fn plugin_panel(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     position: PanelPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;
