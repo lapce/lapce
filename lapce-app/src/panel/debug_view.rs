@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use floem::{
     cosmic_text::Style as FontStyle,
@@ -25,7 +25,7 @@ use crate::{
 };
 
 pub fn debug_panel(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     position: PanelPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;

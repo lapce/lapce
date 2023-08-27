@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::rc::Rc;
 
 use floem::{
     event::{Event, EventListener},
@@ -19,7 +19,7 @@ use crate::{
     window_tab::{Focus, WindowTabData},
 };
 
-pub fn terminal_panel(window_tab_data: Arc<WindowTabData>) -> impl View {
+pub fn terminal_panel(window_tab_data: Rc<WindowTabData>) -> impl View {
     let focus = window_tab_data.common.focus;
     stack(|| {
         (
@@ -36,7 +36,7 @@ pub fn terminal_panel(window_tab_data: Arc<WindowTabData>) -> impl View {
     .style(|| Style::BASE.size_pct(100.0, 100.0).flex_col())
 }
 
-fn terminal_tab_header(window_tab_data: Arc<WindowTabData>) -> impl View {
+fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
     let terminal = window_tab_data.terminal.clone();
     let config = window_tab_data.common.config;
     let focus = window_tab_data.common.focus;
@@ -266,7 +266,7 @@ fn terminal_tab_split(
     .style(|| Style::BASE.size_pct(100.0, 100.0))
 }
 
-fn terminal_tab_content(window_tab_data: Arc<WindowTabData>) -> impl View {
+fn terminal_tab_content(window_tab_data: Rc<WindowTabData>) -> impl View {
     let terminal = window_tab_data.terminal.clone();
     tab(
         move || terminal.tab_info.with(|info| info.active),

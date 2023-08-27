@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, rc::Rc};
 
 use floem::{
     action::show_context_menu,
@@ -24,7 +24,7 @@ use crate::{
 };
 
 pub fn source_control_panel(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     _position: PanelPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;

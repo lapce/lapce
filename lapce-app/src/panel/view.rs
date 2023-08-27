@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use floem::{
     event::EventListener,
@@ -26,7 +26,7 @@ use crate::{
 };
 
 pub fn panel_container_view(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     position: PanelContainerPosition,
 ) -> impl View {
     let panel = window_tab_data.panel.clone();
@@ -138,7 +138,7 @@ pub fn panel_container_view(
 }
 
 fn panel_view(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     position: PanelPosition,
 ) -> impl View {
     let panel = window_tab_data.panel.clone();
@@ -206,7 +206,7 @@ pub fn panel_header(
 }
 
 fn panel_picker(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     position: PanelPosition,
 ) -> impl View {
     let panel = window_tab_data.panel.clone();

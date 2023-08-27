@@ -5,6 +5,7 @@ use std::{
     ops::Range,
     path::PathBuf,
     process::Stdio,
+    rc::Rc,
     sync::{atomic::AtomicU64, Arc},
 };
 
@@ -154,7 +155,7 @@ impl AppData {
         }
     }
 
-    pub fn active_window_tab(&self) -> Option<Arc<WindowTabData>> {
+    pub fn active_window_tab(&self) -> Option<Rc<WindowTabData>> {
         if let Some(window) = self.active_window() {
             return window.active_window_tab();
         }
@@ -1724,7 +1725,7 @@ fn split_list(
     })
 }
 
-fn main_split(window_tab_data: Arc<WindowTabData>) -> impl View {
+fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
     let root_split = window_tab_data.main_split.root_split;
     let root_split = window_tab_data
         .main_split
@@ -1812,7 +1813,7 @@ pub fn clickable_icon(
     })
 }
 
-fn workbench(window_tab_data: Arc<WindowTabData>) -> impl View {
+fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
     stack(move || {
         (
             panel_container_view(
@@ -2336,7 +2337,7 @@ fn palette_item(
     })
 }
 
-fn palette_input(window_tab_data: Arc<WindowTabData>) -> impl View {
+fn palette_input(window_tab_data: Rc<WindowTabData>) -> impl View {
     let editor = window_tab_data.palette.input_editor.clone();
     let config = window_tab_data.common.config;
     let focus = window_tab_data.common.focus;
@@ -2381,7 +2382,7 @@ impl VirtualListVector<(usize, PaletteItem)> for PaletteItems {
 }
 
 fn palette_content(
-    window_tab_data: Arc<WindowTabData>,
+    window_tab_data: Rc<WindowTabData>,
     layout_rect: ReadSignal<Rect>,
 ) -> impl View {
     let items = window_tab_data.palette.filtered_items;
@@ -2517,7 +2518,7 @@ fn palette_preview(palette_data: PaletteData) -> impl View {
     })
 }
 
-fn palette(window_tab_data: Arc<WindowTabData>) -> impl View {
+fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
     let layout_rect = window_tab_data.layout_rect.read_only();
     let palette_data = window_tab_data.palette.clone();
     let status = palette_data.status.read_only();
@@ -2610,7 +2611,7 @@ fn completion_kind_to_str(kind: CompletionItemKind) -> &'static str {
     }
 }
 
-fn hover(window_tab_data: Arc<WindowTabData>) -> impl View {
+fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
     let hover_data = window_tab_data.common.hover.clone();
     let config = window_tab_data.common.config;
     let id = AtomicU64::new(0);
@@ -2674,7 +2675,7 @@ fn hover(window_tab_data: Arc<WindowTabData>) -> impl View {
     })
 }
 
-fn completion(window_tab_data: Arc<WindowTabData>) -> impl View {
+fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
     let completion_data = window_tab_data.common.completion;
     let config = window_tab_data.common.config;
     let active = completion_data.with_untracked(|c| c.active);
@@ -2791,7 +2792,7 @@ fn completion(window_tab_data: Arc<WindowTabData>) -> impl View {
     })
 }
 
-fn code_action(window_tab_data: Arc<WindowTabData>) -> impl View {
+fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
     let config = window_tab_data.common.config;
     let code_action = window_tab_data.code_action;
     let (status, active) = code_action
@@ -2867,7 +2868,7 @@ fn code_action(window_tab_data: Arc<WindowTabData>) -> impl View {
     })
 }
 
-fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
+fn rename(window_tab_data: Rc<WindowTabData>) -> impl View {
     let editor = window_tab_data.rename.editor.clone();
     let active = window_tab_data.rename.active;
     let layout_rect = window_tab_data.rename.layout_rect;
@@ -2906,7 +2907,7 @@ fn rename(window_tab_data: Arc<WindowTabData>) -> impl View {
     })
 }
 
-fn window_tab(window_tab_data: Arc<WindowTabData>) -> impl View {
+fn window_tab(window_tab_data: Rc<WindowTabData>) -> impl View {
     let source_control = window_tab_data.source_control.clone();
     let window_origin = window_tab_data.window_origin;
     let layout_rect = window_tab_data.layout_rect;
@@ -3018,7 +3019,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
 
     let local_window_data = window_data.clone();
     let dragging_index: RwSignal<Option<RwSignal<usize>>> = create_rw_signal(None);
-    let view_fn = move |(index, tab): (RwSignal<usize>, Arc<WindowTabData>)| {
+    let view_fn = move |(index, tab): (RwSignal<usize>, Rc<WindowTabData>)| {
         let drag_over_left = create_rw_signal(None);
         let window_data = local_window_data.clone();
         stack(|| {
@@ -3298,7 +3299,7 @@ fn window(window_data: WindowData) -> impl View {
     let window_tabs = window_data.window_tabs.read_only();
     let active = window_data.active.read_only();
     let items = move || window_tabs.get();
-    let key = |(_, window_tab): &(RwSignal<usize>, Arc<WindowTabData>)| {
+    let key = |(_, window_tab): &(RwSignal<usize>, Rc<WindowTabData>)| {
         window_tab.window_tab_id
     };
     let active = move || active.get();

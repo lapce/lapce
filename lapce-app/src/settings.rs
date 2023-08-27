@@ -324,7 +324,7 @@ pub fn settings_view(
 
         if pattern.is_empty() {
             let mut items = items.clone();
-            items.extend(plugin_items.into_iter());
+            items.extend(plugin_items);
             filtered_items_signal.set(items);
             return;
         }

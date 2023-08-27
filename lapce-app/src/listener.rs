@@ -50,9 +50,6 @@ impl<T: 'static> Copy for Listener<T> {}
 
 impl<T: 'static> Clone for Listener<T> {
     fn clone(&self) -> Self {
-        Listener {
-            cx: self.cx,
-            val: self.val,
-        }
+        *self
     }
 }
