@@ -415,6 +415,8 @@ impl AppData {
         let window_scale = window_data.window_scale;
         let window_id = window_data.window_id;
         let app_command = window_data.app_command;
+        // The KeyDown and PointerDown event handlers both need ownership of a WindowData object.
+        let key_down_window_data = window_data.clone();
         stack(|| {
             (
                 workspace_tab_header(window_data.clone()),
@@ -426,7 +428,15 @@ impl AppData {
         .keyboard_navigatable()
         .on_event(EventListener::KeyDown, move |event| {
             if let Event::KeyDown(key_event) = event {
-                window_data.key_down(key_event);
+                key_down_window_data.key_down(key_event);
+                true
+            } else {
+                false
+            }
+        })
+        .on_event(EventListener::PointerDown, move |event| {
+            if let Event::PointerDown(pointer_event) = event {
+                window_data.key_down(pointer_event);
                 true
             } else {
                 false

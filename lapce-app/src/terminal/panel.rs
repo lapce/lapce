@@ -1,9 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use floem::{
-    glazier::KeyEvent,
-    reactive::{RwSignal, Scope},
-};
+use floem::reactive::{RwSignal, Scope};
 use lapce_core::mode::Mode;
 use lapce_rpc::{
     dap_types::{DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
@@ -14,7 +11,7 @@ use super::{data::TerminalData, tab::TerminalTabData};
 use crate::{
     debug::{DapData, RunDebugData, RunDebugMode, RunDebugProcess},
     id::TerminalTabId,
-    keypress::{KeyPressData, KeyPressFocus},
+    keypress::{EventRef, KeyPressData, KeyPressFocus},
     panel::kind::PanelKind,
     window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
@@ -81,7 +78,11 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn key_down(&self, key_event: &KeyEvent, keypress: &KeyPressData) {
+    pub fn key_down<'a>(
+        &self,
+        event: impl Into<EventRef<'a>> + Copy,
+        keypress: &KeyPressData,
+    ) {
         if self.tab_info.with_untracked(|info| info.tabs.is_empty()) {
             self.new_tab(None);
         }
@@ -89,10 +90,13 @@ impl TerminalPanelData {
         let tab = self.active_tab(false);
         let terminal = tab.and_then(|tab| tab.active_terminal(false));
         if let Some(terminal) = terminal {
-            let executed = keypress.key_down(key_event, &terminal);
+            let executed = keypress.key_down(event, &terminal);
             let mode = terminal.get_mode();
-            if !executed && mode == Mode::Terminal {
-                terminal.send_keypress(key_event);
+
+            if let EventRef::Keyboard(key_event) = event.into() {
+                if !executed && mode == Mode::Terminal {
+                    terminal.send_keypress(key_event);
+                }
             }
         }
     }
