@@ -31,7 +31,7 @@ pub struct LapceCommand {
     pub data: Option<Value>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandKind {
     Workbench(LapceWorkbenchCommand),
     Edit(EditCommand),
@@ -130,6 +130,7 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
     EnumString,
     EnumIter,
     Clone,
+    Copy,
     PartialEq,
     Eq,
     Debug,
@@ -281,6 +282,7 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Disconnect From Remote")]
     DisconnectRemote,
 
+    #[strum(message = "Go To Line")]
     #[strum(serialize = "palette.line")]
     PaletteLine,
 
@@ -288,9 +290,11 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Go to File")]
     Palette,
 
+    #[strum(message = "Go To Symbol In File")]
     #[strum(serialize = "palette.symbol")]
     PaletteSymbol,
 
+    #[strum(message = "Go To Symbol In Workspace")]
     #[strum(serialize = "palette.workspace_symbol")]
     PaletteWorkspaceSymbol,
 
@@ -309,6 +313,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Source Control: Checkout")]
     #[strum(serialize = "palette.scm_references")]
     PaletteSCMReferences,
+
+    #[strum(message = "List Palette Types")]
+    #[strum(serialize = "palette.palette_help")]
+    PaletteHelp,
 
     #[strum(message = "Run and Debug Restart Current Running")]
     #[strum(serialize = "palette.run_and_debug_restart")]
