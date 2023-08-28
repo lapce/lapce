@@ -50,7 +50,7 @@ sled = "0.34.7"
 bytemuck = "1.8.0"
 tokio = { version = "1.21", features = ["full"] }
 futures = "0.3.26"
-floem = { git = "https://github.com/lapce/floem", rev = "9d95a7426fb4f48ee9461e492a89066018472504" }
+floem = { git = "https://github.com/lapce/floem", rev = "4439c1adddd9cb13e1f84db1c5764e7b50927eeb" }
 # floem = { path = "../../workspaces/floem" }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }

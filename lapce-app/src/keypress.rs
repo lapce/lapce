@@ -326,6 +326,9 @@ impl KeyPressData {
                 if let KeyInput::Keyboard(Key::Character(c)) = &keypress.key {
                     focus.receive_char(c);
                     return true;
+                } else if let KeyInput::Keyboard(Key::Space) = &keypress.key {
+                    focus.receive_char(" ");
+                    return true;
                 }
             }
         }

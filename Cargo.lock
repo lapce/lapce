@@ -1464,7 +1464,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=9d95a7426fb4f48ee9461e492a89066018472504#9d95a7426fb4f48ee9461e492a89066018472504"
+source = "git+https://github.com/lapce/floem?rev=4439c1adddd9cb13e1f84db1c5764e7b50927eeb#4439c1adddd9cb13e1f84db1c5764e7b50927eeb"
 dependencies = [
  "bitflags 2.4.0",
  "crossbeam-channel",
@@ -1491,12 +1491,12 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=9d95a7426fb4f48ee9461e492a89066018472504#9d95a7426fb4f48ee9461e492a89066018472504"
+source = "git+https://github.com/lapce/floem?rev=4439c1adddd9cb13e1f84db1c5764e7b50927eeb#4439c1adddd9cb13e1f84db1c5764e7b50927eeb"
 
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=9d95a7426fb4f48ee9461e492a89066018472504#9d95a7426fb4f48ee9461e492a89066018472504"
+source = "git+https://github.com/lapce/floem?rev=4439c1adddd9cb13e1f84db1c5764e7b50927eeb#4439c1adddd9cb13e1f84db1c5764e7b50927eeb"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1506,7 +1506,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=9d95a7426fb4f48ee9461e492a89066018472504#9d95a7426fb4f48ee9461e492a89066018472504"
+source = "git+https://github.com/lapce/floem?rev=4439c1adddd9cb13e1f84db1c5764e7b50927eeb#4439c1adddd9cb13e1f84db1c5764e7b50927eeb"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -6543,7 +6543,7 @@ checksum = "d419259aba16b663966e29e6d7c6ecfa0bb8425818bb96f6f1f3c3eb71a6e7b9"
 [[package]]
 name = "winit"
 version = "0.29.1-beta"
-source = "git+https://github.com/lapce/winit?rev=fdf32ae71035191a818740fca9db012b565a4b5e#fdf32ae71035191a818740fca9db012b565a4b5e"
+source = "git+https://github.com/lapce/winit?rev=76591691b8022c2901b22596fce32f0aec56248f#76591691b8022c2901b22596fce32f0aec56248f"
 dependencies = [
  "android-activity",
  "atomic-waker",
