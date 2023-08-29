@@ -1,6 +1,7 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
+    event::{Event, EventListener},
     peniko::Color,
     reactive::ReadSignal,
     style::{CursorStyle, Style},
@@ -76,6 +77,7 @@ fn file_node_view(
                     {
                         let file_node = file_node.clone();
                         let double_click_file_node = file_node.clone();
+                        let aux_click_file_node = file_node.clone();
                         let proxy = proxy.clone();
                         let expanded = file_node.expanded;
                         let is_dir = file_node.is_dir;
@@ -161,6 +163,14 @@ fn file_node_view(
                         })
                         .on_double_click(move |_| {
                             double_click_file_node.double_click()
+                        })
+                        .on_event(EventListener::PointerDown, move |event| {
+                            if let Event::PointerDown(pointer_event) = event {
+                                if pointer_event.button.is_auxiliary() {
+                                    aux_click_file_node.middle_click();
+                                }
+                            }
+                            true
                         })
                         .style(move |s| {
                             s.items_center()
