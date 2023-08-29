@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use floem::{
     ext_event::create_ext_action,
+    keyboard::ModifiersState,
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope},
 };
@@ -42,7 +43,7 @@ impl KeyPressFocus for RenameData {
         &self,
         command: &LapceCommand,
         count: Option<usize>,
-        mods: floem::glazier::Modifiers,
+        mods: ModifiersState,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}

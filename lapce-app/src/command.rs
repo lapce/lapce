@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use floem::{peniko::kurbo::Vec2, reactive::RwSignal};
+use floem::{keyboard::ModifiersState, peniko::kurbo::Vec2, reactive::RwSignal};
 use indexmap::IndexMap;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
@@ -592,12 +592,12 @@ pub enum InternalCommand {
     FindEditorCommand {
         command: LapceCommand,
         count: Option<usize>,
-        mods: floem::glazier::Modifiers,
+        mods: ModifiersState,
     },
     ReplaceEditorCommand {
         command: LapceCommand,
         count: Option<usize>,
-        mods: floem::glazier::Modifiers,
+        mods: ModifiersState,
     },
     FocusEditorTab {
         editor_tab_id: EditorTabId,

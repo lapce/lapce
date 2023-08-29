@@ -3,7 +3,7 @@ use std::{rc::Rc, sync::Arc};
 use floem::{
     cosmic_text::Style as FontStyle,
     reactive::{ReadSignal, RwSignal},
-    style::{CursorStyle, Style},
+    style::CursorStyle,
     view::View,
     views::{container, container_box, label, list, scroll, stack, svg, Decorators},
 };
@@ -42,7 +42,7 @@ pub fn debug_panel(
                         debug_processes(terminal, config),
                     )
                 })
-                .style(|| Style::BASE.width_pct(100.0).flex_col().height_px(150.0))
+                .style(|s| s.width_pct(100.0).flex_col().height_px(150.0))
             },
             stack(move || {
                 (
@@ -50,18 +50,16 @@ pub fn debug_panel(
                     debug_stack_traces(terminal, internal_command, config),
                 )
             })
-            .style(|| {
-                Style::BASE
-                    .width_pct(100.0)
+            .style(|s| {
+                s.width_pct(100.0)
                     .flex_grow(1.0)
                     .flex_basis_px(0.0)
                     .flex_col()
             }),
         )
     })
-    .style(move || {
-        Style::BASE
-            .width_pct(100.0)
+    .style(move |s| {
+        s.width_pct(100.0)
             .apply_if(!position.is_bottom(), |s| s.flex_col())
     })
 }
@@ -96,7 +94,7 @@ fn debug_process_icons(
                             || false,
                             config,
                         )
-                        .style(|| Style::BASE.margin_horiz_px(6.0))
+                        .style(|s| s.margin_horiz_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
@@ -109,7 +107,7 @@ fn debug_process_icons(
                             move || stopped,
                             config,
                         )
-                        .style(|| Style::BASE.margin_right_px(6.0))
+                        .style(|s| s.margin_right_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
@@ -122,7 +120,7 @@ fn debug_process_icons(
                             || false,
                             config,
                         )
-                        .style(|| Style::BASE.margin_right_px(6.0))
+                        .style(|s| s.margin_right_px(6.0))
                     },
                 )
             }))
@@ -141,7 +139,7 @@ fn debug_process_icons(
                             move || !paused() || stopped,
                             config,
                         )
-                        .style(|| Style::BASE.margin_horiz_px(6.0))
+                        .style(|s| s.margin_horiz_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
@@ -154,7 +152,7 @@ fn debug_process_icons(
                             move || paused() || stopped,
                             config,
                         )
-                        .style(|| Style::BASE.margin_right_px(6.0))
+                        .style(|s| s.margin_right_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
@@ -167,7 +165,7 @@ fn debug_process_icons(
                             || false,
                             config,
                         )
-                        .style(|| Style::BASE.margin_right_px(6.0))
+                        .style(|s| s.margin_right_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
@@ -180,7 +178,7 @@ fn debug_process_icons(
                             move || stopped,
                             config,
                         )
-                        .style(|| Style::BASE.margin_right_px(6.0))
+                        .style(|s| s.margin_right_px(6.0))
                     },
                     {
                         let terminal = terminal.clone();
@@ -193,7 +191,7 @@ fn debug_process_icons(
                             || false,
                             config,
                         )
-                        .style(|| Style::BASE.margin_right_px(6.0))
+                        .style(|s| s.margin_right_px(6.0))
                     },
                 )
             }))
@@ -228,11 +226,10 @@ fn debug_processes(
                                 }
                             };
                             svg(move || config.get().ui_svg(svg_str)).style(
-                                move || {
+                                move |s| {
                                     let config = config.get();
                                     let size = config.ui.icon_size() as f32;
-                                    Style::BASE
-                                        .size_px(size, size)
+                                    s.size_px(size, size)
                                         .margin_horiz_px(10.0)
                                         .color(*config.get_color(
                                             LapceColor::LAPCE_ICON_ACTIVE,
@@ -240,9 +237,8 @@ fn debug_processes(
                                 },
                             )
                         },
-                        label(move || p.config.name.clone()).style(|| {
-                            Style::BASE
-                                .flex_grow(1.0)
+                        label(move || p.config.name.clone()).style(|s| {
+                            s.flex_grow(1.0)
                                 .flex_basis_px(0.0)
                                 .min_width_px(0.0)
                                 .text_ellipsis()
@@ -262,9 +258,8 @@ fn debug_processes(
                     local_terminal.focus_terminal(term_id);
                     true
                 })
-                .style(move || {
-                    Style::BASE
-                        .padding_vert_px(6.0)
+                .style(move |s| {
+                    s.padding_vert_px(6.0)
                         .width_pct(100.0)
                         .items_center()
                         .apply_if(is_active(), |s| {
@@ -275,8 +270,8 @@ fn debug_processes(
                             )
                         })
                 })
-                .hover_style(move || {
-                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                .hover_style(move |s| {
+                    s.cursor(CursorStyle::Pointer).background(
                         (*config
                             .get()
                             .get_color(LapceColor::PANEL_HOVERED_BACKGROUND))
@@ -285,7 +280,7 @@ fn debug_processes(
                 })
             },
         )
-        .style(|| Style::BASE.width_pct(100.0).flex_col())
+        .style(|s| s.width_pct(100.0).flex_col())
     })
 }
 
@@ -306,9 +301,9 @@ fn debug_stack_frames(
                     });
                     true
                 })
-                .style(|| Style::BASE.padding_horiz_px(10.0).min_width_pct(100.0))
-                .hover_style(move || {
-                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                .style(|s| s.padding_horiz_px(10.0).min_width_pct(100.0))
+                .hover_style(move |s| {
+                    s.cursor(CursorStyle::Pointer).background(
                         *config
                             .get()
                             .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -345,27 +340,22 @@ fn debug_stack_frames(
                         stack(|| {
                             (
                                 label(move || frame.name.clone()).hover_style(
-                                    move || {
-                                        Style::BASE.background(
-                                            *config.get().get_color(
-                                                LapceColor::PANEL_HOVERED_BACKGROUND,
-                                            ),
+                                    move |s| {
+                                        s.background(*config.get().get_color(
+                                            LapceColor::PANEL_HOVERED_BACKGROUND,
+                                        ))
+                                    },
+                                ),
+                                label(move || source_path.clone()).style(move |s| {
+                                    s.margin_left_px(10.0)
+                                        .color(
+                                            *config
+                                                .get()
+                                                .get_color(LapceColor::EDITOR_DIM),
                                         )
-                                    },
-                                ),
-                                label(move || source_path.clone()).style(
-                                    move || {
-                                        Style::BASE
-                                            .margin_left_px(10.0)
-                                            .color(
-                                                *config.get().get_color(
-                                                    LapceColor::EDITOR_DIM,
-                                                ),
-                                            )
-                                            .font_style(FontStyle::Italic)
-                                            .apply_if(!has_source, |s| s.hide())
-                                    },
-                                ),
+                                        .font_style(FontStyle::Italic)
+                                        .apply_if(!has_source, |s| s.hide())
+                                }),
                             )
                         })
                     })
@@ -388,9 +378,8 @@ fn debug_stack_frames(
                         }
                         true
                     })
-                    .style(move || {
-                        Style::BASE
-                            .padding_left_px(20.0)
+                    .style(move |s| {
+                        s.padding_left_px(20.0)
                             .padding_right_px(10.0)
                             .min_width_pct(100.0)
                             .apply_if(!has_source, |s| {
@@ -399,21 +388,20 @@ fn debug_stack_frames(
                                 )
                             })
                     })
-                    .hover_style(move || {
-                        Style::BASE
-                            .background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
-                            .apply_if(has_source, |s| s.cursor(CursorStyle::Pointer))
+                    .hover_style(move |s| {
+                        s.background(
+                            *config
+                                .get()
+                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        )
+                        .apply_if(has_source, |s| s.cursor(CursorStyle::Pointer))
                     })
                 },
             )
-            .style(|| Style::BASE.flex_col().min_width_pct(100.0)),
+            .style(|s| s.flex_col().min_width_pct(100.0)),
         )
     })
-    .style(|| Style::BASE.flex_col().min_width_pct(100.0))
+    .style(|s| s.flex_col().min_width_pct(100.0))
 }
 
 fn debug_stack_traces(
@@ -464,16 +452,12 @@ fn debug_stack_traces(
                     )
                 },
             )
-            .style(|| Style::BASE.flex_col().min_width_pct(100.0))
+            .style(|s| s.flex_col().min_width_pct(100.0))
         })
-        .scroll_bar_color(move || {
-            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-        })
-        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+        .style(|s| s.absolute().size_pct(100.0, 100.0))
     })
-    .style(|| {
-        Style::BASE
-            .width_pct(100.0)
+    .style(|s| {
+        s.width_pct(100.0)
             .line_height(1.6)
             .flex_grow(1.0)
             .flex_basis_px(0.0)

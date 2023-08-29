@@ -38,10 +38,9 @@ pub fn problem_panel(
                     ),
                 )
             })
-            .style(move || {
+            .style(move |s| {
                 let config = config.get();
-                Style::BASE
-                    .flex_col()
+                s.flex_col()
                     .flex_basis_px(0.0)
                     .flex_grow(1.0)
                     .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
@@ -54,12 +53,11 @@ pub fn problem_panel(
                     problem_section(window_tab_data, DiagnosticSeverity::WARNING),
                 )
             })
-            .style(|| Style::BASE.flex_col().flex_basis_px(0.0).flex_grow(1.0)),
+            .style(|s| s.flex_col().flex_basis_px(0.0).flex_grow(1.0)),
         )
     })
-    .style(move || {
-        Style::BASE
-            .size_pct(100.0, 100.0)
+    .style(move |s| {
+        s.size_pct(100.0, 100.0)
             .apply_if(!is_bottom, |s| s.flex_col())
     })
 }
@@ -88,14 +86,11 @@ fn problem_section(
                     )
                 },
             )
-            .style(|| Style::BASE.flex_col().width_pct(100.0).line_height(1.6))
+            .style(|s| s.flex_col().width_pct(100.0).line_height(1.6))
         })
-        .scroll_bar_color(move || {
-            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-        })
-        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+        .style(|s| s.absolute().size_pct(100.0, 100.0))
     })
-    .style(|| Style::BASE.size_pct(100.0, 100.0))
+    .style(|s| s.size_pct(100.0, 100.0))
 }
 
 fn file_view(
@@ -164,35 +159,30 @@ fn file_view(
                     container(|| {
                         stack(|| {
                             (
-                                label(move || file_name.clone()).style(|| {
-                                    Style::BASE
-                                        .margin_right_px(6.0)
+                                label(move || file_name.clone()).style(|s| {
+                                    s.margin_right_px(6.0)
                                         .max_width_pct(100.0)
                                         .text_ellipsis()
                                 }),
-                                label(move || folder.clone()).style(move || {
-                                    Style::BASE
-                                        .color(
-                                            *config
-                                                .get()
-                                                .get_color(LapceColor::EDITOR_DIM),
-                                        )
-                                        .min_width_px(0.0)
-                                        .text_ellipsis()
+                                label(move || folder.clone()).style(move |s| {
+                                    s.color(
+                                        *config
+                                            .get()
+                                            .get_color(LapceColor::EDITOR_DIM),
+                                    )
+                                    .min_width_px(0.0)
+                                    .text_ellipsis()
                                 }),
                             )
                         })
-                        .style(move || {
-                            Style::BASE.width_pct(100.0).min_width_px(0.0)
-                        })
+                        .style(move |s| s.width_pct(100.0).min_width_px(0.0))
                     })
                     .on_click(move |_| {
                         collpased.update(|collpased| *collpased = !*collpased);
                         true
                     })
-                    .style(move || {
-                        Style::BASE
-                            .width_pct(100.0)
+                    .style(move |s| {
+                        s.width_pct(100.0)
                             .min_width_px(0.0)
                             .padding_left_px(
                                 10.0 + (config.get().ui.icon_size() as f32 + 6.0)
@@ -200,8 +190,8 @@ fn file_view(
                             )
                             .padding_right_px(10.0)
                     })
-                    .hover_style(move || {
-                        Style::BASE.cursor(CursorStyle::Pointer).background(
+                    .hover_style(move |s| {
+                        s.cursor(CursorStyle::Pointer).background(
                             *config
                                 .get()
                                 .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -216,26 +206,20 @@ fn file_view(
                                     LapceIcons::ITEM_OPENED
                                 })
                             })
-                            .style(move || {
+                            .style(move |s| {
                                 let config = config.get();
                                 let size = config.ui.icon_size() as f32;
-                                Style::BASE
-                                    .margin_right_px(6.0)
-                                    .size_px(size, size)
-                                    .color(
-                                        *config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ),
-                                    )
+                                s.margin_right_px(6.0).size_px(size, size).color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                )
                             }),
                             svg(move || config.get().file_svg(&path).0).style(
-                                move || {
+                                move |s| {
                                     let config = config.get();
                                     let size = config.ui.icon_size() as f32;
                                     let color =
                                         config.file_svg(&style_path).1.copied();
-                                    Style::BASE
-                                        .min_width_px(size)
+                                    s.min_width_px(size)
                                         .size_px(size, size)
                                         .apply_opt(color, Style::color)
                                 },
@@ -243,12 +227,10 @@ fn file_view(
                             label(|| " ".to_string()),
                         )
                     })
-                    .style(|| {
-                        Style::BASE.absolute().items_center().margin_left_px(10.0)
-                    }),
+                    .style(|s| s.absolute().items_center().margin_left_px(10.0)),
                 )
             })
-            .style(move || Style::BASE.width_pct(100.0).min_width_px(0.0)),
+            .style(move |s| s.width_pct(100.0).min_width_px(0.0)),
             list(
                 move || {
                     if collpased.get() {
@@ -269,12 +251,11 @@ fn file_view(
                     )
                 },
             )
-            .style(|| Style::BASE.flex_col().width_pct(100.0).min_width_pct(0.0)),
+            .style(|s| s.flex_col().width_pct(100.0).min_width_pct(0.0)),
         )
     })
-    .style(move || {
-        Style::BASE
-            .width_pct(100.0)
+    .style(move |s| {
+        s.width_pct(100.0)
             .items_start()
             .flex_col()
             .apply_if(diagnostics.with(|d| d.is_empty()), |s| s.hide())
@@ -303,9 +284,8 @@ fn item_view(
                 stack(|| {
                     (
                         label(move || d.diagnostic.message.clone()).style(
-                            move || {
-                                Style::BASE
-                                    .width_pct(100.0)
+                            move |s| {
+                                s.width_pct(100.0)
                                     .min_width_px(0.0)
                                     .padding_left_px(
                                         10.0 + (config.get().ui.icon_size() as f32
@@ -318,28 +298,26 @@ fn item_view(
                         stack(|| {
                             (
                                 svg(move || config.get().ui_svg(icon)).style(
-                                    move || {
+                                    move |s| {
                                         let config = config.get();
                                         let size = config.ui.icon_size() as f32;
-                                        Style::BASE
-                                            .size_px(size, size)
-                                            .color(icon_color())
+                                        s.size_px(size, size).color(icon_color())
                                     },
                                 ),
                                 label(|| " ".to_string()),
                             )
                         })
-                        .style(move || {
-                            Style::BASE.absolute().items_center().margin_left_px(
+                        .style(move |s| {
+                            s.absolute().items_center().margin_left_px(
                                 10.0 + (config.get().ui.icon_size() as f32 + 6.0)
                                     * 2.0,
                             )
                         }),
                     )
                 })
-                .style(move || Style::BASE.width_pct(100.0).min_width_px(0.0))
-                .hover_style(move || {
-                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                .style(move |s| s.width_pct(100.0).min_width_px(0.0))
+                .hover_style(move |s| {
+                    s.cursor(CursorStyle::Pointer).background(
                         *config
                             .get()
                             .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -352,11 +330,11 @@ fn item_view(
                 });
                 true
             })
-            .style(|| Style::BASE.width_pct(100.0).min_width_pct(0.0)),
+            .style(|s| s.width_pct(100.0).min_width_pct(0.0)),
             related_view(related, internal_command, config),
         )
     })
-    .style(|| Style::BASE.width_pct(100.0).min_width_pct(0.0).flex_col())
+    .style(|s| s.width_pct(100.0).min_width_pct(0.0).flex_col())
 }
 
 fn related_view(
@@ -394,9 +372,8 @@ fn related_view(
                     };
                     let message = format!("{path}{}", related.message);
                     container(|| {
-                        label(move || message.clone()).style(move || {
-                            Style::BASE.width_pct(100.0).min_width_px(0.0)
-                        })
+                        label(move || message.clone())
+                            .style(move |s| s.width_pct(100.0).min_width_px(0.0))
                     })
                     .on_click(move |_| {
                         internal_command.send(InternalCommand::JumpToLocation {
@@ -404,18 +381,16 @@ fn related_view(
                         });
                         true
                     })
-                    .style(move || {
-                        Style::BASE
-                            .padding_left_px(
-                                10.0 + (config.get().ui.icon_size() as f32 + 6.0)
-                                    * 4.0,
-                            )
-                            .padding_right_px(10.0)
-                            .width_pct(100.0)
-                            .min_width_px(0.0)
+                    .style(move |s| {
+                        s.padding_left_px(
+                            10.0 + (config.get().ui.icon_size() as f32 + 6.0) * 4.0,
+                        )
+                        .padding_right_px(10.0)
+                        .width_pct(100.0)
+                        .min_width_px(0.0)
                     })
-                    .hover_style(move || {
-                        Style::BASE.cursor(CursorStyle::Pointer).background(
+                    .hover_style(move |s| {
+                        s.cursor(CursorStyle::Pointer).background(
                             *config
                                 .get()
                                 .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -423,31 +398,29 @@ fn related_view(
                     })
                 },
             )
-            .style(|| Style::BASE.width_pct(100.0).min_width_px(0.0).flex_col()),
+            .style(|s| s.width_pct(100.0).min_width_px(0.0).flex_col()),
             stack(|| {
                 (
                     svg(move || config.get().ui_svg(LapceIcons::LINK)).style(
-                        move || {
+                        move |s| {
                             let config = config.get();
                             let size = config.ui.icon_size() as f32;
-                            Style::BASE
-                                .size_px(size, size)
+                            s.size_px(size, size)
                                 .color(*config.get_color(LapceColor::EDITOR_DIM))
                         },
                     ),
                     label(|| " ".to_string()),
                 )
             })
-            .style(move || {
-                Style::BASE.absolute().items_center().margin_left_px(
+            .style(move |s| {
+                s.absolute().items_center().margin_left_px(
                     10.0 + (config.get().ui.icon_size() as f32 + 6.0) * 3.0,
                 )
             }),
         )
     })
-    .style(move || {
-        Style::BASE
-            .width_pct(100.0)
+    .style(move |s| {
+        s.width_pct(100.0)
             .min_width_px(0.0)
             .items_start()
             .color(*config.get().get_color(LapceColor::EDITOR_DIM))

@@ -2,8 +2,6 @@ use std::rc::Rc;
 
 use floem::{
     event::{Event, EventListener},
-    glazier::PointerType,
-    style::Style,
     view::View,
     views::{container, label, list, stack, svg, tab, Decorators},
 };
@@ -33,7 +31,7 @@ pub fn terminal_panel(window_tab_data: Rc<WindowTabData>) -> impl View {
         }
         false
     })
-    .style(|| Style::BASE.size_pct(100.0, 100.0).flex_col())
+    .style(|s| s.size_pct(100.0, 100.0).flex_col())
 }
 
 fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
@@ -104,24 +102,21 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                             (
                                 container(|| {
                                     svg(move || config.get().ui_svg(svg_string()))
-                                        .style(move || {
+                                        .style(move |s| {
                                             let config = config.get();
                                             let size = config.ui.icon_size() as f32;
-                                            Style::BASE.size_px(size, size).color(
+                                            s.size_px(size, size).color(
                                                 *config.get_color(
                                                     LapceColor::LAPCE_ICON_ACTIVE,
                                                 ),
                                             )
                                         })
                                 })
-                                .style(|| {
-                                    Style::BASE
-                                        .padding_horiz_px(10.0)
-                                        .padding_vert_px(11.0)
+                                .style(|s| {
+                                    s.padding_horiz_px(10.0).padding_vert_px(11.0)
                                 }),
-                                label(title).style(|| {
-                                    Style::BASE
-                                        .min_width_px(0.0)
+                                label(title).style(|s| {
+                                    s.min_width_px(0.0)
                                         .flex_basis_px(0.0)
                                         .flex_grow(1.0)
                                         .text_ellipsis()
@@ -135,12 +130,11 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                     || false,
                                     config,
                                 )
-                                .style(|| Style::BASE.margin_horiz_px(6.0)),
+                                .style(|s| s.margin_horiz_px(6.0)),
                             )
                         })
-                        .style(move || {
-                            Style::BASE
-                                .items_center()
+                        .style(move |s| {
+                            s.items_center()
                                 .width_px(200.0)
                                 .border_right(1.0)
                                 .border_color(
@@ -150,11 +144,10 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                 )
                         })
                     })
-                    .style(|| Style::BASE.items_center()),
+                    .style(|s| s.items_center()),
                     container(|| {
-                        label(|| "".to_string()).style(move || {
-                            Style::BASE
-                                .size_pct(100.0, 100.0)
+                        label(|| "".to_string()).style(move |s| {
+                            s.size_pct(100.0, 100.0)
                                 .border_bottom(if active_index() == index.get() {
                                     2.0
                                 } else {
@@ -171,11 +164,8 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                 ))
                         })
                     })
-                    .style(|| {
-                        Style::BASE
-                            .absolute()
-                            .padding_horiz_px(3.0)
-                            .size_pct(100.0, 100.0)
+                    .style(|s| {
+                        s.absolute().padding_horiz_px(3.0).size_pct(100.0, 100.0)
                     }),
                 )
             })
@@ -190,10 +180,9 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
             })
         },
     )
-    .style(move || {
+    .style(move |s| {
         let config = config.get();
-        Style::BASE
-            .width_pct(100.0)
+        s.width_pct(100.0)
             .border_bottom(1.0)
             .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
     })
@@ -234,10 +223,7 @@ fn terminal_tab_split(
                 })
                 .on_event(EventListener::PointerWheel, move |event| {
                     if let Event::PointerWheel(pointer_event) = event {
-                        if let PointerType::Mouse(info) = &pointer_event.pointer_type
-                        {
-                            terminal.clone().wheel_scroll(info.wheel_delta.y);
-                        }
+                        terminal.clone().wheel_scroll(pointer_event.delta.y);
                         true
                     } else {
                         false
@@ -246,24 +232,24 @@ fn terminal_tab_split(
                 .on_cleanup(move || {
                     terminal_scope.dispose();
                 })
-                .style(|| Style::BASE.size_pct(100.0, 100.0))
+                .style(|s| s.size_pct(100.0, 100.0))
             })
-            .style(move || {
-                Style::BASE
-                    .size_pct(100.0, 100.0)
-                    .padding_horiz_px(10.0)
-                    .apply_if(index.get() > 0, |s| {
+            .style(move |s| {
+                s.size_pct(100.0, 100.0).padding_horiz_px(10.0).apply_if(
+                    index.get() > 0,
+                    |s| {
                         s.border_left(1.0).border_color(
                             *config.get().get_color(LapceColor::LAPCE_BORDER),
                         )
-                    })
+                    },
+                )
             })
         },
     )
     .on_cleanup(move || {
         terminal_tab_scope.dispose();
     })
-    .style(|| Style::BASE.size_pct(100.0, 100.0))
+    .style(|s| s.size_pct(100.0, 100.0))
 }
 
 fn terminal_tab_content(window_tab_data: Rc<WindowTabData>) -> impl View {
@@ -274,5 +260,5 @@ fn terminal_tab_content(window_tab_data: Rc<WindowTabData>) -> impl View {
         |(_, tab)| tab.terminal_tab_id,
         move |(_, tab)| terminal_tab_split(terminal.clone(), tab),
     )
-    .style(|| Style::BASE.size_pct(100.0, 100.0))
+    .style(|s| s.size_pct(100.0, 100.0))
 }

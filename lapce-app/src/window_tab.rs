@@ -2,10 +2,11 @@ use std::{collections::HashSet, env, path::Path, sync::Arc, time::Instant};
 
 use crossbeam_channel::Sender;
 use floem::{
-    action::open_file,
+    action::{open_file, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
-    glazier::{FileDialogOptions, Modifiers, TimerToken},
+    file::FileDialogOptions,
+    keyboard::ModifiersState,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
 };
@@ -35,7 +36,10 @@ use crate::{
     db::LapceDb,
     debug::{DapData, RunDebugMode, RunDebugProcess},
     doc::{DocContent, EditorDiagnostic},
-    editor::location::{EditorLocation, EditorPosition},
+    editor::{
+        location::{EditorLocation, EditorPosition},
+        reset_blink_cursor,
+    },
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
     find::Find,
@@ -158,7 +162,7 @@ impl KeyPressFocus for WindowTabData {
         &self,
         _command: &LapceCommand,
         _count: Option<usize>,
-        _mods: Modifiers,
+        _mods: ModifiersState,
     ) -> CommandExecuted {
         CommandExecuted::No
     }
@@ -392,6 +396,23 @@ impl WindowTabData {
         };
 
         {
+            let focus = window_tab_data.common.focus;
+            let cursor_blink_timer = window_tab_data.common.cursor_blink_timer;
+            let hide_cursor = window_tab_data.common.hide_cursor;
+            let config = window_tab_data.common.config;
+            let active_editor = window_tab_data.main_split.active_editor;
+            let rename_active = window_tab_data.rename.active;
+            cx.create_effect(move |_| {
+                let focus = focus.get();
+                active_editor.track();
+                reset_blink_cursor(cursor_blink_timer, hide_cursor, config);
+                if focus != Focus::Rename && rename_active.get_untracked() {
+                    rename_active.set(false);
+                }
+            });
+        }
+
+        {
             let window_tab_data = window_tab_data.clone();
             window_tab_data.common.lapce_command.listen(move |cmd| {
                 window_tab_data.run_lapce_command(cmd);
@@ -452,12 +473,13 @@ impl WindowTabData {
             }
             CommandKind::Focus(_) | CommandKind::Edit(_) | CommandKind::Move(_) => {
                 if self.palette.status.get_untracked() != PaletteStatus::Inactive {
-                    self.palette.run_command(&cmd, None, Modifiers::default());
+                    self.palette
+                        .run_command(&cmd, None, ModifiersState::empty());
                 } else if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
                     let editor_data = editor_data.get_untracked();
-                    editor_data.run_command(&cmd, None, Modifiers::default());
+                    editor_data.run_command(&cmd, None, ModifiersState::empty());
                 } else {
                     // TODO: dispatch to current focused view?
                 }
@@ -1510,21 +1532,16 @@ impl WindowTabData {
         }
     }
 
-    pub fn hover_origin(&self) -> Point {
+    pub fn hover_origin(&self) -> Option<Point> {
         if !self.common.hover.active.get_untracked() {
-            return Point::ZERO;
+            return None;
         }
 
         let editor_id = self.common.hover.editor_id.get_untracked();
-        let editor = if let Some(editor) = self
+        let editor = self
             .main_split
             .editors
-            .with_untracked(|editors| editors.get(&editor_id).copied())
-        {
-            editor
-        } else {
-            return Point::ZERO;
-        };
+            .with(|editors| editors.get(&editor_id).copied())?;
 
         let (window_origin, viewport, view) =
             editor.with_untracked(|e| (e.window_origin, e.viewport, e.view.clone()));
@@ -1552,7 +1569,7 @@ impl WindowTabData {
             origin.x = 0.0;
         }
 
-        origin
+        Some(origin)
     }
 
     pub fn completion_origin(&self) -> Point {

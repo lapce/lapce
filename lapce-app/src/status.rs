@@ -2,7 +2,7 @@ use std::{rc::Rc, sync::Arc};
 
 use floem::{
     reactive::{create_memo, ReadSignal},
-    style::{AlignItems, CursorStyle, Display, Style},
+    style::{AlignItems, CursorStyle, Display},
     view::View,
     views::{label, stack, svg, Decorators},
 };
@@ -74,7 +74,7 @@ pub fn status(
                         Mode::Visual => "Visual".to_string(),
                         Mode::Terminal => "Terminal".to_string(),
                     })
-                    .style(move || {
+                    .style(move |s| {
                         let config = config.get();
                         let display = if config.core.modal {
                             Display::Flex
@@ -104,8 +104,7 @@ pub fn status(
                         let bg = *config.get_color(bg);
                         let fg = *config.get_color(fg);
 
-                        Style::BASE
-                            .display(display)
+                        s.display(display)
                             .padding_horiz_px(10.0)
                             .color(fg)
                             .background(bg)
@@ -115,37 +114,36 @@ pub fn status(
                     stack(move || {
                         (
                             svg(move || config.get().ui_svg(LapceIcons::SCM)).style(
-                                move || {
+                                move |s| {
                                     let config = config.get();
                                     let icon_size = config.ui.icon_size() as f32;
-                                    Style::BASE.size_px(icon_size, icon_size).color(
+                                    s.size_px(icon_size, icon_size).color(
                                         *config.get_color(
                                             LapceColor::LAPCE_ICON_ACTIVE,
                                         ),
                                     )
                                 },
                             ),
-                            label(branch).style(|| Style::BASE.margin_left_px(10.0)),
+                            label(branch).style(|s| s.margin_left_px(10.0)),
                         )
                     })
-                    .style(move || {
-                        Style::BASE
-                            .display(if branch().is_empty() {
-                                Display::None
-                            } else {
-                                Display::Flex
-                            })
-                            .height_pct(100.0)
-                            .padding_horiz_px(10.0)
-                            .align_items(Some(AlignItems::Center))
+                    .style(move |s| {
+                        s.display(if branch().is_empty() {
+                            Display::None
+                        } else {
+                            Display::Flex
+                        })
+                        .height_pct(100.0)
+                        .padding_horiz_px(10.0)
+                        .align_items(Some(AlignItems::Center))
                     })
                     .on_click(move |_| {
                         workbench_command
                             .send(LapceWorkbenchCommand::PaletteSCMReferences);
                         true
                     })
-                    .hover_style(move || {
-                        Style::BASE.cursor(CursorStyle::Pointer).background(
+                    .hover_style(move |s| {
+                        s.cursor(CursorStyle::Pointer).background(
                             *config
                                 .get()
                                 .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -156,46 +154,42 @@ pub fn status(
                         stack(|| {
                             (
                                 svg(move || config.get().ui_svg(LapceIcons::ERROR))
-                                    .style(move || {
+                                    .style(move |s| {
                                         let config = config.get();
                                         let size = config.ui.icon_size() as f32;
-                                        Style::BASE.size_px(size, size).color(
+                                        s.size_px(size, size).color(
                                             *config.get_color(
                                                 LapceColor::LAPCE_ICON_ACTIVE,
                                             ),
                                         )
                                     }),
                                 label(move || diagnostic_count.get().0.to_string())
-                                    .style(|| Style::BASE.margin_left_px(5.0)),
+                                    .style(|s| s.margin_left_px(5.0)),
                                 svg(move || {
                                     config.get().ui_svg(LapceIcons::WARNING)
                                 })
-                                .style(move || {
+                                .style(move |s| {
                                     let config = config.get();
                                     let size = config.ui.icon_size() as f32;
-                                    Style::BASE
-                                        .size_px(size, size)
-                                        .margin_left_px(5.0)
-                                        .color(*config.get_color(
+                                    s.size_px(size, size).margin_left_px(5.0).color(
+                                        *config.get_color(
                                             LapceColor::LAPCE_ICON_ACTIVE,
-                                        ))
+                                        ),
+                                    )
                                 }),
                                 label(move || diagnostic_count.get().1.to_string())
-                                    .style(|| Style::BASE.margin_left_px(5.0)),
+                                    .style(|s| s.margin_left_px(5.0)),
                             )
                         })
                         .on_click(move |_| {
                             panel.show_panel(&PanelKind::Problem);
                             true
                         })
-                        .style(|| {
-                            Style::BASE
-                                .height_pct(100.0)
-                                .padding_horiz_px(10.0)
-                                .items_center()
+                        .style(|s| {
+                            s.height_pct(100.0).padding_horiz_px(10.0).items_center()
                         })
-                        .hover_style(move || {
-                            Style::BASE.cursor(CursorStyle::Pointer).background(
+                        .hover_style(move |s| {
+                            s.cursor(CursorStyle::Pointer).background(
                                 *config
                                     .get()
                                     .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -204,9 +198,8 @@ pub fn status(
                     },
                 )
             })
-            .style(|| {
-                Style::BASE
-                    .height_pct(100.0)
+            .style(|s| {
+                s.height_pct(100.0)
                     .flex_basis_px(0.0)
                     .flex_grow(1.0)
                     .items_center()
@@ -296,7 +289,7 @@ pub fn status(
                     },
                 )
             })
-            .style(|| Style::BASE.height_pct(100.0).items_center()),
+            .style(|s| s.height_pct(100.0).items_center()),
             stack(|| {
                 let palette_clone = palette.clone();
                 let cursor_info = label(move || {
@@ -332,24 +325,23 @@ pub fn status(
                     palette_clone.run(PaletteKind::Line);
                     true
                 })
-                .style(move || {
-                    Style::BASE
-                        .display(
-                            if editor()
-                                .map(|f| f.get().view.doc.get().content.is_file())
-                                .unwrap_or(false)
-                            {
-                                Display::Flex
-                            } else {
-                                Display::None
-                            },
-                        )
-                        .height_pct(100.0)
-                        .padding_horiz_px(10.0)
-                        .items_center()
+                .style(move |s| {
+                    s.display(
+                        if editor()
+                            .map(|f| f.get().view.doc.get().content.is_file())
+                            .unwrap_or(false)
+                        {
+                            Display::Flex
+                        } else {
+                            Display::None
+                        },
+                    )
+                    .height_pct(100.0)
+                    .padding_horiz_px(10.0)
+                    .items_center()
                 })
-                .hover_style(move || {
-                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                .hover_style(move |s| {
+                    s.cursor(CursorStyle::Pointer).background(
                         *config
                             .get()
                             .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -368,24 +360,23 @@ pub fn status(
                     palette_clone.run(PaletteKind::Language);
                     true
                 })
-                .style(move || {
-                    Style::BASE
-                        .display(
-                            if editor()
-                                .map(|f| f.get().view.doc.get().content.is_file())
-                                .unwrap_or(false)
-                            {
-                                Display::Flex
-                            } else {
-                                Display::None
-                            },
-                        )
-                        .height_pct(100.0)
-                        .padding_horiz_px(10.0)
-                        .items_center()
+                .style(move |s| {
+                    s.display(
+                        if editor()
+                            .map(|f| f.get().view.doc.get().content.is_file())
+                            .unwrap_or(false)
+                        {
+                            Display::Flex
+                        } else {
+                            Display::None
+                        },
+                    )
+                    .height_pct(100.0)
+                    .padding_horiz_px(10.0)
+                    .items_center()
                 })
-                .hover_style(move || {
-                    Style::BASE.cursor(CursorStyle::Pointer).background(
+                .hover_style(move |s| {
+                    s.cursor(CursorStyle::Pointer).background(
                         *config
                             .get()
                             .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -393,19 +384,17 @@ pub fn status(
                 });
                 (cursor_info, language_info)
             })
-            .style(|| {
-                Style::BASE
-                    .height_pct(100.0)
+            .style(|s| {
+                s.height_pct(100.0)
                     .flex_basis_px(0.0)
                     .flex_grow(1.0)
                     .justify_end()
             }),
         )
     })
-    .style(move || {
+    .style(move |s| {
         let config = config.get();
-        Style::BASE
-            .border_top(1.0)
+        s.border_top(1.0)
             .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
             .background(*config.get_color(LapceColor::STATUS_BACKGROUND))
             .height_px(config.ui.status_height() as f32)

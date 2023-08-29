@@ -14,6 +14,7 @@ use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use floem::{
     ext_event::{create_ext_action, create_signal_from_channel},
+    keyboard::ModifiersState,
     reactive::{use_context, ReadSignal, RwSignal, Scope},
 };
 use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
@@ -1364,7 +1365,7 @@ impl KeyPressFocus for PaletteData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        mods: floem::glazier::Modifiers,
+        mods: ModifiersState,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}

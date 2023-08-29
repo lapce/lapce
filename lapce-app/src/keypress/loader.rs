@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_keymap() {
-        let keymaps = r###"
+        let keymaps = r#"
 [[keymaps]]
 key = "ctrl+w l l"
 command = "right"
@@ -175,7 +175,7 @@ command = "jump_location_backward"
 [[keymaps]]
 key = "Ctrl+MouseMiddle"
 command = "goto_definition"
-        "###;
+        "#;
         let mut loader = KeyMapLoader::new();
         loader.load_from_str(keymaps, true).unwrap();
 

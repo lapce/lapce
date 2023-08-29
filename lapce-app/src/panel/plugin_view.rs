@@ -5,7 +5,7 @@ use floem::{
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Size},
     reactive::{create_memo, create_rw_signal, RwSignal},
-    style::{CursorStyle, Style},
+    style::CursorStyle,
     view::View,
     views::{
         container, empty, label, scroll, stack, virtual_list, Decorators,
@@ -75,9 +75,8 @@ pub fn plugin_panel(
                         installed_view(plugin),
                     )
                 })
-                .style(|| {
-                    Style::BASE
-                        .flex_col()
+                .style(|s| {
+                    s.flex_col()
                         .width_pct(100.0)
                         .flex_grow(1.0)
                         .flex_basis_px(0.0)
@@ -91,9 +90,8 @@ pub fn plugin_panel(
                         available_view(plugin),
                     )
                 })
-                .style(|| {
-                    Style::BASE
-                        .flex_col()
+                .style(|s| {
+                    s.flex_col()
                         .width_pct(100.0)
                         .flex_grow(1.0)
                         .flex_basis_px(0.0)
@@ -101,9 +99,8 @@ pub fn plugin_panel(
             },
         )
     })
-    .style(move || {
-        Style::BASE
-            .width_pct(100.0)
+    .style(move |s| {
+        s.width_pct(100.0)
             .apply_if(!position.is_bottom(), |s| s.flex_col())
     })
 }
@@ -195,28 +192,26 @@ fn installed_view(plugin: PluginData) -> impl View {
         let volt_id = meta.id();
         stack(move || {
             (
-                empty().style(|| {
-                    Style::BASE
-                        .min_size_px(50.0, 50.0)
+                empty().style(|s| {
+                    s.min_size_px(50.0, 50.0)
                         .size_px(50.0, 50.0)
                         .margin_top_px(5.0)
                         .margin_right_px(10.0)
                 }),
                 stack(move || {
                     (
-                        label(move || meta.display_name.clone()).style(|| {
-                            Style::BASE.font_bold().text_ellipsis().min_width_px(0.0)
+                        label(move || meta.display_name.clone()).style(|s| {
+                            s.font_bold().text_ellipsis().min_width_px(0.0)
                         }),
                         label(move || meta.description.clone())
-                            .style(|| Style::BASE.text_ellipsis().min_width_px(0.0)),
+                            .style(|s| s.text_ellipsis().min_width_px(0.0)),
                         stack(move || {
                             (
                                 stack(|| {
                                     (
                                         label(move || meta.author.clone()).style(
-                                            || {
-                                                Style::BASE
-                                                    .text_ellipsis()
+                                            |s| {
+                                                s.text_ellipsis()
                                                     .max_width_pct(100.0)
                                             },
                                         ),
@@ -231,12 +226,11 @@ fn installed_view(plugin: PluginData) -> impl View {
                                                 format!("v{}", meta.version.clone())
                                             }
                                         })
-                                        .style(|| Style::BASE.text_ellipsis()),
+                                        .style(|s| s.text_ellipsis()),
                                     )
                                 })
-                                .style(|| {
-                                    Style::BASE
-                                        .justify_between()
+                                .style(|s| {
+                                    s.justify_between()
                                         .flex_grow(1.0)
                                         .flex_basis_px(0.0)
                                         .min_width_px(0.0)
@@ -248,7 +242,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                                     || false,
                                     config,
                                 )
-                                .style(|| Style::BASE.padding_left_px(6.0))
+                                .style(|s| s.padding_left_px(6.0))
                                 .popout_menu(
                                     move || {
                                         plugin_controls(
@@ -260,21 +254,19 @@ fn installed_view(plugin: PluginData) -> impl View {
                                 ),
                             )
                         })
-                        .style(|| Style::BASE.width_pct(100.0).items_center()),
+                        .style(|s| s.width_pct(100.0).items_center()),
                     )
                 })
-                .style(|| {
-                    Style::BASE
-                        .flex_col()
+                .style(|s| {
+                    s.flex_col()
                         .flex_grow(1.0)
                         .flex_basis_px(0.0)
                         .min_width_px(0.0)
                 }),
             )
         })
-        .style(|| {
-            Style::BASE
-                .width_pct(100.0)
+        .style(|s| {
+            s.width_pct(100.0)
                 .padding_horiz_px(10.0)
                 .padding_vert_px(5.0)
         })
@@ -291,16 +283,12 @@ fn installed_view(plugin: PluginData) -> impl View {
                 move |(_, id, _)| id.clone(),
                 move |(_, _, volt)| view_fn(volt, plugin.clone()),
             )
-            .style(|| Style::BASE.flex_col().width_pct(100.0))
+            .style(|s| s.flex_col().width_pct(100.0))
         })
-        .scroll_bar_color(move || {
-            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-        })
-        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+        .style(|s| s.absolute().size_pct(100.0, 100.0))
     })
-    .style(|| {
-        Style::BASE
-            .width_pct(100.0)
+    .style(|s| {
+        s.width_pct(100.0)
             .line_height(1.6)
             .flex_grow(1.0)
             .flex_basis_px(0.0)
@@ -331,12 +319,9 @@ fn available_view(plugin: PluginData) -> impl View {
             }
         })
         .disabled(move || installed.get() || installing.get())
-        .style(move || {
+        .style(move |s| {
             let config = config.get();
-            Style::BASE
-                .color(
-                    *config.get_color(LapceColor::LAPCE_BUTTON_PRIMARY_FOREGROUND),
-                )
+            s.color(*config.get_color(LapceColor::LAPCE_BUTTON_PRIMARY_FOREGROUND))
                 .background(
                     *config.get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND),
                 )
@@ -348,24 +333,24 @@ fn available_view(plugin: PluginData) -> impl View {
             plugin.install_volt(info.get_untracked());
             true
         })
-        .hover_style(move || {
-            Style::BASE.cursor(CursorStyle::Pointer).background(
+        .hover_style(move |s| {
+            s.cursor(CursorStyle::Pointer).background(
                 config
                     .get()
                     .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
                     .with_alpha_factor(0.8),
             )
         })
-        .active_style(move || {
-            Style::BASE.background(
+        .active_style(move |s| {
+            s.background(
                 config
                     .get()
                     .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
                     .with_alpha_factor(0.6),
             )
         })
-        .disabled_style(move || {
-            Style::BASE.background(*config.get().get_color(LapceColor::EDITOR_DIM))
+        .disabled_style(move |s| {
+            s.background(*config.get().get_color(LapceColor::EDITOR_DIM))
         })
     };
 
@@ -373,25 +358,23 @@ fn available_view(plugin: PluginData) -> impl View {
         let info = volt.info.get_untracked();
         stack(|| {
             (
-                empty().style(|| {
-                    Style::BASE
-                        .min_size_px(50.0, 50.0)
+                empty().style(|s| {
+                    s.min_size_px(50.0, 50.0)
                         .size_px(50.0, 50.0)
                         .margin_top_px(5.0)
                         .margin_right_px(10.0)
                 }),
                 stack(|| {
                     (
-                        label(move || info.display_name.clone()).style(|| {
-                            Style::BASE.font_bold().text_ellipsis().min_width_px(0.0)
+                        label(move || info.display_name.clone()).style(|s| {
+                            s.font_bold().text_ellipsis().min_width_px(0.0)
                         }),
                         label(move || info.description.clone())
-                            .style(|| Style::BASE.text_ellipsis().min_width_px(0.0)),
+                            .style(|s| s.text_ellipsis().min_width_px(0.0)),
                         stack(|| {
                             (
-                                label(move || info.author.clone()).style(|| {
-                                    Style::BASE
-                                        .text_ellipsis()
+                                label(move || info.author.clone()).style(|s| {
+                                    s.text_ellipsis()
                                         .min_width_px(0.0)
                                         .flex_grow(1.0)
                                         .flex_basis_px(0.0)
@@ -399,21 +382,19 @@ fn available_view(plugin: PluginData) -> impl View {
                                 install_button(id, volt.info, volt.installing),
                             )
                         })
-                        .style(|| Style::BASE.width_pct(100.0).items_center()),
+                        .style(|s| s.width_pct(100.0).items_center()),
                     )
                 })
-                .style(|| {
-                    Style::BASE
-                        .flex_col()
+                .style(|s| {
+                    s.flex_col()
                         .flex_grow(1.0)
                         .flex_basis_px(0.0)
                         .min_width_px(0.0)
                 }),
             )
         })
-        .style(|| {
-            Style::BASE
-                .width_pct(100.0)
+        .style(|s| {
+            s.width_pct(100.0)
                 .padding_horiz_px(10.0)
                 .padding_vert_px(5.0)
         })
@@ -434,9 +415,8 @@ fn available_view(plugin: PluginData) -> impl View {
                         .on_cursor_pos(move |point| {
                             cursor_x.set(point.x);
                         })
-                        .style(|| {
-                            Style::BASE
-                                .padding_vert_px(4.0)
+                        .style(|s| {
+                            s.padding_vert_px(4.0)
                                 .padding_horiz_px(10.0)
                                 .min_width_pct(100.0)
                         })
@@ -451,10 +431,9 @@ fn available_view(plugin: PluginData) -> impl View {
                     focus.set(Focus::Panel(PanelKind::Plugin));
                     false
                 })
-                .style(move || {
+                .style(move |s| {
                     let config = config.get();
-                    Style::BASE
-                        .width_pct(100.0)
+                    s.width_pct(100.0)
                         .cursor(CursorStyle::Text)
                         .items_center()
                         .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
@@ -463,7 +442,7 @@ fn available_view(plugin: PluginData) -> impl View {
                         .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                 })
             })
-            .style(|| Style::BASE.padding_px(10.0).width_pct(100.0)),
+            .style(|s| s.padding_px(10.0).width_pct(100.0)),
             container(|| {
                 scroll(|| {
                     virtual_list(
@@ -478,24 +457,20 @@ fn available_view(plugin: PluginData) -> impl View {
                     .on_resize(move |rect| {
                         content_rect.set(rect);
                     })
-                    .style(|| Style::BASE.flex_col().width_pct(100.0))
+                    .style(|s| s.flex_col().width_pct(100.0))
                 })
                 .on_scroll(move |rect| {
                     if rect.y1 + 30.0 > content_rect.get_untracked().y1 {
                         plugin.load_more_available();
                     }
                 })
-                .scroll_bar_color(move || {
-                    *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-                })
-                .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+                .style(|s| s.absolute().size_pct(100.0, 100.0))
             })
-            .style(|| Style::BASE.size_pct(100.0, 100.0)),
+            .style(|s| s.size_pct(100.0, 100.0)),
         )
     })
-    .style(|| {
-        Style::BASE
-            .width_pct(100.0)
+    .style(|s| {
+        s.width_pct(100.0)
             .line_height(1.6)
             .flex_grow(1.0)
             .flex_basis_px(0.0)

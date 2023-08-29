@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
-use floem::reactive::{RwSignal, Scope};
+use floem::{
+    keyboard::ModifiersState,
+    reactive::{RwSignal, Scope},
+};
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
 use lapce_rpc::source_control::FileDiff;
@@ -40,7 +43,7 @@ impl KeyPressFocus for SourceControlData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        mods: floem::glazier::Modifiers,
+        mods: ModifiersState,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}

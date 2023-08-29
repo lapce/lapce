@@ -2,7 +2,6 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, LineHeightValue, TextLayout},
     peniko::kurbo::Rect,
     reactive::{create_effect, create_rw_signal},
-    style::Style,
     view::View,
     views::{container, label, rich_text, scroll, stack, Decorators},
 };
@@ -93,11 +92,10 @@ pub fn text_area(
                         .on_resize(move |rect| {
                             text_area_rect.set(rect);
                         })
-                        .style(|| Style::BASE.width_pct(100.0)),
-                    label(|| " ".to_string()).style(move || {
+                        .style(|s| s.width_pct(100.0)),
+                    label(|| " ".to_string()).style(move |s| {
                         let cursor_pos = cursor_pos();
-                        Style::BASE
-                            .absolute()
+                        s.absolute()
                             .line_height(line_height)
                             .margin_left_px(cursor_pos.x as f32 - 1.0)
                             .margin_top_px(cursor_pos.y as f32)
@@ -109,17 +107,13 @@ pub fn text_area(
                     }),
                 )
             })
-            .style(|| Style::BASE.width_pct(100.0).padding_px(6.0))
+            .style(|s| s.width_pct(100.0).padding_px(6.0))
         })
-        .scroll_bar_color(move || {
-            *config.get().get_color(LapceColor::LAPCE_SCROLL_BAR)
-        })
-        .style(|| Style::BASE.absolute().size_pct(100.0, 100.0))
+        .style(|s| s.absolute().size_pct(100.0, 100.0))
     })
-    .base_style(move || {
+    .base_style(move |s| {
         let config = config.get();
-        Style::BASE
-            .border(1.0)
+        s.border(1.0)
             .border_radius(6.0)
             .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
             .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
