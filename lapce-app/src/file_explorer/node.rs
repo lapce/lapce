@@ -72,6 +72,18 @@ impl FileNode {
         }
     }
 
+    pub fn middle_click(&self) -> bool {
+        if self.is_dir {
+            false
+        } else {
+            self.internal_command
+                .send(InternalCommand::OpenFileInNewTab {
+                    path: self.path.clone(),
+                });
+            true
+        }
+    }
+
     pub fn toggle_expand(&self, proxy: &ProxyRpcHandler) {
         if !self.is_dir {
             return;
