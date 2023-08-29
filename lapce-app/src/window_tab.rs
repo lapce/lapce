@@ -1116,6 +1116,18 @@ impl WindowTabData {
                     None,
                 );
             }
+            InternalCommand::OpenFileInNewTab { path } => {
+                self.main_split.jump_to_location(
+                    EditorLocation {
+                        path,
+                        position: None,
+                        scroll_offset: None,
+                        ignore_unconfirmed: true,
+                        same_editor_tab: false,
+                    },
+                    None,
+                );
+            }
             InternalCommand::OpenFileChanges { path } => {
                 self.main_split.open_file_changes(path);
             }
