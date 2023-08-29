@@ -2166,7 +2166,8 @@ fn palette_item(
                 )
             })
         }
-        PaletteItemContent::Command { .. } => {
+        PaletteItemContent::PaletteHelp { .. }
+        | PaletteItemContent::Command { .. } => {
             let text = item.filter_text;
             let indices = item.indices;
             let keys = if let Some(keymap) = keymap {
@@ -2333,12 +2334,20 @@ fn palette_content(
                     },
                     move |(i, item)| {
                         let workspace = workspace.clone();
-                        let keymap = if let PaletteItemContent::Command { cmd } =
-                            item.clone().content
-                        {
-                            keymaps.get(cmd.kind.str()).and_then(|maps| maps.get(0))
-                        } else {
-                            None
+                        let keymap = {
+                            let cmd_kind = match &item.content {
+                                PaletteItemContent::PaletteHelp { cmd } => {
+                                    Some(CommandKind::Workbench(cmd.clone()))
+                                }
+                                PaletteItemContent::Command {
+                                    cmd: LapceCommand { kind, .. },
+                                } => Some(kind.clone()),
+                                _ => None,
+                            };
+
+                            cmd_kind
+                                .and_then(|kind| keymaps.get(kind.str()))
+                                .and_then(|maps| maps.get(0))
                         };
                         container(move || {
                             palette_item(

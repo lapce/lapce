@@ -835,6 +835,7 @@ impl WindowTabData {
             }
 
             // ==== Palette Commands ====
+            PaletteHelp => self.palette.run(PaletteKind::PaletteHelp),
             PaletteLine => {
                 self.palette.run(PaletteKind::Line);
             }

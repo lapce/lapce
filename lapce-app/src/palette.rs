@@ -26,13 +26,16 @@ use lapce_core::{
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
 use lsp_types::DocumentSymbolResponse;
+use strum::{EnumMessage, IntoEnumIterator};
 
 use self::{
     item::{PaletteItem, PaletteItemContent},
     kind::PaletteKind,
 };
 use crate::{
-    command::{CommandExecuted, CommandKind, InternalCommand, WindowCommand},
+    command::{
+        CommandExecuted, CommandKind, InternalCommand, LapceCommand, WindowCommand,
+    },
     db::LapceDb,
     debug::{run_configs, RunDebugMode},
     editor::{
@@ -291,7 +294,7 @@ impl PaletteData {
         palette
     }
 
-    /// Start and focus the palette for the given kind.  
+    /// Start and focus the palette for the given kind.
     pub fn run(&self, kind: PaletteKind) {
         self.common.focus.set(Focus::Palette);
         self.status.set(PaletteStatus::Started);
@@ -316,6 +319,7 @@ impl PaletteData {
         self.run_id.set(run_id);
 
         match kind {
+            PaletteKind::PaletteHelp => self.get_palette_help(),
             PaletteKind::File => {
                 self.get_files();
             }
@@ -368,6 +372,40 @@ impl PaletteData {
                 self.get_scm_references();
             }
         }
+    }
+
+    /// Initialize the palette with a list of the available palette kinds.
+    fn get_palette_help(&self) {
+        let items = PaletteKind::iter()
+            .filter_map(|kind| {
+                // Don't include PaletteHelp as the user is already here.
+                (kind != PaletteKind::PaletteHelp)
+                    .then(|| {
+                        let symbol = kind.symbol();
+
+                        // Only include palette kinds accessible by typing a prefix into the
+                        // palette.
+                        (kind == PaletteKind::File || !symbol.is_empty())
+                            .then_some(kind)
+                    })
+                    .flatten()
+            })
+            .filter_map(|kind| kind.command().map(|cmd| (kind, cmd)))
+            .map(|(kind, cmd)| {
+                let description = kind.symbol().to_string()
+                    + " "
+                    + cmd.get_message().unwrap_or("");
+
+                PaletteItem {
+                    content: PaletteItemContent::PaletteHelp { cmd },
+                    filter_text: description,
+                    score: 0,
+                    indices: vec![],
+                }
+            })
+            .collect();
+
+        self.items.set(items);
     }
 
     /// Initialize the palette with the files in the current workspace.
@@ -843,6 +881,14 @@ impl PaletteData {
         self.close();
         if let Some(item) = items.get(index) {
             match &item.content {
+                PaletteItemContent::PaletteHelp { cmd } => {
+                    let cmd = LapceCommand {
+                        kind: CommandKind::Workbench(cmd.clone()),
+                        data: None,
+                    };
+
+                    self.common.lapce_command.send(cmd);
+                }
                 PaletteItemContent::File { full_path, .. } => {
                     self.common
                         .internal_command
@@ -1022,6 +1068,7 @@ impl PaletteData {
         let items = self.filtered_items.get_untracked();
         if let Some(item) = items.get(index) {
             match &item.content {
+                PaletteItemContent::PaletteHelp { .. } => {}
                 PaletteItemContent::File { .. } => {}
                 PaletteItemContent::Line { line, .. } => {
                     self.has_preview.set(true);
@@ -1146,7 +1193,7 @@ impl PaletteData {
         self.close();
     }
 
-    /// Close the palette, reverting focus back to the workbench.  
+    /// Close the palette, reverting focus back to the workbench.
     fn close(&self) {
         self.status.set(PaletteStatus::Inactive);
         if self.common.focus.get_untracked() == Focus::Palette {

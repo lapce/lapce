@@ -4,7 +4,7 @@ use lapce_rpc::dap_types::RunDebugConfig;
 use lsp_types::{Range, SymbolKind};
 
 use crate::{
-    command::LapceCommand,
+    command::{LapceCommand, LapceWorkbenchCommand},
     debug::RunDebugMode,
     editor::location::EditorLocation,
     workspace::{LapceWorkspace, SshHost},
@@ -20,6 +20,9 @@ pub struct PaletteItem {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaletteItemContent {
+    PaletteHelp {
+        cmd: LapceWorkbenchCommand,
+    },
     File {
         path: PathBuf,
         full_path: PathBuf,
