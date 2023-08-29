@@ -1,5 +1,10 @@
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+use strum_macros::EnumIter;
+
+use crate::command::LapceWorkbenchCommand;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter)]
 pub enum PaletteKind {
+    PaletteHelp,
     File,
     Line,
     Command,
@@ -19,6 +24,7 @@ impl PaletteKind {
     /// The symbol/prefix that is used to signify the behavior of the palette.
     pub fn symbol(&self) -> &'static str {
         match &self {
+            PaletteKind::PaletteHelp => "?",
             PaletteKind::Line => "/",
             PaletteKind::DocumentSymbol => "@",
             PaletteKind::WorkspaceSymbol => "#",
@@ -39,12 +45,41 @@ impl PaletteKind {
     /// Extract the palette kind from the input string. This is most often a prefix.
     pub fn from_input(input: &str) -> PaletteKind {
         match input {
+            _ if input.starts_with('?') => PaletteKind::PaletteHelp,
             _ if input.starts_with('/') => PaletteKind::Line,
             _ if input.starts_with('@') => PaletteKind::DocumentSymbol,
             _ if input.starts_with('#') => PaletteKind::WorkspaceSymbol,
             _ if input.starts_with('>') => PaletteKind::Workspace,
             _ if input.starts_with(':') => PaletteKind::Command,
             _ => PaletteKind::File,
+        }
+    }
+
+    /// Get the [`LapceWorkbenchCommand`] that opens this palette kind, if one exists.
+    pub fn command(self) -> Option<LapceWorkbenchCommand> {
+        match self {
+            PaletteKind::PaletteHelp => Some(LapceWorkbenchCommand::PaletteHelp),
+            PaletteKind::Line => Some(LapceWorkbenchCommand::PaletteLine),
+            PaletteKind::DocumentSymbol => {
+                Some(LapceWorkbenchCommand::PaletteSymbol)
+            }
+            PaletteKind::WorkspaceSymbol => {
+                Some(LapceWorkbenchCommand::PaletteWorkspaceSymbol)
+            }
+            PaletteKind::Workspace => Some(LapceWorkbenchCommand::PaletteWorkspace),
+            PaletteKind::Command => Some(LapceWorkbenchCommand::PaletteCommand),
+            PaletteKind::File => Some(LapceWorkbenchCommand::Palette),
+            PaletteKind::Reference => None, // InternalCommand::PaletteReferences
+            PaletteKind::SshHost => Some(LapceWorkbenchCommand::ConnectSshHost),
+            PaletteKind::RunAndDebug => {
+                Some(LapceWorkbenchCommand::PaletteRunAndDebug)
+            }
+            PaletteKind::ColorTheme => Some(LapceWorkbenchCommand::ChangeColorTheme),
+            PaletteKind::IconTheme => Some(LapceWorkbenchCommand::ChangeIconTheme),
+            PaletteKind::Language => Some(LapceWorkbenchCommand::ChangeFileLanguage),
+            PaletteKind::SCMReferences => {
+                Some(LapceWorkbenchCommand::PaletteSCMReferences)
+            }
         }
     }
 
@@ -69,13 +104,14 @@ impl PaletteKind {
             | PaletteKind::IconTheme
             | PaletteKind::Language
             | PaletteKind::SCMReferences => input,
-            PaletteKind::Command
+            PaletteKind::PaletteHelp
+            | PaletteKind::Command
             | PaletteKind::Workspace
             | PaletteKind::DocumentSymbol
             | PaletteKind::WorkspaceSymbol
             | PaletteKind::Line
             // | PaletteType::GlobalSearch
-             => if !input.is_empty() {&input[1..]} else {input},
+             => input.get(1..).unwrap_or(""),
         }
     }
 
