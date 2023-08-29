@@ -733,6 +733,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "clipboard"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25a904646c0340239dcf7c51677b33928bf24fdf424b79a57909c0109075b2e7"
+dependencies = [
+ "clipboard-win",
+ "objc",
+ "objc-foundation",
+ "objc_id",
+ "x11-clipboard",
+]
+
+[[package]]
+name = "clipboard-win"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3a093d6fed558e5fe24c3dfc85a68bb68f1c824f440d3ba5aca189e2998786b"
+dependencies = [
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "cocoa"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1464,7 +1486,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4439c1adddd9cb13e1f84db1c5764e7b50927eeb#4439c1adddd9cb13e1f84db1c5764e7b50927eeb"
+source = "git+https://github.com/lapce/floem?rev=8bf461fc2f221c76892748b4da653839c760a39f#8bf461fc2f221c76892748b4da653839c760a39f"
 dependencies = [
  "bitflags 2.4.0",
  "crossbeam-channel",
@@ -1491,12 +1513,12 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4439c1adddd9cb13e1f84db1c5764e7b50927eeb#4439c1adddd9cb13e1f84db1c5764e7b50927eeb"
+source = "git+https://github.com/lapce/floem?rev=8bf461fc2f221c76892748b4da653839c760a39f#8bf461fc2f221c76892748b4da653839c760a39f"
 
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4439c1adddd9cb13e1f84db1c5764e7b50927eeb#4439c1adddd9cb13e1f84db1c5764e7b50927eeb"
+source = "git+https://github.com/lapce/floem?rev=8bf461fc2f221c76892748b4da653839c760a39f#8bf461fc2f221c76892748b4da653839c760a39f"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1506,7 +1528,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4439c1adddd9cb13e1f84db1c5764e7b50927eeb#4439c1adddd9cb13e1f84db1c5764e7b50927eeb"
+source = "git+https://github.com/lapce/floem?rev=8bf461fc2f221c76892748b4da653839c760a39f#8bf461fc2f221c76892748b4da653839c760a39f"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -2607,6 +2629,7 @@ dependencies = [
  "bytemuck",
  "chrono",
  "clap",
+ "clipboard",
  "config",
  "crossbeam-channel",
  "directories",
@@ -5519,7 +5542,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.7"
-source = "git+https://github.com/lapce/vger-rs?rev=4765fb2c0cc4507a4cc6133a326b4a05bf6d9a94#4765fb2c0cc4507a4cc6133a326b4a05bf6d9a94"
+source = "git+https://github.com/lapce/vger-rs?rev=e8f342b88a96045b7e24421541a1030f950f20f4#e8f342b88a96045b7e24421541a1030f950f20f4"
 dependencies = [
  "cosmic-text",
  "euclid",
@@ -6638,6 +6661,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "x11-clipboard"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89bd49c06c9eb5d98e6ba6536cf64ac9f7ee3a009b2f53996d405b3944f6bcea"
+dependencies = [
+ "xcb",
+]
+
+[[package]]
 name = "x11-dl"
 version = "2.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6681,6 +6713,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d1526bbe5aaeb5eb06885f4d987bcdfa5e23187055de9b83fe00156a821fabc"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "xcb"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e917a3f24142e9ff8be2414e36c649d47d6cc2ba81f16201cdef96e533e02de"
+dependencies = [
+ "libc",
+ "log",
 ]
 
 [[package]]

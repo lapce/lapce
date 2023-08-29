@@ -1,6 +1,7 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use floem::{
+    action::{exec_after, TimerToken},
     event::EventListener,
     keyboard::ModifiersState,
     peniko::{
@@ -548,6 +549,8 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
         None
     };
 
+    let timer = create_rw_signal(TimerToken::INVALID);
+
     let editor_value = match &item.value {
         SettingsValue::Float(n) => Some(n.to_string()),
         SettingsValue::Integer(n) => Some(n.to_string()),
@@ -580,14 +583,28 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     if last == Some(rev) {
                         return rev;
                     }
-                    let value = doc.with_untracked(|doc| doc.buffer().to_string());
+                    let kind = kind.clone();
+                    let field = field.clone();
+                    let token =
+                        exec_after(Duration::from_millis(500), move |token| {
+                            if let Some(timer) = timer.try_get_untracked() {
+                                if timer == token {
+                                    let value = doc.with_untracked(|doc| {
+                                        doc.buffer().to_string()
+                                    });
 
-                    if let Ok(value) = serde::Serialize::serialize(
-                        &value,
-                        toml_edit::ser::ValueSerializer::new(),
-                    ) {
-                        LapceConfig::update_file(&kind, &field, value);
-                    }
+                                    if let Ok(value) = serde::Serialize::serialize(
+                                        &value,
+                                        toml_edit::ser::ValueSerializer::new(),
+                                    ) {
+                                        LapceConfig::update_file(
+                                            &kind, &field, value,
+                                        );
+                                    }
+                                }
+                            }
+                        });
+                    timer.set(token);
 
                     rev
                 });
@@ -888,6 +905,6 @@ pub fn checkbox(
             .color(color)
             .border_color(color)
             .border(1.)
-            .border_radius(4.)
+            .border_radius(2.)
     })
 }

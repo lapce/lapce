@@ -33,7 +33,7 @@ use crate::{
     editor::{
         diff::DiffEditorData,
         location::{EditorLocation, EditorPosition},
-        reset_blink_cursor, EditorData,
+        EditorData,
     },
     editor_tab::{
         EditorTabChild, EditorTabChildSource, EditorTabData, EditorTabInfo,
@@ -292,18 +292,6 @@ impl MainSplitData {
             });
         }
 
-        {
-            let focus = common.focus;
-            let cursor_blink_timer = common.cursor_blink_timer;
-            let hide_cursor = common.hide_cursor;
-            let config = common.config;
-            cx.create_effect(move |_| {
-                focus.track();
-                active_editor.track();
-                reset_blink_cursor(cursor_blink_timer, hide_cursor, config);
-            });
-        }
-
         Self {
             scope: cx,
             root_split: SplitId::next(),
@@ -459,8 +447,6 @@ impl MainSplitData {
             self.docs.update(|docs| {
                 docs.insert(path.clone(), doc);
             });
-
-            {}
 
             {
                 let proxy = self.common.proxy.clone();

@@ -4,9 +4,10 @@ use std::{
 
 use anyhow::Result;
 use floem::{
-    action::{exec_after, TimerToken},
+    action::{exec_after, show_context_menu, TimerToken},
     ext_event::create_ext_action,
     keyboard::ModifiersState,
+    menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Vec2},
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
     reactive::{use_context, ReadSignal, RwSignal, Scope},
@@ -30,7 +31,10 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::{CommandExecuted, CommandKind, InternalCommand},
+    command::{
+        CommandExecuted, CommandKind, InternalCommand, LapceCommand,
+        LapceWorkbenchCommand,
+    },
     completion::{clear_completion_lens, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
@@ -1910,7 +1914,9 @@ impl EditorData {
                 self.active.set(true);
                 self.left_click(pointer_event);
             }
-            PointerButton::Secondary => {}
+            PointerButton::Secondary => {
+                self.right_click(pointer_event);
+            }
             _ => {}
         }
     }
@@ -2022,6 +2028,66 @@ impl EditorData {
 
     pub fn pointer_up(&self, _pointer_event: &PointerInputEvent) {
         self.active.set(false);
+    }
+
+    fn right_click(&self, pointer_event: &PointerInputEvent) {
+        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let (offset, _) = self.view.offset_of_point(mode, pointer_event.pos);
+        let pointer_inside_selection = self.view.doc.with_untracked(|doc| {
+            self.cursor
+                .with_untracked(|c| c.edit_selection(doc.buffer()).contains(offset))
+        });
+        if !pointer_inside_selection {
+            // move cursor to pointer position if outside current selection
+            self.single_click(pointer_event);
+        }
+
+        let is_file = self.view.doc.with_untracked(|doc| doc.content.is_file());
+        let mut menu = Menu::new("");
+        let cmds = if is_file {
+            vec![
+                Some(CommandKind::Focus(FocusCommand::GotoDefinition)),
+                Some(CommandKind::Focus(FocusCommand::GotoTypeDefinition)),
+                None,
+                Some(CommandKind::Focus(FocusCommand::Rename)),
+                None,
+                Some(CommandKind::Edit(EditCommand::ClipboardCut)),
+                Some(CommandKind::Edit(EditCommand::ClipboardCopy)),
+                Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
+                None,
+                Some(CommandKind::Workbench(
+                    LapceWorkbenchCommand::PaletteCommand,
+                )),
+            ]
+        } else {
+            vec![
+                Some(CommandKind::Edit(EditCommand::ClipboardCut)),
+                Some(CommandKind::Edit(EditCommand::ClipboardCopy)),
+                Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
+                None,
+                Some(CommandKind::Workbench(
+                    LapceWorkbenchCommand::PaletteCommand,
+                )),
+            ]
+        };
+        let lapce_command = self.common.lapce_command;
+        for cmd in cmds {
+            if let Some(cmd) = cmd {
+                menu = menu.entry(
+                    MenuItem::new(cmd.desc().unwrap_or_else(|| cmd.str())).action(
+                        move || {
+                            lapce_command.send(LapceCommand {
+                                kind: cmd.clone(),
+                                data: None,
+                            })
+                        },
+                    ),
+                );
+            } else {
+                menu = menu.separator();
+            }
+        }
+        show_context_menu(menu, None);
     }
 
     fn update_hover(&self, offset: usize) {

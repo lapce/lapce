@@ -153,7 +153,7 @@ impl KeyPressFocus for TerminalData {
                     term.selection = None;
                 }
                 EditCommand::ClipboardCopy => {
-                    let mut clipboard = SystemClipboard {};
+                    let mut clipboard = SystemClipboard::new();
                     if self.mode.get_untracked() == Mode::Visual {
                         self.mode.set(Mode::Normal);
                     }
@@ -168,7 +168,7 @@ impl KeyPressFocus for TerminalData {
                     }
                 }
                 EditCommand::ClipboardPaste => {
-                    let clipboard = SystemClipboard {};
+                    let mut clipboard = SystemClipboard::new();
                     let mut check_bracketed_paste: bool = false;
                     if self.mode.get_untracked() == Mode::Terminal {
                         let raw = self.raw.get_untracked();

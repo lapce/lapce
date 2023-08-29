@@ -2569,7 +2569,7 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
                     .margin_top_px(origin.y as f32)
                     .max_height_px(300.0)
                     .border(1.0)
-                    .border_radius(10.0)
+                    .border_radius(6.0)
                     .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                     .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             } else {
@@ -2685,7 +2685,7 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
             .background(*config.get_color(LapceColor::COMPLETION_BACKGROUND))
             .font_family(config.editor.font_family.clone())
             .font_size(config.editor.font_size() as f32)
-            .border_radius(10.0)
+            .border_radius(6.0)
     })
 }
 
@@ -2758,7 +2758,7 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
         .margin_left_px(origin.x as f32)
         .margin_top_px(origin.y as f32)
         .background(*config.get().get_color(LapceColor::COMPLETION_BACKGROUND))
-        .border_radius(10.0)
+        .border_radius(6.0)
     })
 }
 
@@ -2786,6 +2786,7 @@ fn rename(window_tab_data: Rc<WindowTabData>) -> impl View {
         layout_rect.set(rect);
     })
     .on_event(EventListener::PointerMove, |_| true)
+    .on_event(EventListener::PointerDown, |_| true)
     .style(move |s| {
         let origin = window_tab_data.rename_origin();
         s.position(Position::Absolute)

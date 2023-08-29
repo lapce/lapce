@@ -36,7 +36,10 @@ use crate::{
     db::LapceDb,
     debug::{DapData, RunDebugMode, RunDebugProcess},
     doc::{DocContent, EditorDiagnostic},
-    editor::location::{EditorLocation, EditorPosition},
+    editor::{
+        location::{EditorLocation, EditorPosition},
+        reset_blink_cursor,
+    },
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
     find::Find,
@@ -391,6 +394,23 @@ impl WindowTabData {
             latest_release,
             common,
         };
+
+        {
+            let focus = window_tab_data.common.focus;
+            let cursor_blink_timer = window_tab_data.common.cursor_blink_timer;
+            let hide_cursor = window_tab_data.common.hide_cursor;
+            let config = window_tab_data.common.config;
+            let active_editor = window_tab_data.main_split.active_editor;
+            let rename_active = window_tab_data.rename.active;
+            cx.create_effect(move |_| {
+                let focus = focus.get();
+                active_editor.track();
+                reset_blink_cursor(cursor_blink_timer, hide_cursor, config);
+                if focus != Focus::Rename && rename_active.get_untracked() {
+                    rename_active.set(false);
+                }
+            });
+        }
 
         {
             let window_tab_data = window_tab_data.clone();

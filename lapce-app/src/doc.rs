@@ -6,6 +6,7 @@ use std::{
     sync::{atomic, Arc},
 };
 
+use clipboard::{ClipboardContext, ClipboardProvider};
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
@@ -54,22 +55,31 @@ use crate::{
 
 pub mod phantom_text;
 
-pub struct SystemClipboard {}
+pub struct SystemClipboard {
+    ctx: ClipboardContext,
+}
+
+impl Default for SystemClipboard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl SystemClipboard {
-    // fn clipboard() -> floem::glazier::Clipboard {
-    //     floem::glazier::Application::global().clipboard()
-    // }
+    pub fn new() -> Self {
+        SystemClipboard {
+            ctx: ClipboardProvider::new().unwrap(),
+        }
+    }
 }
 
 impl Clipboard for SystemClipboard {
-    fn get_string(&self) -> Option<String> {
-        None
-        // Self::clipboard().get_string()
+    fn get_string(&mut self) -> Option<String> {
+        self.ctx.get_contents().ok()
     }
 
-    fn put_string(&mut self, _s: impl AsRef<str>) {
-        // Self::clipboard().put_string(s)
+    fn put_string(&mut self, s: impl AsRef<str>) {
+        let _ = self.ctx.set_contents(s.as_ref().to_string());
     }
 }
 
@@ -439,7 +449,7 @@ impl Document {
             return Vec::new();
         }
 
-        let mut clipboard = SystemClipboard {};
+        let mut clipboard = SystemClipboard::new();
         let old_cursor = cursor.mode.clone();
         let deltas = Editor::do_edit(
             cursor,
