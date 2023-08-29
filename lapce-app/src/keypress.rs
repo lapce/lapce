@@ -307,29 +307,22 @@ impl KeyPressData {
 
         let mut mods = keypress.mods;
 
-        #[cfg(not(target_os = "macos"))]
-        {
-            mods.set(Modifiers::SHIFT, false);
-            if mods.is_empty() {
-                if let Key::Keyboard(KbKey::Character(c)) = &keypress.key {
-                    focus.receive_char(c);
-                    return true;
-                }
-            }
-        }
-
         #[cfg(target_os = "macos")]
         {
             mods.set(ModifiersState::SHIFT, false);
             mods.set(ModifiersState::ALT, false);
-            if mods.is_empty() {
-                if let KeyInput::Keyboard(Key::Character(c)) = &keypress.key {
-                    focus.receive_char(c);
-                    return true;
-                } else if let KeyInput::Keyboard(Key::Space) = &keypress.key {
-                    focus.receive_char(" ");
-                    return true;
-                }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            mods.set(ModifiersState::SHIFT, false);
+        }
+        if mods.is_empty() {
+            if let KeyInput::Keyboard(Key::Character(c)) = &keypress.key {
+                focus.receive_char(c);
+                return true;
+            } else if let KeyInput::Keyboard(Key::Space) = &keypress.key {
+                focus.receive_char(" ");
+                return true;
             }
         }
 
