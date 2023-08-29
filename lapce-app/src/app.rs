@@ -2427,11 +2427,11 @@ fn palette_content(
                         let keymap = {
                             let cmd_kind = match &item.content {
                                 PaletteItemContent::PaletteHelp { cmd } => {
-                                    Some(CommandKind::Workbench(*cmd))
+                                    Some(CommandKind::Workbench(cmd.clone()))
                                 }
                                 PaletteItemContent::Command {
                                     cmd: LapceCommand { kind, .. },
-                                } => Some(*kind),
+                                } => Some(kind.clone()),
                                 _ => None,
                             };
 

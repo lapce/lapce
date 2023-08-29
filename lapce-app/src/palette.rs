@@ -882,7 +882,7 @@ impl PaletteData {
             match &item.content {
                 PaletteItemContent::PaletteHelp { cmd } => {
                     let cmd = LapceCommand {
-                        kind: CommandKind::Workbench(*cmd),
+                        kind: CommandKind::Workbench(cmd.clone()),
                         data: None,
                     };
 

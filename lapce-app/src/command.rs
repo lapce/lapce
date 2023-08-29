@@ -31,7 +31,7 @@ pub struct LapceCommand {
     pub data: Option<Value>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommandKind {
     Workbench(LapceWorkbenchCommand),
     Edit(EditCommand),
@@ -130,7 +130,6 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
     EnumString,
     EnumIter,
     Clone,
-    Copy,
     PartialEq,
     Eq,
     Debug,
