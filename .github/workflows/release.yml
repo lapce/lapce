@@ -122,7 +122,7 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get -y update
-          apt-get -y install curl wget clang libxkbcommon-x11-dev pkg-config libvulkan-dev libwayland-dev
+          apt-get -y install curl wget clang libxkbcommon-x11-dev pkg-config libvulkan-dev libwayland-dev xorg-dev
       
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
