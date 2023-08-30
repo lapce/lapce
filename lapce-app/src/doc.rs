@@ -149,6 +149,13 @@ pub struct DocInfo {
     pub cursor_offset: usize,
 }
 
+#[derive(Clone)]
+pub struct Preedit {
+    pub text: String,
+    pub cursor: Option<(usize, usize)>,
+    pub offset: usize,
+}
+
 /// A single document that can be viewed by multiple [`EditorData`]'s
 /// [`EditorViewData`]s and [`EditorView]s.  
 #[derive(Clone)]
@@ -187,6 +194,7 @@ pub struct Document {
     config: ReadSignal<Arc<LapceConfig>>,
     find: Find,
     pub find_result: FindResult,
+    pub preedit: Option<Preedit>,
 }
 
 impl Document {
@@ -222,6 +230,7 @@ impl Document {
             config,
             find,
             find_result: FindResult::new(cx),
+            preedit: None,
         }
     }
 
@@ -257,6 +266,7 @@ impl Document {
             config,
             find,
             find_result: FindResult::new(cx),
+            preedit: None,
         }
     }
 
@@ -294,6 +304,7 @@ impl Document {
             config,
             find,
             find_result: FindResult::new(cx),
+            preedit: None,
         }
     }
 
@@ -336,6 +347,7 @@ impl Document {
             config,
             find,
             find_result: FindResult::new(cx),
+            preedit: None,
         }
     }
 
@@ -547,6 +559,25 @@ impl Document {
 
     fn clear_code_actions(&mut self) {
         self.code_actions.clear();
+    }
+
+    pub fn set_preedit(
+        &mut self,
+        text: String,
+        cursor: Option<(usize, usize)>,
+        offset: usize,
+    ) {
+        self.preedit = Some(Preedit {
+            text,
+            cursor,
+            offset,
+        });
+        self.clear_text_cache();
+    }
+
+    pub fn clear_preedit(&mut self) {
+        self.preedit = None;
+        self.clear_text_cache();
     }
 
     /// Inform any dependents on this document that they should clear any cached text.
@@ -831,25 +862,25 @@ impl Document {
             text.push(completion_text);
         }
 
-        // if let Some(ime_text) = self.ime_text.as_ref() {
-        //     let (ime_line, col, _) = self.ime_pos;
-        //     if line == ime_line {
-        //         text.push(PhantomText {
-        //             kind: PhantomTextKind::Ime,
-        //             text: ime_text.to_string(),
-        //             col,
-        //             font_size: None,
-        //             font_family: None,
-        //             fg: None,
-        //             bg: None,
-        //             under_line: Some(
-        //                 config
-        //                     .get_color_unchecked(LapceTheme::EDITOR_FOREGROUND)
-        //                     .clone(),
-        //             ),
-        //         });
-        //     }
-        // }
+        if let Some(preedit) = self.preedit.as_ref() {
+            let (ime_line, col) = self.buffer.offset_to_line_col(preedit.offset);
+            if line == ime_line {
+                text.push(PhantomText {
+                    kind: PhantomTextKind::Ime,
+                    text: preedit.text.clone(),
+                    col,
+                    font_size: None,
+                    fg: None,
+                    bg: None,
+                    under_line: Some(
+                        *self
+                            .config
+                            .get_untracked()
+                            .get_color(LapceColor::EDITOR_FOREGROUND),
+                    ),
+                });
+            }
+        }
 
         text.sort_by(|a, b| {
             if a.col == b.col {
