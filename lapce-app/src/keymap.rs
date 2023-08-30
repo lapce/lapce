@@ -143,7 +143,7 @@ pub fn keymap_view(common: CommonData) -> impl View {
                                         .padding_vert_px(1.0)
                                         .margin_right_px(5.0)
                                         .border(1.0)
-                                        .border_radius(6.0)
+                                        .border_radius(3.0)
                                         .border_color(
                                             *config
                                                 .get()
@@ -196,7 +196,7 @@ pub fn keymap_view(common: CommonData) -> impl View {
                                         .padding_vert_px(1.0)
                                         .margin_right_px(5.0)
                                         .border(1.0)
-                                        .border_radius(6.0)
+                                        .border_radius(3.0)
                                         .border_color(
                                             *config
                                                 .get()

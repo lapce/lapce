@@ -1,13 +1,14 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
+    cosmic_text::Style as FontStyle,
     event::{Event, EventListener},
     peniko::Color,
-    reactive::ReadSignal,
+    reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::{CursorStyle, Style},
     view::View,
     views::{
-        container, container_box, label, scroll, stack, svg, virtual_list,
+        container, container_box, label, list, scroll, stack, svg, virtual_list,
         Decorators, VirtualListDirection, VirtualListItemSize, VirtualListVector,
     },
 };
@@ -15,7 +16,10 @@ use lapce_rpc::proxy::ProxyRpcHandler;
 
 use super::node::FileNode;
 use crate::{
+    app::clickable_icon,
+    command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    editor_tab::{EditorTabChild, EditorTabData},
     panel::{position::PanelPosition, view::panel_header},
     window_tab::WindowTabData,
 };
@@ -29,8 +33,14 @@ pub fn file_explorer_panel(
     let proxy = window_tab_data.common.proxy.clone();
     stack(|| {
         (
-            stack(move || (panel_header("Open Editors".to_string(), config),))
-                .style(|s| s.width_pct(100.0).flex_col().height_px(150.0)),
+            stack(move || {
+                (
+                    panel_header("Open Editors".to_string(), config),
+                    container(|| open_editors_view(window_tab_data.clone()))
+                        .style(|s| s.size_pct(100.0, 100.0)),
+                )
+            })
+            .style(|s| s.width_pct(100.0).flex_col().height_px(150.0)),
             stack(|| {
                 (
                     panel_header("File Explorer".to_string(), config),
@@ -201,4 +211,133 @@ fn file_node_view(
         },
     )
     .style(|s| s.flex_col().min_width_pct(100.0))
+}
+
+fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
+    let diff_editors = window_tab_data.main_split.diff_editors;
+    let editors = window_tab_data.main_split.editors;
+    let editor_tabs = window_tab_data.main_split.editor_tabs;
+    let config = window_tab_data.common.config;
+    let internal_command = window_tab_data.common.internal_command;
+    let active_editor_tab = window_tab_data.main_split.active_editor_tab;
+
+    let child_view = move |editor_tab: RwSignal<EditorTabData>,
+                           child_index: RwSignal<usize>,
+                           child: EditorTabChild| {
+        let editor_tab_id =
+            editor_tab.with_untracked(|editor_tab| editor_tab.editor_tab_id);
+        let child_for_close = child.clone();
+        let info = child.view_info(editors, diff_editors, config);
+        let hovered = create_rw_signal(false);
+
+        stack(|| {
+            (
+                clickable_icon(
+                    move || {
+                        if hovered.get() || info.with(|info| info.is_pristine) {
+                            LapceIcons::CLOSE
+                        } else {
+                            LapceIcons::UNSAVED
+                        }
+                    },
+                    move || {
+                        let editor_tab_id =
+                            editor_tab.with_untracked(|t| t.editor_tab_id);
+                        internal_command.send(
+                            InternalCommand::EditorTabChildClose {
+                                editor_tab_id,
+                                child: child_for_close.clone(),
+                            },
+                        );
+                    },
+                    || false,
+                    || false,
+                    config,
+                )
+                .on_event(EventListener::PointerEnter, move |_| {
+                    hovered.set(true);
+                    true
+                })
+                .on_event(EventListener::PointerLeave, move |_| {
+                    hovered.set(false);
+                    true
+                })
+                .on_event(EventListener::PointerDown, |_| true)
+                .style(|s| s.margin_left_px(10.0)),
+                container(|| {
+                    svg(move || info.with(|info| info.icon.clone())).style(
+                        move |s| {
+                            let size = config.get().ui.icon_size() as f32;
+                            s.size_px(size, size)
+                                .apply_opt(info.with(|info| info.color), |s, c| {
+                                    s.color(c)
+                                })
+                        },
+                    )
+                })
+                .style(|s| s.padding_horiz_px(6.0)),
+                label(move || info.with(|info| info.path.clone())).style(move |s| {
+                    s.apply_if(
+                        !info
+                            .with(|info| info.confirmed)
+                            .map(|confirmed| confirmed.get())
+                            .unwrap_or(true),
+                        |s| s.font_style(FontStyle::Italic),
+                    )
+                }),
+            )
+        })
+        .style(move |s| {
+            s.items_center().width_pct(100.0).apply_if(
+                active_editor_tab.get() == Some(editor_tab_id)
+                    && editor_tab.with(|editor_tab| editor_tab.active)
+                        == child_index.get(),
+                |s| {
+                    s.background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
+                    )
+                },
+            )
+        })
+        .hover_style(move |s| {
+            s.background(
+                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+            )
+        })
+        .on_event(EventListener::PointerDown, move |_| {
+            editor_tab.update(|editor_tab| {
+                editor_tab.active = child_index.get_untracked();
+            });
+            active_editor_tab.set(Some(editor_tab_id));
+            false
+        })
+    };
+
+    scroll(|| {
+        list(
+            move || editor_tabs.get().into_iter().enumerate(),
+            move |(index, (editor_tab_id, _))| (*index, *editor_tab_id),
+            move |(index, (_, editor_tab))| {
+                stack(|| {
+                    (
+                        label(move || format!("Group {}", index + 1))
+                            .style(|s| s.margin_left_px(10.0)),
+                        list(
+                            move || editor_tab.get().children,
+                            move |(_, _, child)| child.id(),
+                            move |(child_index, _, child)| {
+                                child_view(editor_tab, child_index, child)
+                            },
+                        )
+                        .style(|s| s.flex_col().width_pct(100.0)),
+                    )
+                })
+                .style(|s| s.flex_col())
+            },
+        )
+        .style(|s| s.flex_col().width_pct(100.0))
+    })
+    .style(|s| s.absolute().size_pct(100.0, 100.0).line_height(1.6))
 }

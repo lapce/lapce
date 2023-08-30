@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use floem::{
+    action::{set_ime_allowed, set_ime_cursor_area},
     context::EventCx,
     cosmic_text::{
         Attrs, AttrsList, FamilyOwned, LineHeightValue, Style as FontStyle,
@@ -12,7 +13,7 @@ use floem::{
         kurbo::{Line, Point, Rect, Size, Vec2},
         Color,
     },
-    reactive::{create_effect, ReadSignal, RwSignal},
+    reactive::{create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal},
     style::{ComputedStyle, CursorStyle, Style},
     taffy::{self, prelude::Node},
     view::{ChangeFlags, View},
@@ -42,6 +43,10 @@ pub fn text_input(
     let cursor = editor.cursor;
     let config = editor.common.config;
     let keypress = editor.common.keypress;
+    let window_origin = create_rw_signal(Point::ZERO);
+    let cursor_line = create_rw_signal(Line::new(Point::ZERO, Point::ZERO));
+    let keyboard_focus = create_rw_signal(false);
+    let is_focused = create_memo(move |_| is_focused() || keyboard_focus.get());
 
     create_effect(move |_| {
         let content = doc.with(|doc| doc.buffer().to_string());
@@ -53,10 +58,34 @@ pub fn text_input(
         id.request_layout();
     });
 
-    create_effect(move |_| {
-        let focus = is_focused();
-        id.update_state(TextInputState::Focus(focus), false);
-    });
+    {
+        create_effect(move |_| {
+            let focus = is_focused.get();
+            id.update_state(TextInputState::Focus(focus), false);
+        });
+
+        let editor = editor.clone();
+        let ime_allowed = editor.common.ime_allowed;
+        create_effect(move |_| {
+            let focus = is_focused.get();
+            if focus {
+                if !ime_allowed.get_untracked() {
+                    ime_allowed.set(true);
+                    set_ime_allowed(true);
+                }
+                let cursor_line = cursor_line.get();
+
+                let window_origin = window_origin.get();
+                let viewport = editor.viewport.get();
+                let origin = window_origin
+                    + Vec2::new(
+                        cursor_line.p1.x - viewport.x0,
+                        cursor_line.p1.y - viewport.y0,
+                    );
+                set_ime_cursor_area(origin, Size::new(800.0, 600.0));
+            }
+        });
+    }
 
     TextInput {
         id,
@@ -64,9 +93,10 @@ pub fn text_input(
         content: "".to_string(),
         focus: false,
         text_node: None,
-        text_layout: None,
+        text_layout: create_rw_signal(None),
         text_rect: Rect::ZERO,
         text_viewport: Rect::ZERO,
+        cursor_line,
         placeholder: "".to_string(),
         placeholder_text_layout: None,
         cursor,
@@ -85,6 +115,17 @@ pub fn text_input(
         s.cursor(CursorStyle::Text)
             .padding_horiz_px(10.0)
             .padding_vert_px(6.0)
+    })
+    .on_move(move |pos| {
+        window_origin.set(pos);
+    })
+    .on_event(EventListener::FocusGained, move |_| {
+        keyboard_focus.set(true);
+        true
+    })
+    .on_event(EventListener::FocusLost, move |_| {
+        keyboard_focus.set(false);
+        true
     })
     .on_event(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
@@ -109,9 +150,10 @@ pub struct TextInput {
     cursor: RwSignal<Cursor>,
     focus: bool,
     text_node: Option<Node>,
-    text_layout: Option<TextLayout>,
+    text_layout: RwSignal<Option<TextLayout>>,
     text_rect: Rect,
     text_viewport: Rect,
+    cursor_line: RwSignal<Line>,
     placeholder: String,
     placeholder_text_layout: Option<TextLayout>,
     color: Option<Color>,
@@ -172,7 +214,7 @@ impl TextInput {
             },
             AttrsList::new(attrs),
         );
-        self.text_layout = Some(text_layout);
+        self.text_layout.set(Some(text_layout));
 
         let mut placeholder_text_layout = TextLayout::new();
         attrs =
@@ -182,22 +224,25 @@ impl TextInput {
     }
 
     fn hit_index(&self, cx: &mut EventCx, point: Point) -> usize {
-        if let Some(text_layout) = self.text_layout.as_ref() {
-            let padding_left = cx
-                .get_computed_style(self.id)
-                .map(|s| match s.padding_left {
-                    floem::taffy::style::LengthPercentage::Points(v) => v,
-                    floem::taffy::style::LengthPercentage::Percent(pct) => {
-                        let layout = cx.get_layout(self.id()).unwrap();
-                        pct * layout.size.width
-                    }
-                })
-                .unwrap_or(0.0) as f64;
-            let hit = text_layout.hit_point(Point::new(point.x - padding_left, 0.0));
-            hit.index.min(self.content.len())
-        } else {
-            0
-        }
+        self.text_layout.with_untracked(|text_layout| {
+            if let Some(text_layout) = text_layout.as_ref() {
+                let padding_left = cx
+                    .get_computed_style(self.id)
+                    .map(|s| match s.padding_left {
+                        floem::taffy::style::LengthPercentage::Points(v) => v,
+                        floem::taffy::style::LengthPercentage::Percent(pct) => {
+                            let layout = cx.get_layout(self.id()).unwrap();
+                            pct * layout.size.width
+                        }
+                    })
+                    .unwrap_or(0.0) as f64;
+                let hit =
+                    text_layout.hit_point(Point::new(point.x - padding_left, 0.0));
+                hit.index.min(self.content.len())
+            } else {
+                0
+            }
+        })
     }
 
     fn clamp_text_viewport(&mut self, text_viewport: Rect) {
@@ -205,7 +250,9 @@ impl TextInput {
         let actual_size = text_rect.size();
         let width = text_rect.width();
         let height = text_rect.height();
-        let child_size = self.text_layout.as_ref().unwrap().size();
+        let child_size = self
+            .text_layout
+            .with_untracked(|text_layout| text_layout.as_ref().unwrap().size());
 
         let mut text_viewport = text_viewport;
         if width >= child_size.width {
@@ -311,7 +358,7 @@ impl View for TextInput {
             match *state {
                 TextInputState::Content(content) => {
                     self.content = content;
-                    self.text_layout = None;
+                    self.text_layout.set(None);
                 }
                 TextInputState::Focus(focus) => {
                     self.focus = focus;
@@ -344,38 +391,46 @@ impl View for TextInput {
                 self.font_weight = cx.current_font_weight();
                 self.font_style = cx.current_font_style();
                 self.line_height = cx.current_line_height();
-                self.text_layout = None;
+                self.text_layout.set(None);
                 self.placeholder_text_layout = None;
             }
 
-            if self.text_layout.is_none() || self.placeholder_text_layout.is_none() {
+            if self
+                .text_layout
+                .with_untracked(|text_layout| text_layout.is_none())
+                || self.placeholder_text_layout.is_none()
+            {
                 self.set_text_layout();
             }
-            let text_layout = self.text_layout.as_ref().unwrap();
 
-            let offset = self.cursor.get_untracked().offset();
-            let cursor_point = text_layout.hit_position(offset).point;
-            if cursor_point != self.cursor_pos {
-                self.cursor_pos = cursor_point;
-                self.ensure_cursor_visible();
-            }
+            let text_layout = self.text_layout;
+            text_layout.with_untracked(|text_layout| {
+                let text_layout = text_layout.as_ref().unwrap();
 
-            let text_layout = self.text_layout.as_ref().unwrap();
-            let size = text_layout.size();
-            let height = size.height as f32;
+                let offset = self.cursor.get_untracked().offset();
+                let cursor_point = text_layout.hit_position(offset).point;
+                if cursor_point != self.cursor_pos {
+                    self.cursor_pos = cursor_point;
+                    self.ensure_cursor_visible();
+                }
 
-            if self.text_node.is_none() {
-                self.text_node = Some(cx.new_node());
-            }
-            let text_node = self.text_node.unwrap();
+                let size = text_layout.size();
+                let height = size.height as f32;
 
-            let style = Style::BASE
-                .height_px(height)
-                .compute(&ComputedStyle::default())
-                .to_taffy_style();
-            cx.set_style(text_node, style);
+                if self.text_node.is_none() {
+                    self.text_node = Some(cx.new_node());
+                }
 
-            vec![text_node]
+                let text_node = self.text_node.unwrap();
+
+                let style = Style::BASE
+                    .height_px(height)
+                    .compute(&ComputedStyle::default())
+                    .to_taffy_style();
+                cx.set_style(text_node, style);
+            });
+
+            vec![self.text_node.unwrap()]
         })
     }
 
@@ -409,6 +464,28 @@ impl View for TextInput {
         self.text_rect = text_rect;
 
         self.clamp_text_viewport(self.text_viewport);
+
+        let text_node = self.text_node.unwrap();
+        let location = cx.layout(text_node).unwrap().location;
+        let offset = self.cursor.with_untracked(|c| c.offset());
+        let cursor_line = self.text_layout.with_untracked(|text_layout| {
+            let hit_position = text_layout.as_ref().unwrap().hit_position(offset);
+            let point = Point::new(location.x as f64, location.y as f64)
+                - self.text_viewport.origin().to_vec2();
+            let cursor_point = hit_position.point + point.to_vec2();
+
+            Line::new(
+                Point::new(
+                    cursor_point.x,
+                    cursor_point.y - hit_position.glyph_ascent,
+                ),
+                Point::new(
+                    cursor_point.x,
+                    cursor_point.y + hit_position.glyph_descent,
+                ),
+            )
+        });
+        self.cursor_line.set(cursor_line);
 
         None
     }
@@ -477,59 +554,51 @@ impl View for TextInput {
         let location = cx.layout(text_node).unwrap().location;
         let point = Point::new(location.x as f64, location.y as f64)
             - self.text_viewport.origin().to_vec2();
-        let text_layout = self.text_layout.as_ref().unwrap();
-        let height = text_layout.size().height;
-        let config = self.config.get_untracked();
 
-        let cursor = self.cursor.get_untracked();
+        self.text_layout.with_untracked(|text_layout| {
+            let text_layout = text_layout.as_ref().unwrap();
+            let height = text_layout.size().height;
+            let config = self.config.get_untracked();
 
-        if let CursorMode::Insert(selection) = &cursor.mode {
-            for region in selection.regions() {
-                if !region.is_caret() {
-                    let min = text_layout.hit_position(region.min()).point.x;
-                    let max = text_layout.hit_position(region.max()).point.x;
-                    cx.fill(
-                        &Rect::ZERO
-                            .with_size(Size::new(max - min, height))
-                            .with_origin(Point::new(min + point.x, point.y)),
-                        *config.get_color(LapceColor::EDITOR_SELECTION),
-                        0.0,
-                    );
+            let cursor = self.cursor.get_untracked();
+
+            if let CursorMode::Insert(selection) = &cursor.mode {
+                for region in selection.regions() {
+                    if !region.is_caret() {
+                        let min = text_layout.hit_position(region.min()).point.x;
+                        let max = text_layout.hit_position(region.max()).point.x;
+                        cx.fill(
+                            &Rect::ZERO
+                                .with_size(Size::new(max - min, height))
+                                .with_origin(Point::new(min + point.x, point.y)),
+                            *config.get_color(LapceColor::EDITOR_SELECTION),
+                            0.0,
+                        );
+                    }
                 }
             }
-        }
 
-        if !self.content.is_empty() {
-            cx.draw_text(text_layout, point);
-        } else if !self.placeholder.is_empty() {
-            cx.draw_text(self.placeholder_text_layout.as_ref().unwrap(), point);
-        }
+            if !self.content.is_empty() {
+                cx.draw_text(text_layout, point);
+            } else if !self.placeholder.is_empty() {
+                cx.draw_text(self.placeholder_text_layout.as_ref().unwrap(), point);
+            }
 
-        if !self.hide_cursor.get_untracked()
-            && (self.focus || cx.is_focused(self.id))
-        {
-            cx.clip(&self.text_rect.inflate(2.0, 2.0));
-            let offset = cursor.offset();
-            let hit_position = text_layout.hit_position(offset);
-            let cursor_point = hit_position.point + point.to_vec2();
-            cx.stroke(
-                &Line::new(
-                    Point::new(
-                        cursor_point.x,
-                        cursor_point.y - hit_position.glyph_ascent,
-                    ),
-                    Point::new(
-                        cursor_point.x,
-                        cursor_point.y + hit_position.glyph_descent,
-                    ),
-                ),
-                *self
-                    .config
-                    .get_untracked()
-                    .get_color(LapceColor::EDITOR_CARET),
-                2.0,
-            );
-        }
-        cx.restore();
+            if !self.hide_cursor.get_untracked()
+                && (self.focus || cx.is_focused(self.id))
+            {
+                cx.clip(&self.text_rect.inflate(2.0, 2.0));
+                let line = self.cursor_line.get_untracked();
+                cx.stroke(
+                    &line,
+                    *self
+                        .config
+                        .get_untracked()
+                        .get_color(LapceColor::EDITOR_CARET),
+                    2.0,
+                );
+            }
+            cx.restore();
+        });
     }
 }

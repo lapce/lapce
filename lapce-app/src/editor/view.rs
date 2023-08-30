@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use floem::{
+    action::{set_ime_allowed, set_ime_cursor_area},
     context::PaintCx,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     event::{Event, EventListener},
@@ -75,7 +76,7 @@ struct StickyHeaderInfo {
 pub struct EditorView {
     id: Id,
     editor: RwSignal<EditorData>,
-    is_active: Box<dyn Fn() -> bool + 'static>,
+    is_active: Box<dyn Fn(bool) -> bool + 'static>,
     inner_node: Option<Node>,
     viewport: RwSignal<Rect>,
     sticky_header_info: StickyHeaderInfo,
@@ -83,7 +84,7 @@ pub struct EditorView {
 
 pub fn editor_view(
     editor: RwSignal<EditorData>,
-    is_active: impl Fn() -> bool + 'static + Copy,
+    is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> EditorView {
     let cx = ViewContext::get_current();
     let id = cx.new_id();
@@ -151,6 +152,41 @@ pub fn editor_view(
         id.update_state(sticky_header_info, false);
 
         rev
+    });
+
+    let (editor_window_origin, cursor, find_focus, ime_allowed) = editor
+        .with_untracked(|editor| {
+            (
+                editor.window_origin,
+                editor.cursor,
+                editor.find_focus,
+                editor.common.ime_allowed,
+            )
+        });
+    create_effect(move |_| {
+        let active = is_active(true);
+        if active && !find_focus.get() {
+            if !cursor.with(|c| c.is_insert()) {
+                if ime_allowed.get_untracked() {
+                    ime_allowed.set(false);
+                    set_ime_allowed(false);
+                }
+            } else {
+                if !ime_allowed.get_untracked() {
+                    ime_allowed.set(true);
+                    set_ime_allowed(true);
+                }
+                let offset = cursor.with(|c| c.offset());
+                let (view, viewport) =
+                    editor.with(|editor| (editor.view.clone(), editor.viewport));
+                let (_, point_below) = view.points_of_offset(offset);
+                let window_origin = editor_window_origin.get();
+                let viewport = viewport.get();
+                let pos = window_origin
+                    + (point_below.x - viewport.x0, point_below.y - viewport.y0);
+                set_ime_cursor_area(pos, Size::new(800.0, 600.0));
+            }
+        }
     });
 
     EditorView {
@@ -295,7 +331,7 @@ impl EditorView {
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
         let viewport = self.viewport.get_untracked();
-        let is_active = (*self.is_active)() && !find_focus.get_untracked();
+        let is_active = (*self.is_active)(false) && !find_focus.get_untracked();
 
         let renders = cursor.with_untracked(|cursor| match &cursor.mode {
             CursorMode::Normal(offset) => {
@@ -675,7 +711,7 @@ impl EditorView {
         cx.fill(
             &sticky_area_rect,
             config.get_color(LapceColor::LAPCE_DROPDOWN_SHADOW),
-            5.0,
+            3.0,
         );
         cx.fill(
             &sticky_area_rect,
@@ -1565,19 +1601,17 @@ fn editor_content(
     });
 
     scroll(|| {
-        let editor_content_view = editor_view(editor, move || is_active(false))
-            .style(move |s| {
-                let config = config.get();
-                let padding_bottom = if config.editor.scroll_beyond_last_line {
-                    viewport.get().height() as f32
-                        - config.editor.line_height() as f32
-                } else {
-                    0.0
-                };
-                s.padding_bottom_px(padding_bottom)
-                    .cursor(CursorStyle::Text)
-                    .min_size_pct(100.0, 100.0)
-            });
+        let editor_content_view = editor_view(editor, is_active).style(move |s| {
+            let config = config.get();
+            let padding_bottom = if config.editor.scroll_beyond_last_line {
+                viewport.get().height() as f32 - config.editor.line_height() as f32
+            } else {
+                0.0
+            };
+            s.padding_bottom_px(padding_bottom)
+                .cursor(CursorStyle::Text)
+                .min_size_pct(100.0, 100.0)
+        });
         let id = editor_content_view.id();
         editor_content_view
             .on_event(EventListener::PointerDown, move |event| {
