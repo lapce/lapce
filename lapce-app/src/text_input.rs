@@ -30,6 +30,7 @@ use crate::{
     config::{color::LapceColor, LapceConfig},
     doc::Document,
     editor::EditorData,
+    keypress::KeyPressFocus,
 };
 
 pub fn text_input(
@@ -47,15 +48,36 @@ pub fn text_input(
     let cursor_line = create_rw_signal(Line::new(Point::ZERO, Point::ZERO));
     let keyboard_focus = create_rw_signal(false);
     let is_focused = create_memo(move |_| is_focused() || keyboard_focus.get());
+    let local_editor = editor.clone();
 
     create_effect(move |_| {
-        let content = doc.with(|doc| doc.buffer().to_string());
-        id.update_state(TextInputState::Content(content), false);
-    });
-
-    create_effect(move |_| {
-        cursor.with(|_| ());
-        id.request_layout();
+        let offset = cursor.with(|c| c.offset());
+        let (content, offset, preedit_range) = doc.with(|doc| {
+            let content = doc.buffer().to_string();
+            if let Some(preedit) = doc.preedit.as_ref() {
+                let mut new_content = String::new();
+                new_content.push_str(&content[..offset]);
+                new_content.push_str(&preedit.text);
+                new_content.push_str(&content[offset..]);
+                let range = (offset, offset + preedit.text.len());
+                let offset = preedit
+                    .cursor
+                    .as_ref()
+                    .map(|(_, end)| offset + *end)
+                    .unwrap_or(offset);
+                (new_content, offset, Some(range))
+            } else {
+                (content, offset, None)
+            }
+        });
+        id.update_state(
+            TextInputState::Content {
+                text: content,
+                offset,
+                preedit_range,
+            },
+            false,
+        );
     });
 
     {
@@ -90,6 +112,9 @@ pub fn text_input(
     TextInput {
         id,
         config,
+        offset: 0,
+        preedit_range: None,
+        layout_rect: Rect::ZERO,
         content: "".to_string(),
         focus: false,
         text_node: None,
@@ -135,10 +160,48 @@ pub fn text_input(
             false
         }
     })
+    .on_event(EventListener::ImePreedit, move |event| {
+        if !is_focused.get_untracked() {
+            return false;
+        }
+
+        if let Event::ImePreedit {
+            text,
+            cursor: ime_cursor,
+        } = event
+        {
+            local_editor.view.doc.update(|doc| {
+                if text.is_empty() {
+                    doc.clear_preedit();
+                } else {
+                    let offset = cursor.with_untracked(|c| c.offset());
+                    doc.set_preedit(text.clone(), *ime_cursor, offset);
+                }
+            });
+        }
+        true
+    })
+    .on_event(EventListener::ImeCommit, move |event| {
+        if !is_focused.get_untracked() {
+            return false;
+        }
+
+        if let Event::ImeCommit(text) = event {
+            local_editor.view.doc.update(|doc| {
+                doc.clear_preedit();
+            });
+            local_editor.receive_char(text);
+        }
+        true
+    })
 }
 
 enum TextInputState {
-    Content(String),
+    Content {
+        text: String,
+        offset: usize,
+        preedit_range: Option<(usize, usize)>,
+    },
     Focus(bool),
     Placeholder(String),
 }
@@ -146,6 +209,8 @@ enum TextInputState {
 pub struct TextInput {
     id: Id,
     content: String,
+    offset: usize,
+    preedit_range: Option<(usize, usize)>,
     doc: RwSignal<Document>,
     cursor: RwSignal<Cursor>,
     focus: bool,
@@ -153,6 +218,7 @@ pub struct TextInput {
     text_layout: RwSignal<Option<TextLayout>>,
     text_rect: Rect,
     text_viewport: Rect,
+    layout_rect: Rect,
     cursor_line: RwSignal<Line>,
     placeholder: String,
     placeholder_text_layout: Option<TextLayout>,
@@ -356,8 +422,14 @@ impl View for TextInput {
     ) -> ChangeFlags {
         if let Ok(state) = state.downcast() {
             match *state {
-                TextInputState::Content(content) => {
-                    self.content = content;
+                TextInputState::Content {
+                    text,
+                    offset,
+                    preedit_range,
+                } => {
+                    self.content = text;
+                    self.offset = offset;
+                    self.preedit_range = preedit_range;
                     self.text_layout.set(None);
                 }
                 TextInputState::Focus(focus) => {
@@ -446,27 +518,20 @@ impl View for TextInput {
             taffy::style::LengthPercentage::Points(padding) => padding,
             taffy::style::LengthPercentage::Percent(pct) => pct * layout.size.width,
         };
-        let padding_top = match style.padding_top {
-            taffy::style::LengthPercentage::Points(padding) => padding,
-            taffy::style::LengthPercentage::Percent(pct) => pct * layout.size.width,
-        };
-        let padding_bottom = match style.padding_bottom {
-            taffy::style::LengthPercentage::Points(padding) => padding,
-            taffy::style::LengthPercentage::Percent(pct) => pct * layout.size.width,
-        };
 
         let size = Size::new(layout.size.width as f64, layout.size.height as f64);
         let mut text_rect = size.to_rect();
         text_rect.x0 += padding_left as f64;
         text_rect.x1 -= padding_right as f64;
-        text_rect.y0 += padding_top as f64;
-        text_rect.y1 -= padding_bottom as f64;
         self.text_rect = text_rect;
 
         self.clamp_text_viewport(self.text_viewport);
 
         let text_node = self.text_node.unwrap();
         let location = cx.layout(text_node).unwrap().location;
+        self.layout_rect = size
+            .to_rect()
+            .with_origin(Point::new(location.x as f64, location.y as f64));
         let offset = self.cursor.with_untracked(|c| c.offset());
         let cursor_line = self.text_layout.with_untracked(|text_layout| {
             let hit_position = text_layout.as_ref().unwrap().hit_position(offset);
@@ -544,7 +609,7 @@ impl View for TextInput {
 
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
         cx.save();
-        cx.clip(&self.text_rect.inflate(1.0, 2.0));
+        cx.clip(&self.text_rect.inflate(1.0, 0.0));
         if self.color != cx.current_color() {
             self.color = cx.current_color();
             self.set_text_layout();
@@ -584,11 +649,54 @@ impl View for TextInput {
                 cx.draw_text(self.placeholder_text_layout.as_ref().unwrap(), point);
             }
 
+            if let Some((start, end)) = self.preedit_range {
+                let start_position = text_layout.hit_position(start);
+                let start_point = start_position.point
+                    + self.layout_rect.origin().to_vec2()
+                    - self.text_viewport.origin().to_vec2();
+                let end_position = text_layout.hit_position(end);
+                let end_point = end_position.point
+                    + self.layout_rect.origin().to_vec2()
+                    - self.text_viewport.origin().to_vec2();
+
+                let line = Line::new(
+                    Point::new(
+                        start_point.x,
+                        start_point.y + start_position.glyph_descent,
+                    ),
+                    Point::new(
+                        end_point.x,
+                        end_point.y + end_position.glyph_descent,
+                    ),
+                );
+                cx.stroke(
+                    &line,
+                    *config.get_color(LapceColor::EDITOR_FOREGROUND),
+                    1.0,
+                );
+            }
+
             if !self.hide_cursor.get_untracked()
                 && (self.focus || cx.is_focused(self.id))
             {
                 cx.clip(&self.text_rect.inflate(2.0, 2.0));
-                let line = self.cursor_line.get_untracked();
+
+                let hit_position = text_layout.hit_position(self.offset);
+                let cursor_point = hit_position.point
+                    + self.layout_rect.origin().to_vec2()
+                    - self.text_viewport.origin().to_vec2();
+
+                let line = Line::new(
+                    Point::new(
+                        cursor_point.x,
+                        cursor_point.y - hit_position.glyph_ascent,
+                    ),
+                    Point::new(
+                        cursor_point.x,
+                        cursor_point.y + hit_position.glyph_descent,
+                    ),
+                );
+
                 cx.stroke(
                     &line,
                     *self
@@ -598,6 +706,7 @@ impl View for TextInput {
                     2.0,
                 );
             }
+
             cx.restore();
         });
     }

@@ -11,7 +11,9 @@ use floem::{
         kurbo::{BezPath, Line, Point, Rect, Size},
         Color,
     },
-    reactive::{create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal},
+    reactive::{
+        create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
+    },
     style::{ComputedStyle, CursorStyle, Style},
     taffy::prelude::Node,
     view::{ChangeFlags, View},
@@ -36,6 +38,7 @@ use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     doc::{DocContent, Document},
+    keypress::KeyPressFocus,
     main_split::MainSplitData,
     text_input::text_input,
     window_tab::Focus,
@@ -76,7 +79,7 @@ struct StickyHeaderInfo {
 pub struct EditorView {
     id: Id,
     editor: RwSignal<EditorData>,
-    is_active: Box<dyn Fn(bool) -> bool + 'static>,
+    is_active: Memo<bool>,
     inner_node: Option<Node>,
     viewport: RwSignal<Rect>,
     sticky_header_info: StickyHeaderInfo,
@@ -88,6 +91,7 @@ pub fn editor_view(
 ) -> EditorView {
     let cx = ViewContext::get_current();
     let id = cx.new_id();
+    let is_active = create_memo(move |_| is_active(true));
 
     let viewport = create_rw_signal(Rect::ZERO);
 
@@ -164,7 +168,7 @@ pub fn editor_view(
             )
         });
     create_effect(move |_| {
-        let active = is_active(true);
+        let active = is_active.get();
         if active && !find_focus.get() {
             if !cursor.with(|c| c.is_insert()) {
                 if ime_allowed.get_untracked() {
@@ -192,7 +196,7 @@ pub fn editor_view(
     EditorView {
         id,
         editor,
-        is_active: Box::new(is_active),
+        is_active,
         inner_node: None,
         viewport,
         sticky_header_info: StickyHeaderInfo {
@@ -201,6 +205,39 @@ pub fn editor_view(
             y_diff: 0.0,
         },
     }
+    .on_event(EventListener::ImePreedit, move |event| {
+        if !is_active.get_untracked() {
+            return false;
+        }
+
+        if let Event::ImePreedit { text, cursor } = event {
+            let doc = editor.with_untracked(|editor| editor.view.doc);
+            doc.update(|doc| {
+                if text.is_empty() {
+                    doc.clear_preedit();
+                } else {
+                    let c = editor.with_untracked(|editor| editor.cursor);
+                    let offset = c.with_untracked(|c| c.offset());
+                    doc.set_preedit(text.clone(), *cursor, offset);
+                }
+            });
+        }
+        true
+    })
+    .on_event(EventListener::ImeCommit, move |event| {
+        if !is_active.get_untracked() {
+            return false;
+        }
+
+        if let Event::ImeCommit(text) = event {
+            let editor = editor.get_untracked();
+            editor.view.doc.update(|doc| {
+                doc.clear_preedit();
+            });
+            editor.receive_char(text);
+        }
+        true
+    })
 }
 
 impl EditorView {
@@ -331,7 +368,8 @@ impl EditorView {
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
         let viewport = self.viewport.get_untracked();
-        let is_active = (*self.is_active)(false) && !find_focus.get_untracked();
+        let is_active =
+            self.is_active.get_untracked() && !find_focus.get_untracked();
 
         let renders = cursor.with_untracked(|cursor| match &cursor.mode {
             CursorMode::Normal(offset) => {
@@ -459,6 +497,22 @@ impl EditorView {
                     ),
                     bg,
                     0.0,
+                );
+            }
+
+            if let Some(color) = style.under_line {
+                let width = style.width.unwrap_or_else(|| viewport.width());
+                let x = style.x
+                    + if style.width.is_none() {
+                        viewport.x0
+                    } else {
+                        0.0
+                    };
+                let y = y + height + (line_height - height) / 2.0;
+                cx.stroke(
+                    &Line::new(Point::new(x, y), Point::new(x + width, y)),
+                    color,
+                    1.0,
                 );
             }
 
@@ -1035,6 +1089,24 @@ pub fn cursor_caret(
     let (line, col) = view.offset_to_line_col(offset);
     let phantom_text = view.line_phantom_text(line);
     let col = phantom_text.col_after(col, block);
+    let col = view
+        .doc
+        .with_untracked(|doc| {
+            doc.preedit.as_ref().map(|preedit| {
+                if let Some((start, _)) = preedit.cursor.as_ref() {
+                    let preedit_line = doc.buffer().line_of_offset(preedit.offset);
+                    if preedit_line == line {
+                        col + *start
+                    } else {
+                        col
+                    }
+                } else {
+                    col
+                }
+            })
+        })
+        .unwrap_or(col);
+
     let x0 = view.line_point_of_line_col(line, col, 12).x;
     if block {
         let right_offset = view.move_right(offset, Mode::Insert, 1);

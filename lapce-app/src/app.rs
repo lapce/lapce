@@ -2719,10 +2719,6 @@ fn window_tab(window_tab_data: Rc<WindowTabData>) -> impl View {
         }
         false
     })
-    // .on_event(EventListener::ImePreedit, move |event| {
-    //     if let Event::ImePreedit { text, cursor } = event {}
-    //     true
-    // })
     .style(move |s| {
         let config = config.get();
         s.size_pct(100.0, 100.0)
