@@ -54,6 +54,8 @@ pub struct WindowData {
     pub window_scale: RwSignal<f64>,
     pub latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     pub config: RwSignal<Arc<LapceConfig>>,
+    pub ime_allowed: RwSignal<bool>,
+    pub ime_enabled: RwSignal<bool>,
 }
 
 impl WindowData {
@@ -76,6 +78,8 @@ impl WindowData {
 
         let window_command = Listener::new_empty(cx);
 
+        let ime_allowed = cx.create_rw_signal(false);
+
         for w in info.tabs.workspaces {
             let window_tab = Rc::new(WindowTabData::new(
                 cx,
@@ -84,6 +88,7 @@ impl WindowData {
                 window_scale,
                 latest_release,
                 num_window_tabs,
+                ime_allowed,
             ));
             window_tabs.update(|window_tabs| {
                 window_tabs.push_back((cx.create_rw_signal(0), window_tab));
@@ -98,6 +103,7 @@ impl WindowData {
                 window_scale,
                 latest_release,
                 num_window_tabs,
+                ime_allowed,
             ));
             window_tabs.update(|window_tabs| {
                 window_tabs.push_back((cx.create_rw_signal(0), window_tab));
@@ -122,6 +128,8 @@ impl WindowData {
             latest_release,
             app_command,
             config,
+            ime_allowed,
+            ime_enabled: cx.create_rw_signal(false),
         };
 
         {
@@ -164,6 +172,7 @@ impl WindowData {
                     self.window_scale,
                     self.latest_release,
                     self.num_window_tabs,
+                    self.ime_allowed,
                 ));
                 self.window_tabs.update(|window_tabs| {
                     if window_tabs.is_empty() {
@@ -190,6 +199,7 @@ impl WindowData {
                     self.window_scale,
                     self.latest_release,
                     self.num_window_tabs,
+                    self.ime_allowed,
                 ));
                 let active = self.active.get_untracked();
                 let active = self

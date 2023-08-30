@@ -34,9 +34,16 @@ pub fn source_control_panel(
     let doc = editor.view.doc;
     let cursor = editor.cursor;
     let viewport = editor.viewport;
+    let window_origin = editor.window_origin;
     let editor = create_rw_signal(editor);
-    let is_active =
-        move || focus.get_untracked() == Focus::Panel(PanelKind::SourceControl);
+    let is_active = move |tracked| {
+        let focus = if tracked {
+            focus.get()
+        } else {
+            focus.get_untracked()
+        };
+        focus == Focus::Panel(PanelKind::SourceControl)
+    };
     let is_empty = create_memo(move |_| doc.with(|doc| doc.buffer().len() == 0));
 
     stack(|| {
@@ -72,7 +79,8 @@ pub fn source_control_panel(
                                 s.min_size_pct(100.0, 100.0)
                                     .padding_left_px(10.0)
                                     .padding_vert_px(6.0)
-                            });
+                            })
+                            .hover_style(|s| s.cursor(CursorStyle::Text));
                             let id = view.id();
                             view.on_event(EventListener::PointerDown, move |event| {
                                 let event = event.clone().offset((10.0, 6.0));
@@ -102,6 +110,9 @@ pub fn source_control_panel(
                                     true
                                 },
                             )
+                        })
+                        .on_move(move |pos| {
+                            window_origin.set(pos + (10.0, 6.0));
                         })
                         .on_scroll(move |rect| {
                             viewport.set(rect);

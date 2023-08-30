@@ -3,7 +3,6 @@ use std::os::windows::process::CommandExt;
 use std::{
     io::{BufReader, Read, Write},
     ops::Range,
-    path::PathBuf,
     process::Stdio,
     rc::Rc,
     sync::{atomic::AtomicU64, Arc},
@@ -65,7 +64,6 @@ use crate::{
     },
     db::LapceDb,
     debug::RunDebugMode,
-    doc::DocContent,
     editor::{
         diff::{diff_show_more_section_view, DiffEditorData},
         location::{EditorLocation, EditorPosition},
@@ -461,8 +459,8 @@ fn editor_tab_header(
     main_split: MainSplitData,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
-    editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
-    diff_editors: ReadSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
+    editors: RwSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
     dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>>,
 ) -> impl View {
     let focus = main_split.common.focus;
@@ -504,166 +502,8 @@ fn editor_tab_header(
         let child_for_close = child.clone();
         let main_split = main_split.clone();
         let child_view = move || {
-            #[derive(PartialEq)]
-            struct Info {
-                icon: String,
-                color: Option<Color>,
-                path: String,
-                confirmed: Option<RwSignal<bool>>,
-                is_pristine: bool,
-            }
-
-            let info = match child {
-                EditorTabChild::Editor(editor_id) => create_memo(move |_| {
-                    let config = config.get();
-                    let editor_data =
-                        editors.with(|editors| editors.get(&editor_id).cloned());
-                    let path = if let Some(editor_data) = editor_data {
-                        let ((content, is_pristine), confirmed) =
-                            editor_data.with(|editor_data| {
-                                (
-                                    editor_data.view.doc.with(|doc| {
-                                        (
-                                            doc.content.clone(),
-                                            doc.buffer().is_pristine(),
-                                        )
-                                    }),
-                                    editor_data.confirmed,
-                                )
-                            });
-                        match content {
-                            DocContent::File(path) => {
-                                Some((path, confirmed, is_pristine))
-                            }
-                            DocContent::Local => None,
-                            DocContent::History(_) => None,
-                            DocContent::Scratch { name, .. } => {
-                                Some((PathBuf::from(name), confirmed, is_pristine))
-                            }
-                        }
-                    } else {
-                        None
-                    };
-                    let (icon, color, path, confirmed, is_pristine) = match path {
-                        Some((path, confirmed, is_pritine)) => {
-                            let (svg, color) = config.file_svg(&path);
-                            (
-                                svg,
-                                color.cloned(),
-                                path.file_name()
-                                    .unwrap_or_default()
-                                    .to_str()
-                                    .unwrap_or_default()
-                                    .to_string(),
-                                confirmed,
-                                is_pritine,
-                            )
-                        }
-                        None => (
-                            config.ui_svg(LapceIcons::FILE),
-                            Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
-                            "local".to_string(),
-                            create_rw_signal(true),
-                            true,
-                        ),
-                    };
-                    Info {
-                        icon,
-                        color,
-                        path,
-                        confirmed: Some(confirmed),
-                        is_pristine,
-                    }
-                }),
-                EditorTabChild::DiffEditor(diff_editor_id) => {
-                    create_memo(move |_| {
-                        let config = config.get();
-                        let diff_editor_data = diff_editors.with(|diff_editors| {
-                            diff_editors.get(&diff_editor_id).cloned()
-                        });
-                        let confirmed = diff_editor_data
-                            .as_ref()
-                            .map(|d| d.right.with_untracked(|e| e.confirmed));
-                        let path = if let Some(diff_editor_data) = diff_editor_data {
-                            let (content, is_pristine) =
-                                diff_editor_data.right.with(|editor_data| {
-                                    editor_data.view.doc.with(|doc| {
-                                        (
-                                            doc.content.clone(),
-                                            doc.buffer().is_pristine(),
-                                        )
-                                    })
-                                });
-                            match content {
-                                DocContent::File(path) => Some((path, is_pristine)),
-                                DocContent::Local => None,
-                                DocContent::History(_) => None,
-                                DocContent::Scratch { name, .. } => {
-                                    Some((PathBuf::from(name), is_pristine))
-                                }
-                            }
-                        } else {
-                            None
-                        };
-                        let (icon, color, path, is_pristine) = match path {
-                            Some((path, is_pritine)) => {
-                                let (svg, color) = config.file_svg(&path);
-                                (
-                                    svg,
-                                    color.cloned(),
-                                    format!(
-                                        "{} (Diff)",
-                                        path.file_name()
-                                            .unwrap_or_default()
-                                            .to_str()
-                                            .unwrap_or_default()
-                                    ),
-                                    is_pritine,
-                                )
-                            }
-                            None => (
-                                config.ui_svg(LapceIcons::FILE),
-                                Some(
-                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                                ),
-                                "local".to_string(),
-                                true,
-                            ),
-                        };
-                        Info {
-                            icon,
-                            color,
-                            path,
-                            confirmed,
-                            is_pristine,
-                        }
-                    })
-                }
-                EditorTabChild::Settings(_) => create_memo(move |_| {
-                    let config = config.get();
-                    Info {
-                        icon: config.ui_svg(LapceIcons::SETTINGS),
-                        color: Some(
-                            *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                        ),
-                        path: "Settings".to_string(),
-                        confirmed: None,
-                        is_pristine: true,
-                    }
-                }),
-                EditorTabChild::Keymap(_) => create_memo(move |_| {
-                    let config = config.get();
-                    Info {
-                        icon: config.ui_svg(LapceIcons::KEYBOARD),
-                        color: Some(
-                            *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                        ),
-                        path: "Keyboard Shortcuts".to_string(),
-                        confirmed: None,
-                        is_pristine: true,
-                    }
-                }),
-            };
+            let info = child.view_info(editors, diff_editors, config);
+            let hovered = create_rw_signal(false);
 
             stack(|| {
                 (
@@ -692,7 +532,7 @@ fn editor_tab_header(
                     ),
                     clickable_icon(
                         move || {
-                            if info.with(|info| info.is_pristine) {
+                            if hovered.get() || info.with(|info| info.is_pristine) {
                                 LapceIcons::CLOSE
                             } else {
                                 LapceIcons::UNSAVED
@@ -713,6 +553,14 @@ fn editor_tab_header(
                         config,
                     )
                     .on_event(EventListener::PointerDown, |_| true)
+                    .on_event(EventListener::PointerEnter, move |_| {
+                        hovered.set(true);
+                        true
+                    })
+                    .on_event(EventListener::PointerLeave, move |_| {
+                        hovered.set(false);
+                        true
+                    })
                     .style(|s| s.margin_horiz_px(6.0)),
                 )
             })
@@ -889,7 +737,7 @@ fn editor_tab_header(
                                 .background(
                                     *config.get_color(LapceColor::PANEL_BACKGROUND),
                                 )
-                                .box_shadow_blur(5.0)
+                                .box_shadow_blur(3.0)
                                 .box_shadow_color(
                                     *config.get_color(
                                         LapceColor::LAPCE_DROPDOWN_SHADOW,
@@ -979,7 +827,7 @@ fn editor_tab_header(
                                 .background(
                                     *config.get_color(LapceColor::PANEL_BACKGROUND),
                                 )
-                                .box_shadow_blur(5.0)
+                                .box_shadow_blur(3.0)
                                 .box_shadow_color(
                                     *config.get_color(
                                         LapceColor::LAPCE_DROPDOWN_SHADOW,
@@ -1282,8 +1130,8 @@ fn editor_tab(
     plugin: PluginData,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
-    editors: ReadSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
-    diff_editors: ReadSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
+    editors: RwSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
     dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>>,
 ) -> impl View {
     let common = main_split.common.clone();
@@ -1571,8 +1419,8 @@ fn split_list(
 ) -> impl View {
     let editor_tabs = main_split.editor_tabs.read_only();
     let active_editor_tab = main_split.active_editor_tab.read_only();
-    let editors = main_split.editors.read_only();
-    let diff_editors = main_split.diff_editors.read_only();
+    let editors = main_split.editors;
+    let diff_editors = main_split.diff_editors;
     let splits = main_split.splits.read_only();
     let config = main_split.common.config;
     let split_id = split.with_untracked(|split| split.split_id);
@@ -2206,7 +2054,7 @@ fn palette_item(
                                                 .padding_vert_px(1.0)
                                                 .margin_right_px(5.0)
                                                 .border(1.0)
-                                                .border_radius(6.0)
+                                                .border_radius(3.0)
                                                 .border_color(
                                                     *config.get().get_color(
                                                         LapceColor::LAPCE_BORDER,
@@ -2810,7 +2658,7 @@ fn rename(window_tab_data: Rc<WindowTabData>) -> impl View {
 
 fn window_tab(window_tab_data: Rc<WindowTabData>) -> impl View {
     let source_control = window_tab_data.source_control.clone();
-    let window_origin = window_tab_data.window_origin;
+    let window_origin = window_tab_data.common.window_origin;
     let layout_rect = window_tab_data.layout_rect;
     let latest_release = window_tab_data.latest_release;
     let update_in_progress = window_tab_data.update_in_progress;
@@ -2871,6 +2719,10 @@ fn window_tab(window_tab_data: Rc<WindowTabData>) -> impl View {
         }
         false
     })
+    // .on_event(EventListener::ImePreedit, move |event| {
+    //     if let Event::ImePreedit { text, cursor } = event {}
+    //     true
+    // })
     .style(move |s| {
         let config = config.get();
         s.size_pct(100.0, 100.0)
@@ -3188,6 +3040,7 @@ fn window(window_data: WindowData) -> impl View {
     };
     let active = move || active.get();
     let window_focus = create_rw_signal(false);
+    let ime_enabled = window_data.ime_enabled;
 
     tab(active, items, key, |(_, window_tab_data)| {
         window_tab(window_tab_data)
@@ -3203,6 +3056,14 @@ fn window(window_data: WindowData) -> impl View {
             Some(workspace) => format!("{workspace} - Lapce"),
             None => "Lapce".to_string(),
         }
+    })
+    .on_event(EventListener::ImeEnabled, move |_| {
+        ime_enabled.set(true);
+        true
+    })
+    .on_event(EventListener::ImeDisabled, move |_| {
+        ime_enabled.set(false);
+        true
     })
     .on_event(EventListener::WindowGotFocus, move |_| {
         window_focus.set(true);

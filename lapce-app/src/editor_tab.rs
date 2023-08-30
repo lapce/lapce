@@ -1,12 +1,19 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use floem::{
-    peniko::kurbo::{Point, Rect},
-    reactive::{RwSignal, Scope},
+    peniko::{
+        kurbo::{Point, Rect},
+        Color,
+    },
+    reactive::{create_memo, create_rw_signal, Memo, ReadSignal, RwSignal, Scope},
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     doc::{DocContent, Document},
     editor::{
         diff::{DiffEditorData, DiffEditorInfo},
@@ -122,6 +129,15 @@ pub enum EditorTabChild {
     Keymap(KeymapId),
 }
 
+#[derive(PartialEq)]
+pub struct EditorTabChildViewInfo {
+    pub icon: String,
+    pub color: Option<Color>,
+    pub path: String,
+    pub confirmed: Option<RwSignal<bool>>,
+    pub is_pristine: bool,
+}
+
 impl EditorTabChild {
     pub fn id(&self) -> u64 {
         match self {
@@ -162,6 +178,150 @@ impl EditorTabChild {
             }
             EditorTabChild::Settings(_) => EditorTabChildInfo::Settings,
             EditorTabChild::Keymap(_) => EditorTabChildInfo::Keymap,
+        }
+    }
+
+    pub fn view_info(
+        &self,
+        editors: RwSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+        diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
+        config: ReadSignal<Arc<LapceConfig>>,
+    ) -> Memo<EditorTabChildViewInfo> {
+        match self.clone() {
+            EditorTabChild::Editor(editor_id) => create_memo(move |_| {
+                let config = config.get();
+                let editor_data =
+                    editors.with(|editors| editors.get(&editor_id).cloned());
+                let path = if let Some(editor_data) = editor_data {
+                    let ((content, is_pristine), confirmed) =
+                        editor_data.with(|editor_data| {
+                            (
+                                editor_data.view.doc.with(|doc| {
+                                    (doc.content.clone(), doc.buffer().is_pristine())
+                                }),
+                                editor_data.confirmed,
+                            )
+                        });
+                    match content {
+                        DocContent::File(path) => {
+                            Some((path, confirmed, is_pristine))
+                        }
+                        DocContent::Local => None,
+                        DocContent::History(_) => None,
+                        DocContent::Scratch { name, .. } => {
+                            Some((PathBuf::from(name), confirmed, is_pristine))
+                        }
+                    }
+                } else {
+                    None
+                };
+                let (icon, color, path, confirmed, is_pristine) = match path {
+                    Some((path, confirmed, is_pritine)) => {
+                        let (svg, color) = config.file_svg(&path);
+                        (
+                            svg,
+                            color.cloned(),
+                            path.file_name()
+                                .unwrap_or_default()
+                                .to_str()
+                                .unwrap_or_default()
+                                .to_string(),
+                            confirmed,
+                            is_pritine,
+                        )
+                    }
+                    None => (
+                        config.ui_svg(LapceIcons::FILE),
+                        Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                        "local".to_string(),
+                        create_rw_signal(true),
+                        true,
+                    ),
+                };
+                EditorTabChildViewInfo {
+                    icon,
+                    color,
+                    path,
+                    confirmed: Some(confirmed),
+                    is_pristine,
+                }
+            }),
+            EditorTabChild::DiffEditor(diff_editor_id) => create_memo(move |_| {
+                let config = config.get();
+                let diff_editor_data = diff_editors
+                    .with(|diff_editors| diff_editors.get(&diff_editor_id).cloned());
+                let confirmed = diff_editor_data
+                    .as_ref()
+                    .map(|d| d.right.with_untracked(|e| e.confirmed));
+                let path = if let Some(diff_editor_data) = diff_editor_data {
+                    let (content, is_pristine) =
+                        diff_editor_data.right.with(|editor_data| {
+                            editor_data.view.doc.with(|doc| {
+                                (doc.content.clone(), doc.buffer().is_pristine())
+                            })
+                        });
+                    match content {
+                        DocContent::File(path) => Some((path, is_pristine)),
+                        DocContent::Local => None,
+                        DocContent::History(_) => None,
+                        DocContent::Scratch { name, .. } => {
+                            Some((PathBuf::from(name), is_pristine))
+                        }
+                    }
+                } else {
+                    None
+                };
+                let (icon, color, path, is_pristine) = match path {
+                    Some((path, is_pritine)) => {
+                        let (svg, color) = config.file_svg(&path);
+                        (
+                            svg,
+                            color.cloned(),
+                            format!(
+                                "{} (Diff)",
+                                path.file_name()
+                                    .unwrap_or_default()
+                                    .to_str()
+                                    .unwrap_or_default()
+                            ),
+                            is_pritine,
+                        )
+                    }
+                    None => (
+                        config.ui_svg(LapceIcons::FILE),
+                        Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                        "local".to_string(),
+                        true,
+                    ),
+                };
+                EditorTabChildViewInfo {
+                    icon,
+                    color,
+                    path,
+                    confirmed,
+                    is_pristine,
+                }
+            }),
+            EditorTabChild::Settings(_) => create_memo(move |_| {
+                let config = config.get();
+                EditorTabChildViewInfo {
+                    icon: config.ui_svg(LapceIcons::SETTINGS),
+                    color: Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                    path: "Settings".to_string(),
+                    confirmed: None,
+                    is_pristine: true,
+                }
+            }),
+            EditorTabChild::Keymap(_) => create_memo(move |_| {
+                let config = config.get();
+                EditorTabChildViewInfo {
+                    icon: config.ui_svg(LapceIcons::KEYBOARD),
+                    color: Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                    path: "Keyboard Shortcuts".to_string(),
+                    confirmed: None,
+                    is_pristine: true,
+                }
+            }),
         }
     }
 }

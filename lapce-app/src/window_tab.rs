@@ -99,6 +99,7 @@ pub struct CommonData {
     pub hover: HoverData,
     pub register: RwSignal<Register>,
     pub find: Find,
+    pub window_origin: RwSignal<Point>,
     pub window_command: Listener<WindowCommand>,
     pub internal_command: Listener<InternalCommand>,
     pub lapce_command: Listener<LapceCommand>,
@@ -114,6 +115,7 @@ pub struct CommonData {
     pub cursor_blink_timer: RwSignal<TimerToken>,
     pub mouse_hover_timer: RwSignal<TimerToken>,
     pub hide_cursor: RwSignal<bool>,
+    pub ime_allowed: RwSignal<bool>,
 }
 
 #[derive(Clone)]
@@ -133,7 +135,6 @@ pub struct WindowTabData {
     pub global_search: GlobalSearchData,
     pub about_data: AboutData,
     pub alert_data: AlertBoxData,
-    pub window_origin: RwSignal<Point>,
     pub layout_rect: RwSignal<Rect>,
     pub proxy: ProxyData,
     pub window_scale: RwSignal<f64>,
@@ -178,6 +179,7 @@ impl WindowTabData {
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
         num_window_tabs: Memo<usize>,
+        ime_allowed: RwSignal<bool>,
     ) -> Self {
         let cx = cx.create_child();
         let db: Arc<LapceDb> = use_context().unwrap();
@@ -272,6 +274,8 @@ impl WindowTabData {
             cursor_blink_timer: cx.create_rw_signal(TimerToken::INVALID),
             mouse_hover_timer: cx.create_rw_signal(TimerToken::INVALID),
             hide_cursor: cx.create_rw_signal(false),
+            window_origin: cx.create_rw_signal(Point::ZERO),
+            ime_allowed,
         };
 
         let main_split = MainSplitData::new(cx, common.clone());
@@ -384,7 +388,6 @@ impl WindowTabData {
             global_search,
             about_data,
             alert_data,
-            window_origin: cx.create_rw_signal(Point::ZERO),
             layout_rect: cx.create_rw_signal(Rect::ZERO),
             proxy,
             window_scale,
@@ -1549,7 +1552,8 @@ impl WindowTabData {
         let (point_above, point_below) =
             view.points_of_offset(self.common.hover.offset.get_untracked());
 
-        let window_origin = window_origin.get() - self.window_origin.get().to_vec2();
+        let window_origin =
+            window_origin.get() - self.common.window_origin.get().to_vec2();
         let viewport = viewport.get();
         let hover_size = self.common.hover.layout_rect.get().size();
         let tab_size = self.layout_rect.get().size();
@@ -1590,7 +1594,8 @@ impl WindowTabData {
 
         let (point_above, point_below) = view.points_of_offset(completion.offset);
 
-        let window_origin = window_origin.get() - self.window_origin.get().to_vec2();
+        let window_origin =
+            window_origin.get() - self.common.window_origin.get().to_vec2();
         let viewport = viewport.get();
         let completion_size = completion.layout_rect.size();
         let tab_size = self.layout_rect.get().size();
@@ -1639,7 +1644,8 @@ impl WindowTabData {
 
         let (_point_above, point_below) = view.points_of_offset(code_action.offset);
 
-        let window_origin = window_origin.get() - self.window_origin.get().to_vec2();
+        let window_origin =
+            window_origin.get() - self.common.window_origin.get().to_vec2();
         let viewport = viewport.get();
 
         let mut origin = window_origin
@@ -1689,7 +1695,8 @@ impl WindowTabData {
         let (_point_above, point_below) =
             view.points_of_offset(self.rename.start.get_untracked());
 
-        let window_origin = window_origin.get() - self.window_origin.get().to_vec2();
+        let window_origin =
+            window_origin.get() - self.common.window_origin.get().to_vec2();
         let viewport = viewport.get();
 
         let mut origin = window_origin

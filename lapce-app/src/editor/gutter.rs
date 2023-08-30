@@ -103,7 +103,7 @@ impl EditorGutterView {
         cx.fill(
             &sticky_area_rect,
             config.get_color(LapceColor::LAPCE_DROPDOWN_SHADOW),
-            5.0,
+            3.0,
         );
         cx.fill(
             &sticky_area_rect,
