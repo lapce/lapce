@@ -41,7 +41,7 @@ use crate::{
     doc::{DocContent, Document},
     editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
-    id::{EditorId, EditorTabId},
+    id::{DiffEditorId, EditorId, EditorTabId},
     keypress::{condition::Condition, KeyPressFocus},
     main_split::{MainSplitData, SplitDirection, SplitMoveDirection},
     markdown::{
@@ -91,6 +91,7 @@ impl EditorInfo {
                 let editor_data = EditorData::new(
                     data.scope,
                     Some(editor_tab_id),
+                    None,
                     editor_id,
                     doc,
                     data.common,
@@ -144,6 +145,7 @@ impl EditorInfo {
                 EditorData::new(
                     data.scope,
                     Some(editor_tab_id),
+                    None,
                     editor_id,
                     doc,
                     data.common,
@@ -164,6 +166,7 @@ pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 pub struct EditorData {
     pub scope: Scope,
     pub editor_tab_id: Option<EditorTabId>,
+    pub diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
     pub editor_id: EditorId,
     pub view: EditorViewData,
     pub confirmed: RwSignal<bool>,
@@ -192,6 +195,7 @@ impl EditorData {
     pub fn new(
         cx: Scope,
         editor_tab_id: Option<EditorTabId>,
+        diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
         editor_id: EditorId,
         doc: RwSignal<Document>,
         common: CommonData,
@@ -226,6 +230,7 @@ impl EditorData {
         Self {
             scope: cx,
             editor_tab_id,
+            diff_editor_id,
             editor_id,
             view,
             cursor,
@@ -254,7 +259,7 @@ impl EditorData {
             common.config,
         );
         let doc = cx.create_rw_signal(doc);
-        Self::new(cx, None, editor_id, doc, common)
+        Self::new(cx, None, None, editor_id, doc, common)
     }
 
     pub fn editor_info(&self, _data: &WindowTabData) -> EditorInfo {
@@ -277,6 +282,7 @@ impl EditorData {
         &self,
         cx: Scope,
         editor_tab_id: Option<EditorTabId>,
+        diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
         editor_id: EditorId,
     ) -> Self {
         let cx = cx.create_child();
@@ -294,6 +300,7 @@ impl EditorData {
             scope: cx,
             editor_id,
             editor_tab_id,
+            diff_editor_id,
             view: self.view.duplicate(cx),
             cursor,
             viewport: cx.create_rw_signal(self.viewport.get_untracked()),
@@ -487,6 +494,11 @@ impl EditorData {
                         direction: SplitDirection::Vertical,
                         editor_tab_id,
                     });
+                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
+                    self.common.internal_command.send(InternalCommand::Split {
+                        direction: SplitDirection::Vertical,
+                        editor_tab_id,
+                    });
                 }
             }
             FocusCommand::SplitHorizontal => {
@@ -495,10 +507,22 @@ impl EditorData {
                         direction: SplitDirection::Horizontal,
                         editor_tab_id,
                     });
+                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
+                    self.common.internal_command.send(InternalCommand::Split {
+                        direction: SplitDirection::Horizontal,
+                        editor_tab_id,
+                    });
                 }
             }
             FocusCommand::SplitRight => {
                 if let Some(editor_tab_id) = self.editor_tab_id {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
+                            direction: SplitMoveDirection::Right,
+                            editor_tab_id,
+                        });
+                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitMove {
@@ -515,10 +539,24 @@ impl EditorData {
                             direction: SplitMoveDirection::Left,
                             editor_tab_id,
                         });
+                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
+                            direction: SplitMoveDirection::Left,
+                            editor_tab_id,
+                        });
                 }
             }
             FocusCommand::SplitUp => {
                 if let Some(editor_tab_id) = self.editor_tab_id {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
+                            direction: SplitMoveDirection::Up,
+                            editor_tab_id,
+                        });
+                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitMove {
@@ -535,10 +573,21 @@ impl EditorData {
                             direction: SplitMoveDirection::Down,
                             editor_tab_id,
                         });
+                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
+                            direction: SplitMoveDirection::Down,
+                            editor_tab_id,
+                        });
                 }
             }
             FocusCommand::SplitExchange => {
                 if let Some(editor_tab_id) = self.editor_tab_id {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitExchange { editor_tab_id });
+                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitExchange { editor_tab_id });
@@ -550,6 +599,15 @@ impl EditorData {
                         InternalCommand::EditorTabChildClose {
                             editor_tab_id,
                             child: EditorTabChild::Editor(self.editor_id),
+                        },
+                    );
+                } else if let Some((editor_tab_id, diff_editor_id)) =
+                    self.diff_editor_id
+                {
+                    self.common.internal_command.send(
+                        InternalCommand::EditorTabChildClose {
+                            editor_tab_id,
+                            child: EditorTabChild::DiffEditor(diff_editor_id),
                         },
                     );
                 }

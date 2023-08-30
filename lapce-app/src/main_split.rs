@@ -854,6 +854,7 @@ impl MainSplitData {
                     let editor = EditorData::new(
                         self.scope,
                         Some(editor_tab_id),
+                        None,
                         editor_id,
                         *doc,
                         self.common.clone(),
@@ -885,6 +886,7 @@ impl MainSplitData {
                     let editor = EditorData::new(
                         self.scope,
                         Some(editor_tab_id),
+                        None,
                         editor_id,
                         doc,
                         self.common.clone(),
@@ -1329,7 +1331,9 @@ impl MainSplitData {
                 let new_editor_id = EditorId::next();
                 let editor =
                     self.editors.get_untracked().get(editor_id)?.with_untracked(
-                        |editor| editor.copy(cx, Some(editor_tab_id), new_editor_id),
+                        |editor| {
+                            editor.copy(cx, Some(editor_tab_id), None, new_editor_id)
+                        },
                     );
                 let editor = editor.scope.create_rw_signal(editor);
                 self.editors.update(|editors| {
@@ -2268,6 +2272,12 @@ impl MainSplitData {
                         diff_editors.get(diff_editor_id).cloned()
                     })?;
                 diff_editor.editor_tab_id.set(editor_tab_id);
+                diff_editor.left.update(|editor| {
+                    editor.diff_editor_id = Some((editor_tab_id, *diff_editor_id));
+                });
+                diff_editor.right.update(|editor| {
+                    editor.diff_editor_id = Some((editor_tab_id, *diff_editor_id));
+                });
             }
             EditorTabChild::Settings(_) => {}
             EditorTabChild::Keymap(_) => {}

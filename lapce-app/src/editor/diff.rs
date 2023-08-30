@@ -153,10 +153,23 @@ impl DiffEditorData {
         common: CommonData,
     ) -> Self {
         let cx = cx.create_child();
-        let left =
-            EditorData::new(cx, None, EditorId::next(), left_doc, common.clone());
+        let left = EditorData::new(
+            cx,
+            None,
+            Some((editor_tab_id, id)),
+            EditorId::next(),
+            left_doc,
+            common.clone(),
+        );
         let left = left.scope.create_rw_signal(left);
-        let right = EditorData::new(cx, None, EditorId::next(), right_doc, common);
+        let right = EditorData::new(
+            cx,
+            None,
+            Some((editor_tab_id, id)),
+            EditorId::next(),
+            right_doc,
+            common,
+        );
         let right = right.scope.create_rw_signal(right);
 
         let data = Self {
@@ -202,11 +215,13 @@ impl DiffEditorData {
             left: cx.create_rw_signal(self.left.get_untracked().copy(
                 cx,
                 None,
+                Some((editor_tab_id, diff_editor_id)),
                 EditorId::next(),
             )),
             right: cx.create_rw_signal(self.right.get_untracked().copy(
                 cx,
                 None,
+                Some((editor_tab_id, diff_editor_id)),
                 EditorId::next(),
             )),
         };
