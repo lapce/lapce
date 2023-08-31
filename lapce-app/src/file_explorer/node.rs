@@ -4,6 +4,7 @@ use std::{
 };
 
 use floem::{reactive::Memo, views::VirtualListVector};
+use itertools::Itertools;
 
 use crate::{command::InternalCommand, listener::Listener};
 
@@ -96,6 +97,10 @@ impl VirtualListVector<(PathBuf, FileNode)> for FileNode {
         } else {
             HashMap::new()
         };
-        Box::new(children.into_iter())
+        Box::new(
+            children
+                .into_iter()
+                .sorted_by_key(|(_, n)| (!n.is_dir, n.path.to_path_buf())),
+        )
     }
 }
