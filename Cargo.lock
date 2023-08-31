@@ -893,7 +893,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.7.0"
-source = "git+https://github.com/lapce/cosmic-text?rev=96858440532d1e5ae2e50df734e44322b426d0de#96858440532d1e5ae2e50df734e44322b426d0de"
+source = "git+https://github.com/lapce/cosmic-text?rev=23555c6abf596c9a7fb1d4e604bf2711b0e58ed8#23555c6abf596c9a7fb1d4e604bf2711b0e58ed8"
 dependencies = [
  "fontdb 0.13.1",
  "libm",
@@ -913,6 +913,12 @@ dependencies = [
  "unicode-script",
  "unicode-segmentation",
 ]
+
+[[package]]
+name = "cov-mark"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ffa3d3e0138386cd4361f63537765cac7ee40698028844635a54495a92f67f3"
 
 [[package]]
 name = "cpp_demangle"
@@ -1486,7 +1492,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=53823652d9574c8e6b02262b2612c5f2d207275e#53823652d9574c8e6b02262b2612c5f2d207275e"
+source = "git+https://github.com/lapce/floem?rev=d891dd607bc901dc0c0b59f96b1fac8856b9e46c#d891dd607bc901dc0c0b59f96b1fac8856b9e46c"
 dependencies = [
  "bitflags 2.4.0",
  "crossbeam-channel",
@@ -1513,12 +1519,12 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=53823652d9574c8e6b02262b2612c5f2d207275e#53823652d9574c8e6b02262b2612c5f2d207275e"
+source = "git+https://github.com/lapce/floem?rev=d891dd607bc901dc0c0b59f96b1fac8856b9e46c#d891dd607bc901dc0c0b59f96b1fac8856b9e46c"
 
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=53823652d9574c8e6b02262b2612c5f2d207275e#53823652d9574c8e6b02262b2612c5f2d207275e"
+source = "git+https://github.com/lapce/floem?rev=d891dd607bc901dc0c0b59f96b1fac8856b9e46c#d891dd607bc901dc0c0b59f96b1fac8856b9e46c"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1528,7 +1534,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=53823652d9574c8e6b02262b2612c5f2d207275e#53823652d9574c8e6b02262b2612c5f2d207275e"
+source = "git+https://github.com/lapce/floem?rev=d891dd607bc901dc0c0b59f96b1fac8856b9e46c#d891dd607bc901dc0c0b59f96b1fac8856b9e46c"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -2650,6 +2656,7 @@ dependencies = [
  "lapce-xi-rope",
  "lsp-types",
  "notify",
+ "nucleo",
  "once_cell",
  "open",
  "parking_lot 0.11.2",
@@ -3317,6 +3324,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "nucleo"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ccab936f2c8ad271bb31430944d98d358f74153566ea323265497f5639b11b6"
+dependencies = [
+ "nucleo-matcher",
+ "parking_lot 0.12.1",
+ "rayon",
+]
+
+[[package]]
+name = "nucleo-matcher"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b702b402fe286162d1f00b552a046ce74365d2ac473a2607ff36ba650f9bd57"
+dependencies = [
+ "cov-mark",
+ "memchr",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "num-bigint"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3934,12 +3963,10 @@ checksum = "f2ff9a1f06a88b01621b7ae906ef0211290d1c8a168a15542486a8f61c0833b9"
 
 [[package]]
 name = "rayon"
-version = "1.5.3"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd99e5772ead8baa5215278c9b15bf92087709e9c1b2d1f97cdb5a183c933a7d"
+checksum = "1d2df5196e37bcc87abebc0053e20787d73847bb33134a69841207dd0a47f03b"
 dependencies = [
- "autocfg",
- "crossbeam-deque",
  "either",
  "rayon-core",
 ]
@@ -5542,7 +5569,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.7"
-source = "git+https://github.com/lapce/vger-rs?rev=e8f342b88a96045b7e24421541a1030f950f20f4#e8f342b88a96045b7e24421541a1030f950f20f4"
+source = "git+https://github.com/lapce/vger-rs?rev=36cf0cf42e05eeaf94da994549e104968b1f3cd7#36cf0cf42e05eeaf94da994549e104968b1f3cd7"
 dependencies = [
  "cosmic-text",
  "euclid",

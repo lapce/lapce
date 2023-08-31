@@ -14,7 +14,7 @@ use crate::{
 pub struct PaletteItem {
     pub content: PaletteItemContent,
     pub filter_text: String,
-    pub score: i64,
+    pub score: u32,
     pub indices: Vec<usize>,
 }
 

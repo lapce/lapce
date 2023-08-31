@@ -700,7 +700,7 @@ impl ProxyHandler for Dispatcher {
                                 .filter_map(|entry| {
                                     entry
                                         .map(|e| FileNodeItem {
-                                            path_buf: e.path(),
+                                            path: e.path(),
                                             is_dir: e.path().is_dir(),
                                             open: false,
                                             read: false,

@@ -14,7 +14,7 @@ use floem::{
 };
 use lapce_rpc::proxy::ProxyRpcHandler;
 
-use super::node::FileNode;
+use super::{data::FileExplorerData, node::FileNode};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -29,7 +29,8 @@ pub fn file_explorer_panel(
     position: PanelPosition,
 ) -> impl View {
     let config = window_tab_data.common.config;
-    let root_file_node = window_tab_data.file_explorer.root.clone();
+    let data = window_tab_data.file_explorer.clone();
+    let root_file_node = window_tab_data.file_explorer.root;
     let proxy = window_tab_data.common.proxy.clone();
     stack(|| {
         (
@@ -47,7 +48,8 @@ pub fn file_explorer_panel(
                     container(|| {
                         scroll(move || {
                             file_node_view(
-                                root_file_node.clone(),
+                                root_file_node,
+                                data,
                                 proxy.clone(),
                                 0,
                                 config,
@@ -68,34 +70,39 @@ pub fn file_explorer_panel(
 }
 
 fn file_node_view(
-    file_node: FileNode,
+    file_node: RwSignal<FileNode>,
+    data: FileExplorerData,
     proxy: ProxyRpcHandler,
     level: usize,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
+    let id = data.id;
     virtual_list(
         VirtualListDirection::Vertical,
         VirtualListItemSize::Fn(Box::new(|(_, file_node): &(PathBuf, FileNode)| {
             file_node.total_size().unwrap_or(0.0)
         })),
-        move || file_node.clone(),
-        |(path, _)| path.to_owned(),
+        move || file_node.get(),
+        move |(path, _)| (id.get_untracked(), path.to_path_buf()),
         move |(path, file_node)| {
+            let data = data.clone();
             let proxy = proxy.clone();
             stack(move || {
                 (
                     {
                         let file_node = file_node.clone();
-                        let double_click_file_node = file_node.clone();
-                        let aux_click_file_node = file_node.clone();
-                        let proxy = proxy.clone();
                         let expanded = file_node.expanded;
                         let is_dir = file_node.is_dir;
-                        stack(|| {
+                        let data = data.clone();
+                        let double_click_data = data.clone();
+                        let aux_click_data = data.clone();
+                        let aux_click_path = path.clone();
+                        let click_path = file_node.path.clone();
+                        let double_click_path = path.clone();
+                        stack(move || {
                             (
                                 svg(move || {
                                     let config = config.get();
-                                    let expanded = expanded.get();
                                     let svg_str = match expanded {
                                         true => LapceIcons::ITEM_OPENED,
                                         false => LapceIcons::ITEM_CLOSED,
@@ -122,7 +129,6 @@ fn file_node_view(
                                     svg(move || {
                                         let config = config.get();
                                         if is_dir {
-                                            let expanded = expanded.get();
                                             let svg_str = match expanded {
                                                 true => LapceIcons::DIRECTORY_OPENED,
                                                 false => {
@@ -168,16 +174,16 @@ fn file_node_view(
                             )
                         })
                         .on_click(move |_| {
-                            file_node.click(&proxy);
+                            data.click(&click_path);
                             true
                         })
                         .on_double_click(move |_| {
-                            double_click_file_node.double_click()
+                            double_click_data.double_click(&double_click_path)
                         })
                         .on_event(EventListener::PointerDown, move |event| {
                             if let Event::PointerDown(pointer_event) = event {
                                 if pointer_event.button.is_auxiliary() {
-                                    aux_click_file_node.middle_click();
+                                    aux_click_data.middle_click(&aux_click_path);
                                 }
                             }
                             true
@@ -198,8 +204,10 @@ fn file_node_view(
                         })
                     },
                     container_box(move || {
+                        let file_node = create_rw_signal(file_node);
                         Box::new(file_node_view(
                             file_node,
+                            data.clone(),
                             proxy.clone(),
                             level + 1,
                             config,

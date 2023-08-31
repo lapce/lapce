@@ -46,7 +46,7 @@ use lapce_rpc::{
     file::PathObject,
     RpcMessage,
 };
-use lsp_types::CompletionItemKind;
+use lsp_types::{CompletionItemKind, MessageType, ShowMessageParams};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use tracing::{error, metadata::LevelFilter, trace};
@@ -1639,7 +1639,14 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
                 })
                 .style(|s| s.flex_col().size_pct(100.0, 100.0))
             },
-            panel_container_view(window_tab_data, PanelContainerPosition::Right),
+            panel_container_view(
+                window_tab_data.clone(),
+                PanelContainerPosition::Right,
+            ),
+            window_message_view(
+                window_tab_data.messages,
+                window_tab_data.common.config,
+            ),
         )
     })
     .style(|s| s.size_pct(100.0, 100.0))
@@ -2334,6 +2341,99 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
         .flex_col()
         .items_center()
     })
+}
+
+fn window_message_view(
+    messages: RwSignal<Vec<(String, ShowMessageParams)>>,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    let view_fn =
+        move |(i, (title, message)): (usize, (String, ShowMessageParams))| {
+            stack(|| {
+                (
+                    svg(move || {
+                        if let MessageType::ERROR = message.typ {
+                            config.get().ui_svg(LapceIcons::ERROR)
+                        } else {
+                            config.get().ui_svg(LapceIcons::WARNING)
+                        }
+                    })
+                    .style(move |s| {
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32;
+                        let color = if let MessageType::ERROR = message.typ {
+                            config.get_color(LapceColor::LAPCE_ERROR)
+                        } else {
+                            config.get_color(LapceColor::LAPCE_WARN)
+                        };
+                        s.min_width_px(size)
+                            .size_px(size, size)
+                            .margin_right_px(10.0)
+                            .margin_top_px(4.0)
+                            .color(*color)
+                    }),
+                    stack(|| {
+                        (
+                            label(move || title.clone()).style(|s| {
+                                s.min_width_px(0.0)
+                                    .line_height(1.6)
+                                    .font_weight(Weight::BOLD)
+                            }),
+                            label(move || message.message.clone()).style(|s| {
+                                s.min_width_px(0.0)
+                                    .line_height(1.6)
+                                    .margin_top_px(5.0)
+                            }),
+                        )
+                    })
+                    .style(move |s| {
+                        s.flex_col()
+                            .min_width_px(0.0)
+                            .flex_basis_px(0.0)
+                            .flex_grow(1.0)
+                    }),
+                    clickable_icon(
+                        || LapceIcons::CLOSE,
+                        move || {
+                            messages.update(|messages| {
+                                messages.remove(i);
+                            });
+                        },
+                        || false,
+                        || false,
+                        config,
+                    )
+                    .style(|s| s.margin_left_px(6.0)),
+                )
+            })
+            .style(move |s| {
+                let config = config.get();
+                s.width_pct(100.0)
+                    .items_start()
+                    .padding_px(10.0)
+                    .border(1.0)
+                    .border_radius(6.0)
+                    .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                    .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+            })
+        };
+
+    let id = AtomicU64::new(0);
+    container(|| {
+        container(|| {
+            scroll(|| {
+                list(
+                    move || messages.get().into_iter().enumerate(),
+                    move |_| id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+                    view_fn,
+                )
+                .style(|s| s.flex_col().width_pct(100.0))
+            })
+            .style(|s| s.size_pct(100.0, 100.0))
+        })
+        .style(|s| s.width_px(360.0).max_width_pct(80.0).padding_px(10.0))
+    })
+    .style(|s| s.absolute().size_pct(100.0, 100.0).justify_end())
 }
 
 struct VectorItems<V>(im::Vector<V>);

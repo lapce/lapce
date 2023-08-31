@@ -56,7 +56,7 @@ pub enum CoreNotification {
     OpenPaths {
         paths: Vec<PathObject>,
     },
-    WorkspaceFileChange {},
+    WorkspaceFileChange,
     PublishDiagnostics {
         diagnostics: PublishDiagnosticsParams,
     },
@@ -219,7 +219,7 @@ impl CoreRpcHandler {
     }
 
     pub fn workspace_file_change(&self) {
-        self.notification(CoreNotification::WorkspaceFileChange {});
+        self.notification(CoreNotification::WorkspaceFileChange);
     }
 
     pub fn diff_info(&self, diff: DiffInfo) {

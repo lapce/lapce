@@ -1,44 +1,184 @@
-use std::path::PathBuf;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
-use floem::reactive::{RwSignal, Scope};
-use indexmap::IndexMap;
+use floem::{
+    ext_event::create_ext_action,
+    reactive::{RwSignal, Scope},
+};
+use lapce_rpc::proxy::ProxyResponse;
 
 use super::node::FileNode;
-use crate::window_tab::CommonData;
+use crate::{command::InternalCommand, window_tab::CommonData};
 
 #[derive(Clone)]
 pub struct FileExplorerData {
-    pub root: FileNode,
+    pub id: RwSignal<usize>,
+    pub root: RwSignal<FileNode>,
     pub common: CommonData,
-    pub all_files: RwSignal<im::HashMap<PathBuf, FileNode>>,
 }
 
 impl FileExplorerData {
     pub fn new(cx: Scope, common: CommonData) -> Self {
         let path = common.workspace.path.clone().unwrap_or_default();
-        let all_files = cx.create_rw_signal(im::HashMap::new());
-        let root = FileNode {
-            scope: cx,
+        let new_root = cx.create_rw_signal(FileNode {
             path: path.clone(),
             is_dir: true,
-            read: cx.create_rw_signal(false),
-            expanded: cx.create_rw_signal(false),
-            children: cx.create_rw_signal(IndexMap::new()),
-            children_open_count: cx.create_rw_signal(0),
-            all_files,
+            read: false,
+            expanded: false,
+            children: HashMap::new(),
+            children_open_count: 0,
             line_height: common.ui_line_height,
             internal_command: common.internal_command,
-        };
-        all_files.update(|all_files| {
-            all_files.insert(path, root.clone());
         });
-        if common.workspace.path.is_some() {
-            root.toggle_expand(&common.proxy);
-        }
-        Self {
-            root,
+        let data = Self {
+            id: cx.create_rw_signal(0),
+            root: new_root,
             common,
-            all_files,
+        };
+        data.toggle_expand(&path);
+        data
+    }
+
+    pub fn reload(&self) {
+        let path = self.root.with_untracked(|root| root.path.clone());
+        self.read_dir(&path);
+    }
+
+    pub fn toggle_expand(&self, path: &Path) {
+        self.id.update(|id| {
+            *id += 1;
+        });
+        if let Some(read) = self
+            .root
+            .try_update(|root| {
+                let read = if let Some(node) = root.get_node_mut(path) {
+                    if !node.is_dir {
+                        return None;
+                    }
+                    node.expanded = !node.expanded;
+                    Some(node.read)
+                } else {
+                    None
+                };
+                if Some(true) == read {
+                    root.update_node_count_recursive(path);
+                }
+                read
+            })
+            .unwrap()
+        {
+            if !read {
+                self.read_dir(path);
+            }
+        }
+    }
+
+    pub fn read_dir(&self, path: &Path) {
+        let root = self.root;
+        let id = self.id;
+        let data = self.clone();
+        let send = {
+            let path = path.to_path_buf();
+            create_ext_action(self.common.scope, move |result| {
+                if let Ok(ProxyResponse::ReadDirResponse { items }) = result {
+                    id.update(|id| {
+                        *id += 1;
+                    });
+                    root.update(|root| {
+                        if let Some(node) = root.get_node_mut(&path) {
+                            node.read = true;
+                            let removed_paths: Vec<PathBuf> = node
+                                .children
+                                .keys()
+                                .filter(|p| !items.iter().any(|i| &&i.path == p))
+                                .map(PathBuf::from)
+                                .collect();
+                            for path in removed_paths {
+                                node.children.remove(&path);
+                            }
+
+                            for item in items {
+                                if let Some(existing) = node.children.get(&item.path)
+                                {
+                                    if existing.read {
+                                        data.read_dir(&existing.path);
+                                    }
+                                } else {
+                                    node.children.insert(
+                                        item.path.clone(),
+                                        FileNode {
+                                            path: item.path,
+                                            is_dir: item.is_dir,
+                                            read: false,
+                                            expanded: false,
+                                            children: HashMap::new(),
+                                            children_open_count: 0,
+                                            internal_command: node.internal_command,
+                                            line_height: node.line_height,
+                                        },
+                                    );
+                                }
+                            }
+                        }
+                        root.update_node_count_recursive(&path);
+                    });
+                }
+            })
+        };
+        self.common
+            .proxy
+            .read_dir(path.to_path_buf(), move |result| {
+                send(result);
+            });
+    }
+
+    pub fn click(&self, path: &Path) {
+        let is_dir = self
+            .root
+            .with_untracked(|root| root.get_node(path).map(|n| n.is_dir))
+            .unwrap_or(false);
+        if is_dir {
+            self.toggle_expand(path);
+        } else {
+            self.common
+                .internal_command
+                .send(InternalCommand::OpenFile {
+                    path: path.to_path_buf(),
+                })
+        }
+    }
+
+    pub fn double_click(&self, path: &Path) -> bool {
+        let is_dir = self
+            .root
+            .with_untracked(|root| root.get_node(path).map(|n| n.is_dir))
+            .unwrap_or(false);
+        if is_dir {
+            false
+        } else {
+            self.common
+                .internal_command
+                .send(InternalCommand::MakeConfirmed);
+            true
+        }
+    }
+
+    pub fn middle_click(&self, path: &Path) -> bool {
+        let is_dir = self
+            .root
+            .with_untracked(|root| root.get_node(path).map(|n| n.is_dir))
+            .unwrap_or(false);
+        if is_dir {
+            false
+        } else {
+            self.common
+                .internal_command
+                .send(InternalCommand::OpenFileInNewTab {
+                    path: path.to_path_buf(),
+                });
+            true
         }
     }
 }

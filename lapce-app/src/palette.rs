@@ -17,7 +17,6 @@ use floem::{
     keyboard::ModifiersState,
     reactive::{use_context, ReadSignal, RwSignal, Scope},
 };
-use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use itertools::Itertools;
 use lapce_core::{
     buffer::rope_text::RopeText, command::FocusCommand, language::LapceLanguage,
@@ -26,6 +25,7 @@ use lapce_core::{
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
 use lsp_types::DocumentSymbolResponse;
+use nucleo::Utf32Str;
 use strum::{EnumMessage, IntoEnumIterator};
 
 use self::{
@@ -1264,11 +1264,16 @@ impl PaletteData {
         current_run_id: u64,
         input: &str,
         items: im::Vector<PaletteItem>,
-        matcher: &SkimMatcherV2,
+        matcher: &mut nucleo::Matcher,
     ) -> Option<im::Vector<PaletteItem>> {
         if input.is_empty() {
             return Some(items);
         }
+
+        let pattern = nucleo::pattern::Pattern::parse(
+            input,
+            nucleo::pattern::CaseMatching::Ignore,
+        );
 
         // NOTE: We collect into a Vec to sort as we are hitting a worst-case behavior in
         // `im::Vector` that can lead to a stack overflow!
@@ -1280,12 +1285,14 @@ impl PaletteData {
                 return None;
             }
 
-            if let Some((score, indices)) =
-                matcher.fuzzy_indices(&i.filter_text, input)
+            let mut indices = Vec::new();
+            let mut filter_text_buf = Vec::new();
+            let filter_text = Utf32Str::new(&i.filter_text, &mut filter_text_buf);
+            if let Some(score) = pattern.indices(filter_text, matcher, &mut indices)
             {
                 let mut item = i.clone();
                 item.score = score;
-                item.indices = indices;
+                item.indices = indices.into_iter().map(|i| i as usize).collect();
                 filtered_items.push(item);
             }
         }
@@ -1327,7 +1334,8 @@ impl PaletteData {
             Ok((run_id, input, items))
         }
 
-        let matcher = SkimMatcherV2::default().ignore_case();
+        let mut matcher =
+            nucleo::Matcher::new(nucleo::Config::DEFAULT.match_paths());
         loop {
             if let Ok((current_run_id, input, items)) = receive_batch(&receiver) {
                 if let Some(filtered_items) = Self::filter_items(
@@ -1335,7 +1343,7 @@ impl PaletteData {
                     current_run_id,
                     &input,
                     items,
-                    &matcher,
+                    &mut matcher,
                 ) {
                     let _ = resp_tx.send((current_run_id, input, filtered_items));
                 }
