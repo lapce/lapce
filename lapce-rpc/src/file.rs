@@ -49,7 +49,7 @@ impl PathObject {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FileNodeItem {
-    pub path_buf: PathBuf,
+    pub path: PathBuf,
     pub is_dir: bool,
     pub read: bool,
     pub open: bool,
@@ -65,8 +65,8 @@ impl PartialOrd for FileNodeItem {
             _ => {}
         }
 
-        let self_file_name = self.path_buf.file_name()?.to_str()?;
-        let other_file_name = other.path_buf.file_name()?.to_str()?;
+        let self_file_name = self.path.file_name()?.to_str()?;
+        let other_file_name = other.path.file_name()?.to_str()?;
 
         // TODO(dbuga): it would be nicer if human_sort had a `eq_ignore_ascii_case` function.
         Some(human_sort::compare(
@@ -124,7 +124,7 @@ impl FileNodeItem {
         &self,
         path: &'a Path,
     ) -> Option<impl Iterator<Item = &'a Path>> {
-        let take = if let Ok(suffix) = path.strip_prefix(&self.path_buf) {
+        let take = if let Ok(suffix) = path.strip_prefix(&self.path) {
             suffix.components().count()
         } else {
             return None;
@@ -162,7 +162,7 @@ impl FileNodeItem {
         node.children.insert(
             PathBuf::from(path),
             FileNodeItem {
-                path_buf: PathBuf::from(path),
+                path: PathBuf::from(path),
                 is_dir,
                 read: false,
                 open: false,

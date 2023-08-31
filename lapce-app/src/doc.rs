@@ -24,7 +24,7 @@ use lapce_core::{
     editor::{EditType, Editor},
     language::LapceLanguage,
     register::{Clipboard, Register},
-    selection::Selection,
+    selection::{InsertDrift, Selection},
     style::line_styles,
     syntax::{edit::SyntaxEdit, Syntax},
 };
@@ -490,6 +490,7 @@ impl Document {
             self.update_inlay_hints(delta);
             self.update_diagnostics(delta);
             self.update_completion_lens(delta);
+            self.update_find_result(delta);
             if let DocContent::File(path) = &self.content {
                 self.proxy
                     .update(path.clone(), delta.clone(), rev + i as u64 + 1);
@@ -516,7 +517,6 @@ impl Document {
         self.clear_style_cache();
         self.trigger_syntax_change(edits);
         self.clear_sticky_headers_cache();
-        // self.find_result.reset();
         // self.clear_sticky_headers_cache();
         self.trigger_head_change();
         // self.notify_special();
@@ -963,6 +963,12 @@ impl Document {
         if self.completion_lens.is_some() {
             self.completion_lens = None;
         }
+    }
+
+    fn update_find_result(&self, delta: &RopeDelta) {
+        self.find_result.occurrences.update(|s| {
+            *s = s.apply_delta(delta, true, InsertDrift::Default);
+        })
     }
 
     /// Update the completion lens position after an edit so that it appears in the correct place.

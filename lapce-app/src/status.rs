@@ -1,13 +1,17 @@
-use std::{rc::Rc, sync::Arc};
+use std::{
+    rc::Rc,
+    sync::{atomic::AtomicU64, Arc},
+};
 
 use floem::{
-    reactive::{create_memo, ReadSignal},
+    reactive::{create_memo, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Display},
     view::View,
-    views::{label, stack, svg, Decorators},
+    views::{label, list, stack, svg, Decorators},
 };
+use indexmap::IndexMap;
 use lapce_core::mode::Mode;
-use lsp_types::DiagnosticSeverity;
+use lsp_types::{DiagnosticSeverity, ProgressToken};
 
 use crate::{
     app::clickable_icon,
@@ -17,7 +21,7 @@ use crate::{
     palette::kind::PaletteKind,
     panel::{kind::PanelKind, position::PanelContainerPosition},
     source_control::SourceControlData,
-    window_tab::WindowTabData,
+    window_tab::{WindowTabData, WorkProgress},
 };
 
 pub fn status(
@@ -61,6 +65,7 @@ pub fn status(
         )
     };
 
+    let progresses = window_tab_data.progresses;
     let mode = create_memo(move |_| window_tab_data.mode());
 
     stack(move || {
@@ -196,6 +201,7 @@ pub fn status(
                             )
                         })
                     },
+                    progress_view(progresses),
                 )
             })
             .style(|s| {
@@ -400,4 +406,28 @@ pub fn status(
             .height_px(config.ui.status_height() as f32)
             .align_items(Some(AlignItems::Center))
     })
+}
+
+fn progress_view(
+    progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
+) -> impl View {
+    let id = AtomicU64::new(0);
+    list(
+        move || progresses.get(),
+        move |_| id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+        move |(_, p)| {
+            stack(|| {
+                (label(move || p.title.clone()), {
+                    let message = p.message.unwrap_or_default();
+                    let is_empty = message.is_empty();
+                    label(move || format!(": {message}")).style(move |s| {
+                        s.min_width_px(0.0)
+                            .text_ellipsis()
+                            .apply_if(is_empty, |s| s.hide())
+                    })
+                })
+            })
+            .style(|s| s.margin_left_px(10.0))
+        },
+    )
 }

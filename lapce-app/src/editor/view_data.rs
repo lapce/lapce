@@ -113,6 +113,7 @@ impl EditorViewKind {
 pub struct EditorViewData {
     /// Equivalent to the `EditorData::doc` that contains this view.
     pub doc: RwSignal<Document>,
+    pub find_result: FindResult,
     pub kind: RwSignal<EditorViewKind>,
     /// The text layouts for the document. This may be shared with other views.
     pub text_layouts: Rc<RefCell<TextLayoutCache>>,
@@ -147,8 +148,10 @@ impl EditorViewData {
         kind: RwSignal<EditorViewKind>,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> EditorViewData {
+        let find_result = doc.with_untracked(|doc| doc.find_result.clone());
         EditorViewData {
             doc,
+            find_result,
             kind,
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             config,
@@ -181,7 +184,7 @@ impl EditorViewData {
     }
 
     pub fn find_result(&self) -> FindResult {
-        self.doc.with_untracked(|doc| doc.find_result.clone())
+        self.find_result.clone()
     }
 
     pub fn update_find(&self) {
@@ -209,6 +212,7 @@ impl EditorViewData {
     /// The document for the given view was swapped out.
     pub fn update_doc(&mut self, doc: RwSignal<Document>) {
         self.doc = doc;
+        self.find_result = self.doc.with_untracked(|doc| doc.find_result.clone());
         self.text_layouts.borrow_mut().clear(0);
     }
 
@@ -220,6 +224,7 @@ impl EditorViewData {
         // like whether the wrap width will be the editor's width, and so it is unlikely to be exactly the same as the current view.
         EditorViewData {
             doc: self.doc,
+            find_result: self.find_result.clone(),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             kind: cx.create_rw_signal(self.kind.get_untracked()),
             config: self.config,

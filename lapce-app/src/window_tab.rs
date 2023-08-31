@@ -10,6 +10,7 @@ use floem::{
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
 };
+use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{directory::Directory, meta, mode::Mode, register::Register};
 use lapce_rpc::{
@@ -20,6 +21,7 @@ use lapce_rpc::{
     source_control::FileDiff,
     terminal::TermId,
 };
+use lsp_types::{ProgressParams, ProgressToken, ShowMessageParams};
 use serde_json::Value;
 use tracing::{debug, error};
 
@@ -90,6 +92,14 @@ impl DragContent {
 }
 
 #[derive(Clone)]
+pub struct WorkProgress {
+    pub token: ProgressToken,
+    pub title: String,
+    pub message: Option<String>,
+    pub percentage: Option<u32>,
+}
+
+#[derive(Clone)]
 pub struct CommonData {
     pub workspace: Arc<LapceWorkspace>,
     pub scope: Scope,
@@ -142,6 +152,8 @@ pub struct WindowTabData {
     pub update_in_progress: RwSignal<bool>,
     pub latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     pub num_window_tabs: Memo<usize>,
+    pub progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
+    pub messages: RwSignal<Vec<(String, ShowMessageParams)>>,
     pub common: CommonData,
 }
 
@@ -395,6 +407,8 @@ impl WindowTabData {
             update_in_progress: cx.create_rw_signal(false),
             num_window_tabs,
             latest_release,
+            progresses: cx.create_rw_signal(IndexMap::new()),
+            messages: cx.create_rw_signal(Vec::new()),
             common,
         };
 
@@ -1468,6 +1482,37 @@ impl WindowTabData {
             CoreNotification::VoltRemoved { volt, .. } => {
                 self.plugin.volt_removed(volt);
             }
+            CoreNotification::WorkDoneProgress { progress } => {
+                self.update_progress(progress);
+            }
+            CoreNotification::ShowMessage { title, message } => {
+                self.show_message(title, message);
+            }
+            CoreNotification::Log { level, message } => {
+                match level.as_str() {
+                    "TRACE" => {
+                        tracing::trace!(message);
+                    }
+                    "DEBUG" => {
+                        tracing::debug!(message);
+                    }
+                    "INFO" => {
+                        tracing::info!(message);
+                    }
+                    "WARN" => {
+                        tracing::warn!(message);
+                    }
+                    "ERROR" => {
+                        tracing::error!(message);
+                    }
+                    _ => {
+                        tracing::debug!(message);
+                    }
+                };
+            }
+            CoreNotification::WorkspaceFileChange => {
+                self.file_explorer.reload();
+            }
             _ => {}
         }
     }
@@ -1942,6 +1987,44 @@ impl WindowTabData {
         self.alert_data.msg.set(msg);
         self.alert_data.buttons.set(buttons);
         self.alert_data.active.set(true);
+    }
+
+    fn update_progress(&self, progress: &ProgressParams) {
+        let token = progress.token.clone();
+        match &progress.value {
+            lsp_types::ProgressParamsValue::WorkDone(progress) => match progress {
+                lsp_types::WorkDoneProgress::Begin(progress) => {
+                    let progress = WorkProgress {
+                        token: token.clone(),
+                        title: progress.title.clone(),
+                        message: progress.message.clone(),
+                        percentage: progress.percentage,
+                    };
+                    self.progresses.update(|p| {
+                        p.insert(token, progress);
+                    });
+                }
+                lsp_types::WorkDoneProgress::Report(report) => {
+                    self.progresses.update(|p| {
+                        if let Some(progress) = p.get_mut(&token) {
+                            progress.message = report.message.clone();
+                            progress.percentage = report.percentage;
+                        }
+                    })
+                }
+                lsp_types::WorkDoneProgress::End(_) => {
+                    self.progresses.update(|p| {
+                        p.remove(&token);
+                    });
+                }
+            },
+        }
+    }
+
+    fn show_message(&self, title: &str, message: &ShowMessageParams) {
+        self.messages.update(|messages| {
+            messages.push((title.to_string(), message.clone()));
+        });
     }
 }
 

@@ -104,8 +104,7 @@ pub fn editor_view(
     let hide_cursor = editor.with_untracked(|editor| editor.common.hide_cursor);
     create_effect(move |_| {
         hide_cursor.track();
-        let doc = editor.with(|editor| editor.view.doc);
-        let occurrences = doc.with_untracked(|doc| doc.find_result.occurrences);
+        let occurrences = editor.with(|editor| editor.view.find_result.occurrences);
         occurrences.track();
         id.request_paint();
     });
@@ -1905,9 +1904,10 @@ fn find_view(
         if !visual {
             return (0, 0);
         }
-        let (curosr, doc) = editor.with(|editor| (editor.cursor, editor.view.doc));
+        let (curosr, view) =
+            editor.with(|editor| (editor.cursor, editor.view.clone()));
         let offset = curosr.with(|cursor| cursor.offset());
-        let occurrences = doc.with_untracked(|doc| doc.find_result.occurrences);
+        let occurrences = view.find_result.occurrences;
         occurrences.with(|occurrences| {
             for (i, region) in occurrences.regions().iter().enumerate() {
                 if offset <= region.max() {

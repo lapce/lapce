@@ -4,13 +4,13 @@ use floem::{
     peniko::kurbo::Rect,
     reactive::{ReadSignal, RwSignal, Scope},
 };
-use fuzzy_matcher::{skim::SkimMatcherV2, FuzzyMatcher};
 use lapce_core::{buffer::rope_text::RopeText, movement::Movement};
 use lapce_rpc::{plugin::PluginId, proxy::ProxyRpcHandler};
 use lsp_types::{
     CompletionItem, CompletionResponse, CompletionTextEdit, InsertTextFormat,
     Position,
 };
+use nucleo::Utf32Str;
 
 use crate::{
     config::LapceConfig, doc::Document, editor::view_data::EditorViewData,
@@ -28,8 +28,8 @@ pub enum CompletionStatus {
 pub struct ScoredCompletionItem {
     pub item: CompletionItem,
     pub plugin_id: PluginId,
-    pub score: i64,
-    pub label_score: i64,
+    pub score: u32,
+    pub label_score: u32,
     pub indices: Vec<usize>,
 }
 
@@ -62,7 +62,7 @@ pub struct CompletionData {
     /// The editor id that was most recently used to trigger a completion.
     pub latest_editor_id: Option<EditorId>,
     /// Matcher for filtering the completion items
-    matcher: Arc<SkimMatcherV2>,
+    matcher: RwSignal<nucleo::Matcher>,
     config: ReadSignal<Arc<LapceConfig>>,
 }
 
@@ -80,7 +80,8 @@ impl CompletionData {
             input_items: im::HashMap::new(),
             filtered_items: im::Vector::new(),
             layout_rect: Rect::ZERO,
-            matcher: Arc::new(SkimMatcherV2::default().ignore_case()),
+            matcher: cx
+                .create_rw_signal(nucleo::Matcher::new(nucleo::Config::DEFAULT)),
             latest_editor_id: None,
             config,
         }
@@ -179,41 +180,56 @@ impl CompletionData {
 
         // Filter the items by the fuzzy matching with the input text.
         let mut items: im::Vector<ScoredCompletionItem> = self
-            .all_items()
-            .iter()
-            .filter_map(|i| {
-                let filter_text =
-                    i.item.filter_text.as_ref().unwrap_or(&i.item.label);
-                let shift = i
-                    .item
-                    .label
-                    .match_indices(filter_text)
-                    .next()
-                    .map(|(shift, _)| shift)
-                    .unwrap_or(0);
-                if let Some((score, mut indices)) =
-                    self.matcher.fuzzy_indices(filter_text, &self.input)
-                {
-                    if shift > 0 {
-                        for idx in indices.iter_mut() {
-                            *idx += shift;
+            .matcher
+            .try_update(|matcher| {
+                let pattern = nucleo::pattern::Pattern::parse(
+                    &self.input,
+                    nucleo::pattern::CaseMatching::Ignore,
+                );
+                self.all_items()
+                    .iter()
+                    .filter_map(|i| {
+                        let filter_text =
+                            i.item.filter_text.as_ref().unwrap_or(&i.item.label);
+                        let shift = i
+                            .item
+                            .label
+                            .match_indices(filter_text)
+                            .next()
+                            .map(|(shift, _)| shift)
+                            .unwrap_or(0);
+                        let mut indices = Vec::new();
+                        let mut filter_text_buf = Vec::new();
+                        let filter_text =
+                            Utf32Str::new(filter_text, &mut filter_text_buf);
+                        if let Some(score) =
+                            pattern.indices(filter_text, matcher, &mut indices)
+                        {
+                            if shift > 0 {
+                                for idx in indices.iter_mut() {
+                                    *idx += shift as u32;
+                                }
+                            }
+                            let mut item = i.clone();
+                            item.score = score;
+                            item.label_score = score;
+                            item.indices =
+                                indices.into_iter().map(|i| i as usize).collect();
+
+                            let mut label_buf = Vec::new();
+                            let label_text =
+                                Utf32Str::new(&i.item.label, &mut label_buf);
+                            if let Some(score) = pattern.score(label_text, matcher) {
+                                item.label_score = score;
+                            }
+                            Some(item)
+                        } else {
+                            None
                         }
-                    }
-                    let mut item = i.clone();
-                    item.score = score;
-                    item.label_score = score;
-                    item.indices = indices;
-                    if let Some(score) =
-                        self.matcher.fuzzy_match(&i.item.label, &self.input)
-                    {
-                        item.label_score = score;
-                    }
-                    Some(item)
-                } else {
-                    None
-                }
+                    })
+                    .collect()
             })
-            .collect();
+            .unwrap();
         // Sort all the items by their score, then their label score, then their length.
         items.sort_by(|a, b| {
             b.score

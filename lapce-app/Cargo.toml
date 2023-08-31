@@ -45,13 +45,13 @@ pulldown-cmark = "0.9.1"
 Inflector = "0.11.4"
 open = "3.0.2"
 unicode-width = "0.1.10"
-fuzzy-matcher = "0.3.7"
+nucleo = "0.2.0"
 sled = "0.34.7"
 bytemuck = "1.8.0"
 tokio = { version = "1.21", features = ["full"] }
 futures = "0.3.26"
 clipboard = "0.5.0"
-floem = { git = "https://github.com/lapce/floem", rev = "53823652d9574c8e6b02262b2612c5f2d207275e" }
+floem = { git = "https://github.com/lapce/floem", rev = "d891dd607bc901dc0c0b59f96b1fac8856b9e46c" }
 # floem = { path = "../../workspaces/floem" }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
