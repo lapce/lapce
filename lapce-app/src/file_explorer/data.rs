@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    rc::Rc,
 };
 
 use floem::{
@@ -16,11 +17,11 @@ use crate::{command::InternalCommand, window_tab::CommonData};
 pub struct FileExplorerData {
     pub id: RwSignal<usize>,
     pub root: RwSignal<FileNode>,
-    pub common: CommonData,
+    pub common: Rc<CommonData>,
 }
 
 impl FileExplorerData {
-    pub fn new(cx: Scope, common: CommonData) -> Self {
+    pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
         let path = common.workspace.path.clone().unwrap_or_default();
         let new_root = cx.create_rw_signal(FileNode {
             path: path.clone(),

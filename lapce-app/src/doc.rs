@@ -4,13 +4,15 @@ use std::{
     path::PathBuf,
     rc::Rc,
     sync::{atomic, Arc},
+    time::Duration,
 };
 
 use clipboard::{ClipboardContext, ClipboardProvider};
 use floem::{
+    action::exec_after,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
-    reactive::{ReadSignal, RwSignal, Scope},
+    reactive::{RwSignal, Scope},
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -31,7 +33,7 @@ use lapce_core::{
 use lapce_rpc::{
     buffer::BufferId,
     plugin::PluginId,
-    proxy::{ProxyResponse, ProxyRpcHandler},
+    proxy::ProxyResponse,
     style::{LineStyle, LineStyles, Style},
 };
 use lapce_xi_rope::{
@@ -50,6 +52,7 @@ use crate::{
     editor::view_data::{LineExtraStyle, TextLayoutCache, TextLayoutLine},
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
+    window_tab::CommonData,
     workspace::LapceWorkspace,
 };
 
@@ -156,45 +159,50 @@ pub struct Preedit {
     pub offset: usize,
 }
 
+impl std::fmt::Debug for Document {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("Document {:?}", self.buffer_id))
+    }
+}
+
 /// A single document that can be viewed by multiple [`EditorData`]'s
 /// [`EditorViewData`]s and [`EditorView]s.  
 #[derive(Clone)]
 pub struct Document {
     pub scope: Scope,
-    pub content: DocContent,
     pub buffer_id: BufferId,
-    cache_rev: u64,
-    buffer: Buffer,
-    syntax: Syntax,
-    line_styles: Rc<RefCell<LineStyles>>,
+    pub content: RwSignal<DocContent>,
+    pub cache_rev: RwSignal<u64>,
+    /// Whether the buffer's content has been loaded/initialized into the buffer.
+    pub loaded: RwSignal<bool>,
+    pub buffer: RwSignal<Buffer>,
+    pub syntax: RwSignal<Syntax>,
     /// Semantic highlighting information (which is provided by the LSP)
-    semantic_styles: Option<Arc<Spans<Style>>>,
+    semantic_styles: RwSignal<Option<Spans<Style>>>,
     /// Inlay hints for the document
-    pub inlay_hints: Option<Spans<InlayHint>>,
-    /// The diagnostics for the document
-    pub diagnostics: DiagnosticData,
+    pub inlay_hints: RwSignal<Option<Spans<InlayHint>>>,
     /// Current completion lens text, if any.  
     /// This will be displayed even on views that are not focused.
-    completion_lens: Option<String>,
+    pub completion_lens: RwSignal<Option<String>>,
     /// (line, col)
-    completion_pos: (usize, usize),
+    pub completion_pos: RwSignal<(usize, usize)>,
+    /// ime preedit information
+    pub preedit: RwSignal<Option<Preedit>>,
     /// (Offset -> (Plugin the code actions are from, Code Actions))
-    pub code_actions: im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>,
-    /// Whether the buffer's content has been loaded/initialized into the buffer.
-    loaded: bool,
+    pub code_actions:
+        RwSignal<im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>>,
     /// Stores information about different versions of the document from source control.
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
     pub head_changes: RwSignal<im::Vector<DiffLines>>,
+    line_styles: Rc<RefCell<LineStyles>>,
     /// The text layouts for the document. This may be shared with other views.
     text_layouts: Rc<RefCell<TextLayoutCache>>,
-
     /// A cache for the sticky headers which maps a line to the lines it should show in the header.
     pub sticky_headers: Rc<RefCell<HashMap<usize, Option<Vec<usize>>>>>,
-    proxy: ProxyRpcHandler,
-    config: ReadSignal<Arc<LapceConfig>>,
-    find: Find,
     pub find_result: FindResult,
-    pub preedit: Option<Preedit>,
+    /// The diagnostics for the document
+    pub diagnostics: DiagnosticData,
+    common: Rc<CommonData>,
 }
 
 impl Document {
@@ -202,118 +210,76 @@ impl Document {
         cx: Scope,
         path: PathBuf,
         diagnostics: DiagnosticData,
-        find: Find,
-        proxy: ProxyRpcHandler,
-        config: ReadSignal<Arc<LapceConfig>>,
+        common: Rc<CommonData>,
     ) -> Self {
         let syntax = Syntax::init(&path);
         Self {
             scope: cx,
             buffer_id: BufferId::next(),
-            buffer: Buffer::new(""),
-            cache_rev: 0,
-            syntax,
+            buffer: cx.create_rw_signal(Buffer::new("")),
+            cache_rev: cx.create_rw_signal(0),
+            syntax: cx.create_rw_signal(syntax),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
-            semantic_styles: None,
-            inlay_hints: None,
+            semantic_styles: cx.create_rw_signal(None),
+            inlay_hints: cx.create_rw_signal(None),
             diagnostics,
-            completion_lens: None,
-            completion_pos: (0, 0),
-            content: DocContent::File(path),
-            loaded: false,
+            completion_lens: cx.create_rw_signal(None),
+            completion_pos: cx.create_rw_signal((0, 0)),
+            content: cx.create_rw_signal(DocContent::File(path)),
+            loaded: cx.create_rw_signal(false),
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
-            code_actions: im::HashMap::new(),
-            proxy,
-            config,
-            find,
+            code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
-            preedit: None,
+            preedit: cx.create_rw_signal(None),
+            common,
         }
     }
 
-    pub fn new_local(
-        cx: Scope,
-        find: Find,
-        proxy: ProxyRpcHandler,
-        config: ReadSignal<Arc<LapceConfig>>,
-    ) -> Self {
-        Self {
-            scope: cx,
-            buffer_id: BufferId::next(),
-            buffer: Buffer::new(""),
-            cache_rev: 0,
-            content: DocContent::Local,
-            syntax: Syntax::plaintext(),
-            line_styles: Rc::new(RefCell::new(HashMap::new())),
-            sticky_headers: Rc::new(RefCell::new(HashMap::new())),
-            semantic_styles: None,
-            inlay_hints: None,
-            diagnostics: DiagnosticData {
-                expanded: cx.create_rw_signal(true),
-                diagnostics: cx.create_rw_signal(im::Vector::new()),
-            },
-            completion_lens: None,
-            completion_pos: (0, 0),
-            loaded: true,
-            histories: cx.create_rw_signal(im::HashMap::new()),
-            head_changes: cx.create_rw_signal(im::Vector::new()),
-            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
-            code_actions: im::HashMap::new(),
-            proxy,
-            config,
-            find,
-            find_result: FindResult::new(cx),
-            preedit: None,
-        }
+    pub fn new_local(cx: Scope, common: Rc<CommonData>) -> Self {
+        Self::new_content(cx, DocContent::Local, common)
     }
 
     pub fn new_content(
         cx: Scope,
         content: DocContent,
-        find: Find,
-        proxy: ProxyRpcHandler,
-        config: ReadSignal<Arc<LapceConfig>>,
+        common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
         Self {
             scope: cx,
             buffer_id: BufferId::next(),
-            buffer: Buffer::new(""),
-            cache_rev: 0,
-            content,
-            syntax: Syntax::plaintext(),
+            buffer: cx.create_rw_signal(Buffer::new("")),
+            cache_rev: cx.create_rw_signal(0),
+            content: cx.create_rw_signal(content),
+            syntax: cx.create_rw_signal(Syntax::plaintext()),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
-            semantic_styles: None,
-            inlay_hints: None,
+            semantic_styles: cx.create_rw_signal(None),
+            inlay_hints: cx.create_rw_signal(None),
             diagnostics: DiagnosticData {
                 expanded: cx.create_rw_signal(true),
                 diagnostics: cx.create_rw_signal(im::Vector::new()),
             },
-            completion_lens: None,
-            completion_pos: (0, 0),
-            loaded: true,
+            completion_lens: cx.create_rw_signal(None),
+            completion_pos: cx.create_rw_signal((0, 0)),
+            loaded: cx.create_rw_signal(true),
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
-            code_actions: im::HashMap::new(),
-            proxy,
-            config,
-            find,
+            code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
-            preedit: None,
+            preedit: cx.create_rw_signal(None),
+            common,
         }
     }
 
     pub fn new_hisotry(
         cx: Scope,
         content: DocContent,
-        find: Find,
-        proxy: ProxyRpcHandler,
-        config: ReadSignal<Arc<LapceConfig>>,
+        common: Rc<CommonData>,
     ) -> Self {
         let syntax = if let DocContent::History(history) = &content {
             Syntax::init(&history.path)
@@ -324,76 +290,62 @@ impl Document {
         Self {
             scope: cx,
             buffer_id: BufferId::next(),
-            buffer: Buffer::new(""),
-            cache_rev: 0,
-            content,
-            syntax,
+            buffer: cx.create_rw_signal(Buffer::new("")),
+            cache_rev: cx.create_rw_signal(0),
+            content: cx.create_rw_signal(content),
+            syntax: cx.create_rw_signal(syntax),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
-            semantic_styles: None,
-            inlay_hints: None,
+            semantic_styles: cx.create_rw_signal(None),
+            inlay_hints: cx.create_rw_signal(None),
             diagnostics: DiagnosticData {
                 expanded: cx.create_rw_signal(true),
                 diagnostics: cx.create_rw_signal(im::Vector::new()),
             },
-            completion_lens: None,
-            completion_pos: (0, 0),
-            loaded: true,
+            completion_lens: cx.create_rw_signal(None),
+            completion_pos: cx.create_rw_signal((0, 0)),
+            loaded: cx.create_rw_signal(true),
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
-            code_actions: im::HashMap::new(),
-            proxy,
-            config,
-            find,
+            code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
-            preedit: None,
+            preedit: cx.create_rw_signal(None),
+            common,
         }
     }
 
-    pub fn buffer(&self) -> &Buffer {
-        &self.buffer
-    }
-
-    pub fn buffer_mut(&mut self) -> &mut Buffer {
-        &mut self.buffer
-    }
-
-    pub fn cache_rev(&self) -> u64 {
-        self.cache_rev
-    }
-
-    pub fn syntax(&self) -> &Syntax {
-        &self.syntax
-    }
-
-    pub fn set_syntax(&mut self, syntax: Syntax) {
-        self.syntax = syntax;
-        if self.semantic_styles.is_none() {
+    pub fn set_syntax(&self, syntax: Syntax) {
+        self.syntax.set(syntax);
+        if self.semantic_styles.with_untracked(|s| s.is_none()) {
             self.clear_style_cache();
         }
         self.clear_sticky_headers_cache();
     }
 
     /// Set the syntax highlighting this document should use.
-    pub fn set_language(&mut self, language: LapceLanguage) {
-        self.syntax = Syntax::from_language(language);
+    pub fn set_language(&self, language: LapceLanguage) {
+        self.syntax.set(Syntax::from_language(language));
     }
 
     pub fn find(&self) -> &Find {
-        &self.find
+        &self.common.find
     }
 
     /// Whether or not the underlying buffer is loaded
     pub fn loaded(&self) -> bool {
-        self.loaded
+        self.loaded.get_untracked()
     }
 
     //// Initialize the content with some text, this marks the document as loaded.
-    pub fn init_content(&mut self, content: Rope) {
-        self.buffer.init_content(content);
-        self.buffer.detect_indent(&self.syntax);
-        self.loaded = true;
+    pub fn init_content(&self, content: Rope) {
+        self.syntax.with_untracked(|syntax| {
+            self.buffer.update(|buffer| {
+                buffer.init_content(content);
+                buffer.detect_indent(syntax);
+            });
+        });
+        self.loaded.set(true);
         self.on_update(None);
         self.init_diagnostics();
         self.retrieve_head();
@@ -401,89 +353,113 @@ impl Document {
 
     /// Reload the document's content, and is what you should typically use when you want to *set*
     /// an existing document's content.
-    pub fn reload(&mut self, content: Rope, set_pristine: bool) {
+    pub fn reload(&self, content: Rope, set_pristine: bool) {
         // self.code_actions.clear();
         // self.inlay_hints = None;
-        let delta = self.buffer.reload(content, set_pristine);
+        let delta = self
+            .buffer
+            .try_update(|buffer| buffer.reload(content, set_pristine))
+            .unwrap();
         self.apply_deltas(&[delta]);
     }
 
-    pub fn handle_file_changed(&mut self, content: Rope) {
-        if self.buffer.is_pristine() {
+    pub fn handle_file_changed(&self, content: Rope) {
+        if self.is_pristine() {
             self.reload(content, true);
         }
     }
 
     pub fn do_insert(
-        &mut self,
+        &self,
         cursor: &mut Cursor,
         s: &str,
         config: &LapceConfig,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
-        if self.content.read_only() {
+        if self.content.with_untracked(|c| c.read_only()) {
             return Vec::new();
         }
 
         let old_cursor = cursor.mode.clone();
-        let deltas = Editor::insert(
-            cursor,
-            &mut self.buffer,
-            s,
-            &self.syntax,
-            config.editor.auto_closing_matching_pairs,
-        );
+        let deltas = self.syntax.with_untracked(|syntax| {
+            self.buffer
+                .try_update(|buffer| {
+                    Editor::insert(
+                        cursor,
+                        buffer,
+                        s,
+                        syntax,
+                        config.editor.auto_closing_matching_pairs,
+                    )
+                })
+                .unwrap()
+        });
         // Keep track of the change in the cursor mode for undo/redo
-        self.buffer.set_cursor_before(old_cursor);
-        self.buffer.set_cursor_after(cursor.mode.clone());
+        self.buffer.update(|buffer| {
+            buffer.set_cursor_before(old_cursor);
+            buffer.set_cursor_after(cursor.mode.clone());
+        });
         self.apply_deltas(&deltas);
         deltas
     }
 
     pub fn do_raw_edit(
-        &mut self,
+        &self,
         edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
     ) -> (RopeDelta, InvalLines, SyntaxEdit) {
-        let (delta, inval_lines, edits) = self.buffer.edit(edits, edit_type);
+        let (delta, inval_lines, edits) = self
+            .buffer
+            .try_update(|buffer| buffer.edit(edits, edit_type))
+            .unwrap();
         self.apply_deltas(&[(delta.clone(), inval_lines.clone(), edits.clone())]);
         (delta, inval_lines, edits)
     }
 
     pub fn do_edit(
-        &mut self,
+        &self,
         cursor: &mut Cursor,
         cmd: &EditCommand,
         modal: bool,
         register: &mut Register,
         smart_tab: bool,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
-        if self.content.read_only() && !cmd.not_changing_buffer() {
+        if self.content.with_untracked(|c| c.read_only())
+            && !cmd.not_changing_buffer()
+        {
             return Vec::new();
         }
 
         let mut clipboard = SystemClipboard::new();
         let old_cursor = cursor.mode.clone();
-        let deltas = Editor::do_edit(
-            cursor,
-            &mut self.buffer,
-            cmd,
-            &self.syntax,
-            &mut clipboard,
-            modal,
-            register,
-            smart_tab,
-        );
+        let deltas = self.syntax.with_untracked(|syntax| {
+            self.buffer
+                .try_update(|buffer| {
+                    Editor::do_edit(
+                        cursor,
+                        buffer,
+                        cmd,
+                        syntax,
+                        &mut clipboard,
+                        modal,
+                        register,
+                        smart_tab,
+                    )
+                })
+                .unwrap()
+        });
 
         if !deltas.is_empty() {
-            self.buffer.set_cursor_before(old_cursor);
-            self.buffer.set_cursor_after(cursor.mode.clone());
+            self.buffer.update(|buffer| {
+                buffer.set_cursor_before(old_cursor);
+                buffer.set_cursor_after(cursor.mode.clone());
+            });
         }
 
         self.apply_deltas(&deltas);
         deltas
     }
 
-    pub fn apply_deltas(&mut self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
+    pub fn apply_deltas(&self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
         let rev = self.rev() - deltas.len() as u64;
         for (i, (delta, _, _)) in deltas.iter().enumerate() {
             self.update_styles(delta);
@@ -491,9 +467,10 @@ impl Document {
             self.update_diagnostics(delta);
             self.update_completion_lens(delta);
             self.update_find_result(delta);
-            if let DocContent::File(path) = &self.content {
-                self.proxy
-                    .update(path.clone(), delta.clone(), rev + i as u64 + 1);
+            if let DocContent::File(path) = self.content.get_untracked() {
+                self.common
+                    .proxy
+                    .update(path, delta.clone(), rev + i as u64 + 1);
             }
         }
 
@@ -504,99 +481,143 @@ impl Document {
         self.on_update(Some(edits));
     }
 
-    /// Get the buffer's current revision. This is used to track whether the buffer has changed.
-    pub fn rev(&self) -> u64 {
-        self.buffer.rev()
+    pub fn is_pristine(&self) -> bool {
+        self.buffer.with_untracked(|b| b.is_pristine())
     }
 
-    fn on_update(&mut self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
+    /// Get the buffer's current revision. This is used to track whether the buffer has changed.
+    pub fn rev(&self) -> u64 {
+        self.buffer.with_untracked(|b| b.rev())
+    }
+
+    fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
         self.clear_code_actions();
-        // self.find.borrow_mut().unset();
-        // *self.find_progress.borrow_mut() = FindProgress::Started;
-        // self.get_inlay_hints();
         self.clear_style_cache();
         self.trigger_syntax_change(edits);
         self.clear_sticky_headers_cache();
-        // self.clear_sticky_headers_cache();
         self.trigger_head_change();
-        // self.notify_special();
+        self.check_auto_save();
+        self.get_semantic_styles();
+        self.get_inlay_hints();
+        self.find_result.reset();
+    }
+
+    fn check_auto_save(&self) {
+        let config = self.common.config.get_untracked();
+        if config.editor.autosave_interval > 0 {
+            if !self.content.with_untracked(|c| c.is_file()) {
+                return;
+            };
+            let rev = self.rev();
+            let doc = self.clone();
+            exec_after(
+                Duration::from_millis(config.editor.autosave_interval),
+                move |_| {
+                    let current_rev = match doc
+                        .buffer
+                        .try_with_untracked(|b| b.as_ref().map(|b| b.rev()))
+                    {
+                        Some(rev) => rev,
+                        None => return,
+                    };
+
+                    if current_rev != rev || doc.is_pristine() {
+                        return;
+                    }
+
+                    doc.save(|| {});
+                },
+            );
+        }
     }
 
     /// Update the styles after an edit, so the highlights are at the correct positions.  
     /// This does not do a reparse of the document itself.
-    fn update_styles(&mut self, delta: &RopeDelta) {
-        if let Some(styles) = self.semantic_styles.as_mut() {
-            Arc::make_mut(styles).apply_shape(delta);
-        }
-        if let Some(styles) = self.syntax.styles.as_mut() {
-            Arc::make_mut(styles).apply_shape(delta);
-        }
-
-        self.syntax.lens.apply_delta(delta);
+    fn update_styles(&self, delta: &RopeDelta) {
+        self.semantic_styles.update(|styles| {
+            if let Some(styles) = styles.as_mut() {
+                styles.apply_shape(delta);
+            }
+        });
+        self.syntax.update(|syntax| {
+            if let Some(styles) = syntax.styles.as_mut() {
+                styles.apply_shape(delta);
+            }
+            syntax.lens.apply_delta(delta);
+        });
     }
 
     /// Update the inlay hints so their positions are correct after an edit.
-    fn update_inlay_hints(&mut self, delta: &RopeDelta) {
-        if let Some(hints) = self.inlay_hints.as_mut() {
-            hints.apply_shape(delta);
-        }
+    fn update_inlay_hints(&self, delta: &RopeDelta) {
+        self.inlay_hints.update(|inlay_hints| {
+            if let Some(hints) = inlay_hints.as_mut() {
+                hints.apply_shape(delta);
+            }
+        });
     }
 
-    pub fn trigger_syntax_change(
-        &mut self,
-        edits: Option<SmallVec<[SyntaxEdit; 3]>>,
-    ) {
-        let rev = self.buffer.rev();
-        let text = self.buffer.text().clone();
+    pub fn trigger_syntax_change(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
+        let (rev, text) =
+            self.buffer.with_untracked(|b| (b.rev(), b.text().clone()));
 
-        self.syntax.parse(rev, text, edits.as_deref());
+        self.syntax.update(|syntax| {
+            syntax.parse(rev, text, edits.as_deref());
+        });
     }
 
-    fn clear_style_cache(&mut self) {
+    fn clear_style_cache(&self) {
         self.line_styles.borrow_mut().clear();
         self.clear_text_cache();
     }
 
-    fn clear_code_actions(&mut self) {
-        self.code_actions.clear();
+    fn clear_code_actions(&self) {
+        self.code_actions.update(|c| {
+            c.clear();
+        });
     }
 
     pub fn set_preedit(
-        &mut self,
+        &self,
         text: String,
         cursor: Option<(usize, usize)>,
         offset: usize,
     ) {
-        self.preedit = Some(Preedit {
+        self.preedit.set(Some(Preedit {
             text,
             cursor,
             offset,
-        });
+        }));
         self.clear_text_cache();
     }
 
-    pub fn clear_preedit(&mut self) {
-        self.preedit = None;
+    pub fn clear_preedit(&self) {
+        self.preedit.set(None);
         self.clear_text_cache();
     }
 
     /// Inform any dependents on this document that they should clear any cached text.
-    pub fn clear_text_cache(&mut self) {
-        self.cache_rev += 1;
-        self.text_layouts.borrow_mut().clear(self.cache_rev);
+    pub fn clear_text_cache(&self) {
+        let cache_rev = self
+            .cache_rev
+            .try_update(|cache_rev| {
+                *cache_rev += 1;
+                *cache_rev
+            })
+            .unwrap();
+        self.text_layouts.borrow_mut().clear(cache_rev);
     }
 
-    fn clear_sticky_headers_cache(&mut self) {
+    fn clear_sticky_headers_cache(&self) {
         self.sticky_headers.borrow_mut().clear();
     }
 
     /// Get the active style information, either the semantic styles or the
     /// tree-sitter syntax styles.
-    fn styles(&self) -> Option<&Arc<Spans<Style>>> {
-        if let Some(semantic_styles) = self.semantic_styles.as_ref() {
+    fn styles(&self) -> Option<Spans<Style>> {
+        if let Some(semantic_styles) = self.semantic_styles.get_untracked() {
             Some(semantic_styles)
         } else {
-            self.syntax.styles.as_ref()
+            self.syntax.with_untracked(|syntax| syntax.styles.clone())
         }
     }
 
@@ -607,7 +628,11 @@ impl Document {
             let styles = self.styles();
 
             let line_styles = styles
-                .map(|styles| line_styles(self.buffer.text(), line, styles))
+                .map(|styles| {
+                    let text =
+                        self.buffer.with_untracked(|buffer| buffer.text().clone());
+                    line_styles(&text, line, &styles)
+                })
                 .unwrap_or_default();
             self.line_styles
                 .borrow_mut()
@@ -616,39 +641,32 @@ impl Document {
         self.line_styles.borrow().get(&line).cloned().unwrap()
     }
 
-    pub fn tigger_proxy_update(doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
-        Self::get_inlay_hints(doc, proxy);
-        Self::get_semantic_styles(doc, proxy);
-    }
-
     /// Request semantic styles for the buffer from the LSP through the proxy.
-    fn get_semantic_styles(doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
-        if !doc.with_untracked(|doc| doc.loaded) {
+    fn get_semantic_styles(&self) {
+        if !self.loaded() {
             return;
         }
 
-        let path = match doc.with_untracked(|doc| doc.content.clone()) {
-            DocContent::File(path) => path,
-            DocContent::Local => return,
-            DocContent::History(_) => return,
-            DocContent::Scratch { .. } => return,
+        let path = if let DocContent::File(path) = self.content.get_untracked() {
+            path
+        } else {
+            return;
         };
 
-        let (rev, len, cx) = doc
-            .with_untracked(|doc| (doc.buffer.rev(), doc.buffer.len(), doc.scope));
+        let (rev, len) = self.buffer.with_untracked(|b| (b.rev(), b.len()));
 
-        let syntactic_styles = doc.with_untracked(|doc| doc.syntax.styles.clone());
+        let syntactic_styles =
+            self.syntax.with_untracked(|syntax| syntax.styles.clone());
 
-        let send = create_ext_action(cx, move |styles| {
-            doc.update(|doc| {
-                if doc.buffer.rev() == rev {
-                    doc.semantic_styles = Some(styles);
-                    doc.clear_style_cache();
-                }
-            })
+        let doc = self.clone();
+        let send = create_ext_action(self.scope, move |styles| {
+            if doc.buffer.with_untracked(|b| b.rev()) == rev {
+                doc.semantic_styles.set(Some(styles));
+                doc.clear_style_cache();
+            }
         });
 
-        proxy.get_semantic_tokens(path, move |result| {
+        self.common.proxy.get_semantic_tokens(path, move |result| {
             if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
                 rayon::spawn(move || {
                     let mut styles_span = SpansBuilder::new(len);
@@ -671,7 +689,7 @@ impl Document {
                     } else {
                         styles
                     };
-                    let styles = Arc::new(styles);
+                    let styles = styles;
 
                     send(styles);
                 });
@@ -680,37 +698,30 @@ impl Document {
     }
 
     /// Request inlay hints for the buffer from the LSP through the proxy.
-    fn get_inlay_hints(doc: RwSignal<Document>, proxy: &ProxyRpcHandler) {
-        if !doc.with_untracked(|doc| doc.loaded) {
+    fn get_inlay_hints(&self) {
+        if !self.loaded() {
             return;
         }
 
-        let path = match doc.with_untracked(|doc| doc.content.clone()) {
-            DocContent::File(path) => path,
-            DocContent::Local => return,
-            DocContent::History(_) => return,
-            DocContent::Scratch { .. } => return,
+        let path = if let DocContent::File(path) = self.content.get_untracked() {
+            path
+        } else {
+            return;
         };
 
-        let (buffer, rev, len, cx) = doc.with_untracked(|doc| {
-            (
-                doc.buffer.clone(),
-                doc.buffer.rev(),
-                doc.buffer.len(),
-                doc.scope,
-            )
+        let (buffer, rev, len) = self
+            .buffer
+            .with_untracked(|b| (b.clone(), b.rev(), b.len()));
+
+        let doc = self.clone();
+        let send = create_ext_action(self.scope, move |hints| {
+            if doc.buffer.with_untracked(|b| b.rev()) == rev {
+                doc.inlay_hints.set(Some(hints));
+                doc.clear_text_cache();
+            }
         });
 
-        let send = create_ext_action(cx, move |hints| {
-            doc.update(|doc| {
-                if doc.buffer.rev() == rev {
-                    doc.inlay_hints = Some(hints);
-                    doc.clear_text_cache();
-                }
-            })
-        });
-
-        proxy.get_inlay_hints(path, move |result| {
+        self.common.proxy.get_inlay_hints(path, move |result| {
             if let Ok(ProxyResponse::GetInlayHints { mut hints }) = result {
                 // Sort the inlay hints by their position, as the LSP does not guarantee that it will
                 // provide them in the order that they are in within the file
@@ -733,18 +744,20 @@ impl Document {
 
     /// Get the phantom text for a given line
     pub fn line_phantom_text(&self, line: usize) -> PhantomTextLine {
-        let config = self.config.get_untracked();
+        let config = self.common.config.get_untracked();
 
-        let start_offset = self.buffer.offset_of_line(line);
-        let end_offset = self.buffer.offset_of_line(line + 1);
+        let (start_offset, end_offset) = self.buffer.with_untracked(|buffer| {
+            (buffer.offset_of_line(line), buffer.offset_of_line(line + 1))
+        });
 
+        let inlay_hints = self.inlay_hints.get_untracked();
         // If hints are enabled, and the hints field is filled, then get the hints for this line
         // and convert them into PhantomText instances
         let hints = config
             .editor
             .enable_inlay_hints
             .then_some(())
-            .and(self.inlay_hints.as_ref())
+            .and(inlay_hints.as_ref())
             .map(|hints| hints.iter_chunks(start_offset..end_offset))
             .into_iter()
             .flatten()
@@ -752,7 +765,9 @@ impl Document {
                 interval.start >= start_offset && interval.start < end_offset
             })
             .map(|(interval, inlay_hint)| {
-                let (_, col) = self.buffer.offset_to_line_col(interval.start);
+                let (_, col) = self
+                    .buffer
+                    .with_untracked(|b| b.offset_to_line_col(interval.start));
                 let text = match &inlay_hint.label {
                     InlayHintLabel::String(label) => label.to_string(),
                     InlayHintLabel::LabelParts(parts) => {
@@ -804,8 +819,9 @@ impl Document {
                     _ => {}
                 }
 
-                let col = self.buffer.offset_of_line(line + 1)
-                    - self.buffer.offset_of_line(line);
+                let col = self.buffer.with_untracked(|buffer| {
+                    buffer.offset_of_line(line + 1) - buffer.offset_of_line(line)
+                });
                 let fg = {
                     let severity = diag
                         .diagnostic
@@ -839,12 +855,12 @@ impl Document {
 
         text.append(&mut diag_text);
 
-        let (completion_line, completion_col) = self.completion_pos;
+        let (completion_line, completion_col) = self.completion_pos.get_untracked();
         let completion_text = config
             .editor
             .enable_completion_lens
             .then_some(())
-            .and(self.completion_lens.as_ref())
+            .and(self.completion_lens.get_untracked())
             // TODO: We're probably missing on various useful completion things to include here!
             .filter(|_| line == completion_line)
             .map(|completion| PhantomText {
@@ -862,18 +878,21 @@ impl Document {
             text.push(completion_text);
         }
 
-        if let Some(preedit) = self.preedit.as_ref() {
-            let (ime_line, col) = self.buffer.offset_to_line_col(preedit.offset);
+        if let Some(preedit) = self.preedit.get_untracked() {
+            let (ime_line, col) = self
+                .buffer
+                .with_untracked(|b| b.offset_to_line_col(preedit.offset));
             if line == ime_line {
                 text.push(PhantomText {
                     kind: PhantomTextKind::Ime,
-                    text: preedit.text.clone(),
+                    text: preedit.text,
                     col,
                     font_size: None,
                     fg: None,
                     bg: None,
                     under_line: Some(
                         *self
+                            .common
                             .config
                             .get_untracked()
                             .get_color(LapceColor::EDITOR_FOREGROUND),
@@ -911,9 +930,12 @@ impl Document {
                     transformer.transform(end, true),
                 );
 
-                let new_start_pos = self.buffer().offset_to_position(new_start);
-
-                let new_end_pos = self.buffer().offset_to_position(new_end);
+                let (new_start_pos, new_end_pos) = self.buffer.with_untracked(|b| {
+                    (
+                        b.offset_to_position(new_start),
+                        b.offset_to_position(new_end),
+                    )
+                });
 
                 diagnostic.range = (new_start, new_end);
 
@@ -924,45 +946,44 @@ impl Document {
     }
 
     /// init diagnostics offset ranges from lsp positions
-    pub fn init_diagnostics(&mut self) {
+    pub fn init_diagnostics(&self) {
         self.clear_text_cache();
         self.clear_code_actions();
         self.diagnostics.diagnostics.update(|diagnostics| {
             for diagnostic in diagnostics.iter_mut() {
-                let start = self
-                    .buffer()
-                    .offset_of_position(&diagnostic.diagnostic.range.start);
-                let end = self
-                    .buffer()
-                    .offset_of_position(&diagnostic.diagnostic.range.end);
+                let (start, end) = self.buffer.with_untracked(|buffer| {
+                    (
+                        buffer
+                            .offset_of_position(&diagnostic.diagnostic.range.start),
+                        buffer.offset_of_position(&diagnostic.diagnostic.range.end),
+                    )
+                });
                 diagnostic.range = (start, end);
             }
         });
     }
 
     /// Get the current completion lens text
-    pub fn completion_lens(&self) -> Option<&str> {
-        self.completion_lens.as_deref()
+    pub fn completion_lens(&self) -> Option<String> {
+        self.completion_lens.get_untracked()
     }
 
     pub fn set_completion_lens(
-        &mut self,
+        &self,
         completion_lens: String,
         line: usize,
         col: usize,
     ) {
         // TODO: more granular invalidation
         self.clear_text_cache();
-        self.completion_lens = Some(completion_lens);
-        self.completion_pos = (line, col);
+        self.completion_lens.set(Some(completion_lens));
+        self.completion_pos.set((line, col));
     }
 
-    pub fn clear_completion_lens(&mut self) {
+    pub fn clear_completion_lens(&self) {
         // TODO: more granular invalidation
         self.clear_text_cache();
-        if self.completion_lens.is_some() {
-            self.completion_lens = None;
-        }
+        self.completion_lens.set(None);
     }
 
     fn update_find_result(&self, delta: &RopeDelta) {
@@ -972,13 +993,15 @@ impl Document {
     }
 
     /// Update the completion lens position after an edit so that it appears in the correct place.
-    pub fn update_completion_lens(&mut self, delta: &RopeDelta) {
-        let Some(completion) = self.completion_lens.as_ref() else {
+    pub fn update_completion_lens(&self, delta: &RopeDelta) {
+        let Some(completion) = self.completion_lens.get_untracked() else {
             return;
         };
 
-        let (line, col) = self.completion_pos;
-        let offset = self.buffer().offset_of_line_col(line, col);
+        let (line, col) = self.completion_pos.get_untracked();
+        let offset = self
+            .buffer
+            .with_untracked(|b| b.offset_of_line_col(line, col));
 
         // If the edit is easily checkable + updateable from, then we alter the lens' text.
         // In normal typing, if we didn't do this, then the text would jitter forward and then
@@ -996,7 +1019,8 @@ impl Document {
                 // text, but the completion will be updated when the completion widget
                 // receives the update event, and it will fix this if needed.
                 // TODO: this could be smarter and use the insert's content
-                self.completion_lens = Some(completion[new_len..].to_string());
+                self.completion_lens
+                    .set(Some(completion[new_len..].to_string()));
             }
         }
 
@@ -1004,20 +1028,27 @@ impl Document {
         let mut transformer = Transformer::new(delta);
 
         let new_offset = transformer.transform(offset, true);
-        let new_pos = self.buffer().offset_to_line_col(new_offset);
+        let new_pos = self
+            .buffer
+            .with_untracked(|b| b.offset_to_line_col(new_offset));
 
-        self.completion_pos = new_pos;
+        self.completion_pos.set(new_pos);
     }
 
     pub fn update_find(&self) {
-        let find_rev = self.find.rev.get_untracked();
+        let find_rev = self.common.find.rev.get_untracked();
         if self.find_result.find_rev.get_untracked() != find_rev {
-            if self.find.search_string.with_untracked(|search_string| {
-                search_string
-                    .as_ref()
-                    .map(|s| s.content.is_empty())
-                    .unwrap_or(true)
-            }) {
+            if self
+                .common
+                .find
+                .search_string
+                .with_untracked(|search_string| {
+                    search_string
+                        .as_ref()
+                        .map(|s| s.content.is_empty())
+                        .unwrap_or(true)
+                })
+            {
                 self.find_result.occurrences.set(Selection::new());
             }
             self.find_result.reset();
@@ -1028,7 +1059,7 @@ impl Document {
             return;
         }
 
-        let search = self.find.search_string.get_untracked();
+        let search = self.common.find.search_string.get_untracked();
         let search = match search {
             Some(search) => search,
             None => return,
@@ -1047,9 +1078,9 @@ impl Document {
             find_result.progress.set(FindProgress::Ready);
         });
 
-        let text = self.buffer.text().clone();
-        let case_matching = self.find.case_matching.get_untracked();
-        let whole_words = self.find.whole_words.get_untracked();
+        let text = self.buffer.with_untracked(|b| b.text().clone());
+        let case_matching = self.common.find.case_matching.get_untracked();
+        let whole_words = self.common.find.whole_words.get_untracked();
         rayon::spawn(move || {
             let mut occurrences = Selection::new();
             Find::find(
@@ -1071,21 +1102,25 @@ impl Document {
         if let Some(lines) = self.sticky_headers.borrow().get(&line) {
             return lines.clone();
         }
-        let offset = self.buffer.offset_of_line(line + 1);
-        let lines = self.syntax.sticky_headers(offset).map(|offsets| {
-            offsets
-                .iter()
-                .filter_map(|offset| {
-                    let l = self.buffer.line_of_offset(*offset);
-                    if l <= line {
-                        Some(l)
-                    } else {
-                        None
-                    }
+        let lines = self.buffer.with_untracked(|buffer| {
+            let offset = buffer.offset_of_line(line + 1);
+            self.syntax.with_untracked(|syntax| {
+                syntax.sticky_headers(offset).map(|offsets| {
+                    offsets
+                        .iter()
+                        .filter_map(|offset| {
+                            let l = buffer.line_of_offset(*offset);
+                            if l <= line {
+                                Some(l)
+                            } else {
+                                None
+                            }
+                        })
+                        .dedup()
+                        .sorted()
+                        .collect()
                 })
-                .dedup()
-                .sorted()
-                .collect()
+            })
         });
         self.sticky_headers.borrow_mut().insert(line, lines.clone());
         lines
@@ -1093,7 +1128,7 @@ impl Document {
 
     /// Retrieve the `head` version of the buffer
     pub fn retrieve_head(&self) {
-        if let DocContent::File(path) = &self.content {
+        if let DocContent::File(path) = self.content.get_untracked() {
             let histories = self.histories;
 
             let send = {
@@ -1119,7 +1154,7 @@ impl Document {
             };
 
             let path = path.clone();
-            let proxy = self.proxy.clone();
+            let proxy = self.common.proxy.clone();
             std::thread::spawn(move || {
                 proxy.get_buffer_head(path, move |result| {
                     send(result);
@@ -1140,10 +1175,11 @@ impl Document {
             return;
         };
 
-        let atomic_rev = self.buffer().atomic_rev();
         let rev = self.rev();
         let left_rope = history;
-        let right_rope = self.buffer().text().clone();
+        let (atomic_rev, right_rope) = self
+            .buffer
+            .with_untracked(|b| (b.atomic_rev(), b.text().clone()));
 
         let send = {
             let atomic_rev = atomic_rev.clone();
@@ -1242,8 +1278,10 @@ impl Document {
     /// Create a new text layout for the given line.  
     /// Typically you should use [`Document::get_text_layout`] instead.
     fn new_text_layout(&self, line: usize, _font_size: usize) -> TextLayoutLine {
-        let config = self.config.get_untracked();
-        let line_content_original = self.buffer.line_content(line);
+        let config = self.common.config.get_untracked();
+        let line_content_original = self
+            .buffer
+            .with_untracked(|b| b.line_content(line).to_string());
 
         // Get the line content with newline characters replaced with spaces
         // and the content without the newline characters
@@ -1358,46 +1396,52 @@ impl Document {
         }
 
         self.diagnostics.diagnostics.with_untracked(|diags| {
-            for diag in diags {
-                if diag.diagnostic.range.start.line as usize <= line
-                    && line <= diag.diagnostic.range.end.line as usize
-                {
-                    let start = if diag.diagnostic.range.start.line as usize == line
+            self.buffer.with_untracked(|buffer| {
+                for diag in diags {
+                    if diag.diagnostic.range.start.line as usize <= line
+                        && line <= diag.diagnostic.range.end.line as usize
                     {
-                        let (_, col) = self.buffer.offset_to_line_col(diag.range.0);
-                        col
-                    } else {
-                        let offset =
-                            self.buffer.first_non_blank_character_on_line(line);
-                        let (_, col) = self.buffer.offset_to_line_col(offset);
-                        col
-                    };
-                    let start = phantom_text.col_after(start, true);
+                        let start = if diag.diagnostic.range.start.line as usize
+                            == line
+                        {
+                            let (_, col) = buffer.offset_to_line_col(diag.range.0);
+                            col
+                        } else {
+                            let offset =
+                                buffer.first_non_blank_character_on_line(line);
+                            let (_, col) = buffer.offset_to_line_col(offset);
+                            col
+                        };
+                        let start = phantom_text.col_after(start, true);
 
-                    let end = if diag.diagnostic.range.end.line as usize == line {
-                        let (_, col) = self.buffer.offset_to_line_col(diag.range.1);
-                        col
-                    } else {
-                        self.buffer.line_end_col(line, true)
-                    };
-                    let end = phantom_text.col_after(end, false);
+                        let end = if diag.diagnostic.range.end.line as usize == line
+                        {
+                            let (_, col) = buffer.offset_to_line_col(diag.range.1);
+                            col
+                        } else {
+                            buffer.line_end_col(line, true)
+                        };
+                        let end = phantom_text.col_after(end, false);
 
-                    let x0 = text_layout.hit_position(start).point.x;
-                    let x1 = text_layout.hit_position(end).point.x;
-                    let color_name = match diag.diagnostic.severity {
-                        Some(DiagnosticSeverity::ERROR) => LapceColor::LAPCE_ERROR,
-                        _ => LapceColor::LAPCE_WARN,
-                    };
-                    let color = *config.get_color(color_name);
-                    extra_style.push(LineExtraStyle {
-                        x: x0,
-                        width: Some(x1 - x0),
-                        bg_color: None,
-                        under_line: None,
-                        wave_line: Some(color),
-                    });
+                        let x0 = text_layout.hit_position(start).point.x;
+                        let x1 = text_layout.hit_position(end).point.x;
+                        let color_name = match diag.diagnostic.severity {
+                            Some(DiagnosticSeverity::ERROR) => {
+                                LapceColor::LAPCE_ERROR
+                            }
+                            _ => LapceColor::LAPCE_WARN,
+                        };
+                        let color = *config.get_color(color_name);
+                        extra_style.push(LineExtraStyle {
+                            x: x0,
+                            width: Some(x1 - x0),
+                            bg_color: None,
+                            under_line: None,
+                            wave_line: Some(color),
+                        });
+                    }
                 }
-            }
+            })
         });
 
         let whitespaces = Self::new_whitespace_layout(
@@ -1408,9 +1452,11 @@ impl Document {
         );
 
         let indent_line = if line_content_original.trim().is_empty() {
-            let offset = self.buffer.offset_of_line(line);
-            if let Some(offset) = self.syntax.parent_offset(offset) {
-                self.buffer.line_of_offset(offset)
+            let offset = self.buffer.with_untracked(|b| b.offset_of_line(line));
+            if let Some(offset) =
+                self.syntax.with_untracked(|s| s.parent_offset(offset))
+            {
+                self.buffer.with_untracked(|b| b.line_of_offset(offset))
             } else {
                 line
             }
@@ -1421,8 +1467,10 @@ impl Document {
         let indent = if indent_line != line {
             self.get_text_layout(indent_line, font_size).indent + 1.0
         } else {
-            let offset = self.buffer.first_non_blank_character_on_line(indent_line);
-            let (_, col) = self.buffer.offset_to_line_col(offset);
+            let (_, col) = self.buffer.with_untracked(|buffer| {
+                let offset = buffer.first_non_blank_character_on_line(indent_line);
+                buffer.offset_to_line_col(offset)
+            });
             text_layout.hit_position(col).point.x
         };
 
@@ -1441,7 +1489,7 @@ impl Document {
         line: usize,
         font_size: usize,
     ) -> Arc<TextLayoutLine> {
-        let config = self.config.get_untracked();
+        let config = self.common.config.get_untracked();
         // Check if the text layout needs to update due to the config being changed
         self.text_layouts.borrow_mut().check_attributes(config.id);
         // If we don't have a second layer of the hashmap initialized for this specific font size,
@@ -1484,5 +1532,28 @@ impl Document {
             .get(&line)
             .cloned()
             .unwrap()
+    }
+
+    pub fn save(&self, after_action: impl Fn() + 'static) {
+        let content = self.content.get_untracked();
+        if let DocContent::File(path) = content {
+            let rev = self.rev();
+            let buffer = self.buffer;
+            let send = create_ext_action(self.scope, move |result| {
+                if let Ok(ProxyResponse::SaveResponse {}) = result {
+                    let current_rev = buffer.with_untracked(|buffer| buffer.rev());
+                    if current_rev == rev {
+                        buffer.update(|buffer| {
+                            buffer.set_pristine();
+                        });
+                        after_action();
+                    }
+                }
+            });
+
+            self.common.proxy.save(rev, path, move |result| {
+                send(result);
+            })
+        }
     }
 }

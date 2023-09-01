@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
@@ -50,35 +50,38 @@ pub fn text_input(
     let is_focused = create_memo(move |_| is_focused() || keyboard_focus.get());
     let local_editor = editor.clone();
 
-    create_effect(move |_| {
-        let offset = cursor.with(|c| c.offset());
-        let (content, offset, preedit_range) = doc.with(|doc| {
-            let content = doc.buffer().to_string();
-            if let Some(preedit) = doc.preedit.as_ref() {
-                let mut new_content = String::new();
-                new_content.push_str(&content[..offset]);
-                new_content.push_str(&preedit.text);
-                new_content.push_str(&content[offset..]);
-                let range = (offset, offset + preedit.text.len());
-                let offset = preedit
-                    .cursor
-                    .as_ref()
-                    .map(|(_, end)| offset + *end)
-                    .unwrap_or(offset);
-                (new_content, offset, Some(range))
-            } else {
-                (content, offset, None)
-            }
+    {
+        let doc = doc.get();
+        create_effect(move |_| {
+            let offset = cursor.with(|c| c.offset());
+            let (content, offset, preedit_range) = {
+                let content = doc.buffer.with(|b| b.to_string());
+                if let Some(preedit) = doc.preedit.get().as_ref() {
+                    let mut new_content = String::new();
+                    new_content.push_str(&content[..offset]);
+                    new_content.push_str(&preedit.text);
+                    new_content.push_str(&content[offset..]);
+                    let range = (offset, offset + preedit.text.len());
+                    let offset = preedit
+                        .cursor
+                        .as_ref()
+                        .map(|(_, end)| offset + *end)
+                        .unwrap_or(offset);
+                    (new_content, offset, Some(range))
+                } else {
+                    (content, offset, None)
+                }
+            };
+            id.update_state(
+                TextInputState::Content {
+                    text: content,
+                    offset,
+                    preedit_range,
+                },
+                false,
+            );
         });
-        id.update_state(
-            TextInputState::Content {
-                text: content,
-                offset,
-                preedit_range,
-            },
-            false,
-        );
-    });
+    }
 
     {
         create_effect(move |_| {
@@ -170,14 +173,13 @@ pub fn text_input(
             cursor: ime_cursor,
         } = event
         {
-            local_editor.view.doc.update(|doc| {
-                if text.is_empty() {
-                    doc.clear_preedit();
-                } else {
-                    let offset = cursor.with_untracked(|c| c.offset());
-                    doc.set_preedit(text.clone(), *ime_cursor, offset);
-                }
-            });
+            let doc = local_editor.view.doc.get_untracked();
+            if text.is_empty() {
+                doc.clear_preedit();
+            } else {
+                let offset = cursor.with_untracked(|c| c.offset());
+                doc.set_preedit(text.clone(), *ime_cursor, offset);
+            }
         }
         true
     })
@@ -187,9 +189,8 @@ pub fn text_input(
         }
 
         if let Event::ImeCommit(text) = event {
-            local_editor.view.doc.update(|doc| {
-                doc.clear_preedit();
-            });
+            let doc = local_editor.view.doc.get_untracked();
+            doc.clear_preedit();
             local_editor.receive_char(text);
         }
         true
@@ -211,7 +212,7 @@ pub struct TextInput {
     content: String,
     offset: usize,
     preedit_range: Option<(usize, usize)>,
-    doc: RwSignal<Document>,
+    doc: RwSignal<Rc<Document>>,
     cursor: RwSignal<Cursor>,
     focus: bool,
     text_node: Option<Node>,
@@ -573,7 +574,9 @@ impl View for TextInput {
                     let offset = self.hit_index(cx, pointer.pos);
                     let (start, end) = self
                         .doc
-                        .with_untracked(|doc| doc.buffer().select_word(offset));
+                        .get_untracked()
+                        .buffer
+                        .with_untracked(|buffer| buffer.select_word(offset));
                     self.cursor.update(|cursor| {
                         cursor.set_insert(Selection::region(start, end));
                     });

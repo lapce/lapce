@@ -702,7 +702,7 @@ impl ProxyHandler for Dispatcher {
                                         .map(|e| FileNodeItem {
                                             path: e.path(),
                                             is_dir: e.path().is_dir(),
-                                            open: false,
+                                            expanded: false,
                                             read: false,
                                             children: HashMap::new(),
                                             children_open_count: 0,

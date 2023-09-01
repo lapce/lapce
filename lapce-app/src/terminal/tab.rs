@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use floem::reactive::{RwSignal, Scope};
 
@@ -20,7 +20,7 @@ impl TerminalTabData {
     pub fn new(
         workspace: Arc<LapceWorkspace>,
         run_debug: Option<RunDebugProcess>,
-        common: CommonData,
+        common: Rc<CommonData>,
     ) -> Self {
         let cx = common.scope.create_child();
         let terminal_data = TerminalData::new(cx, workspace, run_debug, common);

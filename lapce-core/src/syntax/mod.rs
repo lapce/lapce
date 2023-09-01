@@ -534,7 +534,7 @@ pub struct Syntax {
     pub normal_lines: Vec<usize>,
     pub line_height: usize,
     pub lens_height: usize,
-    pub styles: Option<Arc<Spans<Style>>>,
+    pub styles: Option<Spans<Style>>,
 }
 
 impl std::fmt::Debug for Syntax {
@@ -620,7 +620,7 @@ impl Syntax {
                 }
             }
 
-            Some(Arc::new(highlights.build()))
+            Some(highlights.build())
         } else {
             None
         };

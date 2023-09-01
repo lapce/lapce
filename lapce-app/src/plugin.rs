@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, rc::Rc, sync::Arc};
 
 use anyhow::Result;
 use floem::{
@@ -55,7 +55,7 @@ pub struct PluginData {
     pub all: AvailableVoltList,
     pub disabled: RwSignal<HashSet<VoltID>>,
     pub workspace_disabled: RwSignal<HashSet<VoltID>>,
-    pub common: CommonData,
+    pub common: Rc<CommonData>,
 }
 
 impl KeyPressFocus for PluginData {
@@ -96,7 +96,7 @@ impl PluginData {
         cx: Scope,
         disabled: HashSet<VoltID>,
         workspace_disabled: HashSet<VoltID>,
-        common: CommonData,
+        common: Rc<CommonData>,
     ) -> Self {
         let installed = cx.create_rw_signal(IndexMap::new());
         let all = AvailableVoltList {
@@ -157,7 +157,9 @@ impl PluginData {
                     .query_editor
                     .view
                     .doc
-                    .with(|doc| doc.buffer().to_string());
+                    .get()
+                    .buffer
+                    .with(|buffer| buffer.to_string());
                 if s.as_ref() == Some(&query) {
                     return query;
                 }
@@ -318,7 +320,9 @@ impl PluginData {
             .query_editor
             .view
             .doc
-            .with_untracked(|doc| doc.buffer().to_string());
+            .get_untracked()
+            .buffer
+            .with_untracked(|buffer| buffer.to_string());
         let offset = self.all.volts.with_untracked(|v| v.len());
         self.load_available_volts(&query, offset);
     }

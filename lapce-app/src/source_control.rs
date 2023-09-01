@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, rc::Rc};
 
 use floem::{
     keyboard::ModifiersState,
@@ -23,8 +23,8 @@ pub struct SourceControlData {
     pub branch: RwSignal<String>,
     pub branches: RwSignal<im::Vector<String>>,
     pub tags: RwSignal<im::Vector<String>>,
-    pub editor: EditorData,
-    pub common: CommonData,
+    pub editor: Rc<EditorData>,
+    pub common: Rc<CommonData>,
 }
 
 impl KeyPressFocus for SourceControlData {
@@ -64,13 +64,17 @@ impl KeyPressFocus for SourceControlData {
 }
 
 impl SourceControlData {
-    pub fn new(cx: Scope, common: CommonData) -> Self {
+    pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
         Self {
             file_diffs: cx.create_rw_signal(IndexMap::new()),
             branch: cx.create_rw_signal("".to_string()),
             branches: cx.create_rw_signal(im::Vector::new()),
             tags: cx.create_rw_signal(im::Vector::new()),
-            editor: EditorData::new_local(cx, EditorId::next(), common.clone()),
+            editor: Rc::new(EditorData::new_local(
+                cx,
+                EditorId::next(),
+                common.clone(),
+            )),
             common,
         }
     }
@@ -99,7 +103,9 @@ impl SourceControlData {
             .editor
             .view
             .doc
-            .with_untracked(|doc| doc.buffer().to_string());
+            .get_untracked()
+            .buffer
+            .with_untracked(|buffer| buffer.to_string());
         let message = message.trim();
         if message.is_empty() {
             return;

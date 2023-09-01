@@ -41,7 +41,7 @@ pub struct AlertBoxData {
 }
 
 impl AlertBoxData {
-    pub fn new(cx: Scope, common: CommonData) -> Self {
+    pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
         Self {
             active: cx.create_rw_signal(false),
             title: cx.create_rw_signal("".to_string()),

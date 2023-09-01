@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use floem::{
     keyboard::ModifiersState,
@@ -49,7 +49,7 @@ pub struct CodeActionData {
     pub filtered_items: im::Vector<ScoredCodeActionItem>,
     pub layout_rect: Rect,
     pub mouse_click: bool,
-    pub common: CommonData,
+    pub common: Rc<CommonData>,
 }
 
 impl KeyPressFocus for CodeActionData {
@@ -84,7 +84,7 @@ impl KeyPressFocus for CodeActionData {
 }
 
 impl CodeActionData {
-    pub fn new(cx: Scope, common: CommonData) -> Self {
+    pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
         let status = cx.create_rw_signal(CodeActionStatus::Inactive);
         let active = cx.create_rw_signal(0);
 

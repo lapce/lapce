@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{rc::Rc, sync::Arc, time::Duration};
 
 use floem::{
     action::{exec_after, TimerToken},
@@ -87,7 +87,7 @@ struct SettingsData {
     plugin_items: RwSignal<im::Vector<SettingsItem>>,
     plugin_kinds: RwSignal<im::Vector<(String, RwSignal<Point>)>>,
     filtered_items: RwSignal<im::Vector<SettingsItem>>,
-    common: CommonData,
+    common: Rc<CommonData>,
 }
 
 impl KeyPressFocus for SettingsData {
@@ -130,7 +130,7 @@ impl SettingsData {
     pub fn new(
         cx: Scope,
         installed_plugin: RwSignal<IndexMap<VoltID, InstalledVoltData>>,
-        common: CommonData,
+        common: Rc<CommonData>,
     ) -> Self {
         fn into_settings_map(
             data: &impl Serialize,
@@ -305,7 +305,7 @@ impl SettingsData {
 
 pub fn settings_view(
     installed_plugins: RwSignal<IndexMap<VoltID, InstalledVoltData>>,
-    common: CommonData,
+    common: Rc<CommonData>,
 ) -> impl View {
     let config = common.config;
 
@@ -321,7 +321,8 @@ pub fn settings_view(
     let kinds = settings_data.kinds.clone();
     let filtered_items_signal = settings_data.filtered_items;
     create_effect(move |_| {
-        let pattern = doc.with(|doc| doc.buffer().to_string().to_lowercase());
+        let doc = doc.get();
+        let pattern = doc.buffer.with(|b| b.to_string().to_lowercase());
         let plugin_items = settings_data.plugin_items.get();
 
         if pattern.is_empty() {
@@ -570,13 +571,13 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     EditorId::next(),
                     settings_data.common,
                 );
-                let doc = editor.view.doc;
-                doc.update(|doc| doc.reload(Rope::from(editor_value), true));
+                let doc = editor.view.doc.get_untracked();
+                doc.reload(Rope::from(editor_value), true);
 
                 let kind = item.kind.clone();
                 let field = item.field.clone();
                 create_effect(move |last| {
-                    let rev = doc.with(|doc| doc.buffer().rev());
+                    let rev = doc.buffer.with(|b| b.rev());
                     if last.is_none() {
                         return rev;
                     }
@@ -585,13 +586,13 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     }
                     let kind = kind.clone();
                     let field = field.clone();
+                    let buffer = doc.buffer;
                     let token =
                         exec_after(Duration::from_millis(500), move |token| {
                             if let Some(timer) = timer.try_get_untracked() {
                                 if timer == token {
-                                    let value = doc.with_untracked(|doc| {
-                                        doc.buffer().to_string()
-                                    });
+                                    let value =
+                                        buffer.with_untracked(|b| b.to_string());
 
                                     if let Ok(value) = serde::Serialize::serialize(
                                         &value,

@@ -441,18 +441,22 @@ pub fn move_cursor(
                     }
                     _ => (offset, new_offset),
                 };
-                view.doc.update(|doc| {
-                    let deltas = Editor::execute_motion_mode(
-                        cursor,
-                        doc.buffer_mut(),
-                        motion_mode,
-                        start,
-                        end,
-                        movement.is_vertical(),
-                        register,
-                    );
-                    doc.apply_deltas(&deltas);
-                });
+                let doc = view.doc.get_untracked();
+                let deltas = doc
+                    .buffer
+                    .try_update(|buffer| {
+                        Editor::execute_motion_mode(
+                            cursor,
+                            buffer,
+                            motion_mode,
+                            start,
+                            end,
+                            movement.is_vertical(),
+                            register,
+                        )
+                    })
+                    .unwrap();
+                doc.apply_deltas(&deltas);
                 cursor.motion_mode = None;
             } else {
                 cursor.mode = CursorMode::Normal(new_offset);
@@ -706,7 +710,7 @@ pub fn do_multi_selection(
 }
 
 pub fn do_motion_mode(
-    doc: &mut Document,
+    doc: &Document,
     cursor: &mut Cursor,
     motion_mode: MotionMode,
     register: &mut Register,
@@ -717,15 +721,20 @@ pub fn do_motion_mode(
             == core::mem::discriminant(&motion_mode)
         {
             let offset = cursor.offset();
-            let deltas = Editor::execute_motion_mode(
-                cursor,
-                doc.buffer_mut(),
-                cached_motion_mode,
-                offset,
-                offset,
-                true,
-                register,
-            );
+            let deltas = doc
+                .buffer
+                .try_update(|buffer| {
+                    Editor::execute_motion_mode(
+                        cursor,
+                        buffer,
+                        cached_motion_mode,
+                        offset,
+                        offset,
+                        true,
+                        register,
+                    )
+                })
+                .unwrap();
             doc.apply_deltas(&deltas);
         }
     } else {

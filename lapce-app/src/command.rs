@@ -1,6 +1,6 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, rc::Rc, sync::Arc};
 
-use floem::{keyboard::ModifiersState, peniko::kurbo::Vec2, reactive::RwSignal};
+use floem::{keyboard::ModifiersState, peniko::kurbo::Vec2};
 use indexmap::IndexMap;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
@@ -629,7 +629,7 @@ pub enum InternalCommand {
     },
     HideAlert,
     SaveScratchDoc {
-        doc: RwSignal<Document>,
+        doc: Rc<Document>,
     },
     UpdateProxyStatus {
         status: ProxyStatus,

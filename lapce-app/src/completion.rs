@@ -1,4 +1,4 @@
-use std::{borrow::Cow, path::PathBuf, str::FromStr, sync::Arc};
+use std::{borrow::Cow, path::PathBuf, rc::Rc, str::FromStr, sync::Arc};
 
 use floem::{
     peniko::kurbo::Rect,
@@ -301,9 +301,9 @@ impl CompletionData {
         view: &EditorViewData,
         cursor_offset: usize,
     ) {
-        let doc = view.doc;
+        let doc = view.doc.get_untracked();
 
-        if !doc.with_untracked(|doc| doc.content.is_file()) {
+        if !doc.content.with_untracked(|content| content.is_file()) {
             return;
         }
 
@@ -314,14 +314,12 @@ impl CompletionData {
             return;
         }
 
-        let completion_lens = doc.with_untracked(|doc| {
-            completion_lens_text(
-                view.rope_text(),
-                cursor_offset,
-                self,
-                doc.completion_lens(),
-            )
-        });
+        let completion_lens = completion_lens_text(
+            view.rope_text(),
+            cursor_offset,
+            self,
+            doc.completion_lens().as_deref(),
+        );
         match completion_lens {
             Some(Some(lens)) => {
                 let offset = self.offset + self.input.len();
@@ -329,9 +327,7 @@ impl CompletionData {
                 //   Could just store the offset in doc.
                 let (line, col) = view.offset_to_line_col(offset);
 
-                doc.update(|doc| {
-                    doc.set_completion_lens(lens, line, col);
-                });
+                doc.set_completion_lens(lens, line, col);
             }
             // Unchanged
             Some(None) => {}
@@ -343,12 +339,10 @@ impl CompletionData {
 }
 
 /// Clear the current completion lens. Only `update`s if there is a completion lens.
-pub fn clear_completion_lens(doc: RwSignal<Document>) {
-    let has_completion = doc.with_untracked(|doc| doc.completion_lens().is_some());
+pub fn clear_completion_lens(doc: Rc<Document>) {
+    let has_completion = doc.completion_lens.with_untracked(|lens| lens.is_some());
     if has_completion {
-        doc.update(|doc| {
-            doc.clear_completion_lens();
-        });
+        doc.clear_completion_lens();
     }
 }
 

@@ -87,7 +87,7 @@ pub struct PaletteData {
     pub input: RwSignal<PaletteInput>,
     kind: RwSignal<PaletteKind>,
     pub input_editor: EditorData,
-    pub preview_editor: RwSignal<EditorData>,
+    pub preview_editor: Rc<EditorData>,
     pub has_preview: RwSignal<bool>,
     pub keypress: ReadSignal<KeyPressData>,
     /// Listened on for which entry in the palette has been clicked
@@ -97,7 +97,7 @@ pub struct PaletteData {
     pub main_split: MainSplitData,
     pub references: RwSignal<Vec<EditorLocation>>,
     pub source_control: SourceControlData,
-    pub common: CommonData,
+    pub common: Rc<CommonData>,
 }
 
 impl PaletteData {
@@ -107,7 +107,7 @@ impl PaletteData {
         main_split: MainSplitData,
         keypress: ReadSignal<KeyPressData>,
         source_control: SourceControlData,
-        common: CommonData,
+        common: Rc<CommonData>,
     ) -> Self {
         let status = cx.create_rw_signal(PaletteStatus::Inactive);
         let items = cx.create_rw_signal(im::Vector::new());
@@ -122,7 +122,7 @@ impl PaletteData {
             EditorData::new_local(cx, EditorId::next(), common.clone());
         let preview_editor =
             EditorData::new_local(cx, EditorId::next(), common.clone());
-        let preview_editor = cx.create_rw_signal(preview_editor);
+        let preview_editor = Rc::new(preview_editor);
         let has_preview = cx.create_rw_signal(false);
         let run_id = cx.create_rw_signal(0);
         let run_id_counter = Arc::new(AtomicU64::new(0));
@@ -220,7 +220,7 @@ impl PaletteData {
 
         {
             let palette = palette.clone();
-            let doc = palette.input_editor.view.doc.read_only();
+            let doc = palette.input_editor.view.doc.get_untracked();
             let input = palette.input;
             let status = palette.status.read_only();
             let preset_kind = palette.kind.read_only();
@@ -228,7 +228,7 @@ impl PaletteData {
             // and kind of palette.
             cx.create_effect(move |last_input| {
                 // TODO(minor, perf): this could have perf issues if the user accidentally pasted a huge amount of text into the palette.
-                let new_input = doc.with(|doc| doc.buffer().text().to_string());
+                let new_input = doc.buffer.with(|buffer| buffer.to_string());
 
                 let status = status.get_untracked();
                 if status == PaletteStatus::Inactive {
@@ -362,9 +362,10 @@ impl PaletteData {
             PaletteKind::Language => {
                 self.get_languages();
                 if let Some(editor) = self.main_split.active_editor.get_untracked() {
-                    let doc = editor.with_untracked(|editor| (editor.view.doc));
-                    let language =
-                        doc.with_untracked(|doc| doc.syntax().language.to_string());
+                    let doc = editor.view.doc.get_untracked();
+                    let language = doc
+                        .syntax
+                        .with_untracked(|syntax| syntax.language.to_string());
                     self.preselect_matching(language.as_str());
                 }
             }
@@ -449,13 +450,13 @@ impl PaletteData {
     fn get_lines(&self) {
         let editor = self.main_split.active_editor.get_untracked();
         let doc = match editor {
-            Some(editor) => editor.with_untracked(|editor| (editor.view.doc)),
+            Some(editor) => editor.view.doc.get_untracked(),
             None => {
                 return;
             }
         };
 
-        let buffer = doc.with_untracked(|doc| doc.buffer().clone());
+        let buffer = doc.buffer.get_untracked();
         let last_line_number = buffer.last_line() + 1;
         let last_line_number_len = last_line_number.to_string().len();
         let items = buffer
@@ -595,13 +596,16 @@ impl PaletteData {
     fn get_document_symbols(&self) {
         let editor = self.main_split.active_editor.get_untracked();
         let doc = match editor {
-            Some(editor) => editor.with_untracked(|editor| (editor.view.doc)),
+            Some(editor) => editor.view.doc,
             None => {
                 self.items.update(|items| items.clear());
                 return;
             }
         };
-        let path = doc.with_untracked(|doc| doc.content.path().cloned());
+        let path = doc
+            .get_untracked()
+            .content
+            .with_untracked(|content| content.path().cloned());
         let path = match path {
             Some(path) => path,
             None => {
@@ -899,14 +903,15 @@ impl PaletteData {
                 PaletteItemContent::Line { line, .. } => {
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
-                        Some(editor) => {
-                            editor.with_untracked(|editor| (editor.view.doc))
-                        }
+                        Some(editor) => editor.view.doc,
                         None => {
                             return;
                         }
                     };
-                    let path = doc.with_untracked(|doc| doc.content.path().cloned());
+                    let path = doc
+                        .get_untracked()
+                        .content
+                        .with_untracked(|content| content.path().cloned());
                     let path = match path {
                         Some(path) => path,
                         None => return,
@@ -954,14 +959,15 @@ impl PaletteData {
                 PaletteItemContent::DocumentSymbol { range, .. } => {
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
-                        Some(editor) => {
-                            editor.with_untracked(|editor| (editor.view.doc))
-                        }
+                        Some(editor) => editor.view.doc,
                         None => {
                             return;
                         }
                     };
-                    let path = doc.with_untracked(|doc| doc.content.path().cloned());
+                    let path = doc
+                        .get_untracked()
+                        .content
+                        .with_untracked(|content| content.path().cloned());
                     let path = match path {
                         Some(path) => path,
                         None => return,
@@ -1012,25 +1018,21 @@ impl PaletteData {
                 PaletteItemContent::Language { name } => {
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
-                        Some(editor) => {
-                            editor.with_untracked(|editor| (editor.view.doc))
-                        }
+                        Some(editor) => editor.view.doc.get_untracked(),
                         None => {
                             return;
                         }
                     };
-                    doc.update(|doc| {
-                        if name.is_empty() || name.to_lowercase().eq("plain text") {
-                            doc.set_syntax(Syntax::plaintext())
-                        } else {
-                            let lang = match LapceLanguage::from_name(name) {
-                                Some(v) => v,
-                                None => return,
-                            };
-                            doc.set_language(lang);
-                        }
-                        doc.trigger_syntax_change(None);
-                    });
+                    if name.is_empty() || name.to_lowercase().eq("plain text") {
+                        doc.set_syntax(Syntax::plaintext())
+                    } else {
+                        let lang = match LapceLanguage::from_name(name) {
+                            Some(v) => v,
+                            None => return,
+                        };
+                        doc.set_language(lang);
+                    }
+                    doc.trigger_syntax_change(None);
                 }
                 PaletteItemContent::SCMReference { name } => {
                     self.common
@@ -1074,22 +1076,20 @@ impl PaletteData {
                     self.has_preview.set(true);
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
-                        Some(editor) => {
-                            editor.with_untracked(|editor| (editor.view.doc))
-                        }
+                        Some(editor) => editor.view.doc.get_untracked(),
                         None => {
                             return;
                         }
                     };
-                    let path = doc.with_untracked(|doc| doc.content.path().cloned());
+                    let path = doc
+                        .content
+                        .with_untracked(|content| content.path().cloned());
                     let path = match path {
                         Some(path) => path,
                         None => return,
                     };
-                    self.preview_editor.update(|preview_editor| {
-                        preview_editor.update_doc(doc);
-                    });
-                    self.preview_editor.get_untracked().go_to_location(
+                    self.preview_editor.update_doc(doc);
+                    self.preview_editor.go_to_location(
                         EditorLocation {
                             path,
                             position: Some(EditorPosition::Line(*line)),
@@ -1110,10 +1110,8 @@ impl PaletteData {
                     self.has_preview.set(true);
                     let (doc, new_doc) =
                         self.main_split.get_doc(location.path.clone());
-                    self.preview_editor.update(|preview_editor| {
-                        preview_editor.update_doc(doc);
-                    });
-                    self.preview_editor.get_untracked().go_to_location(
+                    self.preview_editor.update_doc(doc);
+                    self.preview_editor.go_to_location(
                         location.clone(),
                         new_doc,
                         None,
@@ -1123,22 +1121,20 @@ impl PaletteData {
                     self.has_preview.set(true);
                     let editor = self.main_split.active_editor.get_untracked();
                     let doc = match editor {
-                        Some(editor) => {
-                            editor.with_untracked(|editor| (editor.view.doc))
-                        }
+                        Some(editor) => editor.view.doc.get_untracked(),
                         None => {
                             return;
                         }
                     };
-                    let path = doc.with_untracked(|doc| doc.content.path().cloned());
+                    let path = doc
+                        .content
+                        .with_untracked(|content| content.path().cloned());
                     let path = match path {
                         Some(path) => path,
                         None => return,
                     };
-                    self.preview_editor.update(|preview_editor| {
-                        preview_editor.update_doc(doc);
-                    });
-                    self.preview_editor.get_untracked().go_to_location(
+                    self.preview_editor.update_doc(doc);
+                    self.preview_editor.go_to_location(
                         EditorLocation {
                             path,
                             position: Some(EditorPosition::Position(range.start)),
@@ -1154,11 +1150,12 @@ impl PaletteData {
                     self.has_preview.set(true);
                     let (doc, new_doc) =
                         self.main_split.get_doc(location.path.clone());
-                    self.preview_editor.update(|preview_editor| {
-                        preview_editor.update_doc(doc);
-                    });
-                    let editor = self.preview_editor.get_untracked();
-                    editor.go_to_location(location.clone(), new_doc, None);
+                    self.preview_editor.update_doc(doc);
+                    self.preview_editor.go_to_location(
+                        location.clone(),
+                        new_doc,
+                        None,
+                    );
                 }
                 PaletteItemContent::ColorTheme { name } => self
                     .common

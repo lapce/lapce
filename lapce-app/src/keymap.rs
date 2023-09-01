@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use floem::{
     event::{Event, EventListener},
@@ -32,10 +32,11 @@ pub struct KeymapPicker {
     keys: RwSignal<Vec<KeyPress>>,
 }
 
-pub fn keymap_view(common: CommonData) -> impl View {
+pub fn keymap_view(common: Rc<CommonData>) -> impl View {
     let config = common.config;
     let keypress = common.keypress;
-    let ui_line_height = move || common.ui_line_height.get() * 1.2;
+    let ui_line_height_memo = common.ui_line_height;
+    let ui_line_height = move || ui_line_height_memo.get() * 1.2;
     let modal = create_memo(move |_| config.get().core.modal);
     let picker = KeymapPicker {
         cmd: create_rw_signal(None),
@@ -48,7 +49,8 @@ pub fn keymap_view(common: CommonData) -> impl View {
     let doc = editor.view.doc;
 
     let items = move || {
-        let pattern = doc.with(|doc| doc.buffer().to_string().to_lowercase());
+        let doc = doc.get();
+        let pattern = doc.buffer.with(|b| b.to_string().to_lowercase());
         let keypress = keypress.get();
         let mut items = keypress
             .commands_with_keymap

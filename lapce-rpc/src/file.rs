@@ -52,7 +52,7 @@ pub struct FileNodeItem {
     pub path: PathBuf,
     pub is_dir: bool,
     pub read: bool,
-    pub open: bool,
+    pub expanded: bool,
     pub children: HashMap<PathBuf, FileNodeItem>,
     pub children_open_count: usize,
 }
@@ -68,11 +68,7 @@ impl PartialOrd for FileNodeItem {
         let self_file_name = self.path.file_name()?.to_str()?;
         let other_file_name = other.path.file_name()?.to_str()?;
 
-        // TODO(dbuga): it would be nicer if human_sort had a `eq_ignore_ascii_case` function.
-        Some(human_sort::compare(
-            &self_file_name.to_lowercase(),
-            &other_file_name.to_lowercase(),
-        ))
+        Some(human_sort::compare(self_file_name, other_file_name))
     }
 }
 
@@ -165,7 +161,7 @@ impl FileNodeItem {
                 path: PathBuf::from(path),
                 is_dir,
                 read: false,
-                open: false,
+                expanded: false,
                 children: HashMap::new(),
                 children_open_count: 0,
             },
@@ -183,7 +179,7 @@ impl FileNodeItem {
         children: HashMap<PathBuf, FileNodeItem>,
     ) {
         if let Some(node) = self.get_file_node_mut(path) {
-            node.open = true;
+            node.expanded = true;
             node.read = true;
             node.children = children;
         }
@@ -196,7 +192,7 @@ impl FileNodeItem {
     pub fn update_node_count(&mut self, path: &Path) -> Option<()> {
         let node = self.get_file_node_mut(path)?;
         if node.is_dir {
-            node.children_open_count = if node.open {
+            node.children_open_count = if node.expanded {
                 node.children
                     .values()
                     .map(|item| item.children_open_count + 1)

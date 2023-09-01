@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
@@ -78,7 +78,7 @@ struct StickyHeaderInfo {
 
 pub struct EditorView {
     id: Id,
-    editor: RwSignal<EditorData>,
+    editor: Rc<EditorData>,
     is_active: Memo<bool>,
     inner_node: Option<Node>,
     viewport: RwSignal<Rect>,
@@ -86,7 +86,7 @@ pub struct EditorView {
 }
 
 pub fn editor_view(
-    editor: RwSignal<EditorData>,
+    editor: Rc<EditorData>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> EditorView {
     let cx = ViewContext::get_current();
@@ -95,23 +95,25 @@ pub fn editor_view(
 
     let viewport = create_rw_signal(Rect::ZERO);
 
+    let doc = editor.view.doc;
+    let view_kind = editor.view.kind;
     create_effect(move |_| {
-        let kind = editor.with(|editor| editor.view.kind);
-        kind.track();
+        doc.track();
+        view_kind.track();
         id.request_layout();
     });
 
-    let hide_cursor = editor.with_untracked(|editor| editor.common.hide_cursor);
+    let hide_cursor = editor.common.hide_cursor;
     create_effect(move |_| {
         hide_cursor.track();
-        let occurrences = editor.with(|editor| editor.view.find_result.occurrences);
+        let occurrences = doc.with(|doc| doc.find_result.occurrences);
         occurrences.track();
         id.request_paint();
     });
 
     create_effect(move |last_rev| {
-        let doc = editor.with(|editor| editor.view.doc);
-        let rev = doc.with(|doc| doc.rev());
+        let buffer = doc.with(|doc| doc.buffer);
+        let rev = buffer.with(|buffer| buffer.rev());
         if last_rev == Some(rev) {
             return rev;
         }
@@ -119,28 +121,22 @@ pub fn editor_view(
         rev
     });
 
+    let config = editor.common.config;
+    let sticky_header_height_signal = editor.sticky_header_height;
     create_effect(move |last_rev| {
-        let (doc, sticky_header_height_signal, config) = editor.with(|editor| {
-            (
-                editor.view.doc,
-                editor.sticky_header_height,
-                editor.common.config,
-            )
-        });
         let config = config.get();
         if !config.editor.sticky_header {
             return (DocContent::Local, 0, 0, Rect::ZERO);
         }
 
+        let doc = doc.get();
         let rect = viewport.get();
-        let rev = doc.with(|doc| {
-            (
-                doc.content.clone(),
-                doc.buffer().rev(),
-                doc.cache_rev(),
-                rect,
-            )
-        });
+        let rev = (
+            doc.content.get(),
+            doc.buffer.with(|b| b.rev()),
+            doc.cache_rev.get(),
+            rect,
+        );
         if last_rev.as_ref() == Some(&rev) {
             return rev;
         }
@@ -157,15 +153,15 @@ pub fn editor_view(
         rev
     });
 
-    let (editor_window_origin, cursor, find_focus, ime_allowed) = editor
-        .with_untracked(|editor| {
-            (
-                editor.window_origin,
-                editor.cursor,
-                editor.find_focus,
-                editor.common.ime_allowed,
-            )
-        });
+    let editor_window_origin = editor.window_origin;
+    let cursor = editor.cursor;
+    let find_focus = editor.find_focus;
+    let ime_allowed = editor.common.ime_allowed;
+    let editor_viewport = editor.viewport;
+    let editor_view = editor.view.clone();
+    let doc = editor.view.doc;
+    let editor_cursor = editor.cursor;
+    let local_editor = editor.clone();
     create_effect(move |_| {
         let active = is_active.get();
         if active && !find_focus.get() {
@@ -180,11 +176,9 @@ pub fn editor_view(
                     set_ime_allowed(true);
                 }
                 let offset = cursor.with(|c| c.offset());
-                let (view, viewport) =
-                    editor.with(|editor| (editor.view.clone(), editor.viewport));
-                let (_, point_below) = view.points_of_offset(offset);
+                let (_, point_below) = editor_view.points_of_offset(offset);
                 let window_origin = editor_window_origin.get();
-                let viewport = viewport.get();
+                let viewport = editor_viewport.get();
                 let pos = window_origin
                     + (point_below.x - viewport.x0, point_below.y - viewport.y0);
                 set_ime_cursor_area(pos, Size::new(800.0, 600.0));
@@ -210,16 +204,13 @@ pub fn editor_view(
         }
 
         if let Event::ImePreedit { text, cursor } = event {
-            let doc = editor.with_untracked(|editor| editor.view.doc);
-            doc.update(|doc| {
-                if text.is_empty() {
-                    doc.clear_preedit();
-                } else {
-                    let c = editor.with_untracked(|editor| editor.cursor);
-                    let offset = c.with_untracked(|c| c.offset());
-                    doc.set_preedit(text.clone(), *cursor, offset);
-                }
-            });
+            let doc = doc.get_untracked();
+            if text.is_empty() {
+                doc.clear_preedit();
+            } else {
+                let offset = editor_cursor.with_untracked(|c| c.offset());
+                doc.set_preedit(text.clone(), *cursor, offset);
+            }
         }
         true
     })
@@ -229,11 +220,9 @@ pub fn editor_view(
         }
 
         if let Event::ImeCommit(text) = event {
-            let editor = editor.get_untracked();
-            editor.view.doc.update(|doc| {
-                doc.clear_preedit();
-            });
-            editor.receive_char(text);
+            let doc = doc.get_untracked();
+            doc.clear_preedit();
+            local_editor.receive_char(text);
         }
         true
     })
@@ -353,16 +342,11 @@ impl EditorView {
         is_local: bool,
         screen_lines: &ScreenLines,
     ) {
-        let (view, cursor, find_focus, hide_cursor, config) =
-            self.editor.with_untracked(|editor| {
-                (
-                    editor.view.clone(),
-                    editor.cursor,
-                    editor.find_focus,
-                    editor.common.hide_cursor,
-                    editor.common.config,
-                )
-            });
+        let view = self.editor.view.clone();
+        let cursor = self.editor.cursor;
+        let find_focus = self.editor.find_focus;
+        let hide_cursor = self.editor.common.hide_cursor;
+        let config = self.editor.common.config;
 
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
@@ -533,9 +517,8 @@ impl EditorView {
         viewport: Rect,
         screen_lines: &ScreenLines,
     ) {
-        let (view, config) = self
-            .editor
-            .with_untracked(|editor| (editor.view.clone(), editor.common.config));
+        let view = self.editor.view.clone();
+        let config = self.editor.common.config;
 
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
@@ -636,7 +619,7 @@ impl EditorView {
     }
 
     fn paint_find(&self, cx: &mut PaintCx, screen_lines: &ScreenLines) {
-        let visual = self.editor.with_untracked(|e| e.common.find.visual);
+        let visual = self.editor.common.find.visual;
         if !visual.get_untracked() {
             return;
         }
@@ -647,9 +630,8 @@ impl EditorView {
         let min_line = *screen_lines.lines.first().unwrap();
         let max_line = *screen_lines.lines.last().unwrap();
 
-        let (view, config) = self
-            .editor
-            .with_untracked(|editor| (editor.view.clone(), editor.common.config));
+        let view = self.editor.view.clone();
+        let config = self.editor.common.config;
         let occurrences = view.find_result().occurrences;
 
         let config = config.get_untracked();
@@ -716,14 +698,11 @@ impl EditorView {
     }
 
     fn paint_sticky_headers(&self, cx: &mut PaintCx, viewport: Rect) {
-        let (view, editor_view, config) = self.editor.with_untracked(|editor| {
-            (editor.view.clone(), editor.view.kind, editor.common.config)
-        });
-        let config = config.get_untracked();
+        let config = self.editor.common.config.get_untracked();
         if !config.editor.sticky_header {
             return;
         }
-        if !editor_view.get_untracked().is_normal() {
+        if !self.editor.view.kind.get_untracked().is_normal() {
             return;
         }
 
@@ -797,7 +776,10 @@ impl EditorView {
 
             cx.clip(&line_area_rect);
 
-            let text_layout = view.get_text_layout(line, config.editor.font_size());
+            let text_layout = self
+                .editor
+                .view
+                .get_text_layout(line, config.editor.font_size());
             let y = viewport.y0
                 + line_height * i as f64
                 + (line_height - text_layout.text.size().height) / 2.0
@@ -831,15 +813,13 @@ impl EditorView {
             0.0,
         );
 
-        let editor_view = self.editor.with_untracked(|editor| editor.view.kind);
-        if !editor_view.get_untracked().is_normal() {
+        if !self.editor.view.kind.get_untracked().is_normal() {
             return;
         }
 
-        let doc = self.editor.with_untracked(|e| e.view.doc);
-        let total_len = doc.with_untracked(|doc| doc.buffer().last_line());
-        let changes = doc.with_untracked(|doc| doc.head_changes);
-        let changes = changes.get_untracked();
+        let doc = self.editor.view.doc.get_untracked();
+        let total_len = doc.buffer.with_untracked(|buffer| buffer.last_line());
+        let changes = doc.head_changes.get_untracked();
         let total_height = viewport.height();
         let total_width = viewport.width();
         let line_height = config.editor.line_height();
@@ -911,29 +891,25 @@ impl View for EditorView {
             }
             let inner_node = self.inner_node.unwrap();
 
-            let (doc, view, config) = self.editor.with_untracked(|editor| {
-                (editor.view.doc, editor.view.clone(), editor.common.config)
-            });
-            let config = config.get_untracked();
+            let config = self.editor.common.config.get_untracked();
             let line_height = config.editor.line_height() as f64;
             let font_size = config.editor.font_size();
 
-            let screen_lines =
-                self.editor.with_untracked(|editor| editor.screen_lines());
+            let screen_lines = self.editor.screen_lines();
             for line in screen_lines.lines {
-                view.get_text_layout(line, font_size);
+                self.editor.view.get_text_layout(line, font_size);
             }
 
-            let (width, height) = doc.with_untracked(|doc| {
-                let width = view.text_layouts.borrow().max_width + 20.0;
-                let height = line_height
-                    * (view.visual_line(doc.buffer().last_line()) + 1) as f64;
-                (width as f32, height as f32)
-            });
+            let doc = self.editor.view.doc.get_untracked();
+            let width = self.editor.view.text_layouts.borrow().max_width + 20.0;
+            let height = line_height
+                * (self.editor.view.visual_line(
+                    doc.buffer.with_untracked(|buffer| buffer.last_line()),
+                ) + 1) as f64;
 
             let style = Style::BASE
-                .width_px(width)
-                .height_px(height)
+                .width_px(width as f32)
+                .height_px(height as f32)
                 .compute(&ComputedStyle::default())
                 .to_taffy_style();
             cx.set_style(inner_node, style);
@@ -961,13 +937,11 @@ impl View for EditorView {
 
     fn paint(&mut self, cx: &mut PaintCx) {
         let viewport = self.viewport.get_untracked();
-        let (config, screen_lines) = self
-            .editor
-            .with_untracked(|e| (e.common.config, e.screen_lines()));
-        let config = config.get_untracked();
+        let config = self.editor.common.config.get_untracked();
+        let screen_lines = self.editor.screen_lines();
 
-        let doc = self.editor.with_untracked(|e| e.view.doc);
-        let is_local = doc.with_untracked(|doc| doc.content.is_local());
+        let doc = self.editor.view.doc.get_untracked();
+        let is_local = doc.content.with_untracked(|content| content.is_local());
 
         self.paint_cursor(cx, is_local, &screen_lines);
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
@@ -979,7 +953,7 @@ impl View for EditorView {
 }
 
 fn get_sticky_header_info(
-    doc: RwSignal<Document>,
+    doc: Rc<Document>,
     viewport: RwSignal<Rect>,
     sticky_header_height_signal: RwSignal<f64>,
     config: &LapceConfig,
@@ -992,38 +966,36 @@ fn get_sticky_header_info(
 
     let mut last_sticky_should_scroll = false;
     let mut sticky_lines = Vec::new();
-    doc.with_untracked(|doc| {
-        if let Some(lines) = doc.sticky_headers(start_line) {
-            let total_lines = lines.len();
-            if total_lines > 0 {
-                let line = start_line + total_lines;
-                if let Some(new_lines) = doc.sticky_headers(line) {
-                    if new_lines.len() > total_lines {
-                        sticky_lines = new_lines;
-                    } else {
-                        sticky_lines = lines;
-                        last_sticky_should_scroll = new_lines.len() < total_lines;
-                        if new_lines.len() < total_lines {
-                            if let Some(new_new_lines) =
-                                doc.sticky_headers(start_line + total_lines - 1)
-                            {
-                                if new_new_lines.len() < total_lines {
-                                    sticky_lines.pop();
-                                    last_sticky_should_scroll = false;
-                                }
-                            } else {
+    if let Some(lines) = doc.sticky_headers(start_line) {
+        let total_lines = lines.len();
+        if total_lines > 0 {
+            let line = start_line + total_lines;
+            if let Some(new_lines) = doc.sticky_headers(line) {
+                if new_lines.len() > total_lines {
+                    sticky_lines = new_lines;
+                } else {
+                    sticky_lines = lines;
+                    last_sticky_should_scroll = new_lines.len() < total_lines;
+                    if new_lines.len() < total_lines {
+                        if let Some(new_new_lines) =
+                            doc.sticky_headers(start_line + total_lines - 1)
+                        {
+                            if new_new_lines.len() < total_lines {
                                 sticky_lines.pop();
                                 last_sticky_should_scroll = false;
                             }
+                        } else {
+                            sticky_lines.pop();
+                            last_sticky_should_scroll = false;
                         }
                     }
-                } else {
-                    sticky_lines = lines;
-                    last_sticky_should_scroll = true;
                 }
+            } else {
+                sticky_lines = lines;
+                last_sticky_should_scroll = true;
             }
         }
-    });
+    }
 
     let total_sticky_lines = sticky_lines.len();
 
@@ -1088,12 +1060,15 @@ pub fn cursor_caret(
     let (line, col) = view.offset_to_line_col(offset);
     let phantom_text = view.line_phantom_text(line);
     let col = phantom_text.col_after(col, block);
-    let col = view
-        .doc
-        .with_untracked(|doc| {
-            doc.preedit.as_ref().map(|preedit| {
+    let doc = view.doc.get_untracked();
+    let col = doc
+        .preedit
+        .with_untracked(|preedit| {
+            preedit.as_ref().map(|preedit| {
                 if let Some((start, _)) = preedit.cursor.as_ref() {
-                    let preedit_line = doc.buffer().line_of_offset(preedit.offset);
+                    let preedit_line = doc
+                        .buffer
+                        .with_untracked(|b| b.line_of_offset(preedit.offset));
                     if preedit_line == line {
                         col + *start
                     } else {
@@ -1306,7 +1281,7 @@ pub fn editor_container_view(
     main_split: MainSplitData,
     workspace: Arc<LapceWorkspace>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
-    editor: RwSignal<EditorData>,
+    editor: RwSignal<Rc<EditorData>>,
 ) -> impl View {
     let (editor_id, find_focus, sticky_header_height, editor_view, config) = editor
         .with_untracked(|editor| {
@@ -1328,9 +1303,9 @@ pub fn editor_container_view(
 
     let editor_rect = create_rw_signal(Rect::ZERO);
 
-    stack(move || {
+    stack(|| {
         (
-            editor_breadcrumbs(workspace, editor, config),
+            editor_breadcrumbs(workspace, editor.get_untracked(), config),
             container(|| {
                 stack(|| {
                     (
@@ -1378,22 +1353,21 @@ pub fn editor_container_view(
             // editor still exist, so it might be moved to a different editor tab
             return;
         }
-        let (editor_cx, doc) =
-            editor.with_untracked(|editor| (editor.scope, editor.view.doc));
-        editor_cx.dispose();
+        let editor = editor.get_untracked();
+        let doc = editor.view.doc.get_untracked();
+        editor.scope.dispose();
 
-        let scratch_doc_name = doc.with_untracked(|doc| {
-            if let DocContent::Scratch { name, .. } = &doc.content {
+        let scratch_doc_name =
+            if let DocContent::Scratch { name, .. } = doc.content.get_untracked() {
                 Some(name.to_string())
             } else {
                 None
-            }
-        });
+            };
         if let Some(name) = scratch_doc_name {
             if !scratch_docs
                 .with_untracked(|scratch_docs| scratch_docs.contains_key(&name))
             {
-                doc.with_untracked(|doc| doc.scope).dispose();
+                doc.scope.dispose();
             }
         }
     })
@@ -1401,32 +1375,35 @@ pub fn editor_container_view(
 }
 
 fn editor_gutter(
-    editor: RwSignal<EditorData>,
+    editor: RwSignal<Rc<EditorData>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
     let padding_left = 10.0;
     let padding_right = 30.0;
 
-    let (cursor, viewport, scroll_delta, config) = editor
-        .with_untracked(|e| (e.cursor, e.viewport, e.scroll_delta, e.common.config));
+    let (doc, cursor, viewport, scroll_delta, config) = editor.with_untracked(|e| {
+        (
+            e.view.doc,
+            e.cursor,
+            e.viewport,
+            e.scroll_delta,
+            e.common.config,
+        )
+    });
 
     let code_action_line = create_memo(move |_| {
         if is_active(true) {
-            let doc = editor.with(|editor| editor.view.doc);
+            let doc = doc.get();
             let offset = cursor.with(|cursor| cursor.offset());
-            doc.with(|doc| {
-                let has_code_actions = doc
-                    .code_actions
-                    .get(&offset)
-                    .map(|c| !c.1.is_empty())
-                    .unwrap_or(false);
-                if has_code_actions {
-                    let line = doc.buffer().line_of_offset(offset);
-                    Some(line)
-                } else {
-                    None
-                }
-            })
+            let has_code_actions = doc
+                .code_actions
+                .with(|c| c.get(&offset).map(|c| !c.1.is_empty()).unwrap_or(false));
+            if has_code_actions {
+                let line = doc.buffer.with(|b| b.line_of_offset(offset));
+                Some(line)
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -1441,8 +1418,8 @@ fn editor_gutter(
                 (
                     empty().style(move |s| s.width_px(padding_left)),
                     label(move || {
-                        let doc = editor.with(|e| e.view.doc);
-                        doc.with(|doc| (doc.buffer().last_line() + 1).to_string())
+                        let doc = doc.get();
+                        doc.buffer.with(|b| b.last_line() + 1).to_string()
                     }),
                     empty().style(move |s| s.width_px(padding_right)),
                 )
@@ -1451,7 +1428,7 @@ fn editor_gutter(
             clip(|| {
                 stack(|| {
                     (
-                        editor_gutter_view(editor)
+                        editor_gutter_view(editor.get_untracked())
                             .on_resize(move |rect| {
                                 gutter_rect.set(rect);
                             })
@@ -1473,9 +1450,7 @@ fn editor_gutter(
                                 })
                         })
                         .on_click(move |_| {
-                            editor.with_untracked(|editor| {
-                                editor.show_code_actions(true);
-                            });
+                            editor.get_untracked().show_code_actions(true);
                             true
                         })
                         .style(move |s| {
@@ -1534,18 +1509,18 @@ fn editor_gutter(
 
 fn editor_breadcrumbs(
     workspace: Arc<LapceWorkspace>,
-    editor: RwSignal<EditorData>,
+    editor: Rc<EditorData>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
+    let doc = editor.view.doc;
     let doc_path = create_memo(move |_| {
-        let doc = editor.with(|editor| editor.view.doc);
-        doc.with(|doc| {
-            if let DocContent::History(history) = &doc.content {
-                Some(history.path.clone())
-            } else {
-                doc.content.path().cloned()
-            }
-        })
+        let doc = doc.get();
+        let content = doc.content.get();
+        if let DocContent::History(history) = &content {
+            Some(history.path.clone())
+        } else {
+            content.path().cloned()
+        }
     });
     container(move || {
         scroll(move || {
@@ -1603,19 +1578,17 @@ fn editor_breadcrumbs(
                         .style(|s| s.padding_horiz_px(10.0))
                     },
                     label(move || {
-                        let doc = editor.with(|editor| editor.view.doc);
-                        doc.with_untracked(|doc| {
-                            if let DocContent::History(history) = &doc.content {
-                                format!("({})", history.version)
-                            } else {
-                                "".to_string()
-                            }
-                        })
+                        let doc = doc.get();
+                        if let DocContent::History(history) = doc.content.get() {
+                            format!("({})", history.version)
+                        } else {
+                            "".to_string()
+                        }
                     })
                     .style(move |s| {
-                        let doc = editor.with(|editor| editor.view.doc);
-                        let is_history = doc.with_untracked(|doc| {
-                            matches!(&doc.content, DocContent::History(_))
+                        let doc = doc.get();
+                        let is_history = doc.content.with_untracked(|content| {
+                            matches!(content, DocContent::History(_))
                         });
 
                         s.padding_right_px(10.0).apply_if(!is_history, |s| s.hide())
@@ -1625,7 +1598,7 @@ fn editor_breadcrumbs(
             .style(|s| s.items_center())
         })
         .on_scroll_to(move || {
-            editor.with(|_editor| ());
+            doc.track();
             Some(Point::new(3000.0, 0.0))
         })
         .hide_bar(|| true)
@@ -1648,7 +1621,7 @@ fn editor_breadcrumbs(
 }
 
 fn editor_content(
-    editor: RwSignal<EditorData>,
+    editor: RwSignal<Rc<EditorData>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
     let (
@@ -1672,38 +1645,37 @@ fn editor_content(
     });
 
     scroll(|| {
-        let editor_content_view = editor_view(editor, is_active).style(move |s| {
-            let config = config.get();
-            let padding_bottom = if config.editor.scroll_beyond_last_line {
-                viewport.get().height() as f32 - config.editor.line_height() as f32
-            } else {
-                0.0
-            };
-            s.padding_bottom_px(padding_bottom)
-                .cursor(CursorStyle::Text)
-                .min_size_pct(100.0, 100.0)
-        });
+        let editor_content_view = editor_view(editor.get_untracked(), is_active)
+            .style(move |s| {
+                let config = config.get();
+                let padding_bottom = if config.editor.scroll_beyond_last_line {
+                    viewport.get().height() as f32
+                        - config.editor.line_height() as f32
+                } else {
+                    0.0
+                };
+                s.padding_bottom_px(padding_bottom)
+                    .cursor(CursorStyle::Text)
+                    .min_size_pct(100.0, 100.0)
+            });
         let id = editor_content_view.id();
         editor_content_view
             .on_event(EventListener::PointerDown, move |event| {
                 if let Event::PointerDown(pointer_event) = event {
                     id.request_active();
-                    let editor = editor.get_untracked();
-                    editor.pointer_down(pointer_event);
+                    editor.get_untracked().pointer_down(pointer_event);
                 }
                 false
             })
             .on_event(EventListener::PointerMove, move |event| {
                 if let Event::PointerMove(pointer_event) = event {
-                    let editor = editor.get_untracked();
-                    editor.pointer_move(pointer_event);
+                    editor.get_untracked().pointer_move(pointer_event);
                 }
                 true
             })
             .on_event(EventListener::PointerUp, move |event| {
                 if let Event::PointerUp(pointer_event) = event {
-                    let editor = editor.get_untracked();
-                    editor.pointer_up(pointer_event);
+                    editor.get_untracked().pointer_up(pointer_event);
                 }
                 true
             })
@@ -1717,10 +1689,12 @@ fn editor_content(
     .on_scroll_to(move || scroll_to.get().map(|s| s.to_point()))
     .on_scroll_delta(move || scroll_delta.get())
     .on_ensure_visible(move || {
+        let editor = editor.get_untracked();
         let cursor = cursor.get();
         let offset = cursor.offset();
-        let view = editor.with(|e| e.view.clone());
-        let caret = cursor_caret(&view, offset, !cursor.is_insert());
+        editor.view.doc.track();
+        editor.view.kind.track();
+        let caret = cursor_caret(&editor.view, offset, !cursor.is_insert());
         let config = config.get_untracked();
         let line_height = config.editor.line_height();
         if let CursorRender::Caret { x, width, line } = caret {
@@ -1728,7 +1702,7 @@ fn editor_content(
                 .to_rect()
                 .with_origin(Point::new(
                     x,
-                    (view.visual_line(line) * line_height) as f64,
+                    (editor.view.visual_line(line) * line_height) as f64,
                 ))
                 .inflate(10.0, 0.0);
 
@@ -1886,7 +1860,7 @@ fn replace_editor_view(
 }
 
 fn find_view(
-    editor: RwSignal<EditorData>,
+    editor: RwSignal<Rc<EditorData>>,
     find_editor: EditorData,
     find_focus: RwSignal<bool>,
     replace_editor: EditorData,
@@ -1904,10 +1878,10 @@ fn find_view(
         if !visual {
             return (0, 0);
         }
-        let (curosr, view) =
-            editor.with(|editor| (editor.cursor, editor.view.clone()));
-        let offset = curosr.with(|cursor| cursor.offset());
-        let occurrences = view.find_result.occurrences;
+        let editor = editor.get_untracked();
+        let cursor = editor.cursor;
+        let offset = cursor.with(|cursor| cursor.offset());
+        let occurrences = editor.view.doc.get().find_result.occurrences;
         occurrences.with(|occurrences| {
             for (i, region) in occurrences.regions().iter().enumerate() {
                 if offset <= region.max() {
@@ -2010,7 +1984,9 @@ fn find_view(
                             || LapceIcons::SEARCH_REPLACE,
                             move || {
                                 let text = replace_doc
-                                    .with_untracked(|doc| doc.buffer().to_string());
+                                    .get_untracked()
+                                    .buffer
+                                    .with_untracked(|b| b.to_string());
                                 editor.get_untracked().replace_next(&text);
                             },
                             move || false,
@@ -2022,7 +1998,9 @@ fn find_view(
                             || LapceIcons::SEARCH_REPLACE_ALL,
                             move || {
                                 let text = replace_doc
-                                    .with_untracked(|doc| doc.buffer().to_string());
+                                    .get_untracked()
+                                    .buffer
+                                    .with_untracked(|b| b.to_string());
                                 editor.get_untracked().replace_all(&text);
                             },
                             move || false,
@@ -2052,7 +2030,7 @@ fn find_view(
         })
         .on_event(EventListener::PointerDown, move |_| {
             let editor = editor.get_untracked();
-            if let Some(editor_tab_id) = editor.editor_tab_id {
+            if let Some(editor_tab_id) = editor.editor_tab_id.get_untracked() {
                 editor
                     .common
                     .internal_command

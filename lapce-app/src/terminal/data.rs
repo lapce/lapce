@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use alacritty_terminal::{
     grid::{Dimensions, Scroll},
@@ -43,7 +43,7 @@ pub struct TerminalData {
     pub visual_mode: RwSignal<VisualMode>,
     pub raw: RwSignal<Arc<RwLock<RawTerminal>>>,
     pub run_debug: RwSignal<Option<RunDebugProcess>>,
-    pub common: CommonData,
+    pub common: Rc<CommonData>,
 }
 
 impl KeyPressFocus for TerminalData {
@@ -299,7 +299,7 @@ impl TerminalData {
         cx: Scope,
         workspace: Arc<LapceWorkspace>,
         run_debug: Option<RunDebugProcess>,
-        common: CommonData,
+        common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
         let term_id = TermId::next();
@@ -335,7 +335,7 @@ impl TerminalData {
         workspace: Arc<LapceWorkspace>,
         term_id: TermId,
         run_debug: Option<&RunDebugConfig>,
-        common: CommonData,
+        common: Rc<CommonData>,
     ) -> Arc<RwLock<RawTerminal>> {
         let raw = Arc::new(RwLock::new(RawTerminal::new(
             term_id,

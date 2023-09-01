@@ -1,4 +1,4 @@
-use std::{ops::Range, path::PathBuf};
+use std::{ops::Range, path::PathBuf, rc::Rc};
 
 use floem::{
     ext_event::create_ext_action,
@@ -44,7 +44,7 @@ pub struct GlobalSearchData {
     pub editor: EditorData,
     pub search_result: RwSignal<IndexMap<PathBuf, SearchMatchData>>,
     pub main_split: MainSplitData,
-    pub common: CommonData,
+    pub common: Rc<CommonData>,
 }
 
 impl KeyPressFocus for GlobalSearchData {
@@ -110,7 +110,8 @@ impl VirtualListVector<(PathBuf, SearchMatchData)> for GlobalSearchData {
 }
 
 impl GlobalSearchData {
-    pub fn new(cx: Scope, main_split: MainSplitData, common: CommonData) -> Self {
+    pub fn new(cx: Scope, main_split: MainSplitData) -> Self {
+        let common = main_split.common.clone();
         let editor = EditorData::new_local(cx, EditorId::next(), common.clone());
         let search_result = cx.create_rw_signal(IndexMap::new());
 
@@ -123,12 +124,9 @@ impl GlobalSearchData {
 
         {
             let global_search = global_search.clone();
+            let buffer = global_search.editor.view.doc.get_untracked().buffer;
             cx.create_effect(move |_| {
-                let pattern = global_search
-                    .editor
-                    .view
-                    .doc
-                    .with(|doc| doc.buffer().to_string());
+                let pattern = buffer.with(|buffer| buffer.to_string());
                 if pattern.is_empty() {
                     global_search.search_result.update(|r| r.clear());
                     return;
@@ -159,10 +157,10 @@ impl GlobalSearchData {
         }
 
         {
-            let global_search_doc = global_search.editor.view.doc;
+            let buffer = global_search.editor.view.doc.get_untracked().buffer;
             let main_split = global_search.main_split.clone();
             cx.create_effect(move |_| {
-                let content = global_search_doc.with(|doc| doc.buffer().to_string());
+                let content = buffer.with(|buffer| buffer.to_string());
                 main_split.set_find_pattern(Some(content));
             });
         }
@@ -202,7 +200,8 @@ impl GlobalSearchData {
         self.editor
             .view
             .doc
-            .update(|doc| doc.reload(Rope::from(pattern), true));
+            .get_untracked()
+            .reload(Rope::from(pattern), true);
         self.editor
             .cursor
             .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));
