@@ -576,6 +576,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
 
                 let kind = item.kind.clone();
                 let field = item.field.clone();
+                let item_value = item.value.clone();
                 create_effect(move |last| {
                     let rev = doc.buffer.with(|b| b.rev());
                     if last.is_none() {
@@ -587,17 +588,38 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     let kind = kind.clone();
                     let field = field.clone();
                     let buffer = doc.buffer;
+                    let item_value = item_value.clone();
                     let token =
                         exec_after(Duration::from_millis(500), move |token| {
                             if let Some(timer) = timer.try_get_untracked() {
                                 if timer == token {
                                     let value =
                                         buffer.with_untracked(|b| b.to_string());
-
-                                    if let Ok(value) = serde::Serialize::serialize(
-                                        &value,
+                                    let value = match &item_value {
+                                        SettingsValue::Float(_) => {
+                                            value.parse::<f64>().ok().and_then(|v| {
+                                                serde::Serialize::serialize(
+                                        &v,
                                         toml_edit::ser::ValueSerializer::new(),
-                                    ) {
+                                    ).ok()
+                                            })
+                                        }
+                                        SettingsValue::Integer(_) => {
+                                            value.parse::<i64>().ok().and_then(|v| {
+                                                serde::Serialize::serialize(
+                                        &v,
+                                        toml_edit::ser::ValueSerializer::new(),
+                                    ).ok()
+                                            })
+                                        }
+                                        _ => serde::Serialize::serialize(
+                                            &value,
+                                            toml_edit::ser::ValueSerializer::new(),
+                                        )
+                                        .ok(),
+                                    };
+
+                                    if let Some(value) = value {
                                         LapceConfig::update_file(
                                             &kind, &field, value,
                                         );

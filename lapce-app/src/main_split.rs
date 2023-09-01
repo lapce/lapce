@@ -1958,7 +1958,8 @@ impl MainSplitData {
             self.find_editor
                 .view
                 .doc
-                .update(|doc| doc.reload(Rope::from(pattern), true));
+                .get_untracked()
+                .reload(Rope::from(pattern), true);
         }
         let pattern_len = self
             .find_editor

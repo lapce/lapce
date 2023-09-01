@@ -304,7 +304,8 @@ impl PaletteData {
         self.input_editor
             .view
             .doc
-            .update(|doc| doc.reload(Rope::from(symbol), true));
+            .get_untracked()
+            .reload(Rope::from(symbol), true);
         self.input_editor
             .cursor
             .update(|cursor| cursor.set_insert(Selection::caret(symbol.len())));
@@ -1201,7 +1202,8 @@ impl PaletteData {
         self.input_editor
             .view
             .doc
-            .update(|doc| doc.reload(Rope::from(""), true));
+            .get_untracked()
+            .reload(Rope::from(""), true);
         self.input_editor
             .cursor
             .update(|cursor| cursor.set_insert(Selection::caret(0)));

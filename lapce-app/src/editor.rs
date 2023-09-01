@@ -1314,20 +1314,14 @@ impl EditorData {
         let text = snippet.text();
         let mut cursor = self.cursor.get_untracked();
         let old_cursor = cursor.mode.clone();
-        let (delta, inval_lines, edits) = self
-            .view
-            .doc
-            .try_update(|doc| {
-                doc.do_raw_edit(
-                    &[
-                        &[(selection.clone(), text.as_str())][..],
-                        &additional_edit[..],
-                    ]
-                    .concat(),
-                    EditType::Completion,
-                )
-            })
-            .unwrap();
+        let (delta, inval_lines, edits) = self.view.doc.get_untracked().do_raw_edit(
+            &[
+                &[(selection.clone(), text.as_str())][..],
+                &additional_edit[..],
+            ]
+            .concat(),
+            EditType::Completion,
+        );
 
         let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
 
