@@ -571,7 +571,9 @@ impl WindowTabData {
             RevealActiveFileInFileExplorer => {
                 if let Some(editor_data) = self.main_split.active_editor.get() {
                     let path = editor_data.view.doc.with_untracked(|doc| {
-                        if let DocContent::File(path) = doc.content.get_untracked() {
+                        if let DocContent::File { path, .. } =
+                            doc.content.get_untracked()
+                        {
                             Some(path)
                         } else {
                             None
@@ -590,7 +592,7 @@ impl WindowTabData {
                     for (_, editor_data) in editors.iter() {
                         let should_save =
                             editor_data.view.doc.with_untracked(|doc| {
-                                let DocContent::File(path) =
+                                let DocContent::File { path, .. } =
                                     doc.content.get_untracked()
                                 else {
                                     return false;
@@ -1504,7 +1506,7 @@ impl WindowTabData {
                 };
             }
             CoreNotification::WorkspaceFileChange => {
-                // self.file_explorer.reload();
+                self.file_explorer.reload();
             }
             _ => {}
         }

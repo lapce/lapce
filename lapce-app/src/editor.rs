@@ -87,7 +87,7 @@ impl EditorInfo {
     ) -> Rc<EditorData> {
         let editor_id = EditorId::next();
         let editor_data = match &self.content {
-            DocContent::File(path) => {
+            DocContent::File { path, .. } => {
                 let (doc, new_doc) = data.get_doc(path.clone());
                 let editor_data = EditorData::new(
                     data.scope,
@@ -1314,14 +1314,19 @@ impl EditorData {
         let text = snippet.text();
         let mut cursor = self.cursor.get_untracked();
         let old_cursor = cursor.mode.clone();
-        let (delta, inval_lines, edits) = self.view.doc.get_untracked().do_raw_edit(
-            &[
-                &[(selection.clone(), text.as_str())][..],
-                &additional_edit[..],
-            ]
-            .concat(),
-            EditType::Completion,
-        );
+        let (delta, inval_lines, edits) = self
+            .view
+            .doc
+            .get_untracked()
+            .do_raw_edit(
+                &[
+                    &[(selection.clone(), text.as_str())][..],
+                    &additional_edit[..],
+                ]
+                .concat(),
+                EditType::Completion,
+            )
+            .ok_or_else(|| anyhow::anyhow!("not edited"))?;
 
         let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
 
@@ -1394,7 +1399,10 @@ impl EditorData {
         let mut cursor = self.cursor.get_untracked();
         let doc = self.view.doc.get_untracked();
         let (delta, inval_lines, edits) =
-            doc.do_raw_edit(edits, EditType::Completion);
+            match doc.do_raw_edit(edits, EditType::Completion) {
+                Some(e) => e,
+                None => return,
+            };
         let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
         let old_cursor = cursor.mode.clone();
         doc.buffer.update(|buffer| {
@@ -1653,7 +1661,7 @@ impl EditorData {
         }
 
         let config = self.common.config.get_untracked();
-        if let DocContent::File(path) = content {
+        if let DocContent::File { path, .. } = content {
             let format_on_save = allow_formatting && config.editor.format_on_save;
             if format_on_save {
                 let editor = self.clone();

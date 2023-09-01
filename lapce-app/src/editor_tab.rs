@@ -197,7 +197,7 @@ impl EditorTabChild {
                         editor_data.confirmed,
                     );
                     match content {
-                        DocContent::File(path) => {
+                        DocContent::File { path, .. } => {
                             Some((path, confirmed, is_pristine))
                         }
                         DocContent::Local => None,
@@ -251,7 +251,7 @@ impl EditorTabChild {
                             (doc.content.get(), doc.buffer.with(|b| b.is_pristine()))
                         });
                     match content {
-                        DocContent::File(path) => Some((path, is_pristine)),
+                        DocContent::File { path, .. } => Some((path, is_pristine)),
                         DocContent::Local => None,
                         DocContent::History(_) => None,
                         DocContent::Scratch { name, .. } => {
@@ -341,7 +341,7 @@ impl EditorTabData {
                     let is_path =
                         editor.view.doc.get_untracked().content.with_untracked(
                             |content| {
-                                if let DocContent::File(p) = content {
+                                if let DocContent::File { path: p, .. } = content {
                                     p == path
                                 } else {
                                     false
