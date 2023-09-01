@@ -35,7 +35,7 @@ use lsp_types::{Position, Range, TextDocumentItem, Url};
 use parking_lot::Mutex;
 
 use crate::{
-    buffer::{get_mod_time, load_file, Buffer},
+    buffer::{get_mod_time, load_file, Buffer, BufferType},
     plugin::{catalog::PluginCatalog, remove_volt, PluginCatalogRpcHandler},
     terminal::Terminal,
     watcher::{FileWatcher, Notify, WatchToken},
@@ -49,7 +49,7 @@ pub struct Dispatcher {
     pub proxy_rpc: ProxyRpcHandler,
     core_rpc: CoreRpcHandler,
     catalog_rpc: PluginCatalogRpcHandler,
-    buffers: HashMap<PathBuf, Buffer>,
+    buffers: HashMap<PathBuf, BufferType>,
     #[allow(deprecated)]
     terminals: HashMap<TermId, mio::channel::Sender<Msg>>,
     file_watcher: FileWatcher,
@@ -108,7 +108,7 @@ impl ProxyHandler for Dispatcher {
                     .notification(CoreNotification::OpenPaths { paths });
             }
             OpenFileChanged { path } => {
-                if let Some(buffer) = self.buffers.get(&path) {
+                if let Some(BufferType::Text(buffer)) = self.buffers.get(&path) {
                     if get_mod_time(&buffer.path) == buffer.mod_time {
                         return;
                     }
@@ -143,15 +143,17 @@ impl ProxyHandler for Dispatcher {
             }
             Update { path, delta, rev } => {
                 let buffer = self.buffers.get_mut(&path).unwrap();
-                let old_text = buffer.rope.clone();
-                buffer.update(&delta, rev);
-                self.catalog_rpc.did_change_text_document(
-                    &path,
-                    rev,
-                    delta,
-                    old_text,
-                    buffer.rope.clone(),
-                );
+                if let BufferType::Text(buffer) = buffer {
+                    let old_text = buffer.rope.clone();
+                    buffer.update(&delta, rev);
+                    self.catalog_rpc.did_change_text_document(
+                        &path,
+                        rev,
+                        delta,
+                        old_text,
+                        buffer.rope.clone(),
+                    );
+                }
             }
             UpdatePluginConfigs { configs } => {
                 let _ = self.catalog_rpc.update_plugin_configs(configs);
@@ -323,16 +325,23 @@ impl ProxyHandler for Dispatcher {
         use ProxyRequest::*;
         match rpc {
             NewBuffer { buffer_id, path } => {
-                let buffer = Buffer::new(buffer_id, path.clone());
-                let content = buffer.rope.to_string();
-                self.catalog_rpc.did_open_document(
-                    &path,
-                    buffer.language_id.to_string(),
-                    buffer.rev as i32,
-                    content.clone(),
-                );
+                let buffer_type = BufferType::new(buffer_id, path.clone());
                 self.file_watcher.watch(&path, false, OPEN_FILE_EVENT_TOKEN);
-                self.buffers.insert(path, buffer);
+                self.buffers.insert(path.clone(), buffer_type.clone());
+                let content = match buffer_type {
+                    BufferType::Text(buffer) => {
+                        let content = buffer.rope.to_string();
+                        self.catalog_rpc.did_open_document(
+                            &path,
+                            buffer.language_id.to_string(),
+                            buffer.rev as i32,
+                            content.clone(),
+                        );
+                        content
+                    }
+                    BufferType::Error(e) => e,
+                    _ => String::new(),
+                };
                 self.respond_rpc(
                     id,
                     Ok(ProxyResponse::NewBufferResponse { content }),
@@ -502,63 +511,71 @@ impl ProxyHandler for Dispatcher {
             GetInlayHints { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 let buffer = self.buffers.get(&path).unwrap();
-                let range = Range {
-                    start: Position::new(0, 0),
-                    end: buffer.offset_to_position(buffer.len()),
-                };
-                self.catalog_rpc
-                    .get_inlay_hints(&path, range, move |_, result| {
-                        let result = result
-                            .map(|hints| ProxyResponse::GetInlayHints { hints });
-                        proxy_rpc.handle_response(id, result);
-                    });
+                if let BufferType::Text(buffer) = buffer {
+                    let range = Range {
+                        start: Position::new(0, 0),
+                        end: buffer.offset_to_position(buffer.len()),
+                    };
+                    self.catalog_rpc.get_inlay_hints(
+                        &path,
+                        range,
+                        move |_, result| {
+                            let result = result
+                                .map(|hints| ProxyResponse::GetInlayHints { hints });
+                            proxy_rpc.handle_response(id, result);
+                        },
+                    );
+                }
             }
             GetSemanticTokens { path } => {
                 let buffer = self.buffers.get(&path).unwrap();
-                let text = buffer.rope.clone();
-                let rev = buffer.rev;
-                let len = buffer.len();
-                let local_path = path.clone();
-                let proxy_rpc = self.proxy_rpc.clone();
-                let catalog_rpc = self.catalog_rpc.clone();
+                if let BufferType::Text(buffer) = buffer {
+                    let text = buffer.rope.clone();
+                    let rev = buffer.rev;
+                    let len = buffer.len();
+                    let local_path = path.clone();
+                    let proxy_rpc = self.proxy_rpc.clone();
+                    let catalog_rpc = self.catalog_rpc.clone();
 
-                let handle_tokens =
-                    move |result: Result<Vec<LineStyle>, RpcError>| match result {
-                        Ok(styles) => {
-                            proxy_rpc.handle_response(
-                                id,
-                                Ok(ProxyResponse::GetSemanticTokens {
-                                    styles: SemanticStyles {
-                                        rev,
-                                        path: local_path,
-                                        styles,
-                                        len,
-                                    },
-                                }),
-                            );
-                        }
-                        Err(e) => {
-                            proxy_rpc.handle_response(id, Err(e));
-                        }
-                    };
+                    let handle_tokens =
+                        move |result: Result<Vec<LineStyle>, RpcError>| match result
+                        {
+                            Ok(styles) => {
+                                proxy_rpc.handle_response(
+                                    id,
+                                    Ok(ProxyResponse::GetSemanticTokens {
+                                        styles: SemanticStyles {
+                                            rev,
+                                            path: local_path,
+                                            styles,
+                                            len,
+                                        },
+                                    }),
+                                );
+                            }
+                            Err(e) => {
+                                proxy_rpc.handle_response(id, Err(e));
+                            }
+                        };
 
-                let proxy_rpc = self.proxy_rpc.clone();
-                self.catalog_rpc.get_semantic_tokens(
-                    &path,
-                    move |plugin_id, result| match result {
-                        Ok(result) => {
-                            catalog_rpc.format_semantic_tokens(
-                                plugin_id,
-                                result,
-                                text,
-                                Box::new(handle_tokens),
-                            );
-                        }
-                        Err(e) => {
-                            proxy_rpc.handle_response(id, Err(e));
-                        }
-                    },
-                );
+                    let proxy_rpc = self.proxy_rpc.clone();
+                    self.catalog_rpc.get_semantic_tokens(
+                        &path,
+                        move |plugin_id, result| match result {
+                            Ok(result) => {
+                                catalog_rpc.format_semantic_tokens(
+                                    plugin_id,
+                                    result,
+                                    text,
+                                    Box::new(handle_tokens),
+                                );
+                            }
+                            Err(e) => {
+                                proxy_rpc.handle_response(id, Err(e));
+                            }
+                        },
+                    );
+                }
             }
             GetCodeActions {
                 path,
@@ -680,11 +697,22 @@ impl ProxyHandler for Dispatcher {
                 let items = self
                     .buffers
                     .iter()
-                    .map(|(path, buffer)| TextDocumentItem {
-                        uri: Url::from_file_path(path).unwrap(),
-                        language_id: buffer.language_id.to_string(),
-                        version: buffer.rev as i32,
-                        text: buffer.get_document(),
+                    .map(|(path, buffer_type)| {
+                        if let BufferType::Text(buffer) = buffer_type {
+                            TextDocumentItem {
+                                uri: Url::from_file_path(path).unwrap(),
+                                language_id: buffer.language_id.to_string(),
+                                version: buffer.rev as i32,
+                                text: buffer.get_document(),
+                            }
+                        } else {
+                            TextDocumentItem {
+                                uri: Url::from_file_path(path).unwrap(),
+                                language_id: String::new(),
+                                version: 0,
+                                text: String::from("Not a text file"),
+                            }
+                        }
                     })
                     .collect();
                 let resp = ProxyResponse::GetOpenFilesContentResponse { items };
@@ -724,18 +752,20 @@ impl ProxyHandler for Dispatcher {
             }
             Save { rev, path } => {
                 let buffer = self.buffers.get_mut(&path).unwrap();
-                let result = buffer
-                    .save(rev)
-                    .map(|_r| {
-                        self.catalog_rpc
-                            .did_save_text_document(&path, buffer.rope.clone());
-                        ProxyResponse::SaveResponse {}
-                    })
-                    .map_err(|e| RpcError {
-                        code: 0,
-                        message: e.to_string(),
-                    });
-                self.respond_rpc(id, result);
+                if let BufferType::Text(buffer) = buffer {
+                    let result = buffer
+                        .save(rev)
+                        .map(|_r| {
+                            self.catalog_rpc
+                                .did_save_text_document(&path, buffer.rope.clone());
+                            ProxyResponse::SaveResponse {}
+                        })
+                        .map_err(|e| RpcError {
+                            code: 0,
+                            message: e.to_string(),
+                        });
+                    self.respond_rpc(id, result);
+                }
             }
             SaveBufferAs {
                 buffer_id,
@@ -743,18 +773,26 @@ impl ProxyHandler for Dispatcher {
                 rev,
                 content,
             } => {
-                let mut buffer = Buffer::new(buffer_id, path.clone());
-                buffer.rope = Rope::from(content);
-                buffer.rev = rev;
-                let result = buffer
-                    .save(rev)
-                    .map(|_| ProxyResponse::Success {})
-                    .map_err(|e| RpcError {
-                        code: 0,
-                        message: e.to_string(),
-                    });
-                self.buffers.insert(path, buffer);
-                self.respond_rpc(id, result);
+                let buffer_type = BufferType::new(buffer_id, path.clone());
+                if let BufferType::Text(buffer) = buffer_type {
+                    let mut new_buffer = Buffer {
+                        rope: Rope::from(content),
+                        rev,
+                        language_id: buffer.language_id,
+                        id: buffer.id,
+                        path: buffer.path,
+                        mod_time: buffer.mod_time,
+                    };
+                    let result = new_buffer
+                        .save(rev)
+                        .map(|_| ProxyResponse::Success {})
+                        .map_err(|e| RpcError {
+                            code: 0,
+                            message: e.to_string(),
+                        });
+                    self.buffers.insert(path, BufferType::Text(new_buffer));
+                    self.respond_rpc(id, result);
+                }
             }
             CreateFile { path } => {
                 let result = path

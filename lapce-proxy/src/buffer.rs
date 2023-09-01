@@ -17,6 +17,35 @@ use lapce_xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 use lsp_types::*;
 
 #[derive(Clone)]
+pub enum BufferType {
+    Text(Buffer),
+    File,
+    Error(String),
+}
+
+impl BufferType {
+    pub fn new(id: BufferId, path: PathBuf) -> BufferType {
+        return match load_file(&path) {
+            Ok(content) => {
+                let rope = Rope::from(content);
+                let rev = u64::from(!rope.is_empty());
+                let language_id = language_id_from_path(&path).unwrap_or("");
+                let mod_time = get_mod_time(&path);
+                BufferType::Text(Buffer {
+                    id,
+                    rope,
+                    path,
+                    language_id,
+                    rev,
+                    mod_time,
+                })
+            }
+            Err(e) => BufferType::Error(e.to_string()),
+        };
+    }
+}
+
+#[derive(Clone)]
 pub struct Buffer {
     pub language_id: &'static str,
     pub id: BufferId,
@@ -27,20 +56,25 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    pub fn new(id: BufferId, path: PathBuf) -> Buffer {
-        let rope = Rope::from(load_file(&path).unwrap_or_default());
-        let rev = u64::from(!rope.is_empty());
-        let language_id = language_id_from_path(&path).unwrap_or("");
-        let mod_time = get_mod_time(&path);
-        Buffer {
-            id,
-            rope,
-            path,
-            language_id,
-            rev,
-            mod_time,
-        }
-    }
+    // pub fn new(id: BufferId, path: PathBuf) -> BufferType {
+    //     return match load_file(&path) {
+    //         Ok(content) => {
+    //             let rope = Rope::from(content);
+    //             let rev = u64::from(!rope.is_empty());
+    //             let language_id = language_id_from_path(&path).unwrap_or("");
+    //             let mod_time = get_mod_time(&path);
+    //             BufferType::Text(Buffer {
+    //                 id,
+    //                 rope,
+    //                 path,
+    //                 language_id,
+    //                 rev,
+    //                 mod_time,
+    //             })
+    //         }
+    //         Err(e) => BufferType::Error(e.to_string()),
+    //     };
+    // }
 
     pub fn save(&mut self, rev: u64) -> Result<()> {
         if self.rev != rev {
@@ -170,6 +204,13 @@ pub fn read_path_to_string_lossy<P: AsRef<Path>>(
     // Read the file in as bytes
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
+
+    if buffer[..8] == [137, 80, 78, 71, 13, 10, 26, 10] {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Not a text file",
+        ));
+    }
 
     // Parse the file contents as utf8, replacing non-utf8 data with the
     // replacement character
