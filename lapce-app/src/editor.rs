@@ -1,5 +1,6 @@
 use std::{
-    cmp::Ordering, collections::HashMap, str::FromStr, sync::Arc, time::Duration,
+    cmp::Ordering, collections::HashMap, rc::Rc, str::FromStr, sync::Arc,
+    time::Duration,
 };
 
 use anyhow::Result;
@@ -83,7 +84,7 @@ impl EditorInfo {
         &self,
         data: MainSplitData,
         editor_tab_id: EditorTabId,
-    ) -> RwSignal<EditorData> {
+    ) -> Rc<EditorData> {
         let editor_id = EditorId::next();
         let editor_data = match &self.content {
             DocContent::File(path) => {
@@ -123,7 +124,7 @@ impl EditorInfo {
                     .scratch_docs
                     .try_update(|scratch_docs| {
                         if let Some(doc) = scratch_docs.get(name) {
-                            return *doc;
+                            return doc.clone();
                         }
                         let content = DocContent::Scratch {
                             id: BufferId::next(),
@@ -132,12 +133,10 @@ impl EditorInfo {
                         let doc = Document::new_content(
                             data.scope,
                             content,
-                            data.common.find.clone(),
-                            data.common.proxy.clone(),
-                            data.common.config,
+                            data.common.clone(),
                         );
-                        let doc = doc.scope.create_rw_signal(doc);
-                        scratch_docs.insert(name.to_string(), doc);
+                        let doc = Rc::new(doc);
+                        scratch_docs.insert(name.to_string(), doc.clone());
                         doc
                     })
                     .unwrap();
@@ -152,9 +151,9 @@ impl EditorInfo {
                 )
             }
         };
-        let editor_data = editor_data.scope.create_rw_signal(editor_data);
+        let editor_data = Rc::new(editor_data);
         data.editors.update(|editors| {
-            editors.insert(editor_id, editor_data);
+            editors.insert(editor_id, editor_data.clone());
         });
         editor_data
     }
@@ -165,9 +164,9 @@ pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 #[derive(Clone)]
 pub struct EditorData {
     pub scope: Scope,
-    pub editor_tab_id: Option<EditorTabId>,
-    pub diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
     pub editor_id: EditorId,
+    pub editor_tab_id: RwSignal<Option<EditorTabId>>,
+    pub diff_editor_id: RwSignal<Option<(EditorTabId, DiffEditorId)>>,
     pub view: EditorViewData,
     pub confirmed: RwSignal<bool>,
     pub cursor: RwSignal<Cursor>,
@@ -182,7 +181,7 @@ pub struct EditorData {
     pub find_focus: RwSignal<bool>,
     pub active: RwSignal<bool>,
     pub sticky_header_height: RwSignal<f64>,
-    pub common: CommonData,
+    pub common: Rc<CommonData>,
 }
 
 impl PartialEq for EditorData {
@@ -197,11 +196,11 @@ impl EditorData {
         editor_tab_id: Option<EditorTabId>,
         diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
         editor_id: EditorId,
-        doc: RwSignal<Document>,
-        common: CommonData,
+        doc: Rc<Document>,
+        common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
-        let is_local = doc.with_untracked(|doc| doc.content.is_local());
+        let is_local = doc.content.with_untracked(|content| content.is_local());
         let modal = common.config.with_untracked(|c| c.core.modal);
         let cursor = Cursor::new(
             if modal && !is_local {
@@ -213,11 +212,8 @@ impl EditorData {
             None,
         );
         let cursor = cx.create_rw_signal(cursor);
-        let view = EditorViewData::new(
-            doc,
-            cx.create_rw_signal(EditorViewKind::Normal),
-            common.config,
-        );
+        let view =
+            EditorViewData::new(cx, doc, EditorViewKind::Normal, common.config);
         {
             let config = common.config;
             let cursor_blink_timer = common.cursor_blink_timer;
@@ -229,8 +225,8 @@ impl EditorData {
         }
         Self {
             scope: cx,
-            editor_tab_id,
-            diff_editor_id,
+            editor_tab_id: cx.create_rw_signal(editor_tab_id),
+            diff_editor_id: cx.create_rw_signal(diff_editor_id),
             editor_id,
             view,
             cursor,
@@ -250,15 +246,13 @@ impl EditorData {
         }
     }
 
-    pub fn new_local(cx: Scope, editor_id: EditorId, common: CommonData) -> Self {
+    pub fn new_local(
+        cx: Scope,
+        editor_id: EditorId,
+        common: Rc<CommonData>,
+    ) -> Self {
         let cx = cx.create_child();
-        let doc = Document::new_local(
-            cx,
-            common.find.clone(),
-            common.proxy.clone(),
-            common.config,
-        );
-        let doc = cx.create_rw_signal(doc);
+        let doc = Rc::new(Document::new_local(cx, common.clone()));
         Self::new(cx, None, None, editor_id, doc, common)
     }
 
@@ -266,15 +260,14 @@ impl EditorData {
         let offset = self.cursor.get_untracked().offset();
         let scroll_offset = self.viewport.get_untracked().origin();
         EditorInfo {
-            content: self.view.doc.get_untracked().content,
+            content: self.view.doc.get_untracked().content.get_untracked(),
             offset,
             scroll_offset: (scroll_offset.x, scroll_offset.y),
         }
     }
 
     /// Swap out the document this editor is for.
-    pub fn update_doc(&mut self, doc: RwSignal<Document>) {
-        self.view.doc = doc;
+    pub fn update_doc(&self, doc: Rc<Document>) {
         self.view.update_doc(doc);
     }
 
@@ -299,8 +292,8 @@ impl EditorData {
         EditorData {
             scope: cx,
             editor_id,
-            editor_tab_id,
-            diff_editor_id,
+            editor_tab_id: cx.create_rw_signal(editor_tab_id),
+            diff_editor_id: cx.create_rw_signal(diff_editor_id),
             view: self.view.duplicate(cx),
             cursor,
             viewport: cx.create_rw_signal(self.viewport.get_untracked()),
@@ -322,19 +315,18 @@ impl EditorData {
     }
 
     fn run_edit_command(&self, cmd: &EditCommand) -> CommandExecuted {
+        let doc = self.view.doc.get_untracked();
         let modal = self
             .common
             .config
             .with_untracked(|config| config.core.modal)
-            && !self.view.doc.with_untracked(|doc| doc.content.is_local());
+            && !doc.content.with_untracked(|content| content.is_local());
         let smart_tab = self
             .common
             .config
             .with_untracked(|config| config.editor.smart_tab);
-        let doc_before_edit = self
-            .view
-            .doc
-            .with_untracked(|doc| doc.buffer().text().clone());
+        let doc_before_edit =
+            doc.buffer.with_untracked(|buffer| buffer.text().clone());
         let mut cursor = self.cursor.get_untracked();
         let mut register = self.common.register.get_untracked();
 
@@ -343,19 +335,15 @@ impl EditorData {
                 Some(
                     self.view
                         .doc
-                        .with_untracked(|doc| cursor.yank(doc.buffer())),
+                        .get_untracked()
+                        .buffer
+                        .with_untracked(|buffer| cursor.yank(buffer)),
                 )
             } else {
                 None
             };
 
-        let deltas = self
-            .view
-            .doc
-            .try_update(|doc| {
-                doc.do_edit(&mut cursor, cmd, modal, &mut register, smart_tab)
-            })
-            .unwrap();
+        let deltas = doc.do_edit(&mut cursor, cmd, modal, &mut register, smart_tab);
 
         if !deltas.is_empty() {
             if let Some(data) = yank_data {
@@ -394,9 +382,12 @@ impl EditorData {
         let mut cursor = self.cursor.get_untracked();
         let mut register = self.common.register.get_untracked();
 
-        self.view.doc.update(|doc| {
-            movement::do_motion_mode(doc, &mut cursor, motion_mode, &mut register);
-        });
+        movement::do_motion_mode(
+            &self.view.doc.get_untracked(),
+            &mut cursor,
+            motion_mode,
+            &mut register,
+        );
 
         self.cursor.set(cursor);
         self.common.register.set(register);
@@ -426,7 +417,9 @@ impl EditorData {
             let path = self
                 .view
                 .doc
-                .with_untracked(|doc| doc.content.path().cloned());
+                .get_untracked()
+                .content
+                .with_untracked(|content| content.path().cloned());
             if let Some(path) = path {
                 let offset = self.cursor.with_untracked(|c| c.offset());
                 let scroll_offset = self.viewport.get_untracked().origin().to_vec2();
@@ -489,12 +482,14 @@ impl EditorData {
 
         match cmd {
             FocusCommand::SplitVertical => {
-                if let Some(editor_tab_id) = self.editor_tab_id {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
                     self.common.internal_command.send(InternalCommand::Split {
                         direction: SplitDirection::Vertical,
                         editor_tab_id,
                     });
-                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
                     self.common.internal_command.send(InternalCommand::Split {
                         direction: SplitDirection::Vertical,
                         editor_tab_id,
@@ -502,12 +497,14 @@ impl EditorData {
                 }
             }
             FocusCommand::SplitHorizontal => {
-                if let Some(editor_tab_id) = self.editor_tab_id {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
                     self.common.internal_command.send(InternalCommand::Split {
                         direction: SplitDirection::Horizontal,
                         editor_tab_id,
                     });
-                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
                     self.common.internal_command.send(InternalCommand::Split {
                         direction: SplitDirection::Horizontal,
                         editor_tab_id,
@@ -515,14 +512,16 @@ impl EditorData {
                 }
             }
             FocusCommand::SplitRight => {
-                if let Some(editor_tab_id) = self.editor_tab_id {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitMove {
                             direction: SplitMoveDirection::Right,
                             editor_tab_id,
                         });
-                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitMove {
@@ -532,14 +531,16 @@ impl EditorData {
                 }
             }
             FocusCommand::SplitLeft => {
-                if let Some(editor_tab_id) = self.editor_tab_id {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitMove {
                             direction: SplitMoveDirection::Left,
                             editor_tab_id,
                         });
-                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitMove {
@@ -549,14 +550,16 @@ impl EditorData {
                 }
             }
             FocusCommand::SplitUp => {
-                if let Some(editor_tab_id) = self.editor_tab_id {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitMove {
                             direction: SplitMoveDirection::Up,
                             editor_tab_id,
                         });
-                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitMove {
@@ -566,14 +569,16 @@ impl EditorData {
                 }
             }
             FocusCommand::SplitDown => {
-                if let Some(editor_tab_id) = self.editor_tab_id {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitMove {
                             direction: SplitMoveDirection::Down,
                             editor_tab_id,
                         });
-                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitMove {
@@ -583,18 +588,20 @@ impl EditorData {
                 }
             }
             FocusCommand::SplitExchange => {
-                if let Some(editor_tab_id) = self.editor_tab_id {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitExchange { editor_tab_id });
-                } else if let Some((editor_tab_id, _)) = self.diff_editor_id {
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitExchange { editor_tab_id });
                 }
             }
             FocusCommand::SplitClose => {
-                if let Some(editor_tab_id) = self.editor_tab_id {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
                     self.common.internal_command.send(
                         InternalCommand::EditorTabChildClose {
                             editor_tab_id,
@@ -602,7 +609,7 @@ impl EditorData {
                         },
                     );
                 } else if let Some((editor_tab_id, diff_editor_id)) =
-                    self.diff_editor_id
+                    self.diff_editor_id.get_untracked()
                 {
                     self.common.internal_command.send(
                         InternalCommand::EditorTabChildClose {
@@ -783,11 +790,12 @@ impl EditorData {
     /// Jump to the next/previous column on the line which matches the given text
     fn inline_find(&self, direction: InlineFindDirection, c: &str) {
         let offset = self.cursor.with_untracked(|c| c.offset());
+        let doc = self.view.doc.get_untracked();
         let (line_content, line_start_offset) =
-            self.view.doc.with_untracked(|doc| {
-                let line = doc.buffer().line_of_offset(offset);
-                let line_content = doc.buffer().line_content(line);
-                let line_start_offset = doc.buffer().offset_of_line(line);
+            doc.buffer.with_untracked(|buffer| {
+                let line = buffer.line_of_offset(offset);
+                let line_content = buffer.line_content(line);
+                let line_start_offset = buffer.offset_of_line(line);
                 (line_content.to_string(), line_start_offset)
             });
         let index = offset - line_start_offset;
@@ -798,11 +806,11 @@ impl EditorData {
                     None
                 } else {
                     let index = index
-                        + self.view.doc.with_untracked(|doc| {
-                            doc.buffer().next_grapheme_offset(
+                        + doc.buffer.with_untracked(|buffer| {
+                            buffer.next_grapheme_offset(
                                 offset,
                                 1,
-                                doc.buffer().offset_line_end(offset, false),
+                                buffer.offset_line_end(offset, false),
                             )
                         })
                         - offset;
@@ -821,22 +829,21 @@ impl EditorData {
     }
 
     fn go_to_definition(&self) {
-        let path = match self.view.doc.with_untracked(|doc| {
-            if doc.loaded() {
-                doc.content.path().cloned()
-            } else {
-                None
-            }
-        }) {
+        let doc = self.view.doc.get_untracked();
+        let path = match if doc.loaded() {
+            doc.content.with_untracked(|c| c.path().cloned())
+        } else {
+            None
+        } {
             Some(path) => path,
             None => return,
         };
 
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let (start_position, position) = self.view.doc.with_untracked(|doc| {
-            let start_offset = doc.buffer().prev_code_boundary(offset);
-            let start_position = doc.buffer().offset_to_position(start_offset);
-            let position = doc.buffer().offset_to_position(offset);
+        let (start_position, position) = doc.buffer.with_untracked(|buffer| {
+            let start_offset = buffer.prev_code_boundary(offset);
+            let start_position = buffer.offset_to_position(start_offset);
+            let position = buffer.offset_to_position(offset);
             (start_position, position)
         });
 
@@ -990,7 +997,9 @@ impl EditorData {
         let (line, _col) = self
             .view
             .doc
-            .with_untracked(|doc| doc.buffer().offset_to_line_col(offset));
+            .get_untracked()
+            .buffer
+            .with_untracked(|buffer| buffer.offset_to_line_col(offset));
         let top = viewport.y0 + diff + self.sticky_header_height.get_untracked();
         let bottom = viewport.y0 + diff + viewport.height();
 
@@ -1035,21 +1044,24 @@ impl EditorData {
             .completion
             .with_untracked(|c| c.current_item().cloned());
         self.cancel_completion();
+        let doc = self.view.doc.get_untracked();
         if let Some(item) = item {
             if item.item.data.is_some() {
                 let editor = self.clone();
-                let (rev, path) = self
-                    .view
-                    .doc
-                    .with_untracked(|doc| (doc.rev(), doc.content.path().cloned()));
+                let rev = doc.buffer.with_untracked(|buffer| buffer.rev());
+                let path = doc.content.with_untracked(|c| c.path().cloned());
                 let offset = self.cursor.with_untracked(|c| c.offset());
+                let buffer = doc.buffer;
+                let content = doc.content;
                 let send = create_ext_action(self.scope, move |item| {
                     if editor.cursor.with_untracked(|c| c.offset() != offset) {
                         return;
                     }
-                    if editor.view.doc.with_untracked(|doc| {
-                        doc.rev() != rev || doc.content.path() != path.as_ref()
-                    }) {
+                    if buffer.with_untracked(|b| b.rev()) != rev
+                        || content.with_untracked(|content| {
+                            content.path() != path.as_ref()
+                        })
+                    {
                         return;
                     }
                     let _ = editor.apply_completion_item(&item);
@@ -1086,7 +1098,7 @@ impl EditorData {
             c.cancel();
         });
 
-        clear_completion_lens(self.view.doc);
+        clear_completion_lens(self.view.doc.get_untracked());
     }
 
     /// Update the displayed autocompletion box  
@@ -1097,29 +1109,25 @@ impl EditorData {
             return;
         }
 
-        let path = match self.view.doc.with_untracked(|doc| {
-            if doc.loaded() {
-                doc.content.path().cloned()
-            } else {
-                None
-            }
-        }) {
+        let doc = self.view.doc.get_untracked();
+        let path = match if doc.loaded() {
+            doc.content.with_untracked(|c| c.path().cloned())
+        } else {
+            None
+        } {
             Some(path) => path,
             None => return,
         };
 
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let (start_offset, input, char) = self.view.doc.with_untracked(|doc| {
-            let start_offset = doc.buffer().prev_code_boundary(offset);
-            let end_offset = doc.buffer().next_code_boundary(offset);
-            let input = doc
-                .buffer()
-                .slice_to_cow(start_offset..end_offset)
-                .to_string();
+        let (start_offset, input, char) = doc.buffer.with_untracked(|buffer| {
+            let start_offset = buffer.prev_code_boundary(offset);
+            let end_offset = buffer.next_code_boundary(offset);
+            let input = buffer.slice_to_cow(start_offset..end_offset).to_string();
             let char = if start_offset == 0 {
                 "".to_string()
             } else {
-                doc.buffer()
+                buffer
                     .slice_to_cow(start_offset - 1..start_offset)
                     .to_string()
             };
@@ -1143,8 +1151,8 @@ impl EditorData {
                 completion.update_document_completion(&self.view, cursor_offset);
 
                 if !completion.input_items.contains_key("") {
-                    let start_pos = self.view.doc.with_untracked(|doc| {
-                        doc.buffer().offset_to_position(start_offset)
+                    let start_pos = doc.buffer.with_untracked(|buffer| {
+                        buffer.offset_to_position(start_offset)
                     });
                     completion.request(
                         self.editor_id,
@@ -1156,9 +1164,9 @@ impl EditorData {
                 }
 
                 if !completion.input_items.contains_key(&input) {
-                    let position = self.view.doc.with_untracked(|doc| {
-                        doc.buffer().offset_to_position(offset)
-                    });
+                    let position = doc
+                        .buffer
+                        .with_untracked(|buffer| buffer.offset_to_position(offset));
                     completion.request(
                         self.editor_id,
                         &self.common.proxy,
@@ -1171,6 +1179,7 @@ impl EditorData {
             return;
         }
 
+        let doc = self.view.doc.get_untracked();
         self.common.completion.update(|completion| {
             completion.path = path.clone();
             completion.offset = start_offset;
@@ -1178,10 +1187,9 @@ impl EditorData {
             completion.status = CompletionStatus::Started;
             completion.input_items.clear();
             completion.request_id += 1;
-            let start_pos = self
-                .view
-                .doc
-                .with_untracked(|doc| doc.buffer().offset_to_position(start_offset));
+            let start_pos = doc
+                .buffer
+                .with_untracked(|buffer| buffer.offset_to_position(start_offset));
             completion.request(
                 self.editor_id,
                 &self.common.proxy,
@@ -1191,10 +1199,9 @@ impl EditorData {
             );
 
             if !input.is_empty() {
-                let position = self
-                    .view
-                    .doc
-                    .with_untracked(|doc| doc.buffer().offset_to_position(offset));
+                let position = doc
+                    .buffer
+                    .with_untracked(|buffer| buffer.offset_to_position(offset));
                 completion.request(
                     self.editor_id,
                     &self.common.proxy,
@@ -1216,6 +1223,7 @@ impl EditorData {
 
     fn apply_completion_item(&self, item: &CompletionItem) -> Result<()> {
         let doc = self.view.doc.get_untracked();
+        let buffer = doc.buffer.get_untracked();
         let cursor = self.cursor.get_untracked();
         // Get all the edits which would be applied in places other than right where the cursor is
         let additional_edit: Vec<_> = item
@@ -1225,8 +1233,8 @@ impl EditorData {
             .flatten()
             .map(|edit| {
                 let selection = lapce_core::selection::Selection::region(
-                    doc.buffer().offset_of_position(&edit.range.start),
-                    doc.buffer().offset_of_position(&edit.range.end),
+                    buffer.offset_of_position(&edit.range.start),
+                    buffer.offset_of_position(&edit.range.end),
                 );
                 (selection, edit.new_text.as_str())
             })
@@ -1239,11 +1247,10 @@ impl EditorData {
             match edit {
                 CompletionTextEdit::Edit(edit) => {
                     let offset = cursor.offset();
-                    let start_offset = doc.buffer().prev_code_boundary(offset);
-                    let end_offset = doc.buffer().next_code_boundary(offset);
-                    let edit_start =
-                        doc.buffer().offset_of_position(&edit.range.start);
-                    let edit_end = doc.buffer().offset_of_position(&edit.range.end);
+                    let start_offset = buffer.prev_code_boundary(offset);
+                    let end_offset = buffer.next_code_boundary(offset);
+                    let edit_start = buffer.offset_of_position(&edit.range.start);
+                    let edit_end = buffer.offset_of_position(&edit.range.end);
 
                     let selection = lapce_core::selection::Selection::region(
                         start_offset.min(edit_start),
@@ -1278,8 +1285,8 @@ impl EditorData {
         }
 
         let offset = cursor.offset();
-        let start_offset = doc.buffer().prev_code_boundary(offset);
-        let end_offset = doc.buffer().next_code_boundary(offset);
+        let start_offset = buffer.prev_code_boundary(offset);
+        let end_offset = buffer.next_code_boundary(offset);
         let selection = Selection::region(start_offset, end_offset);
 
         self.do_edit(
@@ -1328,11 +1335,12 @@ impl EditorData {
         let offset = transformer.transform(start_offset, false);
         let snippet_tabs = snippet.tabs(offset);
 
+        let doc = self.view.doc.get_untracked();
         if snippet_tabs.is_empty() {
-            self.view.doc.update(|doc| {
-                cursor.update_selection(doc.buffer(), selection);
-                doc.buffer_mut().set_cursor_before(old_cursor);
-                doc.buffer_mut().set_cursor_after(cursor.mode.clone());
+            doc.buffer.update(|buffer| {
+                cursor.update_selection(buffer, selection);
+                buffer.set_cursor_before(old_cursor);
+                buffer.set_cursor_after(cursor.mode.clone());
             });
             self.cursor.set(cursor);
             self.apply_deltas(&[(delta, inval_lines, edits)]);
@@ -1345,9 +1353,9 @@ impl EditorData {
         selection.add_region(region);
         cursor.set_insert(selection);
 
-        self.view.doc.update(|doc| {
-            doc.buffer_mut().set_cursor_before(old_cursor);
-            doc.buffer_mut().set_cursor_after(cursor.mode.clone());
+        doc.buffer.update(|buffer| {
+            buffer.set_cursor_before(old_cursor);
+            buffer.set_cursor_after(cursor.mode.clone());
         });
         self.cursor.set(cursor);
         self.apply_deltas(&[(delta, inval_lines, edits)]);
@@ -1390,41 +1398,41 @@ impl EditorData {
         edits: &[(impl AsRef<Selection>, &str)],
     ) {
         let mut cursor = self.cursor.get_untracked();
-        let (delta, inval_lines, edits) = self
-            .view
-            .doc
-            .try_update(|doc| {
-                let (delta, inval_lines, edits) =
-                    doc.do_raw_edit(edits, EditType::Completion);
-                let selection =
-                    selection.apply_delta(&delta, true, InsertDrift::Default);
-                let old_cursor = cursor.mode.clone();
-                cursor.update_selection(doc.buffer(), selection);
-                doc.buffer_mut().set_cursor_before(old_cursor);
-                doc.buffer_mut().set_cursor_after(cursor.mode.clone());
-                (delta, inval_lines, edits)
-            })
-            .unwrap();
+        let doc = self.view.doc.get_untracked();
+        let (delta, inval_lines, edits) =
+            doc.do_raw_edit(edits, EditType::Completion);
+        let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
+        let old_cursor = cursor.mode.clone();
+        doc.buffer.update(|buffer| {
+            cursor.update_selection(buffer, selection);
+            buffer.set_cursor_before(old_cursor);
+            buffer.set_cursor_after(cursor.mode.clone());
+        });
         self.cursor.set(cursor);
 
         self.apply_deltas(&[(delta, inval_lines, edits)]);
     }
 
     pub fn do_text_edit(&self, edits: &[TextEdit]) {
-        let (selection, edits) = self.view.doc.with_untracked(|doc| {
-            let selection = self.cursor.get_untracked().edit_selection(doc.buffer());
-            let edits = edits
-                .iter()
-                .map(|edit| {
-                    let selection = lapce_core::selection::Selection::region(
-                        doc.buffer().offset_of_position(&edit.range.start),
-                        doc.buffer().offset_of_position(&edit.range.end),
-                    );
-                    (selection, edit.new_text.as_str())
-                })
-                .collect::<Vec<_>>();
-            (selection, edits)
-        });
+        let (selection, edits) = self
+            .view
+            .doc
+            .get_untracked()
+            .buffer
+            .with_untracked(|buffer| {
+                let selection = self.cursor.get_untracked().edit_selection(buffer);
+                let edits = edits
+                    .iter()
+                    .map(|edit| {
+                        let selection = lapce_core::selection::Selection::region(
+                            buffer.offset_of_position(&edit.range.start),
+                            buffer.offset_of_position(&edit.range.end),
+                        );
+                        (selection, edit.new_text.as_str())
+                    })
+                    .collect::<Vec<_>>();
+                (selection, edits)
+            });
 
         self.do_edit(&selection, &edits);
     }
@@ -1496,14 +1504,14 @@ impl EditorData {
         if !new_doc {
             self.do_go_to_location(location, edits);
         } else {
-            let doc = self.view.doc;
+            let loaded = self.view.doc.with_untracked(|d| d.loaded);
             let editor = self.clone();
             self.scope.create_effect(move |prev_loaded| {
                 if prev_loaded == Some(true) {
                     return true;
                 }
 
-                let loaded = doc.with(|doc| doc.loaded());
+                let loaded = loaded.get();
                 if loaded {
                     editor.do_go_to_location(location.clone(), edits.clone());
                 }
@@ -1521,7 +1529,9 @@ impl EditorData {
         let offset = self
             .view
             .doc
-            .with_untracked(|doc| position.to_offset(doc.buffer()));
+            .get_untracked()
+            .buffer
+            .with_untracked(|buffer| position.to_offset(buffer));
         let config = self.common.config.get_untracked();
         self.cursor.set(if config.core.modal {
             Cursor::new(CursorMode::Normal(offset), None, None)
@@ -1537,35 +1547,30 @@ impl EditorData {
     }
 
     pub fn get_code_actions(&self) {
-        let path = match self.view.doc.with_untracked(|doc| {
-            if doc.loaded() {
-                doc.content.path().cloned()
-            } else {
-                None
-            }
-        }) {
+        let doc = self.view.doc.get_untracked();
+        let path = match if doc.loaded() {
+            doc.content.with_untracked(|c| c.path().cloned())
+        } else {
+            None
+        } {
             Some(path) => path,
             None => return,
         };
 
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let exists = self
-            .view
-            .doc
-            .with_untracked(|doc| doc.code_actions.contains_key(&offset));
+        let exists = doc.code_actions.with_untracked(|c| c.contains_key(&offset));
 
         if exists {
             return;
         }
 
-        self.view.doc.update(|doc| {
-            // insert some empty data, so that we won't make the request again
-            doc.code_actions
-                .insert(offset, Arc::new((PluginId(0), Vec::new())));
+        // insert some empty data, so that we won't make the request again
+        doc.code_actions.update(|c| {
+            c.insert(offset, Arc::new((PluginId(0), Vec::new())));
         });
 
-        let (position, rev, diagnostics) = self.view.doc.with_untracked(|doc| {
-            let position = doc.buffer().offset_to_position(offset);
+        let (position, rev, diagnostics) = doc.buffer.with_untracked(|buffer| {
+            let position = buffer.offset_to_position(offset);
             let rev = doc.rev();
 
             // Get the diagnostics for the current line, which the LSP might use to inform
@@ -1586,11 +1591,10 @@ impl EditorData {
             (position, rev, diagnostics)
         });
 
-        let doc = self.view.doc;
         let send = create_ext_action(self.scope, move |resp| {
-            if doc.with_untracked(|doc| doc.rev() == rev) {
-                doc.update(|doc| {
-                    doc.code_actions.insert(offset, Arc::new(resp));
+            if doc.rev() == rev {
+                doc.code_actions.update(|c| {
+                    c.insert(offset, Arc::new(resp));
                 });
             }
         });
@@ -1613,10 +1617,9 @@ impl EditorData {
 
     pub fn show_code_actions(&self, mouse_click: bool) {
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let code_actions = self
-            .view
-            .doc
-            .with_untracked(|doc| doc.code_actions.get(&offset).cloned());
+        let doc = self.view.doc.get_untracked();
+        let code_actions =
+            doc.code_actions.with_untracked(|c| c.get(&offset).cloned());
         if let Some(code_actions) = code_actions {
             if !code_actions.1.is_empty() {
                 self.common.internal_command.send(
@@ -1631,29 +1634,7 @@ impl EditorData {
     }
 
     fn do_save(&self, after_action: impl Fn() + 'static) {
-        let (rev, content) = self
-            .view
-            .doc
-            .with_untracked(|doc| (doc.rev(), doc.content.clone()));
-
-        let doc = self.view.doc;
-        let send = create_ext_action(self.scope, move |result| {
-            if let Ok(ProxyResponse::SaveResponse {}) = result {
-                let current_rev = doc.with_untracked(|doc| doc.rev());
-                if current_rev == rev {
-                    doc.update(|doc| {
-                        doc.buffer_mut().set_pristine();
-                    });
-                    after_action();
-                }
-            }
-        });
-
-        if let DocContent::File(path) = content {
-            self.common.proxy.save(rev, path, move |result| {
-                send(result);
-            })
-        }
+        self.view.doc.get_untracked().save(after_action);
     }
 
     pub fn save(
@@ -1661,14 +1642,15 @@ impl EditorData {
         allow_formatting: bool,
         after_action: impl Fn() + 'static + Copy,
     ) {
-        let (rev, is_pristine, content) = self.view.doc.with_untracked(|doc| {
-            (doc.rev(), doc.buffer().is_pristine(), doc.content.clone())
-        });
+        let doc = self.view.doc.get_untracked();
+        let rev = doc.rev();
+        let is_pristine = doc.is_pristine();
+        let content = doc.content.get_untracked();
 
         if let DocContent::Scratch { .. } = &content {
             self.common
                 .internal_command
-                .send(InternalCommand::SaveScratchDoc { doc: self.view.doc });
+                .send(InternalCommand::SaveScratchDoc { doc });
             return;
         }
 
@@ -1711,13 +1693,15 @@ impl EditorData {
 
     fn search_whole_word_forward(&self, mods: ModifiersState) {
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let (word, buffer) = self.view.doc.with_untracked(|doc| {
-            let (start, end) = doc.buffer().select_word(offset);
-            (
-                doc.buffer().slice_to_cow(start..end).to_string(),
-                doc.buffer().clone(),
-            )
-        });
+        let (word, buffer) =
+            self.view
+                .doc
+                .get_untracked()
+                .buffer
+                .with_untracked(|buffer| {
+                    let (start, end) = buffer.select_word(offset);
+                    (buffer.slice_to_cow(start..end).to_string(), buffer.clone())
+                });
         self.common.internal_command.send(InternalCommand::Search {
             pattern: Some(word),
         });
@@ -1734,8 +1718,13 @@ impl EditorData {
 
     fn search_forward(&self, mods: ModifiersState) {
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let buffer = self.view.doc.with_untracked(|doc| doc.buffer().clone());
-        let next = self.common.find.next(buffer.text(), offset, false, true);
+        let text = self
+            .view
+            .doc
+            .get_untracked()
+            .buffer
+            .with_untracked(|buffer| buffer.text().clone());
+        let next = self.common.find.next(&text, offset, false, true);
 
         if let Some((start, _end)) = next {
             self.run_move_command(
@@ -1748,8 +1737,13 @@ impl EditorData {
 
     fn search_backward(&self, mods: ModifiersState) {
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let buffer = self.view.doc.with_untracked(|doc| doc.buffer().clone());
-        let next = self.common.find.next(buffer.text(), offset, true, true);
+        let text = self
+            .view
+            .doc
+            .get_untracked()
+            .buffer
+            .with_untracked(|buffer| buffer.text().clone());
+        let next = self.common.find.next(&text, offset, true, true);
 
         if let Some((start, _end)) = next {
             self.run_move_command(
@@ -1762,7 +1756,12 @@ impl EditorData {
 
     fn replace_next(&self, text: &str) {
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let buffer = self.view.doc.with_untracked(|doc| doc.buffer().clone());
+        let buffer = self
+            .view
+            .doc
+            .get_untracked()
+            .buffer
+            .with_untracked(|buffer| buffer.clone());
         let next = self.common.find.next(buffer.text(), offset, false, true);
 
         if let Some((start, end)) = next {
@@ -1791,13 +1790,12 @@ impl EditorData {
     }
 
     pub fn save_doc_position(&self) {
-        let path = match self.view.doc.with_untracked(|doc| {
-            if doc.loaded() {
-                doc.content.path().cloned()
-            } else {
-                None
-            }
-        }) {
+        let doc = self.view.doc.get_untracked();
+        let path = match if doc.loaded() {
+            doc.content.with_untracked(|c| c.path().cloned())
+        } else {
+            None
+        } {
             Some(path) => path,
             None => return,
         };
@@ -1815,29 +1813,28 @@ impl EditorData {
     }
 
     fn rename(&self) {
-        let path = match self.view.doc.with_untracked(|doc| {
-            if doc.loaded() {
-                doc.content.path().cloned()
-            } else {
-                None
-            }
-        }) {
+        let doc = self.view.doc.get_untracked();
+        let path = match if doc.loaded() {
+            doc.content.with_untracked(|c| c.path().cloned())
+        } else {
+            None
+        } {
             Some(path) => path,
             None => return,
         };
 
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let (position, rev) = self.view.doc.with_untracked(|doc| {
-            (doc.buffer().offset_to_position(offset), doc.rev())
-        });
+        let (position, rev) = doc
+            .buffer
+            .with_untracked(|buffer| (buffer.offset_to_position(offset), doc.rev()));
 
         let cursor = self.cursor;
-        let doc = self.view.doc;
+        let buffer = doc.buffer;
         let internal_command = self.common.internal_command;
         let local_path = path.clone();
         let send = create_ext_action(self.scope, move |result| {
             if let Ok(ProxyResponse::PrepareRename { resp }) = result {
-                if doc.with_untracked(|doc| doc.rev()) != rev {
+                if buffer.with_untracked(|buffer| buffer.rev()) != rev {
                     return;
                 }
 
@@ -1846,10 +1843,10 @@ impl EditorData {
                 }
 
                 let (start, _end, position, placeholder) =
-                    doc.with_untracked(|doc| match resp {
+                    buffer.with_untracked(|buffer| match resp {
                         lsp_types::PrepareRenameResponse::Range(range) => (
-                            doc.buffer().offset_of_position(&range.start),
-                            doc.buffer().offset_of_position(&range.end),
+                            buffer.offset_of_position(&range.start),
+                            buffer.offset_of_position(&range.end),
                             range.start,
                             None,
                         ),
@@ -1857,28 +1854,28 @@ impl EditorData {
                             range,
                             placeholder,
                         } => (
-                            doc.buffer().offset_of_position(&range.start),
-                            doc.buffer().offset_of_position(&range.end),
+                            buffer.offset_of_position(&range.start),
+                            buffer.offset_of_position(&range.end),
                             range.start,
                             Some(placeholder),
                         ),
                         lsp_types::PrepareRenameResponse::DefaultBehavior {
                             ..
                         } => {
-                            let start = doc.buffer().prev_code_boundary(offset);
-                            let position = doc.buffer().offset_to_position(start);
+                            let start = buffer.prev_code_boundary(offset);
+                            let position = buffer.offset_to_position(start);
                             (
                                 start,
-                                doc.buffer().next_code_boundary(offset),
+                                buffer.next_code_boundary(offset),
                                 position,
                                 None,
                             )
                         }
                     });
                 let placeholder = placeholder.unwrap_or_else(|| {
-                    doc.with_untracked(|doc| {
-                        let (start, end) = doc.buffer().select_word(offset);
-                        doc.buffer().slice_to_cow(start..end).to_string()
+                    buffer.with_untracked(|buffer| {
+                        let (start, end) = buffer.select_word(offset);
+                        buffer.slice_to_cow(start..end).to_string()
                     })
                 });
                 internal_command.send(InternalCommand::StartRename {
@@ -1907,13 +1904,13 @@ impl EditorData {
                 mode: _,
             } => lapce_core::selection::SelRegion::new(
                 *start.min(end),
-                self.view.doc.with_untracked(|doc| {
-                    doc.buffer().next_grapheme_offset(
-                        *start.max(end),
-                        1,
-                        doc.buffer().len(),
-                    )
-                }),
+                self.view
+                    .doc
+                    .get_untracked()
+                    .buffer
+                    .with_untracked(|buffer| {
+                        buffer.next_grapheme_offset(*start.max(end), 1, buffer.len())
+                    }),
                 None,
             ),
             lapce_core::cursor::CursorMode::Insert(selection) => {
@@ -1922,16 +1919,22 @@ impl EditorData {
         });
 
         if region.is_caret() {
-            self.view.doc.with_untracked(|doc| {
-                let (start, end) = doc.buffer().select_word(region.start);
-                doc.buffer().slice_to_cow(start..end).to_string()
-            })
+            self.view
+                .doc
+                .get_untracked()
+                .buffer
+                .with_untracked(|buffer| {
+                    let (start, end) = buffer.select_word(region.start);
+                    buffer.slice_to_cow(start..end).to_string()
+                })
         } else {
-            self.view.doc.with_untracked(|doc| {
-                doc.buffer()
-                    .slice_to_cow(region.min()..region.max())
-                    .to_string()
-            })
+            self.view
+                .doc
+                .get_untracked()
+                .buffer
+                .with_untracked(|buffer| {
+                    buffer.slice_to_cow(region.min()..region.max()).to_string()
+                })
         }
     }
 
@@ -1958,12 +1961,18 @@ impl EditorData {
     }
 
     pub fn pointer_down(&self, pointer_event: &PointerInputEvent) {
-        if let Some(editor_tab_id) = self.editor_tab_id {
+        if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
             self.common
                 .internal_command
                 .send(InternalCommand::FocusEditorTab { editor_tab_id });
         }
-        if self.view.doc.with_untracked(|doc| !doc.content.is_local()) {
+        if self
+            .view
+            .doc
+            .get_untracked()
+            .content
+            .with_untracked(|content| !content.is_local())
+        {
             self.common.focus.set(Focus::Workbench);
             self.find_focus.set(false);
         }
@@ -2055,7 +2064,9 @@ impl EditorData {
                 let start_offset = self
                     .view
                     .doc
-                    .with_untracked(|doc| doc.buffer().prev_code_boundary(offset));
+                    .get_untracked()
+                    .buffer
+                    .with_untracked(|buffer| buffer.prev_code_boundary(offset));
                 if current_offset != start_offset {
                     self.common.hover.active.set(false);
                 }
@@ -2067,13 +2078,17 @@ impl EditorData {
                 let start_offset = self
                     .view
                     .doc
-                    .with_untracked(|doc| doc.buffer().prev_code_boundary(offset));
+                    .get_untracked()
+                    .buffer
+                    .with_untracked(|buffer| buffer.prev_code_boundary(offset));
 
                 let editor = self.clone();
                 let mouse_hover_timer = self.common.mouse_hover_timer;
                 let timer_token =
                     exec_after(Duration::from_millis(hover_delay), move |token| {
-                        if mouse_hover_timer.try_get_untracked() == Some(token) {
+                        if mouse_hover_timer.try_get_untracked() == Some(token)
+                            && editor.editor_tab_id.try_get_untracked().is_some()
+                        {
                             editor.update_hover(start_offset);
                         }
                     });
@@ -2091,16 +2106,17 @@ impl EditorData {
     fn right_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (offset, _) = self.view.offset_of_point(mode, pointer_event.pos);
-        let pointer_inside_selection = self.view.doc.with_untracked(|doc| {
+        let doc = self.view.doc.get_untracked();
+        let pointer_inside_selection = doc.buffer.with_untracked(|buffer| {
             self.cursor
-                .with_untracked(|c| c.edit_selection(doc.buffer()).contains(offset))
+                .with_untracked(|c| c.edit_selection(buffer).contains(offset))
         });
         if !pointer_inside_selection {
             // move cursor to pointer position if outside current selection
             self.single_click(pointer_event);
         }
 
-        let is_file = self.view.doc.with_untracked(|doc| doc.content.is_file());
+        let is_file = doc.content.with_untracked(|content| content.is_file());
         let mut menu = Menu::new("");
         let cmds = if is_file {
             vec![
@@ -2149,12 +2165,13 @@ impl EditorData {
     }
 
     fn update_hover(&self, offset: usize) {
-        let (path, position) = self.view.doc.with_untracked(|doc| {
-            (
-                doc.content.path().cloned(),
-                doc.buffer().offset_to_position(offset),
-            )
-        });
+        let doc = self.view.doc.get_untracked();
+        let path = doc
+            .content
+            .with_untracked(|content| content.path().cloned());
+        let position = doc
+            .buffer
+            .with_untracked(|buffer| buffer.offset_to_position(offset));
         let path = match path {
             Some(path) => path,
             None => return,
@@ -2178,7 +2195,8 @@ impl EditorData {
 
     // reset the doc inside and move cursor back
     pub fn reset(&self) {
-        self.view.doc.update(|doc| doc.reload(Rope::from(""), true));
+        let doc = self.view.doc.get_untracked();
+        doc.reload(Rope::from(""), true);
         self.cursor
             .update(|cursor| cursor.set_offset(0, false, false));
     }
@@ -2195,8 +2213,9 @@ impl EditorData {
         let editor_view = editor_view.get_untracked();
         match editor_view {
             EditorViewKind::Normal => {
-                let doc = self.view.doc;
-                let last_line = doc.with_untracked(|doc| doc.buffer().last_line());
+                let doc = self.view.doc.get_untracked();
+                let last_line =
+                    doc.buffer.with_untracked(|buffer| buffer.last_line());
                 let mut lines = Vec::new();
                 let mut info = HashMap::new();
                 for line in min_line..max_line + 1 {
@@ -2398,9 +2417,12 @@ impl KeyPressFocus for EditorData {
             Condition::ListFocus => self.has_completions(),
             Condition::CompletionFocus => self.has_completions(),
             Condition::InSnippet => self.snippet.with_untracked(|s| s.is_some()),
-            Condition::EditorFocus => {
-                self.view.doc.with_untracked(|doc| !doc.content.is_local())
-            }
+            Condition::EditorFocus => self
+                .view
+                .doc
+                .get_untracked()
+                .content
+                .with_untracked(|content| !content.is_local()),
             Condition::SearchFocus => {
                 self.common.find.visual.get_untracked()
                     && self.find_focus.get_untracked()
@@ -2467,7 +2489,13 @@ impl KeyPressFocus for EditorData {
                 self.run_move_command(&movement, count, mods)
             }
             crate::command::CommandKind::Focus(cmd) => {
-                if self.view.doc.with_untracked(|doc| doc.content.is_local()) {
+                if self
+                    .view
+                    .doc
+                    .get_untracked()
+                    .content
+                    .with_untracked(|content| content.is_local())
+                {
                     return CommandExecuted::No;
                 }
                 self.run_focus_command(cmd, count, mods)
@@ -2508,11 +2536,11 @@ impl KeyPressFocus for EditorData {
             if self.get_mode() == Mode::Insert {
                 let mut cursor = self.cursor.get_untracked();
                 let config = self.common.config.get_untracked();
-                let deltas = self
-                    .view
-                    .doc
-                    .try_update(|doc| doc.do_insert(&mut cursor, c, &config))
-                    .unwrap();
+                let deltas =
+                    self.view
+                        .doc
+                        .get_untracked()
+                        .do_insert(&mut cursor, c, &config);
                 self.cursor.set(cursor);
 
                 if !c

@@ -459,7 +459,7 @@ fn editor_tab_header(
     main_split: MainSplitData,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
-    editors: RwSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
     diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
     dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>>,
 ) -> impl View {
@@ -576,7 +576,7 @@ fn editor_tab_header(
             EditorTabChild::Editor(editor_id) => {
                 let editor_data = editors
                     .with_untracked(|editors| editors.get(&editor_id).cloned());
-                editor_data.map(|editor_data| editor_data.get_untracked().confirmed)
+                editor_data.map(|editor_data| editor_data.confirmed)
             }
             _ => None,
         };
@@ -926,8 +926,8 @@ fn editor_tab_content(
                 let editor_data = editors
                     .with_untracked(|editors| editors.get(&editor_id).cloned());
                 if let Some(editor_data) = editor_data {
-                    let editor_scope =
-                        editor_data.with_untracked(|editor_data| editor_data.scope);
+                    let editor_scope = editor_data.scope;
+                    let editor_tab_id = editor_data.editor_tab_id;
                     let is_active = move |tracked: bool| {
                         editor_scope.track();
                         let focus = if tracked {
@@ -942,16 +942,16 @@ fn editor_tab_content(
                                 active_editor_tab.get_untracked()
                             };
                             let editor_tab = if tracked {
-                                editor_data.with(|editor| editor.editor_tab_id)
+                                editor_tab_id.get()
                             } else {
-                                editor_data
-                                    .with_untracked(|editor| editor.editor_tab_id)
+                                editor_tab_id.get_untracked()
                             };
                             editor_tab.is_some() && editor_tab == active_editor_tab
                         } else {
                             false
                         }
                     };
+                    let editor_data = create_rw_signal(editor_data);
                     container_box(|| {
                         Box::new(editor_container_view(
                             main_split.clone(),
@@ -994,14 +994,10 @@ fn editor_tab_content(
                             false
                         }
                     };
-                    let (left_viewport, left_scroll_to) =
-                        diff_editor_data.left.with_untracked(|editor| {
-                            (editor.viewport, editor.scroll_to)
-                        });
-                    let (right_viewport, right_scroll_to) =
-                        diff_editor_data.right.with_untracked(|editor| {
-                            (editor.viewport, editor.scroll_to)
-                        });
+                    let left_viewport = diff_editor_data.left.viewport;
+                    let left_scroll_to = diff_editor_data.left.scroll_to;
+                    let right_viewport = diff_editor_data.right.viewport;
+                    let right_scroll_to = diff_editor_data.right.scroll_to;
                     create_effect(move |_| {
                         let left_viewport = left_viewport.get();
                         if right_viewport.get_untracked() != left_viewport {
@@ -1016,6 +1012,10 @@ fn editor_tab_content(
                                 .set(Some(right_viewport.origin().to_vec2()));
                         }
                     });
+                    let left_editor =
+                        create_rw_signal(diff_editor_data.left.clone());
+                    let right_editor =
+                        create_rw_signal(diff_editor_data.right.clone());
                     container_box(|| {
                         Box::new(
                             stack(|| {
@@ -1032,7 +1032,7 @@ fn editor_tab_content(
                                                         !focus_right.get_untracked()
                                                     }
                                             },
-                                            diff_editor_data.left,
+                                            left_editor,
                                         )
                                     })
                                     .on_event(
@@ -1067,7 +1067,7 @@ fn editor_tab_content(
                                                         focus_right.get_untracked()
                                                     }
                                             },
-                                            diff_editor_data.right,
+                                            right_editor,
                                         )
                                     })
                                     .on_event(
@@ -1085,8 +1085,8 @@ fn editor_tab_content(
                                         },
                                     ),
                                     diff_show_more_section_view(
-                                        diff_editor_data.left,
-                                        diff_editor_data.right,
+                                        diff_editor_data.left.clone(),
+                                        diff_editor_data.right.clone(),
                                     ),
                                 )
                             })
@@ -1130,7 +1130,7 @@ fn editor_tab(
     plugin: PluginData,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
-    editors: RwSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
     diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
     dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>>,
 ) -> impl View {
@@ -2265,6 +2265,7 @@ fn palette_preview(palette_data: PaletteData) -> impl View {
     let has_preview = palette_data.has_preview;
     let config = palette_data.common.config;
     let main_split = palette_data.main_split;
+    let preview_editor = create_rw_signal(preview_editor);
     container(|| {
         container(|| {
             editor_container_view(

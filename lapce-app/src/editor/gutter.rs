@@ -1,9 +1,10 @@
+use std::rc::Rc;
+
 use floem::{
     context::PaintCx,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
-    reactive::RwSignal,
     view::{ChangeFlags, View},
     Renderer, ViewContext,
 };
@@ -18,11 +19,11 @@ use super::{view::changes_colors, EditorData};
 
 pub struct EditorGutterView {
     id: Id,
-    editor: RwSignal<EditorData>,
+    editor: Rc<EditorData>,
     width: f64,
 }
 
-pub fn editor_gutter_view(editor: RwSignal<EditorData>) -> EditorGutterView {
+pub fn editor_gutter_view(editor: Rc<EditorData>) -> EditorGutterView {
     let cx = ViewContext::get_current();
     let id = cx.new_id();
 
@@ -37,7 +38,7 @@ impl EditorGutterView {
     fn paint_head_changes(
         &self,
         cx: &mut PaintCx,
-        doc: RwSignal<Document>,
+        doc: Rc<Document>,
         viewport: Rect,
         is_normal: bool,
         config: &LapceConfig,
@@ -46,8 +47,7 @@ impl EditorGutterView {
             return;
         }
 
-        let changes = doc.with_untracked(|doc| doc.head_changes);
-        let changes = changes.get();
+        let changes = doc.head_changes.get_untracked();
         let line_height = config.editor.line_height() as f64;
 
         let min_line = (viewport.y0 / line_height).floor() as usize;
@@ -87,9 +87,7 @@ impl EditorGutterView {
         if !config.editor.sticky_header {
             return;
         }
-        let sticky_header_height = self
-            .editor
-            .with_untracked(|editor| editor.sticky_header_height);
+        let sticky_header_height = self.editor.sticky_header_height;
         let sticky_header_height = sticky_header_height.get_untracked();
         if sticky_header_height == 0.0 {
             return;
@@ -169,26 +167,27 @@ impl View for EditorGutterView {
     }
 
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
-        let (view, cursor, viewport, screen_lines, config) =
-            self.editor.with_untracked(|editor| {
-                (
-                    editor.view.clone(),
-                    editor.cursor,
-                    editor.viewport,
-                    editor.screen_lines(),
-                    editor.common.config,
-                )
-            });
-        let viewport = viewport.get_untracked();
+        let viewport = self.editor.viewport.get_untracked();
+        let cursor = self.editor.cursor;
+        let screen_lines = self.editor.screen_lines();
+        let config = self.editor.common.config;
 
-        let kind_is_normal = view.kind.with_untracked(|kind| kind.is_normal());
+        let kind_is_normal = self
+            .editor
+            .view
+            .kind
+            .with_untracked(|kind| kind.is_normal());
         let (offset, mode) = cursor.with_untracked(|c| (c.offset(), c.get_mode()));
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
-        let last_line = view.last_line();
-        let current_line = view
+        let last_line = self.editor.view.last_line();
+        let current_line = self
+            .editor
+            .view
             .doc
-            .with_untracked(|doc| doc.buffer().line_of_offset(offset));
+            .get_untracked()
+            .buffer
+            .with_untracked(|buffer| buffer.line_of_offset(offset));
 
         let family: Vec<FamilyOwned> =
             FamilyOwned::parse_list(&config.editor.font_family).collect();
@@ -242,7 +241,13 @@ impl View for EditorGutterView {
             );
         }
 
-        self.paint_head_changes(cx, view.doc, viewport, kind_is_normal, &config);
+        self.paint_head_changes(
+            cx,
+            self.editor.view.doc.get_untracked(),
+            viewport,
+            kind_is_normal,
+            &config,
+        );
         self.paint_sticky_headers(cx, kind_is_normal, &config);
     }
 }

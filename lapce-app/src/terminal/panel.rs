@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, rc::Rc, sync::Arc};
 
 use floem::reactive::{RwSignal, Scope};
 use lapce_core::mode::Mode;
@@ -28,14 +28,14 @@ pub struct TerminalPanelData {
     pub workspace: Arc<LapceWorkspace>,
     pub tab_info: RwSignal<TerminalTabInfo>,
     pub debug: RunDebugData,
-    pub common: CommonData,
+    pub common: Rc<CommonData>,
 }
 
 impl TerminalPanelData {
     pub fn new(
         workspace: Arc<LapceWorkspace>,
         run_debug: Option<RunDebugProcess>,
-        common: CommonData,
+        common: Rc<CommonData>,
     ) -> Self {
         let terminal_tab =
             TerminalTabData::new(workspace.clone(), run_debug, common.clone());

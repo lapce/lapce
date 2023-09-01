@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use floem::reactive::{use_context, RwSignal, Scope};
 use serde::{Deserialize, Serialize};
@@ -56,14 +56,14 @@ pub struct PanelData {
     pub panels: RwSignal<PanelOrder>,
     pub styles: RwSignal<im::HashMap<PanelPosition, PanelStyle>>,
     pub size: RwSignal<PanelSize>,
-    pub common: CommonData,
+    pub common: Rc<CommonData>,
 }
 
 impl PanelData {
     pub fn new(
         cx: Scope,
         panels: im::HashMap<PanelPosition, im::Vector<PanelKind>>,
-        common: CommonData,
+        common: Rc<CommonData>,
     ) -> Self {
         let panels = cx.create_rw_signal(panels);
 

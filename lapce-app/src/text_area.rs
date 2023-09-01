@@ -31,7 +31,8 @@ pub fn text_area(
             .font_size(font_size as f32)
             .line_height(LineHeightValue::Normal(line_height));
         let attrs_list = AttrsList::new(attrs);
-        let text = doc.with_untracked(|doc| doc.buffer().to_string());
+        let doc = doc.get();
+        let text = doc.buffer.with(|b| b.to_string());
         text_layout.update(|text_layout| {
             text_layout.set_text(&text, attrs_list);
         });
@@ -53,7 +54,8 @@ pub fn text_area(
             .font_size(font_size as f32)
             .line_height(LineHeightValue::Normal(1.2));
         let attrs_list = AttrsList::new(attrs);
-        let text = doc.with_untracked(|doc| doc.buffer().to_string());
+        let doc = doc.get();
+        let text = doc.buffer.with(|b| b.to_string());
         text_layout.update(|text_layout| {
             text_layout.set_text(&text, attrs_list);
         });
@@ -76,8 +78,8 @@ pub fn text_area(
 
     let cursor_pos = move || {
         let offset = cursor.with(|c| c.offset());
-        let (line, col) =
-            doc.with_untracked(|doc| doc.buffer().offset_to_line_col(offset));
+        let (line, col) = doc
+            .with_untracked(|doc| doc.buffer.with(|b| b.offset_to_line_col(offset)));
         text_layout.with(|text_layout| {
             let pos = text_layout.line_col_position(line, col);
             pos.point - (0.0, pos.glyph_ascent)

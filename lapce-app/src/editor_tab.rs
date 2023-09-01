@@ -1,5 +1,6 @@
 use std::{
     path::{Path, PathBuf},
+    rc::Rc,
     sync::Arc,
 };
 
@@ -42,9 +43,7 @@ impl EditorTabChildInfo {
         match &self {
             EditorTabChildInfo::Editor(editor_info) => {
                 let editor_data = editor_info.to_data(data, editor_tab_id);
-                EditorTabChild::Editor(
-                    editor_data.with_untracked(|editor_data| editor_data.editor_id),
-                )
+                EditorTabChild::Editor(editor_data.editor_id)
             }
             EditorTabChildInfo::DiffEditor(diff_editor_info) => {
                 let diff_editor_data = diff_editor_info.to_data(data, editor_tab_id);
@@ -110,11 +109,11 @@ impl EditorTabInfo {
 pub enum EditorTabChildSource {
     Editor {
         path: PathBuf,
-        doc: RwSignal<Document>,
+        doc: Rc<Document>,
     },
     DiffEditor {
-        left: RwSignal<Document>,
-        right: RwSignal<Document>,
+        left: Rc<Document>,
+        right: Rc<Document>,
     },
     NewFileEditor,
     Settings,
@@ -162,9 +161,7 @@ impl EditorTabChild {
                     .get(editor_id)
                     .cloned()
                     .unwrap();
-                EditorTabChildInfo::Editor(
-                    editor_data.get_untracked().editor_info(data),
-                )
+                EditorTabChildInfo::Editor(editor_data.editor_info(data))
             }
             EditorTabChild::DiffEditor(diff_editor_id) => {
                 let diff_editor_data = data
@@ -183,7 +180,7 @@ impl EditorTabChild {
 
     pub fn view_info(
         &self,
-        editors: RwSignal<im::HashMap<EditorId, RwSignal<EditorData>>>,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
         diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Memo<EditorTabChildViewInfo> {
@@ -193,15 +190,12 @@ impl EditorTabChild {
                 let editor_data =
                     editors.with(|editors| editors.get(&editor_id).cloned());
                 let path = if let Some(editor_data) = editor_data {
-                    let ((content, is_pristine), confirmed) =
-                        editor_data.with(|editor_data| {
-                            (
-                                editor_data.view.doc.with(|doc| {
-                                    (doc.content.clone(), doc.buffer().is_pristine())
-                                }),
-                                editor_data.confirmed,
-                            )
-                        });
+                    let doc = editor_data.view.doc.get();
+                    let (content, is_pristine, confirmed) = (
+                        doc.content.get(),
+                        doc.buffer.with(|b| b.is_pristine()),
+                        editor_data.confirmed,
+                    );
                     match content {
                         DocContent::File(path) => {
                             Some((path, confirmed, is_pristine))
@@ -250,15 +244,11 @@ impl EditorTabChild {
                 let config = config.get();
                 let diff_editor_data = diff_editors
                     .with(|diff_editors| diff_editors.get(&diff_editor_id).cloned());
-                let confirmed = diff_editor_data
-                    .as_ref()
-                    .map(|d| d.right.with_untracked(|e| e.confirmed));
+                let confirmed = diff_editor_data.as_ref().map(|d| d.right.confirmed);
                 let path = if let Some(diff_editor_data) = diff_editor_data {
                     let (content, is_pristine) =
-                        diff_editor_data.right.with(|editor_data| {
-                            editor_data.view.doc.with(|doc| {
-                                (doc.content.clone(), doc.buffer().is_pristine())
-                            })
+                        diff_editor_data.right.view.doc.with(|doc| {
+                            (doc.content.get(), doc.buffer.with(|b| b.is_pristine()))
                         });
                     match content {
                         DocContent::File(path) => Some((path, is_pristine)),
@@ -342,22 +332,24 @@ pub struct EditorTabData {
 impl EditorTabData {
     pub fn get_editor(
         &self,
-        editors: &im::HashMap<EditorId, RwSignal<EditorData>>,
+        editors: &im::HashMap<EditorId, Rc<EditorData>>,
         path: &Path,
-    ) -> Option<(usize, RwSignal<EditorData>)> {
+    ) -> Option<(usize, Rc<EditorData>)> {
         for (i, child) in self.children.iter().enumerate() {
             if let (_, _, EditorTabChild::Editor(editor_id)) = child {
                 if let Some(editor) = editors.get(editor_id) {
-                    let e = editor.get_untracked();
-                    let is_path = e.view.doc.with_untracked(|doc| {
-                        if let DocContent::File(p) = &doc.content {
-                            p == path
-                        } else {
-                            false
-                        }
-                    });
+                    let is_path =
+                        editor.view.doc.get_untracked().content.with_untracked(
+                            |content| {
+                                if let DocContent::File(p) = content {
+                                    p == path
+                                } else {
+                                    false
+                                }
+                            },
+                        );
                     if is_path {
-                        return Some((i, *editor));
+                        return Some((i, editor.clone()));
                     }
                 }
             }
@@ -367,15 +359,14 @@ impl EditorTabData {
 
     pub fn get_unconfirmed_editor_tab_child(
         &self,
-        editors: &im::HashMap<EditorId, RwSignal<EditorData>>,
+        editors: &im::HashMap<EditorId, Rc<EditorData>>,
         diff_editors: &im::HashMap<EditorId, DiffEditorData>,
     ) -> Option<(usize, EditorTabChild)> {
         for (i, (_, _, child)) in self.children.iter().enumerate() {
             match child {
                 EditorTabChild::Editor(editor_id) => {
                     if let Some(editor) = editors.get(editor_id) {
-                        let e = editor.get_untracked();
-                        let confirmed = e.confirmed.get_untracked();
+                        let confirmed = editor.confirmed.get_untracked();
                         if !confirmed {
                             return Some((i, child.clone()));
                         }
@@ -384,13 +375,9 @@ impl EditorTabData {
                 EditorTabChild::DiffEditor(diff_editor_id) => {
                     if let Some(diff_editor) = diff_editors.get(diff_editor_id) {
                         let left_confirmed =
-                            diff_editor.left.with_untracked(|editor| {
-                                editor.confirmed.get_untracked()
-                            });
+                            diff_editor.left.confirmed.get_untracked();
                         let right_confirmed =
-                            diff_editor.right.with_untracked(|editor| {
-                                editor.confirmed.get_untracked()
-                            });
+                            diff_editor.right.confirmed.get_untracked();
                         if !left_confirmed && !right_confirmed {
                             return Some((i, child.clone()));
                         }

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, rc::Rc};
 
 use floem::{
     ext_event::create_ext_action,
@@ -27,7 +27,7 @@ pub struct RenameData {
     pub position: RwSignal<Position>,
     pub path: RwSignal<PathBuf>,
     pub layout_rect: RwSignal<Rect>,
-    pub common: CommonData,
+    pub common: Rc<CommonData>,
 }
 
 impl KeyPressFocus for RenameData {
@@ -66,7 +66,7 @@ impl KeyPressFocus for RenameData {
 }
 
 impl RenameData {
-    pub fn new(cx: Scope, common: CommonData) -> Self {
+    pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
         let active = cx.create_rw_signal(false);
         let start = cx.create_rw_signal(0);
         let position = cx.create_rw_signal(Position::default());
@@ -94,7 +94,8 @@ impl RenameData {
         self.editor
             .view
             .doc
-            .update(|doc| doc.reload(Rope::from(&placeholder), true));
+            .get_untracked()
+            .reload(Rope::from(&placeholder), true);
         self.editor.cursor.update(|cursor| {
             cursor.set_insert(Selection::region(0, placeholder.len()))
         });
@@ -130,7 +131,9 @@ impl RenameData {
             .editor
             .view
             .doc
-            .with_untracked(|doc| doc.buffer().to_string());
+            .get_untracked()
+            .buffer
+            .with_untracked(|buffer| buffer.to_string());
         let new_name = new_name.trim();
         if !new_name.is_empty() {
             let path = self.path.get_untracked();

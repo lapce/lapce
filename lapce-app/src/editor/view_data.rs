@@ -112,8 +112,7 @@ impl EditorViewKind {
 #[derive(Clone)]
 pub struct EditorViewData {
     /// Equivalent to the `EditorData::doc` that contains this view.
-    pub doc: RwSignal<Document>,
-    pub find_result: FindResult,
+    pub doc: RwSignal<Rc<Document>>,
     pub kind: RwSignal<EditorViewKind>,
     /// The text layouts for the document. This may be shared with other views.
     pub text_layouts: Rc<RefCell<TextLayoutCache>>,
@@ -133,7 +132,7 @@ impl VirtualListVector<DocLine> for EditorViewData {
             .into_iter()
             .map(|line| DocLine {
                 rev: self.rev(),
-                style_rev: self.style_rev(),
+                style_rev: self.cache_rev(),
                 line,
                 text: self.get_text_layout(line, 12),
             })
@@ -144,15 +143,14 @@ impl VirtualListVector<DocLine> for EditorViewData {
 
 impl EditorViewData {
     pub fn new(
-        doc: RwSignal<Document>,
-        kind: RwSignal<EditorViewKind>,
+        cx: Scope,
+        doc: Rc<Document>,
+        kind: EditorViewKind,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> EditorViewData {
-        let find_result = doc.with_untracked(|doc| doc.find_result.clone());
         EditorViewData {
-            doc,
-            find_result,
-            kind,
+            doc: cx.create_rw_signal(doc),
+            kind: cx.create_rw_signal(kind),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             config,
         }
@@ -168,7 +166,8 @@ impl EditorViewData {
 
     /// Return the underlying `Rope` of the document.
     pub fn text(&self) -> Rope {
-        self.doc.with_untracked(|doc| doc.buffer().text().clone())
+        let doc = self.doc.get_untracked();
+        doc.buffer.with_untracked(|b| b.text().clone())
     }
 
     /// Return a [`RopeTextVal`] wrapper.  
@@ -184,7 +183,7 @@ impl EditorViewData {
     }
 
     pub fn find_result(&self) -> FindResult {
-        self.find_result.clone()
+        self.doc.get_untracked().find_result.clone()
     }
 
     pub fn update_find(&self) {
@@ -205,14 +204,13 @@ impl EditorViewData {
     // Though. There is the question of whether we'd want to allow different syntax highlighting in
     // different views. However, we probably wouldn't.
 
-    pub fn style_rev(&self) -> u64 {
-        self.doc.with_untracked(|doc| doc.cache_rev())
+    pub fn cache_rev(&self) -> u64 {
+        self.doc.get_untracked().cache_rev.get_untracked()
     }
 
     /// The document for the given view was swapped out.
-    pub fn update_doc(&mut self, doc: RwSignal<Document>) {
-        self.doc = doc;
-        self.find_result = self.doc.with_untracked(|doc| doc.find_result.clone());
+    pub fn update_doc(&self, doc: Rc<Document>) {
+        self.doc.set(doc);
         self.text_layouts.borrow_mut().clear(0);
     }
 
@@ -223,8 +221,7 @@ impl EditorViewData {
         // This will likely require more information to be passed into duplicate,
         // like whether the wrap width will be the editor's width, and so it is unlikely to be exactly the same as the current view.
         EditorViewData {
-            doc: self.doc,
-            find_result: self.find_result.clone(),
+            doc: cx.create_rw_signal(self.doc.get_untracked()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             kind: cx.create_rw_signal(self.kind.get_untracked()),
             config: self.config,
@@ -244,11 +241,10 @@ impl EditorViewData {
     ) -> Arc<TextLayoutLine> {
         {
             let mut text_layouts = self.text_layouts.borrow_mut();
-            self.doc.with_untracked(|doc| {
-                if doc.cache_rev() != text_layouts.cache_rev {
-                    text_layouts.clear(doc.cache_rev());
-                }
-            })
+            let cache_rev = self.doc.get_untracked().cache_rev.get_untracked();
+            if cache_rev != text_layouts.cache_rev {
+                text_layouts.clear(cache_rev);
+            }
         }
 
         // TODO: Should we just move the config cache check into `check_cache`?
@@ -300,59 +296,70 @@ impl EditorViewData {
     }
 
     pub fn indent_unit(&self) -> &'static str {
-        self.doc.with_untracked(|doc| doc.buffer().indent_unit())
+        self.doc
+            .with_untracked(|doc| doc.buffer.with_untracked(|b| b.indent_unit()))
     }
 
     // ==== Position Information ====
 
     /// The number of visual lines in the document.
     pub fn num_lines(&self) -> usize {
-        self.doc.with_untracked(|doc| doc.buffer().num_lines())
+        self.doc
+            .with_untracked(|doc| doc.buffer.with_untracked(|b| b.num_lines()))
     }
 
     /// The last allowed line in the document.
     pub fn last_line(&self) -> usize {
-        self.doc.with_untracked(|doc| doc.buffer().last_line())
+        self.doc
+            .with_untracked(|doc| doc.buffer.with_untracked(|b| b.last_line()))
     }
 
     // ==== Line/Column Positioning ====
 
     /// Convert an offset into the buffer into a line and column.
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
-        self.doc
-            .with_untracked(|doc| doc.buffer().offset_to_line_col(offset))
+        self.doc.with_untracked(|doc| {
+            doc.buffer.with_untracked(|b| b.offset_to_line_col(offset))
+        })
     }
 
     pub fn offset_of_line(&self, offset: usize) -> usize {
-        self.doc
-            .with_untracked(|doc| doc.buffer().offset_of_line(offset))
+        self.doc.with_untracked(|doc| {
+            doc.buffer.with_untracked(|b| b.offset_of_line(offset))
+        })
     }
 
     pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
-        self.doc
-            .with_untracked(|doc| doc.buffer().offset_of_line_col(line, col))
+        self.doc.with_untracked(|doc| {
+            doc.buffer
+                .with_untracked(|b| b.offset_of_line_col(line, col))
+        })
     }
 
     pub fn line_of_offset(&self, offset: usize) -> usize {
-        self.doc
-            .with_untracked(|doc| doc.buffer().line_of_offset(offset))
+        self.doc.with_untracked(|doc| {
+            doc.buffer.with_untracked(|b| b.line_of_offset(offset))
+        })
     }
 
     /// Returns the offset into the buffer of the first non blank character on the given line.
     pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
         self.doc.with_untracked(|doc| {
-            doc.buffer().first_non_blank_character_on_line(line)
+            doc.buffer
+                .with_untracked(|b| b.first_non_blank_character_on_line(line))
         })
     }
 
     pub fn line_end_col(&self, line: usize, caret: bool) -> usize {
-        self.doc
-            .with_untracked(|doc| doc.buffer().line_end_col(line, caret))
+        self.doc.with_untracked(|doc| {
+            doc.buffer.with_untracked(|b| b.line_end_col(line, caret))
+        })
     }
 
     pub fn select_word(&self, offset: usize) -> (usize, usize) {
-        self.doc
-            .with_untracked(|doc| doc.buffer().select_word(offset))
+        self.doc.with_untracked(|doc| {
+            doc.buffer.with_untracked(|b| b.select_word(offset))
+        })
     }
 
     // ==== Points of locations ====
@@ -398,8 +405,8 @@ impl EditorViewData {
         let mut x_shift = 0.0;
         if font_size < config.editor.font_size() {
             let mut col = 0usize;
-            self.doc.with_untracked(|doc| {
-                let line_content = doc.buffer().line_content(line);
+            self.doc.get_untracked().buffer.with_untracked(|buffer| {
+                let line_content = buffer.line_content(line);
                 for ch in line_content.chars() {
                     if ch == ' ' || ch == '\t' {
                         col += 1;
@@ -695,15 +702,19 @@ impl EditorViewData {
     /// Advance to the right in the manner of the given mode.  
     /// This is not the same as the [`Movement::Right`] command.
     pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
-        self.doc
-            .with_untracked(|doc| doc.buffer().move_right(offset, mode, count))
+        self.doc.with_untracked(|doc| {
+            doc.buffer
+                .with_untracked(|b| b.move_right(offset, mode, count))
+        })
     }
 
     /// Advance to the left in the manner of the given mode.
     /// This is not the same as the [`Movement::Left`] command.
     pub fn move_left(&self, offset: usize, mode: Mode, count: usize) -> usize {
-        self.doc
-            .with_untracked(|doc| doc.buffer().move_left(offset, mode, count))
+        self.doc.with_untracked(|doc| {
+            doc.buffer
+                .with_untracked(|b| b.move_left(offset, mode, count))
+        })
     }
 
     /// Find the next/previous offset of the match of the given character.
@@ -713,22 +724,23 @@ impl EditorViewData {
         // This needs the doc's syntax, but it isn't cheap to clone
         // so this has to be a method on view for now.
         self.doc.with_untracked(|doc| {
-            let syntax = doc.syntax();
-            if syntax.layers.is_some() {
-                syntax
-                    .find_tag(offset, previous, &CharBuffer::from(ch))
-                    .unwrap_or(offset)
-            } else {
-                let text = self.text();
-                let mut cursor = WordCursor::new(&text, offset);
-                let new_offset = if previous {
-                    cursor.previous_unmatched(ch)
+            doc.syntax.with_untracked(|syntax| {
+                if syntax.layers.is_some() {
+                    syntax
+                        .find_tag(offset, previous, &CharBuffer::from(ch))
+                        .unwrap_or(offset)
                 } else {
-                    cursor.next_unmatched(ch)
-                };
+                    let text = doc.buffer.with_untracked(|b| b.text().clone());
+                    let mut cursor = WordCursor::new(&text, offset);
+                    let new_offset = if previous {
+                        cursor.previous_unmatched(ch)
+                    } else {
+                        cursor.next_unmatched(ch)
+                    };
 
-                new_offset.unwrap_or(offset)
-            }
+                    new_offset.unwrap_or(offset)
+                }
+            })
         })
     }
 
@@ -738,14 +750,16 @@ impl EditorViewData {
         // This needs the doc's syntax, but it isn't cheap to clone
         // so this has to be a method on view for now.
         self.doc.with_untracked(|doc| {
-            let syntax = doc.syntax();
-            if syntax.layers.is_some() {
-                syntax.find_matching_pair(offset).unwrap_or(offset)
-            } else {
-                WordCursor::new(&self.text(), offset)
-                    .match_pairs()
-                    .unwrap_or(offset)
-            }
+            doc.syntax.with_untracked(|syntax| {
+                if syntax.layers.is_some() {
+                    syntax.find_matching_pair(offset).unwrap_or(offset)
+                } else {
+                    let text = doc.buffer.with_untracked(|b| b.text().clone());
+                    WordCursor::new(&text, offset)
+                        .match_pairs()
+                        .unwrap_or(offset)
+                }
+            })
         })
     }
 }

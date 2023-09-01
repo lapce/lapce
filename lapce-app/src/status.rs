@@ -69,7 +69,6 @@ pub fn status(
     let mode = create_memo(move |_| window_tab_data.mode());
 
     stack(move || {
-        let editor = move || editor.clone().get();
         (
             stack(|| {
                 (
@@ -299,11 +298,15 @@ pub fn status(
             stack(|| {
                 let palette_clone = palette.clone();
                 let cursor_info = label(move || {
-                    if let Some(editor) = editor() {
+                    if let Some(editor) = editor.get() {
                         let mut status = String::new();
-                        let cursor = editor.get().cursor.get();
-                        if let Some((line, column, character)) = cursor
-                            .get_line_col_char(editor.get().view.doc.get().buffer())
+                        let cursor = editor.cursor.get();
+                        if let Some((line, column, character)) = editor
+                            .view
+                            .doc
+                            .get()
+                            .buffer
+                            .with(|buffer| cursor.get_line_col_char(buffer))
                         {
                             status = format!(
                                 "Ln {}, Col {}, Char {}",
@@ -333,8 +336,11 @@ pub fn status(
                 })
                 .style(move |s| {
                     s.display(
-                        if editor()
-                            .map(|f| f.get().view.doc.get().content.is_file())
+                        if editor
+                            .get()
+                            .map(|editor| {
+                                editor.view.doc.get().content.with(|c| c.is_file())
+                            })
                             .unwrap_or(false)
                         {
                             Display::Flex
@@ -355,9 +361,9 @@ pub fn status(
                 });
                 let palette_clone = palette.clone();
                 let language_info = label(move || {
-                    if let Some(editor) = editor() {
-                        let doc = editor.with(|editor| editor.view.doc);
-                        doc.with(|doc| doc.syntax().language.to_string())
+                    if let Some(editor) = editor.get() {
+                        let doc = editor.view.doc.get_untracked();
+                        doc.syntax.with(|s| s.language.to_string())
                     } else {
                         String::new()
                     }
@@ -368,8 +374,11 @@ pub fn status(
                 })
                 .style(move |s| {
                     s.display(
-                        if editor()
-                            .map(|f| f.get().view.doc.get().content.is_file())
+                        if editor
+                            .get()
+                            .map(|editor| {
+                                editor.view.doc.get().content.with(|c| c.is_file())
+                            })
                             .unwrap_or(false)
                         {
                             Display::Flex

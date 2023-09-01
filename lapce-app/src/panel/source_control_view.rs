@@ -44,7 +44,10 @@ pub fn source_control_panel(
         };
         focus == Focus::Panel(PanelKind::SourceControl)
     };
-    let is_empty = create_memo(move |_| doc.with(|doc| doc.buffer().len() == 0));
+    let is_empty = create_memo(move |_| {
+        let doc = doc.get();
+        doc.buffer.with(|b| b.len() == 0)
+    });
 
     stack(|| {
         (
@@ -54,7 +57,7 @@ pub fn source_control_panel(
                         scroll(|| {
                             let view = stack(|| {
                                 (
-                                    editor_view(editor, is_active)
+                                    editor_view(editor.get_untracked(), is_active)
                                         .style(|s| s.min_size_pct(100.0, 100.0)),
                                     label(|| "Commit Message".to_string()).style(
                                         move |s| {
@@ -86,16 +89,18 @@ pub fn source_control_panel(
                                 let event = event.clone().offset((10.0, 6.0));
                                 if let Event::PointerDown(pointer_event) = event {
                                     id.request_active();
-                                    let editor = editor.get_untracked();
-                                    editor.pointer_down(&pointer_event);
+                                    editor
+                                        .get_untracked()
+                                        .pointer_down(&pointer_event);
                                 }
                                 false
                             })
                             .on_event(EventListener::PointerMove, move |event| {
                                 let event = event.clone().offset((10.0, 6.0));
                                 if let Event::PointerMove(pointer_event) = event {
-                                    let editor = editor.get_untracked();
-                                    editor.pointer_move(&pointer_event);
+                                    editor
+                                        .get_untracked()
+                                        .pointer_move(&pointer_event);
                                 }
                                 true
                             })
@@ -104,8 +109,9 @@ pub fn source_control_panel(
                                 move |event| {
                                     let event = event.clone().offset((10.0, 6.0));
                                     if let Event::PointerUp(pointer_event) = event {
-                                        let editor = editor.get_untracked();
-                                        editor.pointer_up(&pointer_event);
+                                        editor
+                                            .get_untracked()
+                                            .pointer_up(&pointer_event);
                                     }
                                     true
                                 },
@@ -120,9 +126,15 @@ pub fn source_control_panel(
                         .on_ensure_visible(move || {
                             let cursor = cursor.get();
                             let offset = cursor.offset();
-                            let view = editor.with(|e| e.view.clone());
-                            let caret =
-                                cursor_caret(&view, offset, !cursor.is_insert());
+                            let editor = editor.get_untracked();
+                            let editor_view = editor.view.clone();
+                            editor_view.doc.track();
+                            editor_view.kind.track();
+                            let caret = cursor_caret(
+                                &editor_view,
+                                offset,
+                                !cursor.is_insert(),
+                            );
                             let config = config.get_untracked();
                             let line_height = config.editor.line_height();
                             if let CursorRender::Caret { x, width, line } = caret {
@@ -210,7 +222,7 @@ pub fn source_control_panel(
 fn file_diffs_view(source_control: SourceControlData) -> impl View {
     let file_diffs = source_control.file_diffs;
     let config = source_control.common.config;
-    let workspace = source_control.common.workspace;
+    let workspace = source_control.common.workspace.clone();
     let panel_rect = create_rw_signal(Rect::ZERO);
     let panel_width = create_memo(move |_| panel_rect.get().width());
     let lapce_command = source_control.common.lapce_command;

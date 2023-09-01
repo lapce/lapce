@@ -1,4 +1,4 @@
-use std::{collections::HashSet, env, path::Path, sync::Arc, time::Instant};
+use std::{collections::HashSet, env, path::Path, rc::Rc, sync::Arc, time::Instant};
 
 use crossbeam_channel::Sender;
 use floem::{
@@ -154,7 +154,7 @@ pub struct WindowTabData {
     pub num_window_tabs: Memo<usize>,
     pub progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
     pub messages: RwSignal<Vec<(String, ShowMessageParams)>>,
-    pub common: CommonData,
+    pub common: Rc<CommonData>,
 }
 
 impl KeyPressFocus for WindowTabData {
@@ -262,7 +262,7 @@ impl WindowTabData {
             text_layout.size().height
         });
 
-        let common = CommonData {
+        let common = Rc::new(CommonData {
             workspace: workspace.clone(),
             scope: cx,
             keypress,
@@ -288,7 +288,7 @@ impl WindowTabData {
             hide_cursor: cx.create_rw_signal(false),
             window_origin: cx.create_rw_signal(Point::ZERO),
             ime_allowed,
-        };
+        });
 
         let main_split = MainSplitData::new(cx, common.clone());
         let code_action =
@@ -352,8 +352,7 @@ impl WindowTabData {
             TerminalPanelData::new(workspace.clone(), None, common.clone());
 
         let rename = RenameData::new(cx, common.clone());
-        let global_search =
-            GlobalSearchData::new(cx, main_split.clone(), common.clone());
+        let global_search = GlobalSearchData::new(cx, main_split.clone());
 
         let plugin = PluginData::new(
             cx,
@@ -495,7 +494,6 @@ impl WindowTabData {
                 } else if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
-                    let editor_data = editor_data.get_untracked();
                     editor_data.run_command(&cmd, None, ModifiersState::empty());
                 } else {
                     // TODO: dispatch to current focused view?
@@ -572,19 +570,17 @@ impl WindowTabData {
             }
             RevealActiveFileInFileExplorer => {
                 if let Some(editor_data) = self.main_split.active_editor.get() {
-                    editor_data.with_untracked(|editor_data| {
-                        let path = editor_data.view.doc.with_untracked(|doc| {
-                            if let DocContent::File(path) = &doc.content {
-                                Some(path.clone())
-                            } else {
-                                None
-                            }
-                        });
-                        let Some(path) = path else { return };
-                        let path = path.parent().unwrap_or(&path);
-
-                        open_uri(path);
+                    let path = editor_data.view.doc.with_untracked(|doc| {
+                        if let DocContent::File(path) = doc.content.get_untracked() {
+                            Some(path)
+                        } else {
+                            None
+                        }
                     });
+                    let Some(path) = path else { return };
+                    let path = path.parent().unwrap_or(&path);
+
+                    open_uri(path);
                 }
             }
 
@@ -592,26 +588,26 @@ impl WindowTabData {
                 self.main_split.editors.with_untracked(|editors| {
                     let mut paths = HashSet::new();
                     for (_, editor_data) in editors.iter() {
-                        editor_data.with_untracked(|editor_data| {
-                            let should_save =
-                                editor_data.view.doc.with_untracked(|doc| {
-                                    let DocContent::File(path) = &doc.content else {
-                                        return false;
-                                    };
+                        let should_save =
+                            editor_data.view.doc.with_untracked(|doc| {
+                                let DocContent::File(path) =
+                                    doc.content.get_untracked()
+                                else {
+                                    return false;
+                                };
 
-                                    if paths.contains(path) {
-                                        return false;
-                                    }
+                                if paths.contains(&path) {
+                                    return false;
+                                }
 
-                                    paths.insert(path.clone());
+                                paths.insert(path.clone());
 
-                                    true
-                                });
+                                true
+                            });
 
-                            if should_save {
-                                editor_data.save(true, || {});
-                            }
-                        });
+                        if should_save {
+                            editor_data.save(true, || {});
+                        }
                     }
                 });
             }
@@ -1140,8 +1136,7 @@ impl WindowTabData {
             }
             InternalCommand::MakeConfirmed => {
                 if let Some(editor) = self.main_split.active_editor.get_untracked() {
-                    let confirmed = editor.with_untracked(|editor| editor.confirmed);
-                    confirmed.set(true);
+                    editor.confirmed.set(true);
                 }
             }
             InternalCommand::OpenFile { path } => {
@@ -1378,7 +1373,7 @@ impl WindowTabData {
 
                 let docs = self.main_split.docs.get_untracked();
                 for (_, doc) in docs {
-                    doc.with_untracked(|doc| doc.retrieve_head());
+                    doc.retrieve_head();
                 }
             }
             CoreNotification::CompletionResponse {
@@ -1397,14 +1392,12 @@ impl WindowTabData {
                     });
 
                     if let Some(editor_data) = editor_data {
-                        editor_data.with_untracked(|editor_data| {
-                            let cursor_offset =
-                                editor_data.cursor.with_untracked(|c| c.offset());
-                            completion.update_document_completion(
-                                &editor_data.view,
-                                cursor_offset,
-                            );
-                        });
+                        let cursor_offset =
+                            editor_data.cursor.with_untracked(|c| c.offset());
+                        completion.update_document_completion(
+                            &editor_data.view,
+                            cursor_offset,
+                        );
                     }
                 });
             }
@@ -1431,7 +1424,7 @@ impl WindowTabData {
                     .docs
                     .with_untracked(|docs| docs.get(&path).cloned())
                 {
-                    doc.update(|doc| doc.init_diagnostics());
+                    doc.init_diagnostics();
                 }
             }
             CoreNotification::TerminalProcessStopped { term_id } => {
@@ -1511,7 +1504,7 @@ impl WindowTabData {
                 };
             }
             CoreNotification::WorkspaceFileChange => {
-                self.file_explorer.reload();
+                // self.file_explorer.reload();
             }
             _ => {}
         }
@@ -1589,10 +1582,10 @@ impl WindowTabData {
         let editor = self
             .main_split
             .editors
-            .with(|editors| editors.get(&editor_id).copied())?;
+            .with(|editors| editors.get(&editor_id).cloned())?;
 
         let (window_origin, viewport, view) =
-            editor.with_untracked(|e| (e.window_origin, e.viewport, e.view.clone()));
+            (editor.window_origin, editor.viewport, editor.view.clone());
 
         let (point_above, point_below) =
             view.points_of_offset(self.common.hover.offset.get_untracked());
@@ -1635,7 +1628,7 @@ impl WindowTabData {
             };
 
         let (window_origin, viewport, view) =
-            editor.with_untracked(|e| (e.window_origin, e.viewport, e.view.clone()));
+            (editor.window_origin, editor.viewport, editor.view.clone());
 
         let (point_above, point_below) = view.points_of_offset(completion.offset);
 
@@ -1685,7 +1678,7 @@ impl WindowTabData {
             };
 
         let (window_origin, viewport, view) =
-            editor.with_untracked(|e| (e.window_origin, e.viewport, e.view.clone()));
+            (editor.window_origin, editor.viewport, editor.view.clone());
 
         let (_point_above, point_below) = view.points_of_offset(code_action.offset);
 
@@ -1735,7 +1728,7 @@ impl WindowTabData {
             };
 
         let (window_origin, viewport, view) =
-            editor.with_untracked(|e| (e.window_origin, e.viewport, e.view.clone()));
+            (editor.window_origin, editor.viewport, editor.view.clone());
 
         let (_point_above, point_below) =
             view.points_of_offset(self.rename.start.get_untracked());
@@ -1765,9 +1758,10 @@ impl WindowTabData {
     pub fn mode(&self) -> Mode {
         if self.common.config.get().core.modal {
             let mode = if self.common.focus.get() == Focus::Workbench {
-                self.main_split.active_editor.get().map(|e| {
-                    e.with_untracked(|editor| editor.cursor).get().get_mode()
-                })
+                self.main_split
+                    .active_editor
+                    .get()
+                    .map(|editor| editor.cursor.with(|c| c.get_mode()))
             } else {
                 None
             };
@@ -1871,9 +1865,7 @@ impl WindowTabData {
             && self.common.focus.get_untracked() == Focus::Workbench
         {
             let active_editor = self.main_split.active_editor.get_untracked();
-            let word = active_editor.map(|editor| {
-                editor.with_untracked(|editor| editor.word_at_cursor())
-            });
+            let word = active_editor.map(|editor| editor.word_at_cursor());
             if let Some(word) = word {
                 if !word.is_empty() {
                     self.global_search.set_pattern(word);

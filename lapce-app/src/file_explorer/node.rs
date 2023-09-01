@@ -76,6 +76,18 @@ impl FileNode {
     }
 }
 
+// pub struct FileNodeVirtualList(FileNodeItem);
+
+// pub struct FileNodeViewData {}
+
+// impl VirtualListVector<FileNodeViewData> for FileNodeVirtualList {
+//     type ItemIterator = Box<dyn Iterator<Item = FileNodeViewData>>;
+
+//     fn total_len(&self) -> usize {
+//         self.0.children_open_count + 1
+//     }
+// }
+
 impl VirtualListVector<(PathBuf, FileNode)> for FileNode {
     type ItemIterator = Box<dyn Iterator<Item = (PathBuf, FileNode)>>;
 
@@ -86,7 +98,7 @@ impl VirtualListVector<(PathBuf, FileNode)> for FileNode {
     }
 
     fn total_len(&self) -> usize {
-        0
+        self.children_open_count + 1
     }
 
     fn slice(&mut self, _range: std::ops::Range<usize>) -> Self::ItemIterator {
