@@ -8,34 +8,31 @@ use floem::{
     ext_event::create_ext_action,
     reactive::{RwSignal, Scope},
 };
-use lapce_rpc::proxy::ProxyResponse;
+use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
 
-use super::node::FileNode;
 use crate::{command::InternalCommand, window_tab::CommonData};
 
 #[derive(Clone)]
 pub struct FileExplorerData {
     pub id: RwSignal<usize>,
-    pub root: RwSignal<FileNode>,
+    pub root: RwSignal<FileNodeItem>,
     pub common: Rc<CommonData>,
 }
 
 impl FileExplorerData {
     pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
         let path = common.workspace.path.clone().unwrap_or_default();
-        let new_root = cx.create_rw_signal(FileNode {
+        let root = cx.create_rw_signal(FileNodeItem {
             path: path.clone(),
             is_dir: true,
             read: false,
-            expanded: false,
+            open: false,
             children: HashMap::new(),
             children_open_count: 0,
-            line_height: common.ui_line_height,
-            internal_command: common.internal_command,
         });
         let data = Self {
             id: cx.create_rw_signal(0),
-            root: new_root,
+            root,
             common,
         };
         data.toggle_expand(&path);
@@ -54,11 +51,11 @@ impl FileExplorerData {
         if let Some(read) = self
             .root
             .try_update(|root| {
-                let read = if let Some(node) = root.get_node_mut(path) {
+                let read = if let Some(node) = root.get_file_node_mut(path) {
                     if !node.is_dir {
                         return None;
                     }
-                    node.expanded = !node.expanded;
+                    node.open = !node.open;
                     Some(node.read)
                 } else {
                     None
@@ -88,7 +85,7 @@ impl FileExplorerData {
                         *id += 1;
                     });
                     root.update(|root| {
-                        if let Some(node) = root.get_node_mut(&path) {
+                        if let Some(node) = root.get_file_node_mut(&path) {
                             node.read = true;
                             let removed_paths: Vec<PathBuf> = node
                                 .children
@@ -107,19 +104,7 @@ impl FileExplorerData {
                                         data.read_dir(&existing.path);
                                     }
                                 } else {
-                                    node.children.insert(
-                                        item.path.clone(),
-                                        FileNode {
-                                            path: item.path,
-                                            is_dir: item.is_dir,
-                                            read: false,
-                                            expanded: false,
-                                            children: HashMap::new(),
-                                            children_open_count: 0,
-                                            internal_command: node.internal_command,
-                                            line_height: node.line_height,
-                                        },
-                                    );
+                                    node.children.insert(item.path.clone(), item);
                                 }
                             }
                         }
@@ -138,7 +123,7 @@ impl FileExplorerData {
     pub fn click(&self, path: &Path) {
         let is_dir = self
             .root
-            .with_untracked(|root| root.get_node(path).map(|n| n.is_dir))
+            .with_untracked(|root| root.get_file_node(path).map(|n| n.is_dir))
             .unwrap_or(false);
         if is_dir {
             self.toggle_expand(path);
@@ -154,7 +139,7 @@ impl FileExplorerData {
     pub fn double_click(&self, path: &Path) -> bool {
         let is_dir = self
             .root
-            .with_untracked(|root| root.get_node(path).map(|n| n.is_dir))
+            .with_untracked(|root| root.get_file_node(path).map(|n| n.is_dir))
             .unwrap_or(false);
         if is_dir {
             false
@@ -169,7 +154,7 @@ impl FileExplorerData {
     pub fn middle_click(&self, path: &Path) -> bool {
         let is_dir = self
             .root
-            .with_untracked(|root| root.get_node(path).map(|n| n.is_dir))
+            .with_untracked(|root| root.get_file_node(path).map(|n| n.is_dir))
             .unwrap_or(false);
         if is_dir {
             false

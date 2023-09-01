@@ -47,6 +47,14 @@ impl PathObject {
     }
 }
 
+#[derive(Debug)]
+pub struct FileNodeViewData {
+    pub path: PathBuf,
+    pub is_dir: bool,
+    pub open: bool,
+    pub level: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FileNodeItem {
     pub path: PathBuf,
@@ -189,6 +197,12 @@ impl FileNodeItem {
         }
     }
 
+    pub fn update_node_count_recursive(&mut self, path: &Path) {
+        for current_path in path.ancestors() {
+            self.update_node_count(current_path);
+        }
+    }
+
     pub fn update_node_count(&mut self, path: &Path) -> Option<()> {
         let node = self.get_file_node_mut(path)?;
         if node.is_dir {
@@ -202,5 +216,41 @@ impl FileNodeItem {
             };
         }
         None
+    }
+
+    pub fn append_view_slice(
+        &self,
+        view_items: &mut Vec<FileNodeViewData>,
+        min: usize,
+        max: usize,
+        current: usize,
+        level: usize,
+    ) -> usize {
+        if current > max {
+            return current;
+        }
+        if current + self.children_open_count < min {
+            return current + self.children_open_count;
+        }
+
+        let mut i = current;
+        if current >= min {
+            view_items.push(FileNodeViewData {
+                path: self.path.clone(),
+                is_dir: self.is_dir,
+                open: self.open,
+                level,
+            });
+        }
+
+        if self.open {
+            for item in self.sorted_children() {
+                i = item.append_view_slice(view_items, min, max, i + 1, level + 1);
+                if i > max {
+                    return i;
+                }
+            }
+        }
+        i
     }
 }

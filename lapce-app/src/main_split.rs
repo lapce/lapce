@@ -447,18 +447,27 @@ impl MainSplitData {
             {
                 let doc = doc.clone();
                 let local_doc = doc.clone();
-                let send = create_ext_action(cx, move |content| {
-                    local_doc.init_content(content);
+                let send = create_ext_action(cx, move |result| {
+                    if let Ok(ProxyResponse::NewBufferResponse {
+                        content,
+                        read_only,
+                    }) = result
+                    {
+                        local_doc.init_content(Rope::from(content));
+                        if read_only {
+                            local_doc.content.update(|content| {
+                                if let DocContent::File { read_only, .. } = content {
+                                    *read_only = true;
+                                }
+                            });
+                        }
+                    }
                 });
 
                 self.common
                     .proxy
                     .new_buffer(doc.buffer_id, path, move |result| {
-                        if let Ok(ProxyResponse::NewBufferResponse { content }) =
-                            result
-                        {
-                            send(Rope::from(content))
-                        }
+                        send(result);
                     });
             }
 
@@ -1604,7 +1613,7 @@ impl MainSplitData {
                     });
                     if !exists {
                         return match doc_content {
-                            DocContent::File(path) => Some((
+                            DocContent::File { path, .. } => Some((
                                 path.file_name()?.to_str()?.to_string(),
                                 doc,
                                 editor,
@@ -1677,7 +1686,7 @@ impl MainSplitData {
                             action: save_action,
                         })
                     }
-                    DocContent::File(_) => {
+                    DocContent::File { .. } => {
                         let editor = editor.clone();
                         let editors = self.editors;
                         let editor_id = editor.editor_id;
@@ -2004,7 +2013,10 @@ impl MainSplitData {
                     create_ext_action(self.scope, move |result| {
                         if let Ok(_r) = result {
                             let syntax = Syntax::init(&path);
-                            doc.content.set(DocContent::File(path.clone()));
+                            doc.content.set(DocContent::File {
+                                path: path.clone(),
+                                read_only: false,
+                            });
                             doc.buffer.update(|buffer| {
                                 buffer.set_pristine();
                             });
@@ -2025,7 +2037,7 @@ impl MainSplitData {
                 );
             }
             DocContent::Local => {}
-            DocContent::File(_) => {}
+            DocContent::File { .. } => {}
             DocContent::History(_) => {}
         }
     }

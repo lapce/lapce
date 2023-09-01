@@ -1,24 +1,23 @@
-use std::{path::PathBuf, rc::Rc, sync::Arc};
+use std::rc::Rc;
 
 use floem::{
     cosmic_text::Style as FontStyle,
     event::{Event, EventListener},
     peniko::Color,
-    reactive::{create_rw_signal, ReadSignal, RwSignal},
+    reactive::{create_rw_signal, RwSignal},
     style::{CursorStyle, Style},
     view::View,
     views::{
-        container, container_box, label, list, scroll, stack, svg, virtual_list,
-        Decorators, VirtualListDirection, VirtualListItemSize, VirtualListVector,
+        container, label, list, scroll, stack, svg, virtual_list, Decorators,
+        VirtualListDirection, VirtualListItemSize,
     },
 };
-use lapce_rpc::proxy::ProxyRpcHandler;
 
-use super::{data::FileExplorerData, node::FileNode};
+use super::{data::FileExplorerData, node::FileNodeVirtualList};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    config::{color::LapceColor, icon::LapceIcons},
     editor_tab::{EditorTabChild, EditorTabData},
     panel::{position::PanelPosition, view::panel_header},
     window_tab::WindowTabData,
@@ -30,8 +29,6 @@ pub fn file_explorer_panel(
 ) -> impl View {
     let config = window_tab_data.common.config;
     let data = window_tab_data.file_explorer.clone();
-    let root_file_node = window_tab_data.file_explorer.root;
-    let proxy = window_tab_data.common.proxy.clone();
     stack(|| {
         (
             stack(move || {
@@ -46,16 +43,8 @@ pub fn file_explorer_panel(
                 (
                     panel_header("File Explorer".to_string(), config),
                     container(|| {
-                        scroll(move || {
-                            file_node_view(
-                                root_file_node,
-                                data,
-                                proxy.clone(),
-                                0,
-                                config,
-                            )
-                        })
-                        .style(|s| s.absolute().size_pct(100.0, 100.0))
+                        scroll(move || new_file_node_view(data))
+                            .style(|s| s.absolute().size_pct(100.0, 100.0))
                     })
                     .style(|s| s.size_pct(100.0, 100.0).line_height(1.6)),
                 )
@@ -69,153 +58,118 @@ pub fn file_explorer_panel(
     })
 }
 
-fn file_node_view(
-    file_node: RwSignal<FileNode>,
-    data: FileExplorerData,
-    proxy: ProxyRpcHandler,
-    level: usize,
-    config: ReadSignal<Arc<LapceConfig>>,
-) -> impl View {
-    let id = data.id;
+fn new_file_node_view(data: FileExplorerData) -> impl View {
+    let root = data.root;
+    let ui_line_height = data.common.ui_line_height;
+    let config = data.common.config;
     virtual_list(
         VirtualListDirection::Vertical,
-        VirtualListItemSize::Fn(Box::new(|(_, file_node): &(PathBuf, FileNode)| {
-            file_node.total_size().unwrap_or(0.0)
-        })),
-        move || file_node.get(),
-        move |(path, _)| (id.get_untracked(), path.to_path_buf()),
-        move |(path, file_node)| {
+        VirtualListItemSize::Fixed(Box::new(move || ui_line_height.get())),
+        move || FileNodeVirtualList(root.get()),
+        move |node| (node.path.clone(), node.is_dir, node.open, node.level),
+        move |node| {
+            let level = node.level;
             let data = data.clone();
-            let proxy = proxy.clone();
-            stack(move || {
+            let double_click_data = data.clone();
+            let aux_click_data = data.clone();
+            let path = node.path.clone();
+            let click_path = node.path.clone();
+            let double_click_path = node.path.clone();
+            let aux_click_path = path.clone();
+            let open = node.open;
+            let is_dir = node.is_dir;
+            stack(|| {
                 (
+                    svg(move || {
+                        let config = config.get();
+                        let svg_str = match open {
+                            true => LapceIcons::ITEM_OPENED,
+                            false => LapceIcons::ITEM_CLOSED,
+                        };
+                        config.ui_svg(svg_str)
+                    })
+                    .style(move |s| {
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32;
+
+                        let color = if is_dir {
+                            *config.get_color(LapceColor::LAPCE_ICON_ACTIVE)
+                        } else {
+                            Color::TRANSPARENT
+                        };
+                        s.size_px(size, size).margin_left_px(10.0).color(color)
+                    }),
                     {
-                        let file_node = file_node.clone();
-                        let expanded = file_node.expanded;
-                        let is_dir = file_node.is_dir;
-                        let data = data.clone();
-                        let double_click_data = data.clone();
-                        let aux_click_data = data.clone();
-                        let aux_click_path = path.clone();
-                        let click_path = file_node.path.clone();
-                        let double_click_path = path.clone();
-                        stack(move || {
-                            (
-                                svg(move || {
-                                    let config = config.get();
-                                    let svg_str = match expanded {
-                                        true => LapceIcons::ITEM_OPENED,
-                                        false => LapceIcons::ITEM_CLOSED,
-                                    };
-                                    config.ui_svg(svg_str)
-                                })
-                                .style(move |s| {
-                                    let config = config.get();
-                                    let size = config.ui.icon_size() as f32;
-
-                                    let color = if is_dir {
-                                        *config
-                                            .get_color(LapceColor::LAPCE_ICON_ACTIVE)
-                                    } else {
-                                        Color::TRANSPARENT
-                                    };
-                                    s.size_px(size, size)
-                                        .margin_left_px(10.0)
-                                        .color(color)
-                                }),
-                                {
-                                    let path = path.clone();
-                                    let path_for_style = path.clone();
-                                    svg(move || {
-                                        let config = config.get();
-                                        if is_dir {
-                                            let svg_str = match expanded {
-                                                true => LapceIcons::DIRECTORY_OPENED,
-                                                false => {
-                                                    LapceIcons::DIRECTORY_CLOSED
-                                                }
-                                            };
-                                            config.ui_svg(svg_str)
-                                        } else {
-                                            config.file_svg(&path).0
-                                        }
-                                    })
-                                    .style(
-                                        move |s| {
-                                            let config = config.get();
-                                            let size = config.ui.icon_size() as f32;
-
-                                            s.size_px(size, size)
-                                                .margin_horiz_px(6.0)
-                                                .apply_if(is_dir, |s| {
-                                                    s.color(*config.get_color(
-                                                    LapceColor::LAPCE_ICON_ACTIVE,
-                                                ))
-                                                })
-                                                .apply_if(!is_dir, |s| {
-                                                    s.apply_opt(
-                                                        config
-                                                            .file_svg(
-                                                                &path_for_style,
-                                                            )
-                                                            .1
-                                                            .cloned(),
-                                                        Style::color,
-                                                    )
-                                                })
-                                        },
-                                    )
-                                },
-                                label(move || {
-                                    path.file_name()
-                                        .map(|f| f.to_string_lossy().to_string())
-                                        .unwrap_or_default()
-                                }),
-                            )
-                        })
-                        .on_click(move |_| {
-                            data.click(&click_path);
-                            true
-                        })
-                        .on_double_click(move |_| {
-                            double_click_data.double_click(&double_click_path)
-                        })
-                        .on_event(EventListener::PointerDown, move |event| {
-                            if let Event::PointerDown(pointer_event) = event {
-                                if pointer_event.button.is_auxiliary() {
-                                    aux_click_data.middle_click(&aux_click_path);
-                                }
+                        let path = path.clone();
+                        let path_for_style = path.clone();
+                        svg(move || {
+                            let config = config.get();
+                            if is_dir {
+                                let svg_str = match open {
+                                    true => LapceIcons::DIRECTORY_OPENED,
+                                    false => LapceIcons::DIRECTORY_CLOSED,
+                                };
+                                config.ui_svg(svg_str)
+                            } else {
+                                config.file_svg(&path).0
                             }
-                            true
                         })
                         .style(move |s| {
-                            s.items_center()
-                                .padding_right_px(10.0)
-                                .padding_left_px((level * 10) as f32)
-                                .min_width_pct(100.0)
-                        })
-                        .hover_style(move |s| {
-                            s.background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
-                            .cursor(CursorStyle::Pointer)
+                            let config = config.get();
+                            let size = config.ui.icon_size() as f32;
+
+                            s.size_px(size, size)
+                                .margin_horiz_px(6.0)
+                                .apply_if(is_dir, |s| {
+                                    s.color(
+                                        *config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ),
+                                    )
+                                })
+                                .apply_if(!is_dir, |s| {
+                                    s.apply_opt(
+                                        config.file_svg(&path_for_style).1.cloned(),
+                                        Style::color,
+                                    )
+                                })
                         })
                     },
-                    container_box(move || {
-                        let file_node = create_rw_signal(file_node);
-                        Box::new(file_node_view(
-                            file_node,
-                            data.clone(),
-                            proxy.clone(),
-                            level + 1,
-                            config,
-                        ))
+                    label(move || {
+                        node.path
+                            .file_name()
+                            .map(|f| f.to_string_lossy().to_string())
+                            .unwrap_or_default()
                     }),
                 )
             })
-            .style(|s| s.flex_col().min_width_pct(100.0))
+            .style(move |s| {
+                s.items_center()
+                    .padding_right_px(10.0)
+                    .padding_left_px((level * 10) as f32)
+                    .min_width_pct(100.0)
+            })
+            .hover_style(move |s| {
+                s.background(
+                    *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                )
+                .cursor(CursorStyle::Pointer)
+            })
+            .on_click(move |_| {
+                data.click(&click_path);
+                true
+            })
+            .on_double_click(move |_| {
+                double_click_data.double_click(&double_click_path)
+            })
+            .on_event(EventListener::PointerDown, move |event| {
+                if let Event::PointerDown(pointer_event) = event {
+                    if pointer_event.button.is_auxiliary() {
+                        aux_click_data.middle_click(&aux_click_path);
+                    }
+                }
+                true
+            })
         },
     )
     .style(|s| s.flex_col().min_width_pct(100.0))

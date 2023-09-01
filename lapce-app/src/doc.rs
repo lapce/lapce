@@ -107,7 +107,7 @@ pub struct DocHistory {
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum DocContent {
     /// A file at some location. This can be a remote path.
-    File(PathBuf),
+    File { path: PathBuf, read_only: bool },
     /// A local document, which doens't need to be sync to the disk.
     Local,
     /// A document of an old version in the source control
@@ -122,12 +122,12 @@ impl DocContent {
     }
 
     pub fn is_file(&self) -> bool {
-        matches!(self, DocContent::File(_))
+        matches!(self, DocContent::File { .. })
     }
 
     pub fn read_only(&self) -> bool {
         match self {
-            DocContent::File(_) => false,
+            DocContent::File { read_only, .. } => *read_only,
             DocContent::Local => false,
             DocContent::History(_) => true,
             DocContent::Scratch { .. } => false,
@@ -136,7 +136,7 @@ impl DocContent {
 
     pub fn path(&self) -> Option<&PathBuf> {
         match self {
-            DocContent::File(path) => Some(path),
+            DocContent::File { path, .. } => Some(path),
             DocContent::Local => None,
             DocContent::History(_) => None,
             DocContent::Scratch { .. } => None,
@@ -225,7 +225,10 @@ impl Document {
             diagnostics,
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
-            content: cx.create_rw_signal(DocContent::File(path)),
+            content: cx.create_rw_signal(DocContent::File {
+                path,
+                read_only: false,
+            }),
             loaded: cx.create_rw_signal(false),
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
@@ -406,13 +409,16 @@ impl Document {
         &self,
         edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
-    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
+    ) -> Option<(RopeDelta, InvalLines, SyntaxEdit)> {
+        if self.content.with_untracked(|c| c.read_only()) {
+            return None;
+        }
         let (delta, inval_lines, edits) = self
             .buffer
             .try_update(|buffer| buffer.edit(edits, edit_type))
             .unwrap();
         self.apply_deltas(&[(delta.clone(), inval_lines.clone(), edits.clone())]);
-        (delta, inval_lines, edits)
+        Some((delta, inval_lines, edits))
     }
 
     pub fn do_edit(
@@ -467,7 +473,7 @@ impl Document {
             self.update_diagnostics(delta);
             self.update_completion_lens(delta);
             self.update_find_result(delta);
-            if let DocContent::File(path) = self.content.get_untracked() {
+            if let DocContent::File { path, .. } = self.content.get_untracked() {
                 self.common
                     .proxy
                     .update(path, delta.clone(), rev + i as u64 + 1);
@@ -647,11 +653,12 @@ impl Document {
             return;
         }
 
-        let path = if let DocContent::File(path) = self.content.get_untracked() {
-            path
-        } else {
-            return;
-        };
+        let path =
+            if let DocContent::File { path, .. } = self.content.get_untracked() {
+                path
+            } else {
+                return;
+            };
 
         let (rev, len) = self.buffer.with_untracked(|b| (b.rev(), b.len()));
 
@@ -703,11 +710,12 @@ impl Document {
             return;
         }
 
-        let path = if let DocContent::File(path) = self.content.get_untracked() {
-            path
-        } else {
-            return;
-        };
+        let path =
+            if let DocContent::File { path, .. } = self.content.get_untracked() {
+                path
+            } else {
+                return;
+            };
 
         let (buffer, rev, len) = self
             .buffer
@@ -1128,7 +1136,7 @@ impl Document {
 
     /// Retrieve the `head` version of the buffer
     pub fn retrieve_head(&self) {
-        if let DocContent::File(path) = self.content.get_untracked() {
+        if let DocContent::File { path, .. } = self.content.get_untracked() {
             let histories = self.histories;
 
             let send = {
@@ -1536,7 +1544,7 @@ impl Document {
 
     pub fn save(&self, after_action: impl Fn() + 'static) {
         let content = self.content.get_untracked();
-        if let DocContent::File(path) = content {
+        if let DocContent::File { path, .. } = content {
             let rev = self.rev();
             let buffer = self.buffer;
             let send = create_ext_action(self.scope, move |result| {

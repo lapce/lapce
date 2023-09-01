@@ -299,6 +299,7 @@ pub enum ProxyResponse {
     },
     NewBufferResponse {
         content: String,
+        read_only: bool,
     },
     BufferHeadResponse {
         version: String,

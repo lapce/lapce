@@ -19,6 +19,7 @@ use lsp_types::*;
 #[derive(Clone)]
 pub struct Buffer {
     pub language_id: &'static str,
+    pub read_only: bool,
     pub id: BufferId,
     pub rope: Rope,
     pub path: PathBuf,
@@ -28,13 +29,18 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new(id: BufferId, path: PathBuf) -> Buffer {
-        let rope = Rope::from(load_file(&path).unwrap_or_default());
+        let (s, read_only) = match load_file(&path) {
+            Ok(s) => (s, false),
+            Err(_) => ("Not Supported".to_string(), true),
+        };
+        let rope = Rope::from(s);
         let rev = u64::from(!rope.is_empty());
         let language_id = language_id_from_path(&path).unwrap_or("");
         let mod_time = get_mod_time(&path);
         Buffer {
             id,
             rope,
+            read_only,
             path,
             language_id,
             rev,
@@ -43,6 +49,10 @@ impl Buffer {
     }
 
     pub fn save(&mut self, rev: u64) -> Result<()> {
+        if self.read_only {
+            return Err(anyhow!("can't save to read only file"));
+        }
+
         if self.rev != rev {
             return Err(anyhow!("not the right rev"));
         }
@@ -158,12 +168,10 @@ impl Buffer {
 }
 
 pub fn load_file(path: &Path) -> Result<String> {
-    Ok(read_path_to_string_lossy(path)?)
+    read_path_to_string(path)
 }
 
-pub fn read_path_to_string_lossy<P: AsRef<Path>>(
-    path: P,
-) -> Result<String, std::io::Error> {
+pub fn read_path_to_string<P: AsRef<Path>>(path: P) -> Result<String> {
     let path = path.as_ref();
 
     let mut file = File::open(path)?;
@@ -171,9 +179,8 @@ pub fn read_path_to_string_lossy<P: AsRef<Path>>(
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
 
-    // Parse the file contents as utf8, replacing non-utf8 data with the
-    // replacement character
-    let contents = String::from_utf8_lossy(&buffer);
+    // Parse the file contents as utf8
+    let contents = String::from_utf8(buffer)?;
 
     Ok(contents.to_string())
 }
