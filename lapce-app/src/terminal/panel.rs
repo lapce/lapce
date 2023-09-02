@@ -82,7 +82,7 @@ impl TerminalPanelData {
         &self,
         event: impl Into<EventRef<'a>> + Copy,
         keypress: &KeyPressData,
-    ) {
+    ) -> bool {
         if self.tab_info.with_untracked(|info| info.tabs.is_empty()) {
             self.new_tab(None);
         }
@@ -93,11 +93,16 @@ impl TerminalPanelData {
             let executed = keypress.key_down(event, &terminal);
             let mode = terminal.get_mode();
 
-            if let EventRef::Keyboard(key_event) = event.into() {
-                if !executed && mode == Mode::Terminal {
-                    terminal.send_keypress(key_event);
+            if !executed && mode == Mode::Terminal {
+                if let EventRef::Keyboard(key_event) = event.into() {
+                    if terminal.send_keypress(key_event) {
+                        return true;
+                    }
                 }
             }
+            executed
+        } else {
+            false
         }
     }
 

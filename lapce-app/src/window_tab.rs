@@ -12,7 +12,10 @@ use floem::{
 };
 use indexmap::IndexMap;
 use itertools::Itertools;
-use lapce_core::{directory::Directory, meta, mode::Mode, register::Register};
+use lapce_core::{
+    command::FocusCommand, directory::Directory, meta, mode::Mode,
+    register::Register,
+};
 use lapce_rpc::{
     core::CoreNotification,
     dap_types::RunDebugConfig,
@@ -50,7 +53,7 @@ use crate::{
     id::WindowTabId,
     keypress::{condition::Condition, EventRef, KeyPressData, KeyPressFocus},
     listener::Listener,
-    main_split::{MainSplitData, SplitData, SplitDirection},
+    main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
     palette::{kind::PaletteKind, PaletteData, PaletteStatus},
     panel::{
         data::{default_panel_order, PanelData},
@@ -173,11 +176,57 @@ impl KeyPressFocus for WindowTabData {
 
     fn run_command(
         &self,
-        _command: &LapceCommand,
+        command: &LapceCommand,
         _count: Option<usize>,
         _mods: ModifiersState,
     ) -> CommandExecuted {
-        CommandExecuted::No
+        match &command.kind {
+            CommandKind::Workbench(cmd) => {
+                self.run_workbench_command(cmd.clone(), None);
+            }
+            CommandKind::Focus(cmd) => {
+                if self.common.focus.get_untracked() == Focus::Workbench {
+                    match cmd {
+                        FocusCommand::SplitClose => {
+                            self.main_split.editor_tab_child_close_active();
+                        }
+                        FocusCommand::SplitVertical => {
+                            self.main_split.split_active(SplitDirection::Vertical);
+                        }
+                        FocusCommand::SplitHorizontal => {
+                            self.main_split.split_active(SplitDirection::Horizontal);
+                        }
+                        FocusCommand::SplitRight => {
+                            self.main_split
+                                .split_move_active(SplitMoveDirection::Right);
+                        }
+                        FocusCommand::SplitLeft => {
+                            self.main_split
+                                .split_move_active(SplitMoveDirection::Left);
+                        }
+                        FocusCommand::SplitUp => {
+                            self.main_split
+                                .split_move_active(SplitMoveDirection::Up);
+                        }
+                        FocusCommand::SplitDown => {
+                            self.main_split
+                                .split_move_active(SplitMoveDirection::Down);
+                        }
+                        FocusCommand::SplitExchange => {
+                            self.main_split.split_exchange_active();
+                        }
+                        _ => {
+                            return CommandExecuted::No;
+                        }
+                    }
+                }
+            }
+            _ => {
+                return CommandExecuted::No;
+            }
+        }
+
+        CommandExecuted::Yes
     }
 
     fn receive_char(&self, _c: &str) {}
@@ -217,8 +266,7 @@ impl WindowTabData {
         let lapce_command = Listener::new_empty(cx);
         let workbench_command = Listener::new_empty(cx);
         let internal_command = Listener::new_empty(cx);
-        let keypress =
-            cx.create_rw_signal(KeyPressData::new(cx, &config, workbench_command));
+        let keypress = cx.create_rw_signal(KeyPressData::new(cx, &config));
         let proxy_status = cx.create_rw_signal(None);
 
         let (term_tx, term_rx) = crossbeam_channel::unbounded();
@@ -1188,7 +1236,7 @@ impl WindowTabData {
                 direction,
                 editor_tab_id,
             } => {
-                self.main_split.split_move(cx, direction, editor_tab_id);
+                self.main_split.split_move(direction, editor_tab_id);
             }
             InternalCommand::SplitExchange { editor_tab_id } => {
                 self.main_split.split_exchange(editor_tab_id);
@@ -1512,53 +1560,43 @@ impl WindowTabData {
         }
     }
 
-    pub fn key_down<'a>(&self, event: impl Into<EventRef<'a>> + Copy) {
+    pub fn key_down<'a>(&self, event: impl Into<EventRef<'a>> + Copy) -> bool {
         if self.alert_data.active.get_untracked() {
-            return;
+            return false;
         }
         let focus = self.common.focus.get_untracked();
         let keypress = self.common.keypress.get_untracked();
         let executed = match focus {
-            Focus::Workbench => self.main_split.key_down(event, &keypress).is_some(),
-            Focus::Palette => {
-                keypress.key_down(event, &self.palette);
-                true
+            Focus::Workbench => {
+                self.main_split.key_down(event, &keypress) == Some(true)
             }
+            Focus::Palette => keypress.key_down(event, &self.palette),
             Focus::CodeAction => {
                 let code_action = self.code_action.get_untracked();
-                keypress.key_down(event, &code_action);
-                true
+                keypress.key_down(event, &code_action)
             }
-            Focus::Rename => {
-                keypress.key_down(event, &self.rename);
-                true
-            }
-            Focus::AboutPopup => {
-                keypress.key_down(event, &self.about_data);
-                true
-            }
+            Focus::Rename => keypress.key_down(event, &self.rename),
+            Focus::AboutPopup => keypress.key_down(event, &self.about_data),
             Focus::Panel(PanelKind::Terminal) => {
-                self.terminal.key_down(event, &keypress);
-                true
+                self.terminal.key_down(event, &keypress)
             }
             Focus::Panel(PanelKind::Search) => {
-                keypress.key_down(event, &self.global_search);
-                true
+                keypress.key_down(event, &self.global_search)
             }
             Focus::Panel(PanelKind::Plugin) => {
-                keypress.key_down(event, &self.plugin);
-                true
+                keypress.key_down(event, &self.plugin)
             }
             Focus::Panel(PanelKind::SourceControl) => {
-                keypress.key_down(event, &self.source_control);
-                true
+                keypress.key_down(event, &self.source_control)
             }
             _ => false,
         };
 
-        if !executed {
-            keypress.key_down(event, self);
+        if executed {
+            return true;
         }
+
+        keypress.key_down(event, self)
     }
 
     pub fn workspace_info(&self) -> WorkspaceInfo {

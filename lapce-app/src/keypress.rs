@@ -19,16 +19,12 @@ use tracing::{debug, error};
 
 use self::{key::KeyInput, keymap::KeyMap, loader::KeyMapLoader};
 use crate::{
-    command::{
-        lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand,
-        LapceWorkbenchCommand,
-    },
+    command::{lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand},
     config::LapceConfig,
     keypress::{
         condition::{CheckCondition, Condition},
         keymap::KeymapMatch,
     },
-    listener::Listener,
 };
 
 pub use self::press::KeyPress;
@@ -85,7 +81,6 @@ impl<'a> From<&'a PointerInputEvent> for EventRef<'a> {
 pub struct KeyPressData {
     count: RwSignal<Option<usize>>,
     pending_keypress: RwSignal<Vec<KeyPress>>,
-    workbench_cmd: Listener<LapceWorkbenchCommand>,
     pub commands: Rc<IndexMap<String, LapceCommand>>,
     pub keymaps: Rc<IndexMap<Vec<KeyPress>, Vec<KeyMap>>>,
     pub command_keymaps: Rc<IndexMap<String, Vec<KeyMap>>>,
@@ -94,11 +89,7 @@ pub struct KeyPressData {
 }
 
 impl KeyPressData {
-    pub fn new(
-        cx: Scope,
-        config: &LapceConfig,
-        workbench_cmd: Listener<LapceWorkbenchCommand>,
-    ) -> Self {
+    pub fn new(cx: Scope, config: &LapceConfig) -> Self {
         let (keymaps, command_keymaps) =
             Self::get_keymaps(config).unwrap_or((IndexMap::new(), IndexMap::new()));
         let mut keypress = Self {
@@ -109,7 +100,6 @@ impl KeyPressData {
             commands: Rc::new(lapce_internal_commands()),
             commands_with_keymap: Rc::new(Vec::new()),
             commands_without_keymap: Rc::new(Vec::new()),
-            workbench_cmd,
         };
         keypress.load_commands();
         keypress
@@ -182,19 +172,7 @@ impl KeyPressData {
         focus: &T,
     ) -> CommandExecuted {
         if let Some(cmd) = self.commands.get(command) {
-            match &cmd.kind {
-                CommandKind::Workbench(cmd) => {
-                    self.workbench_cmd.send(cmd.clone());
-                    CommandExecuted::Yes
-                }
-                CommandKind::Move(_)
-                | CommandKind::Edit(_)
-                | CommandKind::Focus(_)
-                | CommandKind::MotionMode(_)
-                | CommandKind::MultiSelection(_) => {
-                    focus.run_command(cmd, count, mods)
-                }
-            }
+            focus.run_command(cmd, count, mods)
         } else {
             CommandExecuted::No
         }
@@ -252,8 +230,8 @@ impl KeyPressData {
                     pending_keypress.clear();
                 });
                 let count = self.count.try_update(|count| count.take()).unwrap();
-                self.run_command(&command, count, mods, focus);
-                return true;
+                return self.run_command(&command, count, mods, focus)
+                    == CommandExecuted::Yes;
             }
             KeymapMatch::Multiple(commands) => {
                 self.pending_keypress.update(|pending_keypress| {
@@ -268,7 +246,7 @@ impl KeyPressData {
                     }
                 }
 
-                return true;
+                return false;
             }
             KeymapMatch::Prefix => {
                 // Here pending_keypress contains only a prefix of some keymap, so let's keep
@@ -287,8 +265,8 @@ impl KeyPressData {
                     {
                         if let Some(cmd) = self.commands.get(&command) {
                             if let CommandKind::Move(_) = cmd.kind {
-                                focus.run_command(cmd, None, mods);
-                                return true;
+                                return focus.run_command(cmd, None, mods)
+                                    == CommandExecuted::Yes;
                             }
                         }
                     }

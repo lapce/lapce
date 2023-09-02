@@ -282,7 +282,7 @@ impl WindowData {
         self.app_command.send(AppCommand::SaveApp);
     }
 
-    pub fn key_down<'a>(&self, event: impl Into<EventRef<'a>> + Copy) {
+    pub fn key_down<'a>(&self, event: impl Into<EventRef<'a>> + Copy) -> bool {
         let active = self.active.get_untracked();
         let window_tab = self.window_tabs.with_untracked(|window_tabs| {
             window_tabs
@@ -291,7 +291,9 @@ impl WindowData {
                 .cloned()
         });
         if let Some((_, window_tab)) = window_tab {
-            window_tab.key_down(event);
+            window_tab.key_down(event)
+        } else {
+            false
         }
     }
 

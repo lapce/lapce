@@ -380,9 +380,12 @@ impl TerminalData {
         raw
     }
 
-    pub fn send_keypress(&self, key: &KeyEvent) {
+    pub fn send_keypress(&self, key: &KeyEvent) -> bool {
         if let Some(command) = Self::resolve_key_event(key) {
             self.receive_char(command);
+            true
+        } else {
+            false
         }
     }
 

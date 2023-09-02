@@ -46,16 +46,13 @@ impl KeyPressFocus for SourceControlData {
         mods: ModifiersState,
     ) -> CommandExecuted {
         match &command.kind {
-            CommandKind::Workbench(_) => {}
-            CommandKind::Focus(_) => {}
             CommandKind::Edit(_)
             | CommandKind::Move(_)
             | CommandKind::MultiSelection(_) => {
-                self.editor.run_command(command, count, mods);
+                self.editor.run_command(command, count, mods)
             }
-            CommandKind::MotionMode(_) => {}
+            _ => CommandExecuted::No,
         }
-        CommandExecuted::Yes
     }
 
     fn receive_char(&self, c: &str) {

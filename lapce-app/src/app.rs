@@ -406,52 +406,55 @@ impl AppData {
         let app_command = window_data.app_command;
         // The KeyDown and PointerDown event handlers both need ownership of a WindowData object.
         let key_down_window_data = window_data.clone();
-        stack(|| {
+        let view = stack(|| {
             (
                 workspace_tab_header(window_data.clone()),
                 window(window_data.clone()),
             )
         })
-        .style(|s| s.flex_col().size_pct(100.0, 100.0))
-        .window_scale(move || window_scale.get())
-        .keyboard_navigatable()
-        .on_event(EventListener::KeyDown, move |event| {
-            if let Event::KeyDown(key_event) = event {
-                key_down_window_data.key_down(key_event);
+        .style(|s| s.flex_col().size_pct(100.0, 100.0));
+        let view_id = view.id();
+        view.window_scale(move || window_scale.get())
+            .keyboard_navigatable()
+            .on_event(EventListener::KeyDown, move |event| {
+                if let Event::KeyDown(key_event) = event {
+                    if key_down_window_data.key_down(key_event) {
+                        view_id.request_focus();
+                    }
+                    true
+                } else {
+                    false
+                }
+            })
+            .on_event(EventListener::PointerDown, move |event| {
+                if let Event::PointerDown(pointer_event) = event {
+                    window_data.key_down(pointer_event);
+                    true
+                } else {
+                    false
+                }
+            })
+            .on_event(EventListener::WindowResized, move |event| {
+                if let Event::WindowResized(size) = event {
+                    window_size.set(*size);
+                }
                 true
-            } else {
-                false
-            }
-        })
-        .on_event(EventListener::PointerDown, move |event| {
-            if let Event::PointerDown(pointer_event) = event {
-                window_data.key_down(pointer_event);
+            })
+            .on_event(EventListener::WindowMoved, move |event| {
+                if let Event::WindowMoved(point) = event {
+                    position.set(*point);
+                }
                 true
-            } else {
-                false
-            }
-        })
-        .on_event(EventListener::WindowResized, move |event| {
-            if let Event::WindowResized(size) = event {
-                window_size.set(*size);
-            }
-            true
-        })
-        .on_event(EventListener::WindowMoved, move |event| {
-            if let Event::WindowMoved(point) = event {
-                position.set(*point);
-            }
-            true
-        })
-        .on_event(EventListener::WindowGotFocus, move |_| {
-            app_command.send(AppCommand::WindowGotFocus(window_id));
-            true
-        })
-        .on_event(EventListener::WindowClosed, move |_| {
-            println!("window closed");
-            app_command.send(AppCommand::WindowClosed(window_id));
-            true
-        })
+            })
+            .on_event(EventListener::WindowGotFocus, move |_| {
+                app_command.send(AppCommand::WindowGotFocus(window_id));
+                true
+            })
+            .on_event(EventListener::WindowClosed, move |_| {
+                println!("window closed");
+                app_command.send(AppCommand::WindowClosed(window_id));
+                true
+            })
     }
 }
 
@@ -2416,23 +2419,39 @@ fn window_message_view(
                     .border_radius(6.0)
                     .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                     .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+                    .apply_if(i > 0, |s| s.margin_top_px(10.0))
             })
         };
 
     let id = AtomicU64::new(0);
     container(|| {
         container(|| {
-            scroll(|| {
-                list(
-                    move || messages.get().into_iter().enumerate(),
-                    move |_| id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-                    view_fn,
-                )
-                .style(|s| s.flex_col().width_pct(100.0))
+            container(|| {
+                scroll(|| {
+                    list(
+                        move || messages.get().into_iter().enumerate(),
+                        move |_| {
+                            id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                        },
+                        view_fn,
+                    )
+                    .style(|s| s.flex_col().width_pct(100.0))
+                })
+                .style(|s| {
+                    s.absolute()
+                        .width_pct(100.0)
+                        .min_height_px(0.0)
+                        .max_height_pct(100.0)
+                })
             })
             .style(|s| s.size_pct(100.0, 100.0))
         })
-        .style(|s| s.width_px(360.0).max_width_pct(80.0).padding_px(10.0))
+        .style(|s| {
+            s.width_px(360.0)
+                .max_width_pct(80.0)
+                .padding_px(10.0)
+                .height_pct(100.0)
+        })
     })
     .style(|s| s.absolute().size_pct(100.0, 100.0).justify_end())
 }

@@ -494,6 +494,8 @@ impl EditorData {
                         direction: SplitDirection::Vertical,
                         editor_tab_id,
                     });
+                } else {
+                    return CommandExecuted::No;
                 }
             }
             FocusCommand::SplitHorizontal => {
@@ -509,6 +511,8 @@ impl EditorData {
                         direction: SplitDirection::Horizontal,
                         editor_tab_id,
                     });
+                } else {
+                    return CommandExecuted::No;
                 }
             }
             FocusCommand::SplitRight => {
@@ -528,6 +532,8 @@ impl EditorData {
                             direction: SplitMoveDirection::Right,
                             editor_tab_id,
                         });
+                } else {
+                    return CommandExecuted::No;
                 }
             }
             FocusCommand::SplitLeft => {
@@ -547,6 +553,8 @@ impl EditorData {
                             direction: SplitMoveDirection::Left,
                             editor_tab_id,
                         });
+                } else {
+                    return CommandExecuted::No;
                 }
             }
             FocusCommand::SplitUp => {
@@ -566,6 +574,8 @@ impl EditorData {
                             direction: SplitMoveDirection::Up,
                             editor_tab_id,
                         });
+                } else {
+                    return CommandExecuted::No;
                 }
             }
             FocusCommand::SplitDown => {
@@ -585,6 +595,8 @@ impl EditorData {
                             direction: SplitMoveDirection::Down,
                             editor_tab_id,
                         });
+                } else {
+                    return CommandExecuted::No;
                 }
             }
             FocusCommand::SplitExchange => {
@@ -598,6 +610,8 @@ impl EditorData {
                     self.common
                         .internal_command
                         .send(InternalCommand::SplitExchange { editor_tab_id });
+                } else {
+                    return CommandExecuted::No;
                 }
             }
             FocusCommand::SplitClose => {
@@ -617,6 +631,8 @@ impl EditorData {
                             child: EditorTabChild::DiffEditor(diff_editor_id),
                         },
                     );
+                } else {
+                    return CommandExecuted::No;
                 }
             }
             FocusCommand::PageUp => {

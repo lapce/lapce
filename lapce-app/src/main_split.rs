@@ -313,7 +313,7 @@ impl MainSplitData {
         &self,
         event: impl Into<EventRef<'a>>,
         keypress: &KeyPressData,
-    ) -> Option<()> {
+    ) -> Option<bool> {
         let active_editor_tab = self.active_editor_tab.get_untracked()?;
         let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
             editor_tabs.get(&active_editor_tab).copied()
@@ -326,8 +326,9 @@ impl MainSplitData {
                 let editor = self
                     .editors
                     .with_untracked(|editors| editors.get(&editor_id).cloned())?;
-                keypress.key_down(event, &*editor);
+                let proccesed = keypress.key_down(event, &*editor);
                 editor.get_code_actions();
+                Some(proccesed)
             }
             EditorTabChild::DiffEditor(diff_editor_id) => {
                 let diff_editor =
@@ -339,17 +340,13 @@ impl MainSplitData {
                 } else {
                     diff_editor.left
                 };
-                keypress.key_down(event, &*editor);
+                let processed = keypress.key_down(event, &*editor);
                 editor.get_code_actions();
+                Some(processed)
             }
-            EditorTabChild::Settings(_) => {
-                return None;
-            }
-            EditorTabChild::Keymap(_) => {
-                return None;
-            }
+            EditorTabChild::Settings(_) => None,
+            EditorTabChild::Keymap(_) => None,
         }
-        Some(())
     }
 
     fn save_current_jump_location(&self) -> bool {
@@ -1322,7 +1319,6 @@ impl MainSplitData {
 
     pub fn split_move(
         &self,
-        _cx: Scope,
         direction: SplitMoveDirection,
         editor_tab_id: EditorTabId,
     ) -> Option<()> {
@@ -1632,6 +1628,36 @@ impl MainSplitData {
             EditorTabChild::Settings(_) => None,
             EditorTabChild::Keymap(_) => None,
         }
+    }
+
+    pub fn split_exchange_active(&self) -> Option<()> {
+        let active_editor_tab = self.active_editor_tab.get_untracked()?;
+        self.split_exchange(active_editor_tab)?;
+        Some(())
+    }
+
+    pub fn split_move_active(&self, direction: SplitMoveDirection) -> Option<()> {
+        let active_editor_tab = self.active_editor_tab.get_untracked()?;
+        self.split_move(direction, active_editor_tab)?;
+        Some(())
+    }
+
+    pub fn split_active(&self, direction: SplitDirection) -> Option<()> {
+        let active_editor_tab = self.active_editor_tab.get_untracked()?;
+        self.split(direction, active_editor_tab)?;
+        Some(())
+    }
+
+    pub fn editor_tab_child_close_active(&self) -> Option<()> {
+        let active_editor_tab = self.active_editor_tab.get_untracked()?;
+        let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
+            editor_tabs.get(&active_editor_tab).copied()
+        })?;
+        let (_, _, child) = editor_tab.with_untracked(|editor_tab| {
+            editor_tab.children.get(editor_tab.active).cloned()
+        })?;
+        self.editor_tab_child_close(active_editor_tab, child, false);
+        Some(())
     }
 
     pub fn editor_tab_child_close(
