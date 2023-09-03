@@ -20,12 +20,14 @@ use crate::{
     },
     word::{get_char_property, CharClassification},
 };
+
 fn format_start_end(
     buffer: &Buffer,
     start: usize,
     end: usize,
     is_vertical: bool,
     first_non_blank: bool,
+    count: usize,
 ) -> (usize, usize) {
     if is_vertical {
         let start_line = buffer.line_of_offset(start.min(end));
@@ -35,7 +37,7 @@ fn format_start_end(
         } else {
             buffer.offset_of_line(start_line)
         };
-        let end = buffer.offset_of_line(end_line + 1);
+        let end = buffer.offset_of_line(end_line + count);
         (start, end)
     } else {
         let s = start.min(end);
@@ -435,9 +437,8 @@ impl Editor {
         let mut deltas = Vec::new();
         match motion_mode {
             MotionMode::Delete { count } => {
-                let start_line = buffer.line_of_offset(start.min(end));
-                let start = buffer.offset_of_line(start_line);
-                let end = buffer.offset_of_line(start_line + count);
+                let (start, end) =
+                    format_start_end(buffer, start, end, is_vertical, false, count);
                 register.add(
                     RegisterKind::Delete,
                     RegisterData {
@@ -456,9 +457,8 @@ impl Editor {
                 deltas.push((delta, inval_lines, edits));
             }
             MotionMode::Yank { count } => {
-                let start_line = buffer.line_of_offset(start.min(end));
-                let start = buffer.offset_of_line(start_line);
-                let end = buffer.offset_of_line(start_line + count);
+                let (start, end) =
+                    format_start_end(buffer, start, end, is_vertical, false, count);
                 register.add(
                     RegisterKind::Yank,
                     RegisterData {
@@ -1254,6 +1254,7 @@ impl Editor {
                     selection.max_offset(),
                     true,
                     true,
+                    1,
                 );
                 let selection = Selection::region(start, end);
                 let (delta, inval_lines, edits) =
@@ -1401,6 +1402,7 @@ impl Editor {
                     selection.max_offset(),
                     true,
                     true,
+                    1,
                 );
                 let selection = Selection::region(start, end - 1); // -1 because we want to keep the line itself
                 let (delta, inval_lines, edits) =
