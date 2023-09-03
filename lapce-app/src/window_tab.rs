@@ -166,12 +166,16 @@ impl KeyPressFocus for WindowTabData {
     }
 
     fn check_condition(&self, condition: Condition) -> bool {
-        if let Condition::PanelFocus = condition {
-            if let Focus::Panel(_) = self.common.focus.get_untracked() {
-                return true;
+        match condition {
+            Condition::PanelFocus => {
+                matches!(self.common.focus.get_untracked(), Focus::Panel(_))
             }
+            Condition::SourceControlFocus => {
+                self.common.focus.get_untracked()
+                    == Focus::Panel(PanelKind::SourceControl)
+            }
+            _ => false,
         }
-        false
     }
 
     fn run_command(
@@ -1170,7 +1174,9 @@ impl WindowTabData {
                 self.main_split.next_error();
             }
             PreviousError => {}
-            Quit => {}
+            Quit => {
+                floem::quit_app();
+            }
         }
     }
 

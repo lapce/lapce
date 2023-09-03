@@ -234,7 +234,6 @@ impl AppData {
                 floem::close_window(window_id);
             }
             AppCommand::NewWindow => {
-                println!("run new window");
                 self.new_window();
             }
             AppCommand::WindowGotFocus(window_id) => {
@@ -451,7 +450,6 @@ impl AppData {
                 true
             })
             .on_event(EventListener::WindowClosed, move |_| {
-                println!("window closed");
                 app_command.send(AppCommand::WindowClosed(window_id));
                 true
             })
