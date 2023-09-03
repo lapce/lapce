@@ -1,8 +1,10 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::{
-    event::EventListener,
-    reactive::{create_rw_signal, ReadSignal},
+    event::{Event, EventListener},
+    kurbo::Point,
+    reactive::{create_rw_signal, ReadSignal, RwSignal},
+    style::CursorStyle,
     view::View,
     views::{container, container_box, empty, label, list, stack, tab, Decorators},
 };
@@ -80,6 +82,93 @@ pub fn panel_container_view(
         }
     };
 
+    let resize_drag_view = {
+        let panel = panel.clone();
+        let panel_size = panel.size;
+        move |position: PanelContainerPosition| {
+            panel.panel_info();
+            let view = empty();
+            let view_id = view.id();
+            let drag_start: RwSignal<Option<Point>> = create_rw_signal(None);
+            view.on_event(EventListener::PointerDown, move |event| {
+                view_id.request_active();
+                if let Event::PointerDown(pointer_event) = event {
+                    drag_start.set(Some(pointer_event.pos));
+                }
+                true
+            })
+            .on_event(EventListener::PointerMove, move |event| {
+                if let Event::PointerMove(pointer_event) = event {
+                    if let Some(drag_start_point) = drag_start.get_untracked() {
+                        match position {
+                            PanelContainerPosition::Left => {
+                                panel_size.update(|size| {
+                                    size.left +=
+                                        pointer_event.pos.x - drag_start_point.x;
+                                })
+                            }
+                            PanelContainerPosition::Bottom => {
+                                panel_size.update(|size| {
+                                    size.bottom -=
+                                        pointer_event.pos.y - drag_start_point.y;
+                                })
+                            }
+                            PanelContainerPosition::Right => {
+                                panel_size.update(|size| {
+                                    size.right -=
+                                        pointer_event.pos.x - drag_start_point.x;
+                                })
+                            }
+                        }
+                    }
+                }
+                true
+            })
+            .on_event(EventListener::PointerUp, move |_| {
+                drag_start.set(None);
+                true
+            })
+            .style(move |s| {
+                let panel_size = panel_size.get();
+                let is_dragging = drag_start.get().is_some();
+                s.absolute()
+                    .apply_if(position == PanelContainerPosition::Bottom, |s| {
+                        s.width_pct(100.0).height_px(4.0).margin_top_px(-2.0)
+                    })
+                    .apply_if(position == PanelContainerPosition::Left, |s| {
+                        s.width_px(4.0)
+                            .margin_left_px(panel_size.left as f32 - 2.0)
+                            .height_pct(100.0)
+                    })
+                    .apply_if(position == PanelContainerPosition::Right, |s| {
+                        s.width_px(4.0).margin_left_px(-2.0).height_pct(100.0)
+                    })
+                    .apply_if(is_dragging, |s| {
+                        s.background(
+                            *config.get().get_color(LapceColor::EDITOR_CARET),
+                        )
+                        .apply_if(position == PanelContainerPosition::Bottom, |s| {
+                            s.cursor(CursorStyle::RowResize)
+                        })
+                        .apply_if(position != PanelContainerPosition::Bottom, |s| {
+                            s.cursor(CursorStyle::ColResize)
+                        })
+                        .z_index(2)
+                    })
+            })
+            .hover_style(move |s| {
+                s.background(*config.get().get_color(LapceColor::EDITOR_CARET))
+                    .apply_if(position == PanelContainerPosition::Bottom, |s| {
+                        s.cursor(CursorStyle::RowResize)
+                    })
+                    .apply_if(position != PanelContainerPosition::Bottom, |s| {
+                        s.cursor(CursorStyle::ColResize)
+                    })
+                    .z_index(2)
+            })
+        }
+    };
+
     let is_bottom = position.is_bottom();
     stack(|| {
         (
@@ -87,6 +176,7 @@ pub fn panel_container_view(
             panel_view(window_tab_data.clone(), position.first()),
             panel_view(window_tab_data.clone(), position.second()),
             panel_picker(window_tab_data.clone(), position.second()),
+            resize_drag_view(position),
             stack(move || {
                 (drop_view(position.first()), drop_view(position.second()))
             })
@@ -109,19 +199,23 @@ pub fn panel_container_view(
             .apply_if(position == PanelContainerPosition::Bottom, |s| {
                 s.width_pct(100.0)
                     .apply_if(!is_maximized, |s| {
-                        s.border_top(1.0).height_px(size as f32)
+                        s.border_top(1.0)
+                            .height_px(size as f32)
+                            .max_height_pct(100.0)
                     })
                     .apply_if(is_maximized, |s| s.flex_grow(1.0))
             })
             .apply_if(position == PanelContainerPosition::Left, |s| {
                 s.border_right(1.0)
                     .width_px(size as f32)
+                    .max_width_pct(100.0)
                     .height_pct(100.0)
                     .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             })
             .apply_if(position == PanelContainerPosition::Right, |s| {
                 s.border_left(1.0)
                     .width_px(size as f32)
+                    .max_width_pct(100.0)
                     .height_pct(100.0)
                     .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             })

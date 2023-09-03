@@ -220,6 +220,10 @@ impl AppData {
                 if self.app_terminated.get_untracked() {
                     return;
                 }
+                let db: Arc<LapceDb> = use_context().unwrap();
+                if self.windows.with_untracked(|w| w.len()) == 1 {
+                    let _ = db.insert_app(self.clone());
+                }
                 let window_data = self
                     .windows
                     .try_update(|windows| windows.remove(&window_id))
@@ -227,7 +231,6 @@ impl AppData {
                 if let Some(window_data) = window_data {
                     window_data.scope.dispose();
                 }
-                let db: Arc<LapceDb> = use_context().unwrap();
                 let _ = db.save_app(self);
             }
             AppCommand::CloseWindow(window_id) => {
