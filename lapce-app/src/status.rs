@@ -28,6 +28,7 @@ pub fn status(
     window_tab_data: Rc<WindowTabData>,
     source_control: SourceControlData,
     workbench_command: Listener<LapceWorkbenchCommand>,
+    status_height: RwSignal<f64>,
     _config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let config = window_tab_data.common.config;
@@ -406,6 +407,12 @@ pub fn status(
                     .justify_end()
             }),
         )
+    })
+    .on_resize(move |rect| {
+        let height = rect.height();
+        if height != status_height.get_untracked() {
+            status_height.set(height);
+        }
     })
     .style(move |s| {
         let config = config.get();

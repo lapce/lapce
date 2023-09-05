@@ -220,6 +220,10 @@ impl AppData {
                 if self.app_terminated.get_untracked() {
                     return;
                 }
+                let db: Arc<LapceDb> = use_context().unwrap();
+                if self.windows.with_untracked(|w| w.len()) == 1 {
+                    let _ = db.insert_app(self.clone());
+                }
                 let window_data = self
                     .windows
                     .try_update(|windows| windows.remove(&window_id))
@@ -227,7 +231,6 @@ impl AppData {
                 if let Some(window_data) = window_data {
                     window_data.scope.dispose();
                 }
-                let db: Arc<LapceDb> = use_context().unwrap();
                 let _ = db.save_app(self);
             }
             AppCommand::CloseWindow(window_id) => {
@@ -1506,7 +1509,7 @@ fn split_list(
                     }
                 }
             })
-            .style(move |s| s.flex_grow(1.0).flex_basis(Dimension::Points(1.0)))
+            .style(move |s| s.flex_grow(1.0).flex_basis_px(0.0))
     };
     container_box(move || {
         Box::new(
@@ -1565,7 +1568,9 @@ fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
         s.border_color(*config.get_color(LapceColor::LAPCE_BORDER))
             .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
             .apply_if(is_hidden, |s| s.display(Display::None))
+            .width_pct(100.0)
             .flex_grow(1.0)
+            .flex_basis_px(0.0)
     })
 }
 
@@ -1621,6 +1626,8 @@ pub fn clickable_icon(
 }
 
 fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
+    let workbench_size = window_tab_data.common.workbench_size;
+    let main_split_width = window_tab_data.main_split.width;
     stack(move || {
         (
             panel_container_view(
@@ -1638,6 +1645,12 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
                         ),
                     )
                 })
+                .on_resize(move |rect| {
+                    let width = rect.size().width;
+                    if main_split_width.get_untracked() != width {
+                        main_split_width.set(width);
+                    }
+                })
                 .style(|s| s.flex_col().size_pct(100.0, 100.0))
             },
             panel_container_view(
@@ -1650,7 +1663,13 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
             ),
         )
     })
-    .style(|s| s.size_pct(100.0, 100.0))
+    .on_resize(move |rect| {
+        let size = rect.size();
+        if size != workbench_size.get_untracked() {
+            workbench_size.set(size);
+        }
+    })
+    .style(move |s| s.size_pct(100.0, 100.0))
 }
 
 fn palette_item(
@@ -2788,6 +2807,8 @@ fn window_tab(window_tab_data: Rc<WindowTabData>) -> impl View {
     let proxy_status = window_tab_data.common.proxy_status;
     let num_window_tabs = window_tab_data.num_window_tabs;
     let hover_active = window_tab_data.common.hover.active;
+    let title_height = window_tab_data.title_height;
+    let status_height = window_tab_data.status_height;
 
     let view = stack(|| {
         (
@@ -2796,18 +2817,18 @@ fn window_tab(window_tab_data: Rc<WindowTabData>) -> impl View {
                     title(
                         workspace,
                         main_split,
-                        workbench_command,
                         latest_release,
                         update_in_progress,
-                        config,
                         proxy_status,
                         num_window_tabs,
+                        title_height,
                     ),
                     workbench(window_tab_data.clone()),
                     status(
                         window_tab_data.clone(),
                         source_control,
                         workbench_command,
+                        status_height,
                         config,
                     ),
                 )
@@ -2869,6 +2890,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
     let tabs = window_data.window_tabs;
     let active = window_data.active;
     let config = window_data.config;
+    let window_tab_header_height = window_data.window_tab_header_height;
     let available_width = create_rw_signal(0.0);
     let add_icon_width = create_rw_signal(0.0);
 
@@ -3127,6 +3149,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
         if rect.width() != current {
             available_width.set(rect.width());
         }
+        window_tab_header_height.set(rect.height());
     })
     .style(move |s| {
         let config = config.get();

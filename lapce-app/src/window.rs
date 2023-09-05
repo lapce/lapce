@@ -49,6 +49,7 @@ pub struct WindowData {
     pub window_command: Listener<WindowCommand>,
     pub app_command: Listener<AppCommand>,
     pub size: RwSignal<Size>,
+    pub window_tab_header_height: RwSignal<f64>,
     pub position: RwSignal<Point>,
     pub root_view_id: RwSignal<floem::id::Id>,
     pub window_scale: RwSignal<f64>,
@@ -75,10 +76,10 @@ impl WindowData {
         let num_window_tabs =
             cx.create_memo(move |_| window_tabs.with(|tabs| tabs.len()));
         let active = info.tabs.active_tab;
-
         let window_command = Listener::new_empty(cx);
-
         let ime_allowed = cx.create_rw_signal(false);
+        let size = cx.create_rw_signal(Size::ZERO);
+        let window_tab_header_height = cx.create_rw_signal(0.0);
 
         for w in info.tabs.workspaces {
             let window_tab = Rc::new(WindowTabData::new(
@@ -87,7 +88,9 @@ impl WindowData {
                 window_command,
                 window_scale,
                 latest_release,
+                size,
                 num_window_tabs,
+                window_tab_header_height,
                 ime_allowed,
             ));
             window_tabs.update(|window_tabs| {
@@ -102,7 +105,9 @@ impl WindowData {
                 window_command,
                 window_scale,
                 latest_release,
+                size,
                 num_window_tabs,
+                window_tab_header_height,
                 ime_allowed,
             ));
             window_tabs.update(|window_tabs| {
@@ -111,7 +116,6 @@ impl WindowData {
         }
 
         let active = cx.create_rw_signal(active);
-        let size = cx.create_rw_signal(Size::ZERO);
         let position = cx.create_rw_signal(info.pos);
 
         let window_data = Self {
@@ -122,6 +126,7 @@ impl WindowData {
             active,
             window_command,
             size,
+            window_tab_header_height,
             position,
             root_view_id,
             window_scale,
@@ -171,7 +176,9 @@ impl WindowData {
                     self.window_command,
                     self.window_scale,
                     self.latest_release,
+                    self.size,
                     self.num_window_tabs,
+                    self.window_tab_header_height,
                     self.ime_allowed,
                 ));
                 self.window_tabs.update(|window_tabs| {
@@ -198,7 +205,9 @@ impl WindowData {
                     self.window_command,
                     self.window_scale,
                     self.latest_release,
+                    self.size,
                     self.num_window_tabs,
+                    self.window_tab_header_height,
                     self.ime_allowed,
                 ));
                 let active = self.active.get_untracked();

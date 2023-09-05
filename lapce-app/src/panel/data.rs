@@ -1,6 +1,9 @@
 use std::{rc::Rc, sync::Arc};
 
-use floem::reactive::{use_context, RwSignal, Scope};
+use floem::{
+    kurbo::Size,
+    reactive::{use_context, Memo, RwSignal, Scope},
+};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -56,6 +59,7 @@ pub struct PanelData {
     pub panels: RwSignal<PanelOrder>,
     pub styles: RwSignal<im::HashMap<PanelPosition, PanelStyle>>,
     pub size: RwSignal<PanelSize>,
+    pub available_size: Memo<Size>,
     pub common: Rc<CommonData>,
 }
 
@@ -63,6 +67,7 @@ impl PanelData {
     pub fn new(
         cx: Scope,
         panels: im::HashMap<PanelPosition, im::Vector<PanelKind>>,
+        available_size: Memo<Size>,
         common: Rc<CommonData>,
     ) -> Self {
         let panels = cx.create_rw_signal(panels);
@@ -130,6 +135,7 @@ impl PanelData {
             panels,
             styles,
             size,
+            available_size,
             common,
         }
     }

@@ -7,6 +7,7 @@ use floem::{
     ext_event::{create_ext_action, create_signal_from_channel},
     file::FileDialogOptions,
     keyboard::ModifiersState,
+    kurbo::Size,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
 };
@@ -112,6 +113,7 @@ pub struct CommonData {
     pub hover: HoverData,
     pub register: RwSignal<Register>,
     pub find: Find,
+    pub workbench_size: RwSignal<Size>,
     pub window_origin: RwSignal<Point>,
     pub window_command: Listener<WindowCommand>,
     pub internal_command: Listener<InternalCommand>,
@@ -149,6 +151,8 @@ pub struct WindowTabData {
     pub about_data: AboutData,
     pub alert_data: AlertBoxData,
     pub layout_rect: RwSignal<Rect>,
+    pub title_height: RwSignal<f64>,
+    pub status_height: RwSignal<f64>,
     pub proxy: ProxyData,
     pub window_scale: RwSignal<f64>,
     pub set_config: WriteSignal<Arc<LapceConfig>>,
@@ -237,13 +241,16 @@ impl KeyPressFocus for WindowTabData {
 }
 
 impl WindowTabData {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         cx: Scope,
         workspace: Arc<LapceWorkspace>,
         window_command: Listener<WindowCommand>,
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
+        window_size: RwSignal<Size>,
         num_window_tabs: Memo<usize>,
+        window_tab_header_height: RwSignal<f64>,
         ime_allowed: RwSignal<bool>,
     ) -> Self {
         let cx = cx.create_child();
@@ -333,6 +340,7 @@ impl WindowTabData {
             view_id,
             ui_line_height,
             dragging: cx.create_rw_signal(None),
+            workbench_size: cx.create_rw_signal(Size::ZERO),
             config,
             proxy_status,
             cursor_blink_timer: cx.create_rw_signal(TimerToken::INVALID),
@@ -380,6 +388,25 @@ impl WindowTabData {
             common.clone(),
         );
 
+        let title_height = cx.create_rw_signal(0.0);
+        let status_height = cx.create_rw_signal(0.0);
+        let panel_available_size = cx.create_memo(move |_| {
+            let title_height = title_height.get();
+            let status_height = status_height.get();
+            let num_window_tabs = num_window_tabs.get();
+            let window_size = window_size.get();
+            Size::new(
+                window_size.width,
+                window_size.height
+                    - title_height
+                    - status_height
+                    - if num_window_tabs > 1 {
+                        window_tab_header_height.get()
+                    } else {
+                        0.0
+                    },
+            )
+        });
         let panel = workspace_info
             .as_ref()
             .map(|i| {
@@ -390,6 +417,7 @@ impl WindowTabData {
                     panels: cx.create_rw_signal(panel_order),
                     styles: cx.create_rw_signal(i.panel.styles.clone()),
                     size: cx.create_rw_signal(i.panel.size.clone()),
+                    available_size: panel_available_size,
                     common: common.clone(),
                 }
             })
@@ -397,7 +425,7 @@ impl WindowTabData {
                 let panel_order = db
                     .get_panel_orders()
                     .unwrap_or_else(|_| default_panel_order());
-                PanelData::new(cx, panel_order, common.clone())
+                PanelData::new(cx, panel_order, panel_available_size, common.clone())
             });
 
         let terminal =
@@ -452,6 +480,8 @@ impl WindowTabData {
             about_data,
             alert_data,
             layout_rect: cx.create_rw_signal(Rect::ZERO),
+            title_height,
+            status_height,
             proxy,
             window_scale,
             set_config,

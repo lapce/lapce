@@ -365,13 +365,14 @@ fn right(
 pub fn title(
     workspace: Arc<LapceWorkspace>,
     main_split: MainSplitData,
-    workbench_command: Listener<LapceWorkbenchCommand>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     update_in_progress: RwSignal<bool>,
-    config: ReadSignal<Arc<LapceConfig>>,
     proxy_status: RwSignal<Option<ProxyStatus>>,
     num_window_tabs: Memo<usize>,
+    title_height: RwSignal<f64>,
 ) -> impl View {
+    let workbench_command = main_split.common.workbench_command;
+    let config = main_split.common.config;
     handle_titlebar_area(|| {
         stack(move || {
             (
@@ -390,6 +391,12 @@ pub fn title(
                     config,
                 ),
             )
+        })
+        .on_resize(move |rect| {
+            let height = rect.height();
+            if height != title_height.get_untracked() {
+                title_height.set(height);
+            }
         })
         .style(move |s| {
             let config = config.get();
