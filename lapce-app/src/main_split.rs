@@ -228,6 +228,7 @@ pub struct MainSplitData {
     pub replace_editor: EditorData,
     pub locations: RwSignal<im::Vector<EditorLocation>>,
     pub current_location: RwSignal<usize>,
+    pub width: RwSignal<f64>,
     pub common: Rc<CommonData>,
 }
 
@@ -305,6 +306,7 @@ impl MainSplitData {
             diagnostics,
             locations,
             current_location,
+            width: cx.create_rw_signal(0.0),
             common,
         }
     }
