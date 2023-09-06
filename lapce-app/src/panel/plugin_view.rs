@@ -65,40 +65,28 @@ pub fn plugin_panel(
     let config = window_tab_data.common.config;
     let plugin = window_tab_data.plugin.clone();
 
-    stack(move || {
-        (
-            {
-                let plugin = plugin.clone();
-                stack(move || {
-                    (
-                        panel_header("Installed".to_string(), config),
-                        installed_view(plugin),
-                    )
-                })
-                .style(|s| {
-                    s.flex_col()
-                        .width_pct(100.0)
-                        .flex_grow(1.0)
-                        .flex_basis_px(0.0)
-                })
-            },
-            {
-                let plugin = plugin.clone();
-                stack(move || {
-                    (
-                        panel_header("Available".to_string(), config),
-                        available_view(plugin),
-                    )
-                })
-                .style(|s| {
-                    s.flex_col()
-                        .width_pct(100.0)
-                        .flex_grow(1.0)
-                        .flex_basis_px(0.0)
-                })
-            },
-        )
-    })
+    stack((
+        stack((
+            panel_header("Installed".to_string(), config),
+            installed_view(plugin.clone()),
+        ))
+        .style(|s| {
+            s.flex_col()
+                .width_pct(100.0)
+                .flex_grow(1.0)
+                .flex_basis_px(0.0)
+        }),
+        stack((
+            panel_header("Available".to_string(), config),
+            available_view(plugin.clone()),
+        ))
+        .style(|s| {
+            s.flex_col()
+                .width_pct(100.0)
+                .flex_grow(1.0)
+                .flex_basis_px(0.0)
+        }),
+    ))
     .style(move |s| {
         s.width_pct(100.0)
             .apply_if(!position.is_bottom(), |s| s.flex_col())
@@ -190,81 +178,64 @@ fn installed_view(plugin: PluginData) -> impl View {
         let meta = volt.meta.get_untracked();
         let local_meta = meta.clone();
         let volt_id = meta.id();
-        stack(move || {
-            (
-                empty().style(|s| {
-                    s.min_size_px(50.0, 50.0)
-                        .size_px(50.0, 50.0)
-                        .margin_top_px(5.0)
-                        .margin_right_px(10.0)
-                }),
-                stack(move || {
-                    (
-                        label(move || meta.display_name.clone()).style(|s| {
-                            s.font_bold().text_ellipsis().min_width_px(0.0)
-                        }),
-                        label(move || meta.description.clone())
-                            .style(|s| s.text_ellipsis().min_width_px(0.0)),
-                        stack(move || {
-                            (
-                                stack(|| {
-                                    (
-                                        label(move || meta.author.clone()).style(
-                                            |s| {
-                                                s.text_ellipsis()
-                                                    .max_width_pct(100.0)
-                                            },
-                                        ),
-                                        label(move || {
-                                            if disabled
-                                                .with(|d| d.contains(&volt_id))
-                                                || workspace_disabled
-                                                    .with(|d| d.contains(&volt_id))
-                                            {
-                                                "Disabled".to_string()
-                                            } else {
-                                                format!("v{}", meta.version.clone())
-                                            }
-                                        })
-                                        .style(|s| s.text_ellipsis()),
-                                    )
-                                })
-                                .style(|s| {
-                                    s.justify_between()
-                                        .flex_grow(1.0)
-                                        .flex_basis_px(0.0)
-                                        .min_width_px(0.0)
-                                }),
-                                clickable_icon(
-                                    || LapceIcons::SETTINGS,
-                                    || {},
-                                    || false,
-                                    || false,
-                                    config,
-                                )
-                                .style(|s| s.padding_left_px(6.0))
-                                .popout_menu(
-                                    move || {
-                                        plugin_controls(
-                                            plugin.clone(),
-                                            local_meta.info(),
-                                            local_meta.clone(),
-                                        )
-                                    },
-                                ),
-                            )
+        stack((
+            empty().style(|s| {
+                s.min_size_px(50.0, 50.0)
+                    .size_px(50.0, 50.0)
+                    .margin_top_px(5.0)
+                    .margin_right_px(10.0)
+            }),
+            stack((
+                label(move || meta.display_name.clone())
+                    .style(|s| s.font_bold().text_ellipsis().min_width_px(0.0)),
+                label(move || meta.description.clone())
+                    .style(|s| s.text_ellipsis().min_width_px(0.0)),
+                stack((
+                    stack((
+                        label(move || meta.author.clone())
+                            .style(|s| s.text_ellipsis().max_width_pct(100.0)),
+                        label(move || {
+                            if disabled.with(|d| d.contains(&volt_id))
+                                || workspace_disabled.with(|d| d.contains(&volt_id))
+                            {
+                                "Disabled".to_string()
+                            } else {
+                                format!("v{}", meta.version.clone())
+                            }
                         })
-                        .style(|s| s.width_pct(100.0).items_center()),
+                        .style(|s| s.text_ellipsis()),
+                    ))
+                    .style(|s| {
+                        s.justify_between()
+                            .flex_grow(1.0)
+                            .flex_basis_px(0.0)
+                            .min_width_px(0.0)
+                    }),
+                    clickable_icon(
+                        || LapceIcons::SETTINGS,
+                        || {},
+                        || false,
+                        || false,
+                        config,
                     )
-                })
-                .style(|s| {
-                    s.flex_col()
-                        .flex_grow(1.0)
-                        .flex_basis_px(0.0)
-                        .min_width_px(0.0)
-                }),
-            )
-        })
+                    .style(|s| s.padding_left_px(6.0))
+                    .popout_menu(move || {
+                        plugin_controls(
+                            plugin.clone(),
+                            local_meta.info(),
+                            local_meta.clone(),
+                        )
+                    }),
+                ))
+                .style(|s| s.width_pct(100.0).items_center()),
+            ))
+            .style(|s| {
+                s.flex_col()
+                    .flex_grow(1.0)
+                    .flex_basis_px(0.0)
+                    .min_width_px(0.0)
+            }),
+        ))
         .style(|s| {
             s.width_pct(100.0)
                 .padding_horiz_px(10.0)
@@ -272,8 +243,8 @@ fn installed_view(plugin: PluginData) -> impl View {
         })
     };
 
-    container(move || {
-        scroll(move || {
+    container(
+        scroll(
             virtual_list(
                 VirtualListDirection::Vertical,
                 VirtualListItemSize::Fixed(Box::new(move || {
@@ -283,10 +254,10 @@ fn installed_view(plugin: PluginData) -> impl View {
                 move |(_, id, _)| id.clone(),
                 move |(_, _, volt)| view_fn(volt, plugin.clone()),
             )
-            .style(|s| s.flex_col().width_pct(100.0))
-        })
-        .style(|s| s.absolute().size_pct(100.0, 100.0))
-    })
+            .style(|s| s.flex_col().width_pct(100.0)),
+        )
+        .style(|s| s.absolute().size_pct(100.0, 100.0)),
+    )
     .style(|s| {
         s.width_pct(100.0)
             .line_height(1.6)
@@ -356,43 +327,36 @@ fn available_view(plugin: PluginData) -> impl View {
 
     let view_fn = move |(_, id, volt): (usize, VoltID, AvailableVoltData)| {
         let info = volt.info.get_untracked();
-        stack(|| {
-            (
-                empty().style(|s| {
-                    s.min_size_px(50.0, 50.0)
-                        .size_px(50.0, 50.0)
-                        .margin_top_px(5.0)
-                        .margin_right_px(10.0)
-                }),
-                stack(|| {
-                    (
-                        label(move || info.display_name.clone()).style(|s| {
-                            s.font_bold().text_ellipsis().min_width_px(0.0)
-                        }),
-                        label(move || info.description.clone())
-                            .style(|s| s.text_ellipsis().min_width_px(0.0)),
-                        stack(|| {
-                            (
-                                label(move || info.author.clone()).style(|s| {
-                                    s.text_ellipsis()
-                                        .min_width_px(0.0)
-                                        .flex_grow(1.0)
-                                        .flex_basis_px(0.0)
-                                }),
-                                install_button(id, volt.info, volt.installing),
-                            )
-                        })
-                        .style(|s| s.width_pct(100.0).items_center()),
-                    )
-                })
-                .style(|s| {
-                    s.flex_col()
-                        .flex_grow(1.0)
-                        .flex_basis_px(0.0)
-                        .min_width_px(0.0)
-                }),
-            )
-        })
+        stack((
+            empty().style(|s| {
+                s.min_size_px(50.0, 50.0)
+                    .size_px(50.0, 50.0)
+                    .margin_top_px(5.0)
+                    .margin_right_px(10.0)
+            }),
+            stack((
+                label(move || info.display_name.clone())
+                    .style(|s| s.font_bold().text_ellipsis().min_width_px(0.0)),
+                label(move || info.description.clone())
+                    .style(|s| s.text_ellipsis().min_width_px(0.0)),
+                stack((
+                    label(move || info.author.clone()).style(|s| {
+                        s.text_ellipsis()
+                            .min_width_px(0.0)
+                            .flex_grow(1.0)
+                            .flex_basis_px(0.0)
+                    }),
+                    install_button(id, volt.info, volt.installing),
+                ))
+                .style(|s| s.width_pct(100.0).items_center()),
+            ))
+            .style(|s| {
+                s.flex_col()
+                    .flex_grow(1.0)
+                    .flex_basis_px(0.0)
+                    .min_width_px(0.0)
+            }),
+        ))
         .style(|s| {
             s.width_pct(100.0)
                 .padding_horiz_px(10.0)
@@ -407,68 +371,66 @@ fn available_view(plugin: PluginData) -> impl View {
     let is_focused = move || focus.get() == Focus::Panel(PanelKind::Plugin);
     let cursor_x = create_rw_signal(0.0);
 
-    stack(move || {
-        (
-            container(|| {
-                scroll(|| {
-                    text_input(editor, is_focused)
-                        .on_cursor_pos(move |point| {
-                            cursor_x.set(point.x);
-                        })
-                        .style(|s| {
-                            s.padding_vert_px(4.0)
-                                .padding_horiz_px(10.0)
-                                .min_width_pct(100.0)
-                        })
-                })
-                .hide_bar(|| true)
-                .on_ensure_visible(move || {
-                    Size::new(20.0, 0.0)
-                        .to_rect()
-                        .with_origin(Point::new(cursor_x.get(), 0.0))
-                })
-                .on_event(EventListener::PointerDown, move |_| {
-                    focus.set(Focus::Panel(PanelKind::Plugin));
-                    false
-                })
-                .style(move |s| {
-                    let config = config.get();
-                    s.width_pct(100.0)
-                        .cursor(CursorStyle::Text)
-                        .items_center()
-                        .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
-                        .border(1.0)
-                        .border_radius(6.0)
-                        .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-                })
-            })
-            .style(|s| s.padding_px(10.0).width_pct(100.0)),
-            container(|| {
-                scroll(|| {
-                    virtual_list(
-                        VirtualListDirection::Vertical,
-                        VirtualListItemSize::Fixed(Box::new(move || {
-                            ui_line_height.get() * 3.0 + 10.0
-                        })),
-                        move || IndexMapItems(volts.get()),
-                        move |(_, id, _)| id.clone(),
-                        view_fn,
-                    )
-                    .on_resize(move |rect| {
-                        content_rect.set(rect);
+    stack((
+        container({
+            scroll(
+                text_input(editor, is_focused)
+                    .on_cursor_pos(move |point| {
+                        cursor_x.set(point.x);
                     })
-                    .style(|s| s.flex_col().width_pct(100.0))
-                })
-                .on_scroll(move |rect| {
-                    if rect.y1 + 30.0 > content_rect.get_untracked().y1 {
-                        plugin.load_more_available();
-                    }
-                })
-                .style(|s| s.absolute().size_pct(100.0, 100.0))
+                    .style(|s| {
+                        s.padding_vert_px(4.0)
+                            .padding_horiz_px(10.0)
+                            .min_width_pct(100.0)
+                    }),
+            )
+            .hide_bar(|| true)
+            .on_ensure_visible(move || {
+                Size::new(20.0, 0.0)
+                    .to_rect()
+                    .with_origin(Point::new(cursor_x.get(), 0.0))
             })
-            .style(|s| s.size_pct(100.0, 100.0)),
-        )
-    })
+            .on_event(EventListener::PointerDown, move |_| {
+                focus.set(Focus::Panel(PanelKind::Plugin));
+                false
+            })
+            .style(move |s| {
+                let config = config.get();
+                s.width_pct(100.0)
+                    .cursor(CursorStyle::Text)
+                    .items_center()
+                    .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+                    .border(1.0)
+                    .border_radius(6.0)
+                    .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+            })
+        })
+        .style(|s| s.padding_px(10.0).width_pct(100.0)),
+        container({
+            scroll({
+                virtual_list(
+                    VirtualListDirection::Vertical,
+                    VirtualListItemSize::Fixed(Box::new(move || {
+                        ui_line_height.get() * 3.0 + 10.0
+                    })),
+                    move || IndexMapItems(volts.get()),
+                    move |(_, id, _)| id.clone(),
+                    view_fn,
+                )
+                .on_resize(move |rect| {
+                    content_rect.set(rect);
+                })
+                .style(|s| s.flex_col().width_pct(100.0))
+            })
+            .on_scroll(move |rect| {
+                if rect.y1 + 30.0 > content_rect.get_untracked().y1 {
+                    plugin.load_more_available();
+                }
+            })
+            .style(|s| s.absolute().size_pct(100.0, 100.0))
+        })
+        .style(|s| s.size_pct(100.0, 100.0)),
+    ))
     .style(|s| {
         s.width_pct(100.0)
             .line_height(1.6)

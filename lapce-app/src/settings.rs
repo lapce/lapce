@@ -377,10 +377,10 @@ pub fn settings_view(
                               pos: Box<dyn Fn() -> Option<RwSignal<Point>>>,
                               margin: f32| {
         let kind = k.clone();
-        container(|| {
+        container(
             label(move || k.clone())
-                .style(move |s| s.text_ellipsis().padding_left_px(margin))
-        })
+                .style(move |s| s.text_ellipsis().padding_left_px(margin)),
+        )
         .on_click(move |_| {
             if let Some(pos) = pos() {
                 ensure_visible.set(
@@ -419,44 +419,37 @@ pub fn settings_view(
     };
 
     let switcher = || {
-        stack(move || {
-            (
+        stack((
+            list(
+                move || kinds.clone(),
+                |(k, _)| k.clone(),
+                move |(k, pos)| switcher_item(k, Box::new(move || Some(pos)), 0.0),
+            )
+            .style(|s| s.flex_col().width_pct(100.0)),
+            stack((
+                switcher_item(
+                    "Plugin Settings".to_string(),
+                    Box::new(move || {
+                        plugin_kinds
+                            .with_untracked(|k| k.get(0).map(|(_, pos)| *pos))
+                    }),
+                    0.0,
+                ),
                 list(
-                    move || kinds.clone(),
+                    move || plugin_kinds.get(),
                     |(k, _)| k.clone(),
                     move |(k, pos)| {
-                        switcher_item(k, Box::new(move || Some(pos)), 0.0)
+                        switcher_item(k, Box::new(move || Some(pos)), 10.0)
                     },
                 )
                 .style(|s| s.flex_col().width_pct(100.0)),
-                stack(|| {
-                    (
-                        switcher_item(
-                            "Plugin Settings".to_string(),
-                            Box::new(move || {
-                                plugin_kinds.with_untracked(|k| {
-                                    k.get(0).map(|(_, pos)| *pos)
-                                })
-                            }),
-                            0.0,
-                        ),
-                        list(
-                            move || plugin_kinds.get(),
-                            |(k, _)| k.clone(),
-                            move |(k, pos)| {
-                                switcher_item(k, Box::new(move || Some(pos)), 10.0)
-                            },
-                        )
-                        .style(|s| s.flex_col().width_pct(100.0)),
-                    )
-                })
-                .style(move |s| {
-                    s.width_pct(100.0)
-                        .flex_col()
-                        .apply_if(plugin_kinds.with(|k| k.is_empty()), |s| s.hide())
-                }),
-            )
-        })
+            ))
+            .style(move |s| {
+                s.width_pct(100.0)
+                    .flex_col()
+                    .apply_if(plugin_kinds.with(|k| k.is_empty()), |s| s.hide())
+            }),
+        ))
         .style(move |s| {
             s.width_pct(100.0)
                 .flex_col()
@@ -465,79 +458,68 @@ pub fn settings_view(
         })
     };
 
-    stack(move || {
-        (
-            container(|| {
-                scroll(|| {
-                    container(switcher)
-                        .style(|s| s.padding_vert_px(20.0).width_pct(100.0))
+    stack((
+        container({
+            scroll({
+                container(switcher())
+                    .style(|s| s.padding_vert_px(20.0).width_pct(100.0))
+            })
+            .style(|s| s.absolute().size_pct(100.0, 100.0))
+        })
+        .style(move |s| {
+            s.height_pct(100.0)
+                .width_px(200.0)
+                .border_right(1.0)
+                .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+        }),
+        stack((
+            container({
+                text_input(search_editor, || false)
+                    .placeholder(|| "Search Settings".to_string())
+                    .keyboard_navigatable()
+                    .style(move |s| {
+                        s.width_pct(100.0)
+                            .border_radius(6.0)
+                            .border(1.0)
+                            .border_color(
+                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                            )
+                    })
+            })
+            .style(|s| s.padding_horiz_px(50.0).padding_vert_px(20.0)),
+            container({
+                scroll({
+                    virtual_list(
+                        VirtualListDirection::Vertical,
+                        floem::views::VirtualListItemSize::Fn(Box::new(
+                            |item: &SettingsItem| item.size.get().height.max(50.0),
+                        )),
+                        move || settings_data.clone(),
+                        |item| (item.kind.clone(), item.name.clone()),
+                        move |item| {
+                            settings_item_view(view_settings_data.clone(), item)
+                        },
+                    )
+                    .style(|s| {
+                        s.flex_col()
+                            .padding_horiz_px(50.0)
+                            .min_width_pct(100.0)
+                            .max_width_px(400.0)
+                    })
+                })
+                .on_scroll(move |rect| {
+                    scroll_pos.set(rect.origin());
+                })
+                .on_ensure_visible(move || ensure_visible.get())
+                .on_resize(move |rect| {
+                    settings_content_size.set(rect.size());
                 })
                 .style(|s| s.absolute().size_pct(100.0, 100.0))
             })
-            .style(move |s| {
-                s.height_pct(100.0)
-                    .width_px(200.0)
-                    .border_right(1.0)
-                    .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
-            }),
-            stack(move || {
-                (
-                    container(|| {
-                        text_input(search_editor, || false)
-                            .placeholder(|| "Search Settings".to_string())
-                            .keyboard_navigatable()
-                            .style(move |s| {
-                                s.width_pct(100.0)
-                                    .border_radius(6.0)
-                                    .border(1.0)
-                                    .border_color(
-                                        *config
-                                            .get()
-                                            .get_color(LapceColor::LAPCE_BORDER),
-                                    )
-                            })
-                    })
-                    .style(|s| s.padding_horiz_px(50.0).padding_vert_px(20.0)),
-                    container(|| {
-                        scroll(|| {
-                            virtual_list(
-                                VirtualListDirection::Vertical,
-                                floem::views::VirtualListItemSize::Fn(Box::new(
-                                    |item: &SettingsItem| {
-                                        item.size.get().height.max(50.0)
-                                    },
-                                )),
-                                move || settings_data.clone(),
-                                |item| (item.kind.clone(), item.name.clone()),
-                                move |item| {
-                                    settings_item_view(
-                                        view_settings_data.clone(),
-                                        item,
-                                    )
-                                },
-                            )
-                            .style(|s| {
-                                s.flex_col()
-                                    .padding_horiz_px(50.0)
-                                    .min_width_pct(100.0)
-                                    .max_width_px(400.0)
-                            })
-                        })
-                        .on_scroll(move |rect| {
-                            scroll_pos.set(rect.origin());
-                        })
-                        .on_ensure_visible(move || ensure_visible.get())
-                        .on_resize(move |rect| {
-                            settings_content_size.set(rect.size());
-                        })
-                        .style(|s| s.absolute().size_pct(100.0, 100.0))
-                    })
-                    .style(|s| s.size_pct(100.0, 100.0)),
-                )
-            })
-            .style(|s| s.flex_col().size_pct(100.0, 100.0)),
-        )
-    })
+            .style(|s| s.size_pct(100.0, 100.0)),
+        ))
+        .style(|s| s.flex_col().size_pct(100.0, 100.0)),
+    ))
     .style(|s| s.absolute().size_pct(100.0, 100.0))
 }
 
@@ -632,22 +614,20 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     rev
                 });
 
-                container_box(move || {
-                    Box::new(
-                        text_input(editor, || false).keyboard_navigatable().style(
-                            move |s| {
-                                s.width_px(300.0)
-                                    .border(1.0)
-                                    .border_radius(6.0)
-                                    .border_color(
-                                        *config
-                                            .get()
-                                            .get_color(LapceColor::LAPCE_BORDER),
-                                    )
-                            },
-                        ),
-                    )
-                })
+                container_box(
+                    text_input(editor, || false).keyboard_navigatable().style(
+                        move |s| {
+                            s.width_px(300.0)
+                                .border(1.0)
+                                .border_radius(6.0)
+                                .border_color(
+                                    *config
+                                        .get()
+                                        .get_color(LapceColor::LAPCE_BORDER),
+                                )
+                        },
+                    ),
+                )
             } else if let SettingsValue::Dropdown(dropdown) = item.value {
                 let expanded = create_rw_signal(false);
                 let current_value = dropdown
@@ -685,214 +665,184 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             )
                         })
                 };
-                container_box(move || {
-                    Box::new(
-                        stack(move || {
-                            (
-                                stack(|| {
-                                    (
-                                        label(move || current_value.get()).style(
-                                            move |s| {
-                                                s.text_ellipsis()
-                                                    .width_pct(100.0)
-                                                    .padding_horiz_px(10.0)
-                                            },
-                                        ),
-                                        container(|| {
-                                            svg(move || {
-                                                config.get().ui_svg(
-                                                    LapceIcons::DROPDOWN_ARROW,
-                                                )
-                                            })
-                                            .style(move |s| {
-                                                let config = config.get();
-                                                let size =
-                                                    config.ui.icon_size() as f32;
-                                                s.size_px(size, size)
-                                                    .color(*config.get_color(
-                                                    LapceColor::LAPCE_ICON_ACTIVE,
-                                                ))
-                                            })
-                                        })
-                                        .style(|s| s.padding_right_px(4.0)),
-                                    )
-                                })
-                                .on_click(move |_| {
-                                    expanded.update(|expanded| {
-                                        *expanded = !*expanded;
-                                    });
-                                    true
+                container_box(
+                    stack((
+                        stack((
+                            label(move || current_value.get()).style(move |s| {
+                                s.text_ellipsis()
+                                    .width_pct(100.0)
+                                    .padding_horiz_px(10.0)
+                            }),
+                            container(
+                                svg(move || {
+                                    config.get().ui_svg(LapceIcons::DROPDOWN_ARROW)
                                 })
                                 .style(move |s| {
-                                    s.items_center()
+                                    let config = config.get();
+                                    let size = config.ui.icon_size() as f32;
+                                    s.size_px(size, size).color(
+                                        *config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ),
+                                    )
+                                }),
+                            )
+                            .style(|s| s.padding_right_px(4.0)),
+                        ))
+                        .on_click(move |_| {
+                            expanded.update(|expanded| {
+                                *expanded = !*expanded;
+                            });
+                            true
+                        })
+                        .style(move |s| {
+                            s.items_center()
+                                .width_pct(100.0)
+                                .cursor(CursorStyle::Pointer)
+                                .border_color(Color::TRANSPARENT)
+                                .border(1.0)
+                                .border_radius(6.0)
+                                .apply_if(!expanded.get(), |s| {
+                                    s.border_color(
+                                        *config
+                                            .get()
+                                            .get_color(LapceColor::LAPCE_BORDER),
+                                    )
+                                })
+                        }),
+                        stack((
+                            label(|| " ".to_string()),
+                            scroll({
+                                list(
+                                    move || dropdown.items.clone(),
+                                    |item| item.to_string(),
+                                    view_fn,
+                                )
+                                .style(|s| {
+                                    s.flex_col()
                                         .width_pct(100.0)
                                         .cursor(CursorStyle::Pointer)
-                                        .border_color(Color::TRANSPARENT)
-                                        .border(1.0)
-                                        .border_radius(6.0)
-                                        .apply_if(!expanded.get(), |s| {
-                                            s.border_color(
-                                                *config.get().get_color(
-                                                    LapceColor::LAPCE_BORDER,
-                                                ),
-                                            )
-                                        })
-                                }),
-                                stack(move || {
-                                    (
-                                        label(|| " ".to_string()),
-                                        scroll(|| {
-                                            list(
-                                                move || dropdown.items.clone(),
-                                                |item| item.to_string(),
-                                                view_fn,
-                                            )
-                                            .style(|s| {
-                                                s.flex_col()
-                                                    .width_pct(100.0)
-                                                    .cursor(CursorStyle::Pointer)
-                                            })
-                                        })
-                                        .style(move |s| {
-                                            let config = config.get();
-                                            s.background(*config.get_color(
-                                                LapceColor::EDITOR_BACKGROUND,
-                                            ))
-                                            .width_pct(100.0)
-                                            .max_height_px(300.0)
-                                            .z_index(1)
-                                            .border_top(1.0)
-                                            .border_radius(6.0)
-                                            .border_color(
-                                                *config.get_color(
-                                                    LapceColor::LAPCE_BORDER,
-                                                ),
-                                            )
-                                            .apply_if(!expanded.get(), |s| s.hide())
-                                        }),
-                                    )
                                 })
-                                .keyboard_navigatable()
-                                .on_event(EventListener::FocusLost, move |_| {
-                                    if expanded.get_untracked() {
-                                        expanded.set(false);
-                                    }
-                                    true
-                                })
-                                .style(move |s| {
-                                    s.absolute()
-                                        .flex_col()
-                                        .width_pct(100.0)
-                                        .border(1.0)
-                                        .border_radius(6.0)
-                                        .border_color(
-                                            *config
-                                                .get()
-                                                .get_color(LapceColor::LAPCE_BORDER),
-                                        )
-                                        .apply_if(!expanded.get(), |s| {
-                                            s.border_color(Color::TRANSPARENT)
-                                        })
-                                }),
-                            )
+                            })
+                            .style(move |s| {
+                                let config = config.get();
+                                s.background(
+                                    *config.get_color(LapceColor::EDITOR_BACKGROUND),
+                                )
+                                .width_pct(100.0)
+                                .max_height_px(300.0)
+                                .z_index(1)
+                                .border_top(1.0)
+                                .border_radius(6.0)
+                                .border_color(
+                                    *config.get_color(LapceColor::LAPCE_BORDER),
+                                )
+                                .apply_if(!expanded.get(), |s| s.hide())
+                            }),
+                        ))
+                        .keyboard_navigatable()
+                        .on_event(EventListener::FocusLost, move |_| {
+                            if expanded.get_untracked() {
+                                expanded.set(false);
+                            }
+                            true
                         })
-                        .style(move |s| s.width_px(250.0).line_height(1.8)),
-                    )
-                })
+                        .style(move |s| {
+                            s.absolute()
+                                .flex_col()
+                                .width_pct(100.0)
+                                .border(1.0)
+                                .border_radius(6.0)
+                                .border_color(
+                                    *config
+                                        .get()
+                                        .get_color(LapceColor::LAPCE_BORDER),
+                                )
+                                .apply_if(!expanded.get(), |s| {
+                                    s.border_color(Color::TRANSPARENT)
+                                })
+                        }),
+                    ))
+                    .style(move |s| s.width_px(250.0).line_height(1.8)),
+                )
             } else if item.header {
-                container_box(|| {
-                    Box::new(label(move || item.kind.clone()).style(move |s| {
-                        let config = config.get();
-                        s.line_height(2.0)
-                            .font_bold()
-                            .width_pct(100.0)
-                            .padding_horiz_px(10.0)
-                            .font_size(config.ui.font_size() as f32 + 2.0)
-                            .background(
-                                *config.get_color(LapceColor::PANEL_BACKGROUND),
-                            )
-                    }))
-                })
+                container_box(label(move || item.kind.clone()).style(move |s| {
+                    let config = config.get();
+                    s.line_height(2.0)
+                        .font_bold()
+                        .width_pct(100.0)
+                        .padding_horiz_px(10.0)
+                        .font_size(config.ui.font_size() as f32 + 2.0)
+                        .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+                }))
             } else {
-                container_box(|| Box::new(empty()))
+                container_box(empty())
             }
         }
     };
 
-    stack(move || {
-        (
-            label(move || item.name.clone()).style(move |s| {
-                s.font_bold()
-                    .text_ellipsis()
-                    .min_width_px(0.0)
+    stack((
+        label(move || item.name.clone()).style(move |s| {
+            s.font_bold()
+                .text_ellipsis()
+                .min_width_px(0.0)
+                .max_width_pct(100.0)
+                .line_height(1.6)
+                .font_size(config.get().ui.font_size() as f32 + 1.0)
+        }),
+        stack((
+            label(move || item.description.clone()).style(move |s| {
+                s.min_width_px(0.0)
                     .max_width_pct(100.0)
                     .line_height(1.6)
-                    .font_size(config.get().ui.font_size() as f32 + 1.0)
+                    .apply_if(is_ticked.is_some(), |s| {
+                        s.margin_left_px(config.get().ui.font_size() as f32 + 8.0)
+                    })
+                    .apply_if(item.header, |s| s.hide())
             }),
-            stack(move || {
-                (
-                    label(move || item.description.clone()).style(move |s| {
-                        s.min_width_px(0.0)
-                            .max_width_pct(100.0)
-                            .line_height(1.6)
-                            .apply_if(is_ticked.is_some(), |s| {
-                                s.margin_left_px(
-                                    config.get().ui.font_size() as f32 + 8.0,
-                                )
-                            })
-                            .apply_if(item.header, |s| s.hide())
-                    }),
-                    if let Some(is_ticked) = is_ticked {
-                        let checked = create_rw_signal(is_ticked);
+            if let Some(is_ticked) = is_ticked {
+                let checked = create_rw_signal(is_ticked);
 
-                        let kind = item.kind.clone();
-                        let field = item.field.clone();
-                        create_effect(move |last| {
-                            let checked = checked.get();
-                            if last.is_none() {
-                                return;
-                            }
-                            if let Ok(value) = serde::Serialize::serialize(
-                                &checked,
-                                toml_edit::ser::ValueSerializer::new(),
-                            ) {
-                                LapceConfig::update_file(&kind, &field, value);
-                            }
-                        });
+                let kind = item.kind.clone();
+                let field = item.field.clone();
+                create_effect(move |last| {
+                    let checked = checked.get();
+                    if last.is_none() {
+                        return;
+                    }
+                    if let Ok(value) = serde::Serialize::serialize(
+                        &checked,
+                        toml_edit::ser::ValueSerializer::new(),
+                    ) {
+                        LapceConfig::update_file(&kind, &field, value);
+                    }
+                });
 
-                        container_box(|| {
-                            Box::new(
-                                stack(|| {
-                                    (
-                                        checkbox(move || checked.get(), config),
-                                        label(|| " ".to_string())
-                                            .style(|s| s.line_height(1.6)),
-                                    )
-                                })
-                                .style(|s| s.items_center()),
-                            )
-                        })
-                        .on_click(move |_| {
-                            checked.update(|checked| {
-                                *checked = !*checked;
-                            });
-                            true
-                        })
-                        .style(|s| {
-                            s.absolute()
-                                .cursor(CursorStyle::Pointer)
-                                .size_pct(100.0, 100.0)
-                                .items_start()
-                        })
-                    } else {
-                        container_box(|| Box::new(empty())).style(|s| s.hide())
-                    },
+                container_box(
+                    stack((
+                        checkbox(move || checked.get(), config),
+                        label(|| " ".to_string()).style(|s| s.line_height(1.6)),
+                    ))
+                    .style(|s| s.items_center()),
                 )
-            }),
-            view()
-                .style(move |s| s.apply_if(!item.header, |s| s.margin_top_px(6.0))),
-        )
-    })
+                .on_click(move |_| {
+                    checked.update(|checked| {
+                        *checked = !*checked;
+                    });
+                    true
+                })
+                .style(|s| {
+                    s.absolute()
+                        .cursor(CursorStyle::Pointer)
+                        .size_pct(100.0, 100.0)
+                        .items_start()
+                })
+            } else {
+                container_box(empty()).style(|s| s.hide())
+            },
+        )),
+        view().style(move |s| s.apply_if(!item.header, |s| s.margin_top_px(6.0))),
+    ))
     .on_resize(move |rect| {
         if item.header {
             item.pos.set(rect.origin());

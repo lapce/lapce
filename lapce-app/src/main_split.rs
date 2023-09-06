@@ -116,7 +116,7 @@ pub struct SplitData {
     pub scope: Scope,
     pub parent_split: Option<SplitId>,
     pub split_id: SplitId,
-    pub children: Vec<SplitContent>,
+    pub children: Vec<(RwSignal<f64>, SplitContent)>,
     pub direction: SplitDirection,
     pub window_origin: Point,
     pub layout_rect: Rect,
@@ -145,7 +145,12 @@ impl SplitInfo {
                 children: self
                     .children
                     .iter()
-                    .map(|child| child.to_data(data.clone(), split_id))
+                    .map(|child| {
+                        (
+                            cx.create_rw_signal(1.0),
+                            child.to_data(data.clone(), split_id),
+                        )
+                    })
                     .collect(),
                 window_origin: Point::ZERO,
                 layout_rect: Rect::ZERO,
@@ -194,7 +199,7 @@ impl SplitData {
             children: self
                 .children
                 .iter()
-                .map(|child| child.content_info(data))
+                .map(|(_, child)| child.content_info(data))
                 .collect(),
         };
         info
@@ -203,11 +208,11 @@ impl SplitData {
     pub fn editor_tab_index(&self, editor_tab_id: EditorTabId) -> Option<usize> {
         self.children
             .iter()
-            .position(|c| c == &SplitContent::EditorTab(editor_tab_id))
+            .position(|(_, c)| c == &SplitContent::EditorTab(editor_tab_id))
     }
 
     pub fn content_index(&self, content: &SplitContent) -> Option<usize> {
-        self.children.iter().position(|c| c == content)
+        self.children.iter().position(|(_, c)| c == content)
     }
 }
 
@@ -584,7 +589,10 @@ impl MainSplitData {
                 splits.get(&self.root_split).cloned().unwrap()
             });
             root_split.update(|root_split| {
-                root_split.children = vec![SplitContent::EditorTab(editor_tab_id)];
+                root_split.children = vec![(
+                    root_split.scope.create_rw_signal(1.0),
+                    SplitContent::EditorTab(editor_tab_id),
+                )];
             });
             self.active_editor_tab.set(Some(editor_tab_id));
             editor_tab
@@ -1184,7 +1192,7 @@ impl MainSplitData {
             split
                 .children
                 .iter()
-                .position(|c| c == &SplitContent::EditorTab(editor_tab_id))
+                .position(|(_, c)| c == &SplitContent::EditorTab(editor_tab_id))
                 .map(|index| (index, split.children.len()))
         })?;
 
@@ -1195,9 +1203,16 @@ impl MainSplitData {
             let new_editor_tab_id =
                 new_editor_tab.with_untracked(|editor_tab| editor_tab.editor_tab_id);
             split.update(|split| {
-                split
-                    .children
-                    .insert(index + 1, SplitContent::EditorTab(new_editor_tab_id));
+                for (size, _) in &split.children {
+                    size.set(1.0);
+                }
+                split.children.insert(
+                    index + 1,
+                    (
+                        split.scope.create_rw_signal(1.0),
+                        SplitContent::EditorTab(new_editor_tab_id),
+                    ),
+                );
             });
         } else if children_len == 1 {
             let new_editor_tab = editor_tab.with_untracked(|editor_tab| {
@@ -1207,9 +1222,13 @@ impl MainSplitData {
                 new_editor_tab.with_untracked(|editor_tab| editor_tab.editor_tab_id);
             split.update(|split| {
                 split.direction = direction;
-                split
-                    .children
-                    .push(SplitContent::EditorTab(new_editor_tab_id));
+                for (size, _) in &split.children {
+                    size.set(1.0);
+                }
+                split.children.push((
+                    split.scope.create_rw_signal(1.0),
+                    SplitContent::EditorTab(new_editor_tab_id),
+                ));
             });
         } else {
             let new_split_id = SplitId::next();
@@ -1230,8 +1249,14 @@ impl MainSplitData {
                     parent_split: Some(split_id),
                     split_id: new_split_id,
                     children: vec![
-                        SplitContent::EditorTab(editor_tab_id),
-                        SplitContent::EditorTab(new_editor_tab_id),
+                        (
+                            cx.create_rw_signal(1.0),
+                            SplitContent::EditorTab(editor_tab_id),
+                        ),
+                        (
+                            cx.create_rw_signal(1.0),
+                            SplitContent::EditorTab(new_editor_tab_id),
+                        ),
                     ],
                     direction,
                     window_origin: Point::ZERO,
@@ -1243,7 +1268,11 @@ impl MainSplitData {
                 splits.insert(new_split_id, new_split);
             });
             split.update(|split| {
-                split.children[index] = SplitContent::Split(new_split_id);
+                let size = split.children[index].0.get_untracked();
+                split.children[index] = (
+                    split.scope.create_rw_signal(size),
+                    SplitContent::Split(new_split_id),
+                );
             });
         }
 
@@ -1413,12 +1442,12 @@ impl MainSplitData {
             let index = split
                 .children
                 .iter()
-                .position(|c| c == &SplitContent::EditorTab(editor_tab_id));
+                .position(|(_, c)| c == &SplitContent::EditorTab(editor_tab_id));
             if let Some(index) = index {
                 if index < split.children.len() - 1 {
                     split.children.swap(index, index + 1);
                 }
-                self.split_content_focus(&split.children[index]);
+                self.split_content_focus(&split.children[index].1);
             }
         });
 
@@ -1442,7 +1471,7 @@ impl MainSplitData {
 
         let split_chilren = split.with_untracked(|split| split.children.clone());
         let content = split_chilren.get(0)?;
-        self.split_content_focus(content);
+        self.split_content_focus(&content.1);
 
         Some(())
     }
@@ -1464,7 +1493,7 @@ impl MainSplitData {
             .try_update(|split| {
                 split
                     .children
-                    .retain(|c| c != &SplitContent::Split(split_id));
+                    .retain(|(_, c)| c != &SplitContent::Split(split_id));
                 split.children.len()
             })
             .unwrap();
@@ -1482,7 +1511,7 @@ impl MainSplitData {
             let orphan = parent_split
                 .try_update(|split| split.children.remove(0))
                 .unwrap();
-            self.split_content_set_parent(&orphan, parent_parent_split_id);
+            self.split_content_set_parent(&orphan.1, parent_parent_split_id);
             parent_parent_split.update(|parent_parent_split| {
                 parent_parent_split.children[parent_split_index] = orphan;
             });
@@ -1512,10 +1541,13 @@ impl MainSplitData {
             split
                 .children
                 .iter()
-                .position(|c| c == &SplitContent::EditorTab(editor_tab_id))
+                .position(|(_, c)| c == &SplitContent::EditorTab(editor_tab_id))
         })?;
         split.update(|split| {
             split.children.remove(index);
+            for (size, _) in &split.children {
+                size.set(1.0);
+            }
         });
         let split_children = split.with_untracked(|split| split.children.clone());
 
@@ -1525,10 +1557,9 @@ impl MainSplitData {
                     .and_then(|split_id| splits.get(&split_id))
                     .and_then(|split| {
                         let index = split.with_untracked(|split| {
-                            split
-                                .children
-                                .iter()
-                                .position(|c| c == &SplitContent::Split(split_id))
+                            split.children.iter().position(|(_, c)| {
+                                c == &SplitContent::Split(split_id)
+                            })
                         })?;
                         Some((index, split))
                     })
@@ -1545,11 +1576,12 @@ impl MainSplitData {
                             }
                         })
                     });
-                if let Some(content) = new_focus {
+                if let Some((_, content)) = new_focus {
                     self.split_content_focus(&content);
                 }
             } else {
-                let content = split_children[index.min(split_children.len() - 1)];
+                let (_, content) =
+                    split_children[index.min(split_children.len() - 1)];
                 self.split_content_focus(&content);
             }
         }
@@ -1562,11 +1594,13 @@ impl MainSplitData {
                 let split_index = parent_split.with_untracked(|split| {
                     split.content_index(&SplitContent::Split(split_id))
                 })?;
-                let orphan =
+                let (_, orphan) =
                     split.try_update(|split| split.children.remove(0)).unwrap();
                 self.split_content_set_parent(&orphan, parent_split_id);
                 parent_split.update(|parent_split| {
-                    parent_split.children[split_index] = orphan;
+                    let size = parent_split.children[split_index].0.get_untracked();
+                    parent_split.children[split_index] =
+                        (parent_split.scope.create_rw_signal(size), orphan);
                 });
                 self.split_remove(split_id);
             }
@@ -2328,15 +2362,22 @@ impl MainSplitData {
                 );
             });
             to_split.update(|split| {
-                split
-                    .children
-                    .insert(index, SplitContent::EditorTab(new_editor_tab_id));
+                for (size, _) in &split.children {
+                    size.set(1.0);
+                }
+                split.children.insert(
+                    index,
+                    (
+                        split.scope.create_rw_signal(1.0),
+                        SplitContent::EditorTab(new_editor_tab_id),
+                    ),
+                );
             });
             self.active_editor_tab.set(Some(new_editor_tab_id));
         } else {
             let index =
                 to_split.with_untracked(|split| split.editor_tab_index(to_tab))?;
-            let existing_editor_tab = to_split
+            let (size, existing_editor_tab) = to_split
                 .try_update(|split| split.children.remove(index))
                 .unwrap();
 
@@ -2390,22 +2431,29 @@ impl MainSplitData {
                 );
             });
 
+            let scope = self.scope.create_child();
             let new_split_children = match split {
                 SplitMoveDirection::Up | SplitMoveDirection::Left => {
                     vec![
-                        SplitContent::EditorTab(new_editor_tab_id),
-                        existing_editor_tab,
+                        (
+                            scope.create_rw_signal(1.0),
+                            SplitContent::EditorTab(new_editor_tab_id),
+                        ),
+                        (scope.create_rw_signal(1.0), existing_editor_tab),
                     ]
                 }
                 SplitMoveDirection::Down | SplitMoveDirection::Right => {
                     vec![
-                        existing_editor_tab,
-                        SplitContent::EditorTab(new_editor_tab_id),
+                        (scope.create_rw_signal(1.0), existing_editor_tab),
+                        (
+                            scope.create_rw_signal(1.0),
+                            SplitContent::EditorTab(new_editor_tab_id),
+                        ),
                     ]
                 }
             };
             let new_split = SplitData {
-                scope: self.scope.create_child(),
+                scope,
                 split_id: new_split_id,
                 parent_split: Some(to_split_id),
                 children: new_split_children,
@@ -2420,9 +2468,13 @@ impl MainSplitData {
                 );
             });
             to_split.update(|split| {
-                split
-                    .children
-                    .insert(index, SplitContent::Split(new_split_id));
+                split.children.insert(
+                    index,
+                    (
+                        split.scope.create_rw_signal(size.get_untracked()),
+                        SplitContent::Split(new_split_id),
+                    ),
+                );
             });
             self.active_editor_tab.set(Some(new_editor_tab_id));
         }

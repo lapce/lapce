@@ -29,29 +29,23 @@ pub fn file_explorer_panel(
 ) -> impl View {
     let config = window_tab_data.common.config;
     let data = window_tab_data.file_explorer.clone();
-    stack(|| {
-        (
-            stack(move || {
-                (
-                    panel_header("Open Editors".to_string(), config),
-                    container(|| open_editors_view(window_tab_data.clone()))
-                        .style(|s| s.size_pct(100.0, 100.0)),
-                )
-            })
-            .style(|s| s.width_pct(100.0).flex_col().height_px(150.0)),
-            stack(|| {
-                (
-                    panel_header("File Explorer".to_string(), config),
-                    container(|| {
-                        scroll(move || new_file_node_view(data))
-                            .style(|s| s.absolute().size_pct(100.0, 100.0))
-                    })
-                    .style(|s| s.size_pct(100.0, 100.0).line_height(1.6)),
-                )
-            })
-            .style(|s| s.width_pct(100.0).height_pct(100.0).flex_col()),
-        )
-    })
+    stack((
+        stack((
+            panel_header("Open Editors".to_string(), config),
+            container(open_editors_view(window_tab_data.clone()))
+                .style(|s| s.size_pct(100.0, 100.0)),
+        ))
+        .style(|s| s.width_pct(100.0).flex_col().height_px(150.0)),
+        stack((
+            panel_header("File Explorer".to_string(), config),
+            container(
+                scroll(new_file_node_view(data))
+                    .style(|s| s.absolute().size_pct(100.0, 100.0)),
+            )
+            .style(|s| s.size_pct(100.0, 100.0).line_height(1.6)),
+        ))
+        .style(|s| s.width_pct(100.0).height_pct(100.0).flex_col()),
+    ))
     .style(move |s| {
         s.width_pct(100.0)
             .apply_if(!position.is_bottom(), |s| s.flex_col())
@@ -78,71 +72,67 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
             let aux_click_path = path.clone();
             let open = node.open;
             let is_dir = node.is_dir;
-            stack(|| {
-                (
+            stack((
+                svg(move || {
+                    let config = config.get();
+                    let svg_str = match open {
+                        true => LapceIcons::ITEM_OPENED,
+                        false => LapceIcons::ITEM_CLOSED,
+                    };
+                    config.ui_svg(svg_str)
+                })
+                .style(move |s| {
+                    let config = config.get();
+                    let size = config.ui.icon_size() as f32;
+
+                    let color = if is_dir {
+                        *config.get_color(LapceColor::LAPCE_ICON_ACTIVE)
+                    } else {
+                        Color::TRANSPARENT
+                    };
+                    s.size_px(size, size).margin_left_px(10.0).color(color)
+                }),
+                {
+                    let path = path.clone();
+                    let path_for_style = path.clone();
                     svg(move || {
                         let config = config.get();
-                        let svg_str = match open {
-                            true => LapceIcons::ITEM_OPENED,
-                            false => LapceIcons::ITEM_CLOSED,
-                        };
-                        config.ui_svg(svg_str)
+                        if is_dir {
+                            let svg_str = match open {
+                                true => LapceIcons::DIRECTORY_OPENED,
+                                false => LapceIcons::DIRECTORY_CLOSED,
+                            };
+                            config.ui_svg(svg_str)
+                        } else {
+                            config.file_svg(&path).0
+                        }
                     })
                     .style(move |s| {
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
 
-                        let color = if is_dir {
-                            *config.get_color(LapceColor::LAPCE_ICON_ACTIVE)
-                        } else {
-                            Color::TRANSPARENT
-                        };
-                        s.size_px(size, size).margin_left_px(10.0).color(color)
-                    }),
-                    {
-                        let path = path.clone();
-                        let path_for_style = path.clone();
-                        svg(move || {
-                            let config = config.get();
-                            if is_dir {
-                                let svg_str = match open {
-                                    true => LapceIcons::DIRECTORY_OPENED,
-                                    false => LapceIcons::DIRECTORY_CLOSED,
-                                };
-                                config.ui_svg(svg_str)
-                            } else {
-                                config.file_svg(&path).0
-                            }
-                        })
-                        .style(move |s| {
-                            let config = config.get();
-                            let size = config.ui.icon_size() as f32;
-
-                            s.size_px(size, size)
-                                .margin_horiz_px(6.0)
-                                .apply_if(is_dir, |s| {
-                                    s.color(
-                                        *config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ),
-                                    )
-                                })
-                                .apply_if(!is_dir, |s| {
-                                    s.apply_opt(
-                                        config.file_svg(&path_for_style).1.cloned(),
-                                        Style::color,
-                                    )
-                                })
-                        })
-                    },
-                    label(move || {
-                        node.path
-                            .file_name()
-                            .map(|f| f.to_string_lossy().to_string())
-                            .unwrap_or_default()
-                    }),
-                )
-            })
+                        s.size_px(size, size)
+                            .margin_horiz_px(6.0)
+                            .apply_if(is_dir, |s| {
+                                s.color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                )
+                            })
+                            .apply_if(!is_dir, |s| {
+                                s.apply_opt(
+                                    config.file_svg(&path_for_style).1.cloned(),
+                                    Style::color,
+                                )
+                            })
+                    })
+                },
+                label(move || {
+                    node.path
+                        .file_name()
+                        .map(|f| f.to_string_lossy().to_string())
+                        .unwrap_or_default()
+                }),
+            ))
             .style(move |s| {
                 s.items_center()
                     .padding_right_px(10.0)
@@ -192,63 +182,55 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
         let info = child.view_info(editors, diff_editors, config);
         let hovered = create_rw_signal(false);
 
-        stack(|| {
-            (
-                clickable_icon(
-                    move || {
-                        if hovered.get() || info.with(|info| info.is_pristine) {
-                            LapceIcons::CLOSE
-                        } else {
-                            LapceIcons::UNSAVED
-                        }
-                    },
-                    move || {
-                        let editor_tab_id =
-                            editor_tab.with_untracked(|t| t.editor_tab_id);
-                        internal_command.send(
-                            InternalCommand::EditorTabChildClose {
-                                editor_tab_id,
-                                child: child_for_close.clone(),
-                            },
-                        );
-                    },
-                    || false,
-                    || false,
-                    config,
-                )
-                .on_event(EventListener::PointerEnter, move |_| {
-                    hovered.set(true);
-                    true
-                })
-                .on_event(EventListener::PointerLeave, move |_| {
-                    hovered.set(false);
-                    true
-                })
-                .on_event(EventListener::PointerDown, |_| true)
-                .style(|s| s.margin_left_px(10.0)),
-                container(|| {
-                    svg(move || info.with(|info| info.icon.clone())).style(
-                        move |s| {
-                            let size = config.get().ui.icon_size() as f32;
-                            s.size_px(size, size)
-                                .apply_opt(info.with(|info| info.color), |s, c| {
-                                    s.color(c)
-                                })
-                        },
-                    )
-                })
-                .style(|s| s.padding_horiz_px(6.0)),
-                label(move || info.with(|info| info.path.clone())).style(move |s| {
-                    s.apply_if(
-                        !info
-                            .with(|info| info.confirmed)
-                            .map(|confirmed| confirmed.get())
-                            .unwrap_or(true),
-                        |s| s.font_style(FontStyle::Italic),
-                    )
-                }),
+        stack((
+            clickable_icon(
+                move || {
+                    if hovered.get() || info.with(|info| info.is_pristine) {
+                        LapceIcons::CLOSE
+                    } else {
+                        LapceIcons::UNSAVED
+                    }
+                },
+                move || {
+                    let editor_tab_id =
+                        editor_tab.with_untracked(|t| t.editor_tab_id);
+                    internal_command.send(InternalCommand::EditorTabChildClose {
+                        editor_tab_id,
+                        child: child_for_close.clone(),
+                    });
+                },
+                || false,
+                || false,
+                config,
             )
-        })
+            .on_event(EventListener::PointerEnter, move |_| {
+                hovered.set(true);
+                true
+            })
+            .on_event(EventListener::PointerLeave, move |_| {
+                hovered.set(false);
+                true
+            })
+            .on_event(EventListener::PointerDown, |_| true)
+            .style(|s| s.margin_left_px(10.0)),
+            container(svg(move || info.with(|info| info.icon.clone())).style(
+                move |s| {
+                    let size = config.get().ui.icon_size() as f32;
+                    s.size_px(size, size)
+                        .apply_opt(info.with(|info| info.color), |s, c| s.color(c))
+                },
+            ))
+            .style(|s| s.padding_horiz_px(6.0)),
+            label(move || info.with(|info| info.path.clone())).style(move |s| {
+                s.apply_if(
+                    !info
+                        .with(|info| info.confirmed)
+                        .map(|confirmed| confirmed.get())
+                        .unwrap_or(true),
+                    |s| s.font_style(FontStyle::Italic),
+                )
+            }),
+        ))
         .style(move |s| {
             s.items_center().width_pct(100.0).apply_if(
                 active_editor_tab.get() == Some(editor_tab_id)
@@ -277,29 +259,27 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
         })
     };
 
-    scroll(|| {
+    scroll(
         list(
             move || editor_tabs.get().into_iter().enumerate(),
             move |(index, (editor_tab_id, _))| (*index, *editor_tab_id),
             move |(index, (_, editor_tab))| {
-                stack(|| {
-                    (
-                        label(move || format!("Group {}", index + 1))
-                            .style(|s| s.margin_left_px(10.0)),
-                        list(
-                            move || editor_tab.get().children,
-                            move |(_, _, child)| child.id(),
-                            move |(child_index, _, child)| {
-                                child_view(editor_tab, child_index, child)
-                            },
-                        )
-                        .style(|s| s.flex_col().width_pct(100.0)),
+                stack((
+                    label(move || format!("Group {}", index + 1))
+                        .style(|s| s.margin_left_px(10.0)),
+                    list(
+                        move || editor_tab.get().children,
+                        move |(_, _, child)| child.id(),
+                        move |(child_index, _, child)| {
+                            child_view(editor_tab, child_index, child)
+                        },
                     )
-                })
+                    .style(|s| s.flex_col().width_pct(100.0)),
+                ))
                 .style(|s| s.flex_col())
             },
         )
-        .style(|s| s.flex_col().width_pct(100.0))
-    })
+        .style(|s| s.flex_col().width_pct(100.0)),
+    )
     .style(|s| s.absolute().size_pct(100.0, 100.0).line_height(1.6))
 }

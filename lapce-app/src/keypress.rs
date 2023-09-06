@@ -251,7 +251,7 @@ impl KeyPressData {
             KeymapMatch::Prefix => {
                 // Here pending_keypress contains only a prefix of some keymap, so let's keep
                 // collecting key presses.
-                return false;
+                return true;
             }
             KeymapMatch::None => {
                 self.pending_keypress.update(|pending_keypress| {

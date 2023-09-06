@@ -18,7 +18,7 @@ use floem::{
     taffy::prelude::Node,
     view::{ChangeFlags, View},
     views::{clip, container, empty, label, list, scroll, stack, svg, Decorators},
-    Renderer, ViewContext,
+    Renderer,
 };
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText},
@@ -89,8 +89,7 @@ pub fn editor_view(
     editor: Rc<EditorData>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> EditorView {
-    let cx = ViewContext::get_current();
-    let id = cx.new_id();
+    let id = Id::next();
     let is_active = create_memo(move |_| is_active(true));
 
     let viewport = create_rw_signal(Rect::ZERO);
@@ -1303,51 +1302,47 @@ pub fn editor_container_view(
 
     let editor_rect = create_rw_signal(Rect::ZERO);
 
-    stack(|| {
-        (
-            editor_breadcrumbs(workspace, editor.get_untracked(), config),
-            container(|| {
-                stack(|| {
-                    (
-                        editor_gutter(editor, is_active),
-                        container(|| editor_content(editor, is_active))
-                            .style(move |s| s.size_pct(100.0, 100.0)),
-                        empty().style(move |s| {
-                            let config = config.get();
-                            s.absolute()
-                                .width_pct(100.0)
-                                .height_px(sticky_header_height.get() as f32)
-                                // .box_shadow_blur(5.0)
-                                // .border_bottom(1.0)
-                                // .border_color(
-                                //     *config.get_color(LapceColor::LAPCE_BORDER),
-                                // )
-                                .apply_if(
-                                    !config.editor.sticky_header
-                                        || sticky_header_height.get() == 0.0
-                                        || !editor_view.get().is_normal(),
-                                    |s| s.hide(),
-                                )
-                        }),
-                        find_view(
-                            editor,
-                            find_editor,
-                            find_focus,
-                            replace_editor,
-                            replace_active,
-                            replace_focus,
-                            is_active,
-                        ),
-                    )
-                })
-                .on_resize(move |rect| {
-                    editor_rect.set(rect);
-                })
-                .style(|s| s.absolute().size_pct(100.0, 100.0))
+    stack((
+        editor_breadcrumbs(workspace, editor.get_untracked(), config),
+        container(
+            stack((
+                editor_gutter(editor, is_active),
+                container(editor_content(editor, is_active))
+                    .style(move |s| s.size_pct(100.0, 100.0)),
+                empty().style(move |s| {
+                    let config = config.get();
+                    s.absolute()
+                        .width_pct(100.0)
+                        .height_px(sticky_header_height.get() as f32)
+                        // .box_shadow_blur(5.0)
+                        // .border_bottom(1.0)
+                        // .border_color(
+                        //     *config.get_color(LapceColor::LAPCE_BORDER),
+                        // )
+                        .apply_if(
+                            !config.editor.sticky_header
+                                || sticky_header_height.get() == 0.0
+                                || !editor_view.get().is_normal(),
+                            |s| s.hide(),
+                        )
+                }),
+                find_view(
+                    editor,
+                    find_editor,
+                    find_focus,
+                    replace_editor,
+                    replace_active,
+                    replace_focus,
+                    is_active,
+                ),
+            ))
+            .on_resize(move |rect| {
+                editor_rect.set(rect);
             })
-            .style(|s| s.size_pct(100.0, 100.0)),
+            .style(|s| s.absolute().size_pct(100.0, 100.0)),
         )
-    })
+        .style(|s| s.size_pct(100.0, 100.0)),
+    ))
     .on_cleanup(move || {
         if editors.with_untracked(|editors| editors.contains_key(&editor_id)) {
             // editor still exist, so it might be moved to a different editor tab
@@ -1412,98 +1407,91 @@ fn editor_gutter(
     let gutter_rect = create_rw_signal(Rect::ZERO);
     let gutter_width = create_memo(move |_| gutter_rect.get().width());
 
-    stack(move || {
-        (
-            stack(|| {
-                (
-                    empty().style(move |s| s.width_px(padding_left)),
-                    label(move || {
-                        let doc = doc.get();
-                        doc.buffer.with(|b| b.last_line() + 1).to_string()
-                    }),
-                    empty().style(move |s| s.width_px(padding_right)),
-                )
-            })
-            .style(|s| s.height_pct(100.0)),
-            clip(|| {
-                stack(|| {
-                    (
-                        editor_gutter_view(editor.get_untracked())
-                            .on_resize(move |rect| {
-                                gutter_rect.set(rect);
-                            })
-                            .on_event(EventListener::PointerWheel, move |event| {
-                                if let Event::PointerWheel(pointer_event) = event {
-                                    scroll_delta.set(pointer_event.delta);
-                                }
-                                true
-                            })
-                            .style(|s| s.size_pct(100.0, 100.0)),
-                        container(|| {
-                            svg(move || config.get().ui_svg(LapceIcons::LIGHTBULB))
-                                .style(move |s| {
-                                    let config = config.get();
-                                    let size = config.ui.icon_size() as f32;
-                                    s.size_px(size, size).color(
-                                        *config.get_color(LapceColor::LAPCE_WARN),
-                                    )
-                                })
-                        })
-                        .on_click(move |_| {
-                            editor.get_untracked().show_code_actions(true);
-                            true
-                        })
-                        .style(move |s| {
+    stack((
+        stack((
+            empty().style(move |s| s.width_px(padding_left)),
+            label(move || {
+                let doc = doc.get();
+                doc.buffer.with(|b| b.last_line() + 1).to_string()
+            }),
+            empty().style(move |s| s.width_px(padding_right)),
+        ))
+        .style(|s| s.height_pct(100.0)),
+        clip(
+            stack((
+                editor_gutter_view(editor.get_untracked())
+                    .on_resize(move |rect| {
+                        gutter_rect.set(rect);
+                    })
+                    .on_event(EventListener::PointerWheel, move |event| {
+                        if let Event::PointerWheel(pointer_event) = event {
+                            scroll_delta.set(pointer_event.delta);
+                        }
+                        true
+                    })
+                    .style(|s| s.size_pct(100.0, 100.0)),
+                container(
+                    svg(move || config.get().ui_svg(LapceIcons::LIGHTBULB)).style(
+                        move |s| {
                             let config = config.get();
-                            let viewport = viewport.get();
-                            let gutter_width = gutter_width.get();
-                            let code_action_line = code_action_line.get();
                             let size = config.ui.icon_size() as f32;
-                            let margin_left = gutter_width as f32
-                                + (padding_right - size) / 2.0
-                                - 4.0;
-                            let line_height = config.editor.line_height();
-                            let margin_top = if let Some(line) = code_action_line {
-                                (line * line_height) as f32 - viewport.y0 as f32
-                                    + (line_height as f32 - size) / 2.0
-                                    - 4.0
-                            } else {
-                                0.0
-                            };
-                            s.absolute()
-                                .padding_px(4.0)
-                                .border_radius(6.0)
-                                .margin_left_px(margin_left)
-                                .margin_top_px(margin_top)
-                                .apply_if(code_action_line.is_none(), |s| s.hide())
-                        })
-                        .hover_style(move |s| {
-                            s.cursor(CursorStyle::Pointer).background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
-                        })
-                        .active_style(move |s| {
-                            s.background(*config.get().get_color(
-                                LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
-                            ))
-                        }),
+                            s.size_px(size, size)
+                                .color(*config.get_color(LapceColor::LAPCE_WARN))
+                        },
+                    ),
+                )
+                .on_click(move |_| {
+                    editor.get_untracked().show_code_actions(true);
+                    true
+                })
+                .style(move |s| {
+                    let config = config.get();
+                    let viewport = viewport.get();
+                    let gutter_width = gutter_width.get();
+                    let code_action_line = code_action_line.get();
+                    let size = config.ui.icon_size() as f32;
+                    let margin_left =
+                        gutter_width as f32 + (padding_right - size) / 2.0 - 4.0;
+                    let line_height = config.editor.line_height();
+                    let margin_top = if let Some(line) = code_action_line {
+                        (line * line_height) as f32 - viewport.y0 as f32
+                            + (line_height as f32 - size) / 2.0
+                            - 4.0
+                    } else {
+                        0.0
+                    };
+                    s.absolute()
+                        .padding_px(4.0)
+                        .border_radius(6.0)
+                        .margin_left_px(margin_left)
+                        .margin_top_px(margin_top)
+                        .apply_if(code_action_line.is_none(), |s| s.hide())
+                })
+                .hover_style(move |s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
-                .style(|s| s.size_pct(100.0, 100.0))
-            })
-            .style(move |s| {
-                s.absolute()
-                    .size_pct(100.0, 100.0)
-                    .background(
-                        *config.get().get_color(LapceColor::EDITOR_BACKGROUND),
+                .active_style(move |s| {
+                    s.background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
                     )
-                    .padding_left_px(padding_left)
-                    .padding_right_px(padding_right)
-            }),
+                }),
+            ))
+            .style(|s| s.size_pct(100.0, 100.0)),
         )
-    })
+        .style(move |s| {
+            s.absolute()
+                .size_pct(100.0, 100.0)
+                .background(*config.get().get_color(LapceColor::EDITOR_BACKGROUND))
+                .padding_left_px(padding_left)
+                .padding_right_px(padding_right)
+        }),
+    ))
     .style(|s| s.height_pct(100.0))
 }
 
@@ -1522,81 +1510,77 @@ fn editor_breadcrumbs(
             content.path().cloned()
         }
     });
-    container(move || {
-        scroll(move || {
-            stack(|| {
-                (
-                    {
-                        let workspace = workspace.clone();
-                        list(
-                            move || {
-                                let full_path = doc_path.get().unwrap_or_default();
-                                let mut path = full_path;
-                                if let Some(workspace_path) =
-                                    workspace.clone().path.as_ref()
-                                {
-                                    path = path
-                                        .strip_prefix(workspace_path)
-                                        .unwrap_or(&path)
-                                        .to_path_buf();
-                                }
-                                path.ancestors()
-                                    .collect::<Vec<_>>()
-                                    .iter()
-                                    .rev()
-                                    .filter_map(|path| {
-                                        Some(path.file_name()?.to_str()?.to_string())
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .into_iter()
-                                    .enumerate()
-                            },
-                            |(i, section)| (*i, section.to_string()),
-                            move |(i, section)| {
-                                stack(move || {
-                                    (
-                                        svg(move || {
-                                            config.get().ui_svg(
-                                                LapceIcons::BREADCRUMB_SEPARATOR,
-                                            )
-                                        })
-                                        .style(move |s| {
-                                            let config = config.get();
-                                            let size = config.ui.icon_size() as f32;
-                                            s.apply_if(i == 0, |s| s.hide())
-                                                .size_px(size, size)
-                                                .color(*config.get_color(
-                                                    LapceColor::LAPCE_ICON_ACTIVE,
-                                                ))
-                                        }),
-                                        label(move || section.clone()),
-                                    )
+    container(
+        scroll(
+            stack((
+                {
+                    let workspace = workspace.clone();
+                    list(
+                        move || {
+                            let full_path = doc_path.get().unwrap_or_default();
+                            let mut path = full_path;
+                            if let Some(workspace_path) =
+                                workspace.clone().path.as_ref()
+                            {
+                                path = path
+                                    .strip_prefix(workspace_path)
+                                    .unwrap_or(&path)
+                                    .to_path_buf();
+                            }
+                            path.ancestors()
+                                .collect::<Vec<_>>()
+                                .iter()
+                                .rev()
+                                .filter_map(|path| {
+                                    Some(path.file_name()?.to_str()?.to_string())
                                 })
-                                .style(|s| s.items_center())
-                            },
-                        )
-                        .style(|s| s.padding_horiz_px(10.0))
-                    },
-                    label(move || {
-                        let doc = doc.get();
-                        if let DocContent::History(history) = doc.content.get() {
-                            format!("({})", history.version)
-                        } else {
-                            "".to_string()
-                        }
-                    })
-                    .style(move |s| {
-                        let doc = doc.get();
-                        let is_history = doc.content.with_untracked(|content| {
-                            matches!(content, DocContent::History(_))
-                        });
+                                .collect::<Vec<_>>()
+                                .into_iter()
+                                .enumerate()
+                        },
+                        |(i, section)| (*i, section.to_string()),
+                        move |(i, section)| {
+                            stack((
+                                svg(move || {
+                                    config
+                                        .get()
+                                        .ui_svg(LapceIcons::BREADCRUMB_SEPARATOR)
+                                })
+                                .style(move |s| {
+                                    let config = config.get();
+                                    let size = config.ui.icon_size() as f32;
+                                    s.apply_if(i == 0, |s| s.hide())
+                                        .size_px(size, size)
+                                        .color(*config.get_color(
+                                            LapceColor::LAPCE_ICON_ACTIVE,
+                                        ))
+                                }),
+                                label(move || section.clone()),
+                            ))
+                            .style(|s| s.items_center())
+                        },
+                    )
+                    .style(|s| s.padding_horiz_px(10.0))
+                },
+                label(move || {
+                    let doc = doc.get();
+                    if let DocContent::History(history) = doc.content.get() {
+                        format!("({})", history.version)
+                    } else {
+                        "".to_string()
+                    }
+                })
+                .style(move |s| {
+                    let doc = doc.get();
+                    let is_history = doc.content.with_untracked(|content| {
+                        matches!(content, DocContent::History(_))
+                    });
 
-                        s.padding_right_px(10.0).apply_if(!is_history, |s| s.hide())
-                    }),
-                )
-            })
-            .style(|s| s.items_center())
-        })
+                    s.padding_right_px(10.0).apply_if(!is_history, |s| s.hide())
+                }),
+            ))
+            .style(|s| s.items_center()),
+        )
         .on_scroll_to(move || {
             doc.track();
             Some(Point::new(3000.0, 0.0))
@@ -1608,8 +1592,8 @@ fn editor_breadcrumbs(
                 .border_bottom(1.0)
                 .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
                 .items_center()
-        })
-    })
+        }),
+    )
     .style(move |s| {
         let config = config.get_untracked();
         let line_height = config.editor.line_height();
@@ -1644,7 +1628,7 @@ fn editor_content(
         )
     });
 
-    scroll(|| {
+    scroll({
         let editor_content_view = editor_view(editor.get_untracked(), is_active)
             .style(move |s| {
                 let config = config.get();
@@ -1751,60 +1735,58 @@ fn search_editor_view(
     let is_regex = find_editor.common.find.is_regex;
     let visual = find_editor.common.find.visual;
 
-    stack(|| {
-        (
-            text_input(find_editor, move || {
-                is_active(true)
-                    && visual.get()
-                    && find_focus.get()
-                    && !replace_focus.get()
-            })
-            .on_event(EventListener::PointerDown, move |_| {
-                find_focus.set(true);
-                replace_focus.set(false);
-                false
-            })
-            .style(|s| s.width_pct(100.0)),
-            clickable_icon(
-                || LapceIcons::SEARCH_CASE_SENSITIVE,
-                move || {
-                    let new = match case_matching.get_untracked() {
-                        CaseMatching::Exact => CaseMatching::CaseInsensitive,
-                        CaseMatching::CaseInsensitive => CaseMatching::Exact,
-                    };
-                    case_matching.set(new);
-                },
-                move || case_matching.get() == CaseMatching::Exact,
-                || false,
-                config,
-            )
-            .style(|s| s.padding_vert_px(4.0)),
-            clickable_icon(
-                || LapceIcons::SEARCH_WHOLE_WORD,
-                move || {
-                    whole_word.update(|whole_word| {
-                        *whole_word = !*whole_word;
-                    });
-                },
-                move || whole_word.get(),
-                || false,
-                config,
-            )
-            .style(|s| s.padding_left_px(6.0)),
-            clickable_icon(
-                || LapceIcons::SEARCH_REGEX,
-                move || {
-                    is_regex.update(|is_regex| {
-                        *is_regex = !*is_regex;
-                    });
-                },
-                move || is_regex.get(),
-                || false,
-                config,
-            )
-            .style(|s| s.padding_horiz_px(6.0)),
+    stack((
+        text_input(find_editor, move || {
+            is_active(true)
+                && visual.get()
+                && find_focus.get()
+                && !replace_focus.get()
+        })
+        .on_event(EventListener::PointerDown, move |_| {
+            find_focus.set(true);
+            replace_focus.set(false);
+            false
+        })
+        .style(|s| s.width_pct(100.0)),
+        clickable_icon(
+            || LapceIcons::SEARCH_CASE_SENSITIVE,
+            move || {
+                let new = match case_matching.get_untracked() {
+                    CaseMatching::Exact => CaseMatching::CaseInsensitive,
+                    CaseMatching::CaseInsensitive => CaseMatching::Exact,
+                };
+                case_matching.set(new);
+            },
+            move || case_matching.get() == CaseMatching::Exact,
+            || false,
+            config,
         )
-    })
+        .style(|s| s.padding_vert_px(4.0)),
+        clickable_icon(
+            || LapceIcons::SEARCH_WHOLE_WORD,
+            move || {
+                whole_word.update(|whole_word| {
+                    *whole_word = !*whole_word;
+                });
+            },
+            move || whole_word.get(),
+            || false,
+            config,
+        )
+        .style(|s| s.padding_left_px(6.0)),
+        clickable_icon(
+            || LapceIcons::SEARCH_REGEX,
+            move || {
+                is_regex.update(|is_regex| {
+                    *is_regex = !*is_regex;
+                });
+            },
+            move || is_regex.get(),
+            || false,
+            config,
+        )
+        .style(|s| s.padding_horiz_px(6.0)),
+    ))
     .style(move |s| {
         let config = config.get();
         s.width_px(200.0)
@@ -1826,28 +1808,26 @@ fn replace_editor_view(
     let config = replace_editor.common.config;
     let visual = replace_editor.common.find.visual;
 
-    stack(|| {
-        (
-            text_input(replace_editor, move || {
-                is_active(true)
-                    && visual.get()
-                    && find_focus.get()
-                    && replace_active.get()
-                    && replace_focus.get()
-            })
-            .on_event(EventListener::PointerDown, move |_| {
-                find_focus.set(true);
-                replace_focus.set(true);
-                false
-            })
-            .style(|s| s.width_pct(100.0)),
-            empty().style(move |s| {
-                let config = config.get();
-                let size = config.ui.icon_size() as f32 + 10.0;
-                s.size_px(0.0, size).padding_vert_px(4.0)
-            }),
-        )
-    })
+    stack((
+        text_input(replace_editor, move || {
+            is_active(true)
+                && visual.get()
+                && find_focus.get()
+                && replace_active.get()
+                && replace_focus.get()
+        })
+        .on_event(EventListener::PointerDown, move |_| {
+            find_focus.set(true);
+            replace_focus.set(true);
+            false
+        })
+        .style(|s| s.width_pct(100.0)),
+        empty().style(move |s| {
+            let config = config.get();
+            let size = config.ui.icon_size() as f32 + 10.0;
+            s.size_px(0.0, size).padding_vert_px(4.0)
+        }),
+    ))
     .style(move |s| {
         let config = config.get();
         s.width_px(200.0)
@@ -1892,131 +1872,124 @@ fn find_view(
         })
     });
 
-    container(|| {
-        stack(|| {
-            (
-                stack(|| {
-                    (
-                        clickable_icon(
-                            move || {
-                                if replace_active.get() {
-                                    LapceIcons::ITEM_OPENED
-                                } else {
-                                    LapceIcons::ITEM_CLOSED
-                                }
-                            },
-                            move || {
-                                replace_active.update(|active| *active = !*active);
-                            },
-                            move || false,
-                            || false,
-                            config,
-                        )
-                        .style(|s| s.padding_horiz_px(6.0)),
-                        search_editor_view(
-                            find_editor,
-                            find_focus,
-                            is_active,
-                            replace_focus,
-                        ),
-                        label(move || {
-                            let (current, all) = find_pos.get();
-                            if all == 0 {
-                                "No Results".to_string()
-                            } else {
-                                format!("{current} of {all}")
-                            }
-                        })
-                        .style(|s| s.margin_left_px(6.0).min_width_px(70.0)),
-                        clickable_icon(
-                            || LapceIcons::SEARCH_BACKWARD,
-                            move || {
-                                editor
-                                    .get_untracked()
-                                    .search_backward(ModifiersState::empty());
-                            },
-                            move || false,
-                            || false,
-                            config,
-                        )
-                        .style(|s| s.padding_left_px(6.0)),
-                        clickable_icon(
-                            || LapceIcons::SEARCH_FORWARD,
-                            move || {
-                                editor
-                                    .get_untracked()
-                                    .search_forward(ModifiersState::empty());
-                            },
-                            move || false,
-                            || false,
-                            config,
-                        )
-                        .style(|s| s.padding_left_px(6.0)),
-                        clickable_icon(
-                            || LapceIcons::CLOSE,
-                            move || {
-                                editor.get_untracked().clear_search();
-                            },
-                            move || false,
-                            || false,
-                            config,
-                        )
-                        .style(|s| s.padding_horiz_px(6.0)),
-                    )
+    container(
+        stack((
+            stack((
+                clickable_icon(
+                    move || {
+                        if replace_active.get() {
+                            LapceIcons::ITEM_OPENED
+                        } else {
+                            LapceIcons::ITEM_CLOSED
+                        }
+                    },
+                    move || {
+                        replace_active.update(|active| *active = !*active);
+                    },
+                    move || false,
+                    || false,
+                    config,
+                )
+                .style(|s| s.padding_horiz_px(6.0)),
+                search_editor_view(
+                    find_editor,
+                    find_focus,
+                    is_active,
+                    replace_focus,
+                ),
+                label(move || {
+                    let (current, all) = find_pos.get();
+                    if all == 0 {
+                        "No Results".to_string()
+                    } else {
+                        format!("{current} of {all}")
+                    }
                 })
-                .style(|s| s.items_center()),
-                stack(|| {
-                    (
-                        empty().style(move |s| {
-                            let config = config.get();
-                            let width =
-                                config.ui.icon_size() as f32 + 10.0 + 6.0 * 2.0;
-                            s.width_px(width)
-                        }),
-                        replace_editor_view(
-                            replace_editor,
-                            replace_active,
-                            replace_focus,
-                            is_active,
-                            find_focus,
-                        ),
-                        clickable_icon(
-                            || LapceIcons::SEARCH_REPLACE,
-                            move || {
-                                let text = replace_doc
-                                    .get_untracked()
-                                    .buffer
-                                    .with_untracked(|b| b.to_string());
-                                editor.get_untracked().replace_next(&text);
-                            },
-                            move || false,
-                            || false,
-                            config,
-                        )
-                        .style(|s| s.padding_left_px(6.0)),
-                        clickable_icon(
-                            || LapceIcons::SEARCH_REPLACE_ALL,
-                            move || {
-                                let text = replace_doc
-                                    .get_untracked()
-                                    .buffer
-                                    .with_untracked(|b| b.to_string());
-                                editor.get_untracked().replace_all(&text);
-                            },
-                            move || false,
-                            || false,
-                            config,
-                        )
-                        .style(|s| s.padding_left_px(6.0)),
-                    )
-                })
-                .style(move |s| {
-                    s.items_center()
-                        .margin_top_px(4.0)
-                        .apply_if(!replace_active.get(), |s| s.hide())
+                .style(|s| s.margin_left_px(6.0).min_width_px(70.0)),
+                clickable_icon(
+                    || LapceIcons::SEARCH_BACKWARD,
+                    move || {
+                        editor
+                            .get_untracked()
+                            .search_backward(ModifiersState::empty());
+                    },
+                    move || false,
+                    || false,
+                    config,
+                )
+                .style(|s| s.padding_left_px(6.0)),
+                clickable_icon(
+                    || LapceIcons::SEARCH_FORWARD,
+                    move || {
+                        editor
+                            .get_untracked()
+                            .search_forward(ModifiersState::empty());
+                    },
+                    move || false,
+                    || false,
+                    config,
+                )
+                .style(|s| s.padding_left_px(6.0)),
+                clickable_icon(
+                    || LapceIcons::CLOSE,
+                    move || {
+                        editor.get_untracked().clear_search();
+                    },
+                    move || false,
+                    || false,
+                    config,
+                )
+                .style(|s| s.padding_horiz_px(6.0)),
+            ))
+            .style(|s| s.items_center()),
+            stack((
+                empty().style(move |s| {
+                    let config = config.get();
+                    let width = config.ui.icon_size() as f32 + 10.0 + 6.0 * 2.0;
+                    s.width_px(width)
                 }),
-            )
-        })
+                replace_editor_view(
+                    replace_editor,
+                    replace_active,
+                    replace_focus,
+                    is_active,
+                    find_focus,
+                ),
+                clickable_icon(
+                    || LapceIcons::SEARCH_REPLACE,
+                    move || {
+                        let text = replace_doc
+                            .get_untracked()
+                            .buffer
+                            .with_untracked(|b| b.to_string());
+                        editor.get_untracked().replace_next(&text);
+                    },
+                    move || false,
+                    || false,
+                    config,
+                )
+                .style(|s| s.padding_left_px(6.0)),
+                clickable_icon(
+                    || LapceIcons::SEARCH_REPLACE_ALL,
+                    move || {
+                        let text = replace_doc
+                            .get_untracked()
+                            .buffer
+                            .with_untracked(|b| b.to_string());
+                        editor.get_untracked().replace_all(&text);
+                    },
+                    move || false,
+                    || false,
+                    config,
+                )
+                .style(|s| s.padding_left_px(6.0)),
+            ))
+            .style(move |s| {
+                s.items_center()
+                    .margin_top_px(4.0)
+                    .apply_if(!replace_active.get(), |s| s.hide())
+            }),
+        ))
         .style(move |s| {
             let config = config.get();
             s.margin_right_px(50.0)
@@ -2038,8 +2011,8 @@ fn find_view(
             }
             focus.set(Focus::Workbench);
             true
-        })
-    })
+        }),
+    )
     .style(move |s| {
         s.absolute()
             .margin_top_px(-1.0)

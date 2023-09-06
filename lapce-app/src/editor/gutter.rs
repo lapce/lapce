@@ -6,7 +6,7 @@ use floem::{
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
     view::{ChangeFlags, View},
-    Renderer, ViewContext,
+    Renderer,
 };
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 
@@ -24,8 +24,7 @@ pub struct EditorGutterView {
 }
 
 pub fn editor_gutter_view(editor: Rc<EditorData>) -> EditorGutterView {
-    let cx = ViewContext::get_current();
-    let id = cx.new_id();
+    let id = Id::next();
 
     EditorGutterView {
         id,

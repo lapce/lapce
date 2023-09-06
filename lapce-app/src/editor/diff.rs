@@ -380,145 +380,126 @@ pub fn diff_show_more_section_view(
         move |section: &DiffShowMoreSection| (section.visual_line, section.lines);
 
     let view_fn = move |section: DiffShowMoreSection| {
-        stack(|| {
-            (
-                wave_box().style(move |s| {
-                    s.absolute()
-                        .size_pct(100.0, 100.0)
-                        .color(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
+        stack((
+            wave_box().style(move |s| {
+                s.absolute()
+                    .size_pct(100.0, 100.0)
+                    .color(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
+            }),
+            label(move || format!("{} Hidden Lines", section.lines)),
+            label(|| "|".to_string()).style(|s| s.margin_left_px(10.0)),
+            stack((
+                svg(move || config.get().ui_svg(LapceIcons::FOLD)).style(move |s| {
+                    let config = config.get();
+                    let size = config.ui.icon_size() as f32;
+                    s.size_px(size, size)
+                        .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
                 }),
-                label(move || format!("{} Hidden Lines", section.lines)),
-                label(|| "|".to_string()).style(|s| s.margin_left_px(10.0)),
-                stack(|| {
-                    (
-                        svg(move || config.get().ui_svg(LapceIcons::FOLD)).style(
-                            move |s| {
-                                let config = config.get();
-                                let size = config.ui.icon_size() as f32;
-                                s.size_px(size, size).color(
-                                    *config.get_color(LapceColor::EDITOR_FOREGROUND),
-                                )
-                            },
-                        ),
-                        label(|| "Expand All".to_string())
-                            .style(|s| s.margin_left_px(6.0)),
-                    )
-                })
-                .on_event(EventListener::PointerDown, move |_| true)
-                .on_click(move |_event| {
-                    left_editor_view.update(|editor_view| {
-                        if let EditorViewKind::Diff(diff_info) = editor_view {
-                            expand_diff_lines(
-                                &mut diff_info.changes,
-                                section.left_actual_line,
-                                DiffExpand::All,
-                                false,
-                            );
-                        }
-                    });
-                    right_editor_view.update(|editor_view| {
-                        if let EditorViewKind::Diff(diff_info) = editor_view {
-                            expand_diff_lines(
-                                &mut diff_info.changes,
-                                section.right_actual_line,
-                                DiffExpand::All,
-                                true,
-                            );
-                        }
-                    });
-                    true
-                })
-                .style(|s| s.margin_left_px(10.0).height_pct(100.0).items_center())
-                .hover_style(|s| s.cursor(CursorStyle::Pointer)),
-                label(|| "|".to_string()).style(|s| s.margin_left_px(10.0)),
-                stack(|| {
-                    (
-                        svg(move || config.get().ui_svg(LapceIcons::FOLD_UP)).style(
-                            move |s| {
-                                let config = config.get();
-                                let size = config.ui.icon_size() as f32;
-                                s.size_px(size, size).color(
-                                    *config.get_color(LapceColor::EDITOR_FOREGROUND),
-                                )
-                            },
-                        ),
-                        label(|| "Expand Up".to_string())
-                            .style(|s| s.margin_left_px(6.0)),
-                    )
-                })
-                .on_event(EventListener::PointerDown, move |_| true)
-                .on_click(move |_event| {
-                    left_editor_view.update(|editor_view| {
-                        if let EditorViewKind::Diff(diff_info) = editor_view {
-                            expand_diff_lines(
-                                &mut diff_info.changes,
-                                section.left_actual_line,
-                                DiffExpand::Up(10),
-                                false,
-                            );
-                        }
-                    });
-                    right_editor_view.update(|editor_view| {
-                        if let EditorViewKind::Diff(diff_info) = editor_view {
-                            expand_diff_lines(
-                                &mut diff_info.changes,
-                                section.right_actual_line,
-                                DiffExpand::Up(10),
-                                true,
-                            );
-                        }
-                    });
-                    true
-                })
-                .style(move |s| {
-                    s.margin_left_px(10.0).height_pct(100.0).items_center()
-                })
-                .hover_style(|s| s.cursor(CursorStyle::Pointer)),
-                label(|| "|".to_string()).style(|s| s.margin_left_px(10.0)),
-                stack(|| {
-                    (
-                        svg(move || config.get().ui_svg(LapceIcons::FOLD_DOWN))
-                            .style(move |s| {
-                                let config = config.get();
-                                let size = config.ui.icon_size() as f32;
-                                s.size_px(size, size).color(
-                                    *config.get_color(LapceColor::EDITOR_FOREGROUND),
-                                )
-                            }),
-                        label(|| "Expand Down".to_string())
-                            .style(|s| s.margin_left_px(6.0)),
-                    )
-                })
-                .on_event(EventListener::PointerDown, move |_| true)
-                .on_click(move |_event| {
-                    left_editor_view.update(|editor_view| {
-                        if let EditorViewKind::Diff(diff_info) = editor_view {
-                            expand_diff_lines(
-                                &mut diff_info.changes,
-                                section.left_actual_line,
-                                DiffExpand::Down(10),
-                                false,
-                            );
-                        }
-                    });
-                    right_editor_view.update(|editor_view| {
-                        if let EditorViewKind::Diff(diff_info) = editor_view {
-                            expand_diff_lines(
-                                &mut diff_info.changes,
-                                section.right_actual_line,
-                                DiffExpand::Down(10),
-                                true,
-                            );
-                        }
-                    });
-                    true
-                })
-                .style(move |s| {
-                    s.margin_left_px(10.0).height_pct(100.0).items_center()
-                })
-                .hover_style(|s| s.cursor(CursorStyle::Pointer)),
-            )
-        })
+                label(|| "Expand All".to_string()).style(|s| s.margin_left_px(6.0)),
+            ))
+            .on_event(EventListener::PointerDown, move |_| true)
+            .on_click(move |_event| {
+                left_editor_view.update(|editor_view| {
+                    if let EditorViewKind::Diff(diff_info) = editor_view {
+                        expand_diff_lines(
+                            &mut diff_info.changes,
+                            section.left_actual_line,
+                            DiffExpand::All,
+                            false,
+                        );
+                    }
+                });
+                right_editor_view.update(|editor_view| {
+                    if let EditorViewKind::Diff(diff_info) = editor_view {
+                        expand_diff_lines(
+                            &mut diff_info.changes,
+                            section.right_actual_line,
+                            DiffExpand::All,
+                            true,
+                        );
+                    }
+                });
+                true
+            })
+            .style(|s| s.margin_left_px(10.0).height_pct(100.0).items_center())
+            .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+            label(|| "|".to_string()).style(|s| s.margin_left_px(10.0)),
+            stack((
+                svg(move || config.get().ui_svg(LapceIcons::FOLD_UP)).style(
+                    move |s| {
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32;
+                        s.size_px(size, size)
+                            .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
+                    },
+                ),
+                label(|| "Expand Up".to_string()).style(|s| s.margin_left_px(6.0)),
+            ))
+            .on_event(EventListener::PointerDown, move |_| true)
+            .on_click(move |_event| {
+                left_editor_view.update(|editor_view| {
+                    if let EditorViewKind::Diff(diff_info) = editor_view {
+                        expand_diff_lines(
+                            &mut diff_info.changes,
+                            section.left_actual_line,
+                            DiffExpand::Up(10),
+                            false,
+                        );
+                    }
+                });
+                right_editor_view.update(|editor_view| {
+                    if let EditorViewKind::Diff(diff_info) = editor_view {
+                        expand_diff_lines(
+                            &mut diff_info.changes,
+                            section.right_actual_line,
+                            DiffExpand::Up(10),
+                            true,
+                        );
+                    }
+                });
+                true
+            })
+            .style(move |s| s.margin_left_px(10.0).height_pct(100.0).items_center())
+            .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+            label(|| "|".to_string()).style(|s| s.margin_left_px(10.0)),
+            stack((
+                svg(move || config.get().ui_svg(LapceIcons::FOLD_DOWN)).style(
+                    move |s| {
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32;
+                        s.size_px(size, size)
+                            .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
+                    },
+                ),
+                label(|| "Expand Down".to_string()).style(|s| s.margin_left_px(6.0)),
+            ))
+            .on_event(EventListener::PointerDown, move |_| true)
+            .on_click(move |_event| {
+                left_editor_view.update(|editor_view| {
+                    if let EditorViewKind::Diff(diff_info) = editor_view {
+                        expand_diff_lines(
+                            &mut diff_info.changes,
+                            section.left_actual_line,
+                            DiffExpand::Down(10),
+                            false,
+                        );
+                    }
+                });
+                right_editor_view.update(|editor_view| {
+                    if let EditorViewKind::Diff(diff_info) = editor_view {
+                        expand_diff_lines(
+                            &mut diff_info.changes,
+                            section.right_actual_line,
+                            DiffExpand::Down(10),
+                            true,
+                        );
+                    }
+                });
+                true
+            })
+            .style(move |s| s.margin_left_px(10.0).height_pct(100.0).items_center())
+            .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+        ))
         .style(move |s| {
             let config = config.get();
             s.absolute()
@@ -534,17 +515,15 @@ pub fn diff_show_more_section_view(
         .hover_style(|s| s.cursor(CursorStyle::Default))
     };
 
-    stack(move || {
-        (
-            empty().style(move |s| {
-                s.height_px(config.get().editor.line_height() as f32 + 1.0)
-            }),
-            clip(|| {
-                list(each_fn, key_fn, view_fn)
-                    .style(|s| s.flex_col().size_pct(100.0, 100.0))
-            })
-            .style(|s| s.size_pct(100.0, 100.0)),
+    stack((
+        empty().style(move |s| {
+            s.height_px(config.get().editor.line_height() as f32 + 1.0)
+        }),
+        clip(
+            list(each_fn, key_fn, view_fn)
+                .style(|s| s.flex_col().size_pct(100.0, 100.0)),
         )
-    })
+        .style(|s| s.size_pct(100.0, 100.0)),
+    ))
     .style(|s| s.absolute().flex_col().size_pct(100.0, 100.0))
 }

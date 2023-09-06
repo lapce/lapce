@@ -10,7 +10,7 @@ use floem::{
     peniko::kurbo::{Point, Rect, Size},
     reactive::{create_effect, ReadSignal},
     view::{ChangeFlags, View},
-    Renderer, ViewContext,
+    Renderer,
 };
 use lapce_core::mode::Mode;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
@@ -50,8 +50,7 @@ pub fn terminal_view(
     run_config: ReadSignal<Option<RunDebugProcess>>,
     terminal_panel_data: TerminalPanelData,
 ) -> TerminalView {
-    let cx = ViewContext::get_current();
-    let id = cx.new_id();
+    let id = Id::next();
 
     create_effect(move |_| {
         let raw = raw.get();

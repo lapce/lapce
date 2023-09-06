@@ -212,23 +212,20 @@ pub fn panel_container_view(
     };
 
     let is_bottom = position.is_bottom();
-    stack(|| {
-        (
-            panel_picker(window_tab_data.clone(), position.first()),
-            panel_view(window_tab_data.clone(), position.first()),
-            panel_view(window_tab_data.clone(), position.second()),
-            panel_picker(window_tab_data.clone(), position.second()),
-            resize_drag_view(position),
-            stack(move || {
-                (drop_view(position.first()), drop_view(position.second()))
-            })
-            .style(move |s| {
+    stack((
+        panel_picker(window_tab_data.clone(), position.first()),
+        panel_view(window_tab_data.clone(), position.first()),
+        panel_view(window_tab_data.clone(), position.second()),
+        panel_picker(window_tab_data.clone(), position.second()),
+        resize_drag_view(position),
+        stack((drop_view(position.first()), drop_view(position.second()))).style(
+            move |s| {
                 s.absolute()
                     .size_pct(100.0, 100.0)
                     .apply_if(!is_bottom, |s| s.flex_col())
-            }),
-        )
-    })
+            },
+        ),
+    ))
     .on_resize(move |rect| {
         let size = rect.size();
         if size != current_size.get_untracked() {
@@ -290,27 +287,30 @@ fn panel_view(
         |p| *p,
         move |kind| {
             let view = match kind {
-                PanelKind::Terminal => container_box(|| {
-                    Box::new(terminal_panel(window_tab_data.clone()))
-                }),
-                PanelKind::FileExplorer => container_box(|| {
-                    Box::new(file_explorer_panel(window_tab_data.clone(), position))
-                }),
-                PanelKind::SourceControl => container_box(|| {
-                    Box::new(source_control_panel(window_tab_data.clone(), position))
-                }),
-                PanelKind::Plugin => container_box(|| {
-                    Box::new(plugin_panel(window_tab_data.clone(), position))
-                }),
-                PanelKind::Search => container_box(|| {
-                    Box::new(global_search_panel(window_tab_data.clone(), position))
-                }),
-                PanelKind::Problem => container_box(|| {
-                    Box::new(problem_panel(window_tab_data.clone(), position))
-                }),
-                PanelKind::Debug => container_box(|| {
-                    Box::new(debug_panel(window_tab_data.clone(), position))
-                }),
+                PanelKind::Terminal => {
+                    container_box(terminal_panel(window_tab_data.clone()))
+                }
+                PanelKind::FileExplorer => container_box(file_explorer_panel(
+                    window_tab_data.clone(),
+                    position,
+                )),
+                PanelKind::SourceControl => container_box(source_control_panel(
+                    window_tab_data.clone(),
+                    position,
+                )),
+                PanelKind::Plugin => {
+                    container_box(plugin_panel(window_tab_data.clone(), position))
+                }
+                PanelKind::Search => container_box(global_search_panel(
+                    window_tab_data.clone(),
+                    position,
+                )),
+                PanelKind::Problem => {
+                    container_box(problem_panel(window_tab_data.clone(), position))
+                }
+                PanelKind::Debug => {
+                    container_box(debug_panel(window_tab_data.clone(), position))
+                }
             };
             view.style(|s| s.size_pct(100.0, 100.0))
         },
@@ -328,7 +328,7 @@ pub fn panel_header(
     header: String,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    container(|| label(move || header.clone())).style(move |s| {
+    container(label(move || header.clone())).style(move |s| {
         s.padding_horiz_px(10.0)
             .padding_vert_px(6.0)
             .width_pct(100.0)
@@ -377,78 +377,62 @@ fn panel_picker(
                     }
                 }
             };
-            container(|| {
-                stack(|| {
-                    (
-                        clickable_icon(
-                            || icon,
-                            move || {
-                                window_tab_data.toggle_panel_visual(p);
-                            },
-                            || false,
-                            || false,
-                            config,
-                        )
-                        .draggable()
-                        .on_event(EventListener::DragStart, move |_| {
-                            dragging.set(Some(DragContent::Panel(p)));
-                            true
-                        })
-                        .on_event(EventListener::DragEnd, move |_| {
-                            dragging.set(None);
-                            true
-                        })
-                        .dragging_style(move |s| {
-                            let config = config.get();
-                            s.border(1.0)
-                                .border_radius(6.0)
-                                .border_color(
-                                    *config.get_color(LapceColor::LAPCE_BORDER),
-                                )
-                                .padding_px(6.0)
-                                .background(
-                                    config
-                                        .get_color(LapceColor::PANEL_BACKGROUND)
-                                        .with_alpha_factor(0.7),
-                                )
-                        })
-                        .style(|s| s.padding_px(1.0)),
-                        label(|| "".to_string()).style(move |s| {
-                            s.absolute()
-                                .size_pct(100.0, 100.0)
-                                .apply_if(!is_bottom && is_first, |s| {
-                                    s.margin_top_px(2.0)
-                                })
-                                .apply_if(!is_bottom && !is_first, |s| {
-                                    s.margin_top_px(-2.0)
-                                })
-                                .apply_if(is_bottom && is_first, |s| {
-                                    s.margin_left_px(-2.0)
-                                })
-                                .apply_if(is_bottom && !is_first, |s| {
-                                    s.margin_left_px(2.0)
-                                })
-                                .apply_if(is_active(), |s| {
-                                    s.apply_if(!is_bottom && is_first, |s| {
-                                        s.border_bottom(2.0)
-                                    })
-                                    .apply_if(!is_bottom && !is_first, |s| {
-                                        s.border_top(2.0)
-                                    })
-                                    .apply_if(is_bottom && is_first, |s| {
-                                        s.border_left(2.0)
-                                    })
-                                    .apply_if(is_bottom && !is_first, |s| {
-                                        s.border_right(2.0)
-                                    })
-                                })
-                                .border_color(*config.get().get_color(
-                                    LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE,
-                                ))
-                        }),
-                    )
+            container(stack((
+                clickable_icon(
+                    || icon,
+                    move || {
+                        window_tab_data.toggle_panel_visual(p);
+                    },
+                    || false,
+                    || false,
+                    config,
+                )
+                .draggable()
+                .on_event(EventListener::DragStart, move |_| {
+                    dragging.set(Some(DragContent::Panel(p)));
+                    true
                 })
-            })
+                .on_event(EventListener::DragEnd, move |_| {
+                    dragging.set(None);
+                    true
+                })
+                .dragging_style(move |s| {
+                    let config = config.get();
+                    s.border(1.0)
+                        .border_radius(6.0)
+                        .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                        .padding_px(6.0)
+                        .background(
+                            config
+                                .get_color(LapceColor::PANEL_BACKGROUND)
+                                .with_alpha_factor(0.7),
+                        )
+                })
+                .style(|s| s.padding_px(1.0)),
+                label(|| "".to_string()).style(move |s| {
+                    s.absolute()
+                        .size_pct(100.0, 100.0)
+                        .apply_if(!is_bottom && is_first, |s| s.margin_top_px(2.0))
+                        .apply_if(!is_bottom && !is_first, |s| s.margin_top_px(-2.0))
+                        .apply_if(is_bottom && is_first, |s| s.margin_left_px(-2.0))
+                        .apply_if(is_bottom && !is_first, |s| s.margin_left_px(2.0))
+                        .apply_if(is_active(), |s| {
+                            s.apply_if(!is_bottom && is_first, |s| {
+                                s.border_bottom(2.0)
+                            })
+                            .apply_if(!is_bottom && !is_first, |s| s.border_top(2.0))
+                            .apply_if(is_bottom && is_first, |s| s.border_left(2.0))
+                            .apply_if(is_bottom && !is_first, |s| {
+                                s.border_right(2.0)
+                            })
+                        })
+                        .border_color(
+                            *config
+                                .get()
+                                .get_color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
+                        )
+                }),
+            )))
             .style(|s| s.padding_px(6.0))
         },
     )

@@ -18,7 +18,7 @@ use floem::{
     taffy::{self, prelude::Node},
     view::{ChangeFlags, View},
     views::Decorators,
-    Renderer, ViewContext,
+    Renderer,
 };
 use lapce_core::{
     buffer::rope_text::RopeText,
@@ -37,8 +37,7 @@ pub fn text_input(
     editor: EditorData,
     is_focused: impl Fn() -> bool + 'static,
 ) -> TextInput {
-    let cx = ViewContext::get_current();
-    let id = cx.new_id();
+    let id = Id::next();
 
     let doc = editor.view.doc;
     let cursor = editor.cursor;

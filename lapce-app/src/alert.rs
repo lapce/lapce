@@ -60,100 +60,95 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
     let buttons = alert_data.buttons;
     let button_id = AtomicU64::new(0);
 
-    container(|| {
-        container(|| {
-            stack(|| {
-                (
-                    svg(move || config.get().ui_svg(LapceIcons::WARNING)).style(
-                        move |s| {
-                            s.size_px(50.0, 50.0).color(
-                                *config.get().get_color(LapceColor::LAPCE_WARN),
-                            )
-                        },
-                    ),
-                    label(move || title.get()).style(move |s| {
+    container({
+        container({
+            stack((
+                svg(move || config.get().ui_svg(LapceIcons::WARNING)).style(
+                    move |s| {
+                        s.size_px(50.0, 50.0)
+                            .color(*config.get().get_color(LapceColor::LAPCE_WARN))
+                    },
+                ),
+                label(move || title.get()).style(move |s| {
+                    s.margin_top_px(20.0)
+                        .width_pct(100.0)
+                        .font_bold()
+                        .font_size((config.get().ui.font_size() + 1) as f32)
+                }),
+                label(move || msg.get())
+                    .style(move |s| s.width_pct(100.0).margin_top_px(10.0)),
+                list(
+                    move || buttons.get(),
+                    move |_button| {
+                        button_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                    },
+                    move |button| {
+                        label(move || button.text.clone())
+                            .on_click(move |_| {
+                                (button.action)();
+                                true
+                            })
+                            .style(move |s| {
+                                let config = config.get();
+                                s.margin_top_px(10.0)
+                                    .width_pct(100.0)
+                                    .justify_center()
+                                    .font_size((config.ui.font_size() + 1) as f32)
+                                    .line_height(1.6)
+                                    .border(1.0)
+                                    .border_radius(6.0)
+                                    .border_color(
+                                        *config.get_color(LapceColor::LAPCE_BORDER),
+                                    )
+                            })
+                            .hover_style(move |s| {
+                                s.cursor(CursorStyle::Pointer).background(
+                                    *config.get().get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
+                                )
+                            })
+                            .active_style(move |s| {
+                                s.background(*config.get().get_color(
+                                    LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
+                                ))
+                            })
+                    },
+                )
+                .style(|s| s.flex_col().width_pct(100.0).margin_top_px(10.0)),
+                label(|| "Cancel".to_string())
+                    .on_click(move |_| {
+                        active.set(false);
+                        true
+                    })
+                    .style(move |s| {
+                        let config = config.get();
                         s.margin_top_px(20.0)
                             .width_pct(100.0)
-                            .font_bold()
-                            .font_size((config.get().ui.font_size() + 1) as f32)
-                    }),
-                    label(move || msg.get())
-                        .style(move |s| s.width_pct(100.0).margin_top_px(10.0)),
-                    list(
-                        move || buttons.get(),
-                        move |_button| {
-                            button_id
-                                .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                        },
-                        move |button| {
-                            label(move || button.text.clone())
-                                .on_click(move |_| {
-                                    (button.action)();
-                                    true
-                                })
-                                .style(move |s| {
-                                    let config = config.get();
-                                    s.margin_top_px(10.0)
-                                        .width_pct(100.0)
-                                        .justify_center()
-                                        .font_size(
-                                            (config.ui.font_size() + 1) as f32,
-                                        )
-                                        .line_height(1.6)
-                                        .border(1.0)
-                                        .border_radius(6.0)
-                                        .border_color(
-                                            *config
-                                                .get_color(LapceColor::LAPCE_BORDER),
-                                        )
-                                })
-                                .hover_style(move |s| {
-                                    s.cursor(CursorStyle::Pointer).background(
-                                        *config.get().get_color(
-                                            LapceColor::PANEL_HOVERED_BACKGROUND,
-                                        ),
-                                    )
-                                })
-                                .active_style(move |s| {
-                                    s.background(*config.get().get_color(
-                                        LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
-                                    ))
-                                })
-                        },
-                    )
-                    .style(|s| s.flex_col().width_pct(100.0).margin_top_px(10.0)),
-                    label(|| "Cancel".to_string())
-                        .on_click(move |_| {
-                            active.set(false);
-                            true
-                        })
-                        .style(move |s| {
-                            let config = config.get();
-                            s.margin_top_px(20.0)
-                                .width_pct(100.0)
-                                .justify_center()
-                                .font_size((config.ui.font_size() + 1) as f32)
-                                .line_height(1.5)
-                                .border(1.0)
-                                .border_radius(6.0)
-                                .border_color(
-                                    *config.get_color(LapceColor::LAPCE_BORDER),
-                                )
-                        })
-                        .hover_style(move |s| {
-                            s.cursor(CursorStyle::Pointer).background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            .justify_center()
+                            .font_size((config.ui.font_size() + 1) as f32)
+                            .line_height(1.5)
+                            .border(1.0)
+                            .border_radius(6.0)
+                            .border_color(
+                                *config.get_color(LapceColor::LAPCE_BORDER),
                             )
-                        })
-                        .active_style(move |s| {
-                            s.background(*config.get().get_color(
+                    })
+                    .hover_style(move |s| {
+                        s.cursor(CursorStyle::Pointer).background(
+                            *config
+                                .get()
+                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        )
+                    })
+                    .active_style(move |s| {
+                        s.background(
+                            *config.get().get_color(
                                 LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
-                            ))
-                        }),
-                )
-            })
+                            ),
+                        )
+                    }),
+            ))
             .style(|s| s.flex_col().items_center().width_pct(100.0))
         })
         .on_event(EventListener::PointerDown, |_| true)

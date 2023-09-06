@@ -2,13 +2,11 @@ use floem::{
     id::Id,
     peniko::kurbo::{BezPath, Point, Size},
     view::{ChangeFlags, View},
-    Renderer, ViewContext,
+    Renderer,
 };
 
 pub fn wave_box() -> WaveBox {
-    let cx = ViewContext::get_current();
-    let id = cx.new_id();
-    WaveBox { id }
+    WaveBox { id: Id::next() }
 }
 
 pub struct WaveBox {

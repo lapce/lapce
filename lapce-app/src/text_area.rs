@@ -86,33 +86,31 @@ pub fn text_area(
         })
     };
 
-    container(|| {
-        scroll(|| {
-            stack(|| {
-                (
-                    rich_text(move || text_layout.get())
-                        .on_resize(move |rect| {
-                            text_area_rect.set(rect);
-                        })
-                        .style(|s| s.width_pct(100.0)),
-                    label(|| " ".to_string()).style(move |s| {
-                        let cursor_pos = cursor_pos();
-                        s.absolute()
-                            .line_height(line_height)
-                            .margin_left_px(cursor_pos.x as f32 - 1.0)
-                            .margin_top_px(cursor_pos.y as f32)
-                            .border_left(2.0)
-                            .border_color(
-                                *config.get().get_color(LapceColor::EDITOR_CARET),
-                            )
-                            .apply_if(!is_active(), |s| s.hide())
-                    }),
-                )
-            })
-            .style(|s| s.width_pct(100.0).padding_px(6.0))
-        })
-        .style(|s| s.absolute().size_pct(100.0, 100.0))
-    })
+    container(
+        scroll(
+            stack((
+                rich_text(move || text_layout.get())
+                    .on_resize(move |rect| {
+                        text_area_rect.set(rect);
+                    })
+                    .style(|s| s.width_pct(100.0)),
+                label(|| " ".to_string()).style(move |s| {
+                    let cursor_pos = cursor_pos();
+                    s.absolute()
+                        .line_height(line_height)
+                        .margin_left_px(cursor_pos.x as f32 - 1.0)
+                        .margin_top_px(cursor_pos.y as f32)
+                        .border_left(2.0)
+                        .border_color(
+                            *config.get().get_color(LapceColor::EDITOR_CARET),
+                        )
+                        .apply_if(!is_active(), |s| s.hide())
+                }),
+            ))
+            .style(|s| s.width_pct(100.0).padding_px(6.0)),
+        )
+        .style(|s| s.absolute().size_pct(100.0, 100.0)),
+    )
     .base_style(move |s| {
         let config = config.get();
         s.border(1.0)
