@@ -28,7 +28,7 @@ use lapce_core::{
     register::{Clipboard, Register},
     selection::{InsertDrift, Selection},
     style::line_styles,
-    syntax::{edit::SyntaxEdit, Syntax},
+    syntax::{edit::SyntaxEdit, Syntax, BracketParser},
 };
 use lapce_rpc::{
     buffer::BufferId,
@@ -55,6 +55,7 @@ use crate::{
     window_tab::CommonData,
     workspace::LapceWorkspace,
 };
+
 
 pub mod phantom_text;
 
@@ -203,6 +204,7 @@ pub struct Document {
     /// The diagnostics for the document
     pub diagnostics: DiagnosticData,
     common: Rc<CommonData>,
+    pub parser: Rc<RefCell<BracketParser>>,
 }
 
 impl Document {
@@ -212,6 +214,7 @@ impl Document {
         diagnostics: DiagnosticData,
         common: Rc<CommonData>,
     ) -> Self {
+        let config = common.config.get_untracked();
         let syntax = Syntax::init(&path);
         Self {
             scope: cx,
@@ -238,6 +241,10 @@ impl Document {
             find_result: FindResult::new(cx),
             preedit: cx.create_rw_signal(None),
             common,
+            parser: Rc::new(RefCell::new(BracketParser::new(
+                "".to_string(),
+                config.editor.bracket_pair_colorization,
+            )))
         }
     }
 
@@ -250,6 +257,7 @@ impl Document {
         content: DocContent,
         common: Rc<CommonData>,
     ) -> Self {
+        let config = common.config.get_untracked();
         let cx = cx.create_child();
         Self {
             scope: cx,
@@ -276,6 +284,10 @@ impl Document {
             find_result: FindResult::new(cx),
             preedit: cx.create_rw_signal(None),
             common,
+            parser: Rc::new(RefCell::new(BracketParser::new(
+                "".to_string(),
+                config.editor.bracket_pair_colorization,
+            )))
         }
     }
 
@@ -289,6 +301,7 @@ impl Document {
         } else {
             Syntax::plaintext()
         };
+        let config = common.config.get_untracked();
         let cx = cx.create_child();
         Self {
             scope: cx,
@@ -315,6 +328,10 @@ impl Document {
             find_result: FindResult::new(cx),
             preedit: cx.create_rw_signal(None),
             common,
+            parser: Rc::new(RefCell::new(BracketParser::new(
+                "".to_string(),
+                config.editor.bracket_pair_colorization,
+            )))
         }
     }
 
@@ -342,6 +359,7 @@ impl Document {
 
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&self, content: Rope) {
+        let parser_content = content.clone();
         self.syntax.with_untracked(|syntax| {
             self.buffer.update(|buffer| {
                 buffer.init_content(content);
@@ -352,6 +370,15 @@ impl Document {
         self.on_update(None);
         self.init_diagnostics();
         self.retrieve_head();
+        self.syntax.with_untracked(|syntax| {
+            if let Some(_) = syntax.styles {
+                self.parser.borrow_mut()
+                .update_code(parser_content.to_string(), &self.buffer.get_untracked(), Some(syntax.clone()));
+            } else {
+                self.parser.borrow_mut()
+                .update_code(parser_content.to_string(), &self.buffer.get_untracked(), None);
+            }
+        });
     }
 
     /// Reload the document's content, and is what you should typically use when you want to *set*
@@ -506,6 +533,19 @@ impl Document {
         self.get_semantic_styles();
         self.get_inlay_hints();
         self.find_result.reset();
+        self.do_bracket_colorization();
+    }
+
+    fn do_bracket_colorization(&self) {
+        self.syntax.with_untracked(|syntax| {
+            if let Some(_) = syntax.styles {
+                self.parser.borrow_mut()
+                .update_code(self.buffer.get_untracked().to_string(), &self.buffer.get_untracked(), Some(syntax.clone()));
+            } else {
+                self.parser.borrow_mut()
+                .update_code(self.buffer.get_untracked().to_string(), &self.buffer.get_untracked(), None);
+            }
+        })
     }
 
     fn check_auto_save(&self) {
@@ -1321,7 +1361,7 @@ impl Document {
             .color(*color)
             .family(&family)
             .font_size(config.editor.font_size() as f32);
-        let mut attrs_list = AttrsList::new(attrs);
+        let mut attrs_list: AttrsList = AttrsList::new(attrs);
 
         // Apply various styles to the line's text based on our semantic/syntax highlighting
         let styles = self.line_style(line);
@@ -1331,6 +1371,18 @@ impl Document {
                     let start = phantom_text.col_at(line_style.start);
                     let end = phantom_text.col_at(line_style.end);
                     attrs_list.add_span(start..end, attrs.color(*fg_color));
+                }
+            }
+        }
+
+        if let Some(bracket_styles) = self.parser.borrow().bracket_pos.get(&line) {
+            for bracket_style in bracket_styles.iter() {
+                if let Some(fg_color) = bracket_style.style.fg_color.as_ref() {
+                    if let Some(fg_color) = config.get_style_color(fg_color) {
+                        let start = phantom_text.col_at(bracket_style.start);
+                        let end = phantom_text.col_at(bracket_style.end);
+                        attrs_list.add_span(start..end, attrs.color(*fg_color));
+                    }
                 }
             }
         }
