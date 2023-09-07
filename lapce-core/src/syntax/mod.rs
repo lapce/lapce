@@ -28,8 +28,8 @@ use self::{
     edit::SyntaxEdit,
     highlight::{
         get_highlight_config, injection_for_match, intersect_ranges, Highlight,
-        HighlightConfiguration, HighlightEvent, HighlightIssue, HighlightIter,
-        HighlightIterLayer, IncludedChildren, LocalScope,
+        HighlightConfiguration, HighlightEvent, HighlightIter, HighlightIterLayer,
+        IncludedChildren, LocalScope,
     },
     util::{matching_bracket_general, matching_pair_direction, RopeProvider},
 };
@@ -824,12 +824,12 @@ pub struct Syntax {
     pub rev: u64,
     pub language: LapceLanguage,
     pub text: Rope,
-    pub layers: SyntaxLayers,
+    pub layers: Option<SyntaxLayers>,
     pub lens: Lens,
     pub normal_lines: Vec<usize>,
     pub line_height: usize,
     pub lens_height: usize,
-    pub styles: Option<Arc<Spans<Style>>>,
+    pub styles: Option<Spans<Style>>,
 }
 
 impl std::fmt::Debug for Syntax {
@@ -847,24 +847,28 @@ impl std::fmt::Debug for Syntax {
 }
 
 impl Syntax {
-    pub fn init(path: &Path) -> Result<Syntax, HighlightIssue> {
-        LapceLanguage::from_path(path)
-            .map(Syntax::from_language)
-            .unwrap_or(Err(HighlightIssue::NotAvailable))
+    pub fn init(path: &Path) -> Syntax {
+        let language = LapceLanguage::from_path(path);
+        Syntax::from_language(language)
     }
 
-    pub fn from_language(language: LapceLanguage) -> Result<Syntax, HighlightIssue> {
-        get_highlight_config(language).map(|x| Syntax {
+    pub fn plaintext() -> Syntax {
+        Self::from_language(LapceLanguage::Plaintext)
+    }
+
+    pub fn from_language(language: LapceLanguage) -> Syntax {
+        let highlight = get_highlight_config(language).ok();
+        Syntax {
             rev: 0,
             language,
             text: Rope::from(""),
-            layers: SyntaxLayers::new_empty(x),
+            layers: highlight.map(SyntaxLayers::new_empty),
             lens: Self::lens_from_normal_lines(0, 0, 0, &Vec::new()),
             line_height: 0,
             lens_height: 0,
             normal_lines: Vec::new(),
             styles: None,
-        })
+        }
     }
 
     pub fn parse(
@@ -873,9 +877,13 @@ impl Syntax {
         new_text: Rope,
         edits: Option<&[SyntaxEdit]>,
     ) {
+        let layers = match &mut self.layers {
+            Some(layers) => layers,
+            None => return,
+        };
         let edits = edits.filter(|edits| new_rev == self.rev + edits.len() as u64);
-        let _ = self.layers.update(self.rev, new_rev, &new_text, edits);
-        let tree = self.layers.try_tree();
+        let _ = layers.update(self.rev, new_rev, &new_text, edits);
+        let tree = layers.try_tree();
 
         let styles = if tree.is_some() {
             let mut current_hl: Option<Highlight> = None;
@@ -883,8 +891,7 @@ impl Syntax {
                 SpansBuilder::new(new_text.len());
 
             // TODO: Should we be ignoring highlight errors via flattening them?
-            for highlight in self
-                .layers
+            for highlight in layers
                 .highlight_iter(&new_text, Some(0..new_text.len()), None)
                 .flatten()
             {
@@ -908,7 +915,7 @@ impl Syntax {
                 }
             }
 
-            Some(Arc::new(highlights.build()))
+            Some(highlights.build())
         } else {
             None
         };
@@ -970,7 +977,7 @@ impl Syntax {
     }
 
     pub fn find_matching_pair(&self, offset: usize) -> Option<usize> {
-        let tree = self.layers.try_tree()?;
+        let tree = self.layers.as_ref()?.try_tree()?;
         let node = tree
             .root_node()
             .descendant_for_byte_range(offset, offset + 1)?;
@@ -987,7 +994,7 @@ impl Syntax {
     }
 
     pub fn parent_offset(&self, offset: usize) -> Option<usize> {
-        let tree = self.layers.try_tree()?;
+        let tree = self.layers.as_ref()?.try_tree()?;
         let node = tree
             .root_node()
             .descendant_for_byte_range(offset, offset + 1)?;
@@ -1001,7 +1008,7 @@ impl Syntax {
         previous: bool,
         tag: &str,
     ) -> Option<usize> {
-        let tree = self.layers.try_tree()?;
+        let tree = self.layers.as_ref()?.try_tree()?;
         let node = tree
             .root_node()
             .descendant_for_byte_range(offset, offset + 1)?;
@@ -1058,7 +1065,7 @@ impl Syntax {
     }
 
     pub fn sticky_headers(&self, offset: usize) -> Option<Vec<usize>> {
-        let tree = self.layers.try_tree()?;
+        let tree = self.layers.as_ref()?.try_tree()?;
         let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
         let mut offsets = Vec::new();
         let sticky_header_tags = self.language.sticky_header_tags();
@@ -1087,7 +1094,7 @@ impl Syntax {
             return None;
         }
 
-        let tree = self.layers.try_tree()?;
+        let tree = self.layers.as_ref()?.try_tree()?;
         let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
 
         loop {
@@ -1121,7 +1128,7 @@ impl Syntax {
             return None;
         }
 
-        let tree = self.layers.try_tree()?;
+        let tree = self.layers.as_ref()?.try_tree()?;
         let mut node = tree.root_node().descendant_for_byte_range(offset, offset)?;
 
         loop {

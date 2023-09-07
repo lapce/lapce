@@ -9,6 +9,7 @@ use std::{
 };
 
 use lapce_rpc::{
+    dap_types::{DapId, DapServer, SetBreakpointsResponse},
     plugin::{PluginId, VoltID, VoltMetadata},
     proxy::ProxyResponse,
     style::LineStyle,
@@ -24,6 +25,7 @@ use psp_types::Notification;
 use serde_json::Value;
 
 use super::{
+    dap::{DapClient, DapRpcHandler},
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
     wasi::{load_all_volts, start_volt},
     PluginCatalogNotification, PluginCatalogRpcHandler,
@@ -34,6 +36,7 @@ pub struct PluginCatalog {
     workspace: Option<PathBuf>,
     plugin_rpc: PluginCatalogRpcHandler,
     plugins: HashMap<PluginId, PluginServerRpcHandler>,
+    daps: HashMap<DapId, DapRpcHandler>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
     unactivated_volts: HashMap<VoltID, VoltMetadata>,
     open_files: HashMap<PathBuf, String>,
@@ -46,11 +49,41 @@ impl PluginCatalog {
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
+        {
+            thread::spawn(move || {
+                // let mut dap = DapClient::new(
+                //     workspace,
+                //     Url::parse("file:///opt/homebrew/opt/llvm@14/bin/lldb-vscode")
+                //         .unwrap(),
+                //     Vec::new(),
+                //     core_rpc,
+                // )
+                // .unwrap();
+                // let dap_rpc = dap.dap_rpc.clone();
+                // // let _ = dap.initialize();
+
+                // {
+                //     let dap_rpc = dap_rpc.clone();
+                //     thread::spawn(move || {
+                //         dap_rpc.mainloop(&mut dap);
+                //     });
+                // }
+
+                // std::thread::sleep(std::time::Duration::from_secs(1));
+                // let _ = dap_rpc.launch(serde_json::json!({
+                //     "program": "/Users/dz/lapce/target/debug/lapce",
+                //     "args": vec!["--wait", "--new"],
+                //     "runInTerminal": true,
+                // }));
+            });
+        }
+
         let plugin = Self {
             workspace,
             plugin_rpc: plugin_rpc.clone(),
             plugin_configurations,
             plugins: HashMap::new(),
+            daps: HashMap::new(),
             unactivated_volts: HashMap::new(),
             open_files: HashMap::new(),
         };
@@ -218,9 +251,8 @@ impl PluginCatalog {
     }
 
     pub fn handle_did_open_text_document(&mut self, document: TextDocumentItem) {
-        let language_id = document.language_id.clone();
         if let Ok(path) = document.uri.to_file_path() {
-            self.open_files.insert(path, language_id.clone());
+            self.open_files.insert(path, document.language_id.clone());
         }
 
         let to_be_activated: Vec<VoltID> = self
@@ -231,7 +263,7 @@ impl PluginCatalog {
                     .activation
                     .as_ref()
                     .and_then(|a| a.language.as_ref())
-                    .map(|l| l.contains(&language_id))?;
+                    .map(|l| l.contains(&document.language_id))?;
                 if contains {
                     Some(id.clone())
                 } else {
@@ -248,7 +280,7 @@ impl PluginCatalog {
                 DidOpenTextDocumentParams {
                     text_document: document.clone(),
                 },
-                Some(language_id.clone()),
+                Some(document.language_id.clone()),
                 path.clone(),
                 true,
             );
@@ -391,6 +423,104 @@ impl PluginCatalog {
                 thread::spawn(move || {
                     let _ = enable_volt(plugin_rpc, volt);
                 });
+            }
+            DapLoaded(dap_rpc) => {
+                self.daps.insert(dap_rpc.dap_id, dap_rpc);
+            }
+            DapDisconnected(dap_id) => {
+                self.daps.remove(&dap_id);
+            }
+            DapStart {
+                config,
+                breakpoints,
+            } => {
+                let workspace = self.workspace.clone();
+                let plugin_rpc = self.plugin_rpc.clone();
+                thread::spawn(move || {
+                    if let Ok(dap_rpc) = DapClient::start(
+                        DapServer {
+                            program: "/opt/homebrew/opt/llvm@14/bin/lldb-vscode"
+                                .to_string(),
+                            args: Vec::new(),
+                            cwd: workspace,
+                        },
+                        config.clone(),
+                        breakpoints,
+                        plugin_rpc.clone(),
+                    ) {
+                        let _ = plugin_rpc.dap_loaded(dap_rpc.clone());
+
+                        let _ = dap_rpc.launch(&config);
+                    }
+                });
+            }
+            DapProcessId {
+                dap_id,
+                process_id,
+                term_id,
+            } => {
+                if let Some(dap) = self.daps.get(&dap_id) {
+                    let _ = dap.termain_process_tx.send((term_id, process_id));
+                }
+            }
+            DapContinue { dap_id, thread_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    let plugin_rpc = self.plugin_rpc.clone();
+                    thread::spawn(move || {
+                        if dap.continue_thread(thread_id).is_ok() {
+                            plugin_rpc.core_rpc.dap_continued(dap_id);
+                        }
+                    });
+                }
+            }
+            DapPause { dap_id, thread_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    thread::spawn(move || {
+                        let _ = dap.pause_thread(thread_id);
+                    });
+                }
+            }
+            DapStop { dap_id } => {
+                if let Some(dap) = self.daps.get(&dap_id) {
+                    dap.stop();
+                }
+            }
+            DapDisconnect { dap_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    thread::spawn(move || {
+                        let _ = dap.disconnect();
+                    });
+                }
+            }
+            DapRestart {
+                dap_id,
+                breakpoints,
+            } => {
+                if let Some(dap) = self.daps.get(&dap_id) {
+                    dap.restart(breakpoints);
+                }
+            }
+            DapSetBreakpoints {
+                dap_id,
+                path,
+                breakpoints,
+            } => {
+                if let Some(dap) = self.daps.get(&dap_id) {
+                    let core_rpc = self.plugin_rpc.core_rpc.clone();
+                    dap.set_breakpoints_async(
+                        path.clone(),
+                        breakpoints,
+                        move |result: Result<SetBreakpointsResponse, RpcError>| {
+                            if let Ok(resp) = result {
+                                core_rpc.dap_breakpoints_resp(
+                                    dap_id,
+                                    path,
+                                    resp.breakpoints.unwrap_or_default(),
+                                );
+                            }
+                        },
+                    );
+                }
             }
             Shutdown => {
                 for (_, plugin) in self.plugins.iter() {

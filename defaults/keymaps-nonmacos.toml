@@ -27,6 +27,19 @@ command = "open_settings"
 key = "ctrl+k ctrl+s"
 command = "open_keyboard_shortcuts"
 
+[[keymaps]]
+key = "ctrl+="
+command = "zoom_in"
+
+[[keymaps]]
+key = "ctrl+-"
+command = "zoom_out"
+
+[[keymaps]]
+key = "ctrl+enter"
+command = "source_control_commit"
+when = "source_control_focus"
+
 # --------------------------------- Terminal copy/paste ---------------------------------
 
 [[keymaps]]
@@ -135,6 +148,7 @@ command = "select_all"
 [[keymaps]]
 key = "ctrl+enter"
 command = "new_line_below"
+when = "!source_control_focus"
 mode = "i"
 
 [[keymaps]]

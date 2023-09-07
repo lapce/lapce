@@ -144,10 +144,3 @@ mod test {
         assert_eq!(2, Movement::Down.update_index(0, 5, 2, false));
     }
 }
-
-/// UTF8 line and column-offset
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct LineCol {
-    pub line: usize,
-    pub column: usize,
-}

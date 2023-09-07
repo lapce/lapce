@@ -2,7 +2,6 @@ use std::{
     borrow::Cow,
     cmp::Ordering,
     collections::BTreeSet,
-    ops::Range,
     sync::{
         atomic::{self, AtomicU64},
         Arc,
@@ -11,13 +10,10 @@ use std::{
 
 use lapce_xi_rope::{
     delta::InsertDelta,
-    diff::{Diff, LineHashDiff},
-    interval::IntervalBounds,
     multiset::{CountMatcher, Subset},
     tree::{Node, NodeInfo},
-    Cursor, Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta, RopeInfo,
+    Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta, RopeInfo,
 };
-use lsp_types::Position;
 
 use crate::{
     char_buffer::CharBuffer,
@@ -25,12 +21,12 @@ use crate::{
     editor::EditType,
     indent::{auto_detect_indent_style, IndentStyle},
     mode::Mode,
-    paragraph::ParagraphCursor,
     selection::Selection,
     syntax::{self, edit::SyntaxEdit, Syntax},
     word::WordCursor,
 };
 
+pub mod diff;
 pub mod rope_text;
 
 use rope_text::*;
@@ -191,14 +187,6 @@ impl Buffer {
         self.atomic_rev.clone()
     }
 
-    pub fn text(&self) -> &Rope {
-        &self.text
-    }
-
-    pub fn num_lines(&self) -> usize {
-        RopeText::new(&self.text).num_lines()
-    }
-
     fn get_max_line_len(&self) -> (usize, usize) {
         let mut pre_offset = 0;
         let mut max_len = 0;
@@ -248,10 +236,6 @@ impl Buffer {
         self.max_len
     }
 
-    pub fn line_len(&self, line: usize) -> usize {
-        RopeText::new(&self.text).line_len(line)
-    }
-
     pub fn init_content(&mut self, content: Rope) {
         if !content.is_empty() {
             let delta = Delta::simple_edit(Interval::new(0, 0), content, 0);
@@ -273,7 +257,8 @@ impl Buffer {
         content: Rope,
         set_pristine: bool,
     ) -> (RopeDelta, InvalLines, SyntaxEdit) {
-        let delta = LineHashDiff::compute_delta(&self.text, &content);
+        let len = self.text.len();
+        let delta = Delta::simple_edit(Interval::new(0, len), content, len);
         self.this_edit_type = EditType::Other;
         let (delta, inval_lines, edits) = self.add_delta(delta);
         if set_pristine {
@@ -282,13 +267,9 @@ impl Buffer {
         (delta, inval_lines, edits)
     }
 
-    pub fn detect_indent(&mut self, syntax: Option<&Syntax>) {
-        self.indent_style =
-            auto_detect_indent_style(&self.text).unwrap_or_else(|| {
-                syntax
-                    .map(|s| IndentStyle::from_str(s.language.indent_unit()))
-                    .unwrap_or(IndentStyle::DEFAULT_INDENT)
-            });
+    pub fn detect_indent(&mut self, syntax: &Syntax) {
+        self.indent_style = auto_detect_indent_style(&self.text)
+            .unwrap_or_else(|| IndentStyle::from_str(syntax.language.indent_unit()));
     }
 
     pub fn indent_unit(&self) -> &'static str {
@@ -728,145 +709,12 @@ impl Buffer {
         Some((delta, inval_lines, edits, cursor_after))
     }
 
-    pub fn rope_text(&self) -> RopeText {
-        RopeText::new(&self.text)
-    }
-
-    pub fn last_line(&self) -> usize {
-        RopeText::new(&self.text).last_line()
-    }
-
-    pub fn offset_of_line(&self, line: usize) -> usize {
-        RopeText::new(&self.text).offset_of_line(line)
-    }
-
-    pub fn offset_line_end(&self, offset: usize, caret: bool) -> usize {
-        RopeText::new(&self.text).offset_line_end(offset, caret)
-    }
-
-    pub fn line_of_offset(&self, offset: usize) -> usize {
-        RopeText::new(&self.text).line_of_offset(offset)
-    }
-
-    /// Converts a UTF8 offset to a UTF16 LSP position
-    pub fn offset_to_position(&self, offset: usize) -> Position {
-        RopeText::new(&self.text).offset_to_position(offset)
-    }
-
-    pub fn offset_of_position(&self, pos: &Position) -> usize {
-        RopeText::new(&self.text).offset_of_position(pos)
-    }
-
-    pub fn position_to_line_col(&self, pos: &Position) -> (usize, usize) {
-        RopeText::new(&self.text).position_to_line_col(pos)
-    }
-
-    pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
-        RopeText::new(&self.text).offset_to_line_col(offset)
-    }
-
-    pub fn offset_of_line_col(&self, line: usize, col: usize) -> usize {
-        RopeText::new(&self.text).offset_of_line_col(line, col)
-    }
-
-    pub fn line_end_col(&self, line: usize, caret: bool) -> usize {
-        RopeText::new(&self.text).line_end_col(line, caret)
-    }
-
-    pub fn first_non_blank_character_on_line(&self, line: usize) -> usize {
-        RopeText::new(&self.text).first_non_blank_character_on_line(line)
-    }
-
-    pub fn indent_on_line(&self, line: usize) -> String {
-        RopeText::new(&self.text).indent_on_line(line)
-    }
-
-    pub fn line_end_offset(&self, line: usize, caret: bool) -> usize {
-        RopeText::new(&self.text).line_end_offset(line, caret)
-    }
-
-    pub fn line_content(&self, line: usize) -> Cow<str> {
-        RopeText::new(&self.text).line_content(line)
-    }
-
-    pub fn prev_grapheme_offset(
-        &self,
-        offset: usize,
-        count: usize,
-        limit: usize,
-    ) -> usize {
-        RopeText::new(&self.text).prev_grapheme_offset(offset, count, limit)
-    }
-
-    pub fn prev_code_boundary(&self, offset: usize) -> usize {
-        WordCursor::new(&self.text, offset).prev_code_boundary()
-    }
-
-    pub fn next_code_boundary(&self, offset: usize) -> usize {
-        WordCursor::new(&self.text, offset).next_code_boundary()
-    }
-
-    pub fn move_left(&self, offset: usize, mode: Mode, count: usize) -> usize {
-        let min_offset = if mode == Mode::Insert {
-            0
-        } else {
-            let line = self.line_of_offset(offset);
-            self.offset_of_line(line)
-        };
-        self.prev_grapheme_offset(offset, count, min_offset)
-    }
-
-    pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
-        let max_offset = if mode == Mode::Insert {
-            self.len()
-        } else {
-            self.offset_line_end(offset, mode != Mode::Normal)
-        };
-
-        self.next_grapheme_offset(offset, count, max_offset)
-    }
-
     pub fn move_word_forward(&self, offset: usize) -> usize {
         self.move_n_words_forward(offset, 1)
     }
 
     pub fn move_word_backward(&self, offset: usize, mode: Mode) -> usize {
         self.move_n_words_backward(offset, 1, mode)
-    }
-
-    pub fn next_grapheme_offset(
-        &self,
-        offset: usize,
-        count: usize,
-        limit: usize,
-    ) -> usize {
-        let offset = if offset > self.len() {
-            self.len()
-        } else {
-            offset
-        };
-        let mut cursor = Cursor::new(&self.text, offset);
-        let mut new_offset = offset;
-        for _i in 0..count {
-            if let Some(next_offset) = cursor.next_grapheme() {
-                if next_offset > limit {
-                    return new_offset;
-                }
-                new_offset = next_offset;
-                cursor.set(next_offset);
-            } else {
-                return new_offset;
-            }
-        }
-        new_offset
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn select_word(&self, offset: usize) -> (usize, usize) {
-        WordCursor::new(&self.text, offset).select_word()
     }
 
     pub fn char_at_offset(&self, offset: usize) -> Option<char> {
@@ -881,129 +729,21 @@ impl Buffer {
 
     pub fn previous_unmatched(
         &self,
-        syntax: Option<&Syntax>,
+        syntax: &Syntax,
         c: char,
         offset: usize,
     ) -> Option<usize> {
-        if let Some(syntax) = syntax {
+        if syntax.layers.is_some() {
             syntax.find_tag(offset, true, &CharBuffer::new(c))
         } else {
             WordCursor::new(&self.text, offset).previous_unmatched(c)
         }
     }
+}
 
-    /// Get the content of the rope as a Cow string, for 'nice' ranges (small, and at the right
-    /// offsets) this will be a reference to the rope's data. Otherwise, it allocates a new string.
-    /// You should be somewhat wary of requesting large parts of the rope, as it will allocate
-    /// a new string since it isn't contiguous in memory for large chunks.
-    pub fn slice_to_cow(&self, range: Range<usize>) -> Cow<str> {
-        self.text
-            .slice_to_cow(range.start.min(self.len())..range.end.min(self.len()))
-    }
-
-    /// Iterate over (utf8_offset, char) values in the given range  
-    /// This uses `iter_chunks` and so does not allocate, compared to `slice_to_cow` which can
-    pub fn char_indices_iter<T: IntervalBounds>(
-        &self,
-        range: T,
-    ) -> impl Iterator<Item = (usize, char)> + '_ {
-        CharIndicesJoin::new(self.text.iter_chunks(range).map(str::char_indices))
-    }
-
-    pub fn len(&self) -> usize {
-        self.text.len()
-    }
-
-    fn find_nth_paragraph<F>(
-        &self,
-        offset: usize,
-        mut count: usize,
-        mut find_next: F,
-    ) -> usize
-    where
-        F: FnMut(&mut ParagraphCursor) -> Option<usize>,
-    {
-        let mut cursor = ParagraphCursor::new(self.text(), offset);
-        let mut new_offset = offset;
-        while count != 0 {
-            // FIXME: wait for if-let-chain
-            if let Some(offset) = find_next(&mut cursor) {
-                new_offset = offset;
-            } else {
-                break;
-            }
-            count -= 1;
-        }
-        new_offset
-    }
-
-    pub fn move_n_paragraphs_forward(&self, offset: usize, count: usize) -> usize {
-        self.find_nth_paragraph(offset, count, |cursor| cursor.next_boundary())
-    }
-
-    pub fn move_n_paragraphs_backward(&self, offset: usize, count: usize) -> usize {
-        self.find_nth_paragraph(offset, count, |cursor| cursor.prev_boundary())
-    }
-
-    /// Find the nth (`count`) word starting at `offset` in either direction
-    /// depending on `find_next`.
-    ///
-    /// A `WordCursor` is created and given to the `find_next` function for the
-    /// search.  The `find_next` function should return None when there is no
-    /// more word found.  Despite the name, `find_next` can search in either
-    /// direction.
-    fn find_nth_word<F>(
-        &self,
-        offset: usize,
-        mut count: usize,
-        mut find_next: F,
-    ) -> usize
-    where
-        F: FnMut(&mut WordCursor) -> Option<usize>,
-    {
-        let mut cursor = WordCursor::new(self.text(), offset);
-        let mut new_offset = offset;
-        while count != 0 {
-            // FIXME: wait for if-let-chain
-            if let Some(offset) = find_next(&mut cursor) {
-                new_offset = offset;
-            } else {
-                break;
-            }
-            count -= 1;
-        }
-        new_offset
-    }
-
-    pub fn move_n_words_forward(&self, offset: usize, count: usize) -> usize {
-        self.find_nth_word(offset, count, |cursor| cursor.next_boundary())
-    }
-
-    pub fn move_n_wordends_forward(
-        &self,
-        offset: usize,
-        count: usize,
-        inserting: bool,
-    ) -> usize {
-        let mut new_offset =
-            self.find_nth_word(offset, count, |cursor| cursor.end_boundary());
-        if !inserting && new_offset != self.len() {
-            new_offset = self.prev_grapheme_offset(new_offset, 1, 0);
-        }
-        new_offset
-    }
-
-    pub fn move_n_words_backward(
-        &self,
-        offset: usize,
-        count: usize,
-        mode: Mode,
-    ) -> usize {
-        self.find_nth_word(offset, count, |cursor| cursor.prev_boundary(mode))
-    }
-
-    pub fn move_word_backward_deletion(&self, offset: usize) -> usize {
-        self.find_nth_word(offset, 1, |cursor| cursor.prev_deletion_boundary())
+impl RopeText for Buffer {
+    fn text(&self) -> &Rope {
+        &self.text
     }
 }
 
@@ -1046,219 +786,6 @@ fn shuffle(
             new_deletes_from_union,
         ),
     )
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum DiffResult<T> {
-    Left(T),
-    Both(T, T),
-    Right(T),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum DiffLines {
-    Left(Range<usize>),
-    Both(Range<usize>, Range<usize>),
-    Skip(Range<usize>, Range<usize>),
-    Right(Range<usize>),
-}
-
-pub fn rope_diff(
-    left_rope: Rope,
-    right_rope: Rope,
-    rev: u64,
-    atomic_rev: Arc<AtomicU64>,
-    context_lines: Option<usize>,
-) -> Option<Vec<DiffLines>> {
-    let left_lines = left_rope.lines(..).collect::<Vec<Cow<str>>>();
-    let right_lines = right_rope.lines(..).collect::<Vec<Cow<str>>>();
-
-    let left_count = left_lines.len();
-    let right_count = right_lines.len();
-    let min_count = std::cmp::min(left_count, right_count);
-
-    let leading_equals = left_lines
-        .iter()
-        .zip(right_lines.iter())
-        .take_while(|p| p.0 == p.1)
-        .count();
-    let trailing_equals = left_lines
-        .iter()
-        .rev()
-        .zip(right_lines.iter().rev())
-        .take(min_count - leading_equals)
-        .take_while(|p| p.0 == p.1)
-        .count();
-
-    let left_diff_size = left_count - leading_equals - trailing_equals;
-    let right_diff_size = right_count - leading_equals - trailing_equals;
-
-    let table: Vec<Vec<u32>> = {
-        let mut table = vec![vec![0; right_diff_size + 1]; left_diff_size + 1];
-        let left_skip = left_lines.iter().skip(leading_equals).take(left_diff_size);
-        let right_skip = right_lines
-            .iter()
-            .skip(leading_equals)
-            .take(right_diff_size);
-
-        for (i, l) in left_skip.enumerate() {
-            for (j, r) in right_skip.clone().enumerate() {
-                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                    return None;
-                }
-                table[i + 1][j + 1] = if l == r {
-                    table[i][j] + 1
-                } else {
-                    std::cmp::max(table[i][j + 1], table[i + 1][j])
-                };
-            }
-        }
-
-        table
-    };
-
-    let diff = {
-        let mut diff = Vec::with_capacity(left_diff_size + right_diff_size);
-        let mut i = left_diff_size;
-        let mut j = right_diff_size;
-        let mut li = left_lines.iter().rev().skip(trailing_equals);
-        let mut ri = right_lines.iter().skip(trailing_equals);
-
-        loop {
-            if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                return None;
-            }
-            if j > 0 && (i == 0 || table[i][j] == table[i][j - 1]) {
-                j -= 1;
-                diff.push(DiffResult::Right(ri.next().unwrap()));
-            } else if i > 0 && (j == 0 || table[i][j] == table[i - 1][j]) {
-                i -= 1;
-                diff.push(DiffResult::Left(li.next().unwrap()));
-            } else if i > 0 && j > 0 {
-                i -= 1;
-                j -= 1;
-                diff.push(DiffResult::Both(li.next().unwrap(), ri.next().unwrap()));
-            } else {
-                break;
-            }
-        }
-
-        diff
-    };
-
-    let mut changes = Vec::new();
-    let mut left_line = 0;
-    let mut right_line = 0;
-    if leading_equals > 0 {
-        changes.push(DiffLines::Both(0..leading_equals, 0..leading_equals));
-    }
-    left_line += leading_equals;
-    right_line += leading_equals;
-
-    for diff in diff.iter().rev() {
-        if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-            return None;
-        }
-        match diff {
-            DiffResult::Left(_) => {
-                match changes.last_mut() {
-                    Some(DiffLines::Left(r)) => r.end = left_line + 1,
-                    _ => changes.push(DiffLines::Left(left_line..left_line + 1)),
-                }
-                left_line += 1;
-            }
-            DiffResult::Both(_, _) => {
-                match changes.last_mut() {
-                    Some(DiffLines::Both(l, r)) => {
-                        l.end = left_line + 1;
-                        r.end = right_line + 1;
-                    }
-                    _ => changes.push(DiffLines::Both(
-                        left_line..left_line + 1,
-                        right_line..right_line + 1,
-                    )),
-                }
-                left_line += 1;
-                right_line += 1;
-            }
-            DiffResult::Right(_) => {
-                match changes.last_mut() {
-                    Some(DiffLines::Right(r)) => r.end = right_line + 1,
-                    _ => changes.push(DiffLines::Right(right_line..right_line + 1)),
-                }
-                right_line += 1;
-            }
-        }
-    }
-
-    if trailing_equals > 0 {
-        changes.push(DiffLines::Both(
-            left_count - trailing_equals..left_count,
-            right_count - trailing_equals..right_count,
-        ));
-    }
-    if let Some(context_lines) = context_lines {
-        if !changes.is_empty() {
-            let changes_last = changes.len() - 1;
-            for (i, change) in changes.clone().iter().enumerate().rev() {
-                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                    return None;
-                }
-                if let DiffLines::Both(l, r) = change {
-                    if i == 0 || i == changes_last {
-                        if r.len() > context_lines {
-                            if i == 0 {
-                                changes[i] = DiffLines::Both(
-                                    l.end - context_lines..l.end,
-                                    r.end - context_lines..r.end,
-                                );
-                                changes.insert(
-                                    i,
-                                    DiffLines::Skip(
-                                        l.start..l.end - context_lines,
-                                        r.start..r.end - context_lines,
-                                    ),
-                                );
-                            } else {
-                                changes[i] = DiffLines::Skip(
-                                    l.start + context_lines..l.end,
-                                    r.start + context_lines..r.end,
-                                );
-                                changes.insert(
-                                    i,
-                                    DiffLines::Both(
-                                        l.start..l.start + context_lines,
-                                        r.start..r.start + context_lines,
-                                    ),
-                                );
-                            }
-                        }
-                    } else if r.len() > context_lines * 2 {
-                        changes[i] = DiffLines::Both(
-                            l.end - context_lines..l.end,
-                            r.end - context_lines..r.end,
-                        );
-                        changes.insert(
-                            i,
-                            DiffLines::Skip(
-                                l.start + context_lines..l.end - context_lines,
-                                r.start + context_lines..r.end - context_lines,
-                            ),
-                        );
-                        changes.insert(
-                            i,
-                            DiffLines::Both(
-                                l.start..l.start + context_lines,
-                                r.start..r.start + context_lines,
-                            ),
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    Some(changes)
 }
 
 pub struct DeltaValueRegion<'a, N: NodeInfo + 'a> {

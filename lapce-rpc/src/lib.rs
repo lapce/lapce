@@ -3,6 +3,7 @@
 pub mod buffer;
 pub mod core;
 pub mod counter;
+pub mod dap_types;
 pub mod file;
 mod parse;
 pub mod plugin;

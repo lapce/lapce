@@ -2,7 +2,7 @@
 use std::process::Command;
 use std::{
     borrow::Cow,
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     io::{self, ErrorKind, Read, Write},
     path::PathBuf,
 };
@@ -13,7 +13,6 @@ use alacritty_terminal::{
     event_loop::Msg,
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
-use directories::BaseDirs;
 use lapce_rpc::{core::CoreRpcHandler, terminal::TermId};
 #[cfg(not(windows))]
 use mio::unix::UnixReady;
@@ -30,7 +29,7 @@ pub type TermConfig = alacritty_terminal::config::Config;
 pub struct Terminal {
     term_id: TermId,
     poll: mio::Poll,
-    pty: alacritty_terminal::tty::Pty,
+    pub(crate) pty: alacritty_terminal::tty::Pty,
 
     #[allow(deprecated)]
     rx: Receiver<Msg>,
@@ -43,6 +42,7 @@ impl Terminal {
     pub fn new(
         term_id: TermId,
         cwd: Option<PathBuf>,
+        env: Option<HashMap<String, String>>,
         shell: String,
         width: usize,
         height: usize,
@@ -53,8 +53,10 @@ impl Terminal {
             if cwd.is_some() && cwd.clone().unwrap().exists() {
                 cwd
             } else {
-                BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
+                lapce_core::directory::Directory::home_dir()
             };
+        config.env = env.unwrap_or_default();
+
         let shell = shell.trim();
         let flatpak_use_host_terminal = flatpak_should_use_host_terminal();
 
@@ -66,10 +68,15 @@ impl Terminal {
                 let host_shell = flatpak_get_default_host_shell();
 
                 let args = if shell.is_empty() {
-                    vec!["--host".to_string(), host_shell]
+                    vec![
+                        "--host".to_string(),
+                        "--env=TERM=alacritty".to_string(),
+                        host_shell,
+                    ]
                 } else {
                     vec![
                         "--host".to_string(),
+                        "--env=TERM=alacritty".to_string(),
                         host_shell,
                         "-c".to_string(),
                         shell.to_string(),
@@ -146,7 +153,6 @@ impl Terminal {
                         if let Some(tty::ChildEvent::Exited) =
                             self.pty.next_child_event()
                         {
-                            core_rpc.close_terminal(self.term_id);
                             break 'event_loop;
                         }
                     }
@@ -190,6 +196,7 @@ impl Terminal {
                 .reregister(&self.poll, interest, poll_opts)
                 .unwrap();
         }
+        core_rpc.terminal_process_stopped(self.term_id);
         let _ = self.poll.deregister(&self.rx);
         let _ = self.pty.deregister(&self.poll);
     }

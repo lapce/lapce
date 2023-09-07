@@ -27,6 +27,7 @@ macro_rules! declare_language_highlights {
     ($($name:ident: $feature_name:expr),* $(,)?) => {
         mod highlights {
             // We allow non upper case globals to make the macro definition simpler.
+            #![allow(unused_imports)]
             #![allow(non_upper_case_globals)]
             use once_cell::sync::Lazy;
             use crate::language::LapceLanguage;
@@ -47,7 +48,8 @@ macro_rules! declare_language_highlights {
                 $(
                     #[cfg(feature = $feature_name)]
                     LapceLanguage::$name => highlights::$name.clone()
-                ),*
+                ),*,
+                _ => Err(HighlightIssue::NotAvailable),
             }
         }
     };
@@ -98,6 +100,7 @@ declare_language_highlights!(
     Rust: "lang-rust",
     Scheme: "lang-scheme",
     Scss: "lang-scss",
+    Sh: "lang-bash",
     Sql: "lang-sql",
     Svelte: "lang-svelte",
     Swift: "lang-swift",

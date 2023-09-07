@@ -2,11 +2,12 @@ use std::fmt::Write;
 
 use bitflags::bitflags;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MotionMode {
-    Delete,
-    Yank,
+    Delete { count: usize },
+    Yank { count: usize },
     Indent,
     Outdent,
 }
@@ -59,7 +60,7 @@ impl Modes {
                 'n' | 'N' => this.set(Self::NORMAL, true),
                 'v' | 'V' => this.set(Self::VISUAL, true),
                 't' | 'T' => this.set(Self::TERMINAL, true),
-                _ => log::warn!("Not an editor mode: {c}"),
+                _ => warn!("Not an editor mode: {c}"),
             }
         }
 

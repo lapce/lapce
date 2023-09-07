@@ -28,7 +28,6 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
-use toml_edit::easy as toml;
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
 

@@ -1,7 +1,7 @@
 use lapce_xi_rope::Rope;
 use tree_sitter::Point;
 
-use crate::buffer::rope_text::RopeText;
+use crate::buffer::rope_text::{RopeText, RopeTextRef};
 
 #[derive(Clone)]
 pub struct SyntaxEdit(pub(crate) Vec<tree_sitter::InputEdit>);
@@ -13,7 +13,7 @@ impl SyntaxEdit {
 }
 
 fn point_at_offset(text: &Rope, offset: usize) -> Point {
-    let text = RopeText::new(text);
+    let text = RopeTextRef::new(text);
     let line = text.line_of_offset(offset);
     let col = text.offset_of_line(line + 1).saturating_sub(offset);
     Point::new(line, col)

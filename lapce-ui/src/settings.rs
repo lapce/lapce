@@ -1312,8 +1312,13 @@ impl InputSettingsItem {
         let name = format!("{kind}.{key}");
         let content = BufferContent::SettingsValue(name.clone());
 
-        let mut doc =
-            Document::new(content.clone(), data.id, event_sink, data.proxy.clone());
+        let mut doc = Document::new(
+            content.clone(),
+            data.id,
+            event_sink,
+            data.proxy.clone(),
+            &data.config,
+        );
         doc.reload(Rope::from(&input), true);
         data.main_split.value_docs.insert(name, Arc::new(doc));
         let editor = LapceEditorData::new(None, None, None, content, &data.config);
@@ -1848,8 +1853,13 @@ impl ThemeSettingItem {
     ) -> Self {
         let name = format!("{kind}.{color}");
         let content = BufferContent::SettingsValue(name.clone());
-        let mut doc =
-            Document::new(content.clone(), data.id, event_sink, data.proxy.clone());
+        let mut doc = Document::new(
+            content.clone(),
+            data.id,
+            event_sink,
+            data.proxy.clone(),
+            &data.config,
+        );
         doc.reload(
             Rope::from(match kind {
                 ThemeKind::Base => data.config.color_theme.base.get(&color).unwrap(),

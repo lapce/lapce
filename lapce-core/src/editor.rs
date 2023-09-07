@@ -4,7 +4,7 @@ use itertools::Itertools;
 use lapce_xi_rope::RopeDelta;
 
 use crate::{
-    buffer::{Buffer, InvalLines},
+    buffer::{rope_text::RopeText, Buffer, InvalLines},
     command::EditCommand,
     cursor::{get_first_selection_after, Cursor, CursorMode},
     mode::{Mode, MotionMode, VisualMode},
@@ -20,12 +20,14 @@ use crate::{
     },
     word::{get_char_property, CharClassification},
 };
+
 fn format_start_end(
     buffer: &Buffer,
     start: usize,
     end: usize,
     is_vertical: bool,
     first_non_blank: bool,
+    count: usize,
 ) -> (usize, usize) {
     if is_vertical {
         let start_line = buffer.line_of_offset(start.min(end));
@@ -35,7 +37,7 @@ fn format_start_end(
         } else {
             buffer.offset_of_line(start_line)
         };
-        let end = buffer.offset_of_line(end_line + 1);
+        let end = buffer.offset_of_line(end_line + count);
         (start, end)
     } else {
         let s = start.min(end);
@@ -82,7 +84,7 @@ impl Editor {
         cursor: &mut Cursor,
         buffer: &mut Buffer,
         s: &str,
-        syntax: Option<&Syntax>,
+        syntax: &Syntax,
         auto_closing_matching_pairs: bool,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let mut deltas = Vec::new();
@@ -434,9 +436,9 @@ impl Editor {
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let mut deltas = Vec::new();
         match motion_mode {
-            MotionMode::Delete => {
+            MotionMode::Delete { count } => {
                 let (start, end) =
-                    format_start_end(buffer, start, end, is_vertical, false);
+                    format_start_end(buffer, start, end, is_vertical, false, count);
                 register.add(
                     RegisterKind::Delete,
                     RegisterData {
@@ -454,9 +456,9 @@ impl Editor {
                 cursor.apply_delta(&delta);
                 deltas.push((delta, inval_lines, edits));
             }
-            MotionMode::Yank => {
+            MotionMode::Yank { count } => {
                 let (start, end) =
-                    format_start_end(buffer, start, end, is_vertical, false);
+                    format_start_end(buffer, start, end, is_vertical, false, count);
                 register.add(
                     RegisterKind::Yank,
                     RegisterData {
@@ -698,14 +700,16 @@ impl Editor {
         vec![(delta, inval_lines, edits)]
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn do_edit<T: Clipboard>(
         cursor: &mut Cursor,
         buffer: &mut Buffer,
         cmd: &EditCommand,
-        syntax: Option<&Syntax>,
+        syntax: &Syntax,
         clipboard: &mut T,
         modal: bool,
         register: &mut Register,
+        smart_tab: bool,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         use crate::command::EditCommand::*;
         match cmd {
@@ -798,35 +802,52 @@ impl Editor {
             InsertTab => {
                 let mut deltas = Vec::new();
                 if let CursorMode::Insert(selection) = &cursor.mode {
-                    let indent = buffer.indent_unit();
-                    let mut edits = Vec::new();
+                    if smart_tab {
+                        let indent = buffer.indent_unit();
+                        let mut edits = Vec::new();
 
-                    for region in selection.regions() {
-                        if region.is_caret() {
-                            edits.push(crate::indent::create_edit(
-                                buffer,
-                                region.start,
-                                indent,
-                            ))
-                        } else {
-                            let start_line = buffer.line_of_offset(region.min());
-                            let end_line = buffer.line_of_offset(region.max());
-                            for line in start_line..=end_line {
-                                let offset =
-                                    buffer.first_non_blank_character_on_line(line);
+                        for region in selection.regions() {
+                            if region.is_caret() {
                                 edits.push(crate::indent::create_edit(
-                                    buffer, offset, indent,
+                                    buffer,
+                                    region.start,
+                                    indent,
                                 ))
+                            } else {
+                                let start_line = buffer.line_of_offset(region.min());
+                                let end_line = buffer.line_of_offset(region.max());
+                                for line in start_line..=end_line {
+                                    let offset = buffer
+                                        .first_non_blank_character_on_line(line);
+                                    edits.push(crate::indent::create_edit(
+                                        buffer, offset, indent,
+                                    ))
+                                }
                             }
                         }
-                    }
 
-                    let (delta, inval_lines, edits) =
-                        buffer.edit(&edits, EditType::InsertChars);
-                    let selection =
-                        selection.apply_delta(&delta, true, InsertDrift::Default);
-                    deltas.push((delta, inval_lines, edits));
-                    cursor.mode = CursorMode::Insert(selection);
+                        let (delta, inval_lines, edits) =
+                            buffer.edit(&edits, EditType::InsertChars);
+                        let selection = selection.apply_delta(
+                            &delta,
+                            true,
+                            InsertDrift::Default,
+                        );
+                        deltas.push((delta, inval_lines, edits));
+                        cursor.mode = CursorMode::Insert(selection);
+                    } else {
+                        let (delta, inval_lines, edits) = buffer.edit(
+                            &[(selection.clone(), "\t")],
+                            EditType::InsertChars,
+                        );
+                        let selection = selection.apply_delta(
+                            &delta,
+                            true,
+                            InsertDrift::Default,
+                        );
+                        deltas.push((delta, inval_lines, edits));
+                        cursor.mode = CursorMode::Insert(selection);
+                    }
                 }
                 deltas
             }
@@ -860,8 +881,7 @@ impl Editor {
             ToggleLineComment => {
                 let mut lines = HashSet::new();
                 let selection = cursor.edit_selection(buffer);
-                let comment_token =
-                    syntax.map(|s| s.language.comment_token()).unwrap_or("//");
+                let comment_token = syntax.language.comment_token();
                 let mut had_comment = true;
                 let mut smallest_indent = usize::MAX;
                 for region in selection.regions() {
@@ -1234,6 +1254,7 @@ impl Editor {
                     selection.max_offset(),
                     true,
                     true,
+                    1,
                 );
                 let selection = Selection::region(start, end);
                 let (delta, inval_lines, edits) =
@@ -1381,6 +1402,7 @@ impl Editor {
                     selection.max_offset(),
                     true,
                     true,
+                    1,
                 );
                 let selection = Selection::region(start, end - 1); // -1 because we want to keep the line itself
                 let (delta, inval_lines, edits) =
@@ -1525,10 +1547,11 @@ enum DuplicateDirection {
 #[cfg(test)]
 mod test {
     use crate::{
-        buffer::Buffer,
+        buffer::{rope_text::RopeText, Buffer},
         cursor::{Cursor, CursorMode},
         editor::{DuplicateDirection, Editor},
         selection::{SelRegion, Selection},
+        syntax::Syntax,
     };
 
     #[test]
@@ -1537,7 +1560,7 @@ mod test {
         let mut cursor =
             Cursor::new(CursorMode::Insert(Selection::caret(1)), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "e", None, true);
+        Editor::insert(&mut cursor, &mut buffer, "e", &Syntax::plaintext(), true);
         assert_eq!("aebc", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1549,7 +1572,7 @@ mod test {
         selection.add_region(SelRegion::caret(5));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "i", None, true);
+        Editor::insert(&mut cursor, &mut buffer, "i", &Syntax::plaintext(), true);
         assert_eq!("aibc\neifg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1561,13 +1584,13 @@ mod test {
         selection.add_region(SelRegion::caret(5));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "i", None, true);
+        Editor::insert(&mut cursor, &mut buffer, "i", &Syntax::plaintext(), true);
         assert_eq!("aibc\neifg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "j", None, true);
+        Editor::insert(&mut cursor, &mut buffer, "j", &Syntax::plaintext(), true);
         assert_eq!("aijbc\neijfg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "{", None, true);
+        Editor::insert(&mut cursor, &mut buffer, "{", &Syntax::plaintext(), true);
         assert_eq!("aij{bc\neij{fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, " ", None, true);
+        Editor::insert(&mut cursor, &mut buffer, " ", &Syntax::plaintext(), true);
         assert_eq!("aij{ bc\neij{ fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1579,9 +1602,9 @@ mod test {
         selection.add_region(SelRegion::caret(6));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "{", None, true);
+        Editor::insert(&mut cursor, &mut buffer, "{", &Syntax::plaintext(), true);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "}", None, true);
+        Editor::insert(&mut cursor, &mut buffer, "}", &Syntax::plaintext(), true);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1592,7 +1615,7 @@ mod test {
         selection.add_region(SelRegion::new(0, 4, None));
         selection.add_region(SelRegion::new(5, 9, None));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
-        Editor::insert(&mut cursor, &mut buffer, "{", None, true);
+        Editor::insert(&mut cursor, &mut buffer, "{", &Syntax::plaintext(), true);
         assert_eq!("{a bc}\n{e fg}\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1604,9 +1627,9 @@ mod test {
         selection.add_region(SelRegion::caret(6));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "{", None, false);
+        Editor::insert(&mut cursor, &mut buffer, "{", &Syntax::plaintext(), false);
         assert_eq!("a{ bc\ne{ fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "}", None, false);
+        Editor::insert(&mut cursor, &mut buffer, "}", &Syntax::plaintext(), false);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1748,7 +1771,7 @@ mod test {
         selection.add_region(SelRegion::caret(12));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "(", None, true);
+        Editor::insert(&mut cursor, &mut buffer, "(", &Syntax::plaintext(), true);
 
         assert_eq!(
             "() 123() 567() 9ab() def",

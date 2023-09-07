@@ -10,7 +10,6 @@ use crate::{
     atomic_soft_tabs::{snap_to_soft_tab, snap_to_soft_tab_line_col, SnapDirection},
     command::{InitBufferContentCb, LapceUICommand, LAPCE_UI_COMMAND},
     config::{LapceConfig, LapceTheme},
-    data::LapceWorkspace,
     data::{EditorDiagnostic, EditorView},
     editor::{EditorLocation, EditorPosition},
     find::{Find, FindProgress},
@@ -453,6 +452,7 @@ impl Document {
         tab_id: WidgetId,
         event_sink: ExtEventSink,
         proxy: Arc<LapceProxy>,
+        config: &LapceConfig,
     ) -> Self {
         // Only files have syntax highlighing automatically,
         // though scratch buffer can have it be set manually by the user.
@@ -471,7 +471,6 @@ impl Document {
         };
         let mut selection_find = Find::new(0);
         selection_find.case_matching = CaseMatching::Exact;
-        let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
         let parser = BracketParser::new(
             "".to_string(),
             config.editor.bracket_pair_colorization,

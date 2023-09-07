@@ -9,7 +9,7 @@ GenericName=Code Editor
 StartupWMClass=lapce
 
 Icon=dev.lapce.lapce
-Exec=lapce
+Exec=lapce %F
 Terminal=false
 MimeType=text/plain;inode/directory;
 Actions=new-window;

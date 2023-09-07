@@ -3372,8 +3372,13 @@ impl LapceMainSplitData {
         let buffer_id = BufferId::next();
         let content =
             BufferContent::Scratch(buffer_id, self.get_name_for_new_file());
-        let doc =
-            Document::new(content.clone(), tab_id, ctx.get_external_handle(), proxy);
+        let doc = Document::new(
+            content.clone(),
+            tab_id,
+            ctx.get_external_handle(),
+            proxy,
+            config,
+        );
         self.scratch_docs.insert(buffer_id, Arc::new(doc));
 
         let editor = self.get_editor_or_new(ctx, None, true, None, true, config);
@@ -3482,6 +3487,7 @@ impl LapceMainSplitData {
                 *self.tab_id,
                 ctx.get_external_handle(),
                 self.proxy.clone(),
+                config,
             );
 
             // Acquire information about the buffer when it was last accessed, restoring their
@@ -3645,6 +3651,7 @@ impl LapceMainSplitData {
                 tab_id,
                 event_sink.clone(),
                 proxy.clone(),
+                config,
             )),
         );
         local_docs.insert(
@@ -3654,6 +3661,7 @@ impl LapceMainSplitData {
                 tab_id,
                 event_sink.clone(),
                 proxy.clone(),
+                config,
             )),
         );
         let value_docs = im::HashMap::new();
@@ -3759,6 +3767,7 @@ impl LapceMainSplitData {
             *self.tab_id,
             event_sink,
             self.proxy.clone(),
+            config,
         );
         self.local_docs.insert(buffer_kind.clone(), Arc::new(doc));
 

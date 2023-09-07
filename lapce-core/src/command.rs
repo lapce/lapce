@@ -103,6 +103,24 @@ pub enum EditCommand {
     DuplicateLineDown,
 }
 
+impl EditCommand {
+    pub fn not_changing_buffer(&self) -> bool {
+        matches!(
+            self,
+            &EditCommand::ClipboardCopy
+                | &EditCommand::Yank
+                | &EditCommand::NormalMode
+                | &EditCommand::InsertMode
+                | &EditCommand::InsertFirstNonBlank
+                | &EditCommand::Append
+                | &EditCommand::AppendEndOfLine
+                | &EditCommand::ToggleVisualMode
+                | &EditCommand::ToggleLinewiseVisualMode
+                | &EditCommand::ToggleBlockwiseVisualMode
+        )
+    }
+}
+
 #[derive(
     Display,
     EnumString,
@@ -289,15 +307,6 @@ pub enum FocusCommand {
     #[strum(message = "Show Hover")]
     #[strum(serialize = "show_hover")]
     ShowHover,
-    #[strum(serialize = "jump_location_backward")]
-    JumpLocationBackward,
-    #[strum(serialize = "jump_location_forward")]
-    JumpLocationForward,
-    #[strum(message = "Next Error in Workspace")]
-    #[strum(serialize = "next_error")]
-    NextError,
-    #[strum(serialize = "previous_error")]
-    PreviousError,
     #[strum(message = "Go to Next Difference")]
     #[strum(serialize = "next_diff")]
     NextDiff,
@@ -315,10 +324,18 @@ pub enum FocusCommand {
     FormatDocument,
     #[strum(serialize = "search")]
     Search,
+    #[strum(serialize = "focus_replace_editor")]
+    FocusReplaceEditor,
+    #[strum(serialize = "focus_find_editor")]
+    FocusFindEditor,
     #[strum(serialize = "inline_find_right")]
     InlineFindRight,
     #[strum(serialize = "inline_find_left")]
     InlineFindLeft,
+    #[strum(serialize = "create_mark")]
+    CreateMark,
+    #[strum(serialize = "go_to_mark")]
+    GoToMark,
     #[strum(serialize = "repeat_last_inline_find")]
     RepeatLastInlineFind,
     #[strum(message = "Save")]

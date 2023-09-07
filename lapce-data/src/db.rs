@@ -322,6 +322,7 @@ impl EditorInfo {
                         tab_id,
                         event_sink,
                         data.proxy.clone(),
+                        config,
                     )),
                 );
             }
@@ -332,6 +333,7 @@ impl EditorInfo {
                     tab_id,
                     event_sink,
                     data.proxy.clone(),
+                    config,
                 );
                 if let Some(text) = &self.unsaved {
                     doc.reload(Rope::from(text), false);

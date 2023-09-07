@@ -23,7 +23,7 @@ use lapce_rpc::{
     file::FileNodeItem,
     proxy::{
         ProxyHandler, ProxyNotification, ProxyRequest, ProxyResponse,
-        ProxyRpcHandler,
+        ProxyRpcHandler, SearchMatch,
     },
     source_control::{DiffInfo, FileDiff},
     style::{LineStyle, SemanticStyles},
@@ -92,7 +92,9 @@ impl ProxyHandler for Dispatcher {
                     );
                     plugin_rpc.mainloop(&mut plugin);
                 });
-                self.core_rpc.proxy_connected();
+                self.core_rpc.notification(CoreNotification::ProxyStatus {
+                    status: lapce_rpc::proxy::ProxyStatus::Connected,
+                });
 
                 // send home directory for initinal filepicker dir
                 let dirs = directories::UserDirs::new();
@@ -101,12 +103,9 @@ impl ProxyHandler for Dispatcher {
                     self.core_rpc.home_dir(dirs.home_dir().into());
                 }
             }
-            OpenPaths { folders, files } => {
-                self.core_rpc.notification(CoreNotification::OpenPaths {
-                    window_tab_id: Some((self.window_id, self.tab_id)),
-                    folders,
-                    files,
-                });
+            OpenPaths { paths } => {
+                self.core_rpc
+                    .notification(CoreNotification::OpenPaths { paths });
             }
             OpenFileChanged { path } => {
                 if let Some(buffer) = self.buffers.get(&path) {
@@ -160,9 +159,24 @@ impl ProxyHandler for Dispatcher {
             NewTerminal {
                 term_id,
                 cwd,
+                env,
                 shell,
             } => {
-                let mut terminal = Terminal::new(term_id, cwd, shell, 50, 10);
+                let mut terminal = Terminal::new(term_id, cwd, env, shell, 50, 10);
+
+                #[allow(unused)]
+                let mut child_id = None;
+
+                #[cfg(not(target_os = "windows"))]
+                {
+                    // Alacritty currently doesn't expose the child process ID on windows, so this won't compile
+                    // Alacritty does acquire this information, but it is discarded
+                    // This is currently only used for debug adapter protocol's RunInTerminal request, which we
+                    // specify isn't supported on Windows at the moment
+                    child_id = Some(terminal.pty.child().id());
+                }
+
+                self.core_rpc.terminal_process_id(term_id, child_id);
                 let tx = terminal.tx.clone();
                 self.terminals.insert(term_id, tx);
                 let rpc = self.core_rpc.clone();
@@ -199,6 +213,46 @@ impl ProxyHandler for Dispatcher {
                     let _ = tx.send(Msg::Shutdown);
                 }
             }
+            DapStart {
+                config,
+                breakpoints,
+            } => {
+                let _ = self.catalog_rpc.dap_start(config, breakpoints);
+            }
+            DapProcessId {
+                dap_id,
+                process_id,
+                term_id,
+            } => {
+                let _ = self.catalog_rpc.dap_process_id(dap_id, process_id, term_id);
+            }
+            DapContinue { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_continue(dap_id, thread_id);
+            }
+            DapPause { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_pause(dap_id, thread_id);
+            }
+            DapStop { dap_id } => {
+                let _ = self.catalog_rpc.dap_stop(dap_id);
+            }
+            DapDisconnect { dap_id } => {
+                let _ = self.catalog_rpc.dap_disconnect(dap_id);
+            }
+            DapRestart {
+                dap_id,
+                breakpoints,
+            } => {
+                let _ = self.catalog_rpc.dap_restart(dap_id, breakpoints);
+            }
+            DapSetBreakpoints {
+                dap_id,
+                path,
+                breakpoints,
+            } => {
+                let _ =
+                    self.catalog_rpc
+                        .dap_set_breakpoints(dap_id, path, breakpoints);
+            }
             InstallVolt { volt } => {
                 let catalog_rpc = self.catalog_rpc.clone();
                 let _ = catalog_rpc.install_volt(volt);
@@ -227,9 +281,9 @@ impl ProxyHandler for Dispatcher {
                     }
                 }
             }
-            GitCheckout { branch } => {
+            GitCheckout { reference } => {
                 if let Some(workspace) = self.workspace.as_ref() {
-                    match git_checkout(workspace, &branch) {
+                    match git_checkout(workspace, &reference) {
                         Ok(()) => (),
                         Err(e) => eprintln!("{e:?}"),
                     }
@@ -271,6 +325,7 @@ impl ProxyHandler for Dispatcher {
             NewBuffer { buffer_id, path } => {
                 let buffer = Buffer::new(buffer_id, path.clone());
                 let content = buffer.rope.to_string();
+                let read_only = buffer.read_only;
                 self.catalog_rpc.did_open_document(
                     &path,
                     buffer.language_id.to_string(),
@@ -281,7 +336,7 @@ impl ProxyHandler for Dispatcher {
                 self.buffers.insert(path, buffer);
                 self.respond_rpc(
                     id,
-                    Ok(ProxyResponse::NewBufferResponse { content }),
+                    Ok(ProxyResponse::NewBufferResponse { content, read_only }),
                 );
             }
             BufferHead { path } => {
@@ -309,6 +364,8 @@ impl ProxyHandler for Dispatcher {
             GlobalSearch {
                 pattern,
                 case_sensitive,
+                whole_word,
+                is_regex,
             } => {
                 static WORKER_ID: AtomicU64 = AtomicU64::new(0);
                 let our_id = WORKER_ID.fetch_add(1, Ordering::SeqCst) + 1;
@@ -340,6 +397,8 @@ impl ProxyHandler for Dispatcher {
                                 .map(|p| p.into_path()),
                             &pattern,
                             case_sensitive,
+                            whole_word,
+                            is_regex,
                         ),
                     );
                 });
@@ -613,10 +672,7 @@ impl ProxyHandler for Dispatcher {
                         }
                         Ok(ProxyResponse::GetFilesResponse { items })
                     } else {
-                        Err(RpcError {
-                            code: 0,
-                            message: "no workspace set".to_string(),
-                        })
+                        Ok(ProxyResponse::GetFilesResponse { items: Vec::new() })
                     };
                     proxy_rpc.handle_response(id, result);
                 });
@@ -640,26 +696,23 @@ impl ProxyHandler for Dispatcher {
                 thread::spawn(move || {
                     let result = fs::read_dir(path)
                         .map(|entries| {
-                            let items = entries
+                            let mut items = entries
                                 .into_iter()
                                 .filter_map(|entry| {
                                     entry
-                                        .map(|e| {
-                                            (
-                                                e.path(),
-                                                FileNodeItem {
-                                                    path_buf: e.path(),
-                                                    is_dir: e.path().is_dir(),
-                                                    open: false,
-                                                    read: false,
-                                                    children: HashMap::new(),
-                                                    children_open_count: 0,
-                                                },
-                                            )
+                                        .map(|e| FileNodeItem {
+                                            path: e.path(),
+                                            is_dir: e.path().is_dir(),
+                                            open: false,
+                                            read: false,
+                                            children: HashMap::new(),
+                                            children_open_count: 0,
                                         })
                                         .ok()
                                 })
-                                .collect::<HashMap<PathBuf, FileNodeItem>>();
+                                .collect::<Vec<FileNodeItem>>();
+
+                            items.sort();
 
                             ProxyResponse::ReadDirResponse { items }
                         })
@@ -1019,9 +1072,9 @@ fn git_commit(
     Ok(())
 }
 
-fn git_checkout(workspace_path: &Path, branch: &str) -> Result<()> {
+fn git_checkout(workspace_path: &Path, reference: &str) -> Result<()> {
     let repo = Repository::discover(workspace_path)?;
-    let (object, reference) = repo.revparse_ext(branch)?;
+    let (object, reference) = repo.revparse_ext(reference)?;
     repo.checkout_tree(&object, None)?;
     repo.set_head(reference.unwrap().name().unwrap())?;
     Ok(())
@@ -1101,10 +1154,24 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
         branches.push(branch.ok()?.0.name().ok()??.to_string());
     }
 
+    let mut tags = Vec::new();
+    if let Ok(git_tags) = repo.tag_names(None) {
+        for tag in git_tags.into_iter().flatten() {
+            tags.push(tag.to_owned());
+        }
+    }
+
     let mut deltas = Vec::new();
     let mut diff_options = DiffOptions::new();
     let diff = repo
-        .diff_index_to_workdir(None, Some(diff_options.include_untracked(true)))
+        .diff_index_to_workdir(
+            None,
+            Some(
+                diff_options
+                    .include_untracked(true)
+                    .recurse_untracked_dirs(true),
+            ),
+        )
         .ok()?;
     for delta in diff.deltas() {
         if let Some(delta) = git_delta_format(workspace_path, &delta) {
@@ -1169,6 +1236,7 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     Some(DiffInfo {
         head: name,
         branches,
+        tags,
         diffs: file_diffs,
     })
 }
@@ -1189,7 +1257,11 @@ fn file_get_head(workspace_path: &Path, path: &Path) -> Result<(String, String)>
 fn git_get_remote_file_url(workspace_path: &Path, file: &Path) -> Result<String> {
     let repo = Repository::discover(workspace_path)?;
     let head = repo.head()?;
-    let target_remote = repo.find_remote("origin")?;
+    let target_remote = repo.find_remote(
+        repo.branch_upstream_remote(head.name().unwrap())?
+            .as_str()
+            .unwrap(),
+    )?;
 
     // Grab URL part of remote
     let remote = target_remote
@@ -1233,16 +1305,21 @@ fn search_in_path(
     paths: impl Iterator<Item = PathBuf>,
     pattern: &str,
     case_sensitive: bool,
+    whole_word: bool,
+    is_regex: bool,
 ) -> Result<ProxyResponse, RpcError> {
     let mut matches = IndexMap::new();
-    let pattern = regex::escape(pattern);
-    let matcher = RegexMatcherBuilder::new()
-        .case_insensitive(!case_sensitive)
-        .build_literals(&[&pattern])
-        .map_err(|_| RpcError {
-            code: 0,
-            message: "can't build matcher".to_string(),
-        })?;
+    let mut matcher = RegexMatcherBuilder::new();
+    let matcher = matcher.case_insensitive(!case_sensitive).word(whole_word);
+    let matcher = if is_regex {
+        matcher.build(pattern)
+    } else {
+        matcher.build_literals(&[&regex::escape(pattern)])
+    };
+    let matcher = matcher.map_err(|_| RpcError {
+        code: 0,
+        message: "can't build matcher".to_string(),
+    })?;
     let mut searcher = SearcherBuilder::new().build();
 
     for path in paths {
@@ -1286,11 +1363,12 @@ fn search_in_path(
                     } else {
                         line.to_string()
                     };
-                    line_matches.push((
-                        lnum as usize,
-                        (mymatch.start(), mymatch.end()),
-                        line,
-                    ));
+                    line_matches.push(SearchMatch {
+                        line: lnum as usize,
+                        start: mymatch.start(),
+                        end: mymatch.end(),
+                        line_content: line,
+                    });
                     Ok(true)
                 }),
             );

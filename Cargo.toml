@@ -1,35 +1,39 @@
 [package]
 name = "lapce"
-version = "0.2.7"
+version = "0.2.8"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 rust-version = "1.65"
 default-run = "lapce"
 
 [dependencies]
-lapce-ui = { path = "./lapce-ui" }
+lapce-app = { path = "./lapce-app" }
 lapce-proxy = { path = "./lapce-proxy" }
 
 [[bin]]
 name = "lapce"
-path = "lapce-ui/src/bin/lapce.rs"
+path = "lapce-app/src/bin/lapce.rs"
 
 [[bin]]
 name = "lapce-proxy"
 path = "lapce-proxy/src/bin/lapce-proxy.rs"
 
 [workspace]
-members = ["lapce-ui", "lapce-proxy", "lapce-rpc", "lapce-data", "lapce-core"]
+members = [
+  "lapce-app",
+  "lapce-proxy",
+  "lapce-rpc",
+  "lapce-core",
+]
 
 [workspace.package]
-version = "0.2.7"
+version = "0.2.8"
 edition = "2021"
 rust-version = "1.64"
 homepage = "https://lapce.dev"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 
 [workspace.dependencies]
-alacritty_terminal = "0.17.0"
 anyhow = "1.0"
 chrono = "0.4"
 clap = { version = "3.2.17", features = ["derive"] }
@@ -42,7 +46,6 @@ include_dir = "0.6.2"
 indexmap = { version = "1.9", features = ["serde"] }
 interprocess = "1.1.1"
 itertools = "0.10.1"
-log = "0.4"
 notify = { version = "5.0.0", features = ["serde"] }
 once_cell = "1.17"
 parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
@@ -56,25 +59,36 @@ strum = "0.21.0" # follow same version as system-deps in lockfile
 strum_macros = "0.21.1" # ditto
 tar = "0.4"
 thiserror = "1.0"
-toml_edit = { version = "0.14.4", features = ["easy"] }
+toml = { version = "*" }
+toml_edit = { version = "0.19.14", features = ["serde"] }
 
 lsp-types = { version = "0.93", features = ["proposed"] }
 psp-types = { git = "https://github.com/lapce/psp-types" }
 
-
-lapce-xi-rope = { version = "0.3.1", features = ["serde"] }
+lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
 
 lapce-core = { path = "./lapce-core" }
 lapce-rpc = { path = "./lapce-rpc" }
-lapce-data = { path = "./lapce-data" }
 lapce-proxy = { path = "./lapce-proxy" }
 
-[workspace.dependencies.druid]
-git = "https://github.com/lapce/druid"
-branch = "shell_opengl"
-# path = "../../druid/druid"
-features = ["svg", "im", "serde"]
+[workspace.dependencies.tracing]
+git = "https://github.com/tokio-rs/tracing"
+rev = "c14525e1610db88986f849d46bd3e9795878b012"
+package = "tracing"
 
+[workspace.dependencies.tracing-subscriber]
+git = "https://github.com/tokio-rs/tracing"
+rev = "c14525e1610db88986f849d46bd3e9795878b012"
+package = "tracing-subscriber"
+
+[workspace.dependencies.tracing-appender]
+git = "https://github.com/tokio-rs/tracing"
+rev = "c14525e1610db88986f849d46bd3e9795878b012"
+package = "tracing-appender"
+
+[workspace.dependencies.alacritty_terminal]
+git = "https://github.com/lapce/alacritty"
+branch = "release/v0.12.1/lapce"
 
 [profile.release-lto]
 inherits = "release"

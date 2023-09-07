@@ -13,7 +13,6 @@ directories.workspace = true
 flate2.workspace = true
 indexmap.workspace = true
 interprocess.workspace = true
-log.workspace = true
 notify.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
@@ -24,7 +23,9 @@ serde_json.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
 tar.workspace = true
+toml.workspace = true
 toml_edit.workspace = true
+tracing.workspace = true
 
 lsp-types.workspace = true
 psp-types.workspace = true
@@ -49,7 +50,7 @@ jsonrpc-lite = "0.6.0"
 which = "4.2.5"
 
 # git
-git2 = { version = "0.16.1", features = ["vendored-openssl"] }
+git2 = { version = "0.17.2", features = ["vendored-openssl"] }
 
 # deleting files
 trash = "2.1.5"

@@ -1,8 +1,9 @@
-use super::load_volt;
-use super::unflatten_map;
+use std::collections::HashMap;
+
 use lapce_rpc::plugin::VoltMetadata;
 use serde_json::{json, Value};
-use std::collections::HashMap;
+
+use super::{load_volt, unflatten_map};
 
 #[test]
 fn test_unflatten_map() {

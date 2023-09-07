@@ -17,6 +17,7 @@ pub mod movement;
 pub mod paragraph;
 pub mod register;
 pub mod selection;
+pub mod soft_tab;
 pub mod style;
 pub mod syntax;
 pub mod word;
