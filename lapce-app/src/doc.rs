@@ -28,7 +28,7 @@ use lapce_core::{
     register::{Clipboard, Register},
     selection::{InsertDrift, Selection},
     style::line_styles,
-    syntax::{edit::SyntaxEdit, Syntax, BracketParser},
+    syntax::{edit::SyntaxEdit, BracketParser, Syntax},
 };
 use lapce_rpc::{
     buffer::BufferId,
@@ -55,7 +55,6 @@ use crate::{
     window_tab::CommonData,
     workspace::LapceWorkspace,
 };
-
 
 pub mod phantom_text;
 
@@ -244,7 +243,7 @@ impl Document {
             parser: Rc::new(RefCell::new(BracketParser::new(
                 "".to_string(),
                 config.editor.bracket_pair_colorization,
-            )))
+            ))),
         }
     }
 
@@ -287,7 +286,7 @@ impl Document {
             parser: Rc::new(RefCell::new(BracketParser::new(
                 "".to_string(),
                 config.editor.bracket_pair_colorization,
-            )))
+            ))),
         }
     }
 
@@ -331,7 +330,7 @@ impl Document {
             parser: Rc::new(RefCell::new(BracketParser::new(
                 "".to_string(),
                 config.editor.bracket_pair_colorization,
-            )))
+            ))),
         }
     }
 
@@ -371,12 +370,18 @@ impl Document {
         self.init_diagnostics();
         self.retrieve_head();
         self.syntax.with_untracked(|syntax| {
-            if let Some(_) = syntax.styles {
-                self.parser.borrow_mut()
-                .update_code(parser_content.to_string(), &self.buffer.get_untracked(), Some(syntax.clone()));
+            if syntax.styles.is_some() {
+                self.parser.borrow_mut().update_code(
+                    parser_content.to_string(),
+                    &self.buffer.get_untracked(),
+                    Some(syntax.clone()),
+                );
             } else {
-                self.parser.borrow_mut()
-                .update_code(parser_content.to_string(), &self.buffer.get_untracked(), None);
+                self.parser.borrow_mut().update_code(
+                    parser_content.to_string(),
+                    &self.buffer.get_untracked(),
+                    None,
+                );
             }
         });
     }
@@ -538,12 +543,18 @@ impl Document {
 
     fn do_bracket_colorization(&self) {
         self.syntax.with_untracked(|syntax| {
-            if let Some(_) = syntax.styles {
-                self.parser.borrow_mut()
-                .update_code(self.buffer.get_untracked().to_string(), &self.buffer.get_untracked(), Some(syntax.clone()));
+            if syntax.styles.is_some() {
+                self.parser.borrow_mut().update_code(
+                    self.buffer.get_untracked().to_string(),
+                    &self.buffer.get_untracked(),
+                    Some(syntax.clone()),
+                );
             } else {
-                self.parser.borrow_mut()
-                .update_code(self.buffer.get_untracked().to_string(), &self.buffer.get_untracked(), None);
+                self.parser.borrow_mut().update_code(
+                    self.buffer.get_untracked().to_string(),
+                    &self.buffer.get_untracked(),
+                    None,
+                );
             }
         })
     }

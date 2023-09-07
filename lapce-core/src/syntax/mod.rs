@@ -34,10 +34,10 @@ use self::{
     util::{matching_bracket_general, matching_pair_direction, RopeProvider},
 };
 use crate::{
+    buffer::rope_text::RopeText,
     language::{self, LapceLanguage},
     lens::{Lens, LensBuilder},
     style::SCOPES,
-    buffer::rope_text::RopeText,
 };
 
 use crate::buffer::Buffer;
@@ -180,19 +180,19 @@ impl BracketParser {
             if let Some(syntax) = syntax {
                 if let Some(layers) = syntax.layers {
                     if let Some(tree) = layers.try_tree() {
-                    let mut walk_cursor = tree.walk();
-                    let mut bracket_pos: HashMap<usize, Vec<LineStyle>> =
-                        HashMap::new();
-                    language::walk_tree_bracket_ast(
-                        &mut walk_cursor,
-                        &mut 0,
-                        &mut 0,
-                        &mut bracket_pos,
-                        &palette,
-                    );
-                    self.bracket_pos = bracket_pos;
+                        let mut walk_cursor = tree.walk();
+                        let mut bracket_pos: HashMap<usize, Vec<LineStyle>> =
+                            HashMap::new();
+                        language::walk_tree_bracket_ast(
+                            &mut walk_cursor,
+                            &mut 0,
+                            &mut 0,
+                            &mut bracket_pos,
+                            &palette,
+                        );
+                        self.bracket_pos = bracket_pos;
+                    }
                 }
-            }
             } else {
                 self.code = code.chars().collect();
                 self.cur = 0;
