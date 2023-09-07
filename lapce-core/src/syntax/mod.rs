@@ -37,6 +37,7 @@ use crate::{
     language::{self, LapceLanguage},
     lens::{Lens, LensBuilder},
     style::SCOPES,
+    buffer::rope_text::RopeText,
 };
 
 use crate::buffer::Buffer;
@@ -177,7 +178,8 @@ impl BracketParser {
         if self.active {
             self.bracket_pos = HashMap::new();
             if let Some(syntax) = syntax {
-                if let Some(tree) = syntax.layers.try_tree() {
+                if let Some(layers) = syntax.layers {
+                    if let Some(tree) = layers.try_tree() {
                     let mut walk_cursor = tree.walk();
                     let mut bracket_pos: HashMap<usize, Vec<LineStyle>> =
                         HashMap::new();
@@ -190,6 +192,7 @@ impl BracketParser {
                     );
                     self.bracket_pos = bracket_pos;
                 }
+            }
             } else {
                 self.code = code.chars().collect();
                 self.cur = 0;

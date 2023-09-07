@@ -1317,7 +1317,6 @@ impl InputSettingsItem {
             data.id,
             event_sink,
             data.proxy.clone(),
-            &data.config,
         );
         doc.reload(Rope::from(&input), true);
         data.main_split.value_docs.insert(name, Arc::new(doc));
@@ -1858,7 +1857,6 @@ impl ThemeSettingItem {
             data.id,
             event_sink,
             data.proxy.clone(),
-            &data.config,
         );
         doc.reload(
             Rope::from(match kind {

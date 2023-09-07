@@ -214,6 +214,8 @@ pub struct EditorConfig {
         desc = "Set the default number of visible lines above and below the diff block (-1 for infinite)"
     )]
     pub diff_context_lines: i32,
+    #[field_names(desc = "Whether the editor colorizes brackets")]
+    pub bracket_pair_colorization: bool,
 }
 
 impl EditorConfig {

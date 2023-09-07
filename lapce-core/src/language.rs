@@ -5,8 +5,10 @@ use std::{
 };
 
 use lapce_rpc::style::{LineStyle, Style};
-use strum_macros::{Display, EnumString};
-use tree_sitter::{Point, TreeCursor};
+use once_cell::sync::Lazy;
+use strum_macros::{AsRefStr, Display, EnumMessage, EnumString};
+use tracing::{debug, error};
+use tree_sitter::{TreeCursor, Point};
 
 use crate::{
     directory::Directory,
