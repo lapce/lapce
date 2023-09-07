@@ -115,6 +115,7 @@ pub struct CommonData {
     pub find: Find,
     pub workbench_size: RwSignal<Size>,
     pub window_origin: RwSignal<Point>,
+    pub window_maximized: RwSignal<bool>,
     pub window_command: Listener<WindowCommand>,
     pub internal_command: Listener<InternalCommand>,
     pub lapce_command: Listener<LapceCommand>,
@@ -250,6 +251,7 @@ impl WindowTabData {
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
         window_size: RwSignal<Size>,
         num_window_tabs: Memo<usize>,
+        window_maximized: RwSignal<bool>,
         window_tab_header_height: RwSignal<f64>,
         ime_allowed: RwSignal<bool>,
     ) -> Self {
@@ -331,6 +333,7 @@ impl WindowTabData {
             register,
             find,
             window_command,
+            window_maximized,
             internal_command,
             lapce_command,
             workbench_command,

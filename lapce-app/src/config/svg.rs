@@ -39,7 +39,7 @@ impl SvgStore {
 
     pub fn get_default_svg(&mut self, name: &str) -> String {
         if !self.svgs.contains_key(name) {
-            let file = if name == "lapce_remote.svg" {
+            let file = if name == "lapce_remote.svg" || name == "lapce_logo.svg" {
                 LAPCE_ICONS_DIR.get_file(name).unwrap()
             } else {
                 CODICONS_ICONS_DIR

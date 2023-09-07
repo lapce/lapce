@@ -89,7 +89,7 @@ use crate::{
     settings::settings_view,
     status::status,
     text_input::text_input,
-    title::title,
+    title::{title, window_controls_view},
     update::ReleaseInfo,
     window::{TabsInfo, WindowData, WindowInfo},
     window_tab::{Focus, WindowTabData},
@@ -142,10 +142,13 @@ pub struct AppData {
     pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
     pub watcher: Arc<notify::RecommendedWatcher>,
     pub tracing_handle: Handle<Targets>,
+    pub config: RwSignal<Arc<LapceConfig>>,
 }
 
 impl AppData {
     pub fn reload_config(&self) {
+        let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
+        self.config.set(Arc::new(config));
         let windows = self.windows.get_untracked();
         for (_, window) in windows {
             window.reload_config();
@@ -185,7 +188,9 @@ impl AppData {
             .unwrap_or_else(|| {
                 WindowConfig::default().size(Size::new(800.0, 600.0))
             });
-        let config = if cfg!(target_os = "macos") {
+        let config = if cfg!(target_os = "macos")
+            || self.config.get_untracked().core.custom_titlebar
+        {
             config.show_titlebar(false)
         } else {
             config
@@ -298,7 +303,9 @@ impl AppData {
 
                 let config =
                     WindowConfig::default().size(info.size).position(info.pos);
-                let config = if cfg!(target_os = "macos") {
+                let config = if cfg!(target_os = "macos")
+                    || self.config.get_untracked().core.custom_titlebar
+                {
                     config.show_titlebar(false)
                 } else {
                     config
@@ -315,7 +322,9 @@ impl AppData {
                 for info in app_info.windows {
                     let config =
                         WindowConfig::default().size(info.size).position(info.pos);
-                    let config = if cfg!(target_os = "macos") {
+                    let config = if cfg!(target_os = "macos")
+                        || self.config.get_untracked().core.custom_titlebar
+                    {
                         config.show_titlebar(false)
                     } else {
                         config
@@ -344,7 +353,9 @@ impl AppData {
                 workspaces: vec![LapceWorkspace::default()],
             };
             let config = WindowConfig::default().size(info.size).position(info.pos);
-            let config = if cfg!(target_os = "macos") {
+            let config = if cfg!(target_os = "macos")
+                || self.config.get_untracked().core.custom_titlebar
+            {
                 config.show_titlebar(false)
             } else {
                 config
@@ -2802,30 +2813,15 @@ fn window_tab(window_tab_data: Rc<WindowTabData>) -> impl View {
     let source_control = window_tab_data.source_control.clone();
     let window_origin = window_tab_data.common.window_origin;
     let layout_rect = window_tab_data.layout_rect;
-    let latest_release = window_tab_data.latest_release;
-    let update_in_progress = window_tab_data.update_in_progress;
     let config = window_tab_data.common.config;
-    let workspace = window_tab_data.workspace.clone();
     let workbench_command = window_tab_data.common.workbench_command;
-    let main_split = window_tab_data.main_split.clone();
     let window_tab_scope = window_tab_data.scope;
-    let proxy_status = window_tab_data.common.proxy_status;
-    let num_window_tabs = window_tab_data.num_window_tabs;
     let hover_active = window_tab_data.common.hover.active;
-    let title_height = window_tab_data.title_height;
     let status_height = window_tab_data.status_height;
 
     let view = stack((
         stack((
-            title(
-                workspace,
-                main_split,
-                latest_release,
-                update_in_progress,
-                proxy_status,
-                num_window_tabs,
-                title_height,
-            ),
+            title(window_tab_data.clone()),
             workbench(window_tab_data.clone()),
             status(
                 window_tab_data.clone(),
@@ -2894,11 +2890,24 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
     let window_tab_header_height = window_data.window_tab_header_height;
     let available_width = create_rw_signal(0.0);
     let add_icon_width = create_rw_signal(0.0);
+    let window_control_width = create_rw_signal(0.0);
+    let window_maximized = window_data.window_maximized;
+    let num_window_tabs = window_data.num_window_tabs;
+    let window_command = window_data.window_command;
 
     let tab_width = create_memo(move |_| {
+        let window_control_width = if !cfg!(target_os = "macos")
+            && config.get_untracked().core.custom_titlebar
+        {
+            window_control_width.get()
+        } else {
+            0.0
+        };
         let available_width = available_width.get()
             - add_icon_width.get()
-            - if cfg!(target_os = "macos") { 75.0 } else { 0.0 };
+            - if cfg!(target_os = "macos") { 75.0 } else { 0.0 }
+            - window_control_width
+            - 30.0;
         let tabs_len = tabs.with(|tabs| tabs.len());
         if tabs_len > 0 {
             (available_width / tabs_len as f64).min(200.0)
@@ -3095,7 +3104,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
             view_fn,
         )
         .style(|s| s.height_pct(100.0)),
-        drag_window_area(clickable_icon(
+        container(clickable_icon(
             || LapceIcons::ADD,
             move || {
                 window_data.run_window_command(WindowCommand::NewWorkspaceTab {
@@ -3116,11 +3125,24 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
         .style(|s| {
             s.height_pct(100.0)
                 .padding_left_px(10.0)
-                .padding_right_px(30.0)
+                .padding_right_px(10.0)
                 .items_center()
         }),
         drag_window_area(empty())
             .style(|s| s.height_pct(100.0).flex_basis_px(0.0).flex_grow(1.0)),
+        window_controls_view(
+            window_command,
+            false,
+            num_window_tabs,
+            window_maximized,
+            config.read_only(),
+        )
+        .on_resize(move |rect| {
+            let width = rect.width();
+            if window_control_width.get_untracked() != width {
+                window_control_width.set(width);
+            }
+        }),
     ))
     .on_resize(move |rect| {
         let current = available_width.get_untracked();
@@ -3156,6 +3178,7 @@ fn window(window_data: WindowData) -> impl View {
     let active = move || active.get();
     let window_focus = create_rw_signal(false);
     let ime_enabled = window_data.ime_enabled;
+    let window_maximized = window_data.window_maximized;
 
     tab(active, items, key, |(_, window_tab_data)| {
         window_tab(window_tab_data)
@@ -3184,6 +3207,12 @@ fn window(window_data: WindowData) -> impl View {
         window_focus.set(true);
         false
     })
+    .on_event(EventListener::WindowMaximizeChanged, move |event| {
+        if let Event::WindowMaximizeChanged(maximized) = event {
+            window_maximized.set(*maximized);
+        }
+        false
+    })
     .window_menu(move || {
         window_focus.track();
         let active = active();
@@ -3193,114 +3222,7 @@ fn window(window_data: WindowData) -> impl View {
             window_tab.common.keypress.track();
             let workbench_command = window_tab.common.workbench_command;
             let lapce_command = window_tab.common.lapce_command;
-            Menu::new("Lapce")
-                .entry(
-                    Menu::new("Lapce")
-                        .entry(MenuItem::new("About Lapce").action(move || {
-                            workbench_command.send(LapceWorkbenchCommand::ShowAbout)
-                        }))
-                        .separator()
-                        .entry(
-                            Menu::new("Settings...")
-                                .entry(MenuItem::new("Open Settings").action(
-                                    move || {
-                                        workbench_command.send(
-                                            LapceWorkbenchCommand::OpenSettings,
-                                        )
-                                    },
-                                ))
-                                .entry(
-                                    MenuItem::new("Open Keyboard Shortcuts").action(
-                                        move || {
-                                            workbench_command.send(
-                                        LapceWorkbenchCommand::OpenKeyboardShortcuts,
-                                    )
-                                        },
-                                    ),
-                                ),
-                        )
-                        .separator()
-                        .entry(MenuItem::new("Hide Lapce"))
-                        .entry(MenuItem::new("Hide Others"))
-                        .entry(MenuItem::new("Show All"))
-                        .separator()
-                        .entry(MenuItem::new("Quit Lapce")),
-                )
-                .separator()
-                .entry(
-                    Menu::new("File")
-                        .entry(MenuItem::new("New File").action(move || {
-                            workbench_command.send(LapceWorkbenchCommand::NewFile);
-                        }))
-                        .separator()
-                        .entry(MenuItem::new("Open").action(move || {
-                            workbench_command.send(LapceWorkbenchCommand::OpenFile);
-                        }))
-                        .entry(MenuItem::new("Open Folder").action(move || {
-                            workbench_command
-                                .send(LapceWorkbenchCommand::OpenFolder);
-                        }))
-                        .separator()
-                        .entry(MenuItem::new("Save").action(move || {
-                            lapce_command.send(LapceCommand {
-                                kind: CommandKind::Focus(FocusCommand::Save),
-                                data: None,
-                            });
-                        }))
-                        .entry(MenuItem::new("Save All").action(move || {
-                            workbench_command.send(LapceWorkbenchCommand::SaveAll);
-                        }))
-                        .separator()
-                        .entry(MenuItem::new("Close Folder").action(move || {
-                            workbench_command
-                                .send(LapceWorkbenchCommand::CloseFolder);
-                        }))
-                        .entry(MenuItem::new("Close Window").action(move || {
-                            workbench_command
-                                .send(LapceWorkbenchCommand::CloseWindow);
-                        })),
-                )
-                .entry(
-                    Menu::new("Edit")
-                        .entry(MenuItem::new("Cut").action(move || {
-                            lapce_command.send(LapceCommand {
-                                kind: CommandKind::Edit(EditCommand::ClipboardCut),
-                                data: None,
-                            });
-                        }))
-                        .entry(MenuItem::new("Copy").action(move || {
-                            lapce_command.send(LapceCommand {
-                                kind: CommandKind::Edit(EditCommand::ClipboardCopy),
-                                data: None,
-                            });
-                        }))
-                        .entry(MenuItem::new("Paste").action(move || {
-                            lapce_command.send(LapceCommand {
-                                kind: CommandKind::Edit(EditCommand::ClipboardPaste),
-                                data: None,
-                            });
-                        }))
-                        .separator()
-                        .entry(MenuItem::new("Undo").action(move || {
-                            lapce_command.send(LapceCommand {
-                                kind: CommandKind::Edit(EditCommand::Undo),
-                                data: None,
-                            });
-                        }))
-                        .entry(MenuItem::new("Redo").action(move || {
-                            lapce_command.send(LapceCommand {
-                                kind: CommandKind::Edit(EditCommand::Redo),
-                                data: None,
-                            });
-                        }))
-                        .separator()
-                        .entry(MenuItem::new("Find").action(move || {
-                            lapce_command.send(LapceCommand {
-                                kind: CommandKind::Focus(FocusCommand::Search),
-                                data: None,
-                            });
-                        })),
-                )
+            window_menu(lapce_command, workbench_command)
         } else {
             Menu::new("Lapce")
         }
@@ -3410,6 +3332,8 @@ pub fn launch() {
     }
 
     let windows = scope.create_rw_signal(im::HashMap::new());
+    let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
+    let config = scope.create_rw_signal(Arc::new(config));
     let app_data = AppData {
         windows,
         active_window: scope.create_rw_signal(WindowId::from(0)),
@@ -3419,6 +3343,7 @@ pub fn launch() {
         latest_release,
         app_command,
         tracing_handle: reload_handle,
+        config,
     };
 
     let app = app_data.create_windows(db.clone(), cli.paths);
@@ -3587,4 +3512,116 @@ fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
         });
     }
     Ok(())
+}
+
+pub fn window_menu(
+    lapce_command: Listener<LapceCommand>,
+    workbench_command: Listener<LapceWorkbenchCommand>,
+) -> Menu {
+    Menu::new("Lapce")
+        .entry({
+            let mut menu = Menu::new("Lapce")
+                .entry(MenuItem::new("About Lapce").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::ShowAbout)
+                }))
+                .separator()
+                .entry(
+                    Menu::new("Settings...")
+                        .entry(MenuItem::new("Open Settings").action(move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::OpenSettings);
+                        }))
+                        .entry(MenuItem::new("Open Keyboard Shortcuts").action(
+                            move || {
+                                workbench_command.send(
+                                    LapceWorkbenchCommand::OpenKeyboardShortcuts,
+                                );
+                            },
+                        )),
+                )
+                .separator()
+                .entry(MenuItem::new("Quit Lapce").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::Quit);
+                }));
+            if cfg!(target_os = "macos") {
+                menu = menu
+                    .separator()
+                    .entry(MenuItem::new("Hide Lapce"))
+                    .entry(MenuItem::new("Hide Others"))
+                    .entry(MenuItem::new("Show All"))
+            }
+            menu
+        })
+        .separator()
+        .entry(
+            Menu::new("File")
+                .entry(MenuItem::new("New File").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::NewFile);
+                }))
+                .separator()
+                .entry(MenuItem::new("Open").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::OpenFile);
+                }))
+                .entry(MenuItem::new("Open Folder").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::OpenFolder);
+                }))
+                .separator()
+                .entry(MenuItem::new("Save").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::Save),
+                        data: None,
+                    });
+                }))
+                .entry(MenuItem::new("Save All").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::SaveAll);
+                }))
+                .separator()
+                .entry(MenuItem::new("Close Folder").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::CloseFolder);
+                }))
+                .entry(MenuItem::new("Close Window").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::CloseWindow);
+                })),
+        )
+        .entry(
+            Menu::new("Edit")
+                .entry(MenuItem::new("Cut").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::ClipboardCut),
+                        data: None,
+                    });
+                }))
+                .entry(MenuItem::new("Copy").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::ClipboardCopy),
+                        data: None,
+                    });
+                }))
+                .entry(MenuItem::new("Paste").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::ClipboardPaste),
+                        data: None,
+                    });
+                }))
+                .separator()
+                .entry(MenuItem::new("Undo").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::Undo),
+                        data: None,
+                    });
+                }))
+                .entry(MenuItem::new("Redo").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Edit(EditCommand::Redo),
+                        data: None,
+                    });
+                }))
+                .separator()
+                .entry(MenuItem::new("Find").action(move || {
+                    lapce_command.send(LapceCommand {
+                        kind: CommandKind::Focus(FocusCommand::Search),
+                        data: None,
+                    });
+                })),
+        )
 }

@@ -1492,7 +1492,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=7981a0ad810ee3b74406391aa7066228e022c059#7981a0ad810ee3b74406391aa7066228e022c059"
+source = "git+https://github.com/lapce/floem?rev=9c5a6846cc5f3b497b63f3b2e02ce42274bc0117#9c5a6846cc5f3b497b63f3b2e02ce42274bc0117"
 dependencies = [
  "bitflags 2.4.0",
  "crossbeam-channel",
@@ -1519,12 +1519,12 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=7981a0ad810ee3b74406391aa7066228e022c059#7981a0ad810ee3b74406391aa7066228e022c059"
+source = "git+https://github.com/lapce/floem?rev=9c5a6846cc5f3b497b63f3b2e02ce42274bc0117#9c5a6846cc5f3b497b63f3b2e02ce42274bc0117"
 
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=7981a0ad810ee3b74406391aa7066228e022c059#7981a0ad810ee3b74406391aa7066228e022c059"
+source = "git+https://github.com/lapce/floem?rev=9c5a6846cc5f3b497b63f3b2e02ce42274bc0117#9c5a6846cc5f3b497b63f3b2e02ce42274bc0117"
 dependencies = [
  "cosmic-text",
  "peniko",
@@ -1534,7 +1534,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=7981a0ad810ee3b74406391aa7066228e022c059#7981a0ad810ee3b74406391aa7066228e022c059"
+source = "git+https://github.com/lapce/floem?rev=9c5a6846cc5f3b497b63f3b2e02ce42274bc0117#9c5a6846cc5f3b497b63f3b2e02ce42274bc0117"
 dependencies = [
  "anyhow",
  "floem_renderer",
