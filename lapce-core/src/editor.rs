@@ -1253,7 +1253,7 @@ impl Editor {
                     selection.min_offset(),
                     selection.max_offset(),
                     true,
-                    true,
+                    false,
                     1,
                 );
                 let selection = Selection::region(start, end);
