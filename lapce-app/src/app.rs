@@ -417,6 +417,7 @@ impl AppData {
         let position = window_data.position;
         let window_scale = window_data.window_scale;
         let app_command = window_data.app_command;
+        let config = window_data.config;
         // The KeyDown and PointerDown event handlers both need ownership of a WindowData object.
         let key_down_window_data = window_data.clone();
         let view = stack((
@@ -498,7 +499,13 @@ impl AppData {
                     },
                 ),
             ))
-            .style(|s| s.absolute().size_pct(100.0, 100.0)),
+            .style(move |s| {
+                s.absolute().size_pct(100.0, 100.0).apply_if(
+                    cfg!(target_os = "macos")
+                        || !config.get_untracked().core.custom_titlebar,
+                    |s| s.hide(),
+                )
+            }),
         ))
         .style(|s| s.flex_col().size_pct(100.0, 100.0));
         let view_id = view.id();
