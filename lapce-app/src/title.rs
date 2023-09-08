@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use floem::{
     event::EventListener,
@@ -13,26 +13,28 @@ use lapce_core::meta;
 use lapce_rpc::proxy::ProxyStatus;
 
 use crate::{
-    app::clickable_icon,
-    command::LapceWorkbenchCommand,
+    app::{clickable_icon, window_menu},
+    command::{LapceCommand, LapceWorkbenchCommand, WindowCommand},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     listener::Listener,
     main_split::MainSplitData,
     update::ReleaseInfo,
+    window_tab::WindowTabData,
     workspace::LapceWorkspace,
 };
 
 fn left(
     workspace: Arc<LapceWorkspace>,
+    lapce_command: Listener<LapceCommand>,
     workbench_command: Listener<LapceWorkbenchCommand>,
     config: ReadSignal<Arc<LapceConfig>>,
     proxy_status: RwSignal<Option<ProxyStatus>>,
     num_window_tabs: Memo<usize>,
 ) -> impl View {
     let is_local = workspace.kind.is_local();
+    let is_macos = cfg!(target_os = "macos");
     stack((
         empty().style(move |s| {
-            let is_macos = cfg!(target_os = "macos");
             let should_hide = if is_macos {
                 num_window_tabs.get() > 1
             } else {
@@ -40,16 +42,31 @@ fn left(
             };
             s.width_px(75.0).apply_if(should_hide, |s| s.hide())
         }),
+        container(svg(move || config.get().ui_svg(LapceIcons::LOGO)).style(
+            move |s| {
+                let config = config.get();
+                s.size_px(16.0, 16.0)
+                    .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+            },
+        ))
+        .style(move |s| s.margin_horiz_px(10.0).apply_if(is_macos, |s| s.hide())),
+        clickable_icon(|| LapceIcons::MENU, move || {}, || false, || false, config)
+            .popout_menu(move || window_menu(lapce_command, workbench_command))
+            .style(move |s| {
+                s.margin_left_px(4.0)
+                    .margin_right_px(6.0)
+                    .apply_if(is_macos, |s| s.hide())
+            }),
         container(svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(
             move |s| {
-                s.size_px(26.0, 26.0).color(if is_local {
-                    *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL)
+                let config = config.get();
+                let size = (config.ui.icon_size() as f32 + 2.0).min(30.0);
+                s.size_px(size, size).color(if is_local {
+                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE)
                 } else {
                     match proxy_status.get() {
                         Some(_) => Color::WHITE,
-                        None => {
-                            *config.get().get_color(LapceColor::LAPCE_REMOTE_LOCAL)
-                        }
+                        None => *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                     }
                 })
             },
@@ -105,6 +122,8 @@ fn left(
                 .items_center()
                 .background(color)
         }),
+        drag_window_area(empty())
+            .style(|s| s.height_pct(100.0).flex_basis_px(0.0).flex_grow(1.0)),
     ))
     .style(move |s| {
         s.height_pct(100.0)
@@ -173,7 +192,13 @@ fn middle(
     };
 
     stack((
-        stack((jump_backward(), jump_forward())).style(|s| {
+        stack((
+            drag_window_area(empty())
+                .style(|s| s.height_pct(100.0).flex_basis_px(0.0).flex_grow(1.0)),
+            jump_backward(),
+            jump_forward(),
+        ))
+        .style(|s| {
             s.flex_basis(Dimension::Points(0.0))
                 .flex_grow(1.0)
                 .justify_content(Some(JustifyContent::FlexEnd))
@@ -223,7 +248,7 @@ fn middle(
                 .border_radius(6.0)
                 .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
         }),
-        container(
+        stack((
             clickable_icon(
                 || LapceIcons::START,
                 move || {
@@ -234,7 +259,9 @@ fn middle(
                 config,
             )
             .style(move |s| s.margin_horiz_px(6.0)),
-        )
+            drag_window_area(empty())
+                .style(|s| s.height_pct(100.0).flex_basis_px(0.0).flex_grow(1.0)),
+        ))
         .style(move |s| {
             s.flex_basis(Dimension::Points(0.0))
                 .flex_grow(1.0)
@@ -250,9 +277,12 @@ fn middle(
 }
 
 fn right(
+    window_command: Listener<WindowCommand>,
     workbench_command: Listener<LapceWorkbenchCommand>,
     latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     update_in_progress: RwSignal<bool>,
+    num_window_tabs: Memo<usize>,
+    window_maximized: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let latest_version = create_memo(move |_| {
@@ -270,7 +300,9 @@ fn right(
 
     let has_update = move || latest_version.with(|v| v.is_some());
 
-    container(
+    stack((
+        drag_window_area(empty())
+            .style(|s| s.height_pct(100.0).flex_basis_px(0.0).flex_grow(1.0)),
         stack((
             clickable_icon(
                 || LapceIcons::SETTINGS,
@@ -334,7 +366,14 @@ fn right(
             }),
         ))
         .style(move |s| s.margin_horiz_px(6.0)),
-    )
+        window_controls_view(
+            window_command,
+            true,
+            num_window_tabs,
+            window_maximized,
+            config,
+        ),
+    ))
     .style(|s| {
         s.flex_basis(Dimension::Points(0.0))
             .flex_grow(1.0)
@@ -342,50 +381,113 @@ fn right(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn title(
-    workspace: Arc<LapceWorkspace>,
-    main_split: MainSplitData,
-    latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-    update_in_progress: RwSignal<bool>,
-    proxy_status: RwSignal<Option<ProxyStatus>>,
+pub fn title(window_tab_data: Rc<WindowTabData>) -> impl View {
+    let workspace = window_tab_data.workspace.clone();
+    let lapce_command = window_tab_data.common.lapce_command;
+    let workbench_command = window_tab_data.common.workbench_command;
+    let window_command = window_tab_data.common.window_command;
+    let latest_release = window_tab_data.latest_release;
+    let proxy_status = window_tab_data.common.proxy_status;
+    let num_window_tabs = window_tab_data.num_window_tabs;
+    let window_maximized = window_tab_data.common.window_maximized;
+    let title_height = window_tab_data.title_height;
+    let update_in_progress = window_tab_data.update_in_progress;
+    let config = window_tab_data.common.config;
+    stack((
+        left(
+            workspace.clone(),
+            lapce_command,
+            workbench_command,
+            config,
+            proxy_status,
+            num_window_tabs,
+        ),
+        middle(
+            workspace,
+            window_tab_data.main_split.clone(),
+            workbench_command,
+            config,
+        ),
+        right(
+            window_command,
+            workbench_command,
+            latest_release,
+            update_in_progress,
+            num_window_tabs,
+            window_maximized,
+            config,
+        ),
+    ))
+    .on_resize(move |rect| {
+        let height = rect.height();
+        if height != title_height.get_untracked() {
+            title_height.set(height);
+        }
+    })
+    .style(move |s| {
+        let config = config.get();
+        s.width_pct(100.0)
+            .height_px(37.0)
+            .items_center()
+            .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+            .border_bottom(1.0)
+            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+    })
+}
+
+pub fn window_controls_view(
+    window_command: Listener<WindowCommand>,
+    is_title: bool,
     num_window_tabs: Memo<usize>,
-    title_height: RwSignal<f64>,
+    window_maximized: RwSignal<bool>,
+    config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let workbench_command = main_split.common.workbench_command;
-    let config = main_split.common.config;
-    drag_window_area(
-        stack((
-            left(
-                workspace.clone(),
-                workbench_command,
-                config,
-                proxy_status,
-                num_window_tabs,
-            ),
-            middle(workspace, main_split, workbench_command, config),
-            right(
-                workbench_command,
-                latest_release,
-                update_in_progress,
-                config,
-            ),
-        ))
-        .on_resize(move |rect| {
-            let height = rect.height();
-            if height != title_height.get_untracked() {
-                title_height.set(height);
-            }
-        })
-        .style(move |s| {
-            let config = config.get();
-            s.width_pct(100.0)
-                .height_px(37.0)
-                .items_center()
-                .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
-                .border_bottom(1.0)
-                .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-        }),
-    )
-    .style(|s| s.width_pct(100.0))
+    stack((
+        clickable_icon(
+            || LapceIcons::WINDOW_MINIMIZE,
+            || {
+                floem::action::minimize_window();
+            },
+            || false,
+            || false,
+            config,
+        )
+        .style(|s| s.margin_right_px(16.0).margin_left_px(10.0)),
+        clickable_icon(
+            move || {
+                if window_maximized.get() {
+                    LapceIcons::WINDOW_RESTORE
+                } else {
+                    LapceIcons::WINDOW_MAXIMIZE
+                }
+            },
+            move || {
+                floem::action::set_window_maximized(
+                    !window_maximized.get_untracked(),
+                );
+            },
+            || false,
+            || false,
+            config,
+        )
+        .style(|s| s.margin_right_px(16.0)),
+        clickable_icon(
+            || LapceIcons::WINDOW_CLOSE,
+            move || {
+                window_command.send(WindowCommand::CloseWindow);
+            },
+            || false,
+            || false,
+            config,
+        )
+        .style(|s| s.margin_right_px(6.0)),
+    ))
+    .style(move |s| {
+        s.apply_if(
+            cfg!(target_os = "macos")
+                || !config.get_untracked().core.custom_titlebar
+                || (is_title && num_window_tabs.get() > 1),
+            |s| s.hide(),
+        )
+    })
 }

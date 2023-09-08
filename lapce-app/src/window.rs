@@ -47,6 +47,7 @@ pub struct WindowData {
     /// The index of the active window tab.
     pub active: RwSignal<usize>,
     pub window_command: Listener<WindowCommand>,
+    pub window_maximized: RwSignal<bool>,
     pub app_command: Listener<AppCommand>,
     pub size: RwSignal<Size>,
     pub window_tab_header_height: RwSignal<f64>,
@@ -78,6 +79,7 @@ impl WindowData {
         let active = info.tabs.active_tab;
         let window_command = Listener::new_empty(cx);
         let ime_allowed = cx.create_rw_signal(false);
+        let window_maximized = cx.create_rw_signal(false);
         let size = cx.create_rw_signal(Size::ZERO);
         let window_tab_header_height = cx.create_rw_signal(0.0);
 
@@ -90,6 +92,7 @@ impl WindowData {
                 latest_release,
                 size,
                 num_window_tabs,
+                window_maximized,
                 window_tab_header_height,
                 ime_allowed,
             ));
@@ -107,6 +110,7 @@ impl WindowData {
                 latest_release,
                 size,
                 num_window_tabs,
+                window_maximized,
                 window_tab_header_height,
                 ime_allowed,
             ));
@@ -123,6 +127,7 @@ impl WindowData {
             scope: cx,
             window_tabs,
             num_window_tabs,
+            window_maximized,
             active,
             window_command,
             size,
@@ -178,6 +183,7 @@ impl WindowData {
                     self.latest_release,
                     self.size,
                     self.num_window_tabs,
+                    self.window_maximized,
                     self.window_tab_header_height,
                     self.ime_allowed,
                 ));
@@ -207,6 +213,7 @@ impl WindowData {
                     self.latest_release,
                     self.size,
                     self.num_window_tabs,
+                    self.window_maximized,
                     self.window_tab_header_height,
                     self.ime_allowed,
                 ));

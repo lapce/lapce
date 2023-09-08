@@ -6,6 +6,8 @@ impl LapceIcons {
     pub const WINDOW_MAXIMIZE: &str = "window.maximize";
     pub const WINDOW_MINIMIZE: &str = "window.minimize";
 
+    pub const LOGO: &str = "logo";
+    pub const MENU: &str = "menu";
     pub const LINK: &str = "link";
     pub const ERROR: &str = "error";
     pub const ADD: &str = "add";

@@ -247,11 +247,12 @@ name = ""
 
 [icon-theme.ui]
 "logo" = "lapce_logo.svg"
+"menu" = "menu.svg"
 "link" = "link.svg"
 "error" = "error.svg"
 "add" = "add.svg"
 "close" = "close.svg"
-"remote" = "lapce_remote.svg"
+"remote" = "remote.svg"
 "unsaved" = "circle-filled.svg"
 "warning" = "warning.svg"
 "problem" = "problem.svg"
