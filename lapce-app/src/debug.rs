@@ -64,7 +64,7 @@ pub fn run_configs(workspace: Option<&Path>) -> Option<RunDebugConfigs> {
 pub struct RunDebugData {
     pub active_term: RwSignal<Option<TermId>>,
     pub daps: RwSignal<im::HashMap<DapId, DapData>>,
-    pub breakpoints: RwSignal<BTreeMap<PathBuf, Vec<LapceBreakpoint>>>,
+    pub breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
 }
 
 impl RunDebugData {
@@ -88,7 +88,7 @@ impl RunDebugData {
                     path.to_path_buf(),
                     breakpoints
                         .iter()
-                        .map(|b| SourceBreakpoint {
+                        .map(|(_, b)| SourceBreakpoint {
                             line: b.line + 1,
                             column: None,
                             condition: None,
