@@ -9,10 +9,13 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_core::meta;
-use lapce_rpc::{plugin::VoltID, style::LineStyle, RpcError};
+use lapce_rpc::{
+    plugin::{PluginId, VoltID},
+    style::LineStyle,
+    RpcError,
+};
 use lapce_xi_rope::Rope;
 use lsp_types::{
     notification::{Initialized, Notification},
@@ -26,7 +29,7 @@ use super::{
     client_capabilities,
     psp::{
         handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
-        PluginServerHandler, PluginServerRpcHandler, RpcCallback,
+        PluginServerHandler, PluginServerRpcHandler, ResponseSender, RpcCallback,
     },
 };
 use crate::{buffer::Buffer, plugin::PluginCatalogRpcHandler};
@@ -99,9 +102,9 @@ impl PluginServerHandler for LspClient {
         id: Id,
         method: String,
         params: Params,
-        chan: Sender<Result<Value, RpcError>>,
+        resp: ResponseSender,
     ) {
-        self.host.handle_request(id, method, params, chan);
+        self.host.handle_request(id, method, params, resp);
     }
 
     fn handle_host_notification(&mut self, method: String, params: Params) {
@@ -256,6 +259,7 @@ impl LspClient {
             volt_id,
             volt_display_name,
             document_selector,
+            plugin_rpc.core_rpc.clone(),
             server_rpc.clone(),
             plugin_rpc.clone(),
         );
@@ -281,7 +285,7 @@ impl LspClient {
         server_uri: Url,
         args: Vec<String>,
         options: Option<Value>,
-    ) -> Result<()> {
+    ) -> Result<PluginId> {
         let mut lsp = Self::new(
             plugin_rpc,
             document_selector,
@@ -293,11 +297,13 @@ impl LspClient {
             args,
             options,
         )?;
+        let plugin_id = lsp.server_rpc.plugin_id;
+
         let rpc = lsp.server_rpc.clone();
         thread::spawn(move || {
             rpc.mainloop(&mut lsp);
         });
-        Ok(())
+        Ok(plugin_id)
     }
 
     fn initialize(&mut self) {

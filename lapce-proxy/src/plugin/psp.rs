@@ -17,6 +17,7 @@ use lapce_core::{
     encoding::offset_utf16_to_utf8,
 };
 use lapce_rpc::{
+    core::CoreRpcHandler,
     plugin::{PluginId, VoltID},
     style::{LineStyle, Style},
     RpcError,
@@ -49,7 +50,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use psp_types::{
     ExecuteProcess, ExecuteProcessParams, ExecuteProcessResult, Request,
-    StartLspServer, StartLspServerParams,
+    StartLspServer, StartLspServerParams, StartLspServerResult,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -124,7 +125,7 @@ pub enum PluginServerRpc {
         id: Id,
         method: String,
         params: Params,
-        chan: Sender<Result<Value, RpcError>>,
+        resp: ResponseSender,
     },
     HostNotification {
         method: String,
@@ -167,6 +168,32 @@ pub struct PluginServerRpcHandler {
     server_pending: Arc<Mutex<HashMap<Id, ResponseHandler<Value, RpcError>>>>,
 }
 
+#[derive(Clone)]
+pub struct ResponseSender {
+    tx: Sender<Result<Value, RpcError>>,
+}
+impl ResponseSender {
+    pub fn new(tx: Sender<Result<Value, RpcError>>) -> Self {
+        Self { tx }
+    }
+
+    pub fn send(&self, result: impl Serialize) {
+        let result = serde_json::to_value(result).map_err(|e| RpcError {
+            code: 0,
+            message: e.to_string(),
+        });
+        let _ = self.tx.send(result);
+    }
+
+    pub fn send_null(&self) {
+        let _ = self.tx.send(Ok(Value::Null));
+    }
+
+    pub fn send_err(&self, code: i64, message: String) {
+        let _ = self.tx.send(Err(RpcError { code, message }));
+    }
+}
+
 pub trait PluginServerHandler {
     fn document_supported(
         &mut self,
@@ -180,7 +207,7 @@ pub trait PluginServerHandler {
         id: Id,
         method: String,
         params: Params,
-        chan: Sender<Result<Value, RpcError>>,
+        chan: ResponseSender,
     );
     fn handle_handler_notification(
         &mut self,
@@ -420,9 +447,9 @@ impl PluginServerRpcHandler {
                     id,
                     method,
                     params,
-                    chan,
+                    resp,
                 } => {
-                    handler.handle_host_request(id, method, params, chan);
+                    handler.handle_host_request(id, method, params, resp);
                 }
                 PluginServerRpc::HostNotification { method, params } => {
                     handler.handle_host_notification(method, params);
@@ -483,7 +510,7 @@ pub fn handle_plugin_server_message(
                 id: id.clone(),
                 method: value.get_method().unwrap().to_string(),
                 params: value.get_params().unwrap(),
-                chan: tx,
+                resp: ResponseSender::new(tx),
             };
             server_rpc.handle_rpc(rpc);
             let result = rx.recv().unwrap();
@@ -547,6 +574,7 @@ pub struct PluginHostHandler {
     pwd: Option<PathBuf>,
     pub(crate) workspace: Option<PathBuf>,
     document_selector: Vec<DocumentFilter>,
+    core_rpc: CoreRpcHandler,
     catalog_rpc: PluginCatalogRpcHandler,
     pub server_rpc: PluginServerRpcHandler,
     pub server_capabilities: ServerCapabilities,
@@ -560,6 +588,7 @@ impl PluginHostHandler {
         volt_id: VoltID,
         volt_display_name: String,
         document_selector: DocumentSelector,
+        core_rpc: CoreRpcHandler,
         server_rpc: PluginServerRpcHandler,
         catalog_rpc: PluginCatalogRpcHandler,
     ) -> Self {
@@ -573,6 +602,7 @@ impl PluginHostHandler {
             volt_id,
             volt_display_name,
             document_selector,
+            core_rpc,
             catalog_rpc,
             server_rpc,
             server_capabilities: ServerCapabilities::default(),
@@ -805,27 +835,28 @@ impl PluginHostHandler {
         _id: Id,
         method: String,
         params: Params,
-        chan: Sender<Result<Value, RpcError>>,
+        resp: ResponseSender,
     ) {
-        let result = self.process_request(method, params);
-        let _ = chan.send(result.map_err(|e| RpcError {
-            code: 0,
-            message: e.to_string(),
-        }));
+        if let Err(err) = self.process_request(method, params, resp.clone()) {
+            resp.send_err(0, err.to_string());
+        }
     }
 
     pub fn process_request(
         &mut self,
         method: String,
         params: Params,
-    ) -> Result<Value> {
+        resp: ResponseSender,
+    ) -> Result<()> {
         match method.as_str() {
-            WorkDoneProgressCreate::METHOD => Ok(Value::Null),
+            WorkDoneProgressCreate::METHOD => {
+                resp.send_null();
+            }
             RegisterCapability::METHOD => {
                 let params: RegistrationParams =
                     serde_json::from_value(serde_json::to_value(params)?)?;
                 self.register_capabilities(params.registrations);
-                Ok(Value::Null)
+                resp.send_null();
             }
             ExecuteProcess::METHOD => {
                 let params: ExecuteProcessParams =
@@ -833,14 +864,48 @@ impl PluginHostHandler {
                 let output = std::process::Command::new(params.program)
                     .args(params.args)
                     .output()?;
-                Ok(serde_json::to_value(ExecuteProcessResult {
+
+                resp.send(ExecuteProcessResult {
                     success: output.status.success(),
                     stdout: Some(output.stdout),
                     stderr: Some(output.stderr),
-                })?)
+                });
             }
-            _ => Err(anyhow!("request not supported")),
+            StartLspServer::METHOD => {
+                let params: StartLspServerParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                let workspace = self.workspace.clone();
+                let pwd = self.pwd.clone();
+                let catalog_rpc = self.catalog_rpc.clone();
+                let volt_id = self.volt_id.clone();
+                let volt_display_name = self.volt_display_name.clone();
+                thread::spawn(move || {
+                    let res = LspClient::start(
+                        catalog_rpc,
+                        params.document_selector,
+                        workspace,
+                        volt_id,
+                        volt_display_name,
+                        pwd,
+                        params.server_uri,
+                        params.server_args,
+                        params.options,
+                    );
+
+                    match res {
+                        Ok(plugin_id) => {
+                            resp.send(StartLspServerResult { id: plugin_id.0 });
+                        }
+                        Err(err) => {
+                            resp.send_err(0, err.to_string());
+                        }
+                    }
+                });
+            }
+            _ => return Err(anyhow!("request not supported")),
         }
+
+        Ok(())
     }
 
     pub fn handle_notification(
@@ -849,7 +914,16 @@ impl PluginHostHandler {
         params: Params,
     ) -> Result<()> {
         match method.as_str() {
+            // TODO: remove this after the next release and once we convert all the existing plugins to use the request.
             StartLspServer::METHOD => {
+                self.core_rpc.log(
+                    tracing::Level::WARN,
+                    format!(
+                        "[{}] Usage of startLspServer as a notification is deprecated.",
+                        self.volt_display_name
+                    ),
+                );
+
                 let params: StartLspServerParams =
                     serde_json::from_value(serde_json::to_value(params)?)?;
                 let workspace = self.workspace.clone();

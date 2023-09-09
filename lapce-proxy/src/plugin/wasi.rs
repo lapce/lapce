@@ -12,7 +12,6 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_core::directory::Directory;
 use lapce_rpc::{
@@ -35,7 +34,7 @@ use super::{
     client_capabilities,
     psp::{
         handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
-        PluginServerHandler, PluginServerRpc, RpcCallback,
+        PluginServerHandler, PluginServerRpc, ResponseSender, RpcCallback,
     },
     volt_icon, PluginCatalogRpcHandler,
 };
@@ -128,9 +127,9 @@ impl PluginServerHandler for Plugin {
         id: Id,
         method: String,
         params: Params,
-        chan: Sender<Result<serde_json::Value, RpcError>>,
+        resp: ResponseSender,
     ) {
-        self.host.handle_request(id, method, params, chan);
+        self.host.handle_request(id, method, params, resp);
     }
 
     fn handle_did_save_text_document(
@@ -502,6 +501,7 @@ pub fn start_volt(
                         }),
                 )
                 .collect(),
+            plugin_rpc.core_rpc.clone(),
             rpc.clone(),
             plugin_rpc.clone(),
         ),
