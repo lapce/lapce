@@ -597,6 +597,7 @@ fn editor_tab_header(
     )| {
         let local_child = child.clone();
         let child_for_close = child.clone();
+        let child_for_mouse_close = child.clone();
         let main_split = main_split.clone();
         let child_view = move || {
             let info = child.view_info(editors, diff_editors, config);
@@ -684,11 +685,27 @@ fn editor_tab_header(
                     }
                     true
                 })
-                .on_event(EventListener::PointerDown, move |_| {
-                    editor_tab.update(|editor_tab| {
-                        editor_tab.active = i.get_untracked();
-                    });
-                    false
+                .on_event(EventListener::PointerDown, move |event| {
+                    if let Event::PointerDown(pointer_event) = event {
+                        if pointer_event.button.is_auxiliary() {
+                            let editor_tab_id =
+                                editor_tab.with_untracked(|t| t.editor_tab_id);
+                            internal_command.send(
+                                InternalCommand::EditorTabChildClose {
+                                    editor_tab_id,
+                                    child: child_for_mouse_close.clone(),
+                                },
+                            );
+                            true
+                        } else {
+                            editor_tab.update(|editor_tab| {
+                                editor_tab.active = i.get_untracked();
+                            });
+                            false
+                        }
+                    } else {
+                        false
+                    }
                 })
                 .on_event(EventListener::DragStart, move |_| {
                     dragging.set(Some((i, editor_tab_id)));
