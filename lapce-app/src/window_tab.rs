@@ -1375,9 +1375,10 @@ impl WindowTabData {
                         toml_edit::Value::from(name),
                     );
                 } else {
-                    let mut new_config = self.common.config.get().as_ref().clone();
-                    new_config.set_color_theme(&self.workspace, &name);
-                    self.set_config.set(Arc::new(new_config));
+                    let mut new_config = self.common.config.get_untracked();
+                    Arc::make_mut(&mut new_config)
+                        .set_color_theme(&self.workspace, &name);
+                    self.set_config.set(new_config);
                 }
             }
             InternalCommand::SetIconTheme { name, save } => {
@@ -1389,9 +1390,10 @@ impl WindowTabData {
                         toml_edit::Value::from(name),
                     );
                 } else {
-                    let mut new_config = self.common.config.get().as_ref().clone();
-                    new_config.set_icon_theme(&self.workspace, &name);
-                    self.set_config.set(Arc::new(new_config));
+                    let mut new_config = self.common.config.get_untracked();
+                    Arc::make_mut(&mut new_config)
+                        .set_icon_theme(&self.workspace, &name);
+                    self.set_config.set(new_config);
                 }
             }
             InternalCommand::SetModal { modal } => {

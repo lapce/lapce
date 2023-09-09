@@ -82,6 +82,7 @@ pub struct PaletteData {
     pub workspace: Arc<LapceWorkspace>,
     pub status: RwSignal<PaletteStatus>,
     pub index: RwSignal<usize>,
+    pub preselect_index: RwSignal<Option<usize>>,
     pub items: RwSignal<im::Vector<PaletteItem>>,
     pub filtered_items: ReadSignal<im::Vector<PaletteItem>>,
     pub input: RwSignal<PaletteInput>,
@@ -111,6 +112,7 @@ impl PaletteData {
     ) -> Self {
         let status = cx.create_rw_signal(PaletteStatus::Inactive);
         let items = cx.create_rw_signal(im::Vector::new());
+        let preselect_index = cx.create_rw_signal(None);
         let index = cx.create_rw_signal(0);
         let references = cx.create_rw_signal(Vec::new());
         let input = cx.create_rw_signal(PaletteInput {
@@ -140,7 +142,9 @@ impl PaletteData {
                     let items = items.get();
                     let input = input.get_untracked();
                     let run_id = run_id.get_untracked();
-                    let _ = tx.send((run_id, input.input, items));
+                    let preselect_index =
+                        preselect_index.try_update(|i| i.take()).unwrap();
+                    let _ = tx.send((run_id, input.input, items, preselect_index));
                 });
             }
             // this effect only monitors input change
@@ -152,7 +156,7 @@ impl PaletteData {
                 }
                 let items = items.get_untracked();
                 let run_id = run_id.get_untracked();
-                let _ = tx.send((run_id, input.input, items));
+                let _ = tx.send((run_id, input.input, items, None));
                 kind
             });
         }
@@ -170,12 +174,19 @@ impl PaletteData {
             let run_id = run_id.read_only();
             let input = input.read_only();
             cx.create_effect(move |_| {
-                if let Some((filter_run_id, filter_input, new_items)) = resp.get() {
+                if let Some((
+                    filter_run_id,
+                    filter_input,
+                    new_items,
+                    preselect_index,
+                )) = resp.get()
+                {
                     if run_id.get_untracked() == filter_run_id
                         && input.get_untracked().input == filter_input
                     {
                         set_filtered_items.set(new_items);
-                        index.set(0);
+                        let i = preselect_index.unwrap_or(0);
+                        index.set(i);
                     }
                 }
             });
@@ -190,6 +201,7 @@ impl PaletteData {
             workspace,
             status,
             index,
+            preselect_index,
             items,
             filtered_items,
             input_editor,
@@ -275,7 +287,7 @@ impl PaletteData {
             let palette = palette.clone();
             cx.create_effect(move |_| {
                 let _ = palette.index.get();
-                palette.preview(cx);
+                palette.preview();
             });
         }
 
@@ -350,25 +362,12 @@ impl PaletteData {
             }
             PaletteKind::ColorTheme => {
                 self.get_color_themes();
-                self.preselect_matching(
-                    &self.common.config.get_untracked().color_theme.name,
-                );
             }
             PaletteKind::IconTheme => {
                 self.get_icon_themes();
-                self.preselect_matching(
-                    &self.common.config.get_untracked().icon_theme.name,
-                );
             }
             PaletteKind::Language => {
                 self.get_languages();
-                if let Some(editor) = self.main_split.active_editor.get_untracked() {
-                    let doc = editor.view.doc.get_untracked();
-                    let language = doc
-                        .syntax
-                        .with_untracked(|syntax| syntax.language.to_string());
-                    self.preselect_matching(language.as_str());
-                }
             }
             PaletteKind::SCMReferences => {
                 self.get_scm_references();
@@ -806,6 +805,10 @@ impl PaletteData {
                 indices: Vec::new(),
             })
             .collect();
+        self.preselect_matching(
+            &items,
+            &self.common.config.get_untracked().color_theme.name,
+        );
         self.items.set(items);
     }
 
@@ -821,6 +824,10 @@ impl PaletteData {
                 indices: Vec::new(),
             })
             .collect();
+        self.preselect_matching(
+            &items,
+            &self.common.config.get_untracked().icon_theme.name,
+        );
         self.items.set(items);
     }
 
@@ -837,6 +844,13 @@ impl PaletteData {
                 indices: Vec::new(),
             })
             .collect();
+        if let Some(editor) = self.main_split.active_editor.get_untracked() {
+            let doc = editor.view.doc.get_untracked();
+            let language = doc.syntax.with_untracked(|syntax| {
+                syntax.language.get_message().unwrap_or("")
+            });
+            self.preselect_matching(&items, language);
+        }
         self.items.set(items);
     }
 
@@ -867,17 +881,15 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn preselect_matching(&self, matching: &str) {
-        let Some((idx, _)) = self
-            .items
-            .get_untracked()
+    fn preselect_matching(&self, items: &im::Vector<PaletteItem>, matching: &str) {
+        let Some((idx, _)) = items
             .iter()
             .find_position(|item| item.filter_text == matching)
         else {
             return;
         };
 
-        self.index.set(idx);
+        self.preselect_index.set(Some(idx));
     }
 
     fn select(&self) {
@@ -1062,7 +1074,7 @@ impl PaletteData {
     }
 
     /// Update the preview for the currently active palette item, if it has one.
-    fn preview(&self, _cx: Scope) {
+    fn preview(&self) {
         if self.status.get_untracked() == PaletteStatus::Inactive {
             return;
         }
@@ -1312,31 +1324,40 @@ impl PaletteData {
 
     fn update_process(
         run_id: Arc<AtomicU64>,
-        receiver: Receiver<(u64, String, im::Vector<PaletteItem>)>,
-        resp_tx: Sender<(u64, String, im::Vector<PaletteItem>)>,
+        receiver: Receiver<(u64, String, im::Vector<PaletteItem>, Option<usize>)>,
+        resp_tx: Sender<(u64, String, im::Vector<PaletteItem>, Option<usize>)>,
     ) {
         fn receive_batch(
-            receiver: &Receiver<(u64, String, im::Vector<PaletteItem>)>,
-        ) -> Result<(u64, String, im::Vector<PaletteItem>)> {
-            let (mut run_id, mut input, mut items) = receiver.recv()?;
+            receiver: &Receiver<(
+                u64,
+                String,
+                im::Vector<PaletteItem>,
+                Option<usize>,
+            )>,
+        ) -> Result<(u64, String, im::Vector<PaletteItem>, Option<usize>)> {
+            let (mut run_id, mut input, mut items, mut preselect_index) =
+                receiver.recv()?;
             loop {
                 match receiver.try_recv() {
                     Ok(update) => {
                         run_id = update.0;
                         input = update.1;
                         items = update.2;
+                        preselect_index = update.3;
                     }
                     Err(TryRecvError::Empty) => break,
                     Err(TryRecvError::Disconnected) => break,
                 }
             }
-            Ok((run_id, input, items))
+            Ok((run_id, input, items, preselect_index))
         }
 
         let mut matcher =
             nucleo::Matcher::new(nucleo::Config::DEFAULT.match_paths());
         loop {
-            if let Ok((current_run_id, input, items)) = receive_batch(&receiver) {
+            if let Ok((current_run_id, input, items, preselect_index)) =
+                receive_batch(&receiver)
+            {
                 if let Some(filtered_items) = Self::filter_items(
                     run_id.clone(),
                     current_run_id,
@@ -1344,7 +1365,12 @@ impl PaletteData {
                     items,
                     &mut matcher,
                 ) {
-                    let _ = resp_tx.send((current_run_id, input, filtered_items));
+                    let _ = resp_tx.send((
+                        current_run_id,
+                        input,
+                        filtered_items,
+                        preselect_index,
+                    ));
                 }
             } else {
                 return;
