@@ -92,7 +92,7 @@ pub fn editor_view(
     let id = Id::next();
     let is_active = create_memo(move |_| is_active(true));
 
-    let viewport = create_rw_signal(Rect::ZERO);
+    let viewport = editor.viewport;
 
     let doc = editor.view.doc;
     let view_kind = editor.view.kind;
@@ -1666,9 +1666,6 @@ fn editor_content(
     })
     .on_move(move |point| {
         window_origin.set(point);
-    })
-    .on_scroll(move |rect| {
-        viewport.set(rect);
     })
     .on_scroll_to(move || scroll_to.get().map(|s| s.to_point()))
     .on_scroll_delta(move || scroll_delta.get())
