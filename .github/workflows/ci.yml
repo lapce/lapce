@@ -58,6 +58,10 @@ jobs:
         if: ${{ join(matrix.features, ',') != '' }}
         run: cargo build --frozen --features ${{ join(matrix.features, ',') }}
 
+      - name: Free space
+        if: starsWith(matrix.os, 'windows')
+        run: cargo clean
+
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
