@@ -59,7 +59,7 @@ jobs:
         run: cargo build --frozen --features ${{ join(matrix.features, ',') }}
 
       - name: Free space
-        if: starsWith(matrix.os, 'windows')
+        if: startsWith(matrix.os, 'windows')
         run: cargo clean
 
       - name: Install cargo-llvm-cov
