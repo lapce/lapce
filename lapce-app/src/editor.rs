@@ -2068,7 +2068,9 @@ impl EditorData {
     pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (offset, is_inside) = self.view.offset_of_point(mode, pointer_event.pos);
-        if self.active.get_untracked() {
+        if self.active.get_untracked()
+            && self.cursor.with_untracked(|c| c.offset()) != offset
+        {
             self.cursor.update(|cursor| {
                 cursor.set_offset(offset, true, pointer_event.modifiers.alt_key())
             });
