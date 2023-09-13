@@ -1628,6 +1628,74 @@ fn editor_gutter(
     let gutter_rect = create_rw_signal(Rect::ZERO);
     let gutter_width = create_memo(move |_| gutter_rect.get().width());
 
+    let breakpoints_view = move |i: usize| {
+        let hovered = create_rw_signal(false);
+        container(
+            svg(move || config.get().ui_svg(LapceIcons::DEBUG_BREAKPOINT)).style(
+                move |s| {
+                    let config = config.get();
+                    let size = config.ui.icon_size() as f32 + 2.0;
+                    s.size_px(size, size)
+                        .color(*config.get_color(LapceColor::DEBUG_BREAKPOINT_HOVER))
+                        .apply_if(!hovered.get(), |s| s.hide())
+                },
+            ),
+        )
+        .on_click(move |_| {
+            let line = (viewport.get_untracked().y0
+                / config.get_untracked().editor.line_height() as f64)
+                .floor() as usize
+                + i;
+            let doc = editor.get_untracked().view.doc.get_untracked();
+            let offset = doc.buffer.with_untracked(|b| b.offset_of_line(line));
+            if let Some(path) = doc.content.get_untracked().path() {
+                breakpoints.update(|breakpoints| {
+                    let breakpoints = breakpoints.entry(path.clone()).or_default();
+                    if let std::collections::btree_map::Entry::Vacant(e) =
+                        breakpoints.entry(line)
+                    {
+                        e.insert(LapceBreakpoint {
+                            id: None,
+                            verified: false,
+                            message: None,
+                            line,
+                            offset,
+                            dap_line: None,
+                            active: true,
+                        });
+                    } else {
+                        let mut toggle_active = false;
+                        if let Some(breakpint) = breakpoints.get_mut(&line) {
+                            if !breakpint.active {
+                                breakpint.active = true;
+                                toggle_active = true;
+                            }
+                        }
+                        if !toggle_active {
+                            breakpoints.remove(&line);
+                        }
+                    }
+                });
+            }
+            true
+        })
+        .on_event(EventListener::PointerEnter, move |_| {
+            hovered.set(true);
+            true
+        })
+        .on_event(EventListener::PointerLeave, move |_| {
+            hovered.set(false);
+            true
+        })
+        .style(move |s| {
+            s.width_px(padding_left)
+                .height_px(config.get().editor.line_height() as f32)
+                .justify_center()
+                .items_center()
+                .cursor(CursorStyle::Pointer)
+        })
+    };
+
     stack((
         stack((
             empty().style(move |s| s.width_px(padding_left)),
@@ -1646,72 +1714,7 @@ fn editor_gutter(
                         0..num
                     },
                     move |i| *i,
-                    move |i| {
-                        let hovered = create_rw_signal(false);
-                        container(
-                            svg(move || {
-                                config.get().ui_svg(LapceIcons::DEBUG_BREAKPOINT)
-                            })
-                            .style(move |s| {
-                                let config = config.get();
-                                let size = config.ui.icon_size() as f32 + 2.0;
-                                s.size_px(size, size)
-                                    .color(*config.get_color(
-                                        LapceColor::DEBUG_BREAKPOINT_HOVER,
-                                    ))
-                                    .apply_if(!hovered.get(), |s| s.hide())
-                            }),
-                        )
-                        .on_click(move |_| {
-                            let line = (viewport.get_untracked().y0
-                                / config.get_untracked().editor.line_height() as f64)
-                                .floor()
-                                as usize
-                                + i;
-                            let doc =
-                                editor.get_untracked().view.doc.get_untracked();
-                            let offset = doc
-                                .buffer
-                                .with_untracked(|b| b.offset_of_line(line));
-                            if let Some(path) = doc.content.get_untracked().path() {
-                                breakpoints.update(|breakpoints| {
-                                let breakpoints =
-                                    breakpoints.entry(path.clone()).or_default();
-                                if let std::collections::btree_map::Entry::Vacant(
-                                    e,
-                                ) = breakpoints.entry(line)
-                                {
-                                    e.insert(LapceBreakpoint {
-                                        id: None,
-                                        verified: false,
-                                        message: None,
-                                        line,
-                                        offset,
-                                        dap_line: None,
-                                    });
-                                } else {
-                                    breakpoints.remove(&line);
-                                }
-                            });
-                            }
-                            true
-                        })
-                        .on_event(EventListener::PointerEnter, move |_| {
-                            hovered.set(true);
-                            true
-                        })
-                        .on_event(EventListener::PointerLeave, move |_| {
-                            hovered.set(false);
-                            true
-                        })
-                        .style(move |s| {
-                            s.width_px(padding_left)
-                                .height_px(config.get().editor.line_height() as f32)
-                                .justify_center()
-                                .items_center()
-                                .cursor(CursorStyle::Pointer)
-                        })
-                    },
+                    breakpoints_view,
                 )
                 .style(move |s| {
                     s.absolute().flex_col().margin_top_px(
@@ -1734,8 +1737,9 @@ fn editor_gutter(
                         };
                         breakpoints.into_iter()
                     },
-                    move |(line, _)| *line,
-                    move |(line, _)| {
+                    move |(line, b)| (*line, b.active),
+                    move |(line, breakpoint)| {
+                        let active = breakpoint.active;
                         container(
                             svg(move || {
                                 config.get().ui_svg(LapceIcons::DEBUG_BREAKPOINT)
@@ -1743,9 +1747,13 @@ fn editor_gutter(
                             .style(move |s| {
                                 let config = config.get();
                                 let size = config.ui.icon_size() as f32 + 2.0;
-                                s.size_px(size, size).color(
-                                    *config.get_color(LapceColor::DEBUG_BREAKPOINT),
-                                )
+                                let color = if active {
+                                    LapceColor::DEBUG_BREAKPOINT
+                                } else {
+                                    LapceColor::EDITOR_DIM
+                                };
+                                let color = *config.get_color(color);
+                                s.size_px(size, size).color(color)
                             }),
                         )
                         .style(move |s| {
@@ -2027,7 +2035,6 @@ fn editor_content(
         let cursor = cursor.get();
         let offset = cursor.offset();
         editor.view.doc.track();
-        editor.view.kind.track();
         let caret = cursor_caret(&editor.view, offset, !cursor.is_insert());
         let config = config.get_untracked();
         let line_height = config.editor.line_height();

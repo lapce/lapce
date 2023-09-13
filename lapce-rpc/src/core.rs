@@ -16,7 +16,9 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    dap_types::{self, DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
+    dap_types::{
+        self, DapId, RunDebugConfig, Scope, StackFrame, Stopped, ThreadId, Variable,
+    },
     file::PathObject,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     proxy::ProxyStatus,
@@ -114,6 +116,7 @@ pub enum CoreNotification {
         dap_id: DapId,
         stopped: Stopped,
         stack_frames: HashMap<ThreadId, Vec<StackFrame>>,
+        variables: Vec<(Scope, Vec<Variable>)>,
     },
     DapContinued {
         dap_id: DapId,
@@ -324,11 +327,13 @@ impl CoreRpcHandler {
         dap_id: DapId,
         stopped: Stopped,
         stack_frames: HashMap<ThreadId, Vec<StackFrame>>,
+        variables: Vec<(Scope, Vec<Variable>)>,
     ) {
         self.notification(CoreNotification::DapStopped {
             dap_id,
             stopped,
             stack_frames,
+            variables,
         });
     }
 

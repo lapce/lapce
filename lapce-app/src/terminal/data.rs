@@ -309,7 +309,7 @@ impl TerminalData {
         let raw = Self::new_raw_terminal(
             workspace.clone(),
             term_id,
-            run_debug.as_ref().map(|r| &r.config),
+            run_debug.as_ref().map(|r| (&r.config, r.is_prelaunch)),
             common.clone(),
         );
 
@@ -334,7 +334,7 @@ impl TerminalData {
     pub fn new_raw_terminal(
         workspace: Arc<LapceWorkspace>,
         term_id: TermId,
-        run_debug: Option<&RunDebugConfig>,
+        run_debug: Option<(&RunDebugConfig, bool)>,
         common: Rc<CommonData>,
     ) -> Arc<RwLock<RawTerminal>> {
         let raw = Arc::new(RwLock::new(RawTerminal::new(
@@ -345,7 +345,7 @@ impl TerminalData {
 
         let mut cwd = workspace.path.as_ref().cloned();
         let mut env = None;
-        let shell = if let Some(run_debug) = run_debug {
+        let shell = if let Some((run_debug, is_prelaunch)) = run_debug {
             if let Some(path) = run_debug.cwd.as_ref() {
                 cwd = Some(PathBuf::from(path));
                 if path.contains("${workspace}") {
@@ -361,10 +361,18 @@ impl TerminalData {
                 }
             }
 
+            let prelaunch = if is_prelaunch {
+                run_debug.prelaunch.clone()
+            } else {
+                None
+            };
+
             env = run_debug.env.clone();
 
             if let Some(debug_command) = run_debug.debug_command.as_ref() {
                 debug_command.clone()
+            } else if let Some(prelaunch) = prelaunch {
+                prelaunch
             } else {
                 format!("{} {}", run_debug.program, run_debug.args.join(" "))
             }
@@ -646,7 +654,7 @@ impl TerminalData {
         let raw = Self::new_raw_terminal(
             self.workspace.clone(),
             self.term_id,
-            run_debug.as_ref().map(|r| &r.config),
+            run_debug.as_ref().map(|r| (&r.config, r.is_prelaunch)),
             self.common.clone(),
         );
 

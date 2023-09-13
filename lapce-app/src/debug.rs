@@ -8,7 +8,8 @@ use std::{
 use floem::reactive::{RwSignal, Scope};
 use lapce_rpc::{
     dap_types::{
-        DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped, ThreadId,
+        self, DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped,
+        ThreadId, Variable,
     },
     terminal::TermId,
 };
@@ -38,6 +39,7 @@ pub struct RunDebugProcess {
     pub config: RunDebugConfig,
     pub stopped: bool,
     pub created: Instant,
+    pub is_prelaunch: bool,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -88,12 +90,18 @@ impl RunDebugData {
                     path.to_path_buf(),
                     breakpoints
                         .iter()
-                        .map(|(_, b)| SourceBreakpoint {
-                            line: b.line + 1,
-                            column: None,
-                            condition: None,
-                            hit_condition: None,
-                            log_message: None,
+                        .filter_map(|(_, b)| {
+                            if b.active {
+                                Some(SourceBreakpoint {
+                                    line: b.line + 1,
+                                    column: None,
+                                    condition: None,
+                                    hit_condition: None,
+                                    log_message: None,
+                                })
+                            } else {
+                                None
+                            }
                         })
                         .collect(),
                 )
@@ -117,6 +125,7 @@ pub struct LapceBreakpoint {
     pub line: usize,
     pub offset: usize,
     pub dap_line: Option<usize>,
+    pub active: bool,
 }
 
 #[derive(Clone)]
@@ -126,6 +135,7 @@ pub struct DapData {
     pub stopped: RwSignal<bool>,
     pub thread_id: RwSignal<Option<ThreadId>>,
     pub stack_traces: RwSignal<BTreeMap<ThreadId, StackTraceData>>,
+    pub variables: RwSignal<Vec<(dap_types::Scope, Vec<Variable>)>>,
 }
 
 impl DapData {
@@ -139,6 +149,7 @@ impl DapData {
             stopped,
             thread_id,
             stack_traces,
+            variables: cx.create_rw_signal(Vec::new()),
         }
     }
 
@@ -147,6 +158,7 @@ impl DapData {
         cx: Scope,
         stopped: &Stopped,
         stack_traces: &HashMap<ThreadId, Vec<StackFrame>>,
+        variables: &[(dap_types::Scope, Vec<Variable>)],
     ) {
         self.stopped.set(true);
         self.thread_id.update(|thread_id| {
@@ -175,5 +187,6 @@ impl DapData {
                 }
             }
         });
+        self.variables.set(variables.to_owned());
     }
 }

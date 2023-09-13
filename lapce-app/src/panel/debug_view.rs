@@ -2,10 +2,13 @@ use std::{rc::Rc, sync::Arc};
 
 use floem::{
     cosmic_text::Style as FontStyle,
-    reactive::{ReadSignal, RwSignal},
+    event::EventListener,
+    reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::CursorStyle,
     view::View,
-    views::{container, container_box, label, list, scroll, stack, svg, Decorators},
+    views::{
+        container, container_box, label, list, scroll, stack, svg, text, Decorators,
+    },
 };
 use lapce_rpc::{
     dap_types::{DapId, ThreadId},
@@ -20,6 +23,7 @@ use crate::{
     debug::{RunDebugMode, StackTraceData},
     editor::location::{EditorLocation, EditorPosition},
     listener::Listener,
+    settings::checkbox,
     terminal::panel::TerminalPanelData,
     window_tab::WindowTabData,
 };
@@ -42,6 +46,16 @@ pub fn debug_panel(
             .style(|s| s.width_pct(100.0).flex_col().height_px(150.0))
         },
         stack((
+            panel_header("Variables".to_string(), config),
+            variables_view(window_tab_data.clone()),
+        ))
+        .style(|s| {
+            s.width_pct(100.0)
+                .flex_grow(1.0)
+                .flex_basis_px(0.0)
+                .flex_col()
+        }),
+        stack((
             panel_header("Stack Frames".to_string(), config),
             debug_stack_traces(terminal, internal_command, config),
         ))
@@ -51,6 +65,11 @@ pub fn debug_panel(
                 .flex_basis_px(0.0)
                 .flex_col()
         }),
+        stack((
+            panel_header("Breakpoints".to_string(), config),
+            breakpoints_view(window_tab_data.clone()),
+        ))
+        .style(|s| s.width_pct(100.0).flex_col().height_px(150.0)),
     ))
     .style(move |s| {
         s.width_pct(100.0)
@@ -264,6 +283,63 @@ fn debug_processes(
     })
 }
 
+fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
+    let terminal = window_tab_data.terminal.clone();
+    container(
+        scroll(
+            list(
+                move || {
+                    let dap = terminal.get_active_dap(true);
+                    dap.map(|dap| {
+                        let process_stopped = terminal
+                            .get_terminal(&dap.term_id)
+                            .and_then(|t| {
+                                t.run_debug.with(|r| r.as_ref().map(|r| r.stopped))
+                            })
+                            .unwrap_or(true);
+                        if process_stopped {
+                            return Vec::new();
+                        }
+                        dap.variables.get()
+                    })
+                    .unwrap_or_default()
+                },
+                move |(scope, variables)| {
+                    (scope.name.clone(), scope.variables_reference)
+                },
+                move |(scope, variables)| {
+                    stack((
+                        text(scope.name),
+                        list(
+                            move || variables.clone(),
+                            move |var| (var.name.clone(), var.value.clone()),
+                            move |var| {
+                                stack((
+                                    text(var.name),
+                                    text(var.value)
+                                        .style(|s| s.margin_left_px(10.0)),
+                                    text(format!("{:?}", var.presentation_hint))
+                                        .style(|s| s.margin_left_px(10.0)),
+                                    text(format!("{:?}", var.evaluate_name))
+                                        .style(|s| s.margin_left_px(10.0)),
+                                    text(format!("{:?}", var.variables_reference))
+                                        .style(|s| s.margin_left_px(10.0)),
+                                ))
+                                .style(|s| s.flex_col())
+                            },
+                        )
+                        .style(|s| s.flex_col()),
+                    ))
+                    .style(|s| s.flex_col())
+                },
+            )
+            .style(|s| s.flex_col()),
+        )
+        .style(|s| s.absolute().size_pct(100.0, 100.0)),
+    )
+    .style(|s| s.size_pct(100.0, 100.0))
+}
+
 fn debug_stack_frames(
     thread_id: ThreadId,
     stack_trace: StackTraceData,
@@ -427,4 +503,141 @@ fn debug_stack_traces(
             .flex_grow(1.0)
             .flex_basis_px(0.0)
     })
+}
+
+fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
+    let breakpoints = window_tab_data.terminal.debug.breakpoints;
+    let config = window_tab_data.common.config;
+    let workspace = window_tab_data.common.workspace.clone();
+    let available_width = create_rw_signal(0.0);
+    let internal_command = window_tab_data.common.internal_command;
+    container(
+        scroll(
+            list(
+                move || {
+                    breakpoints
+                        .get()
+                        .into_iter()
+                        .flat_map(|(path, breakpoints)| {
+                            breakpoints.into_values().map(move |b| (path.clone(), b))
+                        })
+                },
+                move |(path, breakpoint)| {
+                    (path.clone(), breakpoint.line, breakpoint.active)
+                },
+                move |(path, breakpoint)| {
+                    let line = breakpoint.line;
+                    let full_path = path.clone();
+                    let full_path_for_jump = path.clone();
+                    let full_path_for_close = path.clone();
+                    let path = if let Some(workspace_path) = workspace.path.as_ref()
+                    {
+                        path.strip_prefix(workspace_path)
+                            .unwrap_or(&full_path)
+                            .to_path_buf()
+                    } else {
+                        path
+                    };
+
+                    let file_name =
+                        path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                    let folder =
+                        path.parent().and_then(|s| s.to_str()).unwrap_or("");
+                    let folder_empty = folder.is_empty();
+
+                    stack((
+                        clickable_icon(
+                            move || LapceIcons::CLOSE,
+                            move || {
+                                breakpoints.update(|breakpoints| {
+                                    if let Some(breakpoints) =
+                                        breakpoints.get_mut(&full_path_for_close)
+                                    {
+                                        breakpoints.remove(&line);
+                                    }
+                                });
+                            },
+                            || false,
+                            || false,
+                            config,
+                        )
+                        .on_event(EventListener::PointerDown, |_| true),
+                        checkbox(move || breakpoint.active, config)
+                            .style(|s| {
+                                s.margin_right_px(6.0).cursor(CursorStyle::Pointer)
+                            })
+                            .on_click(move |_| {
+                                breakpoints.update(|breakpoints| {
+                                    if let Some(breakpoints) =
+                                        breakpoints.get_mut(&full_path)
+                                    {
+                                        if let Some(breakpoint) =
+                                            breakpoints.get_mut(&line)
+                                        {
+                                            breakpoint.active = !breakpoint.active;
+                                        }
+                                    }
+                                });
+                                true
+                            }),
+                        text(format!("{file_name}:{}", breakpoint.line + 1)).style(
+                            move |s| {
+                                let size = config.get().ui.icon_size() as f32;
+                                s.text_ellipsis().max_width_px(
+                                    available_width.get() as f32
+                                        - 20.0
+                                        - size
+                                        - 6.0
+                                        - size
+                                        - 8.0,
+                                )
+                            },
+                        ),
+                        text(folder).style(move |s| {
+                            s.text_ellipsis()
+                                .flex_grow(1.0)
+                                .flex_basis_px(0.0)
+                                .color(
+                                    *config.get().get_color(LapceColor::EDITOR_DIM),
+                                )
+                                .min_width_px(0.0)
+                                .margin_left_px(6.0)
+                                .apply_if(folder_empty, |s| s.hide())
+                        }),
+                    ))
+                    .style(|s| {
+                        s.items_center().padding_horiz_px(10.0).width_pct(100.0)
+                    })
+                    .hover_style(move |s| {
+                        s.background(
+                            *config
+                                .get()
+                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        )
+                    })
+                    .on_click(move |_| {
+                        internal_command.send(InternalCommand::JumpToLocation {
+                            location: EditorLocation {
+                                path: full_path_for_jump.clone(),
+                                position: Some(EditorPosition::Line(line)),
+                                scroll_offset: None,
+                                ignore_unconfirmed: false,
+                                same_editor_tab: false,
+                            },
+                        });
+                        true
+                    })
+                },
+            )
+            .style(|s| s.flex_col().line_height(1.6).width_pct(100.0)),
+        )
+        .on_resize(move |rect| {
+            let width = rect.width();
+            if available_width.get_untracked() != width {
+                available_width.set(width);
+            }
+        })
+        .style(|s| s.absolute().size_pct(100.0, 100.0)),
+    )
+    .style(|s| s.size_pct(100.0, 100.0))
 }

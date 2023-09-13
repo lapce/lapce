@@ -1536,7 +1536,7 @@ impl WindowTabData {
                 }
             }
             CoreNotification::RunInTerminal { config } => {
-                self.run_in_terminal(cx, &RunDebugMode::Debug, config);
+                self.run_in_terminal(cx, &RunDebugMode::Debug, config, true);
             }
             CoreNotification::TerminalProcessId {
                 term_id,
@@ -1548,8 +1548,10 @@ impl WindowTabData {
                 dap_id,
                 stopped,
                 stack_frames,
+                variables,
             } => {
-                self.terminal.dap_stopped(dap_id, stopped, stack_frames);
+                self.terminal
+                    .dap_stopped(dap_id, stopped, stack_frames, variables);
             }
             CoreNotification::OpenPaths { paths } => {
                 self.open_paths(paths);
@@ -1964,13 +1966,17 @@ impl WindowTabData {
     ) {
         match mode {
             RunDebugMode::Run => {
-                self.run_in_terminal(cx, mode, config);
+                self.run_in_terminal(cx, mode, config, false);
             }
             RunDebugMode::Debug => {
-                self.common.proxy.dap_start(
-                    config.clone(),
-                    self.terminal.debug.source_breakpoints(),
-                );
+                if config.prelaunch.is_some() {
+                    self.run_in_terminal(cx, mode, config, false);
+                } else {
+                    self.common.proxy.dap_start(
+                        config.clone(),
+                        self.terminal.debug.source_breakpoints(),
+                    )
+                };
             }
         }
     }
@@ -1980,7 +1986,10 @@ impl WindowTabData {
         cx: Scope,
         mode: &RunDebugMode,
         config: &RunDebugConfig,
+        from_dap: bool,
     ) {
+        // if not from dap, then run prelaunch first
+        let is_prelaunch = !from_dap;
         let term_id = if let Some(terminal) =
             self.terminal.get_stopped_run_debug_terminal(mode, config)
         {
@@ -1989,6 +1998,7 @@ impl WindowTabData {
                 config: config.clone(),
                 stopped: false,
                 created: Instant::now(),
+                is_prelaunch,
             }));
 
             terminal.term_id
@@ -1998,6 +2008,7 @@ impl WindowTabData {
                 config: config.clone(),
                 stopped: false,
                 created: Instant::now(),
+                is_prelaunch,
             }));
             new_terminal_tab.active_terminal(false).unwrap().term_id
         };

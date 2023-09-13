@@ -3,7 +3,9 @@ use std::{collections::HashMap, rc::Rc, sync::Arc};
 use floem::reactive::{RwSignal, Scope};
 use lapce_core::mode::Mode;
 use lapce_rpc::{
-    dap_types::{DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
+    dap_types::{
+        self, DapId, RunDebugConfig, StackFrame, Stopped, ThreadId, Variable,
+    },
     terminal::TermId,
 };
 
@@ -285,11 +287,41 @@ impl TerminalPanelData {
     pub fn terminal_stopped(&self, term_id: &TermId) {
         if let Some(terminal) = self.get_terminal(term_id) {
             if terminal.run_debug.with_untracked(|r| r.is_some()) {
-                terminal.run_debug.update(|run_debug| {
-                    if let Some(run_debug) = run_debug.as_mut() {
-                        run_debug.stopped = true
+                let was_prelaunch = terminal
+                    .run_debug
+                    .try_update(|run_debug| {
+                        if let Some(run_debug) = run_debug.as_mut() {
+                            if run_debug.is_prelaunch
+                                && run_debug.config.prelaunch.is_some()
+                            {
+                                run_debug.is_prelaunch = false;
+                                if run_debug.mode == RunDebugMode::Debug {
+                                    // set it to be stopped so that the dap can pick the same terminal session
+                                    run_debug.stopped = true;
+                                }
+                                Some(true)
+                            } else {
+                                run_debug.stopped = true;
+                                Some(false)
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+                if was_prelaunch == Some(true) {
+                    let run_debug = terminal.run_debug.get_untracked();
+                    if let Some(run_debug) = run_debug {
+                        if run_debug.mode == RunDebugMode::Debug {
+                            self.common.proxy.dap_start(
+                                run_debug.config,
+                                self.debug.source_breakpoints(),
+                            )
+                        } else {
+                            terminal.new_process(Some(run_debug));
+                        }
                     }
-                });
+                }
             } else {
                 self.close_terminal(term_id);
             }
@@ -344,6 +376,7 @@ impl TerminalPanelData {
 
                 let mut run_debug = run_debug;
                 run_debug.stopped = false;
+                run_debug.is_prelaunch = true;
                 let new_terminal = TerminalData::new(
                     terminal_tab.scope,
                     self.workspace.clone(),
@@ -489,13 +522,14 @@ impl TerminalPanelData {
         dap_id: &DapId,
         stopped: &Stopped,
         stack_frames: &HashMap<ThreadId, Vec<StackFrame>>,
+        variables: &Vec<(dap_types::Scope, Vec<Variable>)>,
     ) {
         let dap = self
             .debug
             .daps
             .with_untracked(|daps| daps.get(dap_id).cloned());
         if let Some(dap) = dap {
-            dap.stopped(self.cx, stopped, stack_frames);
+            dap.stopped(self.cx, stopped, stack_frames, variables);
         }
     }
 

@@ -28,12 +28,14 @@ pub struct DapServer {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "kebab-case")]
 pub struct RunDebugConfig {
     pub name: String,
     pub program: String,
     pub args: Vec<String>,
     pub cwd: Option<String>,
     pub env: Option<HashMap<String, String>>,
+    pub prelaunch: Option<String>,
     #[serde(skip)]
     pub debug_command: Option<String>,
     #[serde(skip)]
@@ -670,4 +672,116 @@ impl Request for Pause {
     type Arguments = PauseArguments;
     type Result = ();
     const COMMAND: &'static str = "pause";
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Scope {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presentation_hint: Option<String>,
+    pub variables_reference: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub named_variables: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indexed_variables: Option<usize>,
+    pub expensive: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<Source>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub column: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_line: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_column: Option<usize>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopesArguments {
+    pub frame_id: usize,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopesResponse {
+    pub scopes: Vec<Scope>,
+}
+
+#[derive(Debug)]
+pub enum Scopes {}
+
+impl Request for Scopes {
+    type Arguments = ScopesArguments;
+    type Result = ScopesResponse;
+    const COMMAND: &'static str = "scopes";
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ValueFormat {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hex: Option<bool>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VariablePresentationHint {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<String>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Variable {
+    pub name: String,
+    pub value: String,
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub ty: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presentation_hint: Option<VariablePresentationHint>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evaluate_name: Option<String>,
+    pub variables_reference: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub named_variables: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indexed_variables: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory_reference: Option<String>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VariablesArguments {
+    pub variables_reference: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<ValueFormat>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VariablesResponse {
+    pub variables: Vec<Variable>,
+}
+
+#[derive(Debug)]
+pub enum Variables {}
+
+impl Request for Variables {
+    type Arguments = VariablesArguments;
+    type Result = VariablesResponse;
+    const COMMAND: &'static str = "variables";
 }

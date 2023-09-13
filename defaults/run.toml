@@ -17,3 +17,7 @@ args = []
 # [configs.env]
 # VAR1 = "VAL1"
 # VAR2 = "VAL2"
+
+# task to run before the run/debug session is started, optional
+# prelaunch = "cargo build"
+
