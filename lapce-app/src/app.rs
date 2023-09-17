@@ -603,20 +603,20 @@ fn editor_tab_header(
             let info = child.view_info(editors, diff_editors, config);
             let hovered = create_rw_signal(false);
 
-            stack((
-                container({
-                    svg(move || info.with(|info| info.icon.clone())).style(
-                        move |s| {
-                            let size = config.get().ui.icon_size() as f32;
-                            s.size_px(size, size)
-                                .apply_opt(info.with(|info| info.color), |s, c| {
-                                    s.color(c)
-                                })
-                        },
-                    )
+            use crate::config::ui::TabCloseButton;
+            let tab_close_button_style = config.get().ui.tab_close_button;
+
+            let tab_icon = container({
+                svg(move || info.with(|info| info.icon.clone())).style(move |s| {
+                    let size = config.get().ui.icon_size() as f32;
+                    s.size_px(size, size)
+                        .apply_opt(info.with(|info| info.color), |s, c| s.color(c))
                 })
-                .style(|s| s.padding_horiz_px(10.0)),
-                label(move || info.with(|info| info.path.clone())).style(move |s| {
+            })
+            .style(|s| s.padding_horiz_px(10.0));
+
+            let tab_content = label(move || info.with(|info| info.path.clone()))
+                .style(move |s| {
                     s.apply_if(
                         !info
                             .with(|info| info.confirmed)
@@ -624,46 +624,64 @@ fn editor_tab_header(
                             .unwrap_or(true),
                         |s| s.font_style(FontStyle::Italic),
                     )
-                }),
-                clickable_icon(
-                    move || {
-                        if hovered.get() || info.with(|info| info.is_pristine) {
-                            LapceIcons::CLOSE
-                        } else {
-                            LapceIcons::UNSAVED
-                        }
-                    },
-                    move || {
-                        let editor_tab_id =
-                            editor_tab.with_untracked(|t| t.editor_tab_id);
-                        internal_command.send(
-                            InternalCommand::EditorTabChildClose {
-                                editor_tab_id,
-                                child: child_for_close.clone(),
-                            },
-                        );
-                    },
-                    || false,
-                    || false,
-                    config,
-                )
-                .on_event(EventListener::PointerDown, |_| true)
-                .on_event(EventListener::PointerEnter, move |_| {
-                    hovered.set(true);
-                    true
                 })
-                .on_event(EventListener::PointerLeave, move |_| {
-                    hovered.set(false);
-                    true
-                })
-                .style(|s| s.margin_horiz_px(6.0)),
-            ))
-            .style(move |s| {
+                .style(move |s| {
+                    s.apply_if(tab_close_button_style == TabCloseButton::Off, |s| {
+                        s.margin_right_px(10.0)
+                    })
+                });
+
+            let tab_close_button = clickable_icon(
+                move || {
+                    if hovered.get() || info.with(|info| info.is_pristine) {
+                        LapceIcons::CLOSE
+                    } else {
+                        LapceIcons::UNSAVED
+                    }
+                },
+                move || {
+                    let editor_tab_id =
+                        editor_tab.with_untracked(|t| t.editor_tab_id);
+                    internal_command.send(InternalCommand::EditorTabChildClose {
+                        editor_tab_id,
+                        child: child_for_close.clone(),
+                    });
+                },
+                || false,
+                || false,
+                config,
+            )
+            .on_event(EventListener::PointerDown, |_| true)
+            .on_event(EventListener::PointerEnter, move |_| {
+                hovered.set(true);
+                true
+            })
+            .on_event(EventListener::PointerLeave, move |_| {
+                hovered.set(false);
+                true
+            })
+            .style(|s| s.margin_horiz_px(6.0));
+
+            let tab_style = move |s: Style| {
                 s.items_center()
                     .border_left(if i.get() == 0 { 1.0 } else { 0.0 })
                     .border_right(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
-            })
+            };
+
+            match tab_close_button_style {
+                TabCloseButton::Left => container_box(
+                    stack((tab_close_button, tab_content, tab_icon))
+                        .style(tab_style),
+                ),
+                TabCloseButton::Right => container_box(
+                    stack((tab_icon, tab_content, tab_close_button))
+                        .style(tab_style),
+                ),
+                TabCloseButton::Off => {
+                    container_box(stack((tab_icon, tab_content)).style(tab_style))
+                }
+            }
         };
 
         let confirmed = match local_child {

@@ -48,6 +48,29 @@ pub struct UIConfig {
 
     #[field_names(desc = "Set the line height for list items")]
     list_line_height: usize,
+
+    #[field_names(desc = "Set position of the close button in editor tabs")]
+    pub tab_close_button: TabCloseButton,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Deserialize,
+    Serialize,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    strum_macros::EnumVariantNames,
+)]
+pub enum TabCloseButton {
+    Left,
+    #[default]
+    Right,
+    Off,
 }
 
 impl UIConfig {
