@@ -67,7 +67,7 @@ pub struct LspClient {
 }
 
 impl PluginServerHandler for LspClient {
-    fn method_registered(&mut self, method: &'static str) -> bool {
+    fn method_registered(&mut self, method: &str) -> bool {
         self.host.method_registered(method)
     }
 
@@ -94,6 +94,7 @@ impl PluginServerHandler for LspClient {
             Shutdown => {
                 self.shutdown();
             }
+            SpawnedPluginLoaded { .. } => {}
         }
     }
 
@@ -168,6 +169,8 @@ impl LspClient {
         workspace: Option<PathBuf>,
         volt_id: VoltID,
         volt_display_name: String,
+        spawned_by: Option<PluginId>,
+        plugin_id: Option<PluginId>,
         pwd: Option<PathBuf>,
         server_uri: Url,
         args: Vec<String>,
@@ -194,7 +197,12 @@ impl LspClient {
 
         let mut writer = Box::new(BufWriter::new(stdin));
         let (io_tx, io_rx) = crossbeam_channel::unbounded();
-        let server_rpc = PluginServerRpcHandler::new(volt_id.clone(), io_tx.clone());
+        let server_rpc = PluginServerRpcHandler::new(
+            volt_id.clone(),
+            spawned_by,
+            plugin_id,
+            io_tx.clone(),
+        );
         thread::spawn(move || {
             for msg in io_rx {
                 if let Ok(msg) = serde_json::to_string(&msg) {
@@ -281,6 +289,8 @@ impl LspClient {
         workspace: Option<PathBuf>,
         volt_id: VoltID,
         volt_display_name: String,
+        spawned_by: Option<PluginId>,
+        plugin_id: Option<PluginId>,
         pwd: Option<PathBuf>,
         server_uri: Url,
         args: Vec<String>,
@@ -292,6 +302,8 @@ impl LspClient {
             workspace,
             volt_id,
             volt_display_name,
+            spawned_by,
+            plugin_id,
             pwd,
             server_uri,
             args,

@@ -88,7 +88,7 @@ pub struct Plugin {
 }
 
 impl PluginServerHandler for Plugin {
-    fn method_registered(&mut self, method: &'static str) -> bool {
+    fn method_registered(&mut self, method: &str) -> bool {
         self.host.method_registered(method)
     }
 
@@ -114,6 +114,9 @@ impl PluginServerHandler for Plugin {
             }
             Shutdown => {
                 self.shutdown();
+            }
+            SpawnedPluginLoaded { plugin_id } => {
+                self.host.handle_spawned_plugin_loaded(plugin_id);
             }
         }
     }
@@ -437,7 +440,7 @@ pub fn start_volt(
     let mut store = wasmtime::Store::new(&engine, wasi);
 
     let (io_tx, io_rx) = crossbeam_channel::unbounded();
-    let rpc = PluginServerRpcHandler::new(meta.id(), io_tx);
+    let rpc = PluginServerRpcHandler::new(meta.id(), None, None, io_tx);
 
     let local_rpc = rpc.clone();
     let local_stdin = stdin.clone();
