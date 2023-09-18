@@ -13,6 +13,7 @@ use lsp_types::{CompletionItemKind, SymbolKind};
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use serde::Deserialize;
+use strum::VariantNames;
 
 use self::{
     color::LapceColor,
@@ -778,6 +779,14 @@ impl LapceConfig {
                     .position(|s| s == &self.icon_theme.name)
                     .unwrap_or(0),
                 items: self.icon_theme_list.clone(),
+            }),
+            ("ui", "tab-close-button") => Some(DropdownInfo {
+                active_index: self.ui.tab_close_button as usize,
+                items: ui::TabCloseButton::VARIANTS
+                    .iter()
+                    .map(|s| s.to_string())
+                    .sorted()
+                    .collect(),
             }),
             _ => None,
         }
