@@ -5,6 +5,7 @@ pub mod psp;
 pub mod wasi;
 
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
@@ -81,17 +82,20 @@ pub enum PluginCatalogRpc {
     ServerRequest {
         plugin_id: Option<PluginId>,
         request_sent: Option<Arc<AtomicUsize>>,
-        method: &'static str,
+        method: Cow<'static, str>,
         params: Value,
         language_id: Option<String>,
         path: Option<PathBuf>,
-        f: Box<dyn ClonableCallback>,
+        check: bool,
+        f: Box<dyn ClonableCallback<Value, RpcError>>,
     },
     ServerNotification {
-        method: &'static str,
+        plugin_id: Option<PluginId>,
+        method: Cow<'static, str>,
         params: Value,
         language_id: Option<String>,
         path: Option<PathBuf>,
+        check: bool,
     },
     FormatSemanticTokens {
         plugin_id: PluginId,
@@ -208,6 +212,7 @@ impl PluginCatalogRpcHandler {
                     params,
                     language_id,
                     path,
+                    check,
                     f,
                 } => {
                     plugin.handle_server_request(
@@ -217,20 +222,25 @@ impl PluginCatalogRpcHandler {
                         params,
                         language_id,
                         path,
+                        check,
                         f,
                     );
                 }
                 PluginCatalogRpc::ServerNotification {
+                    plugin_id,
                     method,
                     params,
                     language_id,
                     path,
+                    check,
                 } => {
                     plugin.handle_server_notification(
+                        plugin_id,
                         method,
                         params,
                         language_id,
                         path,
+                        check,
                     );
                 }
                 PluginCatalogRpc::Handler(notification) => {
@@ -318,6 +328,7 @@ impl PluginCatalogRpcHandler {
             params,
             language_id,
             path,
+            true,
             move |plugin_id, result| {
                 if got_success.load(Ordering::Acquire) {
                     return;
@@ -349,25 +360,49 @@ impl PluginCatalogRpcHandler {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn send_request<P: Serialize>(
+    pub(crate) fn send_request<P: Serialize>(
         &self,
         plugin_id: Option<PluginId>,
         request_sent: Option<Arc<AtomicUsize>>,
-        method: &'static str,
+        method: impl Into<Cow<'static, str>>,
         params: P,
         language_id: Option<String>,
         path: Option<PathBuf>,
+        check: bool,
         f: impl FnOnce(PluginId, Result<Value, RpcError>) + Send + DynClone + 'static,
     ) {
         let params = serde_json::to_value(params).unwrap();
         let rpc = PluginCatalogRpc::ServerRequest {
             plugin_id,
             request_sent,
-            method,
+            method: method.into(),
             params,
             language_id,
             path,
+            check,
             f: Box::new(f),
+        };
+        let _ = self.plugin_tx.send(rpc);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn send_notification<P: Serialize>(
+        &self,
+        plugin_id: Option<PluginId>,
+        method: impl Into<Cow<'static, str>>,
+        params: P,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
+        check: bool,
+    ) {
+        let params = serde_json::to_value(params).unwrap();
+        let rpc = PluginCatalogRpc::ServerNotification {
+            plugin_id,
+            method: method.into(),
+            params,
+            language_id,
+            path,
+            check,
         };
         let _ = self.plugin_tx.send(rpc);
     }
@@ -848,6 +883,7 @@ impl PluginCatalogRpcHandler {
             item,
             None,
             None,
+            true,
             move |_, result| {
                 let result = match result {
                     Ok(value) => {
@@ -898,6 +934,7 @@ impl PluginCatalogRpcHandler {
             params,
             language_id,
             Some(path.to_path_buf()),
+            true,
             move |plugin_id, result| {
                 if let Ok(value) = result {
                     if let Ok(resp) = serde_json::from_value::<SignatureHelp>(value)
@@ -924,6 +961,7 @@ impl PluginCatalogRpcHandler {
             item,
             None,
             None,
+            true,
             move |_, result| {
                 let result = match result {
                     Ok(value) => {

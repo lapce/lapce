@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::HashMap,
     path::{Path, PathBuf},
     sync::{
@@ -17,6 +18,7 @@ use lapce_core::{
     encoding::offset_utf16_to_utf8,
 };
 use lapce_rpc::{
+    core::CoreRpcHandler,
     plugin::{PluginId, VoltID},
     style::{LineStyle, Style},
     RpcError,
@@ -49,7 +51,9 @@ use lsp_types::{
 use parking_lot::Mutex;
 use psp_types::{
     ExecuteProcess, ExecuteProcessParams, ExecuteProcessResult, Request,
-    StartLspServer, StartLspServerParams,
+    SendLspNotification, SendLspNotificationParams, SendLspRequest,
+    SendLspRequestParams, SendLspRequestResult, StartLspServer,
+    StartLspServerParams, StartLspServerResult,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -75,13 +79,13 @@ impl<Resp, Error> ResponseHandler<Resp, Error> {
     }
 }
 
-pub trait ClonableCallback:
-    FnOnce(PluginId, Result<Value, RpcError>) + Send + DynClone
+pub trait ClonableCallback<Resp, Error>:
+    FnOnce(PluginId, Result<Resp, Error>) + Send + DynClone
 {
 }
 
-impl<F: Send + FnOnce(PluginId, Result<Value, RpcError>) + DynClone> ClonableCallback
-    for F
+impl<Resp, Error, F: Send + FnOnce(PluginId, Result<Resp, Error>) + DynClone>
+    ClonableCallback<Resp, Error> for F
 {
 }
 
@@ -101,6 +105,8 @@ pub enum PluginHandlerNotification {
     Initialize,
     InitializeResult(InitializeResult),
     Shutdown,
+
+    SpawnedPluginLoaded { plugin_id: PluginId },
 }
 
 pub enum PluginServerRpc {
@@ -108,14 +114,14 @@ pub enum PluginServerRpc {
     Handler(PluginHandlerNotification),
     ServerRequest {
         id: Id,
-        method: &'static str,
+        method: Cow<'static, str>,
         params: Params,
         language_id: Option<String>,
         path: Option<PathBuf>,
         rh: ResponseHandler<Value, RpcError>,
     },
     ServerNotification {
-        method: &'static str,
+        method: Cow<'static, str>,
         params: Params,
         language_id: Option<String>,
         path: Option<PathBuf>,
@@ -124,7 +130,7 @@ pub enum PluginServerRpc {
         id: Id,
         method: String,
         params: Params,
-        chan: Sender<Result<Value, RpcError>>,
+        resp: ResponseSender,
     },
     HostNotification {
         method: String,
@@ -158,6 +164,7 @@ pub enum PluginServerRpc {
 
 #[derive(Clone)]
 pub struct PluginServerRpcHandler {
+    pub spawned_by: Option<PluginId>,
     pub plugin_id: PluginId,
     pub volt_id: VoltID,
     rpc_tx: Sender<PluginServerRpc>,
@@ -167,20 +174,49 @@ pub struct PluginServerRpcHandler {
     server_pending: Arc<Mutex<HashMap<Id, ResponseHandler<Value, RpcError>>>>,
 }
 
+#[derive(Clone)]
+pub struct ResponseSender {
+    tx: Sender<Result<Value, RpcError>>,
+}
+impl ResponseSender {
+    pub fn new(tx: Sender<Result<Value, RpcError>>) -> Self {
+        Self { tx }
+    }
+
+    pub fn send(&self, result: impl Serialize) {
+        let result = serde_json::to_value(result).map_err(|e| RpcError {
+            code: 0,
+            message: e.to_string(),
+        });
+        let _ = self.tx.send(result);
+    }
+
+    pub fn send_null(&self) {
+        let _ = self.tx.send(Ok(Value::Null));
+    }
+
+    pub fn send_err(&self, code: i64, message: impl Into<String>) {
+        let _ = self.tx.send(Err(RpcError {
+            code,
+            message: message.into(),
+        }));
+    }
+}
+
 pub trait PluginServerHandler {
     fn document_supported(
         &mut self,
         language_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool;
-    fn method_registered(&mut self, method: &'static str) -> bool;
+    fn method_registered(&mut self, method: &str) -> bool;
     fn handle_host_notification(&mut self, method: String, params: Params);
     fn handle_host_request(
         &mut self,
         id: Id,
         method: String,
         params: Params,
-        chan: Sender<Result<Value, RpcError>>,
+        chan: ResponseSender,
     );
     fn handle_handler_notification(
         &mut self,
@@ -216,12 +252,18 @@ pub trait PluginServerHandler {
 }
 
 impl PluginServerRpcHandler {
-    pub fn new(volt_id: VoltID, io_tx: Sender<JsonRpc>) -> Self {
+    pub fn new(
+        volt_id: VoltID,
+        spawned_by: Option<PluginId>,
+        plugin_id: Option<PluginId>,
+        io_tx: Sender<JsonRpc>,
+    ) -> Self {
         let (rpc_tx, rpc_rx) = crossbeam_channel::unbounded();
 
         let rpc = Self {
+            spawned_by,
             volt_id,
-            plugin_id: PluginId::next(),
+            plugin_id: plugin_id.unwrap_or_else(PluginId::next),
             rpc_tx,
             rpc_rx,
             io_tx,
@@ -267,15 +309,18 @@ impl PluginServerRpcHandler {
         let _ = self.rpc_tx.send(rpc);
     }
 
+    /// Send a notification.  
+    /// The callback is called when the function is actually sent.
     pub fn server_notification<P: Serialize>(
         &self,
-        method: &'static str,
+        method: impl Into<Cow<'static, str>>,
         params: P,
         language_id: Option<String>,
         path: Option<PathBuf>,
         check: bool,
     ) {
         let params = Params::from(serde_json::to_value(params).unwrap());
+        let method = method.into();
 
         if check {
             let _ = self.rpc_tx.send(PluginServerRpc::ServerNotification {
@@ -285,7 +330,7 @@ impl PluginServerRpcHandler {
                 path,
             });
         } else {
-            self.send_server_notification(method, params);
+            self.send_server_notification(&method, params);
         }
     }
 
@@ -297,7 +342,7 @@ impl PluginServerRpcHandler {
     /// When check is false, the request will be sent out straight away.
     pub fn server_request<P: Serialize>(
         &self,
-        method: &'static str,
+        method: impl Into<Cow<'static, str>>,
         params: P,
         language_id: Option<String>,
         path: Option<PathBuf>,
@@ -305,7 +350,7 @@ impl PluginServerRpcHandler {
     ) -> Result<Value, RpcError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
         self.server_request_common(
-            method,
+            method.into(),
             params,
             language_id,
             path,
@@ -322,7 +367,7 @@ impl PluginServerRpcHandler {
 
     pub fn server_request_async<P: Serialize>(
         &self,
-        method: &'static str,
+        method: impl Into<Cow<'static, str>>,
         params: P,
         language_id: Option<String>,
         path: Option<PathBuf>,
@@ -330,7 +375,7 @@ impl PluginServerRpcHandler {
         f: impl RpcCallback<Value, RpcError> + 'static,
     ) {
         self.server_request_common(
-            method,
+            method.into(),
             params,
             language_id,
             path,
@@ -341,7 +386,7 @@ impl PluginServerRpcHandler {
 
     fn server_request_common<P: Serialize>(
         &self,
-        method: &'static str,
+        method: Cow<'static, str>,
         params: P,
         language_id: Option<String>,
         path: Option<PathBuf>,
@@ -360,7 +405,7 @@ impl PluginServerRpcHandler {
                 rh,
             });
         } else {
-            self.send_server_request(Id::Num(id as i64), method, params, rh);
+            self.send_server_request(Id::Num(id as i64), &method, params, rh);
         }
     }
 
@@ -393,9 +438,9 @@ impl PluginServerRpcHandler {
                 } => {
                     if handler
                         .document_supported(language_id.as_deref(), path.as_deref())
-                        && handler.method_registered(method)
+                        && handler.method_registered(&method)
                     {
-                        self.send_server_request(id, method, params, rh);
+                        self.send_server_request(id, &method, params, rh);
                     } else {
                         rh.invoke(Err(RpcError {
                             code: 0,
@@ -411,18 +456,18 @@ impl PluginServerRpcHandler {
                 } => {
                     if handler
                         .document_supported(language_id.as_deref(), path.as_deref())
-                        && handler.method_registered(method)
+                        && handler.method_registered(&method)
                     {
-                        self.send_server_notification(method, params);
+                        self.send_server_notification(&method, params);
                     }
                 }
                 PluginServerRpc::HostRequest {
                     id,
                     method,
                     params,
-                    chan,
+                    resp,
                 } => {
-                    handler.handle_host_request(id, method, params, chan);
+                    handler.handle_host_request(id, method, params, resp);
                 }
                 PluginServerRpc::HostNotification { method, params } => {
                     handler.handle_host_notification(method, params);
@@ -483,7 +528,7 @@ pub fn handle_plugin_server_message(
                 id: id.clone(),
                 method: value.get_method().unwrap().to_string(),
                 params: value.get_params().unwrap(),
-                chan: tx,
+                resp: ResponseSender::new(tx),
             };
             server_rpc.handle_rpc(rpc);
             let result = rx.recv().unwrap();
@@ -547,19 +592,26 @@ pub struct PluginHostHandler {
     pwd: Option<PathBuf>,
     pub(crate) workspace: Option<PathBuf>,
     document_selector: Vec<DocumentFilter>,
+    core_rpc: CoreRpcHandler,
     catalog_rpc: PluginCatalogRpcHandler,
     pub server_rpc: PluginServerRpcHandler,
     pub server_capabilities: ServerCapabilities,
     server_registrations: ServerRegistrations,
+
+    /// Language servers that this plugin has spawned.  
+    /// Note that these plugin ids could be 'dead' if the LSP died/exited.  
+    spawned_lsp: HashMap<PluginId, SpawnedLspInfo>,
 }
 
 impl PluginHostHandler {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         workspace: Option<PathBuf>,
         pwd: Option<PathBuf>,
         volt_id: VoltID,
         volt_display_name: String,
         document_selector: DocumentSelector,
+        core_rpc: CoreRpcHandler,
         server_rpc: PluginServerRpcHandler,
         catalog_rpc: PluginCatalogRpcHandler,
     ) -> Self {
@@ -573,10 +625,12 @@ impl PluginHostHandler {
             volt_id,
             volt_display_name,
             document_selector,
+            core_rpc,
             catalog_rpc,
             server_rpc,
             server_capabilities: ServerCapabilities::default(),
             server_registrations: ServerRegistrations::default(),
+            spawned_lsp: HashMap::new(),
         }
     }
 
@@ -607,7 +661,7 @@ impl PluginHostHandler {
         }
     }
 
-    pub fn method_registered(&mut self, method: &'static str) -> bool {
+    pub fn method_registered(&mut self, method: &str) -> bool {
         match method {
             Initialize::METHOD => true,
             Initialized::METHOD => true,
@@ -805,27 +859,28 @@ impl PluginHostHandler {
         _id: Id,
         method: String,
         params: Params,
-        chan: Sender<Result<Value, RpcError>>,
+        resp: ResponseSender,
     ) {
-        let result = self.process_request(method, params);
-        let _ = chan.send(result.map_err(|e| RpcError {
-            code: 0,
-            message: e.to_string(),
-        }));
+        if let Err(err) = self.process_request(method, params, resp.clone()) {
+            resp.send_err(0, err.to_string());
+        }
     }
 
     pub fn process_request(
         &mut self,
         method: String,
         params: Params,
-    ) -> Result<Value> {
+        resp: ResponseSender,
+    ) -> Result<()> {
         match method.as_str() {
-            WorkDoneProgressCreate::METHOD => Ok(Value::Null),
+            WorkDoneProgressCreate::METHOD => {
+                resp.send_null();
+            }
             RegisterCapability::METHOD => {
                 let params: RegistrationParams =
                     serde_json::from_value(serde_json::to_value(params)?)?;
                 self.register_capabilities(params.registrations);
-                Ok(Value::Null)
+                resp.send_null();
             }
             ExecuteProcess::METHOD => {
                 let params: ExecuteProcessParams =
@@ -833,14 +888,106 @@ impl PluginHostHandler {
                 let output = std::process::Command::new(params.program)
                     .args(params.args)
                     .output()?;
-                Ok(serde_json::to_value(ExecuteProcessResult {
+
+                resp.send(ExecuteProcessResult {
                     success: output.status.success(),
                     stdout: Some(output.stdout),
                     stderr: Some(output.stderr),
-                })?)
+                });
             }
-            _ => Err(anyhow!("request not supported")),
+            StartLspServer::METHOD => {
+                let params: StartLspServerParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                let workspace = self.workspace.clone();
+                let pwd = self.pwd.clone();
+                let catalog_rpc = self.catalog_rpc.clone();
+                let volt_id = self.volt_id.clone();
+                let volt_display_name = self.volt_display_name.clone();
+
+                let spawned_by = self.server_rpc.plugin_id;
+                let plugin_id = PluginId::next();
+                self.spawned_lsp
+                    .insert(plugin_id, SpawnedLspInfo { resp: Some(resp) });
+                thread::spawn(move || {
+                    let _ = LspClient::start(
+                        catalog_rpc,
+                        params.document_selector,
+                        workspace,
+                        volt_id,
+                        volt_display_name,
+                        Some(spawned_by),
+                        Some(plugin_id),
+                        pwd,
+                        params.server_uri,
+                        params.server_args,
+                        params.options,
+                    );
+                });
+            }
+            SendLspNotification::METHOD => {
+                let params: SendLspNotificationParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                let lsp_id = params.id;
+                let method = params.method;
+                let params = params.params;
+
+                // The lsp ids we give the plugins are just the plugin id of the lsp
+                let plugin_id = PluginId(lsp_id);
+
+                if !self.spawned_lsp.contains_key(&plugin_id) {
+                    return Err(anyhow!("lsp not found, it may have exited"));
+                }
+
+                // Send the notification to the plugin
+                self.catalog_rpc.send_notification(
+                    Some(plugin_id),
+                    method.to_string(),
+                    params,
+                    None,
+                    None,
+                    false,
+                );
+            }
+            SendLspRequest::METHOD => {
+                let params: SendLspRequestParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                let lsp_id = params.id;
+                let method = params.method;
+                let params = params.params;
+
+                // The lsp ids we give the plugins are just the plugin id of the lsp
+                let plugin_id = PluginId(lsp_id);
+
+                if !self.spawned_lsp.contains_key(&plugin_id) {
+                    return Err(anyhow!("lsp not found, it may have exited"));
+                }
+
+                // Send the request to the plugin
+                self.catalog_rpc.send_request(
+                    Some(plugin_id),
+                    None,
+                    method.to_string(),
+                    params,
+                    None,
+                    None,
+                    false,
+                    move |_, res| {
+                        // We just directly send it back to the plugin that requested this
+                        match res {
+                            Ok(res) => {
+                                resp.send(SendLspRequestResult { result: res });
+                            }
+                            Err(err) => {
+                                resp.send_err(err.code, err.message);
+                            }
+                        }
+                    },
+                )
+            }
+            _ => return Err(anyhow!("request not supported")),
         }
+
+        Ok(())
     }
 
     pub fn handle_notification(
@@ -849,7 +996,16 @@ impl PluginHostHandler {
         params: Params,
     ) -> Result<()> {
         match method.as_str() {
+            // TODO: remove this after the next release and once we convert all the existing plugins to use the request.
             StartLspServer::METHOD => {
+                self.core_rpc.log(
+                    tracing::Level::WARN,
+                    format!(
+                        "[{}] Usage of startLspServer as a notification is deprecated.",
+                        self.volt_display_name
+                    ),
+                );
+
                 let params: StartLspServerParams =
                     serde_json::from_value(serde_json::to_value(params)?)?;
                 let workspace = self.workspace.clone();
@@ -864,6 +1020,8 @@ impl PluginHostHandler {
                         workspace,
                         volt_id,
                         volt_display_name,
+                        None,
+                        None,
                         pwd,
                         params.server_uri,
                         params.server_args,
@@ -1016,6 +1174,26 @@ impl PluginHostHandler {
         });
         f.call(result);
     }
+
+    pub fn handle_spawned_plugin_loaded(&mut self, plugin_id: PluginId) {
+        if let Some(info) = self.spawned_lsp.get_mut(&plugin_id) {
+            let Some(resp) = info.resp.take() else {
+                self.core_rpc.log(
+                    tracing::Level::WARN,
+                    "Spawned lsp initialized twice?".to_string(),
+                );
+                return;
+            };
+
+            resp.send(StartLspServerResult { id: plugin_id.0 });
+        }
+    }
+}
+
+/// Information that a plugin associates with a spawned language server.
+struct SpawnedLspInfo {
+    /// The response sender to use when the lsp is initialized.
+    resp: Option<ResponseSender>,
 }
 
 fn get_document_content_change(

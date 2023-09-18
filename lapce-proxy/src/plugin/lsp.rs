@@ -9,10 +9,13 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use crossbeam_channel::Sender;
 use jsonrpc_lite::{Id, Params};
 use lapce_core::meta;
-use lapce_rpc::{plugin::VoltID, style::LineStyle, RpcError};
+use lapce_rpc::{
+    plugin::{PluginId, VoltID},
+    style::LineStyle,
+    RpcError,
+};
 use lapce_xi_rope::Rope;
 use lsp_types::{
     notification::{Initialized, Notification},
@@ -26,7 +29,7 @@ use super::{
     client_capabilities,
     psp::{
         handle_plugin_server_message, PluginHandlerNotification, PluginHostHandler,
-        PluginServerHandler, PluginServerRpcHandler, RpcCallback,
+        PluginServerHandler, PluginServerRpcHandler, ResponseSender, RpcCallback,
     },
 };
 use crate::{buffer::Buffer, plugin::PluginCatalogRpcHandler};
@@ -64,7 +67,7 @@ pub struct LspClient {
 }
 
 impl PluginServerHandler for LspClient {
-    fn method_registered(&mut self, method: &'static str) -> bool {
+    fn method_registered(&mut self, method: &str) -> bool {
         self.host.method_registered(method)
     }
 
@@ -91,6 +94,7 @@ impl PluginServerHandler for LspClient {
             Shutdown => {
                 self.shutdown();
             }
+            SpawnedPluginLoaded { .. } => {}
         }
     }
 
@@ -99,9 +103,9 @@ impl PluginServerHandler for LspClient {
         id: Id,
         method: String,
         params: Params,
-        chan: Sender<Result<Value, RpcError>>,
+        resp: ResponseSender,
     ) {
-        self.host.handle_request(id, method, params, chan);
+        self.host.handle_request(id, method, params, resp);
     }
 
     fn handle_host_notification(&mut self, method: String, params: Params) {
@@ -165,6 +169,8 @@ impl LspClient {
         workspace: Option<PathBuf>,
         volt_id: VoltID,
         volt_display_name: String,
+        spawned_by: Option<PluginId>,
+        plugin_id: Option<PluginId>,
         pwd: Option<PathBuf>,
         server_uri: Url,
         args: Vec<String>,
@@ -191,7 +197,12 @@ impl LspClient {
 
         let mut writer = Box::new(BufWriter::new(stdin));
         let (io_tx, io_rx) = crossbeam_channel::unbounded();
-        let server_rpc = PluginServerRpcHandler::new(volt_id.clone(), io_tx.clone());
+        let server_rpc = PluginServerRpcHandler::new(
+            volt_id.clone(),
+            spawned_by,
+            plugin_id,
+            io_tx.clone(),
+        );
         thread::spawn(move || {
             for msg in io_rx {
                 if let Ok(msg) = serde_json::to_string(&msg) {
@@ -256,6 +267,7 @@ impl LspClient {
             volt_id,
             volt_display_name,
             document_selector,
+            plugin_rpc.core_rpc.clone(),
             server_rpc.clone(),
             plugin_rpc.clone(),
         );
@@ -277,27 +289,33 @@ impl LspClient {
         workspace: Option<PathBuf>,
         volt_id: VoltID,
         volt_display_name: String,
+        spawned_by: Option<PluginId>,
+        plugin_id: Option<PluginId>,
         pwd: Option<PathBuf>,
         server_uri: Url,
         args: Vec<String>,
         options: Option<Value>,
-    ) -> Result<()> {
+    ) -> Result<PluginId> {
         let mut lsp = Self::new(
             plugin_rpc,
             document_selector,
             workspace,
             volt_id,
             volt_display_name,
+            spawned_by,
+            plugin_id,
             pwd,
             server_uri,
             args,
             options,
         )?;
+        let plugin_id = lsp.server_rpc.plugin_id;
+
         let rpc = lsp.server_rpc.clone();
         thread::spawn(move || {
             rpc.mainloop(&mut lsp);
         });
-        Ok(())
+        Ok(plugin_id)
     }
 
     fn initialize(&mut self) {
