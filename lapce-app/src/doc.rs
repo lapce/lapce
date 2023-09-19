@@ -29,6 +29,7 @@ use lapce_core::{
     selection::{InsertDrift, Selection},
     style::line_styles,
     syntax::{edit::SyntaxEdit, Syntax},
+    word::WordCursor,
 };
 use lapce_rpc::{
     buffer::BufferId,
@@ -166,7 +167,7 @@ impl std::fmt::Debug for Document {
 }
 
 /// A single document that can be viewed by multiple [`EditorData`]'s
-/// [`EditorViewData`]s and [`EditorView]s.  
+/// [`EditorViewData`]s and [`EditorView]s.
 #[derive(Clone)]
 pub struct Document {
     pub scope: Scope,
@@ -181,7 +182,7 @@ pub struct Document {
     semantic_styles: RwSignal<Option<Spans<Style>>>,
     /// Inlay hints for the document
     pub inlay_hints: RwSignal<Option<Spans<InlayHint>>>,
-    /// Current completion lens text, if any.  
+    /// Current completion lens text, if any.
     /// This will be displayed even on views that are not focused.
     pub completion_lens: RwSignal<Option<String>>,
     /// (line, col)
@@ -537,7 +538,7 @@ impl Document {
         }
     }
 
-    /// Update the styles after an edit, so the highlights are at the correct positions.  
+    /// Update the styles after an edit, so the highlights are at the correct positions.
     /// This does not do a reparse of the document itself.
     fn update_styles(&self, delta: &RopeDelta) {
         self.semantic_styles.update(|styles| {
@@ -627,7 +628,7 @@ impl Document {
         }
     }
 
-    /// Get the style information for the particular line from semantic/syntax highlighting.  
+    /// Get the style information for the particular line from semantic/syntax highlighting.
     /// This caches the result if possible.
     pub fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
         if self.line_styles.borrow().get(&line).is_none() {
@@ -1283,7 +1284,7 @@ impl Document {
         Some(rendered_whitespaces)
     }
 
-    /// Create a new text layout for the given line.  
+    /// Create a new text layout for the given line.
     /// Typically you should use [`Document::get_text_layout`] instead.
     fn new_text_layout(&self, line: usize, _font_size: usize) -> TextLayoutLine {
         let config = self.common.config.get_untracked();
@@ -1490,7 +1491,7 @@ impl Document {
         }
     }
 
-    /// Get the text layout for the given line.  
+    /// Get the text layout for the given line.
     /// If the text layout is not cached, it will be created and cached.
     pub fn get_text_layout(
         &self,
@@ -1563,5 +1564,23 @@ impl Document {
                 send(result);
             })
         }
+    }
+
+    /// Returns the offsets of the brackets enclosing the given offset.
+    /// Uses a language aware algorithm if syntax support is available for the current language,
+    /// else falls back to a language unaware algorithm.
+    pub fn find_enclosing_brackets(&self, offset: usize) -> Option<(usize, usize)> {
+        self.syntax
+            .with_untracked(|syntax| {
+                (!syntax.text.is_empty()).then(|| syntax.find_enclosing_pair(offset))
+            })
+            // If syntax.text is empty, either the buffer is empty or we don't have syntax support
+            // for the current language.
+            // Try a language unaware search for enclosing brackets in case it is the latter.
+            .unwrap_or_else(|| {
+                self.buffer.with_untracked(|buffer| {
+                    WordCursor::new(buffer.text(), offset).find_enclosing_pair()
+                })
+            })
     }
 }

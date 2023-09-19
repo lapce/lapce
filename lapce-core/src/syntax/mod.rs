@@ -791,10 +791,6 @@ impl Syntax {
         &self,
         offset: usize,
     ) -> Option<(usize, usize)> {
-        // If there is no text then the document can't have any bytes
-        if self.text.is_empty() {
-            return None;
-        }
         if offset >= self.text.len() {
             return None;
         }
@@ -807,11 +803,13 @@ impl Syntax {
             if start >= self.text.len() {
                 return None;
             }
-            let c = self.text.byte_at(start) as char;
-            if c == '(' {
-                let end = self.find_matching_pair(start)?;
-                if end >= offset && start < offset {
-                    return Some((start, end));
+            if start < offset {
+                let c = self.text.byte_at(start) as char;
+                if c == '(' {
+                    let end = self.find_matching_pair(start)?;
+                    if end >= offset && start < offset {
+                        return Some((start, end));
+                    }
                 }
             }
             if let Some(sibling) = node.prev_sibling() {
@@ -825,10 +823,6 @@ impl Syntax {
     }
 
     pub fn find_enclosing_pair(&self, offset: usize) -> Option<(usize, usize)> {
-        // If there is no text then the document can't have any bytes
-        if self.text.is_empty() {
-            return None;
-        }
         if offset >= self.text.len() {
             return None;
         }
@@ -841,11 +835,13 @@ impl Syntax {
             if start >= self.text.len() {
                 return None;
             }
-            let c = self.text.byte_at(start) as char;
-            if matching_pair_direction(c) == Some(true) {
-                let end = self.find_matching_pair(start)?;
-                if end >= offset {
-                    return Some((start, end));
+            if start < offset {
+                let c = self.text.byte_at(start) as char;
+                if matching_pair_direction(c) == Some(true) {
+                    let end = self.find_matching_pair(start)?;
+                    if end >= offset {
+                        return Some((start, end));
+                    }
                 }
             }
             if let Some(sibling) = node.prev_sibling() {
