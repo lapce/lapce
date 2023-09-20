@@ -428,7 +428,7 @@ impl<'a> WordCursor<'a> {
             if matching_pair_direction(c) == Some(true) {
                 let opening_bracket_offset = self.inner.pos();
                 if let Some(closing_bracket_offset) = self.match_pairs() {
-                    if (opening_bracket_offset..closing_bracket_offset)
+                    if (opening_bracket_offset..=closing_bracket_offset)
                         .contains(&old_offset)
                     {
                         return Some((
@@ -689,13 +689,18 @@ mod test {
     fn find_pair_should_return_next_pair() {
         let text = "violets {are (blue)    }";
         let rope = Rope::from(text);
+
         let mut cursor = WordCursor::new(&rope, 11);
         let positions = cursor.find_enclosing_pair();
         assert_eq!(positions, Some((8, 23)));
 
         let mut cursor = WordCursor::new(&rope, 20);
         let positions = cursor.find_enclosing_pair();
-        assert_eq!(positions, Some((8, 23)))
+        assert_eq!(positions, Some((8, 23)));
+
+        let mut cursor = WordCursor::new(&rope, 18);
+        let positions = cursor.find_enclosing_pair();
+        assert_eq!(positions, Some((13, 18)));
     }
 
     #[test]

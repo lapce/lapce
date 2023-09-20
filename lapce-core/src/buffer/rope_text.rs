@@ -26,7 +26,7 @@ pub trait RopeText {
         self.line_of_offset(self.len())
     }
 
-    /// Get the offset into the rope of the start of the given line.  
+    /// Get the offset into the rope of the start of the given line.
     /// If the line it out of bounds, then the last offset (the len) is returned.
     fn offset_of_line(&self, line: usize) -> usize {
         let last_line = self.last_line();
@@ -49,7 +49,7 @@ pub trait RopeText {
         self.text().line_of_offset(offset)
     }
 
-    /// Converts a UTF8 offset to a UTF16 LSP position  
+    /// Converts a UTF8 offset to a UTF16 LSP position
     /// Returns None if it is not a valid UTF16 offset
     fn offset_to_position(&self, offset: usize) -> Position {
         let (line, col) = self.offset_to_line_col(offset);
@@ -122,7 +122,7 @@ pub trait RopeText {
     }
 
     /// Get the offset of the end of the line. The caret decides whether it is after the last
-    /// character, or before it.  
+    /// character, or before it.
     /// If the line is out of bounds, then the last offset (the len) is returned.
     /// ```rust,ignore
     /// let text = Rope::from("hello\nworld");
@@ -151,7 +151,7 @@ pub trait RopeText {
     }
 
     /// Returns the content of the given line.
-    /// Includes the line ending if it exists. (-> the last line won't have a line ending)    
+    /// Includes the line ending if it exists. (-> the last line won't have a line ending)
     /// Lines past the end of the document will return an empty string.
     fn line_content(&self, line: usize) -> Cow<'_, str> {
         self.text()
@@ -222,7 +222,7 @@ pub trait RopeText {
         WordCursor::new(self.text(), offset).select_word()
     }
 
-    /// Returns the offset of the first non-blank character on the given line.  
+    /// Returns the offset of the first non-blank character on the given line.
     /// If the line is one past the last line, then the offset at the end of the rope is returned.
     /// If the line is further past that, then it defaults to the last line.
     fn first_non_blank_character_on_line(&self, line: usize) -> usize {
@@ -254,7 +254,7 @@ pub trait RopeText {
     }
 
     // TODO(minor): Once you can have an `impl Trait` return type in a trait, this could use that.
-    /// Iterate over (utf8_offset, char) values in the given range  
+    /// Iterate over (utf8_offset, char) values in the given range
     #[allow(clippy::type_complexity)]
     /// This uses `iter_chunks` and so does not allocate, compared to `slice_to_cow` which can
     fn char_indices_iter<'a, T: IntervalBounds>(
@@ -280,6 +280,24 @@ pub trait RopeText {
     /// The length of the given line
     fn line_len(&self, line: usize) -> usize {
         self.offset_of_line(line + 1) - self.offset_of_line(line)
+    }
+
+    /// Returns `true` if the given line contains no non-whitespace characters.
+    fn is_line_whitespace(&self, line: usize) -> bool {
+        let line_start_offset = self.text().offset_of_line(line);
+        let mut word_cursor = WordCursor::new(self.text(), line_start_offset);
+
+        word_cursor.next_non_blank_char();
+        let c = word_cursor.inner.next_codepoint();
+
+        match c {
+            None | Some('\n') => true,
+            Some('\r') => {
+                let c = word_cursor.inner.next_codepoint();
+                c.is_some_and(|c| c == '\n')
+            }
+            _ => false,
+        }
     }
 
     fn move_left(&self, offset: usize, mode: Mode, count: usize) -> usize {
@@ -656,5 +674,40 @@ mod tests {
         assert_eq!(text.first_non_blank_character_on_line(3), 13);
         assert_eq!(text.first_non_blank_character_on_line(4), 10);
         assert_eq!(text.first_non_blank_character_on_line(5), 10);
+    }
+
+    #[test]
+    fn test_is_line_whitespace() {
+        let text = Rope::from("");
+        let text = RopeTextVal::new(text);
+
+        assert_eq!(text.is_line_whitespace(0), true);
+
+        let text = Rope::from("\n  \t\r\t \t  \n");
+        let text = RopeTextVal::new(text);
+
+        assert_eq!(text.is_line_whitespace(0), true);
+        assert_eq!(text.is_line_whitespace(1), false);
+        assert_eq!(text.is_line_whitespace(2), true);
+
+        let text = Rope::from("qwerty\n\tf\t\r\n00");
+        let text = RopeTextVal::new(text);
+
+        assert_eq!(text.is_line_whitespace(0), false);
+        assert_eq!(text.is_line_whitespace(1), false);
+        assert_eq!(text.is_line_whitespace(2), false);
+
+        let text = Rope::from("  \r#\n\t                   \r\n)\t\t\t\t\t\t\t\t");
+        let text = RopeTextVal::new(text);
+
+        assert_eq!(text.is_line_whitespace(0), false);
+        assert_eq!(text.is_line_whitespace(1), true);
+        assert_eq!(text.is_line_whitespace(2), false);
+
+        let text = Rope::from("   \r\n  \r");
+        let text = RopeTextVal::new(text);
+
+        assert_eq!(text.is_line_whitespace(0), true);
+        assert_eq!(text.is_line_whitespace(1), false);
     }
 }

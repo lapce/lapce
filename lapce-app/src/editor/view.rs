@@ -1,4 +1,4 @@
-use std::{collections::HashMap, rc::Rc, sync::Arc};
+use std::{cmp, collections::HashMap, rc::Rc, sync::Arc};
 
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
@@ -843,6 +843,216 @@ impl EditorView {
             cx.fill(&rect, color, 0.0);
         }
     }
+
+    /// Calculate the `x` coordinate of the left edge of the given column on the given line.
+    /// If `before_cursor` is `true`, the calculated position will be to the right of any inlay
+    /// hints before and adjacent to the given column. Else, the calculated position will be to the
+    /// left of any such inlay hints.
+    fn calculate_col_x(
+        view: &EditorViewData,
+        line: usize,
+        col: usize,
+        before_cursor: bool,
+    ) -> f64 {
+        const FONT_SIZE: usize = 12;
+
+        let phantom_text = view.line_phantom_text(line);
+        let col = phantom_text.col_after(col, before_cursor);
+        view.line_point_of_line_col(line, col, FONT_SIZE).x
+    }
+
+    /// Paint a highlight around the characters at the given positions.
+    fn paint_char_highlights(
+        &self,
+        cx: &mut PaintCx,
+        screen_lines: &ScreenLines,
+        highlight_line_cols: impl Iterator<Item = (usize, usize)>,
+    ) {
+        let view = &self.editor.view;
+        let config = self.editor.common.config.get_untracked();
+        let line_height = config.editor.line_height() as f64;
+
+        for (line, col) in highlight_line_cols {
+            // Is the given line on screen?
+            if let Some(line_info) = screen_lines.info.get(&line) {
+                let x0 = Self::calculate_col_x(view, line, col, true);
+                let x1 = Self::calculate_col_x(view, line, col + 1, false);
+
+                let y0 = line_info.y as f64;
+                let y1 = y0 + line_height;
+
+                let rect = Rect::new(x0, y0, x1, y1);
+
+                cx.stroke(
+                    &rect,
+                    config.get_color(LapceColor::EDITOR_FOREGROUND),
+                    1.0,
+                );
+            }
+        }
+    }
+
+    /// Paint scope lines between `(start_line, start_col)` and `(end_line, end_col)`.
+    fn paint_scope_lines(
+        &self,
+        cx: &mut PaintCx,
+        viewport: Rect,
+        screen_lines: &ScreenLines,
+        (start_line, start_col): (usize, usize),
+        (end_line, end_col): (usize, usize),
+    ) {
+        let view = &self.editor.view;
+        let doc = view.doc.get_untracked();
+        let config = self.editor.common.config.get_untracked();
+        let line_height = config.editor.line_height() as f64;
+        let brush = config.get_color(LapceColor::EDITOR_FOREGROUND);
+
+        if start_line == end_line {
+            if let Some(line_info) = screen_lines.info.get(&start_line) {
+                let x0 =
+                    Self::calculate_col_x(view, start_line, start_col + 1, false);
+                let x1 = Self::calculate_col_x(view, end_line, end_col, true);
+
+                if x0 < x1 {
+                    let y = line_info.y as f64 + line_height;
+
+                    let p0 = Point::new(x0, y);
+                    let p1 = Point::new(x1, y);
+                    let line = Line::new(p0, p1);
+
+                    cx.stroke(&line, brush, 1.0);
+                }
+            }
+        } else {
+            // Are start_line and end_line on screen?
+            let start_line_y = screen_lines
+                .info
+                .get(&start_line)
+                .map(|line_info| line_info.y as f64 + line_height);
+            let end_line_y = screen_lines
+                .info
+                .get(&end_line)
+                .map(|line_info| line_info.y as f64 + line_height);
+
+            // We only need to draw anything if start_line is on or before the visible section and
+            // end_line is on or after the visible section.
+            let y0 = start_line_y.or_else(|| {
+                screen_lines
+                    .lines
+                    .first()
+                    .is_some_and(|&first_line| first_line > start_line)
+                    .then(|| viewport.min_y())
+            });
+            let y1 = end_line_y.or_else(|| {
+                screen_lines
+                    .lines
+                    .last()
+                    .is_some_and(|&last_line| last_line < end_line)
+                    .then(|| viewport.max_y())
+            });
+
+            if let [Some(y0), Some(y1)] = [y0, y1] {
+                let start_x =
+                    Self::calculate_col_x(view, start_line, start_col + 1, false);
+                let end_x = Self::calculate_col_x(view, end_line, end_col, true);
+
+                // The vertical line should be drawn to the left of any non-whitespace characters
+                // in the enclosed section.
+                let min_text_x = doc.buffer.with_untracked(|buffer| {
+                    ((start_line + 1)..=end_line)
+                        .filter(|&line| !buffer.is_line_whitespace(line))
+                        .map(|line| {
+                            let non_blank_offset =
+                                buffer.first_non_blank_character_on_line(line);
+                            let (_, col) = view.offset_to_line_col(non_blank_offset);
+
+                            Self::calculate_col_x(view, line, col, true)
+                        })
+                        .min_by(f64::total_cmp)
+                });
+
+                let min_x = min_text_x.map_or(start_x, |min_text_x| {
+                    cmp::min_by(min_text_x, start_x, f64::total_cmp)
+                });
+
+                // Is start_line on screen, and is the vertical line to the left of the opening
+                // bracket?
+                if let Some(y) = start_line_y.filter(|_| start_x > min_x) {
+                    let p0 = Point::new(min_x, y);
+                    let p1 = Point::new(start_x, y);
+                    let line = Line::new(p0, p1);
+
+                    cx.stroke(&line, brush, 1.0);
+                }
+
+                // Is end_line on screen, and is the vertical line to the left of the closing
+                // bracket?
+                if let Some(y) = end_line_y.filter(|_| end_x > min_x) {
+                    let p0 = Point::new(min_x, y);
+                    let p1 = Point::new(end_x, y);
+                    let line = Line::new(p0, p1);
+
+                    cx.stroke(&line, brush, 1.0);
+                }
+
+                let p0 = Point::new(min_x, y0);
+                let p1 = Point::new(min_x, y1);
+                let line = Line::new(p0, p1);
+
+                cx.stroke(&line, brush, 1.0);
+            }
+        }
+    }
+
+    /// Paint enclosing bracket highlights and scope lines if the corresponding settings are
+    /// enabled.
+    fn paint_bracket_highlights_scope_lines(
+        &self,
+        cx: &mut PaintCx,
+        viewport: Rect,
+        screen_lines: &ScreenLines,
+    ) {
+        let config = self.editor.common.config.get_untracked();
+
+        if config.editor.highlight_matching_brackets
+            || config.editor.highlight_scope_lines
+        {
+            let view = &self.editor.view;
+            let offset = self
+                .editor
+                .cursor
+                .with_untracked(|cursor| cursor.mode.offset());
+
+            let bracket_offsets = view
+                .doc
+                .with_untracked(|doc| doc.find_enclosing_brackets(offset))
+                .map(|(start, end)| [start, end]);
+
+            let bracket_line_cols = bracket_offsets.map(|bracket_offsets| {
+                bracket_offsets.map(|offset| view.offset_to_line_col(offset))
+            });
+
+            if config.editor.highlight_matching_brackets {
+                self.paint_char_highlights(
+                    cx,
+                    screen_lines,
+                    bracket_line_cols.into_iter().flatten(),
+                );
+            }
+
+            if config.editor.highlight_scope_lines {
+                if let Some([start_line_col, end_line_col]) = bracket_line_cols {
+                    self.paint_scope_lines(
+                        cx,
+                        viewport,
+                        screen_lines,
+                        start_line_col,
+                        end_line_col,
+                    );
+                }
+            }
+        }
+    }
 }
 
 impl View for EditorView {
@@ -945,6 +1155,7 @@ impl View for EditorView {
         self.paint_cursor(cx, is_local, &screen_lines);
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
         self.paint_find(cx, &screen_lines);
+        self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         self.paint_text(cx, viewport, &screen_lines);
         self.paint_sticky_headers(cx, viewport);
         self.paint_scroll_bar(cx, viewport, is_local, config);
