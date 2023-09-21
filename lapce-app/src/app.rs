@@ -50,6 +50,7 @@ use lsp_types::{CompletionItemKind, MessageType, ShowMessageParams};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use tracing::{error, metadata::LevelFilter, trace};
+use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{filter::Targets, reload::Handle};
 
 use crate::{
@@ -3350,7 +3351,7 @@ fn window(window_data: WindowData) -> impl View {
 }
 
 #[inline(always)]
-fn logging() -> Handle<Targets> {
+fn logging() -> (Handle<Targets>, WorkerGuard) {
     use tracing_subscriber::{filter, fmt, prelude::*, reload};
 
     let file_appender = tracing_appender::rolling::Builder::new()
@@ -3360,7 +3361,7 @@ fn logging() -> Handle<Targets> {
         .filename_suffix("log")
         .build(Directory::logs_directory().expect("Failed to obtain log directory"))
         .expect("Couldn't create rolling appender");
-    let (log_file, _guard) = tracing_appender::non_blocking(file_appender);
+    let (log_file, guard) = tracing_appender::non_blocking(file_appender);
     let log_file_filter_targets = filter::Targets::new()
         .with_target("lapce_app", LevelFilter::DEBUG)
         .with_target("lapce_proxy", LevelFilter::DEBUG);
@@ -3381,11 +3382,12 @@ fn logging() -> Handle<Targets> {
         .with(fmt::Subscriber::default().with_filter(console_filter_targets))
         .init();
 
-    reload_handle
+    (reload_handle, guard)
 }
 
 pub fn launch() {
-    let reload_handle = logging();
+    let (reload_handle, _guard) = logging();
+    tracing::info!("Starting up Lapce..");
 
     // if PWD is not set, then we are not being launched via a terminal
     #[cfg(any(target_os = "macos", target_os = "linux"))]
