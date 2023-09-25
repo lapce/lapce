@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, iter};
 
 use itertools::Itertools;
 use lapce_xi_rope::RopeDelta;
@@ -91,7 +91,7 @@ impl Editor {
         if let CursorMode::Insert(selection) = &cursor.mode {
             if s.chars().count() != 1 {
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(selection, s)], EditType::InsertChars);
+                    buffer.edit([(selection, s)], EditType::InsertChars);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 deltas.push((delta, inval_lines, edits));
@@ -452,7 +452,7 @@ impl Editor {
                 );
                 let selection = Selection::region(start, end);
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, "")], EditType::MotionDelete);
+                    buffer.edit([(&selection, "")], EditType::MotionDelete);
                 cursor.apply_delta(&delta);
                 deltas.push((delta, inval_lines, edits));
             }
@@ -486,6 +486,95 @@ impl Editor {
         deltas
     }
 
+    /// Compute the result of pasting `content` into `selection`.
+    /// If the number of lines to be pasted is divisible by the number of [`SelRegion`]s in
+    /// `selection`, partition the content to be pasted into groups of equal numbers of lines and
+    /// paste one group at each [`SelRegion`].
+    /// The way lines are counted and `content` is partitioned depends on `mode`.
+    fn compute_paste_edit(
+        buffer: &mut Buffer,
+        selection: &Selection,
+        content: &str,
+        mode: VisualMode,
+    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
+        if selection.len() > 1 {
+            let line_ends: Vec<_> =
+                content.match_indices('\n').map(|(idx, _)| idx).collect();
+
+            match mode {
+                // Consider lines to be separated by the line terminator.
+                // The number of lines == number of line terminators + 1.
+                // The final line in each group does not include the line terminator.
+                VisualMode::Normal
+                    if (line_ends.len() + 1) % selection.len() == 0 =>
+                {
+                    let lines_per_group = (line_ends.len() + 1) / selection.len();
+                    let mut start_idx = 0;
+                    let last_line_start = line_ends
+                        .len()
+                        .checked_sub(lines_per_group)
+                        .and_then(|line_idx| line_ends.get(line_idx))
+                        .map(|line_end| line_end + 1)
+                        .unwrap_or(0);
+
+                    let groups = line_ends
+                        .iter()
+                        .skip(lines_per_group - 1)
+                        .step_by(lines_per_group)
+                        .map(|&end_idx| {
+                            let group = &content[start_idx..end_idx];
+                            let group = group.strip_suffix('\r').unwrap_or(group);
+                            start_idx = end_idx + 1;
+
+                            group
+                        })
+                        .chain(iter::once(&content[last_line_start..]));
+
+                    let edits = selection
+                        .regions()
+                        .iter()
+                        .copied()
+                        .map(Selection::sel_region)
+                        .zip(groups);
+
+                    buffer.edit(edits, EditType::Paste)
+                }
+                // Consider lines to be terminated by the line terminator.
+                // The number of lines == number of line terminators.
+                // The final line in each group includes the line terminator.
+                VisualMode::Linewise | VisualMode::Blockwise
+                    if line_ends.len() % selection.len() == 0 =>
+                {
+                    let lines_per_group = line_ends.len() / selection.len();
+                    let mut start_idx = 0;
+
+                    let groups = line_ends
+                        .iter()
+                        .skip(lines_per_group - 1)
+                        .step_by(lines_per_group)
+                        .map(|&end_idx| {
+                            let group = &content[start_idx..=end_idx];
+                            start_idx = end_idx + 1;
+
+                            group
+                        });
+
+                    let edits = selection
+                        .regions()
+                        .iter()
+                        .copied()
+                        .map(Selection::sel_region)
+                        .zip(groups);
+
+                    buffer.edit(edits, EditType::Paste)
+                }
+                _ => buffer.edit([(&selection, content)], EditType::Paste),
+            }
+        } else {
+            buffer.edit([(&selection, content)], EditType::Paste)
+        }
+    }
+
     pub fn do_paste(
         cursor: &mut Cursor,
         buffer: &mut Buffer,
@@ -505,8 +594,12 @@ impl Editor {
                     }
                 };
                 let after = cursor.is_insert() || !data.content.contains('\n');
-                let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, &data.content)], EditType::Paste);
+                let (delta, inval_lines, edits) = Self::compute_paste_edit(
+                    buffer,
+                    &selection,
+                    &data.content,
+                    data.mode,
+                );
                 let selection =
                     selection.apply_delta(&delta, after, InsertDrift::Default);
                 deltas.push((delta, inval_lines, edits));
@@ -556,8 +649,9 @@ impl Editor {
                         (selection, data)
                     }
                 };
-                let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, &content)], EditType::Paste);
+                let (delta, inval_lines, edits) = Self::compute_paste_edit(
+                    buffer, &selection, &content, data.mode,
+                );
                 let selection = selection.apply_delta(
                     &delta,
                     cursor.is_insert(),
@@ -728,7 +822,7 @@ impl Editor {
                             let content =
                                 buffer.slice_to_cow(start..end).to_string();
                             let (delta, inval_lines, edits) = buffer.edit(
-                                &[
+                                [
                                     (&Selection::region(start, end), ""),
                                     (
                                         &Selection::caret(
@@ -764,12 +858,12 @@ impl Editor {
                             let content =
                                 buffer.slice_to_cow(start..end).to_string();
                             let (delta, inval_lines, edits) = buffer.edit(
-                                &[
+                                [
                                     (
                                         &Selection::caret(
                                             buffer.offset_of_line(end_line + 2),
                                         ),
-                                        &content,
+                                        content.as_str(),
                                     ),
                                     (&Selection::region(start, end), ""),
                                 ],
@@ -836,10 +930,8 @@ impl Editor {
                         deltas.push((delta, inval_lines, edits));
                         cursor.mode = CursorMode::Insert(selection);
                     } else {
-                        let (delta, inval_lines, edits) = buffer.edit(
-                            &[(selection.clone(), "\t")],
-                            EditType::InsertChars,
-                        );
+                        let (delta, inval_lines, edits) =
+                            buffer.edit([(&selection, "\t")], EditType::InsertChars);
                         let selection = selection.apply_delta(
                             &delta,
                             true,
@@ -864,7 +956,7 @@ impl Editor {
                     let start = buffer.line_end_offset(line, true);
                     let end = buffer.first_non_blank_character_on_line(line + 1);
                     vec![buffer.edit(
-                        &[(&Selection::region(start, end), " ")],
+                        [(&Selection::region(start, end), " ")],
                         EditType::Other,
                     )]
                 } else {
@@ -932,7 +1024,7 @@ impl Editor {
                             None,
                         ))
                     }
-                    buffer.edit(&[(&selection, "")], EditType::ToggleComment)
+                    buffer.edit([(&selection, "")], EditType::ToggleComment)
                 } else {
                     let mut selection = Selection::new();
                     for (line, _, _) in lines.iter() {
@@ -940,7 +1032,7 @@ impl Editor {
                         selection.add_region(SelRegion::new(start, start, None))
                     }
                     buffer.edit(
-                        &[(&selection, &format!("{comment_token} "))],
+                        [(&selection, format!("{comment_token} ").as_str())],
                         EditType::ToggleComment,
                     )
                 };
@@ -1039,7 +1131,7 @@ impl Editor {
                     };
 
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, "")], EditType::Cut);
+                    buffer.edit([(&selection, "")], EditType::Cut);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
@@ -1204,7 +1296,7 @@ impl Editor {
                     }
                 };
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, "")], edit_type);
+                    buffer.edit([(&selection, "")], edit_type);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
@@ -1240,7 +1332,7 @@ impl Editor {
                     }
                 };
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, "")], edit_type);
+                    buffer.edit([(&selection, "")], edit_type);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
@@ -1258,7 +1350,7 @@ impl Editor {
                 );
                 let selection = Selection::region(start, end);
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                    buffer.edit([(&selection, "")], EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.mode = CursorMode::Insert(selection);
@@ -1283,7 +1375,7 @@ impl Editor {
                     }
                 };
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, "")], EditType::DeleteWord);
+                    buffer.edit([(&selection, "")], EditType::DeleteWord);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
@@ -1308,7 +1400,7 @@ impl Editor {
                     }
                 };
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, "")], EditType::DeleteWord);
+                    buffer.edit([(&selection, "")], EditType::DeleteWord);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
@@ -1334,7 +1426,7 @@ impl Editor {
                     }
                 };
                 let (delta, inval_lines, edits) = buffer
-                    .edit(&[(&selection, "")], EditType::DeleteToBeginningOfLine);
+                    .edit([(&selection, "")], EditType::DeleteToBeginningOfLine);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
@@ -1359,7 +1451,7 @@ impl Editor {
                     }
                 };
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, "")], EditType::DeleteToEndOfLine);
+                    buffer.edit([(&selection, "")], EditType::DeleteToEndOfLine);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
@@ -1368,7 +1460,7 @@ impl Editor {
             DeleteForwardAndInsert => {
                 let selection = cursor.edit_selection(buffer);
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                    buffer.edit([(&selection, "")], EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.mode = CursorMode::Insert(selection);
@@ -1388,7 +1480,7 @@ impl Editor {
                     new_selection
                 };
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, "")], EditType::DeleteWord);
+                    buffer.edit([(&selection, "")], EditType::DeleteWord);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.mode = CursorMode::Insert(selection);
@@ -1406,7 +1498,7 @@ impl Editor {
                 );
                 let selection = Selection::region(start, end - 1); // -1 because we want to keep the line itself
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                    buffer.edit([(&selection, "")], EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.mode = CursorMode::Insert(selection);
@@ -1424,7 +1516,7 @@ impl Editor {
                 selection.add_region(new_region);
 
                 let (delta, inval_lines, edits) =
-                    buffer.edit(&[(&selection, "")], EditType::Delete);
+                    buffer.edit([(&selection, "")], EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.mode = CursorMode::Insert(selection);
