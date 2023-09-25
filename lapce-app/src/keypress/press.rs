@@ -14,9 +14,10 @@ pub struct KeyPress {
 impl KeyPress {
     pub fn to_lowercase(&self) -> Self {
         let key = match &self.key {
-            KeyInput::Keyboard(Key::Character(c)) => {
-                KeyInput::Keyboard(Key::Character(c.to_lowercase().into()))
-            }
+            KeyInput::Keyboard(Key::Character(c), key_code) => KeyInput::Keyboard(
+                Key::Character(c.to_lowercase().into()),
+                *key_code,
+            ),
             _ => self.key.clone(),
         };
         Self {
@@ -29,7 +30,7 @@ impl KeyPress {
         let mut mods = self.mods;
         mods.set(ModifiersState::SHIFT, false);
         if mods.is_empty() {
-            if let KeyInput::Keyboard(Key::Character(_c)) = &self.key {
+            if let KeyInput::Keyboard(Key::Character(_c), _) = &self.key {
                 return true;
             }
         }

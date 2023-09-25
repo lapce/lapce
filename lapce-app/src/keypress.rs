@@ -151,7 +151,7 @@ impl KeyPressData {
             return false;
         }
 
-        if let KeyInput::Keyboard(Key::Character(c)) = &keypress.key {
+        if let KeyInput::Keyboard(Key::Character(c), _key_code) = &keypress.key {
             if let Ok(n) = c.parse::<usize>() {
                 if self.count.with_untracked(|count| count.is_some()) || n > 0 {
                     self.count
@@ -189,7 +189,10 @@ impl KeyPressData {
                 return None;
             }
             EventRef::Keyboard(ev) => KeyPress {
-                key: KeyInput::Keyboard(ev.key.logical_key.clone()),
+                key: KeyInput::Keyboard(
+                    ev.key.logical_key.clone(),
+                    ev.key.physical_key,
+                ),
                 // We are removing Shift modifier since the character is already upper case.
                 mods: Self::get_key_modifiers(ev),
             },
@@ -295,10 +298,10 @@ impl KeyPressData {
             mods.set(ModifiersState::SHIFT, false);
         }
         if mods.is_empty() {
-            if let KeyInput::Keyboard(Key::Character(c)) = &keypress.key {
+            if let KeyInput::Keyboard(Key::Character(c), _key_code) = &keypress.key {
                 focus.receive_char(c);
                 return true;
-            } else if let KeyInput::Keyboard(Key::Space) = &keypress.key {
+            } else if let KeyInput::Keyboard(Key::Space, _) = &keypress.key {
                 focus.receive_char(" ");
                 return true;
             }
