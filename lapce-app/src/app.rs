@@ -628,7 +628,7 @@ fn editor_tab_header(
                 })
                 .style(move |s| {
                     s.apply_if(tab_close_button_style == TabCloseButton::Off, |s| {
-                        s.margin_right_px(10.0)
+                        s.margin_right_px(15.0)
                     })
                 });
 

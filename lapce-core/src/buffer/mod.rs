@@ -1,5 +1,5 @@
 use std::{
-    borrow::Cow,
+    borrow::{Borrow, Cow},
     cmp::Ordering,
     collections::BTreeSet,
     sync::{
@@ -280,14 +280,20 @@ impl Buffer {
         self.last_edit_type = EditType::Other;
     }
 
-    pub fn edit(
+    pub fn edit<'a, I, E, S>(
         &mut self,
-        edits: &[(impl AsRef<Selection>, &str)],
+        edits: I,
         edit_type: EditType,
-    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
+    ) -> (RopeDelta, InvalLines, SyntaxEdit)
+    where
+        I: IntoIterator<Item = E>,
+        E: Borrow<(S, &'a str)>,
+        S: AsRef<Selection>,
+    {
         let mut builder = DeltaBuilder::new(self.len());
         let mut interval_rope = Vec::new();
-        for (selection, content) in edits {
+        for edit in edits {
+            let (selection, content) = edit.borrow();
             let rope = Rope::from(content);
             for region in selection.as_ref().regions() {
                 interval_rope.push((region.min(), region.max(), rope.clone()));
