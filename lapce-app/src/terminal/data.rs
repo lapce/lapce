@@ -17,7 +17,10 @@ use lapce_core::{
     movement::{LinePosition, Movement},
     register::Clipboard,
 };
-use lapce_rpc::{dap_types::RunDebugConfig, terminal::TermId};
+use lapce_rpc::{
+    dap_types::RunDebugConfig,
+    terminal::{TermId, TerminalProfile},
+};
 use parking_lot::RwLock;
 
 use super::{
@@ -299,17 +302,23 @@ impl TerminalData {
         cx: Scope,
         workspace: Arc<LapceWorkspace>,
         run_debug: Option<RunDebugProcess>,
+        profile: Option<TerminalProfile>,
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
         let term_id = TermId::next();
 
-        let title = cx.create_rw_signal("title".to_string());
+        let title = if let Some(profile) = &profile {
+            cx.create_rw_signal(profile.name.to_owned())
+        } else {
+            cx.create_rw_signal(String::from("Default"))
+        };
 
         let raw = Self::new_raw_terminal(
             workspace.clone(),
             term_id,
             run_debug.as_ref().map(|r| &r.config),
+            profile,
             common.clone(),
         );
 
@@ -335,6 +344,7 @@ impl TerminalData {
         workspace: Arc<LapceWorkspace>,
         term_id: TermId,
         run_debug: Option<&RunDebugConfig>,
+        profile: Option<TerminalProfile>,
         common: Rc<CommonData>,
     ) -> Arc<RwLock<RawTerminal>> {
         let raw = Arc::new(RwLock::new(RawTerminal::new(
@@ -343,39 +353,55 @@ impl TerminalData {
             common.term_notification_tx.clone(),
         )));
 
-        let mut cwd = workspace.path.as_ref().cloned();
-        let mut env = None;
-        let shell = if let Some(run_debug) = run_debug {
+        let mut profile = match profile {
+            Some(profile) => profile,
+            None => TerminalProfile::default(),
+        };
+
+        if profile.workdir.is_none() {
+            profile.workdir = if let Ok(path) = url::Url::from_file_path(
+                workspace.path.as_ref().cloned().unwrap_or_default(),
+            ) {
+                Some(path)
+            } else {
+                None
+            };
+        }
+
+        if let Some(run_debug) = run_debug {
             if let Some(path) = run_debug.cwd.as_ref() {
-                cwd = Some(PathBuf::from(path));
+                if let Ok(as_url) = url::Url::from_file_path(PathBuf::from(path)) {
+                    profile.workdir = Some(as_url);
+                }
                 if path.contains("${workspace}") {
                     if let Some(workspace) = workspace
                         .path
                         .as_ref()
                         .and_then(|workspace| workspace.to_str())
                     {
-                        cwd = Some(PathBuf::from(
+                        if let Ok(as_url) = url::Url::from_file_path(PathBuf::from(
                             &path.replace("${workspace}", workspace),
-                        ));
+                        )) {
+                            profile.workdir = Some(as_url);
+                        }
                     }
                 }
             }
 
-            env = run_debug.env.clone();
+            profile.environment = run_debug.env.clone();
 
             if let Some(debug_command) = run_debug.debug_command.as_ref() {
-                debug_command.clone()
+                profile.command = Some(debug_command.clone());
             } else {
-                format!("{} {}", run_debug.program, run_debug.args.join(" "))
+                profile.command = Some(run_debug.program.clone());
+                profile.arguments = Some(run_debug.args.clone());
             }
-        } else {
-            common.config.get_untracked().terminal.shell.clone()
-        };
+        }
 
         {
             let raw = raw.clone();
             let _ = common.term_tx.send((term_id, TermEvent::NewTerminal(raw)));
-            common.proxy.new_terminal(term_id, cwd, env, shell);
+            common.proxy.new_terminal(term_id, profile);
         }
         raw
     }
@@ -544,6 +570,8 @@ impl TerminalData {
             Key::End => term_sequence!([all], key, "\x1bOF", "\x1b[1;", "F"),
             Key::Insert => term_sequence!([all], key, "\x1b[2~", "\x1b[2;", "~"),
             Key::Delete => term_sequence!([all], key, "\x1b[3~", "\x1b[3;", "~"),
+            Key::PageUp => term_sequence!([all], key, "\x1b[5~", "\x1b[5;", "~"),
+            Key::PageDown => term_sequence!([all], key, "\x1b[6~", "\x1b[6;", "~"),
             _ => None,
         }
     }
@@ -647,6 +675,7 @@ impl TerminalData {
             self.workspace.clone(),
             self.term_id,
             run_debug.as_ref().map(|r| &r.config),
+            None,
             self.common.clone(),
         );
 

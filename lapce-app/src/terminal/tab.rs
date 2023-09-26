@@ -1,6 +1,7 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::reactive::{RwSignal, Scope};
+use lapce_rpc::terminal::TerminalProfile;
 
 use super::data::TerminalData;
 use crate::{
@@ -20,10 +21,12 @@ impl TerminalTabData {
     pub fn new(
         workspace: Arc<LapceWorkspace>,
         run_debug: Option<RunDebugProcess>,
+        profile: Option<TerminalProfile>,
         common: Rc<CommonData>,
     ) -> Self {
         let cx = common.scope.create_child();
-        let terminal_data = TerminalData::new(cx, workspace, run_debug, common);
+        let terminal_data =
+            TerminalData::new(cx, workspace, run_debug, profile, common);
         let terminals = im::vector![(cx.create_rw_signal(0), terminal_data)];
         let terminals = cx.create_rw_signal(terminals);
         let active = cx.create_rw_signal(0);

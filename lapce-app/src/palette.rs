@@ -27,6 +27,7 @@ use lapce_xi_rope::Rope;
 use lsp_types::DocumentSymbolResponse;
 use nucleo::Utf32Str;
 use strum::{EnumMessage, IntoEnumIterator};
+use tracing::error;
 
 use self::{
     item::{PaletteItem, PaletteItemContent},
@@ -372,6 +373,7 @@ impl PaletteData {
             PaletteKind::SCMReferences => {
                 self.get_scm_references();
             }
+            PaletteKind::TerminalProfile => self.get_terminal_profiles(),
         }
     }
 
@@ -881,6 +883,42 @@ impl PaletteData {
         self.items.set(items);
     }
 
+    fn get_terminal_profiles(&self) {
+        let profiles = self.common.config.get().terminal.profiles.clone();
+        let mut items: im::Vector<PaletteItem> = im::Vector::new();
+
+        for (name, profile) in profiles.into_iter() {
+            let uri = match lsp_types::Url::parse(&format!(
+                "file://{}",
+                profile.workdir.unwrap_or_default().display()
+            )) {
+                Ok(v) => Some(v),
+                Err(e) => {
+                    error!("Failed to parse uri: {e}");
+                    None
+                }
+            };
+
+            items.push_back(PaletteItem {
+                content: PaletteItemContent::TerminalProfile {
+                    name: name.to_owned(),
+                    profile: lapce_rpc::terminal::TerminalProfile {
+                        name: name.to_owned(),
+                        command: profile.command,
+                        arguments: profile.arguments,
+                        workdir: uri,
+                        environment: profile.environment,
+                    },
+                },
+                filter_text: name.to_owned(),
+                score: 0,
+                indices: Vec::new(),
+            });
+        }
+
+        self.items.set(items);
+    }
+
     fn preselect_matching(&self, items: &im::Vector<PaletteItem>, matching: &str) {
         let Some((idx, _)) = items
             .iter()
@@ -1057,6 +1095,12 @@ impl PaletteData {
                         data: Some(serde_json::json!(name.to_owned())),
                     });
                 }
+                PaletteItemContent::TerminalProfile { name: _, profile } => self
+                    .common
+                    .internal_command
+                    .send(InternalCommand::NewTerminal {
+                        profile: Some(profile.to_owned()),
+                    }),
             }
         } else if self.kind.get_untracked() == PaletteKind::SshHost {
             let input = self.input.with_untracked(|input| input.input.clone());
@@ -1185,6 +1229,7 @@ impl PaletteData {
                         save: false,
                     }),
                 PaletteItemContent::SCMReference { .. } => {}
+                PaletteItemContent::TerminalProfile { .. } => {}
             }
         }
     }

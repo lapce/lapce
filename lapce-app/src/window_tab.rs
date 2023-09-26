@@ -432,7 +432,7 @@ impl WindowTabData {
             });
 
         let terminal =
-            TerminalPanelData::new(workspace.clone(), None, common.clone());
+            TerminalPanelData::new(workspace.clone(), None, None, common.clone());
 
         let rename = RenameData::new(cx, common.clone());
         let global_search = GlobalSearchData::new(cx, main_split.clone());
@@ -876,7 +876,7 @@ impl WindowTabData {
 
             // ==== Terminal ====
             NewTerminalTab => {
-                self.terminal.new_tab(None);
+                self.terminal.new_tab(None, None);
                 if !self.panel.is_panel_visible(&PanelKind::Terminal) {
                     self.panel.show_panel(&PanelKind::Terminal);
                 }
@@ -1312,6 +1312,9 @@ impl WindowTabData {
             } => {
                 self.main_split
                     .save_jump_location(path, offset, scroll_offset);
+            }
+            InternalCommand::NewTerminal { profile } => {
+                self.terminal.new_tab(None, profile);
             }
             InternalCommand::SplitTerminal { term_id } => {
                 self.terminal.split(term_id);
@@ -1939,7 +1942,7 @@ impl WindowTabData {
                 .tab_info
                 .with_untracked(|info| info.tabs.is_empty())
         {
-            self.terminal.new_tab(None);
+            self.terminal.new_tab(None, None);
         }
         self.panel.show_panel(&kind);
         if kind == PanelKind::Search
@@ -1993,12 +1996,15 @@ impl WindowTabData {
 
             terminal.term_id
         } else {
-            let new_terminal_tab = self.terminal.new_tab(Some(RunDebugProcess {
-                mode: *mode,
-                config: config.clone(),
-                stopped: false,
-                created: Instant::now(),
-            }));
+            let new_terminal_tab = self.terminal.new_tab(
+                Some(RunDebugProcess {
+                    mode: *mode,
+                    config: config.clone(),
+                    stopped: false,
+                    created: Instant::now(),
+                }),
+                None,
+            );
             new_terminal_tab.active_terminal(false).unwrap().term_id
         };
         self.common.focus.set(Focus::Panel(PanelKind::Terminal));
