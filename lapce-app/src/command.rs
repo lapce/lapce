@@ -6,8 +6,10 @@ use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
 use lapce_rpc::{
-    dap_types::RunDebugConfig, plugin::PluginId, proxy::ProxyStatus,
-    terminal::TermId,
+    dap_types::RunDebugConfig,
+    plugin::PluginId,
+    proxy::ProxyStatus,
+    terminal::{TermId, TerminalProfile},
 };
 use lsp_types::{CodeActionOrCommand, Position, WorkspaceEdit};
 use serde_json::Value;
@@ -538,6 +540,9 @@ pub enum InternalCommand {
     },
     SplitExchange {
         editor_tab_id: EditorTabId,
+    },
+    NewTerminal {
+        profile: Option<TerminalProfile>,
     },
     SplitTerminal {
         term_id: TermId,

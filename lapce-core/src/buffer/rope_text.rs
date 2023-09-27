@@ -681,33 +681,33 @@ mod tests {
         let text = Rope::from("");
         let text = RopeTextVal::new(text);
 
-        assert_eq!(text.is_line_whitespace(0), true);
+        assert!(text.is_line_whitespace(0));
 
         let text = Rope::from("\n  \t\r\t \t  \n");
         let text = RopeTextVal::new(text);
 
-        assert_eq!(text.is_line_whitespace(0), true);
-        assert_eq!(text.is_line_whitespace(1), false);
-        assert_eq!(text.is_line_whitespace(2), true);
+        assert!(text.is_line_whitespace(0));
+        assert!(!text.is_line_whitespace(1));
+        assert!(text.is_line_whitespace(2));
 
         let text = Rope::from("qwerty\n\tf\t\r\n00");
         let text = RopeTextVal::new(text);
 
-        assert_eq!(text.is_line_whitespace(0), false);
-        assert_eq!(text.is_line_whitespace(1), false);
-        assert_eq!(text.is_line_whitespace(2), false);
+        assert!(!text.is_line_whitespace(0));
+        assert!(!text.is_line_whitespace(1));
+        assert!(!text.is_line_whitespace(2));
 
         let text = Rope::from("  \r#\n\t                   \r\n)\t\t\t\t\t\t\t\t");
         let text = RopeTextVal::new(text);
 
-        assert_eq!(text.is_line_whitespace(0), false);
-        assert_eq!(text.is_line_whitespace(1), true);
-        assert_eq!(text.is_line_whitespace(2), false);
+        assert!(!text.is_line_whitespace(0));
+        assert!(text.is_line_whitespace(1));
+        assert!(!text.is_line_whitespace(2));
 
         let text = Rope::from("   \r\n  \r");
         let text = RopeTextVal::new(text);
 
-        assert_eq!(text.is_line_whitespace(0), true);
-        assert_eq!(text.is_line_whitespace(1), false);
+        assert!(text.is_line_whitespace(0));
+        assert!(!text.is_line_whitespace(1));
     }
 }

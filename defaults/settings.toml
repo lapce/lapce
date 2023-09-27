@@ -55,7 +55,14 @@ scroll-speed-modifier=1
 font-family = ""
 font-size = 0
 line-height = 0
-shell = ""
+
+[terminal.default-profile]
+macos   = "default"
+linux   = "default"
+windows = "default"
+
+[terminal.profiles]
+default = {}
 
 [ui]
 font-family = ""

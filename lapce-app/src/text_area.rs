@@ -98,8 +98,8 @@ pub fn text_area(
                     let cursor_pos = cursor_pos();
                     s.absolute()
                         .line_height(line_height)
-                        .margin_left_px(cursor_pos.x as f32 - 1.0)
-                        .margin_top_px(cursor_pos.y as f32)
+                        .margin_left(cursor_pos.x as f32 - 1.0)
+                        .margin_top(cursor_pos.y as f32)
                         .border_left(2.0)
                         .border_color(
                             *config.get().get_color(LapceColor::EDITOR_CARET),
@@ -107,7 +107,7 @@ pub fn text_area(
                         .apply_if(!is_active(), |s| s.hide())
                 }),
             ))
-            .style(|s| s.width_pct(100.0).padding_px(6.0)),
+            .style(|s| s.width_pct(100.0).padding(6.0)),
         )
         .style(|s| s.absolute().size_pct(100.0, 100.0)),
     )

@@ -379,7 +379,7 @@ pub fn settings_view(
         let kind = k.clone();
         container(
             label(move || k.clone())
-                .style(move |s| s.text_ellipsis().padding_left_px(margin)),
+                .style(move |s| s.text_ellipsis().padding_left(margin)),
         )
         .on_click(move |_| {
             if let Some(pos) = pos() {
@@ -393,7 +393,7 @@ pub fn settings_view(
             true
         })
         .style(move |s| {
-            s.padding_horiz_px(20.0).width_pct(100.0).apply_if(
+            s.padding_horiz(20.0).width_pct(100.0).apply_if(
                 kind == current_kind.get(),
                 |s| {
                     s.background(
@@ -462,13 +462,13 @@ pub fn settings_view(
         container({
             scroll({
                 container(switcher())
-                    .style(|s| s.padding_vert_px(20.0).width_pct(100.0))
+                    .style(|s| s.padding_vert(20.0).width_pct(100.0))
             })
             .style(|s| s.absolute().size_pct(100.0, 100.0))
         })
         .style(move |s| {
             s.height_pct(100.0)
-                .width_px(200.0)
+                .width(200.0)
                 .border_right(1.0)
                 .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
         }),
@@ -486,7 +486,7 @@ pub fn settings_view(
                             )
                     })
             })
-            .style(|s| s.padding_horiz_px(50.0).padding_vert_px(20.0)),
+            .style(|s| s.padding_horiz(50.0).padding_vert(20.0)),
             container({
                 scroll({
                     virtual_list(
@@ -502,9 +502,9 @@ pub fn settings_view(
                     )
                     .style(|s| {
                         s.flex_col()
-                            .padding_horiz_px(50.0)
+                            .padding_horiz(50.0)
                             .min_width_pct(100.0)
-                            .max_width_px(400.0)
+                            .max_width(400.0)
                     })
                 })
                 .on_scroll(move |rect| {
@@ -617,7 +617,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                 container_box(
                     text_input(editor, || false).keyboard_navigatable().style(
                         move |s| {
-                            s.width_px(300.0)
+                            s.width(300.0)
                                 .border(1.0)
                                 .border_radius(6.0)
                                 .border_color(
@@ -656,7 +656,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             expanded.set(false);
                             true
                         })
-                        .style(|s| s.text_ellipsis().padding_horiz_px(10.0))
+                        .style(|s| s.text_ellipsis().padding_horiz(10.0))
                         .hover_style(move |s| {
                             s.cursor(CursorStyle::Pointer).background(
                                 *config
@@ -671,7 +671,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             label(move || current_value.get()).style(move |s| {
                                 s.text_ellipsis()
                                     .width_pct(100.0)
-                                    .padding_horiz_px(10.0)
+                                    .padding_horiz(10.0)
                             }),
                             container(
                                 svg(move || {
@@ -680,14 +680,14 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 .style(move |s| {
                                     let config = config.get();
                                     let size = config.ui.icon_size() as f32;
-                                    s.size_px(size, size).color(
+                                    s.size(size, size).color(
                                         *config.get_color(
                                             LapceColor::LAPCE_ICON_ACTIVE,
                                         ),
                                     )
                                 }),
                             )
-                            .style(|s| s.padding_right_px(4.0)),
+                            .style(|s| s.padding_right(4.0)),
                         ))
                         .on_click(move |_| {
                             expanded.update(|expanded| {
@@ -730,7 +730,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                     *config.get_color(LapceColor::EDITOR_BACKGROUND),
                                 )
                                 .width_pct(100.0)
-                                .max_height_px(300.0)
+                                .max_height(300.0)
                                 .z_index(1)
                                 .border_top(1.0)
                                 .border_radius(6.0)
@@ -763,7 +763,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 })
                         }),
                     ))
-                    .style(move |s| s.width_px(250.0).line_height(1.8)),
+                    .style(move |s| s.width(250.0).line_height(1.8)),
                 )
             } else if item.header {
                 container_box(label(move || item.kind.clone()).style(move |s| {
@@ -771,7 +771,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     s.line_height(2.0)
                         .font_bold()
                         .width_pct(100.0)
-                        .padding_horiz_px(10.0)
+                        .padding_horiz(10.0)
                         .font_size(config.ui.font_size() as f32 + 2.0)
                         .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
                 }))
@@ -785,18 +785,18 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
         label(move || item.name.clone()).style(move |s| {
             s.font_bold()
                 .text_ellipsis()
-                .min_width_px(0.0)
+                .min_width(0.0)
                 .max_width_pct(100.0)
                 .line_height(1.6)
                 .font_size(config.get().ui.font_size() as f32 + 1.0)
         }),
         stack((
             label(move || item.description.clone()).style(move |s| {
-                s.min_width_px(0.0)
+                s.min_width(0.0)
                     .max_width_pct(100.0)
                     .line_height(1.6)
                     .apply_if(is_ticked.is_some(), |s| {
-                        s.margin_left_px(config.get().ui.font_size() as f32 + 8.0)
+                        s.margin_left(config.get().ui.font_size() as f32 + 8.0)
                     })
                     .apply_if(item.header, |s| s.hide())
             }),
@@ -841,7 +841,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                 container_box(empty()).style(|s| s.hide())
             },
         )),
-        view().style(move |s| s.apply_if(!item.header, |s| s.margin_top_px(6.0))),
+        view().style(move |s| s.apply_if(!item.header, |s| s.margin_top(6.0))),
     ))
     .on_resize(move |rect| {
         if item.header {
@@ -855,9 +855,9 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
     })
     .style(|s| {
         s.flex_col()
-            .padding_vert_px(10.0)
+            .padding_vert(10.0)
             .min_width_pct(100.0)
-            .max_width_px(300.0)
+            .max_width(300.0)
     })
 }
 
@@ -873,8 +873,8 @@ pub fn checkbox(
         let size = config.ui.font_size() as f32;
         let color = *config.get_color(LapceColor::EDITOR_FOREGROUND);
 
-        s.min_width_px(size)
-            .size_px(size, size)
+        s.min_width(size)
+            .size(size, size)
             .color(color)
             .border_color(color)
             .border(1.)

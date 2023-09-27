@@ -65,18 +65,18 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
             stack((
                 svg(move || config.get().ui_svg(LapceIcons::WARNING)).style(
                     move |s| {
-                        s.size_px(50.0, 50.0)
+                        s.size(50.0, 50.0)
                             .color(*config.get().get_color(LapceColor::LAPCE_WARN))
                     },
                 ),
                 label(move || title.get()).style(move |s| {
-                    s.margin_top_px(20.0)
+                    s.margin_top(20.0)
                         .width_pct(100.0)
                         .font_bold()
                         .font_size((config.get().ui.font_size() + 1) as f32)
                 }),
                 label(move || msg.get())
-                    .style(move |s| s.width_pct(100.0).margin_top_px(10.0)),
+                    .style(move |s| s.width_pct(100.0).margin_top(10.0)),
                 list(
                     move || buttons.get(),
                     move |_button| {
@@ -90,7 +90,7 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                             })
                             .style(move |s| {
                                 let config = config.get();
-                                s.margin_top_px(10.0)
+                                s.margin_top(10.0)
                                     .width_pct(100.0)
                                     .justify_center()
                                     .font_size((config.ui.font_size() + 1) as f32)
@@ -115,7 +115,7 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                             })
                     },
                 )
-                .style(|s| s.flex_col().width_pct(100.0).margin_top_px(10.0)),
+                .style(|s| s.flex_col().width_pct(100.0).margin_top(10.0)),
                 label(|| "Cancel".to_string())
                     .on_click(move |_| {
                         active.set(false);
@@ -123,7 +123,7 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                     })
                     .style(move |s| {
                         let config = config.get();
-                        s.margin_top_px(20.0)
+                        s.margin_top(20.0)
                             .width_pct(100.0)
                             .justify_center()
                             .font_size((config.ui.font_size() + 1) as f32)
@@ -154,8 +154,8 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
         .on_event(EventListener::PointerDown, |_| true)
         .style(move |s| {
             let config = config.get();
-            s.padding_px(20.0)
-                .width_px(250.0)
+            s.padding(20.0)
+                .width(250.0)
                 .border(1.0)
                 .border_radius(6.0)
                 .border_color(*config.get_color(LapceColor::LAPCE_BORDER))

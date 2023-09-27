@@ -72,4 +72,8 @@ pub enum PaletteItemContent {
     SCMReference {
         name: String,
     },
+    TerminalProfile {
+        name: String,
+        profile: lapce_rpc::terminal::TerminalProfile,
+    },
 }

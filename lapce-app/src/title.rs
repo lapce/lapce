@@ -5,7 +5,7 @@ use floem::{
     menu::{Menu, MenuItem},
     peniko::Color,
     reactive::{create_memo, Memo, ReadSignal, RwSignal},
-    style::{AlignItems, CursorStyle, Dimension, JustifyContent},
+    style::{AlignItems, CursorStyle, JustifyContent},
     view::View,
     views::{container, drag_window_area, empty, label, stack, svg, Decorators},
 };
@@ -40,28 +40,28 @@ fn left(
             } else {
                 true
             };
-            s.width_px(75.0).apply_if(should_hide, |s| s.hide())
+            s.width(75.0).apply_if(should_hide, |s| s.hide())
         }),
         container(svg(move || config.get().ui_svg(LapceIcons::LOGO)).style(
             move |s| {
                 let config = config.get();
-                s.size_px(16.0, 16.0)
+                s.size(16.0, 16.0)
                     .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
             },
         ))
-        .style(move |s| s.margin_horiz_px(10.0).apply_if(is_macos, |s| s.hide())),
+        .style(move |s| s.margin_horiz(10.0).apply_if(is_macos, |s| s.hide())),
         clickable_icon(|| LapceIcons::MENU, move || {}, || false, || false, config)
             .popout_menu(move || window_menu(lapce_command, workbench_command))
             .style(move |s| {
-                s.margin_left_px(4.0)
-                    .margin_right_px(6.0)
+                s.margin_left(4.0)
+                    .margin_right(6.0)
                     .apply_if(is_macos, |s| s.hide())
             }),
         container(svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(
             move |s| {
                 let config = config.get();
                 let size = (config.ui.icon_size() as f32 + 2.0).min(30.0);
-                s.size_px(size, size).color(if is_local {
+                s.size(size, size).color(if is_local {
                     *config.get_color(LapceColor::LAPCE_ICON_ACTIVE)
                 } else {
                     match proxy_status.get() {
@@ -118,16 +118,16 @@ fn left(
                 }
             };
             s.height_pct(100.0)
-                .padding_horiz_px(10.0)
+                .padding_horiz(10.0)
                 .items_center()
                 .background(color)
         }),
         drag_window_area(empty())
-            .style(|s| s.height_pct(100.0).flex_basis_px(0.0).flex_grow(1.0)),
+            .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0)),
     ))
     .style(move |s| {
         s.height_pct(100.0)
-            .flex_basis(Dimension::Points(0.0))
+            .flex_basis(0.0)
             .flex_grow(1.0)
             .items_center()
     })
@@ -157,7 +157,7 @@ fn middle(
             move || !can_jump_backward.get(),
             config,
         )
-        .style(move |s| s.margin_horiz_px(6.0))
+        .style(move |s| s.margin_horiz(6.0))
     };
     let jump_forward = move || {
         clickable_icon(
@@ -169,7 +169,7 @@ fn middle(
             move || !can_jump_forward.get(),
             config,
         )
-        .style(move |s| s.margin_right_px(6.0))
+        .style(move |s| s.margin_right(6.0))
     };
 
     let open_folder = move || {
@@ -194,12 +194,12 @@ fn middle(
     stack((
         stack((
             drag_window_area(empty())
-                .style(|s| s.height_pct(100.0).flex_basis_px(0.0).flex_grow(1.0)),
+                .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0)),
             jump_backward(),
             jump_forward(),
         ))
         .style(|s| {
-            s.flex_basis(Dimension::Points(0.0))
+            s.flex_basis(0)
                 .flex_grow(1.0)
                 .justify_content(Some(JustifyContent::FlexEnd))
         }),
@@ -209,7 +209,7 @@ fn middle(
                     move |s| {
                         let config = config.get();
                         let icon_size = config.ui.icon_size() as f32;
-                        s.size_px(icon_size, icon_size)
+                        s.size(icon_size, icon_size)
                             .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
                     },
                 ),
@@ -220,7 +220,7 @@ fn middle(
                         "Open Folder".to_string()
                     }
                 })
-                .style(|s| s.padding_left_px(10.0).padding_right_px(5.0)),
+                .style(|s| s.padding_left(10).padding_right(5)),
                 open_folder(),
             ))
             .style(|s| s.align_items(Some(AlignItems::Center))),
@@ -236,11 +236,11 @@ fn middle(
         })
         .style(move |s| {
             let config = config.get();
-            s.flex_basis(Dimension::Points(0.0))
+            s.flex_basis(0)
                 .flex_grow(10.0)
-                .min_width_px(200.0)
-                .max_width_px(500.0)
-                .height_px(26.0)
+                .min_width(200.0)
+                .max_width(500.0)
+                .height(26.0)
                 .justify_content(Some(JustifyContent::Center))
                 .align_items(Some(AlignItems::Center))
                 .border(1.0)
@@ -258,18 +258,18 @@ fn middle(
                 || false,
                 config,
             )
-            .style(move |s| s.margin_horiz_px(6.0)),
+            .style(move |s| s.margin_horiz(6.0)),
             drag_window_area(empty())
-                .style(|s| s.height_pct(100.0).flex_basis_px(0.0).flex_grow(1.0)),
+                .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0)),
         ))
         .style(move |s| {
-            s.flex_basis(Dimension::Points(0.0))
+            s.flex_basis(0)
                 .flex_grow(1.0)
                 .justify_content(Some(JustifyContent::FlexStart))
         }),
     ))
     .style(|s| {
-        s.flex_basis(Dimension::Points(0.0))
+        s.flex_basis(0)
             .flex_grow(2.0)
             .align_items(Some(AlignItems::Center))
             .justify_content(Some(JustifyContent::Center))
@@ -302,7 +302,7 @@ fn right(
 
     stack((
         drag_window_area(empty())
-            .style(|s| s.height_pct(100.0).flex_basis_px(0.0).flex_grow(1.0)),
+            .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0)),
         stack((
             clickable_icon(
                 || LapceIcons::SETTINGS,
@@ -352,8 +352,8 @@ fn right(
                 s.font_size(10.0)
                     .color(*config.get_color(LapceColor::EDITOR_BACKGROUND))
                     .border_radius(100.0)
-                    .margin_left_px(5.0)
-                    .margin_top_px(10.0)
+                    .margin_left(5.0)
+                    .margin_top(10.0)
                     .background(*config.get_color(LapceColor::EDITOR_CARET))
             }))
             .style(move |s| {
@@ -365,7 +365,7 @@ fn right(
                     .apply_if(!has_update, |s| s.hide())
             }),
         ))
-        .style(move |s| s.margin_horiz_px(6.0)),
+        .style(move |s| s.margin_horiz(6.0)),
         window_controls_view(
             window_command,
             true,
@@ -375,7 +375,7 @@ fn right(
         ),
     ))
     .style(|s| {
-        s.flex_basis(Dimension::Points(0.0))
+        s.flex_basis(0)
             .flex_grow(1.0)
             .justify_content(Some(JustifyContent::FlexEnd))
     })
@@ -427,7 +427,7 @@ pub fn title(window_tab_data: Rc<WindowTabData>) -> impl View {
     .style(move |s| {
         let config = config.get();
         s.width_pct(100.0)
-            .height_px(37.0)
+            .height(37.0)
             .items_center()
             .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             .border_bottom(1.0)
@@ -452,7 +452,7 @@ pub fn window_controls_view(
             || false,
             config,
         )
-        .style(|s| s.margin_right_px(16.0).margin_left_px(10.0)),
+        .style(|s| s.margin_right(16.0).margin_left(10.0)),
         clickable_icon(
             move || {
                 if window_maximized.get() {
@@ -470,7 +470,7 @@ pub fn window_controls_view(
             || false,
             config,
         )
-        .style(|s| s.margin_right_px(16.0)),
+        .style(|s| s.margin_right(16.0)),
         clickable_icon(
             || LapceIcons::WINDOW_CLOSE,
             move || {
@@ -480,7 +480,7 @@ pub fn window_controls_view(
             || false,
             config,
         )
-        .style(|s| s.margin_right_px(6.0)),
+        .style(|s| s.margin_right(6.0)),
     ))
     .style(move |s| {
         s.apply_if(

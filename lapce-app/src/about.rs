@@ -101,16 +101,16 @@ pub fn about_popup(window_tab_data: Rc<WindowTabData>) -> impl View {
     exclusive_popup(window_tab_data, about_data.visible, move || {
         stack((
             svg(move || (*config.get()).logo_svg()).style(move |s| {
-                s.size_px(logo_size, logo_size)
+                s.size(logo_size, logo_size)
                     .color(*config.get().get_color(LapceColor::EDITOR_FOREGROUND))
             }),
             label(|| "Lapce".to_string()).style(move |s| {
                 s.font_bold()
-                    .margin_top_px(10.0)
+                    .margin_top(10.0)
                     .color(*config.get().get_color(LapceColor::EDITOR_FOREGROUND))
             }),
             label(|| format!("Version: {}", VERSION)).style(move |s| {
-                s.margin_top_px(10.0)
+                s.margin_top(10.0)
                     .color(*config.get().get_color(LapceColor::EDITOR_DIM))
             }),
             web_link(
@@ -119,32 +119,32 @@ pub fn about_popup(window_tab_data: Rc<WindowTabData>) -> impl View {
                 move || *config.get().get_color(LapceColor::EDITOR_LINK),
                 internal_command,
             )
-            .style(|s| s.margin_top_px(20.0)),
+            .style(|s| s.margin_top(20.0)),
             web_link(
                 || "GitHub".to_string(),
                 || AboutUri::GITHUB.to_string(),
                 move || *config.get().get_color(LapceColor::EDITOR_LINK),
                 internal_command,
             )
-            .style(|s| s.margin_top_px(10.0)),
+            .style(|s| s.margin_top(10.0)),
             web_link(
                 || "Discord".to_string(),
                 || AboutUri::DISCORD.to_string(),
                 move || *config.get().get_color(LapceColor::EDITOR_LINK),
                 internal_command,
             )
-            .style(|s| s.margin_top_px(10.0)),
+            .style(|s| s.margin_top(10.0)),
             web_link(
                 || "Matrix".to_string(),
                 || AboutUri::MATRIX.to_string(),
                 move || *config.get().get_color(LapceColor::EDITOR_LINK),
                 internal_command,
             )
-            .style(|s| s.margin_top_px(10.0)),
+            .style(|s| s.margin_top(10.0)),
             label(|| "Attributions".to_string()).style(move |s| {
                 s.font_bold()
                     .color(*config.get().get_color(LapceColor::EDITOR_DIM))
-                    .margin_top_px(40.0)
+                    .margin_top(40.0)
             }),
             web_link(
                 || "Codicons (CC-BY-4.0)".to_string(),
@@ -152,7 +152,7 @@ pub fn about_popup(window_tab_data: Rc<WindowTabData>) -> impl View {
                 move || *config.get().get_color(LapceColor::EDITOR_LINK),
                 internal_command,
             )
-            .style(|s| s.margin_top_px(10.0)),
+            .style(|s| s.margin_top(10.0)),
         ))
         .style(|s| s.flex_col().items_center())
     })
@@ -170,8 +170,8 @@ fn exclusive_popup<V: View>(
             container(content())
                 .style(move |s| {
                     let config = config.get();
-                    s.padding_vert_px(25.0)
-                        .padding_horiz_px(100.0)
+                    s.padding_vert(25.0)
+                        .padding_horiz(100.0)
                         .border(1.0)
                         .border_radius(6.0)
                         .border_color(*config.get_color(LapceColor::LAPCE_BORDER))

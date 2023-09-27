@@ -68,11 +68,11 @@ impl KeyPressFocus for GlobalSearchData {
             CommandKind::Edit(_)
             | CommandKind::Move(_)
             | CommandKind::MultiSelection(_) => {
-                self.editor.run_command(command, count, mods);
+                return self.editor.run_command(command, count, mods);
             }
             CommandKind::MotionMode(_) => {}
         }
-        CommandExecuted::Yes
+        CommandExecuted::No
     }
 
     fn receive_char(&self, c: &str) {

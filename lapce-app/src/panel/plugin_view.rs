@@ -70,22 +70,12 @@ pub fn plugin_panel(
             panel_header("Installed".to_string(), config),
             installed_view(plugin.clone()),
         ))
-        .style(|s| {
-            s.flex_col()
-                .width_pct(100.0)
-                .flex_grow(1.0)
-                .flex_basis_px(0.0)
-        }),
+        .style(|s| s.flex_col().width_pct(100.0).flex_grow(1.0).flex_basis(0.0)),
         stack((
             panel_header("Available".to_string(), config),
             available_view(plugin.clone()),
         ))
-        .style(|s| {
-            s.flex_col()
-                .width_pct(100.0)
-                .flex_grow(1.0)
-                .flex_basis_px(0.0)
-        }),
+        .style(|s| s.flex_col().width_pct(100.0).flex_grow(1.0).flex_basis(0.0)),
     ))
     .style(move |s| {
         s.width_pct(100.0)
@@ -180,16 +170,16 @@ fn installed_view(plugin: PluginData) -> impl View {
         let volt_id = meta.id();
         stack((
             empty().style(|s| {
-                s.min_size_px(50.0, 50.0)
-                    .size_px(50.0, 50.0)
-                    .margin_top_px(5.0)
-                    .margin_right_px(10.0)
+                s.min_size(50.0, 50.0)
+                    .size(50.0, 50.0)
+                    .margin_top(5.0)
+                    .margin_right(10.0)
             }),
             stack((
                 label(move || meta.display_name.clone())
-                    .style(|s| s.font_bold().text_ellipsis().min_width_px(0.0)),
+                    .style(|s| s.font_bold().text_ellipsis().min_width(0.0)),
                 label(move || meta.description.clone())
-                    .style(|s| s.text_ellipsis().min_width_px(0.0)),
+                    .style(|s| s.text_ellipsis().min_width(0.0)),
                 stack((
                     stack((
                         label(move || meta.author.clone())
@@ -208,8 +198,8 @@ fn installed_view(plugin: PluginData) -> impl View {
                     .style(|s| {
                         s.justify_between()
                             .flex_grow(1.0)
-                            .flex_basis_px(0.0)
-                            .min_width_px(0.0)
+                            .flex_basis(0.0)
+                            .min_width(0.0)
                     }),
                     clickable_icon(
                         || LapceIcons::SETTINGS,
@@ -218,7 +208,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                         || false,
                         config,
                     )
-                    .style(|s| s.padding_left_px(6.0))
+                    .style(|s| s.padding_left(6.0))
                     .popout_menu(move || {
                         plugin_controls(
                             plugin.clone(),
@@ -229,18 +219,9 @@ fn installed_view(plugin: PluginData) -> impl View {
                 ))
                 .style(|s| s.width_pct(100.0).items_center()),
             ))
-            .style(|s| {
-                s.flex_col()
-                    .flex_grow(1.0)
-                    .flex_basis_px(0.0)
-                    .min_width_px(0.0)
-            }),
+            .style(|s| s.flex_col().flex_grow(1.0).flex_basis(0.0).min_width(0.0)),
         ))
-        .style(|s| {
-            s.width_pct(100.0)
-                .padding_horiz_px(10.0)
-                .padding_vert_px(5.0)
-        })
+        .style(|s| s.width_pct(100.0).padding_horiz(10.0).padding_vert(5.0))
     };
 
     container(
@@ -262,7 +243,7 @@ fn installed_view(plugin: PluginData) -> impl View {
         s.width_pct(100.0)
             .line_height(1.6)
             .flex_grow(1.0)
-            .flex_basis_px(0.0)
+            .flex_basis(0.0)
     })
 }
 
@@ -296,8 +277,8 @@ fn available_view(plugin: PluginData) -> impl View {
                 .background(
                     *config.get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND),
                 )
-                .margin_left_px(6.0)
-                .padding_horiz_px(6.0)
+                .margin_left(6.0)
+                .padding_horiz(6.0)
                 .border_radius(6.0)
         })
         .on_click(move |_| {
@@ -329,39 +310,30 @@ fn available_view(plugin: PluginData) -> impl View {
         let info = volt.info.get_untracked();
         stack((
             empty().style(|s| {
-                s.min_size_px(50.0, 50.0)
-                    .size_px(50.0, 50.0)
-                    .margin_top_px(5.0)
-                    .margin_right_px(10.0)
+                s.min_size(50.0, 50.0)
+                    .size(50.0, 50.0)
+                    .margin_top(5.0)
+                    .margin_right(10.0)
             }),
             stack((
                 label(move || info.display_name.clone())
-                    .style(|s| s.font_bold().text_ellipsis().min_width_px(0.0)),
+                    .style(|s| s.font_bold().text_ellipsis().min_width(0.0)),
                 label(move || info.description.clone())
-                    .style(|s| s.text_ellipsis().min_width_px(0.0)),
+                    .style(|s| s.text_ellipsis().min_width(0.0)),
                 stack((
                     label(move || info.author.clone()).style(|s| {
                         s.text_ellipsis()
-                            .min_width_px(0.0)
+                            .min_width(0.0)
                             .flex_grow(1.0)
-                            .flex_basis_px(0.0)
+                            .flex_basis(0.0)
                     }),
                     install_button(id, volt.info, volt.installing),
                 ))
                 .style(|s| s.width_pct(100.0).items_center()),
             ))
-            .style(|s| {
-                s.flex_col()
-                    .flex_grow(1.0)
-                    .flex_basis_px(0.0)
-                    .min_width_px(0.0)
-            }),
+            .style(|s| s.flex_col().flex_grow(1.0).flex_basis(0.0).min_width(0.0)),
         ))
-        .style(|s| {
-            s.width_pct(100.0)
-                .padding_horiz_px(10.0)
-                .padding_vert_px(5.0)
-        })
+        .style(|s| s.width_pct(100.0).padding_horiz(10.0).padding_vert(5.0))
     };
 
     let content_rect = create_rw_signal(Rect::ZERO);
@@ -379,9 +351,7 @@ fn available_view(plugin: PluginData) -> impl View {
                         cursor_x.set(point.x);
                     })
                     .style(|s| {
-                        s.padding_vert_px(4.0)
-                            .padding_horiz_px(10.0)
-                            .min_width_pct(100.0)
+                        s.padding_vert(4.0).padding_horiz(10.0).min_width_pct(100.0)
                     }),
             )
             .hide_bar(|| true)
@@ -405,7 +375,7 @@ fn available_view(plugin: PluginData) -> impl View {
                     .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
             })
         })
-        .style(|s| s.padding_px(10.0).width_pct(100.0)),
+        .style(|s| s.padding(10.0).width_pct(100.0)),
         container({
             scroll({
                 virtual_list(
@@ -435,7 +405,7 @@ fn available_view(plugin: PluginData) -> impl View {
         s.width_pct(100.0)
             .line_height(1.6)
             .flex_grow(1.0)
-            .flex_basis_px(0.0)
+            .flex_basis(0.0)
             .flex_col()
     })
 }

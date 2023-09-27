@@ -125,7 +125,7 @@ command = "delete_word_forward"
 mode = "i"
 
 [[keymaps]]
-key = "ctrl+|"
+key = "ctrl+shift+\\"
 command = "match_pairs"
 mode = "i"
 

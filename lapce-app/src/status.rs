@@ -108,7 +108,7 @@ pub fn status(
                 let fg = *config.get_color(fg);
 
                 s.display(display)
-                    .padding_horiz_px(10.0)
+                    .padding_horiz(10.0)
                     .color(fg)
                     .background(bg)
                     .height_pct(100.0)
@@ -118,10 +118,10 @@ pub fn status(
                 svg(move || config.get().ui_svg(LapceIcons::SCM)).style(move |s| {
                     let config = config.get();
                     let icon_size = config.ui.icon_size() as f32;
-                    s.size_px(icon_size, icon_size)
+                    s.size(icon_size, icon_size)
                         .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
                 }),
-                label(branch).style(|s| s.margin_left_px(10.0)),
+                label(branch).style(|s| s.margin_left(10.0)),
             ))
             .style(move |s| {
                 s.display(if branch().is_empty() {
@@ -130,7 +130,7 @@ pub fn status(
                     Display::Flex
                 })
                 .height_pct(100.0)
-                .padding_horiz_px(10.0)
+                .padding_horiz(10.0)
                 .align_items(Some(AlignItems::Center))
             })
             .on_click(move |_| {
@@ -149,30 +149,30 @@ pub fn status(
                         move |s| {
                             let config = config.get();
                             let size = config.ui.icon_size() as f32;
-                            s.size_px(size, size).color(
+                            s.size(size, size).color(
                                 *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                             )
                         },
                     ),
                     label(move || diagnostic_count.get().0.to_string())
-                        .style(|s| s.margin_left_px(5.0)),
+                        .style(|s| s.margin_left(5.0)),
                     svg(move || config.get().ui_svg(LapceIcons::WARNING)).style(
                         move |s| {
                             let config = config.get();
                             let size = config.ui.icon_size() as f32;
-                            s.size_px(size, size).margin_left_px(5.0).color(
+                            s.size(size, size).margin_left(5.0).color(
                                 *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                             )
                         },
                     ),
                     label(move || diagnostic_count.get().1.to_string())
-                        .style(|s| s.margin_left_px(5.0)),
+                        .style(|s| s.margin_left(5.0)),
                 ))
                 .on_click(move |_| {
                     panel.show_panel(&PanelKind::Problem);
                     true
                 })
-                .style(|s| s.height_pct(100.0).padding_horiz_px(10.0).items_center())
+                .style(|s| s.height_pct(100.0).padding_horiz(10.0).items_center())
                 .hover_style(move |s| {
                     s.cursor(CursorStyle::Pointer).background(
                         *config
@@ -185,7 +185,7 @@ pub fn status(
         ))
         .style(|s| {
             s.height_pct(100.0)
-                .flex_basis_px(0.0)
+                .flex_basis(0.0)
                 .flex_grow(1.0)
                 .items_center()
         }),
@@ -319,7 +319,7 @@ pub fn status(
                     },
                 )
                 .height_pct(100.0)
-                .padding_horiz_px(10.0)
+                .padding_horiz(10.0)
                 .items_center()
             })
             .hover_style(move |s| {
@@ -355,7 +355,7 @@ pub fn status(
                     },
                 )
                 .height_pct(100.0)
-                .padding_horiz_px(10.0)
+                .padding_horiz(10.0)
                 .items_center()
             })
             .hover_style(move |s| {
@@ -367,7 +367,7 @@ pub fn status(
         })
         .style(|s| {
             s.height_pct(100.0)
-                .flex_basis_px(0.0)
+                .flex_basis(0.0)
                 .flex_grow(1.0)
                 .justify_end()
         }),
@@ -383,7 +383,7 @@ pub fn status(
         s.border_top(1.0)
             .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
             .background(*config.get_color(LapceColor::STATUS_BACKGROUND))
-            .height_px(config.ui.status_height() as f32)
+            .height(config.ui.status_height() as f32)
             .align_items(Some(AlignItems::Center))
     })
 }
@@ -400,12 +400,12 @@ fn progress_view(
                 let message = p.message.unwrap_or_default();
                 let is_empty = message.is_empty();
                 label(move || format!(": {message}")).style(move |s| {
-                    s.min_width_px(0.0)
+                    s.min_width(0.0)
                         .text_ellipsis()
                         .apply_if(is_empty, |s| s.hide())
                 })
             }))
-            .style(|s| s.margin_left_px(10.0))
+            .style(|s| s.margin_left(10.0))
         },
     )
 }

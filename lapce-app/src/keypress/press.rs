@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use floem::keyboard::{Key, ModifiersState};
+use floem::keyboard::{Key, KeyCode, ModifiersState};
 use tracing::warn;
 
 use super::key::KeyInput;
@@ -14,9 +14,10 @@ pub struct KeyPress {
 impl KeyPress {
     pub fn to_lowercase(&self) -> Self {
         let key = match &self.key {
-            KeyInput::Keyboard(Key::Character(c)) => {
-                KeyInput::Keyboard(Key::Character(c.to_lowercase().into()))
-            }
+            KeyInput::Keyboard(Key::Character(c), key_code) => KeyInput::Keyboard(
+                Key::Character(c.to_lowercase().into()),
+                *key_code,
+            ),
             _ => self.key.clone(),
         };
         Self {
@@ -29,11 +30,30 @@ impl KeyPress {
         let mut mods = self.mods;
         mods.set(ModifiersState::SHIFT, false);
         if mods.is_empty() {
-            if let KeyInput::Keyboard(Key::Character(_c)) = &self.key {
+            if let KeyInput::Keyboard(Key::Character(_c), _) = &self.key {
                 return true;
             }
         }
         false
+    }
+
+    pub fn is_modifiers(&self) -> bool {
+        if let KeyInput::Keyboard(_, scancode) = &self.key {
+            matches!(
+                scancode,
+                KeyCode::Meta
+                    | KeyCode::SuperLeft
+                    | KeyCode::SuperRight
+                    | KeyCode::ShiftLeft
+                    | KeyCode::ShiftRight
+                    | KeyCode::ControlLeft
+                    | KeyCode::ControlRight
+                    | KeyCode::AltLeft
+                    | KeyCode::AltRight
+            )
+        } else {
+            false
+        }
     }
 
     pub fn label(&self) -> String {

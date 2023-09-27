@@ -151,7 +151,7 @@ impl KeyPressData {
             return false;
         }
 
-        if let KeyInput::Keyboard(Key::Character(c)) = &keypress.key {
+        if let KeyInput::Keyboard(Key::Character(c), _key_code) = &keypress.key {
             if let Ok(n) = c.parse::<usize>() {
                 if self.count.with_untracked(|count| count.is_some()) || n > 0 {
                     self.count
@@ -183,14 +183,11 @@ impl KeyPressData {
         debug!("{event:?}");
 
         let keypress = match event {
-            EventRef::Keyboard(ev)
-                if ev.key.logical_key == Key::Shift && ev.modifiers.is_empty() =>
-            {
-                return None;
-            }
             EventRef::Keyboard(ev) => KeyPress {
-                key: KeyInput::Keyboard(ev.key.logical_key.clone()),
-                // We are removing Shift modifier since the character is already upper case.
+                key: KeyInput::Keyboard(
+                    ev.key.logical_key.clone(),
+                    ev.key.physical_key,
+                ),
                 mods: Self::get_key_modifiers(ev),
             },
             EventRef::Pointer(ev) => KeyPress {
@@ -295,10 +292,10 @@ impl KeyPressData {
             mods.set(ModifiersState::SHIFT, false);
         }
         if mods.is_empty() {
-            if let KeyInput::Keyboard(Key::Character(c)) = &keypress.key {
+            if let KeyInput::Keyboard(Key::Character(c), _key_code) = &keypress.key {
                 focus.receive_char(c);
                 return true;
-            } else if let KeyInput::Keyboard(Key::Space) = &keypress.key {
+            } else if let KeyInput::Keyboard(Key::Space, _) = &keypress.key {
                 focus.receive_char(" ");
                 return true;
             }
@@ -308,18 +305,7 @@ impl KeyPressData {
     }
 
     fn get_key_modifiers(key_event: &KeyEvent) -> ModifiersState {
-        // We only care about some modifiers
         let mut mods = key_event.modifiers;
-
-        if mods == ModifiersState::SHIFT {
-            if let Key::Character(c) = &key_event.key.logical_key {
-                if !c.chars().all(|c| c.is_alphabetic()) {
-                    // We remove the shift if there's only shift pressed,
-                    // and the character isn't a letter
-                    return ModifiersState::empty();
-                }
-            }
-        }
 
         match &key_event.key.logical_key {
             Key::Shift => mods.set(ModifiersState::SHIFT, false),
