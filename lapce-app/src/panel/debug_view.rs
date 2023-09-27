@@ -49,27 +49,17 @@ pub fn debug_panel(
             panel_header("Variables".to_string(), config),
             variables_view(window_tab_data.clone()),
         ))
-        .style(|s| {
-            s.width_pct(100.0)
-                .flex_grow(1.0)
-                .flex_basis_px(0.0)
-                .flex_col()
-        }),
+        .style(|s| s.width_pct(100.0).flex_grow(1.0).flex_basis(0.0).flex_col()),
         stack((
             panel_header("Stack Frames".to_string(), config),
             debug_stack_traces(terminal, internal_command, config),
         ))
-        .style(|s| {
-            s.width_pct(100.0)
-                .flex_grow(1.0)
-                .flex_basis_px(0.0)
-                .flex_col()
-        }),
+        .style(|s| s.width_pct(100.0).flex_grow(1.0).flex_basis(0.0).flex_col()),
         stack((
             panel_header("Breakpoints".to_string(), config),
             breakpoints_view(window_tab_data.clone()),
         ))
-        .style(|s| s.width_pct(100.0).flex_col().height_px(150.0)),
+        .style(|s| s.width_pct(100.0).flex_col().height(150.0)),
     ))
     .style(move |s| {
         s.width_pct(100.0)
@@ -316,14 +306,13 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             move |var| {
                                 stack((
                                     text(var.name),
-                                    text(var.value)
-                                        .style(|s| s.margin_left_px(10.0)),
+                                    text(var.value).style(|s| s.margin_left(10.0)),
                                     text(format!("{:?}", var.presentation_hint))
-                                        .style(|s| s.margin_left_px(10.0)),
+                                        .style(|s| s.margin_left(10.0)),
                                     text(format!("{:?}", var.evaluate_name))
-                                        .style(|s| s.margin_left_px(10.0)),
+                                        .style(|s| s.margin_left(10.0)),
                                     text(format!("{:?}", var.variables_reference))
-                                        .style(|s| s.margin_left_px(10.0)),
+                                        .style(|s| s.margin_left(10.0)),
                                 ))
                                 .style(|s| s.flex_col())
                             },
@@ -564,7 +553,7 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                         .on_event(EventListener::PointerDown, |_| true),
                         checkbox(move || breakpoint.active, config)
                             .style(|s| {
-                                s.margin_right_px(6.0).cursor(CursorStyle::Pointer)
+                                s.margin_right(6.0).cursor(CursorStyle::Pointer)
                             })
                             .on_click(move |_| {
                                 breakpoints.update(|breakpoints| {
@@ -583,7 +572,7 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                         text(format!("{file_name}:{}", breakpoint.line + 1)).style(
                             move |s| {
                                 let size = config.get().ui.icon_size() as f32;
-                                s.text_ellipsis().max_width_px(
+                                s.text_ellipsis().max_width(
                                     available_width.get() as f32
                                         - 20.0
                                         - size
@@ -596,18 +585,16 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                         text(folder).style(move |s| {
                             s.text_ellipsis()
                                 .flex_grow(1.0)
-                                .flex_basis_px(0.0)
+                                .flex_basis(0.0)
                                 .color(
                                     *config.get().get_color(LapceColor::EDITOR_DIM),
                                 )
-                                .min_width_px(0.0)
-                                .margin_left_px(6.0)
+                                .min_width(0.0)
+                                .margin_left(6.0)
                                 .apply_if(folder_empty, |s| s.hide())
                         }),
                     ))
-                    .style(|s| {
-                        s.items_center().padding_horiz_px(10.0).width_pct(100.0)
-                    })
+                    .style(|s| s.items_center().padding_horiz(10.0).width_pct(100.0))
                     .hover_style(move |s| {
                         s.background(
                             *config

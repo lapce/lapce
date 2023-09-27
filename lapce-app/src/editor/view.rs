@@ -1635,7 +1635,7 @@ fn editor_gutter(
                 move |s| {
                     let config = config.get();
                     let size = config.ui.icon_size() as f32 + 2.0;
-                    s.size_px(size, size)
+                    s.size(size, size)
                         .color(*config.get_color(LapceColor::DEBUG_BREAKPOINT_HOVER))
                         .apply_if(!hovered.get(), |s| s.hide())
                 },
@@ -1688,8 +1688,8 @@ fn editor_gutter(
             true
         })
         .style(move |s| {
-            s.width_px(padding_left)
-                .height_px(config.get().editor.line_height() as f32)
+            s.width(padding_left)
+                .height(config.get().editor.line_height() as f32)
                 .justify_center()
                 .items_center()
                 .cursor(CursorStyle::Pointer)
@@ -1717,7 +1717,7 @@ fn editor_gutter(
                     breakpoints_view,
                 )
                 .style(move |s| {
-                    s.absolute().flex_col().margin_top_px(
+                    s.absolute().flex_col().margin_top(
                         -(viewport.get().y0
                             % config.get().editor.line_height() as f64)
                             as f32,
@@ -1753,17 +1753,17 @@ fn editor_gutter(
                                     LapceColor::EDITOR_DIM
                                 };
                                 let color = *config.get_color(color);
-                                s.size_px(size, size).color(color)
+                                s.size(size, size).color(color)
                             }),
                         )
                         .style(move |s| {
                             let config = config.get();
                             s.absolute()
-                                .width_px(padding_left)
-                                .height_px(config.editor.line_height() as f32)
+                                .width(padding_left)
+                                .height(config.editor.line_height() as f32)
                                 .justify_center()
                                 .items_center()
-                                .margin_top_px(
+                                .margin_top(
                                     (line * config.editor.line_height()) as f32
                                         - viewport.get().y0 as f32,
                                 )
@@ -1849,8 +1849,8 @@ fn editor_gutter(
         .style(move |s| {
             s.absolute()
                 .size_pct(100.0, 100.0)
-                .padding_left_px(padding_left)
-                .padding_right_px(padding_right)
+                .padding_left(padding_left)
+                .padding_right(padding_right)
         }),
     ))
     .style(|s| s.height_pct(100.0))

@@ -1757,9 +1757,7 @@ fn split_list(
                         }
                     }
                 })
-                .style(move |s| {
-                    s.flex_grow(split_size.get() as f32).flex_basis_px(0.0)
-                })
+                .style(move |s| s.flex_grow(split_size.get() as f32).flex_basis(0.0))
         }
     };
     container_box(
