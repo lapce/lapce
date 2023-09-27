@@ -15,7 +15,8 @@ use floem::{
     },
     reactive::{create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal},
     style::{ComputedStyle, CursorStyle, Style},
-    taffy::{self, prelude::Node},
+    taffy::prelude::Node,
+    unit::PxPct,
     view::{ChangeFlags, View},
     views::Decorators,
     Renderer,
@@ -140,8 +141,8 @@ pub fn text_input(
     }
     .base_style(|s| {
         s.cursor(CursorStyle::Text)
-            .padding_horiz_px(10.0)
-            .padding_vert_px(6.0)
+            .padding_horiz(10.0)
+            .padding_vert(6.0)
     })
     .on_move(move |pos| {
         window_origin.set(pos);
@@ -295,13 +296,13 @@ impl TextInput {
                 let padding_left = cx
                     .get_computed_style(self.id)
                     .map(|s| match s.padding_left {
-                        floem::taffy::style::LengthPercentage::Points(v) => v,
-                        floem::taffy::style::LengthPercentage::Percent(pct) => {
+                        PxPct::Px(v) => v,
+                        PxPct::Pct(pct) => {
                             let layout = cx.get_layout(self.id()).unwrap();
-                            pct * layout.size.width
+                            pct * layout.size.width as f64
                         }
                     })
-                    .unwrap_or(0.0) as f64;
+                    .unwrap_or(0.0);
                 let hit =
                     text_layout.hit_point(Point::new(point.x - padding_left, 0.0));
                 hit.index.min(self.content.len())
@@ -496,7 +497,7 @@ impl View for TextInput {
                 let text_node = self.text_node.unwrap();
 
                 let style = Style::BASE
-                    .height_px(height)
+                    .height(height)
                     .compute(&ComputedStyle::default())
                     .to_taffy_style();
                 cx.set_style(text_node, style);
@@ -511,18 +512,18 @@ impl View for TextInput {
 
         let style = cx.get_computed_style(self.id);
         let padding_left = match style.padding_left {
-            taffy::style::LengthPercentage::Points(padding) => padding,
-            taffy::style::LengthPercentage::Percent(pct) => pct * layout.size.width,
+            PxPct::Px(padding) => padding,
+            PxPct::Pct(pct) => pct * layout.size.width as f64,
         };
         let padding_right = match style.padding_right {
-            taffy::style::LengthPercentage::Points(padding) => padding,
-            taffy::style::LengthPercentage::Percent(pct) => pct * layout.size.width,
+            PxPct::Px(padding) => padding,
+            PxPct::Pct(pct) => pct * layout.size.width as f64,
         };
 
         let size = Size::new(layout.size.width as f64, layout.size.height as f64);
         let mut text_rect = size.to_rect();
-        text_rect.x0 += padding_left as f64;
-        text_rect.x1 -= padding_right as f64;
+        text_rect.x0 += padding_left;
+        text_rect.x1 -= padding_right;
         self.text_rect = text_rect;
 
         self.clamp_text_viewport(self.text_viewport);

@@ -35,7 +35,7 @@ pub fn file_explorer_panel(
             container(open_editors_view(window_tab_data.clone()))
                 .style(|s| s.size_pct(100.0, 100.0)),
         ))
-        .style(|s| s.width_pct(100.0).flex_col().height_px(150.0)),
+        .style(|s| s.width_pct(100.0).flex_col().height(150.0)),
         stack((
             panel_header("File Explorer".to_string(), config),
             container(
@@ -90,7 +90,7 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                     } else {
                         Color::TRANSPARENT
                     };
-                    s.size_px(size, size).margin_left_px(10.0).color(color)
+                    s.size(size, size).margin_left(10.0).color(color)
                 }),
                 {
                     let path = path.clone();
@@ -111,8 +111,8 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
 
-                        s.size_px(size, size)
-                            .margin_horiz_px(6.0)
+                        s.size(size, size)
+                            .margin_horiz(6.0)
                             .apply_if(is_dir, |s| {
                                 s.color(
                                     *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
@@ -135,8 +135,8 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
             ))
             .style(move |s| {
                 s.items_center()
-                    .padding_right_px(10.0)
-                    .padding_left_px((level * 10) as f32)
+                    .padding_right(10.0)
+                    .padding_left((level * 10) as f32)
                     .min_width_pct(100.0)
             })
             .hover_style(move |s| {
@@ -212,15 +212,15 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                 true
             })
             .on_event(EventListener::PointerDown, |_| true)
-            .style(|s| s.margin_left_px(10.0)),
+            .style(|s| s.margin_left(10.0)),
             container(svg(move || info.with(|info| info.icon.clone())).style(
                 move |s| {
                     let size = config.get().ui.icon_size() as f32;
-                    s.size_px(size, size)
+                    s.size(size, size)
                         .apply_opt(info.with(|info| info.color), |s, c| s.color(c))
                 },
             ))
-            .style(|s| s.padding_horiz_px(6.0)),
+            .style(|s| s.padding_horiz(6.0)),
             label(move || info.with(|info| info.path.clone())).style(move |s| {
                 s.apply_if(
                     !info
@@ -266,7 +266,7 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
             move |(index, (_, editor_tab))| {
                 stack((
                     label(move || format!("Group {}", index + 1))
-                        .style(|s| s.margin_left_px(10.0)),
+                        .style(|s| s.margin_left(10.0)),
                     list(
                         move || editor_tab.get().children,
                         move |(_, _, child)| child.id(),

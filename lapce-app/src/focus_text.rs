@@ -233,7 +233,7 @@ impl View for FocusText {
             let text_node = self.text_node.unwrap();
 
             let style = Style::BASE
-                .size_px(width, height)
+                .size(width, height)
                 .compute(&ComputedStyle::default())
                 .to_taffy_style();
             cx.set_style(text_node, style);
