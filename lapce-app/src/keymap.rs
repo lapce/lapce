@@ -29,7 +29,7 @@ use crate::{
 pub struct KeymapPicker {
     cmd: RwSignal<Option<LapceCommand>>,
     keymap: RwSignal<Option<KeyMap>>,
-    keys: RwSignal<Vec<KeyPress>>,
+    keys: RwSignal<Vec<(KeyPress, bool)>>,
 }
 
 pub fn keymap_view(common: Rc<CommonData>) -> impl View {
@@ -391,7 +391,7 @@ fn keyboard_picker_view(
                         .keys
                         .get()
                         .iter()
-                        .map(|key| key.label().trim().to_string())
+                        .map(|(key, _)| key.label().trim().to_string())
                         .filter(|l| !l.is_empty())
                         .enumerate()
                         .collect::<Vec<(usize, String)>>()
@@ -439,7 +439,13 @@ fn keyboard_picker_view(
                         if let Some(keymap) = keymap {
                             let keys = picker.keys.get_untracked();
                             picker.keymap.set(None);
-                            KeyPressData::update_file(&keymap, &keys);
+                            KeyPressData::update_file(
+                                &keymap,
+                                &keys
+                                    .iter()
+                                    .map(|(key, _)| key.clone())
+                                    .collect::<Vec<KeyPress>>(),
+                            );
                         }
                         true
                     })
@@ -514,12 +520,27 @@ fn keyboard_picker_view(
         if let Event::KeyDown(key_event) = event {
             if let Some(keypress) = KeyPressData::keypress(key_event) {
                 picker.keys.update(|keys| {
+                    if let Some((last_key, last_key_confirmed)) = keys.last() {
+                        if !*last_key_confirmed && last_key.is_modifiers() {
+                            keys.pop();
+                        }
+                    }
                     if keys.len() == 2 {
                         keys.clear();
                     }
-                    keys.push(keypress);
+                    keys.push((keypress, false));
                 })
             }
+        }
+        true
+    })
+    .on_event(EventListener::KeyUp, move |event| {
+        if let Event::KeyUp(_key_event) = event {
+            picker.keys.update(|keys| {
+                if let Some((_last_key, last_key_confirmed)) = keys.last_mut() {
+                    *last_key_confirmed = true;
+                }
+            })
         }
         true
     })

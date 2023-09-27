@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use floem::keyboard::{Key, ModifiersState};
+use floem::keyboard::{Key, KeyCode, ModifiersState};
 use tracing::warn;
 
 use super::key::KeyInput;
@@ -35,6 +35,25 @@ impl KeyPress {
             }
         }
         false
+    }
+
+    pub fn is_modifiers(&self) -> bool {
+        if let KeyInput::Keyboard(_, scancode) = &self.key {
+            matches!(
+                scancode,
+                KeyCode::Meta
+                    | KeyCode::SuperLeft
+                    | KeyCode::SuperRight
+                    | KeyCode::ShiftLeft
+                    | KeyCode::ShiftRight
+                    | KeyCode::ControlLeft
+                    | KeyCode::ControlRight
+                    | KeyCode::AltLeft
+                    | KeyCode::AltRight
+            )
+        } else {
+            false
+        }
     }
 
     pub fn label(&self) -> String {

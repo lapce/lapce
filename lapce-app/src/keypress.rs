@@ -183,17 +183,11 @@ impl KeyPressData {
         debug!("{event:?}");
 
         let keypress = match event {
-            EventRef::Keyboard(ev)
-                if ev.key.logical_key == Key::Shift && ev.modifiers.is_empty() =>
-            {
-                return None;
-            }
             EventRef::Keyboard(ev) => KeyPress {
                 key: KeyInput::Keyboard(
                     ev.key.logical_key.clone(),
                     ev.key.physical_key,
                 ),
-                // We are removing Shift modifier since the character is already upper case.
                 mods: Self::get_key_modifiers(ev),
             },
             EventRef::Pointer(ev) => KeyPress {
@@ -311,18 +305,7 @@ impl KeyPressData {
     }
 
     fn get_key_modifiers(key_event: &KeyEvent) -> ModifiersState {
-        // We only care about some modifiers
         let mut mods = key_event.modifiers;
-
-        if mods == ModifiersState::SHIFT {
-            if let Key::Character(c) = &key_event.key.logical_key {
-                if !c.chars().all(|c| c.is_alphabetic()) {
-                    // We remove the shift if there's only shift pressed,
-                    // and the character isn't a letter
-                    return ModifiersState::empty();
-                }
-            }
-        }
 
         match &key_event.key.logical_key {
             Key::Shift => mods.set(ModifiersState::SHIFT, false),

@@ -130,7 +130,7 @@ command = "delete_word_forward"
 mode = "i"
 
 [[keymaps]]
-key = "meta+|"
+key = "meta+shift+\\"
 command = "match_pairs"
 mode = "i"
 
