@@ -29,7 +29,7 @@ use crate::{
 pub struct KeymapPicker {
     cmd: RwSignal<Option<LapceCommand>>,
     keymap: RwSignal<Option<KeyMap>>,
-    keys: RwSignal<Vec<KeyPress>>,
+    keys: RwSignal<Vec<(KeyPress, bool)>>,
 }
 
 pub fn keymap_view(common: Rc<CommonData>) -> impl View {
@@ -104,15 +104,15 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                         s.text_ellipsis()
                             .absolute()
                             .items_center()
-                            .min_width_px(0.0)
-                            .padding_horiz_px(10.0)
+                            .min_width(0.0)
+                            .padding_horiz(10.0)
                             .size_pct(100.0, 100.0)
                     }),
                 )
                 .style(move |s| {
                     s.height_pct(100.0)
-                        .min_width_px(0.0)
-                        .flex_basis_px(0.0)
+                        .min_width(0.0)
+                        .flex_basis(0.0)
                         .flex_grow(1.0)
                         .border_right(1.0)
                         .border_color(
@@ -138,9 +138,9 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                         |k| k.clone(),
                         move |key| {
                             text(key.clone()).style(move |s| {
-                                s.padding_horiz_px(5.0)
-                                    .padding_vert_px(1.0)
-                                    .margin_right_px(5.0)
+                                s.padding_horiz(5.0)
+                                    .padding_vert(1.0)
+                                    .margin_right(5.0)
                                     .border(1.0)
                                     .border_radius(3.0)
                                     .border_color(
@@ -153,8 +153,8 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                     )
                     .style(move |s| {
                         s.items_center()
-                            .padding_horiz_px(10.0)
-                            .min_width_px(200.0)
+                            .padding_horiz(10.0)
+                            .min_width(200.0)
                             .height_pct(100.0)
                             .border_right(1.0)
                             .border_color(
@@ -189,9 +189,9 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                         |m| m.clone(),
                         move |mode| {
                             text(mode.clone()).style(move |s| {
-                                s.padding_horiz_px(5.0)
-                                    .padding_vert_px(1.0)
-                                    .margin_right_px(5.0)
+                                s.padding_horiz(5.0)
+                                    .padding_vert(1.0)
+                                    .margin_right(5.0)
                                     .border(1.0)
                                     .border_radius(3.0)
                                     .border_color(
@@ -204,8 +204,8 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                     )
                     .style(move |s| {
                         s.items_center()
-                            .padding_horiz_px(10.0)
-                            .min_width_px(200.0)
+                            .padding_horiz(10.0)
+                            .min_width(200.0)
                             .height_pct(100.0)
                             .border_right(1.0)
                             .border_color(
@@ -225,15 +225,15 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                         s.text_ellipsis()
                             .absolute()
                             .items_center()
-                            .min_width_px(0.0)
-                            .padding_horiz_px(10.0)
+                            .min_width(0.0)
+                            .padding_horiz(10.0)
                             .size_pct(100.0, 100.0)
                     }),
                 )
                 .style(move |s| {
                     s.height_pct(100.0)
-                        .min_width_px(0.0)
-                        .flex_basis_px(0.0)
+                        .min_width(0.0)
+                        .flex_basis(0.0)
                         .flex_grow(1.0)
                 }),
             ))
@@ -258,7 +258,7 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
             .style(move |s| {
                 let config = config.get();
                 s.items_center()
-                    .height_px(ui_line_height() as f32)
+                    .height(ui_line_height() as f32)
                     .width_pct(100.0)
                     .apply_if(i % 2 > 0, |s| {
                         s.background(
@@ -284,52 +284,52 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                         )
                 }),
         )
-        .style(|s| s.padding_bottom_px(10.0).width_pct(100.0)),
+        .style(|s| s.padding_bottom(10.0).width_pct(100.0)),
         stack((
             container(text("Command").style(move |s| {
-                s.text_ellipsis().padding_horiz_px(10.0).min_width_px(0.0)
+                s.text_ellipsis().padding_horiz(10.0).min_width(0.0)
             }))
             .style(move |s| {
                 s.items_center()
                     .height_pct(100.0)
-                    .min_width_px(0.0)
-                    .flex_basis_px(0.0)
+                    .min_width(0.0)
+                    .flex_basis(0.0)
                     .flex_grow(1.0)
                     .border_right(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
             }),
             text("Key Binding").style(move |s| {
-                s.width_px(200.0)
+                s.width(200.0)
                     .items_center()
-                    .padding_horiz_px(10.0)
+                    .padding_horiz(10.0)
                     .height_pct(100.0)
                     .border_right(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
             }),
             text("Modes").style(move |s| {
-                s.width_px(200.0)
+                s.width(200.0)
                     .items_center()
-                    .padding_horiz_px(10.0)
+                    .padding_horiz(10.0)
                     .height_pct(100.0)
                     .border_right(1.0)
                     .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
                     .apply_if(!modal.get(), |s| s.hide())
             }),
             container(text("When").style(move |s| {
-                s.text_ellipsis().padding_horiz_px(10.0).min_width_px(0.0)
+                s.text_ellipsis().padding_horiz(10.0).min_width(0.0)
             }))
             .style(move |s| {
                 s.items_center()
                     .height_pct(100.0)
-                    .min_width_px(0.0)
-                    .flex_basis_px(0.0)
+                    .min_width(0.0)
+                    .flex_basis(0.0)
                     .flex_grow(1.0)
             }),
         ))
         .style(move |s| {
             let config = config.get();
             s.font_bold()
-                .height_px(ui_line_height() as f32)
+                .height(ui_line_height() as f32)
                 .width_pct(100.0)
                 .border_top(1.0)
                 .border_bottom(1.0)
@@ -352,16 +352,16 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
             )
             .style(|s| s.absolute().size_pct(100.0, 100.0)),
         )
-        .style(|s| s.width_pct(100.0).flex_basis_px(0.0).flex_grow(1.0)),
+        .style(|s| s.width_pct(100.0).flex_basis(0.0).flex_grow(1.0)),
         keyboard_picker_view(picker, common.ui_line_height, config),
     ))
     .style(|s| {
         s.absolute()
             .size_pct(100.0, 100.0)
             .flex_col()
-            .padding_top_px(20.0)
-            .padding_left_px(20.0)
-            .padding_right_px(20.0)
+            .padding_top(20.0)
+            .padding_left(20.0)
+            .padding_right(20.0)
     })
 }
 
@@ -391,7 +391,7 @@ fn keyboard_picker_view(
                         .keys
                         .get()
                         .iter()
-                        .map(|key| key.label().trim().to_string())
+                        .map(|(key, _)| key.label().trim().to_string())
                         .filter(|l| !l.is_empty())
                         .enumerate()
                         .collect::<Vec<(usize, String)>>()
@@ -399,9 +399,9 @@ fn keyboard_picker_view(
                 |(i, k)| (*i, k.clone()),
                 move |(_, key)| {
                     text(key.clone()).style(move |s| {
-                        s.padding_horiz_px(5.0)
-                            .padding_vert_px(1.0)
-                            .margin_right_px(5.0)
+                        s.padding_horiz(5.0)
+                            .padding_vert(1.0)
+                            .margin_right(5.0)
                             .border(1.0)
                             .border_radius(6.0)
                             .border_color(
@@ -415,8 +415,8 @@ fn keyboard_picker_view(
                 s.items_center()
                     .justify_center()
                     .width_pct(100.0)
-                    .margin_top_px(20.0)
-                    .height_px(ui_line_height.get() as f32 + 16.0)
+                    .margin_top(20.0)
+                    .height(ui_line_height.get() as f32 + 16.0)
                     .border(1.0)
                     .border_radius(6.0)
                     .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
@@ -425,9 +425,9 @@ fn keyboard_picker_view(
             stack((
                 text("Save")
                     .style(move |s| {
-                        s.width_px(100.0)
+                        s.width(100.0)
                             .justify_center()
-                            .padding_vert_px(8.0)
+                            .padding_vert(8.0)
                             .border(1.0)
                             .border_radius(6.0)
                             .border_color(
@@ -439,7 +439,13 @@ fn keyboard_picker_view(
                         if let Some(keymap) = keymap {
                             let keys = picker.keys.get_untracked();
                             picker.keymap.set(None);
-                            KeyPressData::update_file(&keymap, &keys);
+                            KeyPressData::update_file(
+                                &keymap,
+                                &keys
+                                    .iter()
+                                    .map(|(key, _)| key.clone())
+                                    .collect::<Vec<KeyPress>>(),
+                            );
                         }
                         true
                     })
@@ -459,10 +465,10 @@ fn keyboard_picker_view(
                     }),
                 text("Cancel")
                     .style(move |s| {
-                        s.margin_left_px(20.0)
-                            .width_px(100.0)
+                        s.margin_left(20.0)
+                            .width(100.0)
                             .justify_center()
-                            .padding_vert_px(8.0)
+                            .padding_vert(8.0)
                             .border(1.0)
                             .border_radius(6.0)
                             .border_color(
@@ -493,7 +499,7 @@ fn keyboard_picker_view(
                 s.items_center()
                     .justify_center()
                     .width_pct(100.0)
-                    .margin_top_px(20.0)
+                    .margin_top(20.0)
                     .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
             }),
         ))
@@ -501,8 +507,8 @@ fn keyboard_picker_view(
             let config = config.get();
             s.items_center()
                 .flex_col()
-                .padding_px(20.0)
-                .width_px(400.0)
+                .padding(20.0)
+                .width(400.0)
                 .border(1.0)
                 .border_radius(6.0)
                 .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
@@ -514,12 +520,27 @@ fn keyboard_picker_view(
         if let Event::KeyDown(key_event) = event {
             if let Some(keypress) = KeyPressData::keypress(key_event) {
                 picker.keys.update(|keys| {
+                    if let Some((last_key, last_key_confirmed)) = keys.last() {
+                        if !*last_key_confirmed && last_key.is_modifiers() {
+                            keys.pop();
+                        }
+                    }
                     if keys.len() == 2 {
                         keys.clear();
                     }
-                    keys.push(keypress);
+                    keys.push((keypress, false));
                 })
             }
+        }
+        true
+    })
+    .on_event(EventListener::KeyUp, move |event| {
+        if let Event::KeyUp(_key_event) = event {
+            picker.keys.update(|keys| {
+                if let Some((_last_key, last_key_confirmed)) = keys.last_mut() {
+                    *last_key_confirmed = true;
+                }
+            })
         }
         true
     })

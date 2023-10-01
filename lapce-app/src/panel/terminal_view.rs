@@ -101,7 +101,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                 move |s| {
                                     let config = config.get();
                                     let size = config.ui.icon_size() as f32;
-                                    s.size_px(size, size).color(
+                                    s.size(size, size).color(
                                         *config.get_color(
                                             LapceColor::LAPCE_ICON_ACTIVE,
                                         ),
@@ -109,10 +109,10 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                 },
                             ),
                         )
-                        .style(|s| s.padding_horiz_px(10.0).padding_vert_px(11.0)),
+                        .style(|s| s.padding_horiz(10.0).padding_vert(11.0)),
                         label(title).style(|s| {
-                            s.min_width_px(0.0)
-                                .flex_basis_px(0.0)
+                            s.min_width(0.0)
+                                .flex_basis(0.0)
                                 .flex_grow(1.0)
                                 .text_ellipsis()
                         }),
@@ -125,11 +125,11 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                             || false,
                             config,
                         )
-                        .style(|s| s.margin_horiz_px(6.0)),
+                        .style(|s| s.margin_horiz(6.0)),
                     ))
                     .style(move |s| {
                         s.items_center()
-                            .width_px(200.0)
+                            .width(200.0)
                             .border_right(1.0)
                             .border_color(
                                 *config.get().get_color(LapceColor::LAPCE_BORDER),
@@ -154,9 +154,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                             ))
                     })
                 })
-                .style(|s| {
-                    s.absolute().padding_horiz_px(3.0).size_pct(100.0, 100.0)
-                }),
+                .style(|s| s.absolute().padding_horiz(3.0).size_pct(100.0, 100.0)),
             ))
             .on_event(EventListener::PointerDown, move |_| {
                 if tab_info.with_untracked(|tab| tab.active) != index.get_untracked()
@@ -224,7 +222,7 @@ fn terminal_tab_split(
                 .style(|s| s.size_pct(100.0, 100.0))
             })
             .style(move |s| {
-                s.size_pct(100.0, 100.0).padding_horiz_px(10.0).apply_if(
+                s.size_pct(100.0, 100.0).padding_horiz(10.0).apply_if(
                     index.get() > 0,
                     |s| {
                         s.border_left(1.0).border_color(

@@ -175,15 +175,15 @@ pub fn panel_container_view(
                 let current_size = current_size.get();
                 s.absolute()
                     .apply_if(position == PanelContainerPosition::Bottom, |s| {
-                        s.width_pct(100.0).height_px(4.0).margin_top_px(-2.0)
+                        s.width_pct(100.0).height(4.0).margin_top(-2.0)
                     })
                     .apply_if(position == PanelContainerPosition::Left, |s| {
-                        s.width_px(4.0)
-                            .margin_left_px(current_size.width as f32 - 2.0)
+                        s.width(4.0)
+                            .margin_left(current_size.width as f32 - 2.0)
                             .height_pct(100.0)
                     })
                     .apply_if(position == PanelContainerPosition::Right, |s| {
-                        s.width_px(4.0).margin_left_px(-2.0).height_pct(100.0)
+                        s.width(4.0).margin_left(-2.0).height_pct(100.0)
                     })
                     .apply_if(is_dragging, |s| {
                         s.background(
@@ -244,19 +244,19 @@ pub fn panel_container_view(
             .apply_if(position == PanelContainerPosition::Bottom, |s| {
                 s.width_pct(100.0)
                     .apply_if(!is_maximized, |s| {
-                        s.border_top(1.0).height_px(size as f32)
+                        s.border_top(1.0).height(size as f32)
                     })
                     .apply_if(is_maximized, |s| s.flex_grow(1.0))
             })
             .apply_if(position == PanelContainerPosition::Left, |s| {
                 s.border_right(1.0)
-                    .width_px(size as f32)
+                    .width(size as f32)
                     .height_pct(100.0)
                     .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             })
             .apply_if(position == PanelContainerPosition::Right, |s| {
                 s.border_left(1.0)
-                    .width_px(size as f32)
+                    .width(size as f32)
                     .height_pct(100.0)
                     .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
             })
@@ -329,8 +329,8 @@ pub fn panel_header(
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     container(label(move || header.clone())).style(move |s| {
-        s.padding_horiz_px(10.0)
-            .padding_vert_px(6.0)
+        s.padding_horiz(10.0)
+            .padding_vert(6.0)
             .width_pct(100.0)
             .background(*config.get().get_color(LapceColor::EDITOR_BACKGROUND))
     })
@@ -401,21 +401,21 @@ fn panel_picker(
                     s.border(1.0)
                         .border_radius(6.0)
                         .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-                        .padding_px(6.0)
+                        .padding(6.0)
                         .background(
                             config
                                 .get_color(LapceColor::PANEL_BACKGROUND)
                                 .with_alpha_factor(0.7),
                         )
                 })
-                .style(|s| s.padding_px(1.0)),
+                .style(|s| s.padding(1.0)),
                 label(|| "".to_string()).style(move |s| {
                     s.absolute()
                         .size_pct(100.0, 100.0)
-                        .apply_if(!is_bottom && is_first, |s| s.margin_top_px(2.0))
-                        .apply_if(!is_bottom && !is_first, |s| s.margin_top_px(-2.0))
-                        .apply_if(is_bottom && is_first, |s| s.margin_left_px(-2.0))
-                        .apply_if(is_bottom && !is_first, |s| s.margin_left_px(2.0))
+                        .apply_if(!is_bottom && is_first, |s| s.margin_top(2.0))
+                        .apply_if(!is_bottom && !is_first, |s| s.margin_top(-2.0))
+                        .apply_if(is_bottom && is_first, |s| s.margin_left(-2.0))
+                        .apply_if(is_bottom && !is_first, |s| s.margin_left(2.0))
                         .apply_if(is_active(), |s| {
                             s.apply_if(!is_bottom && is_first, |s| {
                                 s.border_bottom(2.0)
@@ -433,7 +433,7 @@ fn panel_picker(
                         )
                 }),
             )))
-            .style(|s| s.padding_px(6.0))
+            .style(|s| s.padding(6.0))
         },
     )
     .style(move |s| {

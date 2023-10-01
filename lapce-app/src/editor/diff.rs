@@ -387,15 +387,15 @@ pub fn diff_show_more_section_view(
                     .color(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
             }),
             label(move || format!("{} Hidden Lines", section.lines)),
-            label(|| "|".to_string()).style(|s| s.margin_left_px(10.0)),
+            label(|| "|".to_string()).style(|s| s.margin_left(10.0)),
             stack((
                 svg(move || config.get().ui_svg(LapceIcons::FOLD)).style(move |s| {
                     let config = config.get();
                     let size = config.ui.icon_size() as f32;
-                    s.size_px(size, size)
+                    s.size(size, size)
                         .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
                 }),
-                label(|| "Expand All".to_string()).style(|s| s.margin_left_px(6.0)),
+                label(|| "Expand All".to_string()).style(|s| s.margin_left(6.0)),
             ))
             .on_event(EventListener::PointerDown, move |_| true)
             .on_click(move |_event| {
@@ -421,19 +421,19 @@ pub fn diff_show_more_section_view(
                 });
                 true
             })
-            .style(|s| s.margin_left_px(10.0).height_pct(100.0).items_center())
+            .style(|s| s.margin_left(10.0).height_pct(100.0).items_center())
             .hover_style(|s| s.cursor(CursorStyle::Pointer)),
-            label(|| "|".to_string()).style(|s| s.margin_left_px(10.0)),
+            label(|| "|".to_string()).style(|s| s.margin_left(10.0)),
             stack((
                 svg(move || config.get().ui_svg(LapceIcons::FOLD_UP)).style(
                     move |s| {
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
-                        s.size_px(size, size)
+                        s.size(size, size)
                             .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
                     },
                 ),
-                label(|| "Expand Up".to_string()).style(|s| s.margin_left_px(6.0)),
+                label(|| "Expand Up".to_string()).style(|s| s.margin_left(6.0)),
             ))
             .on_event(EventListener::PointerDown, move |_| true)
             .on_click(move |_event| {
@@ -459,19 +459,19 @@ pub fn diff_show_more_section_view(
                 });
                 true
             })
-            .style(move |s| s.margin_left_px(10.0).height_pct(100.0).items_center())
+            .style(move |s| s.margin_left(10.0).height_pct(100.0).items_center())
             .hover_style(|s| s.cursor(CursorStyle::Pointer)),
-            label(|| "|".to_string()).style(|s| s.margin_left_px(10.0)),
+            label(|| "|".to_string()).style(|s| s.margin_left(10.0)),
             stack((
                 svg(move || config.get().ui_svg(LapceIcons::FOLD_DOWN)).style(
                     move |s| {
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
-                        s.size_px(size, size)
+                        s.size(size, size)
                             .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
                     },
                 ),
-                label(|| "Expand Down".to_string()).style(|s| s.margin_left_px(6.0)),
+                label(|| "Expand Down".to_string()).style(|s| s.margin_left(6.0)),
             ))
             .on_event(EventListener::PointerDown, move |_| true)
             .on_click(move |_event| {
@@ -497,17 +497,17 @@ pub fn diff_show_more_section_view(
                 });
                 true
             })
-            .style(move |s| s.margin_left_px(10.0).height_pct(100.0).items_center())
+            .style(move |s| s.margin_left(10.0).height_pct(100.0).items_center())
             .hover_style(|s| s.cursor(CursorStyle::Pointer)),
         ))
         .style(move |s| {
             let config = config.get();
             s.absolute()
                 .width_pct(100.0)
-                .height_px(config.editor.line_height() as f32)
+                .height(config.editor.line_height() as f32)
                 .justify_center()
                 .items_center()
-                .margin_top_px(
+                .margin_top(
                     (section.visual_line * config.editor.line_height()) as f32
                         - viewport.get().y0 as f32,
                 )
@@ -517,7 +517,7 @@ pub fn diff_show_more_section_view(
 
     stack((
         empty().style(move |s| {
-            s.height_px(config.get().editor.line_height() as f32 + 1.0)
+            s.height(config.get().editor.line_height() as f32 + 1.0)
         }),
         clip(
             list(each_fn, key_fn, view_fn)

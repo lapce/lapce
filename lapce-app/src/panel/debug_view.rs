@@ -39,18 +39,13 @@ pub fn debug_panel(
                 panel_header("Processes".to_string(), config),
                 debug_processes(terminal, config),
             ))
-            .style(|s| s.width_pct(100.0).flex_col().height_px(150.0))
+            .style(|s| s.width_pct(100.0).flex_col().height(150.0))
         },
         stack((
             panel_header("Stack Frames".to_string(), config),
             debug_stack_traces(terminal, internal_command, config),
         ))
-        .style(|s| {
-            s.width_pct(100.0)
-                .flex_grow(1.0)
-                .flex_basis_px(0.0)
-                .flex_col()
-        }),
+        .style(|s| s.width_pct(100.0).flex_grow(1.0).flex_basis(0.0).flex_col()),
     ))
     .style(move |s| {
         s.width_pct(100.0)
@@ -86,7 +81,7 @@ fn debug_process_icons(
                     || false,
                     config,
                 )
-                .style(|s| s.margin_horiz_px(6.0))
+                .style(|s| s.margin_horiz(6.0))
             },
             {
                 let terminal = terminal.clone();
@@ -99,7 +94,7 @@ fn debug_process_icons(
                     move || stopped,
                     config,
                 )
-                .style(|s| s.margin_right_px(6.0))
+                .style(|s| s.margin_right(6.0))
             },
             {
                 let terminal = terminal.clone();
@@ -112,7 +107,7 @@ fn debug_process_icons(
                     || false,
                     config,
                 )
-                .style(|s| s.margin_right_px(6.0))
+                .style(|s| s.margin_right(6.0))
             },
         ))),
         RunDebugMode::Debug => container_box(stack((
@@ -127,7 +122,7 @@ fn debug_process_icons(
                     move || !paused() || stopped,
                     config,
                 )
-                .style(|s| s.margin_horiz_px(6.0))
+                .style(|s| s.margin_horiz(6.0))
             },
             {
                 let terminal = terminal.clone();
@@ -140,7 +135,7 @@ fn debug_process_icons(
                     move || paused() || stopped,
                     config,
                 )
-                .style(|s| s.margin_right_px(6.0))
+                .style(|s| s.margin_right(6.0))
             },
             {
                 let terminal = terminal.clone();
@@ -153,7 +148,7 @@ fn debug_process_icons(
                     || false,
                     config,
                 )
-                .style(|s| s.margin_right_px(6.0))
+                .style(|s| s.margin_right(6.0))
             },
             {
                 let terminal = terminal.clone();
@@ -166,7 +161,7 @@ fn debug_process_icons(
                     move || stopped,
                     config,
                 )
-                .style(|s| s.margin_right_px(6.0))
+                .style(|s| s.margin_right(6.0))
             },
             {
                 let terminal = terminal.clone();
@@ -179,7 +174,7 @@ fn debug_process_icons(
                     || false,
                     config,
                 )
-                .style(|s| s.margin_right_px(6.0))
+                .style(|s| s.margin_right(6.0))
             },
         ))),
     }
@@ -213,15 +208,15 @@ fn debug_processes(
                         svg(move || config.get().ui_svg(svg_str)).style(move |s| {
                             let config = config.get();
                             let size = config.ui.icon_size() as f32;
-                            s.size_px(size, size).margin_horiz_px(10.0).color(
+                            s.size(size, size).margin_horiz(10.0).color(
                                 *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
                             )
                         })
                     },
                     label(move || p.config.name.clone()).style(|s| {
                         s.flex_grow(1.0)
-                            .flex_basis_px(0.0)
-                            .min_width_px(0.0)
+                            .flex_basis(0.0)
+                            .min_width(0.0)
                             .text_ellipsis()
                     }),
                     debug_process_icons(
@@ -239,7 +234,7 @@ fn debug_processes(
                     true
                 })
                 .style(move |s| {
-                    s.padding_vert_px(6.0)
+                    s.padding_vert(6.0)
                         .width_pct(100.0)
                         .items_center()
                         .apply_if(is_active(), |s| {
@@ -280,7 +275,7 @@ fn debug_stack_frames(
                 });
                 true
             })
-            .style(|s| s.padding_horiz_px(10.0).min_width_pct(100.0))
+            .style(|s| s.padding_horiz(10.0).min_width_pct(100.0))
             .hover_style(move |s| {
                 s.cursor(CursorStyle::Pointer).background(
                     *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
@@ -321,7 +316,7 @@ fn debug_stack_frames(
                         )
                     }),
                     label(move || source_path.clone()).style(move |s| {
-                        s.margin_left_px(10.0)
+                        s.margin_left(10.0)
                             .color(*config.get().get_color(LapceColor::EDITOR_DIM))
                             .font_style(FontStyle::Italic)
                             .apply_if(!has_source, |s| s.hide())
@@ -347,8 +342,8 @@ fn debug_stack_frames(
                     true
                 })
                 .style(move |s| {
-                    s.padding_left_px(20.0)
-                        .padding_right_px(10.0)
+                    s.padding_left(20.0)
+                        .padding_right(10.0)
                         .min_width_pct(100.0)
                         .apply_if(!has_source, |s| {
                             s.color(*config.get().get_color(LapceColor::EDITOR_DIM))
@@ -425,6 +420,6 @@ fn debug_stack_traces(
         s.width_pct(100.0)
             .line_height(1.6)
             .flex_grow(1.0)
-            .flex_basis_px(0.0)
+            .flex_basis(0.0)
     })
 }
