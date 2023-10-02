@@ -10,6 +10,7 @@ pub(super) enum KeymapMatch {
     None,
 }
 
+/// Single keybinding entry in settings
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 pub struct KeyMap {
     pub key: Vec<KeyPress>,
