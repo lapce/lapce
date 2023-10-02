@@ -5,7 +5,10 @@ use std::{
     time::Instant,
 };
 
-use floem::reactive::{RwSignal, Scope};
+use floem::{
+    reactive::{RwSignal, Scope},
+    views::VirtualListVector,
+};
 use lapce_rpc::{
     dap_types::{
         self, DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped,
@@ -128,6 +131,50 @@ pub struct LapceBreakpoint {
     pub active: bool,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub enum ScopeOrVar {
+    Scope(dap_types::Scope),
+    Var(dap_types::Variable),
+}
+
+impl Default for ScopeOrVar {
+    fn default() -> Self {
+        ScopeOrVar::Scope(dap_types::Scope::default())
+    }
+}
+
+impl ScopeOrVar {
+    pub fn name(&self) -> &str {
+        match self {
+            ScopeOrVar::Scope(scope) => &scope.name,
+            ScopeOrVar::Var(var) => &var.name,
+        }
+    }
+
+    pub fn value(&self) -> Option<&str> {
+        match self {
+            ScopeOrVar::Scope(_) => None,
+            ScopeOrVar::Var(var) => Some(&var.value),
+        }
+    }
+
+    pub fn reference(&self) -> usize {
+        match self {
+            ScopeOrVar::Scope(scope) => scope.variables_reference,
+            ScopeOrVar::Var(var) => var.variables_reference,
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct DapVariable {
+    pub item: ScopeOrVar,
+    pub expanded: bool,
+    pub read: bool,
+    pub children: Vec<DapVariable>,
+    pub children_expanded_count: usize,
+}
+
 #[derive(Clone)]
 pub struct DapData {
     pub term_id: TermId,
@@ -136,6 +183,7 @@ pub struct DapData {
     pub thread_id: RwSignal<Option<ThreadId>>,
     pub stack_traces: RwSignal<BTreeMap<ThreadId, StackTraceData>>,
     pub variables: RwSignal<Vec<(dap_types::Scope, Vec<Variable>)>>,
+    pub new_variables: RwSignal<DapVariable>,
 }
 
 impl DapData {
@@ -150,6 +198,13 @@ impl DapData {
             thread_id,
             stack_traces,
             variables: cx.create_rw_signal(Vec::new()),
+            new_variables: cx.create_rw_signal(DapVariable {
+                item: ScopeOrVar::Scope(dap_types::Scope::default()),
+                expanded: true,
+                read: true,
+                children: Vec::new(),
+                children_expanded_count: 0,
+            }),
         }
     }
 
@@ -187,6 +242,92 @@ impl DapData {
                 }
             }
         });
-        self.variables.set(variables.to_owned());
+        self.new_variables.update(|dap_var| {
+            dap_var.children = variables
+                .iter()
+                .map(|(scope, vars)| DapVariable {
+                    item: ScopeOrVar::Scope(scope.to_owned()),
+                    expanded: false,
+                    read: true,
+                    children: vars
+                        .iter()
+                        .map(|var| DapVariable {
+                            item: ScopeOrVar::Var(var.to_owned()),
+                            expanded: false,
+                            read: false,
+                            children: Vec::new(),
+                            children_expanded_count: 0,
+                        })
+                        .collect(),
+                    children_expanded_count: 0,
+                })
+                .collect();
+        });
+    }
+}
+
+pub struct DapVariableViewdata {
+    pub item: ScopeOrVar,
+    pub expanded: bool,
+    pub level: usize,
+}
+
+impl VirtualListVector<DapVariableViewdata> for DapVariable {
+    type ItemIterator = Box<dyn Iterator<Item = DapVariableViewdata>>;
+
+    fn total_len(&self) -> usize {
+        self.children_expanded_count
+    }
+
+    fn slice(&mut self, range: std::ops::Range<usize>) -> Self::ItemIterator {
+        let min = range.start;
+        let max = range.end;
+        let mut i = 0;
+        let mut view_items = Vec::new();
+        for item in self.children.iter() {
+            i = item.append_view_slice(&mut view_items, min, max, i + 1, 0);
+            if i > max {
+                return Box::new(view_items.into_iter());
+            }
+        }
+
+        Box::new(view_items.into_iter())
+    }
+}
+
+impl DapVariable {
+    pub fn append_view_slice(
+        &self,
+        view_items: &mut Vec<DapVariableViewdata>,
+        min: usize,
+        max: usize,
+        current: usize,
+        level: usize,
+    ) -> usize {
+        if current > max {
+            return current;
+        }
+        if current + self.children_expanded_count < min {
+            return current + self.children_expanded_count;
+        }
+
+        let mut i = current;
+        if current >= min {
+            view_items.push(DapVariableViewdata {
+                item: self.item.clone(),
+                expanded: self.expanded,
+                level,
+            });
+        }
+
+        if self.expanded {
+            for item in self.children.iter() {
+                i = item.append_view_slice(view_items, min, max, i + 1, level + 1);
+                if i > max {
+                    return i;
+                }
+            }
+        }
+        i
     }
 }

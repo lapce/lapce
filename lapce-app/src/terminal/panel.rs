@@ -534,7 +534,7 @@ impl TerminalPanelData {
         dap_id: &DapId,
         stopped: &Stopped,
         stack_frames: &HashMap<ThreadId, Vec<StackFrame>>,
-        variables: &Vec<(dap_types::Scope, Vec<Variable>)>,
+        variables: &[(dap_types::Scope, Vec<Variable>)],
     ) {
         let dap = self
             .debug

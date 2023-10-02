@@ -3,11 +3,13 @@ use std::{rc::Rc, sync::Arc};
 use floem::{
     cosmic_text::Style as FontStyle,
     event::EventListener,
+    peniko::Color,
     reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::CursorStyle,
     view::View,
     views::{
-        container, container_box, label, list, scroll, stack, svg, text, Decorators,
+        container, container_box, label, list, scroll, stack, svg, text,
+        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
     },
 };
 use lapce_rpc::{
@@ -20,7 +22,7 @@ use crate::{
     app::clickable_icon,
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    debug::{RunDebugMode, StackTraceData},
+    debug::{DapVariable, RunDebugMode, StackTraceData},
     editor::location::{EditorLocation, EditorPosition},
     listener::Listener,
     settings::checkbox,
@@ -47,7 +49,7 @@ pub fn debug_panel(
         },
         stack((
             panel_header("Variables".to_string(), config),
-            variables_view(window_tab_data.clone()),
+            new_variables_view(window_tab_data.clone()),
         ))
         .style(|s| s.width_pct(100.0).flex_grow(1.0).flex_basis(0.0).flex_col()),
         stack((
@@ -271,6 +273,81 @@ fn debug_processes(
         )
         .style(|s| s.width_pct(100.0).flex_col())
     })
+}
+
+fn new_variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
+    let terminal = window_tab_data.terminal.clone();
+    let ui_line_height = window_tab_data.common.ui_line_height;
+    let config = window_tab_data.common.config;
+    container(
+        scroll(
+            virtual_list(
+                VirtualListDirection::Vertical,
+                VirtualListItemSize::Fixed(Box::new(move || ui_line_height.get())),
+                move || {
+                    let dap = terminal.get_active_dap(true);
+                    dap.map(|dap| {
+                        let process_stopped = terminal
+                            .get_terminal(&dap.term_id)
+                            .and_then(|t| {
+                                t.run_debug.with(|r| r.as_ref().map(|r| r.stopped))
+                            })
+                            .unwrap_or(true);
+                        if process_stopped {
+                            return DapVariable::default();
+                        }
+                        dap.new_variables.get()
+                    })
+                    .unwrap_or_default()
+                },
+                |node| {
+                    (
+                        node.item.name().to_string(),
+                        node.item.value().map(|v| v.to_string()),
+                        node.item.reference(),
+                        node.expanded,
+                        node.level,
+                    )
+                },
+                move |node| {
+                    let level = node.level;
+                    let reference = node.item.reference();
+                    let name = node.item.name();
+                    stack((
+                        svg(move || {
+                            let config = config.get();
+                            let svg_str = match node.expanded {
+                                true => LapceIcons::ITEM_OPENED,
+                                false => LapceIcons::ITEM_CLOSED,
+                            };
+                            config.ui_svg(svg_str)
+                        })
+                        .style(move |s| {
+                            let config = config.get();
+                            let size = config.ui.icon_size() as f32;
+
+                            let color = if reference > 0 {
+                                *config.get_color(LapceColor::LAPCE_ICON_ACTIVE)
+                            } else {
+                                Color::TRANSPARENT
+                            };
+                            s.size(size, size).margin_left(10.0).color(color)
+                        }),
+                        text(name),
+                    ))
+                    .style(move |s| {
+                        s.items_center()
+                            .padding_right(10.0)
+                            .padding_left((level * 10) as f32)
+                            .min_width_pct(100.0)
+                    })
+                },
+            )
+            .style(|s| s.flex_col()),
+        )
+        .style(|s| s.absolute().size_full()),
+    )
+    .style(|s| s.size_full().line_height(1.6))
 }
 
 fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
