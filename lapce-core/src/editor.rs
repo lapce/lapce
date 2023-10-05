@@ -1534,7 +1534,7 @@ impl Editor {
                                     return vec![];
                                 }
                             }
-                            i if i == 1 => {
+                            1 => {
                                 let region = selection.regions()[0];
                                 if !region.is_caret() {
                                     let new_selection = Selection::caret(region.end);
