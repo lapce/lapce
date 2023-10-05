@@ -697,7 +697,6 @@ impl Document {
                     } else {
                         styles
                     };
-                    let styles = styles;
 
                     send(styles);
                 });
