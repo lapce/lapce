@@ -65,6 +65,7 @@ pub struct FileNodeItem {
     pub children_open_count: usize,
 }
 
+#[allow(clippy::incorrect_partial_ord_impl_on_ord_type)]
 impl PartialOrd for FileNodeItem {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self.is_dir, other.is_dir) {

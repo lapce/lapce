@@ -325,7 +325,7 @@ impl KeyPressData {
     ) -> KeymapMatch {
         let keypresses: Vec<KeyPress> =
             keypresses.iter().map(KeyPress::to_lowercase).collect();
-        let matches = self
+        let matches: Vec<_> = self
             .keymaps
             .get(&keypresses)
             .map(|keymaps| {
@@ -352,7 +352,7 @@ impl KeyPressData {
                     })
                     .collect()
             })
-            .unwrap_or_else(Vec::new);
+            .unwrap_or_default();
 
         if matches.is_empty() {
             KeymapMatch::None
