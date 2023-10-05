@@ -351,9 +351,7 @@ impl LapceDb {
         use strum::IntoEnumIterator;
         for kind in PanelKind::iter() {
             if kind.position(&panel_orders).is_none() {
-                let panels = panel_orders
-                    .entry(PanelPosition::LeftTop)
-                    .or_insert_with(im::Vector::new);
+                let panels = panel_orders.entry(PanelPosition::LeftTop).or_default();
                 panels.push_back(kind);
             }
         }
