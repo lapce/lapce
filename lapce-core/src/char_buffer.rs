@@ -582,6 +582,7 @@ impl fmt::Display for CharBuffer {
     }
 }
 
+#[allow(clippy::incorrect_partial_ord_impl_on_ord_type)]
 impl PartialOrd for CharBuffer {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
