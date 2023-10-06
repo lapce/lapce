@@ -50,9 +50,10 @@ use lsp_types::{
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverClientCapabilities,
     HoverParams, InlayHint, InlayHintClientCapabilities, InlayHintParams, Location,
     MarkupKind, MessageActionItemCapabilities, ParameterInformationSettings,
-    PartialResultParams, Position, PrepareRenameResponse, Range, ReferenceContext,
-    ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams,
-    SemanticTokens, SemanticTokensClientCapabilities, SemanticTokensParams,
+    PartialResultParams, Position, PrepareRenameResponse,
+    PublishDiagnosticsClientCapabilities, Range, ReferenceContext, ReferenceParams,
+    RenameParams, SelectionRange, SelectionRangeParams, SemanticTokens,
+    SemanticTokensClientCapabilities, SemanticTokensParams,
     ShowMessageRequestClientCapabilities, SignatureHelp,
     SignatureHelpClientCapabilities, SignatureHelpParams,
     SignatureInformationSettings, SymbolInformation, TextDocumentClientCapabilities,
@@ -1318,6 +1319,10 @@ fn client_capabilities() -> ClientCapabilities {
             definition: Some(GotoCapability {
                 ..Default::default()
             }),
+            publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
+                ..Default::default()
+            }),
+
             ..Default::default()
         }),
         window: Some(WindowClientCapabilities {
