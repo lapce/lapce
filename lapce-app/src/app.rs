@@ -621,9 +621,7 @@ fn editor_tab_header(
                             .unwrap_or(true),
                         |s| s.font_style(FontStyle::Italic),
                     )
-                })
-                .style(move |s| {
-                    s.apply_if(tab_close_button_style == TabCloseButton::Off, |s| {
+                    .apply_if(tab_close_button_style == TabCloseButton::Off, |s| {
                         s.margin_right(15.0)
                     })
                 });
