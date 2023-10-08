@@ -53,7 +53,7 @@ which = "4.2.5"
 git2 = { version = "0.17.2", features = ["vendored-openssl"] }
 
 # deleting files
-trash = "2.1.5"
+trash = "3.0.6"
 
 # search
 ignore = "0.4.18"
