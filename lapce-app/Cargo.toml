@@ -51,7 +51,7 @@ sled = "0.34.7"
 bytemuck = "1.14.0"
 tokio = { version = "1.21", features = ["full"] }
 futures = "0.3.26"
-clipboard = "0.5.0"
+clipboard = { git = "https://github.com/panekj/copypasta", rev = "510ee5e33817eb54b5e8225a064f4fb0bf6a1c68", package = "copypasta" }
 floem = { git = "https://github.com/lapce/floem", rev = "e8c1d33454a0a0dc0d009dd140b93513357b55a0" }
 # floem = { path = "../../workspaces/floem" }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }

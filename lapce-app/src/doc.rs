@@ -72,7 +72,7 @@ impl Default for SystemClipboard {
 impl SystemClipboard {
     pub fn new() -> Self {
         SystemClipboard {
-            ctx: ClipboardProvider::new().unwrap(),
+            ctx: ClipboardContext::new().unwrap(),
         }
     }
 }
@@ -83,7 +83,7 @@ impl Clipboard for SystemClipboard {
     }
 
     fn put_string(&mut self, s: impl AsRef<str>) {
-        let _ = self.ctx.set_contents(s.as_ref().to_string());
+        let _ = self.ctx.set_contents(s.as_ref());
     }
 }
 
