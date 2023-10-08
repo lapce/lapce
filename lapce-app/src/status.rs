@@ -121,7 +121,11 @@ pub fn status(
                     s.size(icon_size, icon_size)
                         .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
                 }),
-                label(branch).style(|s| s.margin_left(10.0)),
+                label(branch).style(move |s| {
+                    s.margin_left(10.0).color(
+                        *config.get().get_color(LapceColor::STATUS_FOREGROUND),
+                    )
+                }),
             ))
             .style(move |s| {
                 s.display(if branch().is_empty() {
@@ -195,7 +199,7 @@ pub fn status(
                     )
                 })
             },
-            progress_view(progresses),
+            progress_view(config, progresses),
         ))
         .style(|s| {
             s.height_pct(100.0)
@@ -409,6 +413,7 @@ pub fn status(
 }
 
 fn progress_view(
+    config: ReadSignal<Arc<LapceConfig>>,
     progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
 ) -> impl View {
     let id = AtomicU64::new(0);
@@ -425,7 +430,10 @@ fn progress_view(
                         .apply_if(is_empty, |s| s.hide())
                 })
             }))
-            .style(|s| s.margin_left(10.0))
+            .style(move |s| {
+                s.margin_left(10.0)
+                    .color(*config.get().get_color(LapceColor::STATUS_FOREGROUND))
+            })
         },
     )
 }
