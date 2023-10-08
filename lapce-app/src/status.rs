@@ -154,8 +154,15 @@ pub fn status(
                             )
                         },
                     ),
-                    label(move || diagnostic_count.get().0.to_string())
-                        .style(|s| s.margin_left(5.0)),
+                    label(move || diagnostic_count.get().0.to_string()).style(
+                        move |s| {
+                            s.margin_left(5.0).color(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::STATUS_FOREGROUND),
+                            )
+                        },
+                    ),
                     svg(move || config.get().ui_svg(LapceIcons::WARNING)).style(
                         move |s| {
                             let config = config.get();
@@ -165,8 +172,15 @@ pub fn status(
                             )
                         },
                     ),
-                    label(move || diagnostic_count.get().1.to_string())
-                        .style(|s| s.margin_left(5.0)),
+                    label(move || diagnostic_count.get().1.to_string()).style(
+                        move |s| {
+                            s.margin_left(5.0).color(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::STATUS_FOREGROUND),
+                            )
+                        },
+                    ),
                 ))
                 .on_click(move |_| {
                     panel.show_panel(&PanelKind::Problem);
@@ -265,7 +279,11 @@ pub fn status(
                 )
             },
         ))
-        .style(|s| s.height_pct(100.0).items_center()),
+        .style(move |s| {
+            s.height_pct(100.0)
+                .items_center()
+                .color(*config.get().get_color(LapceColor::STATUS_FOREGROUND))
+        }),
         stack({
             let palette_clone = palette.clone();
             let cursor_info = label(move || {
@@ -321,6 +339,7 @@ pub fn status(
                 .height_pct(100.0)
                 .padding_horiz(10.0)
                 .items_center()
+                .color(*config.get().get_color(LapceColor::STATUS_FOREGROUND))
             })
             .hover_style(move |s| {
                 s.cursor(CursorStyle::Pointer).background(
@@ -357,6 +376,7 @@ pub fn status(
                 .height_pct(100.0)
                 .padding_horiz(10.0)
                 .items_center()
+                .color(*config.get().get_color(LapceColor::STATUS_FOREGROUND))
             })
             .hover_style(move |s| {
                 s.cursor(CursorStyle::Pointer).background(

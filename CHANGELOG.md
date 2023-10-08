@@ -11,6 +11,8 @@
 
 ### Bug Fixes
 
+- [#2650](https://github.com/lapce/lapce/pull/2650): Inform language servers that Lapce supports LSP diagnostics
+
 ## 0.2.8
 
 ### Features/Changes

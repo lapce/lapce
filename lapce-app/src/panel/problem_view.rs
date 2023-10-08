@@ -314,7 +314,7 @@ fn related_view(
                             related.location.range.start.character
                         )
                     })
-                    .unwrap_or_else(|| "".to_string());
+                    .unwrap_or_default();
                 let location = EditorLocation {
                     path: full_path,
                     position: Some(EditorPosition::Position(
