@@ -48,7 +48,7 @@ open = "3.0.2"
 unicode-width = "0.1.10"
 nucleo = "0.2.0"
 sled = "0.34.7"
-bytemuck = "1.8.0"
+bytemuck = "1.14.0"
 tokio = { version = "1.21", features = ["full"] }
 futures = "0.3.26"
 clipboard = "0.5.0"
