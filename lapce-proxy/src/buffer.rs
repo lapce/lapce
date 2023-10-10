@@ -247,6 +247,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "sql" => "sql",
                     "swift" => "swift",
                     "svelte" => "svelte",
+                    "thrift" => "thrift",
                     "toml" => "toml",
                     "ts" => "typescript",
                     "tsx" => "typescriptreact",
