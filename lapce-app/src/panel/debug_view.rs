@@ -49,7 +49,7 @@ pub fn debug_panel(
         },
         stack((
             panel_header("Variables".to_string(), config),
-            new_variables_view(window_tab_data.clone()),
+            variables_view(window_tab_data.clone()),
         ))
         .style(|s| s.width_pct(100.0).flex_grow(1.0).flex_basis(0.0).flex_col()),
         stack((
@@ -275,8 +275,9 @@ fn debug_processes(
     })
 }
 
-fn new_variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
+fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
     let terminal = window_tab_data.terminal.clone();
+    let local_terminal = window_tab_data.terminal.clone();
     let ui_line_height = window_tab_data.common.ui_line_height;
     let config = window_tab_data.common.config;
     container(
@@ -296,7 +297,7 @@ fn new_variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                         if process_stopped {
                             return DapVariable::default();
                         }
-                        dap.new_variables.get()
+                        dap.variables.get()
                     })
                     .unwrap_or_default()
                 },
@@ -310,6 +311,7 @@ fn new_variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                     )
                 },
                 move |node| {
+                    let local_terminal = local_terminal.clone();
                     let level = node.level;
                     let reference = node.item.reference();
                     let name = node.item.name();
@@ -334,76 +336,52 @@ fn new_variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             s.size(size, size).margin_left(10.0).color(color)
                         }),
                         text(name),
+                        text(format!(": {}", node.item.value().unwrap_or("")))
+                            .style(move |s| s.apply_if(reference > 0, |s| s.hide())),
                     ))
+                    .on_click(move |_| {
+                        if reference > 0 {
+                            let dap = local_terminal.get_active_dap(false);
+                            if let Some(dap) = dap {
+                                let process_stopped = local_terminal
+                                    .get_terminal(&dap.term_id)
+                                    .and_then(|t| {
+                                        t.run_debug
+                                            .with(|r| r.as_ref().map(|r| r.stopped))
+                                    })
+                                    .unwrap_or(true);
+                                if !process_stopped {
+                                    dap.toggle_expand(
+                                        node.parent.clone(),
+                                        reference,
+                                    );
+                                }
+                            }
+                        }
+                        true
+                    })
                     .style(move |s| {
                         s.items_center()
                             .padding_right(10.0)
                             .padding_left((level * 10) as f32)
                             .min_width_pct(100.0)
                     })
+                    .hover_style(move |s| {
+                        s.apply_if(reference > 0, |s| {
+                            s.background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                        })
+                    })
                 },
             )
-            .style(|s| s.flex_col()),
+            .style(|s| s.flex_col().min_width_full()),
         )
         .style(|s| s.absolute().size_full()),
     )
     .style(|s| s.size_full().line_height(1.6))
-}
-
-fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
-    let terminal = window_tab_data.terminal.clone();
-    container(
-        scroll(
-            list(
-                move || {
-                    let dap = terminal.get_active_dap(true);
-                    dap.map(|dap| {
-                        let process_stopped = terminal
-                            .get_terminal(&dap.term_id)
-                            .and_then(|t| {
-                                t.run_debug.with(|r| r.as_ref().map(|r| r.stopped))
-                            })
-                            .unwrap_or(true);
-                        if process_stopped {
-                            return Vec::new();
-                        }
-                        dap.variables.get()
-                    })
-                    .unwrap_or_default()
-                },
-                move |(scope, variables)| {
-                    (scope.name.clone(), scope.variables_reference)
-                },
-                move |(scope, variables)| {
-                    stack((
-                        text(scope.name),
-                        list(
-                            move || variables.clone(),
-                            move |var| (var.name.clone(), var.value.clone()),
-                            move |var| {
-                                stack((
-                                    text(var.name),
-                                    text(var.value).style(|s| s.margin_left(10.0)),
-                                    text(format!("{:?}", var.presentation_hint))
-                                        .style(|s| s.margin_left(10.0)),
-                                    text(format!("{:?}", var.evaluate_name))
-                                        .style(|s| s.margin_left(10.0)),
-                                    text(format!("{:?}", var.variables_reference))
-                                        .style(|s| s.margin_left(10.0)),
-                                ))
-                                .style(|s| s.flex_col())
-                            },
-                        )
-                        .style(|s| s.flex_col()),
-                    ))
-                    .style(|s| s.flex_col())
-                },
-            )
-            .style(|s| s.flex_col()),
-        )
-        .style(|s| s.absolute().size_pct(100.0, 100.0)),
-    )
-    .style(|s| s.size_pct(100.0, 100.0))
 }
 
 fn debug_stack_frames(

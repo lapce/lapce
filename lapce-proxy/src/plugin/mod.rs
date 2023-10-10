@@ -23,7 +23,7 @@ use flate2::read::GzDecoder;
 use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
-    dap_types::{DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
+    dap_types::{self, DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
     plugin::{PluginId, VoltInfo, VoltMetadata},
     proxy::ProxyRpcHandler,
     style::LineStyle,
@@ -103,6 +103,11 @@ pub enum PluginCatalogRpc {
         tokens: SemanticTokens,
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
+    },
+    DapVariable {
+        dap_id: DapId,
+        reference: usize,
+        f: Box<dyn RpcCallback<Vec<dap_types::Variable>, RpcError>>,
     },
     DidOpenTextDocument {
         document: TextDocumentItem,
@@ -285,6 +290,13 @@ impl PluginCatalogRpcHandler {
                         text,
                         new_text,
                     );
+                }
+                PluginCatalogRpc::DapVariable {
+                    dap_id,
+                    reference,
+                    f,
+                } => {
+                    plugin.dap_variable(dap_id, reference, f);
                 }
                 PluginCatalogRpc::Shutdown => {
                     return;
@@ -1117,6 +1129,19 @@ impl PluginCatalogRpcHandler {
             path,
             breakpoints,
         })
+    }
+
+    pub fn dap_variable(
+        &self,
+        dap_id: DapId,
+        reference: usize,
+        f: impl FnOnce(Result<Vec<dap_types::Variable>, RpcError>) + Send + 'static,
+    ) {
+        let _ = self.plugin_tx.send(PluginCatalogRpc::DapVariable {
+            dap_id,
+            reference,
+            f: Box::new(f),
+        });
     }
 }
 

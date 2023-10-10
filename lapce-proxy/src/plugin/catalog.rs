@@ -10,7 +10,7 @@ use std::{
 };
 
 use lapce_rpc::{
-    dap_types::{DapId, DapServer, SetBreakpointsResponse},
+    dap_types::{self, DapId, DapServer, SetBreakpointsResponse},
     plugin::{PluginId, VoltID, VoltMetadata},
     proxy::ProxyResponse,
     style::LineStyle,
@@ -355,6 +355,27 @@ impl PluginCatalog {
                 text,
                 f,
             });
+        } else {
+            f.call(Err(RpcError {
+                code: 0,
+                message: "plugin doesn't exist".to_string(),
+            }));
+        }
+    }
+
+    pub fn dap_variable(
+        &self,
+        dap_id: DapId,
+        reference: usize,
+        f: Box<dyn RpcCallback<Vec<dap_types::Variable>, RpcError>>,
+    ) {
+        if let Some(dap) = self.daps.get(&dap_id) {
+            dap.variables_async(
+                reference,
+                |result: Result<dap_types::VariablesResponse, RpcError>| {
+                    f.call(result.map(|resp| resp.variables))
+                },
+            );
         } else {
             f.call(Err(RpcError {
                 code: 0,

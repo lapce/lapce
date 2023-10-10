@@ -867,6 +867,18 @@ impl ProxyHandler for Dispatcher {
                     },
                 );
             }
+            DapVariable { dap_id, reference } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc
+                    .dap_variable(dap_id, reference, move |result| {
+                        proxy_rpc.handle_response(
+                            id,
+                            result.map(|resp| ProxyResponse::DapVariableResponse {
+                                varialbes: resp,
+                            }),
+                        );
+                    });
+            }
         }
     }
 }

@@ -22,6 +22,7 @@ use lapce_rpc::{
         SetBreakpointsArguments, SetBreakpointsResponse, Source, SourceBreakpoint,
         StackTrace, StackTraceArguments, StackTraceResponse, Terminate, ThreadId,
         Threads, ThreadsResponse, Variable, Variables, VariablesArguments,
+        VariablesResponse,
     },
     terminal::TermId,
     RpcError,
@@ -718,5 +719,21 @@ impl DapRpcHandler {
             .request::<Variables>(args)
             .map_err(|e| anyhow!(e.message))?;
         Ok(response.variables)
+    }
+
+    pub fn variables_async(
+        &self,
+        variables_reference: usize,
+        f: impl RpcCallback<VariablesResponse, RpcError> + 'static,
+    ) {
+        let args = VariablesArguments {
+            variables_reference,
+            filter: None,
+            start: None,
+            count: None,
+            format: None,
+        };
+
+        self.request_async::<Variables>(args, f);
     }
 }

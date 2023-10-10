@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use super::plugin::VoltID;
 use crate::{
     buffer::BufferId,
-    dap_types::{DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
+    dap_types::{self, DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
     file::{FileNodeItem, PathObject},
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
@@ -171,6 +171,10 @@ pub enum ProxyRequest {
     RenamePath {
         from: PathBuf,
         to: PathBuf,
+    },
+    DapVariable {
+        dap_id: DapId,
+        reference: usize,
     },
 }
 
@@ -363,6 +367,9 @@ pub enum ProxyResponse {
     },
     GlobalSearchResponse {
         matches: IndexMap<PathBuf, Vec<SearchMatch>>,
+    },
+    DapVariableResponse {
+        varialbes: Vec<dap_types::Variable>,
     },
     Success {},
     SaveResponse {},
@@ -962,6 +969,15 @@ impl ProxyRpcHandler {
             path,
             breakpoints,
         })
+    }
+
+    pub fn dap_variable(
+        &self,
+        dap_id: DapId,
+        reference: usize,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::DapVariable { dap_id, reference }, f);
     }
 }
 

@@ -2023,7 +2023,10 @@ impl WindowTabData {
 
         self.terminal.debug.active_term.set(Some(term_id));
         self.terminal.debug.daps.update(|daps| {
-            daps.insert(config.dap_id, DapData::new(cx, config.dap_id, term_id));
+            daps.insert(
+                config.dap_id,
+                DapData::new(cx, config.dap_id, term_id, self.common.clone()),
+            );
         });
 
         if !self.panel.is_panel_visible(&PanelKind::Terminal) {

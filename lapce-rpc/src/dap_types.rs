@@ -745,7 +745,7 @@ pub struct VariablePresentationHint {
     pub visibility: Option<String>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[derive(Default, Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Variable {
     pub name: String,

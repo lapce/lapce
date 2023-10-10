@@ -2,10 +2,12 @@ use std::{
     collections::{BTreeMap, HashMap},
     fmt::Display,
     path::{Path, PathBuf},
+    rc::Rc,
     time::Instant,
 };
 
 use floem::{
+    ext_event::create_ext_action,
     reactive::{RwSignal, Scope},
     views::VirtualListVector,
 };
@@ -14,9 +16,12 @@ use lapce_rpc::{
         self, DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped,
         ThreadId, Variable,
     },
+    proxy::ProxyResponse,
     terminal::TermId,
 };
 use serde::{Deserialize, Serialize};
+
+use crate::window_tab::CommonData;
 
 const DEFAULT_RUN_TOML: &str = include_str!("../../defaults/run.toml");
 
@@ -169,6 +174,7 @@ impl ScopeOrVar {
 #[derive(Clone, Default)]
 pub struct DapVariable {
     pub item: ScopeOrVar,
+    pub parent: Vec<usize>,
     pub expanded: bool,
     pub read: bool,
     pub children: Vec<DapVariable>,
@@ -182,12 +188,18 @@ pub struct DapData {
     pub stopped: RwSignal<bool>,
     pub thread_id: RwSignal<Option<ThreadId>>,
     pub stack_traces: RwSignal<BTreeMap<ThreadId, StackTraceData>>,
-    pub variables: RwSignal<Vec<(dap_types::Scope, Vec<Variable>)>>,
-    pub new_variables: RwSignal<DapVariable>,
+    pub variables_id: RwSignal<usize>,
+    pub variables: RwSignal<DapVariable>,
+    pub common: Rc<CommonData>,
 }
 
 impl DapData {
-    pub fn new(cx: Scope, dap_id: DapId, term_id: TermId) -> Self {
+    pub fn new(
+        cx: Scope,
+        dap_id: DapId,
+        term_id: TermId,
+        common: Rc<CommonData>,
+    ) -> Self {
         let stopped = cx.create_rw_signal(false);
         let thread_id = cx.create_rw_signal(None);
         let stack_traces = cx.create_rw_signal(BTreeMap::new());
@@ -197,14 +209,16 @@ impl DapData {
             stopped,
             thread_id,
             stack_traces,
-            variables: cx.create_rw_signal(Vec::new()),
-            new_variables: cx.create_rw_signal(DapVariable {
+            variables_id: cx.create_rw_signal(0),
+            variables: cx.create_rw_signal(DapVariable {
                 item: ScopeOrVar::Scope(dap_types::Scope::default()),
+                parent: Vec::new(),
                 expanded: true,
                 read: true,
                 children: Vec::new(),
                 children_expanded_count: 0,
             }),
+            common,
         }
     }
 
@@ -242,32 +256,101 @@ impl DapData {
                 }
             }
         });
-        self.new_variables.update(|dap_var| {
+        self.variables.update(|dap_var| {
             dap_var.children = variables
                 .iter()
-                .map(|(scope, vars)| DapVariable {
+                .enumerate()
+                .map(|(i, (scope, vars))| DapVariable {
                     item: ScopeOrVar::Scope(scope.to_owned()),
-                    expanded: false,
+                    parent: Vec::new(),
+                    expanded: i == 0,
                     read: true,
                     children: vars
                         .iter()
                         .map(|var| DapVariable {
                             item: ScopeOrVar::Var(var.to_owned()),
+                            parent: vec![scope.variables_reference],
                             expanded: false,
                             read: false,
                             children: Vec::new(),
                             children_expanded_count: 0,
                         })
                         .collect(),
-                    children_expanded_count: 0,
+                    children_expanded_count: vars.len(),
                 })
                 .collect();
+            dap_var.children_expanded_count = dap_var
+                .children
+                .iter()
+                .map(|v| v.children_expanded_count + 1)
+                .sum::<usize>();
         });
+    }
+
+    pub fn toggle_expand(&self, parent: Vec<usize>, reference: usize) {
+        self.variables_id.update(|id| {
+            *id += 1;
+        });
+        self.variables.update(|variables| {
+            if let Some(var) = variables.get_var_mut(&parent, reference) {
+                if var.expanded {
+                    var.expanded = false;
+                    variables.update_count_recursive(&parent, reference);
+                } else {
+                    var.expanded = true;
+                    if !var.read {
+                        var.read = true;
+                        self.read_var_children(&parent, reference);
+                    } else {
+                        variables.update_count_recursive(&parent, reference);
+                    }
+                }
+            }
+        });
+    }
+
+    fn read_var_children(&self, parent: &[usize], reference: usize) {
+        let root = self.variables;
+        let parent = parent.to_vec();
+        let variables_id = self.variables_id;
+
+        let send = create_ext_action(self.common.scope, move |result| {
+            if let Ok(ProxyResponse::DapVariableResponse { varialbes }) = result {
+                variables_id.update(|id| {
+                    *id += 1;
+                });
+                root.update(|root| {
+                    if let Some(var) = root.get_var_mut(&parent, reference) {
+                        let mut new_parent = parent.clone();
+                        new_parent.push(reference);
+                        var.read = true;
+                        var.children = varialbes
+                            .into_iter()
+                            .map(|v| DapVariable {
+                                item: ScopeOrVar::Var(v),
+                                parent: new_parent.clone(),
+                                expanded: false,
+                                read: false,
+                                children: Vec::new(),
+                                children_expanded_count: 0,
+                            })
+                            .collect();
+                        root.update_count_recursive(&parent, reference);
+                    }
+                });
+            }
+        });
+        self.common
+            .proxy
+            .dap_variable(self.dap_id, reference, move |result| {
+                send(result);
+            });
     }
 }
 
 pub struct DapVariableViewdata {
     pub item: ScopeOrVar,
+    pub parent: Vec<usize>,
     pub expanded: bool,
     pub level: usize,
 }
@@ -315,6 +398,7 @@ impl DapVariable {
         if current >= min {
             view_items.push(DapVariableViewdata {
                 item: self.item.clone(),
+                parent: self.parent.clone(),
                 expanded: self.expanded,
                 level,
             });
@@ -329,5 +413,181 @@ impl DapVariable {
             }
         }
         i
+    }
+
+    pub fn get_var_mut(
+        &mut self,
+        parent: &[usize],
+        reference: usize,
+    ) -> Option<&mut DapVariable> {
+        let parent = if parent.is_empty() {
+            self
+        } else {
+            parent.iter().try_fold(self, |item, parent| {
+                item.children
+                    .iter_mut()
+                    .find(|c| c.item.reference() == *parent)
+            })?
+        };
+        parent
+            .children
+            .iter_mut()
+            .find(|c| c.item.reference() == reference)
+    }
+
+    pub fn update_count_recursive(&mut self, parent: &[usize], reference: usize) {
+        let mut parent = parent.to_vec();
+        self.update_count(&parent, reference);
+        while let Some(reference) = parent.pop() {
+            self.update_count(&parent, reference);
+        }
+        self.children_expanded_count = self
+            .children
+            .iter()
+            .map(|item| item.children_expanded_count + 1)
+            .sum::<usize>();
+    }
+
+    pub fn update_count(
+        &mut self,
+        parent: &[usize],
+        reference: usize,
+    ) -> Option<()> {
+        let var = self.get_var_mut(parent, reference)?;
+        var.children_expanded_count = if var.expanded {
+            var.children
+                .iter()
+                .map(|item| item.children_expanded_count + 1)
+                .sum::<usize>()
+        } else {
+            0
+        };
+        Some(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use lapce_rpc::dap_types::{Scope, Variable};
+
+    use super::{DapVariable, ScopeOrVar};
+
+    #[test]
+    fn test_update_count() {
+        let variables = vec![
+            (
+                Scope {
+                    variables_reference: 0,
+                    ..Default::default()
+                },
+                vec![
+                    Variable {
+                        variables_reference: 3,
+                        ..Default::default()
+                    },
+                    Variable {
+                        variables_reference: 4,
+                        ..Default::default()
+                    },
+                ],
+            ),
+            (
+                Scope {
+                    variables_reference: 1,
+                    ..Default::default()
+                },
+                vec![
+                    Variable {
+                        variables_reference: 5,
+                        ..Default::default()
+                    },
+                    Variable {
+                        variables_reference: 6,
+                        ..Default::default()
+                    },
+                ],
+            ),
+            (
+                Scope {
+                    variables_reference: 2,
+                    ..Default::default()
+                },
+                vec![
+                    Variable {
+                        variables_reference: 7,
+                        ..Default::default()
+                    },
+                    Variable {
+                        variables_reference: 8,
+                        ..Default::default()
+                    },
+                ],
+            ),
+        ];
+
+        let mut root = DapVariable {
+            item: ScopeOrVar::Scope(Scope::default()),
+            parent: Vec::new(),
+            expanded: true,
+            read: true,
+            children: variables
+                .iter()
+                .map(|(scope, vars)| DapVariable {
+                    item: ScopeOrVar::Scope(scope.to_owned()),
+                    parent: Vec::new(),
+                    expanded: true,
+                    read: true,
+                    children: vars
+                        .iter()
+                        .map(|var| DapVariable {
+                            item: ScopeOrVar::Var(var.to_owned()),
+                            parent: vec![scope.variables_reference],
+                            expanded: false,
+                            read: false,
+                            children: Vec::new(),
+                            children_expanded_count: 0,
+                        })
+                        .collect(),
+                    children_expanded_count: vars.len(),
+                })
+                .collect(),
+            children_expanded_count: 0,
+        };
+        root.children_expanded_count = root
+            .children
+            .iter()
+            .map(|v| v.children_expanded_count + 1)
+            .sum::<usize>();
+        assert_eq!(root.children_expanded_count, 9);
+
+        let var = root.get_var_mut(&[0], 3).unwrap();
+        var.expanded = true;
+        var.read = true;
+        var.children = vec![
+            Variable {
+                variables_reference: 9,
+                ..Default::default()
+            },
+            Variable {
+                variables_reference: 10,
+                ..Default::default()
+            },
+        ]
+        .iter()
+        .map(|var| DapVariable {
+            item: ScopeOrVar::Var(var.to_owned()),
+            parent: vec![0, 3],
+            expanded: false,
+            read: false,
+            children: Vec::new(),
+            children_expanded_count: 0,
+        })
+        .collect();
+        root.update_count_recursive(&[0], 3);
+        let var = root.get_var_mut(&[0], 3).unwrap();
+        assert_eq!(var.children_expanded_count, 2);
+        let var = root.get_var_mut(&[], 0).unwrap();
+        assert_eq!(var.children_expanded_count, 4);
+        assert_eq!(root.children_expanded_count, 11);
     }
 }
