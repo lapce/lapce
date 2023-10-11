@@ -2703,6 +2703,7 @@ dependencies = [
  "tree-sitter-json",
  "tree-sitter-md",
  "tree-sitter-rust",
+ "tree-sitter-thrift",
  "tree-sitter-toml",
  "tree-sitter-yaml",
 ]
@@ -5316,6 +5317,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-thrift"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10546b134d045fa8d8787d58faf5851d2b8c2d5eaad9699203c4e7197cd8bea5"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-toml"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6163,7 +6174,7 @@ dependencies = [
  "js-sys",
  "log",
  "naga",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.1",
  "profiling",
  "raw-window-handle",
  "smallvec",
@@ -6188,7 +6199,7 @@ dependencies = [
  "codespan-reporting",
  "log",
  "naga",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.1",
  "profiling",
  "raw-window-handle",
  "rustc-hash",
@@ -6226,7 +6237,7 @@ dependencies = [
  "metal",
  "naga",
  "objc",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.1",
  "profiling",
  "range-alloc",
  "raw-window-handle",

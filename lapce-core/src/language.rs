@@ -49,14 +49,24 @@ macro_rules! comment_properties {
             multi_line_prefix: None,
         }
     };
+    ($s:expr, $ml_s:expr, $ml_e:expr) => {
+        CommentProperties {
+            single_line_start: Some($s),
+            single_line_end: None,
+
+            multi_line_start: Some($ml_s),
+            multi_line_end: Some($ml_e),
+            multi_line_prefix: None,
+        }
+    };
     ($sl_s:expr, $sl_e:expr, $ml_s:expr, $ml_e:expr) => {
         CommentProperties {
             single_line_start: Some($sl_s),
             single_line_end: Some($sl_e),
 
-            multi_line_start: Some($sl_s),
-            multi_line_end: None,
-            multi_line_prefix: Some($sl_e),
+            multi_line_start: Some($ml_s),
+            multi_line_end: Some($ml_e),
+            multi_line_prefix: None,
         }
     };
 }
@@ -246,6 +256,8 @@ pub enum LapceLanguage {
     Svelte,
     #[strum(message = "Swift")]
     Swift,
+    #[strum(message = "Thrift")]
+    Thrift,
     #[strum(message = "TOML")]
     Toml,
     #[strum(message = "TypeScript React")]
@@ -1371,6 +1383,26 @@ const LANGUAGES: &[SyntaxProperties] = &[
             sticky_headers: &[],
         }),
         #[cfg(not(feature = "lang-swift"))]
+        tree_sitter: None,
+    },
+    SyntaxProperties {
+        id: LapceLanguage::Thrift,
+
+        indent: "  ",
+        files: &[],
+        extensions: &["thrift"],
+
+        comment: comment_properties!("//", "/*", "*/"),
+
+        #[cfg(feature = "lang-thrift")]
+        tree_sitter: Some(TreeSitterProperties {
+            language: tree_sitter_thrift::language,
+            highlight: Some(tree_sitter_thrift::HIGHLIGHTS_QUERY),
+            injection: None,
+            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+            sticky_headers: &[],
+        }),
+        #[cfg(not(feature = "lang-thrift"))]
         tree_sitter: None,
     },
     SyntaxProperties {

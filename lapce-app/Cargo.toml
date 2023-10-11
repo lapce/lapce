@@ -85,4 +85,5 @@ all-languages = [
     "lapce-core/lang-rust",
     "lapce-core/lang-toml",
     "lapce-core/lang-yaml",
+    "lapce-core/lang-thrift",
 ]

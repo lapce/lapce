@@ -104,6 +104,7 @@ declare_language_highlights!(
     Sql: "lang-sql",
     Svelte: "lang-svelte",
     Swift: "lang-swift",
+    Thrift: "lang-thrift",
     Toml: "lang-toml",
     Tsx: "lang-typescript",
     Typescript: "lang-typescript",
