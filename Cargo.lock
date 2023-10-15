@@ -5695,7 +5695,7 @@ dependencies = [
 [[package]]
 name = "wasi-experimental-http-wasmtime"
 version = "0.10.0"
-source = "git+https://github.com/lapce/wasi-experimental-http#5c6d970fe0750932f76979678384bf1c5ab5be2e"
+source = "git+https://github.com/lapce/wasi-experimental-http#21419eb785cb583ead180f25a9685fa16de7f326"
 dependencies = [
  "anyhow",
  "bytes",
