@@ -7,7 +7,10 @@ use alacritty_terminal::{
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
-    peniko::kurbo::{Point, Rect, Size},
+    peniko::{
+        kurbo::{Point, Rect, Size},
+        Color,
+    },
     reactive::{create_effect, ReadSignal},
     view::{ChangeFlags, View},
     Renderer,
@@ -291,7 +294,12 @@ impl View for TerminalView {
             }
 
             if term_bg != bg {
-                let rect = Size::new(char_width, line_height)
+                let term_fg = *config.get_color(LapceColor::TERMINAL_FOREGROUND);
+                if check_contrast(&fg, &bg) && term_fg == fg {
+                    fg = term_bg;
+                };
+                let width = char_width * 1.1;
+                let rect = Size::new(width, line_height)
                     .to_rect()
                     .with_origin(Point::new(x, y));
                 cx.fill(&rect, bg, 0.0);
@@ -403,4 +411,35 @@ impl View for TerminalView {
         //     }
         // }
     }
+}
+
+/// Check the contrast of two colors and determines if the contrast should be changed
+/// according to WCAG standart
+fn check_contrast(fg: &Color, bg: &Color) -> bool {
+    const WCAG_MINIMUM_RATIO: f64 = 4.5;
+
+    fn luminance(color: &Color) -> f64 {
+        let [lum_r, lum_g, lum_b] = [color.r, color.g, color.b].map(|color| {
+            let proportion = color as f64 / 255.0;
+
+            if proportion <= 0.03928 {
+                proportion / 12.92
+            } else {
+                ((proportion + 0.055) / 1.055).powf(2.4)
+            }
+        });
+
+        0.2126 * lum_r + 0.7152 * lum_g + 0.0722 * lum_b
+    }
+
+    let lum_fg = luminance(fg);
+    let lum_bg = luminance(bg);
+
+    let ratio = if lum_fg < lum_bg {
+        (lum_fg + 0.05) / (lum_bg + 0.05)
+    } else {
+        (lum_bg + 0.05) / (lum_fg + 0.05)
+    };
+
+    ratio < WCAG_MINIMUM_RATIO
 }
