@@ -35,6 +35,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 
 [workspace.dependencies]
 anyhow = "1.0"
+backtrace = "0.3"
 chrono = "0.4"
 clap = { version = "3.2.25", features = ["derive"] }
 crossbeam-channel = "0.5.8"
@@ -90,6 +91,10 @@ package = "tracing-appender"
 [workspace.dependencies.alacritty_terminal]
 git = "https://github.com/alacritty/alacritty"
 rev = "6071a7bf35cfd99be8ba70f479f188b7370cda6f"
+
+[workspace.dependencies.windows-sys]
+version = "0"
+features = ["Win32_Foundation"]
 
 [profile.release-lto]
 inherits = "release"

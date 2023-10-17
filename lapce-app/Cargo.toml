@@ -7,6 +7,7 @@ edition.workspace = true
 [dependencies]
 alacritty_terminal.workspace = true
 anyhow.workspace = true
+backtrace.workspace = true
 chrono.workspace = true
 clap.workspace = true
 crossbeam-channel.workspace = true
@@ -62,6 +63,14 @@ zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
 [target.'cfg(target_os="macos")'.dependencies]
 fs_extra = "1.2.0"
 dmg = "0.1.1"
+
+[target.'cfg(windows)'.dependencies.windows-sys]
+workspace = true
+features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+]
 
 [features]
 default = ["all-languages", "updater"]

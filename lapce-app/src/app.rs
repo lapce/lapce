@@ -3375,6 +3375,8 @@ pub fn launch() {
     let (reload_handle, _guard) = logging();
     tracing::info!("Starting up Lapce..");
 
+    panic_hook();
+
     // if PWD is not set, then we are not being launched via a terminal
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     if std::env::var("PWD").is_err() {
@@ -3421,7 +3423,16 @@ pub fn launch() {
     crate::update::cleanup();
 
     let _ = lapce_proxy::register_lapce_path();
-    let db = Arc::new(LapceDb::new().unwrap());
+    let db = match LapceDb::new() {
+        Ok(db) => Arc::new(db),
+        Err(e) => {
+            #[cfg(windows)]
+            error_modal("Error", &format!("Failed to create LapceDb: {e}"));
+            #[cfg(not(windows))]
+            error!("Failed to create LapceDb: {e}");
+            std::process::exit(1);
+        }
+    };
     let scope = Scope::new();
     provide_context(db.clone());
 
@@ -3737,6 +3748,74 @@ pub fn window_menu(
                     });
                 })),
         )
+}
+
+fn panic_hook() {
+    std::panic::set_hook(Box::new(move |info| {
+        let thread = std::thread::current();
+        let thread = thread.name().unwrap_or("main");
+        let backtrace = backtrace::Backtrace::new();
+
+        let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            s
+        } else {
+            "<unknown>"
+        };
+
+        match info.location() {
+            Some(loc) => {
+                error!(
+                    target: "lapce_app::panic_hook",
+                    "thread {thread} panicked at {} | file://./{}:{}:{}\n{:?}",
+                    payload,
+                    loc.file(), loc.line(), loc.column(),
+                    backtrace,
+                );
+            }
+            None => {
+                error!(
+                    target: "lapce_app::panic_hook",
+                    "thread {thread} panicked at {}\n{:?}",
+                    payload,
+                    backtrace,
+                );
+            }
+        }
+
+        #[cfg(windows)]
+        error_modal("Error", &info.to_string());
+    }))
+}
+
+#[cfg(windows)]
+fn error_modal(title: &str, msg: &str) -> i32 {
+    use std::iter::once;
+    use std::os::windows::prelude::OsStrExt;
+    use std::{ffi::OsStr, mem};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        MessageBoxW, MB_ICONERROR, MB_SYSTEMMODAL,
+    };
+
+    let result: i32;
+
+    let title = OsStr::new(title)
+        .encode_wide()
+        .chain(once(0u16))
+        .collect::<Vec<u16>>();
+    let msg = OsStr::new(msg)
+        .encode_wide()
+        .chain(once(0u16))
+        .collect::<Vec<u16>>();
+    unsafe {
+        result = MessageBoxW(
+            mem::zeroed(),
+            msg.as_ptr(),
+            title.as_ptr(),
+            MB_ICONERROR | MB_SYSTEMMODAL,
+        );
+    }
+
+    result
 }
 
 fn fetch_grammars() -> Result<()> {
