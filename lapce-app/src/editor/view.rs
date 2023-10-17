@@ -26,6 +26,7 @@ use lapce_core::{
     mode::{Mode, VisualMode},
     selection::Selection,
 };
+use lapce_rpc::dap_types::{DapId, SourceBreakpoint};
 use lapce_xi_rope::find::CaseMatching;
 
 use super::{
@@ -1587,6 +1588,7 @@ fn editor_gutter(
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
     let breakpoints = window_tab_data.terminal.debug.breakpoints;
+    let daps = window_tab_data.terminal.debug.daps;
 
     let padding_left = 25.0;
     let padding_right = 30.0;
@@ -1646,36 +1648,66 @@ fn editor_gutter(
                 / config.get_untracked().editor.line_height() as f64)
                 .floor() as usize
                 + i;
-            let doc = editor.get_untracked().view.doc.get_untracked();
+            let editor = editor.get_untracked();
+            let doc = editor.view.doc.get_untracked();
             let offset = doc.buffer.with_untracked(|b| b.offset_of_line(line));
             if let Some(path) = doc.content.get_untracked().path() {
-                breakpoints.update(|breakpoints| {
-                    let breakpoints = breakpoints.entry(path.clone()).or_default();
-                    if let std::collections::btree_map::Entry::Vacant(e) =
-                        breakpoints.entry(line)
-                    {
-                        e.insert(LapceBreakpoint {
-                            id: None,
-                            verified: false,
-                            message: None,
-                            line,
-                            offset,
-                            dap_line: None,
-                            active: true,
-                        });
-                    } else {
-                        let mut toggle_active = false;
-                        if let Some(breakpint) = breakpoints.get_mut(&line) {
-                            if !breakpint.active {
-                                breakpint.active = true;
-                                toggle_active = true;
+                let path_breakpoints = breakpoints
+                    .try_update(|breakpoints| {
+                        let breakpoints =
+                            breakpoints.entry(path.clone()).or_default();
+                        if let std::collections::btree_map::Entry::Vacant(e) =
+                            breakpoints.entry(line)
+                        {
+                            e.insert(LapceBreakpoint {
+                                id: None,
+                                verified: false,
+                                message: None,
+                                line,
+                                offset,
+                                dap_line: None,
+                                active: true,
+                            });
+                        } else {
+                            let mut toggle_active = false;
+                            if let Some(breakpint) = breakpoints.get_mut(&line) {
+                                if !breakpint.active {
+                                    breakpint.active = true;
+                                    toggle_active = true;
+                                }
+                            }
+                            if !toggle_active {
+                                breakpoints.remove(&line);
                             }
                         }
-                        if !toggle_active {
-                            breakpoints.remove(&line);
+                        breakpoints.clone()
+                    })
+                    .unwrap();
+                let source_breakpoints: Vec<SourceBreakpoint> = path_breakpoints
+                    .iter()
+                    .filter_map(|(_, b)| {
+                        if b.active {
+                            Some(SourceBreakpoint {
+                                line: b.line + 1,
+                                column: None,
+                                condition: None,
+                                hit_condition: None,
+                                log_message: None,
+                            })
+                        } else {
+                            None
                         }
-                    }
-                });
+                    })
+                    .collect();
+                let daps: Vec<DapId> =
+                    daps.with_untracked(|daps| daps.keys().cloned().collect());
+                for dap_id in daps {
+                    editor.common.proxy.dap_set_breakpoints(
+                        dap_id,
+                        path.to_path_buf(),
+                        source_breakpoints.clone(),
+                    );
+                }
             }
             true
         })

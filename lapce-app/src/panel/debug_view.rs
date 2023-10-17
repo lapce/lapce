@@ -288,6 +288,9 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                 move || {
                     let dap = terminal.get_active_dap(true);
                     dap.map(|dap| {
+                        if !dap.stopped.get() {
+                            return DapVariable::default();
+                        }
                         let process_stopped = terminal
                             .get_terminal(&dap.term_id)
                             .and_then(|t| {

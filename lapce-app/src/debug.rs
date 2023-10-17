@@ -8,7 +8,7 @@ use std::{
 
 use floem::{
     ext_event::create_ext_action,
-    reactive::{RwSignal, Scope},
+    reactive::{Memo, RwSignal, Scope},
     views::VirtualListVector,
 };
 use lapce_rpc::{
@@ -21,7 +21,11 @@ use lapce_rpc::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::window_tab::CommonData;
+use crate::{
+    command::InternalCommand,
+    editor::location::{EditorLocation, EditorPosition},
+    window_tab::CommonData,
+};
 
 const DEFAULT_RUN_TOML: &str = include_str!("../../defaults/run.toml");
 
@@ -137,6 +141,7 @@ pub struct LapceBreakpoint {
 }
 
 #[derive(Clone, PartialEq, Eq)]
+#[allow(clippy::large_enum_variant)]
 pub enum ScopeOrVar {
     Scope(dap_types::Scope),
     Var(dap_types::Variable),
@@ -190,6 +195,7 @@ pub struct DapData {
     pub stack_traces: RwSignal<BTreeMap<ThreadId, StackTraceData>>,
     pub variables_id: RwSignal<usize>,
     pub variables: RwSignal<DapVariable>,
+    pub breakline: Memo<Option<(usize, PathBuf)>>,
     pub common: Rc<CommonData>,
 }
 
@@ -202,7 +208,32 @@ impl DapData {
     ) -> Self {
         let stopped = cx.create_rw_signal(false);
         let thread_id = cx.create_rw_signal(None);
-        let stack_traces = cx.create_rw_signal(BTreeMap::new());
+        let stack_traces: RwSignal<BTreeMap<ThreadId, StackTraceData>> =
+            cx.create_rw_signal(BTreeMap::new());
+        let breakline = cx.create_memo(move |_| {
+            let thread_id = thread_id.get();
+            if let Some(thread_id) = thread_id {
+                stack_traces.with(|stack_traces| {
+                    if let Some(trace) = stack_traces.get(&thread_id) {
+                        let breakline = trace.frames.with(|f| {
+                            f.get(0)
+                                .and_then(|f| {
+                                    f.source
+                                        .as_ref()
+                                        .map(|s| (f.line.saturating_sub(1), s))
+                                })
+                                .and_then(|(line, s)| {
+                                    s.path.clone().map(|p| (line, p))
+                                })
+                        });
+                        return breakline;
+                    }
+                    None
+                })
+            } else {
+                None
+            }
+        });
         Self {
             term_id,
             dap_id,
@@ -218,6 +249,7 @@ impl DapData {
                 children: Vec::new(),
                 children_expanded_count: 0,
             }),
+            breakline,
             common,
         }
     }
@@ -240,6 +272,29 @@ impl DapData {
             for (thread_id, frames) in stack_traces {
                 let is_main_thread = main_thread_id.as_ref() == Some(thread_id);
                 if let Some(current) = current_stack_traces.get_mut(thread_id) {
+                    if is_main_thread {
+                        if let Some(frame) = frames.first() {
+                            if let Some(path) = frame
+                                .source
+                                .as_ref()
+                                .and_then(|source| source.path.clone())
+                            {
+                                self.common.internal_command.send(
+                                    InternalCommand::JumpToLocation {
+                                        location: EditorLocation {
+                                            path,
+                                            position: Some(EditorPosition::Line(
+                                                frame.line.saturating_sub(1),
+                                            )),
+                                            scroll_offset: None,
+                                            ignore_unconfirmed: false,
+                                            same_editor_tab: false,
+                                        },
+                                    },
+                                );
+                            }
+                        }
+                    }
                     current.frames.set(frames.into());
                     if is_main_thread {
                         current.expanded.set(true);

@@ -525,6 +525,7 @@ impl TerminalPanelData {
             .daps
             .with_untracked(|daps| daps.get(dap_id).cloned());
         if let Some(dap) = dap {
+            dap.thread_id.set(None);
             dap.stopped.set(false);
         }
     }

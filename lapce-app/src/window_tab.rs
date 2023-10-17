@@ -1562,6 +1562,43 @@ impl WindowTabData {
             CoreNotification::DapContinued { dap_id } => {
                 self.terminal.dap_continued(dap_id);
             }
+            CoreNotification::DapBreakpointsResp {
+                path, breakpoints, ..
+            } => {
+                self.terminal.debug.breakpoints.update(|all_breakpoints| {
+                    if let Some(current_breakpoints) = all_breakpoints.get_mut(path)
+                    {
+                        let mut line_changed = HashSet::new();
+                        let mut i = 0;
+                        for (_, current_breakpoint) in current_breakpoints.iter_mut()
+                        {
+                            if !current_breakpoint.active {
+                                continue;
+                            }
+                            if let Some(breakpoint) = breakpoints.get(i) {
+                                current_breakpoint.id = breakpoint.id;
+                                current_breakpoint.verified = breakpoint.verified;
+                                current_breakpoint.message =
+                                    breakpoint.message.clone();
+                                if let Some(new_line) = breakpoint.line {
+                                    if current_breakpoint.line + 1 != new_line {
+                                        line_changed.insert(current_breakpoint.line);
+                                        current_breakpoint.line =
+                                            new_line.saturating_sub(1);
+                                    }
+                                }
+                            }
+                            i += 1;
+                        }
+                        for line in line_changed {
+                            if let Some(changed) = current_breakpoints.remove(&line)
+                            {
+                                current_breakpoints.insert(changed.line, changed);
+                            }
+                        }
+                    }
+                });
+            }
             CoreNotification::OpenFileChanged { path, content } => {
                 self.main_split.open_file_changed(path, content);
             }
