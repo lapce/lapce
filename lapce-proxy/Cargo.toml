@@ -45,6 +45,7 @@ globset = "0.4.9"
 locale_config = "0.3.0"
 mio = "0.6.20"
 jsonrpc-lite = "0.6.0"
+which = "5.0.0"
 
 # git
 git2 = { version = "0.17.2", features = ["vendored-openssl"] }

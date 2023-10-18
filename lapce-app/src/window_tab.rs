@@ -1,4 +1,11 @@
-use std::{collections::HashSet, env, path::Path, rc::Rc, sync::Arc, time::Instant};
+use std::{
+    collections::{BTreeMap, HashSet},
+    env,
+    path::Path,
+    rc::Rc,
+    sync::Arc,
+    time::Instant,
+};
 
 use crossbeam_channel::Sender;
 use floem::{
@@ -40,7 +47,7 @@ use crate::{
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
-    debug::{DapData, RunDebugMode, RunDebugProcess},
+    debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
     doc::{DocContent, EditorDiagnostic},
     editor::{
         location::{EditorLocation, EditorPosition},
@@ -433,6 +440,24 @@ impl WindowTabData {
 
         let terminal =
             TerminalPanelData::new(workspace.clone(), None, None, common.clone());
+        if let Some(workspace_info) = workspace_info.as_ref() {
+            terminal.debug.breakpoints.set(
+                workspace_info
+                    .breakpoints
+                    .clone()
+                    .into_iter()
+                    .map(|(path, breakpoints)| {
+                        (
+                            path,
+                            breakpoints
+                                .into_iter()
+                                .map(|b| (b.line, b))
+                                .collect::<BTreeMap<usize, LapceBreakpoint>>(),
+                        )
+                    })
+                    .collect(),
+            );
+        }
 
         let rename = RenameData::new(cx, common.clone());
         let global_search = GlobalSearchData::new(cx, main_split.clone());
@@ -1693,6 +1718,16 @@ impl WindowTabData {
         WorkspaceInfo {
             split: main_split_data.get_untracked().split_info(self),
             panel: self.panel.panel_info(),
+            breakpoints: self
+                .terminal
+                .debug
+                .breakpoints
+                .get_untracked()
+                .into_iter()
+                .map(|(path, breakpoints)| {
+                    (path, breakpoints.into_values().collect::<Vec<_>>())
+                })
+                .collect(),
         }
     }
 

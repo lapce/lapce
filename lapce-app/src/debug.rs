@@ -129,7 +129,7 @@ pub struct StackTraceData {
     pub frames_shown: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct LapceBreakpoint {
     pub id: Option<usize>,
     pub verified: bool,
@@ -213,23 +213,22 @@ impl DapData {
         let breakline = cx.create_memo(move |_| {
             let thread_id = thread_id.get();
             if let Some(thread_id) = thread_id {
-                stack_traces.with(|stack_traces| {
-                    if let Some(trace) = stack_traces.get(&thread_id) {
-                        let breakline = trace.frames.with(|f| {
-                            f.get(0)
-                                .and_then(|f| {
-                                    f.source
-                                        .as_ref()
-                                        .map(|s| (f.line.saturating_sub(1), s))
-                                })
-                                .and_then(|(line, s)| {
-                                    s.path.clone().map(|p| (line, p))
-                                })
-                        });
-                        return breakline;
-                    }
-                    None
-                })
+                let trace = stack_traces
+                    .with(|stack_traces| stack_traces.get(&thread_id).cloned());
+
+                if let Some(trace) = trace {
+                    let breakline = trace.frames.with(|f| {
+                        f.get(0)
+                            .and_then(|f| {
+                                f.source
+                                    .as_ref()
+                                    .map(|s| (f.line.saturating_sub(1), s))
+                            })
+                            .and_then(|(line, s)| s.path.clone().map(|p| (line, p)))
+                    });
+                    return breakline;
+                }
+                None
             } else {
                 None
             }
