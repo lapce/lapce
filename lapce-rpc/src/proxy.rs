@@ -176,6 +176,10 @@ pub enum ProxyRequest {
         dap_id: DapId,
         reference: usize,
     },
+    DapGetScopes {
+        dap_id: DapId,
+        frame_id: usize,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -268,6 +272,10 @@ pub enum ProxyNotification {
         term_id: TermId,
     },
     DapContinue {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepOver {
         dap_id: DapId,
         thread_id: ThreadId,
     },
@@ -370,6 +378,9 @@ pub enum ProxyResponse {
     },
     DapVariableResponse {
         varialbes: Vec<dap_types::Variable>,
+    },
+    DapGetScopesResponse {
+        scopes: Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
     },
     Success {},
     SaveResponse {},
@@ -946,6 +957,10 @@ impl ProxyRpcHandler {
         self.notification(ProxyNotification::DapContinue { dap_id, thread_id })
     }
 
+    pub fn dap_step_over(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapStepOver { dap_id, thread_id })
+    }
+
     pub fn dap_pause(&self, dap_id: DapId, thread_id: ThreadId) {
         self.notification(ProxyNotification::DapPause { dap_id, thread_id })
     }
@@ -978,6 +993,15 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::DapVariable { dap_id, reference }, f);
+    }
+
+    pub fn dap_get_scopes(
+        &self,
+        dap_id: DapId,
+        frame_id: usize,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::DapGetScopes { dap_id, frame_id }, f);
     }
 }
 

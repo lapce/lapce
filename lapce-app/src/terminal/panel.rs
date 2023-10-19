@@ -1,17 +1,24 @@
 use std::{collections::HashMap, rc::Rc, sync::Arc};
 
-use floem::reactive::{RwSignal, Scope};
+use floem::{
+    ext_event::create_ext_action,
+    reactive::{RwSignal, Scope},
+};
 use lapce_core::mode::Mode;
 use lapce_rpc::{
     dap_types::{
         self, DapId, RunDebugConfig, StackFrame, Stopped, ThreadId, Variable,
     },
+    proxy::ProxyResponse,
     terminal::{TermId, TerminalProfile},
 };
 
 use super::{data::TerminalData, tab::TerminalTabData};
 use crate::{
-    debug::{DapData, RunDebugData, RunDebugMode, RunDebugProcess},
+    debug::{
+        DapData, DapVariable, RunDebugData, RunDebugMode, RunDebugProcess,
+        ScopeOrVar,
+    },
     id::TerminalTabId,
     keypress::{EventRef, KeyPressData, KeyPressFocus},
     panel::kind::PanelKind,
@@ -574,6 +581,20 @@ impl TerminalPanelData {
         Some(())
     }
 
+    pub fn dap_step_over(&self, term_id: TermId) -> Option<()> {
+        let terminal = self.get_terminal(&term_id)?;
+        let dap_id = terminal
+            .run_debug
+            .with_untracked(|r| r.as_ref().map(|r| r.config.dap_id))?;
+        let thread_id = self.debug.daps.with_untracked(|daps| {
+            daps.get(&dap_id)
+                .and_then(|dap| dap.thread_id.get_untracked())
+        });
+        let thread_id = thread_id.unwrap_or_default();
+        self.common.proxy.dap_step_over(dap_id, thread_id);
+        Some(())
+    }
+
     pub fn get_active_dap(&self, tracked: bool) -> Option<DapData> {
         let active_term = if tracked {
             self.debug.active_term.get()?
@@ -601,6 +622,55 @@ impl TerminalPanelData {
             self.debug
                 .daps
                 .with_untracked(|daps| daps.get(&dap_id).cloned())
+        }
+    }
+
+    pub fn dap_frame_scopes(&self, dap_id: DapId, frame_id: usize) {
+        if let Some(dap) = self.debug.daps.get_untracked().get(&dap_id) {
+            let variables = dap.variables;
+            let send = create_ext_action(self.common.scope, move |result| {
+                if let Ok(ProxyResponse::DapGetScopesResponse { scopes }) = result {
+                    variables.update(|dap_var| {
+                        dap_var.children = scopes
+                            .iter()
+                            .enumerate()
+                            .map(|(i, (scope, vars))| DapVariable {
+                                item: ScopeOrVar::Scope(scope.to_owned()),
+                                parent: Vec::new(),
+                                expanded: i == 0,
+                                read: i == 0,
+                                children: vars
+                                    .iter()
+                                    .map(|var| DapVariable {
+                                        item: ScopeOrVar::Var(var.to_owned()),
+                                        parent: vec![scope.variables_reference],
+                                        expanded: false,
+                                        read: false,
+                                        children: Vec::new(),
+                                        children_expanded_count: 0,
+                                    })
+                                    .collect(),
+                                children_expanded_count: if i == 0 {
+                                    vars.len()
+                                } else {
+                                    0
+                                },
+                            })
+                            .collect();
+                        dap_var.children_expanded_count = dap_var
+                            .children
+                            .iter()
+                            .map(|v| v.children_expanded_count + 1)
+                            .sum::<usize>();
+                    });
+                }
+            });
+
+            self.common
+                .proxy
+                .dap_get_scopes(dap_id, frame_id, move |result| {
+                    send(result);
+                });
         }
     }
 }

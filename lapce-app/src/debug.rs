@@ -78,17 +78,28 @@ pub fn run_configs(workspace: Option<&Path>) -> Option<RunDebugConfigs> {
 pub struct RunDebugData {
     pub active_term: RwSignal<Option<TermId>>,
     pub daps: RwSignal<im::HashMap<DapId, DapData>>,
+    pub breakline: Memo<Option<(usize, PathBuf)>>,
     pub breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
 }
 
 impl RunDebugData {
     pub fn new(cx: Scope) -> Self {
-        let active_term = cx.create_rw_signal(None);
-        let daps = cx.create_rw_signal(im::HashMap::new());
+        let active_term: RwSignal<Option<TermId>> = cx.create_rw_signal(None);
+        let daps: RwSignal<im::HashMap<DapId, DapData>> =
+            cx.create_rw_signal(im::HashMap::new());
         let breakpoints = cx.create_rw_signal(BTreeMap::new());
+
+        let breakline = cx.create_memo(move |_| {
+            let active_term = active_term.get();
+            let daps = daps.get();
+            let dap = daps.values().find(|d| Some(d.term_id) == active_term);
+            dap.and_then(|dap| dap.breakline.get())
+        });
+
         Self {
             active_term,
             daps,
+            breakline,
             breakpoints,
         }
     }
@@ -165,6 +176,13 @@ impl ScopeOrVar {
         match self {
             ScopeOrVar::Scope(_) => None,
             ScopeOrVar::Var(var) => Some(&var.value),
+        }
+    }
+
+    pub fn ty(&self) -> Option<&str> {
+        match self {
+            ScopeOrVar::Scope(_) => None,
+            ScopeOrVar::Var(var) => var.ty.as_deref(),
         }
     }
 
@@ -266,50 +284,48 @@ impl DapData {
         });
 
         let main_thread_id = self.thread_id.get_untracked();
-        self.stack_traces.update(|current_stack_traces| {
-            current_stack_traces.retain(|t, _| stack_traces.contains_key(t));
-            for (thread_id, frames) in stack_traces {
-                let is_main_thread = main_thread_id.as_ref() == Some(thread_id);
-                if let Some(current) = current_stack_traces.get_mut(thread_id) {
-                    if is_main_thread {
-                        if let Some(frame) = frames.first() {
-                            if let Some(path) = frame
-                                .source
-                                .as_ref()
-                                .and_then(|source| source.path.clone())
-                            {
-                                self.common.internal_command.send(
-                                    InternalCommand::JumpToLocation {
-                                        location: EditorLocation {
-                                            path,
-                                            position: Some(EditorPosition::Line(
-                                                frame.line.saturating_sub(1),
-                                            )),
-                                            scroll_offset: None,
-                                            ignore_unconfirmed: false,
-                                            same_editor_tab: false,
-                                        },
-                                    },
-                                );
-                            }
-                        }
+        let mut current_stack_traces = self.stack_traces.get_untracked();
+        current_stack_traces.retain(|t, _| stack_traces.contains_key(t));
+        for (thread_id, frames) in stack_traces {
+            let is_main_thread = main_thread_id.as_ref() == Some(thread_id);
+            if is_main_thread {
+                if let Some(frame) = frames.first() {
+                    if let Some(path) =
+                        frame.source.as_ref().and_then(|source| source.path.clone())
+                    {
+                        self.common.internal_command.send(
+                            InternalCommand::JumpToLocation {
+                                location: EditorLocation {
+                                    path,
+                                    position: Some(EditorPosition::Line(
+                                        frame.line.saturating_sub(1),
+                                    )),
+                                    scroll_offset: None,
+                                    ignore_unconfirmed: false,
+                                    same_editor_tab: false,
+                                },
+                            },
+                        );
                     }
-                    current.frames.set(frames.into());
-                    if is_main_thread {
-                        current.expanded.set(true);
-                    }
-                } else {
-                    current_stack_traces.insert(
-                        *thread_id,
-                        StackTraceData {
-                            expanded: cx.create_rw_signal(is_main_thread),
-                            frames: cx.create_rw_signal(frames.into()),
-                            frames_shown: 20,
-                        },
-                    );
                 }
             }
-        });
+            if let Some(current) = current_stack_traces.get_mut(thread_id) {
+                current.frames.set(frames.into());
+                if is_main_thread {
+                    current.expanded.set(true);
+                }
+            } else {
+                current_stack_traces.insert(
+                    *thread_id,
+                    StackTraceData {
+                        expanded: cx.create_rw_signal(is_main_thread),
+                        frames: cx.create_rw_signal(frames.into()),
+                        frames_shown: 20,
+                    },
+                );
+            }
+        }
+        self.stack_traces.set(current_stack_traces);
         self.variables.update(|dap_var| {
             dap_var.children = variables
                 .iter()
@@ -330,7 +346,7 @@ impl DapData {
                             children_expanded_count: 0,
                         })
                         .collect(),
-                    children_expanded_count: vars.len(),
+                    children_expanded_count: if i == 0 { vars.len() } else { 0 },
                 })
                 .collect();
             dap_var.children_expanded_count = dap_var

@@ -109,6 +109,16 @@ pub enum PluginCatalogRpc {
         reference: usize,
         f: Box<dyn RpcCallback<Vec<dap_types::Variable>, RpcError>>,
     },
+    DapGetScopes {
+        dap_id: DapId,
+        frame_id: usize,
+        f: Box<
+            dyn RpcCallback<
+                Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
+                RpcError,
+            >,
+        >,
+    },
     DidOpenTextDocument {
         document: TextDocumentItem,
     },
@@ -150,6 +160,10 @@ pub enum PluginCatalogNotification {
         term_id: TermId,
     },
     DapContinue {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepOver {
         dap_id: DapId,
         thread_id: ThreadId,
     },
@@ -297,6 +311,13 @@ impl PluginCatalogRpcHandler {
                     f,
                 } => {
                     plugin.dap_variable(dap_id, reference, f);
+                }
+                PluginCatalogRpc::DapGetScopes {
+                    dap_id,
+                    frame_id,
+                    f,
+                } => {
+                    plugin.dap_get_scopes(dap_id, frame_id, f);
                 }
                 PluginCatalogRpc::Shutdown => {
                     return;
@@ -1097,6 +1118,13 @@ impl PluginCatalogRpcHandler {
         })
     }
 
+    pub fn dap_step_over(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStepOver {
+            dap_id,
+            thread_id,
+        })
+    }
+
     pub fn dap_stop(&self, dap_id: DapId) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::DapStop { dap_id })
     }
@@ -1140,6 +1168,22 @@ impl PluginCatalogRpcHandler {
         let _ = self.plugin_tx.send(PluginCatalogRpc::DapVariable {
             dap_id,
             reference,
+            f: Box::new(f),
+        });
+    }
+
+    pub fn dap_get_scopes(
+        &self,
+        dap_id: DapId,
+        frame_id: usize,
+        f: impl FnOnce(
+                Result<Vec<(dap_types::Scope, Vec<dap_types::Variable>)>, RpcError>,
+            ) + Send
+            + 'static,
+    ) {
+        let _ = self.plugin_tx.send(PluginCatalogRpc::DapGetScopes {
+            dap_id,
+            frame_id,
             f: Box::new(f),
         });
     }

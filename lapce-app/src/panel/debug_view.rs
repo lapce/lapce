@@ -156,6 +156,19 @@ fn debug_process_icons(
             {
                 let terminal = terminal.clone();
                 clickable_icon(
+                    || LapceIcons::DEBUG_STEP_OVER,
+                    move || {
+                        terminal.dap_step_over(term_id);
+                    },
+                    || false,
+                    move || !paused() || stopped,
+                    config,
+                )
+                .style(|s| s.margin_right(6.0))
+            },
+            {
+                let terminal = terminal.clone();
+                clickable_icon(
                     || LapceIcons::DEBUG_RESTART,
                     move || {
                         terminal.restart_run_debug(term_id);
@@ -318,6 +331,8 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                     let level = node.level;
                     let reference = node.item.reference();
                     let name = node.item.name();
+                    let ty = node.item.ty();
+                    let type_exists = ty.map(|ty| !ty.is_empty()).unwrap_or(false);
                     stack((
                         svg(move || {
                             let config = config.get();
@@ -339,7 +354,16 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             s.size(size, size).margin_left(10.0).color(color)
                         }),
                         text(name),
-                        text(format!(": {}", node.item.value().unwrap_or("")))
+                        text(": ").style(move |s| {
+                            s.apply_if(!type_exists || reference == 0, |s| s.hide())
+                        }),
+                        text(node.item.ty().unwrap_or("")).style(move |s| {
+                            s.color(*config.get().get_style_color("type").unwrap())
+                                .apply_if(!type_exists || reference == 0, |s| {
+                                    s.hide()
+                                })
+                        }),
+                        text(format!(" = {}", node.item.value().unwrap_or("")))
                             .style(move |s| s.apply_if(reference > 0, |s| s.hide())),
                     ))
                     .on_click(move |_| {
@@ -384,10 +408,11 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
         )
         .style(|s| s.absolute().size_full()),
     )
-    .style(|s| s.size_full().line_height(1.6))
+    .style(|s| s.width_full().line_height(1.6).flex_grow(1.0).flex_basis(0))
 }
 
 fn debug_stack_frames(
+    dap_id: DapId,
     thread_id: ThreadId,
     stack_trace: StackTraceData,
     stopped: RwSignal<bool>,
@@ -467,6 +492,10 @@ fn debug_stack_frames(
                             },
                         });
                     }
+                    internal_command.send(InternalCommand::DapFrameScopes {
+                        dap_id,
+                        frame_id: frame.id,
+                    });
                     true
                 })
                 .style(move |s| {
@@ -530,8 +559,9 @@ fn debug_stack_traces(
                 |(dap_id, stopped, thread_id, _)| {
                     (*dap_id, *thread_id, stopped.get_untracked())
                 },
-                move |(_, stopped, thread_id, stack_trace)| {
+                move |(dap_id, stopped, thread_id, stack_trace)| {
                     debug_stack_frames(
+                        dap_id,
                         thread_id,
                         stack_trace,
                         stopped,

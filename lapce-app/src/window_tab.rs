@@ -1459,6 +1459,9 @@ impl WindowTabData {
             InternalCommand::UpdateProxyStatus { status } => {
                 self.common.proxy_status.set(Some(status));
             }
+            InternalCommand::DapFrameScopes { dap_id, frame_id } => {
+                self.terminal.dap_frame_scopes(dap_id, frame_id);
+            }
         }
     }
 

@@ -227,6 +227,9 @@ impl ProxyHandler for Dispatcher {
             DapPause { dap_id, thread_id } => {
                 let _ = self.catalog_rpc.dap_pause(dap_id, thread_id);
             }
+            DapStepOver { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_step_over(dap_id, thread_id);
+            }
             DapStop { dap_id } => {
                 let _ = self.catalog_rpc.dap_stop(dap_id);
             }
@@ -875,6 +878,18 @@ impl ProxyHandler for Dispatcher {
                             id,
                             result.map(|resp| ProxyResponse::DapVariableResponse {
                                 varialbes: resp,
+                            }),
+                        );
+                    });
+            }
+            DapGetScopes { dap_id, frame_id } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc
+                    .dap_get_scopes(dap_id, frame_id, move |result| {
+                        proxy_rpc.handle_response(
+                            id,
+                            result.map(|resp| ProxyResponse::DapGetScopesResponse {
+                                scopes: resp,
                             }),
                         );
                     });

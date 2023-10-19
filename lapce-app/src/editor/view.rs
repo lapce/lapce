@@ -1,4 +1,4 @@
-use std::{cmp, collections::HashMap, rc::Rc, sync::Arc};
+use std::{cmp, collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
@@ -83,11 +83,13 @@ pub struct EditorView {
     is_active: Memo<bool>,
     inner_node: Option<Node>,
     viewport: RwSignal<Rect>,
+    debug_breakline: Memo<Option<(usize, PathBuf)>>,
     sticky_header_info: StickyHeaderInfo,
 }
 
 pub fn editor_view(
     editor: Rc<EditorData>,
+    debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> EditorView {
     let id = Id::next();
@@ -192,6 +194,7 @@ pub fn editor_view(
         is_active,
         inner_node: None,
         viewport,
+        debug_breakline,
         sticky_header_info: StickyHeaderInfo {
             sticky_lines: Vec::new(),
             last_sticky_should_scroll: false,
@@ -379,10 +382,37 @@ impl EditorView {
             }
         });
 
+        let breakline = self.debug_breakline.get_untracked().and_then(
+            |(breakline, breakline_path)| {
+                if view
+                    .doc
+                    .get_untracked()
+                    .content
+                    .with_untracked(|c| c.path() == Some(&breakline_path))
+                {
+                    Some(breakline)
+                } else {
+                    None
+                }
+            },
+        );
+
+        if let Some(breakline) = breakline {
+            if let Some(info) = screen_lines.info.get(&breakline) {
+                cx.fill(
+                    &Rect::ZERO
+                        .with_size(Size::new(viewport.width(), line_height))
+                        .with_origin(Point::new(viewport.x0, info.y as f64)),
+                    config.get_color(LapceColor::EDITOR_DEBUG_BREAK_LINE),
+                    0.0,
+                );
+            }
+        }
+
         for render in renders {
             match render {
                 CursorRender::CurrentLine { line } => {
-                    if !is_local {
+                    if !is_local && Some(line) != breakline {
                         if let Some(info) = screen_lines.info.get(&line) {
                             cx.fill(
                                 &Rect::ZERO
@@ -1512,6 +1542,7 @@ pub fn editor_container_view(
     let replace_editor = main_split.replace_editor;
     let replace_active = main_split.common.find.replace_active;
     let replace_focus = main_split.common.find.replace_focus;
+    let debug_breakline = window_tab_data.terminal.debug.breakline;
 
     let editor_rect = create_rw_signal(Rect::ZERO);
 
@@ -1520,7 +1551,7 @@ pub fn editor_container_view(
         container(
             stack((
                 editor_gutter(window_tab_data.clone(), editor, is_active),
-                container(editor_content(editor, is_active))
+                container(editor_content(editor, debug_breakline, is_active))
                     .style(move |s| s.size_pct(100.0, 100.0)),
                 empty().style(move |s| {
                     let config = config.get();
@@ -1999,6 +2030,7 @@ fn editor_breadcrumbs(
 
 fn editor_content(
     editor: RwSignal<Rc<EditorData>>,
+    debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
     let (
@@ -2022,19 +2054,21 @@ fn editor_content(
     });
 
     scroll({
-        let editor_content_view = editor_view(editor.get_untracked(), is_active)
-            .style(move |s| {
-                let config = config.get();
-                let padding_bottom = if config.editor.scroll_beyond_last_line {
-                    viewport.get().height() as f32
-                        - config.editor.line_height() as f32
-                } else {
-                    0.0
-                };
-                s.padding_bottom(padding_bottom)
-                    .cursor(CursorStyle::Text)
-                    .min_size_pct(100.0, 100.0)
-            });
+        let editor_content_view =
+            editor_view(editor.get_untracked(), debug_breakline, is_active).style(
+                move |s| {
+                    let config = config.get();
+                    let padding_bottom = if config.editor.scroll_beyond_last_line {
+                        viewport.get().height() as f32
+                            - config.editor.line_height() as f32
+                    } else {
+                        0.0
+                    };
+                    s.padding_bottom(padding_bottom)
+                        .cursor(CursorStyle::Text)
+                        .min_size_pct(100.0, 100.0)
+                },
+            );
         let id = editor_content_view.id();
         editor_content_view
             .on_event(EventListener::PointerDown, move |event| {

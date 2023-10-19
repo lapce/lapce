@@ -16,13 +16,13 @@ use lapce_rpc::{
     dap_types::{
         self, ConfigurationDone, Continue, ContinueArguments, ContinueResponse,
         DapEvent, DapId, DapPayload, DapRequest, DapResponse, DapServer,
-        DebuggerCapabilities, Disconnect, Initialize, Launch, Pause, PauseArguments,
-        Request, RunDebugConfig, RunInTerminal, RunInTerminalArguments,
-        RunInTerminalResponse, Scope, Scopes, ScopesArguments, SetBreakpoints,
-        SetBreakpointsArguments, SetBreakpointsResponse, Source, SourceBreakpoint,
-        StackTrace, StackTraceArguments, StackTraceResponse, Terminate, ThreadId,
-        Threads, ThreadsResponse, Variable, Variables, VariablesArguments,
-        VariablesResponse,
+        DebuggerCapabilities, Disconnect, Initialize, Launch, Next, NextArguments,
+        Pause, PauseArguments, Request, RunDebugConfig, RunInTerminal,
+        RunInTerminalArguments, RunInTerminalResponse, Scope, Scopes,
+        ScopesArguments, ScopesResponse, SetBreakpoints, SetBreakpointsArguments,
+        SetBreakpointsResponse, Source, SourceBreakpoint, StackTrace,
+        StackTraceArguments, StackTraceResponse, Terminate, ThreadId, Threads,
+        ThreadsResponse, Variable, Variables, VariablesArguments, VariablesResponse,
     },
     terminal::TermId,
     RpcError,
@@ -706,6 +706,16 @@ impl DapRpcHandler {
         Ok(response.scopes)
     }
 
+    pub fn scopes_async(
+        &self,
+        frame_id: usize,
+        f: impl RpcCallback<ScopesResponse, RpcError> + 'static,
+    ) {
+        let args = ScopesArguments { frame_id };
+
+        self.request_async::<Scopes>(args, f);
+    }
+
     pub fn variables(&self, variables_reference: usize) -> Result<Vec<Variable>> {
         let args = VariablesArguments {
             variables_reference,
@@ -735,5 +745,14 @@ impl DapRpcHandler {
         };
 
         self.request_async::<Variables>(args, f);
+    }
+
+    pub fn next(&self, thread_id: ThreadId) {
+        let args = NextArguments {
+            thread_id,
+            granularity: None,
+        };
+
+        self.request_async::<Next>(args, move |_| {});
     }
 }

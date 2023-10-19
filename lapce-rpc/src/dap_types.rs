@@ -793,3 +793,20 @@ impl Request for Variables {
     type Result = VariablesResponse;
     const COMMAND: &'static str = "variables";
 }
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NextArguments {
+    pub thread_id: ThreadId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub granularity: Option<String>,
+}
+
+#[derive(Debug)]
+pub enum Next {}
+
+impl Request for Next {
+    type Arguments = NextArguments;
+    type Result = ();
+    const COMMAND: &'static str = "next";
+}
