@@ -98,6 +98,10 @@ pub enum CoreNotification {
         term_id: TermId,
         content: Vec<u8>,
     },
+    TerminalLaunchFailed {
+        term_id: TermId,
+        error: String,
+    },
     TerminalProcessId {
         term_id: TermId,
         process_id: Option<u32>,
@@ -316,6 +320,10 @@ impl CoreRpcHandler {
 
     pub fn terminal_process_stopped(&self, term_id: TermId) {
         self.notification(CoreNotification::TerminalProcessStopped { term_id });
+    }
+
+    pub fn terminal_launch_failed(&self, term_id: TermId, error: String) {
+        self.notification(CoreNotification::TerminalLaunchFailed { term_id, error });
     }
 
     pub fn update_terminal(&self, term_id: TermId, content: Vec<u8>) {

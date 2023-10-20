@@ -13,6 +13,7 @@ use alacritty_terminal::{
     event_loop::Msg,
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
+use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 use directories::BaseDirs;
 use lapce_rpc::{
@@ -39,7 +40,7 @@ impl Terminal {
         profile: TerminalProfile,
         width: usize,
         height: usize,
-    ) -> Terminal {
+    ) -> Result<Terminal> {
         let poll = polling::Poller::new().expect("create Poll").into();
         let mut config = TermConfig::default();
 
@@ -61,17 +62,17 @@ impl Terminal {
             cell_width: 1,
             cell_height: 1,
         };
-        let pty = alacritty_terminal::tty::new(&config.pty_config, size, 0).unwrap();
+        let pty = alacritty_terminal::tty::new(&config.pty_config, size, 0)?;
 
         let (tx, rx) = crossbeam_channel::unbounded();
 
-        Terminal {
+        Ok(Terminal {
             term_id,
             poll,
             pty,
             tx,
             rx,
-        }
+        })
     }
 
     pub fn run(&mut self, core_rpc: CoreRpcHandler) {
@@ -243,25 +244,12 @@ impl Terminal {
     fn program(profile: &TerminalProfile) -> Option<Program> {
         if let Some(command) = &profile.command {
             if let Some(arguments) = &profile.arguments {
-                if which::which(command).is_ok() {
-                    Some(Program::WithArgs {
-                        program: command.to_owned(),
-                        args: arguments.to_owned(),
-                    })
-                } else {
-                    None
-                }
+                Some(Program::WithArgs {
+                    program: command.to_owned(),
+                    args: arguments.to_owned(),
+                })
             } else {
-                let mut parts = command.split(' ');
-                let program = parts.next().unwrap();
-                if which::which(program).is_ok() {
-                    Some(Program::WithArgs {
-                        program: program.to_string(),
-                        args: parts.map(|p| p.to_string()).collect::<Vec<String>>(),
-                    })
-                } else {
-                    None
-                }
+                Some(Program::Just(command.to_owned()))
             }
         } else {
             None

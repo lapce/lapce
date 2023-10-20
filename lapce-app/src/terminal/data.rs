@@ -42,6 +42,7 @@ pub struct TerminalData {
     pub term_id: TermId,
     pub workspace: Arc<LapceWorkspace>,
     pub title: RwSignal<String>,
+    pub launch_error: RwSignal<Option<String>>,
     pub mode: RwSignal<Mode>,
     pub visual_mode: RwSignal<VisualMode>,
     pub raw: RwSignal<Arc<RwLock<RawTerminal>>>,
@@ -326,6 +327,7 @@ impl TerminalData {
         let mode = cx.create_rw_signal(Mode::Terminal);
         let visual_mode = cx.create_rw_signal(VisualMode::Normal);
         let raw = cx.create_rw_signal(raw);
+        let launch_error = cx.create_rw_signal(None);
 
         Self {
             scope: cx,
@@ -337,6 +339,7 @@ impl TerminalData {
             mode,
             visual_mode,
             common,
+            launch_error,
         }
     }
 
@@ -397,12 +400,21 @@ impl TerminalData {
             profile.environment = run_debug.env.clone();
 
             if let Some(debug_command) = run_debug.debug_command.as_ref() {
-                profile.command = Some(debug_command.clone());
+                let mut args = debug_command.to_owned();
+                let command = args.first().cloned().unwrap_or_default();
+                if !args.is_empty() {
+                    args.remove(0);
+                }
+                profile.command = Some(command);
+                if !args.is_empty() {
+                    profile.arguments = Some(args);
+                }
             } else if let Some(prelaunch) = prelaunch {
-                profile.command = Some(prelaunch);
+                profile.command = Some(prelaunch.program);
+                profile.arguments = prelaunch.args;
             } else {
                 profile.command = Some(run_debug.program.clone());
-                profile.arguments = Some(run_debug.args.clone());
+                profile.arguments = run_debug.args.clone();
             }
         }
 

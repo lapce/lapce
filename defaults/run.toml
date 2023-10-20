@@ -7,8 +7,8 @@ name = "task"
 # the program to run
 program = ""
 
-# the program arguments, e.g. args = ["arg1", "arg2"] 
-args = []
+# the program arguments, e.g. args = ["arg1", "arg2"], optional
+# args = []
 
 # current working directory, optional
 # cwd = "${workspace}"
@@ -19,5 +19,8 @@ args = []
 # VAR2 = "VAL2"
 
 # task to run before the run/debug session is started, optional
-# prelaunch = "cargo build"
-
+# [configs.prelaunch]
+# program = "cargo"
+# args = [
+#   "build",
+# ]

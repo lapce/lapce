@@ -1566,6 +1566,9 @@ impl WindowTabData {
                     self.common.focus.set(Focus::Workbench);
                 }
             }
+            CoreNotification::TerminalLaunchFailed { term_id, error } => {
+                self.terminal.launch_failed(term_id, error);
+            }
             CoreNotification::RunInTerminal { config } => {
                 self.run_in_terminal(cx, &RunDebugMode::Debug, config, true);
             }

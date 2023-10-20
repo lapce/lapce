@@ -155,7 +155,13 @@ impl ProxyHandler for Dispatcher {
                 let _ = self.catalog_rpc.update_plugin_configs(configs);
             }
             NewTerminal { term_id, profile } => {
-                let mut terminal = Terminal::new(term_id, profile, 50, 10);
+                let mut terminal = match Terminal::new(term_id, profile, 50, 10) {
+                    Ok(terminal) => terminal,
+                    Err(e) => {
+                        self.core_rpc.terminal_launch_failed(term_id, e.to_string());
+                        return;
+                    }
+                };
 
                 #[allow(unused)]
                 let mut child_id = None;
