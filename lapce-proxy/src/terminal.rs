@@ -251,17 +251,13 @@ impl Terminal {
                 } else {
                     None
                 }
+            } else if which::which(command).is_ok() {
+                Some(Program::WithArgs {
+                    program: command.to_owned(),
+                    args: Vec::new(),
+                })
             } else {
-                let mut parts = command.split(' ');
-                let program = parts.next().unwrap();
-                if which::which(program).is_ok() {
-                    Some(Program::WithArgs {
-                        program: program.to_string(),
-                        args: parts.map(|p| p.to_string()).collect::<Vec<String>>(),
-                    })
-                } else {
-                    None
-                }
+                None
             }
         } else {
             None
