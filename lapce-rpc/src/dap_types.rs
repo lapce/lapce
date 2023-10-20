@@ -37,15 +37,22 @@ pub struct DapServer {
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
+pub struct RunDebugProgram {
+    pub program: String,
+    pub args: Option<Vec<String>>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "kebab-case")]
 pub struct RunDebugConfig {
     pub name: String,
     pub program: String,
-    pub args: Vec<String>,
+    pub args: Option<Vec<String>>,
     pub cwd: Option<String>,
     pub env: Option<HashMap<String, String>>,
-    pub prelaunch: Option<String>,
+    pub prelaunch: Option<RunDebugProgram>,
     #[serde(skip)]
-    pub debug_command: Option<String>,
+    pub debug_command: Option<Vec<String>>,
     #[serde(skip)]
     pub dap_id: DapId,
 }

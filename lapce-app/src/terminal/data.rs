@@ -397,12 +397,21 @@ impl TerminalData {
             profile.environment = run_debug.env.clone();
 
             if let Some(debug_command) = run_debug.debug_command.as_ref() {
-                profile.command = Some(debug_command.clone());
+                let mut args = debug_command.to_owned();
+                let command = args.first().cloned().unwrap_or_default();
+                if !args.is_empty() {
+                    args.remove(0);
+                }
+                profile.command = Some(command);
+                if !args.is_empty() {
+                    profile.arguments = Some(args);
+                }
             } else if let Some(prelaunch) = prelaunch {
-                profile.command = Some(prelaunch);
+                profile.command = Some(prelaunch.program);
+                profile.arguments = prelaunch.args;
             } else {
                 profile.command = Some(run_debug.program.clone());
-                profile.arguments = Some(run_debug.args.clone());
+                profile.arguments = run_debug.args.clone();
             }
         }
 

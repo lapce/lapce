@@ -2138,8 +2138,11 @@ fn palette_item(
         } => {
             let mode = *mode;
             let text = format!("{mode} {}", run_config.name);
-            let hint =
-                format!("{} {}", run_config.program, run_config.args.join(" "));
+            let hint = format!(
+                "{} {}",
+                run_config.program,
+                run_config.args.clone().unwrap_or_default().join(" ")
+            );
             let text_indices: Vec<usize> = item
                 .indices
                 .iter()

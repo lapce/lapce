@@ -763,7 +763,7 @@ impl PaletteData {
                             "Run {} {} {}",
                             config.name,
                             config.program,
-                            config.args.join(" ")
+                            config.args.clone().unwrap_or_default().join(" ")
                         ),
                         score: 0,
                         indices: vec![],
@@ -781,7 +781,7 @@ impl PaletteData {
                             "Debug {} {} {}",
                             config.name,
                             config.program,
-                            config.args.join(" ")
+                            config.args.clone().unwrap_or_default().join(" ")
                         ),
                         score: 0,
                         indices: vec![],
