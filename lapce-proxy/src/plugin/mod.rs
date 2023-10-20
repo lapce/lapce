@@ -167,6 +167,14 @@ pub enum PluginCatalogNotification {
         dap_id: DapId,
         thread_id: ThreadId,
     },
+    DapStepInto {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepOut {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
     DapPause {
         dap_id: DapId,
         thread_id: ThreadId,
@@ -1120,6 +1128,20 @@ impl PluginCatalogRpcHandler {
 
     pub fn dap_step_over(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::DapStepOver {
+            dap_id,
+            thread_id,
+        })
+    }
+
+    pub fn dap_step_into(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStepInto {
+            dap_id,
+            thread_id,
+        })
+    }
+
+    pub fn dap_step_out(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStepOut {
             dap_id,
             thread_id,
         })

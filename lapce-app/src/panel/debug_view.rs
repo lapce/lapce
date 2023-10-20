@@ -97,7 +97,7 @@ fn debug_process_icons(
                     || false,
                     config,
                 )
-                .style(|s| s.margin_horiz(6.0))
+                .style(|s| s.margin_horiz(4.0))
             },
             {
                 let terminal = terminal.clone();
@@ -110,7 +110,7 @@ fn debug_process_icons(
                     move || stopped,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
             },
             {
                 let terminal = terminal.clone();
@@ -123,7 +123,7 @@ fn debug_process_icons(
                     || false,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
             },
         ))),
         RunDebugMode::Debug => container_box(stack((
@@ -151,7 +151,7 @@ fn debug_process_icons(
                     move || paused() || stopped,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
             },
             {
                 let terminal = terminal.clone();
@@ -164,7 +164,33 @@ fn debug_process_icons(
                     move || !paused() || stopped,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
+            },
+            {
+                let terminal = terminal.clone();
+                clickable_icon(
+                    || LapceIcons::DEBUG_STEP_INTO,
+                    move || {
+                        terminal.dap_step_into(term_id);
+                    },
+                    || false,
+                    move || !paused() || stopped,
+                    config,
+                )
+                .style(|s| s.margin_right(4.0))
+            },
+            {
+                let terminal = terminal.clone();
+                clickable_icon(
+                    || LapceIcons::DEBUG_STEP_OUT,
+                    move || {
+                        terminal.dap_step_out(term_id);
+                    },
+                    || false,
+                    move || !paused() || stopped,
+                    config,
+                )
+                .style(|s| s.margin_right(4.0))
             },
             {
                 let terminal = terminal.clone();
@@ -177,7 +203,7 @@ fn debug_process_icons(
                     || false,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
             },
             {
                 let terminal = terminal.clone();
@@ -190,7 +216,7 @@ fn debug_process_icons(
                     move || stopped,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
             },
             {
                 let terminal = terminal.clone();
@@ -203,7 +229,7 @@ fn debug_process_icons(
                     || false,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
             },
         ))),
     }
@@ -224,6 +250,7 @@ fn debug_processes(
                 let is_active =
                     move || terminal.debug.active_term.get() == Some(term_id);
                 let local_terminal = terminal.clone();
+                let is_hovered = create_rw_signal(false);
                 stack((
                     {
                         let svg_str = match (&p.mode, p.stopped) {
@@ -237,9 +264,12 @@ fn debug_processes(
                         svg(move || config.get().ui_svg(svg_str)).style(move |s| {
                             let config = config.get();
                             let size = config.ui.icon_size() as f32;
-                            s.size(size, size).margin_horiz(10.0).color(
-                                *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                            )
+                            s.size(size, size)
+                                .margin_vert(5.0)
+                                .margin_horiz(10.0)
+                                .color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                )
                         })
                     },
                     label(move || p.config.name.clone()).style(|s| {
@@ -255,11 +285,22 @@ fn debug_processes(
                         p.mode,
                         p.stopped,
                         config,
-                    ),
+                    )
+                    .style(move |s| {
+                        s.apply_if(!is_hovered.get() && !is_active(), |s| s.hide())
+                    }),
                 ))
                 .on_click(move |_| {
                     local_terminal.debug.active_term.set(Some(term_id));
                     local_terminal.focus_terminal(term_id);
+                    true
+                })
+                .on_event(EventListener::PointerEnter, move |_| {
+                    is_hovered.set(true);
+                    true
+                })
+                .on_event(EventListener::PointerLeave, move |_| {
+                    is_hovered.set(false);
                     true
                 })
                 .style(move |s| {

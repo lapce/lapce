@@ -21,6 +21,8 @@ impl LapceIcons {
     pub const DEBUG_RESTART: &str = "debug_restart";
     pub const DEBUG_CONTINUE: &str = "debug_continue";
     pub const DEBUG_STEP_OVER: &str = "debug_step_over";
+    pub const DEBUG_STEP_INTO: &str = "debug_step_into";
+    pub const DEBUG_STEP_OUT: &str = "debug_step_out";
     pub const DEBUG_PAUSE: &str = "debug_pause";
     pub const DEBUG_STOP: &str = "debug_stop";
     pub const DEBUG_CONSOLE: &str = "debug_console";

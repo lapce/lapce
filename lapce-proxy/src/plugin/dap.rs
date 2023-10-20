@@ -21,8 +21,9 @@ use lapce_rpc::{
         RunInTerminalArguments, RunInTerminalResponse, Scope, Scopes,
         ScopesArguments, ScopesResponse, SetBreakpoints, SetBreakpointsArguments,
         SetBreakpointsResponse, Source, SourceBreakpoint, StackTrace,
-        StackTraceArguments, StackTraceResponse, Terminate, ThreadId, Threads,
-        ThreadsResponse, Variable, Variables, VariablesArguments, VariablesResponse,
+        StackTraceArguments, StackTraceResponse, StepIn, StepInArguments, StepOut,
+        StepOutArguments, Terminate, ThreadId, Threads, ThreadsResponse, Variable,
+        Variables, VariablesArguments, VariablesResponse,
     },
     terminal::TermId,
     RpcError,
@@ -754,5 +755,24 @@ impl DapRpcHandler {
         };
 
         self.request_async::<Next>(args, move |_| {});
+    }
+
+    pub fn step_in(&self, thread_id: ThreadId) {
+        let args = StepInArguments {
+            thread_id,
+            target_id: None,
+            granularity: None,
+        };
+
+        self.request_async::<StepIn>(args, move |_| {});
+    }
+
+    pub fn step_out(&self, thread_id: ThreadId) {
+        let args = StepOutArguments {
+            thread_id,
+            granularity: None,
+        };
+
+        self.request_async::<StepOut>(args, move |_| {});
     }
 }

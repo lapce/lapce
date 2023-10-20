@@ -279,6 +279,14 @@ pub enum ProxyNotification {
         dap_id: DapId,
         thread_id: ThreadId,
     },
+    DapStepInto {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepOut {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
     DapPause {
         dap_id: DapId,
         thread_id: ThreadId,
@@ -959,6 +967,14 @@ impl ProxyRpcHandler {
 
     pub fn dap_step_over(&self, dap_id: DapId, thread_id: ThreadId) {
         self.notification(ProxyNotification::DapStepOver { dap_id, thread_id })
+    }
+
+    pub fn dap_step_into(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapStepInto { dap_id, thread_id })
+    }
+
+    pub fn dap_step_out(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapStepOut { dap_id, thread_id })
     }
 
     pub fn dap_pause(&self, dap_id: DapId, thread_id: ThreadId) {

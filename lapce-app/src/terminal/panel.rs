@@ -551,6 +551,7 @@ impl TerminalPanelData {
         if let Some(dap) = dap {
             dap.stopped(self.cx, stopped, stack_frames, variables);
         }
+        floem::action::focus_window();
     }
 
     pub fn dap_continue(&self, term_id: TermId) -> Option<()> {
@@ -592,6 +593,34 @@ impl TerminalPanelData {
         });
         let thread_id = thread_id.unwrap_or_default();
         self.common.proxy.dap_step_over(dap_id, thread_id);
+        Some(())
+    }
+
+    pub fn dap_step_into(&self, term_id: TermId) -> Option<()> {
+        let terminal = self.get_terminal(&term_id)?;
+        let dap_id = terminal
+            .run_debug
+            .with_untracked(|r| r.as_ref().map(|r| r.config.dap_id))?;
+        let thread_id = self.debug.daps.with_untracked(|daps| {
+            daps.get(&dap_id)
+                .and_then(|dap| dap.thread_id.get_untracked())
+        });
+        let thread_id = thread_id.unwrap_or_default();
+        self.common.proxy.dap_step_into(dap_id, thread_id);
+        Some(())
+    }
+
+    pub fn dap_step_out(&self, term_id: TermId) -> Option<()> {
+        let terminal = self.get_terminal(&term_id)?;
+        let dap_id = terminal
+            .run_debug
+            .with_untracked(|r| r.as_ref().map(|r| r.config.dap_id))?;
+        let thread_id = self.debug.daps.with_untracked(|daps| {
+            daps.get(&dap_id)
+                .and_then(|dap| dap.thread_id.get_untracked())
+        });
+        let thread_id = thread_id.unwrap_or_default();
+        self.common.proxy.dap_step_out(dap_id, thread_id);
         Some(())
     }
 

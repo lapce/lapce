@@ -810,3 +810,39 @@ impl Request for Next {
     type Result = ();
     const COMMAND: &'static str = "next";
 }
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StepInArguments {
+    pub thread_id: ThreadId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_id: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub granularity: Option<String>,
+}
+
+#[derive(Debug)]
+pub enum StepIn {}
+
+impl Request for StepIn {
+    type Arguments = StepInArguments;
+    type Result = ();
+    const COMMAND: &'static str = "stepIn";
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StepOutArguments {
+    pub thread_id: ThreadId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub granularity: Option<String>,
+}
+
+#[derive(Debug)]
+pub enum StepOut {}
+
+impl Request for StepOut {
+    type Arguments = StepOutArguments;
+    type Result = ();
+    const COMMAND: &'static str = "stepOut";
+}

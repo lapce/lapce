@@ -610,6 +610,16 @@ impl PluginCatalog {
                     dap.next(thread_id);
                 }
             }
+            DapStepInto { dap_id, thread_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    dap.step_in(thread_id);
+                }
+            }
+            DapStepOut { dap_id, thread_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    dap.step_out(thread_id);
+                }
+            }
             DapStop { dap_id } => {
                 if let Some(dap) = self.daps.get(&dap_id) {
                     dap.stop();
