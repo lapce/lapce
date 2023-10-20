@@ -2212,22 +2212,20 @@ fn palette_item(
             } else {
                 vec![]
             };
-            let prefix = if let PaletteItemContent::PaletteHelp { prefix, .. } = item.content {
+            let prefix = if let PaletteItemContent::PaletteHelp { prefix, .. } =
+                item.content
+            {
                 label(move || prefix).style(move |s| {
-                    s
-                        .padding_horiz(5.0)
+                    s.padding_horiz(5.0)
                         .padding_vert(1.0)
                         .margin_right(5.0)
                         .font_family(config.get().editor.font_family.clone())
-                        .apply_if(
-                            !prefix.is_empty(),
-                            |s| {
-                                s.border(1.0).border_radius(3.0).border_color(
-                            *config.get().get_color(LapceColor::LAPCE_BORDER),
-                            )},
-                        )
-                    }
-                )
+                        .apply_if(!prefix.is_empty(), |s| {
+                            s.border(1.0).border_radius(3.0).border_color(
+                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                            )
+                        })
+                })
             } else {
                 label(move || "")
             };

@@ -385,7 +385,10 @@ impl PaletteData {
                 let description = cmd.get_message().unwrap_or("");
 
                 PaletteItem {
-                    content: PaletteItemContent::PaletteHelp { prefix: kind.symbol(), cmd },
+                    content: PaletteItemContent::PaletteHelp {
+                        prefix: kind.symbol(),
+                        cmd,
+                    },
                     filter_text: description.to_owned(),
                     score: 0,
                     indices: vec![],
