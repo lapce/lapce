@@ -243,21 +243,13 @@ impl Terminal {
     fn program(profile: &TerminalProfile) -> Option<Program> {
         if let Some(command) = &profile.command {
             if let Some(arguments) = &profile.arguments {
-                // if which::which(command).is_ok() {
                 Some(Program::WithArgs {
                     program: command.to_owned(),
                     args: arguments.to_owned(),
                 })
-                // } else {
-                //     None
-                // }
             } else {
-                // } else if which::which(command).is_ok() {
                 Some(Program::Just(command.to_owned()))
             }
-            // } else {
-            //     None
-            // }
         } else {
             None
         }
