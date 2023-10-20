@@ -670,7 +670,6 @@ mod test {
         let rope = Rope::from(text);
         let mut cursor = WordCursor::new(&rope, 9);
         let position = cursor.prev_deletion_boundary();
-        let position = position;
 
         assert_eq!(position, Some(7));
         assert_eq!(&text[..position.unwrap()], "violet ");

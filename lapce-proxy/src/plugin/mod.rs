@@ -23,7 +23,7 @@ use flate2::read::GzDecoder;
 use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
-    dap_types::{DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
+    dap_types::{self, DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
     plugin::{PluginId, VoltInfo, VoltMetadata},
     proxy::ProxyRpcHandler,
     style::LineStyle,
@@ -104,6 +104,21 @@ pub enum PluginCatalogRpc {
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
     },
+    DapVariable {
+        dap_id: DapId,
+        reference: usize,
+        f: Box<dyn RpcCallback<Vec<dap_types::Variable>, RpcError>>,
+    },
+    DapGetScopes {
+        dap_id: DapId,
+        frame_id: usize,
+        f: Box<
+            dyn RpcCallback<
+                Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
+                RpcError,
+            >,
+        >,
+    },
     DidOpenTextDocument {
         document: TextDocumentItem,
     },
@@ -145,6 +160,18 @@ pub enum PluginCatalogNotification {
         term_id: TermId,
     },
     DapContinue {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepOver {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepInto {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepOut {
         dap_id: DapId,
         thread_id: ThreadId,
     },
@@ -285,6 +312,20 @@ impl PluginCatalogRpcHandler {
                         text,
                         new_text,
                     );
+                }
+                PluginCatalogRpc::DapVariable {
+                    dap_id,
+                    reference,
+                    f,
+                } => {
+                    plugin.dap_variable(dap_id, reference, f);
+                }
+                PluginCatalogRpc::DapGetScopes {
+                    dap_id,
+                    frame_id,
+                    f,
+                } => {
+                    plugin.dap_get_scopes(dap_id, frame_id, f);
                 }
                 PluginCatalogRpc::Shutdown => {
                     return;
@@ -1085,6 +1126,27 @@ impl PluginCatalogRpcHandler {
         })
     }
 
+    pub fn dap_step_over(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStepOver {
+            dap_id,
+            thread_id,
+        })
+    }
+
+    pub fn dap_step_into(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStepInto {
+            dap_id,
+            thread_id,
+        })
+    }
+
+    pub fn dap_step_out(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStepOut {
+            dap_id,
+            thread_id,
+        })
+    }
+
     pub fn dap_stop(&self, dap_id: DapId) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::DapStop { dap_id })
     }
@@ -1117,6 +1179,35 @@ impl PluginCatalogRpcHandler {
             path,
             breakpoints,
         })
+    }
+
+    pub fn dap_variable(
+        &self,
+        dap_id: DapId,
+        reference: usize,
+        f: impl FnOnce(Result<Vec<dap_types::Variable>, RpcError>) + Send + 'static,
+    ) {
+        let _ = self.plugin_tx.send(PluginCatalogRpc::DapVariable {
+            dap_id,
+            reference,
+            f: Box::new(f),
+        });
+    }
+
+    pub fn dap_get_scopes(
+        &self,
+        dap_id: DapId,
+        frame_id: usize,
+        f: impl FnOnce(
+                Result<Vec<(dap_types::Scope, Vec<dap_types::Variable>)>, RpcError>,
+            ) + Send
+            + 'static,
+    ) {
+        let _ = self.plugin_tx.send(PluginCatalogRpc::DapGetScopes {
+            dap_id,
+            frame_id,
+            f: Box::new(f),
+        });
     }
 }
 

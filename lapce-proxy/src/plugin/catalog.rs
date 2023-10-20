@@ -10,7 +10,7 @@ use std::{
 };
 
 use lapce_rpc::{
-    dap_types::{DapId, DapServer, SetBreakpointsResponse},
+    dap_types::{self, DapId, DapServer, SetBreakpointsResponse},
     plugin::{PluginId, VoltID, VoltMetadata},
     proxy::ProxyResponse,
     style::LineStyle,
@@ -363,6 +363,100 @@ impl PluginCatalog {
         }
     }
 
+    pub fn dap_variable(
+        &self,
+        dap_id: DapId,
+        reference: usize,
+        f: Box<dyn RpcCallback<Vec<dap_types::Variable>, RpcError>>,
+    ) {
+        if let Some(dap) = self.daps.get(&dap_id) {
+            dap.variables_async(
+                reference,
+                |result: Result<dap_types::VariablesResponse, RpcError>| {
+                    f.call(result.map(|resp| resp.variables))
+                },
+            );
+        } else {
+            f.call(Err(RpcError {
+                code: 0,
+                message: "plugin doesn't exist".to_string(),
+            }));
+        }
+    }
+
+    pub fn dap_get_scopes(
+        &self,
+        dap_id: DapId,
+        frame_id: usize,
+        f: Box<
+            dyn RpcCallback<
+                Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
+                RpcError,
+            >,
+        >,
+    ) {
+        if let Some(dap) = self.daps.get(&dap_id) {
+            let local_dap = dap.clone();
+            dap.scopes_async(
+                frame_id,
+                move |result: Result<dap_types::ScopesResponse, RpcError>| {
+                    match result {
+                        Ok(resp) => {
+                            let scopes = resp.scopes.clone();
+                            if let Some(scope) = resp.scopes.get(0) {
+                                let scope = scope.to_owned();
+                                thread::spawn(move || {
+                                    local_dap.variables_async(
+                                        scope.variables_reference,
+                                        move |result: Result<
+                                            dap_types::VariablesResponse,
+                                            RpcError,
+                                        >| {
+                                            let resp: Vec<(
+                                                dap_types::Scope,
+                                                Vec<dap_types::Variable>,
+                                            )> = scopes
+                                                .iter()
+                                                .enumerate()
+                                                .map(|(index, s)| {
+                                                    (
+                                                        s.clone(),
+                                                        if index == 0 {
+                                                            result
+                                                                .as_ref()
+                                                                .map(|resp| {
+                                                                    resp.variables
+                                                                        .clone()
+                                                                })
+                                                                .unwrap_or_default()
+                                                        } else {
+                                                            Vec::new()
+                                                        },
+                                                    )
+                                                })
+                                                .collect();
+                                            f.call(Ok(resp));
+                                        },
+                                    );
+                                });
+                            } else {
+                                f.call(Ok(Vec::new()));
+                            }
+                        }
+                        Err(e) => {
+                            f.call(Err(e));
+                        }
+                    }
+                },
+            );
+        } else {
+            f.call(Err(RpcError {
+                code: 0,
+                message: "plugin doesn't exist".to_string(),
+            }));
+        }
+    }
+
     pub fn handle_notification(&mut self, notification: PluginCatalogNotification) {
         use PluginCatalogNotification::*;
         match notification {
@@ -509,6 +603,21 @@ impl PluginCatalog {
                     thread::spawn(move || {
                         let _ = dap.pause_thread(thread_id);
                     });
+                }
+            }
+            DapStepOver { dap_id, thread_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    dap.next(thread_id);
+                }
+            }
+            DapStepInto { dap_id, thread_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    dap.step_in(thread_id);
+                }
+            }
+            DapStepOut { dap_id, thread_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    dap.step_out(thread_id);
                 }
             }
             DapStop { dap_id } => {

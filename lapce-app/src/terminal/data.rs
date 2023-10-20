@@ -317,7 +317,7 @@ impl TerminalData {
         let raw = Self::new_raw_terminal(
             workspace.clone(),
             term_id,
-            run_debug.as_ref().map(|r| &r.config),
+            run_debug.as_ref().map(|r| (&r.config, r.is_prelaunch)),
             profile,
             common.clone(),
         );
@@ -343,7 +343,7 @@ impl TerminalData {
     pub fn new_raw_terminal(
         workspace: Arc<LapceWorkspace>,
         term_id: TermId,
-        run_debug: Option<&RunDebugConfig>,
+        run_debug: Option<(&RunDebugConfig, bool)>,
         profile: Option<TerminalProfile>,
         common: Rc<CommonData>,
     ) -> Arc<RwLock<RawTerminal>> {
@@ -368,7 +368,7 @@ impl TerminalData {
             };
         }
 
-        if let Some(run_debug) = run_debug {
+        if let Some((run_debug, is_prelaunch)) = run_debug {
             if let Some(path) = run_debug.cwd.as_ref() {
                 if let Ok(as_url) = url::Url::from_file_path(PathBuf::from(path)) {
                     profile.workdir = Some(as_url);
@@ -388,10 +388,18 @@ impl TerminalData {
                 }
             }
 
+            let prelaunch = if is_prelaunch {
+                run_debug.prelaunch.clone()
+            } else {
+                None
+            };
+
             profile.environment = run_debug.env.clone();
 
             if let Some(debug_command) = run_debug.debug_command.as_ref() {
                 profile.command = Some(debug_command.clone());
+            } else if let Some(prelaunch) = prelaunch {
+                profile.command = Some(prelaunch);
             } else {
                 profile.command = Some(run_debug.program.clone());
                 profile.arguments = Some(run_debug.args.clone());
@@ -674,7 +682,7 @@ impl TerminalData {
         let raw = Self::new_raw_terminal(
             self.workspace.clone(),
             self.term_id,
-            run_debug.as_ref().map(|r| &r.config),
+            run_debug.as_ref().map(|r| (&r.config, r.is_prelaunch)),
             None,
             self.common.clone(),
         );

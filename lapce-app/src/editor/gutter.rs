@@ -93,10 +93,10 @@ impl EditorGutterView {
         }
 
         let sticky_area_rect =
-            Size::new(self.width + 10.0 + 30.0, sticky_header_height)
+            Size::new(self.width + 25.0 + 30.0, sticky_header_height)
                 .to_rect()
-                .with_origin(Point::new(-10.0, 0.0))
-                .inflate(10.0, 0.0);
+                .with_origin(Point::new(-25.0, 0.0))
+                .inflate(25.0, 0.0);
         cx.fill(
             &sticky_area_rect,
             config.get_color(LapceColor::LAPCE_DROPDOWN_SHADOW),

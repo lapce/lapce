@@ -58,6 +58,7 @@ impl LapceColor {
     pub const EDITOR_FOCUS: &str = "editor.focus";
     pub const EDITOR_CARET: &str = "editor.caret";
     pub const EDITOR_SELECTION: &str = "editor.selection";
+    pub const EDITOR_DEBUG_BREAK_LINE: &str = "editor.debug_break_line";
     pub const EDITOR_CURRENT_LINE: &str = "editor.current_line";
     pub const EDITOR_LINK: &str = "editor.link";
     pub const EDITOR_VISIBLE_WHITESPACE: &str = "editor.visible_whitespace";

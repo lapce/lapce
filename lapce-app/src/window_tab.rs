@@ -1,4 +1,11 @@
-use std::{collections::HashSet, env, path::Path, rc::Rc, sync::Arc, time::Instant};
+use std::{
+    collections::{BTreeMap, HashSet},
+    env,
+    path::Path,
+    rc::Rc,
+    sync::Arc,
+    time::Instant,
+};
 
 use crossbeam_channel::Sender;
 use floem::{
@@ -40,7 +47,7 @@ use crate::{
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
-    debug::{DapData, RunDebugMode, RunDebugProcess},
+    debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
     doc::{DocContent, EditorDiagnostic},
     editor::{
         location::{EditorLocation, EditorPosition},
@@ -433,6 +440,24 @@ impl WindowTabData {
 
         let terminal =
             TerminalPanelData::new(workspace.clone(), None, None, common.clone());
+        if let Some(workspace_info) = workspace_info.as_ref() {
+            terminal.debug.breakpoints.set(
+                workspace_info
+                    .breakpoints
+                    .clone()
+                    .into_iter()
+                    .map(|(path, breakpoints)| {
+                        (
+                            path,
+                            breakpoints
+                                .into_iter()
+                                .map(|b| (b.line, b))
+                                .collect::<BTreeMap<usize, LapceBreakpoint>>(),
+                        )
+                    })
+                    .collect(),
+            );
+        }
 
         let rename = RenameData::new(cx, common.clone());
         let global_search = GlobalSearchData::new(cx, main_split.clone());
@@ -1434,6 +1459,9 @@ impl WindowTabData {
             InternalCommand::UpdateProxyStatus { status } => {
                 self.common.proxy_status.set(Some(status));
             }
+            InternalCommand::DapFrameScopes { dap_id, frame_id } => {
+                self.terminal.dap_frame_scopes(dap_id, frame_id);
+            }
         }
     }
 
@@ -1539,7 +1567,7 @@ impl WindowTabData {
                 }
             }
             CoreNotification::RunInTerminal { config } => {
-                self.run_in_terminal(cx, &RunDebugMode::Debug, config);
+                self.run_in_terminal(cx, &RunDebugMode::Debug, config, true);
             }
             CoreNotification::TerminalProcessId {
                 term_id,
@@ -1551,14 +1579,53 @@ impl WindowTabData {
                 dap_id,
                 stopped,
                 stack_frames,
+                variables,
             } => {
-                self.terminal.dap_stopped(dap_id, stopped, stack_frames);
+                self.terminal
+                    .dap_stopped(dap_id, stopped, stack_frames, variables);
             }
             CoreNotification::OpenPaths { paths } => {
                 self.open_paths(paths);
             }
             CoreNotification::DapContinued { dap_id } => {
                 self.terminal.dap_continued(dap_id);
+            }
+            CoreNotification::DapBreakpointsResp {
+                path, breakpoints, ..
+            } => {
+                self.terminal.debug.breakpoints.update(|all_breakpoints| {
+                    if let Some(current_breakpoints) = all_breakpoints.get_mut(path)
+                    {
+                        let mut line_changed = HashSet::new();
+                        let mut i = 0;
+                        for (_, current_breakpoint) in current_breakpoints.iter_mut()
+                        {
+                            if !current_breakpoint.active {
+                                continue;
+                            }
+                            if let Some(breakpoint) = breakpoints.get(i) {
+                                current_breakpoint.id = breakpoint.id;
+                                current_breakpoint.verified = breakpoint.verified;
+                                current_breakpoint.message =
+                                    breakpoint.message.clone();
+                                if let Some(new_line) = breakpoint.line {
+                                    if current_breakpoint.line + 1 != new_line {
+                                        line_changed.insert(current_breakpoint.line);
+                                        current_breakpoint.line =
+                                            new_line.saturating_sub(1);
+                                    }
+                                }
+                            }
+                            i += 1;
+                        }
+                        for line in line_changed {
+                            if let Some(changed) = current_breakpoints.remove(&line)
+                            {
+                                current_breakpoints.insert(changed.line, changed);
+                            }
+                        }
+                    }
+                });
             }
             CoreNotification::OpenFileChanged { path, content } => {
                 self.main_split.open_file_changed(path, content);
@@ -1654,6 +1721,16 @@ impl WindowTabData {
         WorkspaceInfo {
             split: main_split_data.get_untracked().split_info(self),
             panel: self.panel.panel_info(),
+            breakpoints: self
+                .terminal
+                .debug
+                .breakpoints
+                .get_untracked()
+                .into_iter()
+                .map(|(path, breakpoints)| {
+                    (path, breakpoints.into_values().collect::<Vec<_>>())
+                })
+                .collect(),
         }
     }
 
@@ -1967,13 +2044,17 @@ impl WindowTabData {
     ) {
         match mode {
             RunDebugMode::Run => {
-                self.run_in_terminal(cx, mode, config);
+                self.run_in_terminal(cx, mode, config, false);
             }
             RunDebugMode::Debug => {
-                self.common.proxy.dap_start(
-                    config.clone(),
-                    self.terminal.debug.source_breakpoints(),
-                );
+                if config.prelaunch.is_some() {
+                    self.run_in_terminal(cx, mode, config, false);
+                } else {
+                    self.common.proxy.dap_start(
+                        config.clone(),
+                        self.terminal.debug.source_breakpoints(),
+                    )
+                };
             }
         }
     }
@@ -1983,7 +2064,10 @@ impl WindowTabData {
         cx: Scope,
         mode: &RunDebugMode,
         config: &RunDebugConfig,
+        from_dap: bool,
     ) {
+        // if not from dap, then run prelaunch first
+        let is_prelaunch = !from_dap;
         let term_id = if let Some(terminal) =
             self.terminal.get_stopped_run_debug_terminal(mode, config)
         {
@@ -1992,6 +2076,7 @@ impl WindowTabData {
                 config: config.clone(),
                 stopped: false,
                 created: Instant::now(),
+                is_prelaunch,
             }));
 
             terminal.term_id
@@ -2002,6 +2087,7 @@ impl WindowTabData {
                     config: config.clone(),
                     stopped: false,
                     created: Instant::now(),
+                    is_prelaunch,
                 }),
                 None,
             );
@@ -2012,7 +2098,10 @@ impl WindowTabData {
 
         self.terminal.debug.active_term.set(Some(term_id));
         self.terminal.debug.daps.update(|daps| {
-            daps.insert(config.dap_id, DapData::new(cx, config.dap_id, term_id));
+            daps.insert(
+                config.dap_id,
+                DapData::new(cx, config.dap_id, term_id, self.common.clone()),
+            );
         });
 
         if !self.panel.is_panel_visible(&PanelKind::Terminal) {

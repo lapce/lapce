@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use super::plugin::VoltID;
 use crate::{
     buffer::BufferId,
-    dap_types::{DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
+    dap_types::{self, DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
     file::{FileNodeItem, PathObject},
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
@@ -172,6 +172,14 @@ pub enum ProxyRequest {
         from: PathBuf,
         to: PathBuf,
     },
+    DapVariable {
+        dap_id: DapId,
+        reference: usize,
+    },
+    DapGetScopes {
+        dap_id: DapId,
+        frame_id: usize,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -264,6 +272,18 @@ pub enum ProxyNotification {
         term_id: TermId,
     },
     DapContinue {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepOver {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepInto {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepOut {
         dap_id: DapId,
         thread_id: ThreadId,
     },
@@ -363,6 +383,12 @@ pub enum ProxyResponse {
     },
     GlobalSearchResponse {
         matches: IndexMap<PathBuf, Vec<SearchMatch>>,
+    },
+    DapVariableResponse {
+        varialbes: Vec<dap_types::Variable>,
+    },
+    DapGetScopesResponse {
+        scopes: Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
     },
     Success {},
     SaveResponse {},
@@ -939,6 +965,18 @@ impl ProxyRpcHandler {
         self.notification(ProxyNotification::DapContinue { dap_id, thread_id })
     }
 
+    pub fn dap_step_over(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapStepOver { dap_id, thread_id })
+    }
+
+    pub fn dap_step_into(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapStepInto { dap_id, thread_id })
+    }
+
+    pub fn dap_step_out(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapStepOut { dap_id, thread_id })
+    }
+
     pub fn dap_pause(&self, dap_id: DapId, thread_id: ThreadId) {
         self.notification(ProxyNotification::DapPause { dap_id, thread_id })
     }
@@ -962,6 +1000,24 @@ impl ProxyRpcHandler {
             path,
             breakpoints,
         })
+    }
+
+    pub fn dap_variable(
+        &self,
+        dap_id: DapId,
+        reference: usize,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::DapVariable { dap_id, reference }, f);
+    }
+
+    pub fn dap_get_scopes(
+        &self,
+        dap_id: DapId,
+        frame_id: usize,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::DapGetScopes { dap_id, frame_id }, f);
     }
 }
 

@@ -84,7 +84,7 @@ use crate::{
     markdown::MarkdownContent,
     palette::{
         item::{PaletteItem, PaletteItemContent},
-        PaletteData, PaletteStatus,
+        PaletteStatus,
     },
     panel::{position::PanelContainerPosition, view::panel_container_view},
     plugin::PluginData,
@@ -994,11 +994,12 @@ fn editor_tab_header(
 }
 
 fn editor_tab_content(
-    main_split: MainSplitData,
+    window_tab_data: Rc<WindowTabData>,
     plugin: PluginData,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
 ) -> impl View {
+    let main_split = window_tab_data.main_split.clone();
     let common = main_split.common.clone();
     let workspace = common.workspace.clone();
     let editors = main_split.editors;
@@ -1047,7 +1048,7 @@ fn editor_tab_content(
                     };
                     let editor_data = create_rw_signal(editor_data);
                     container_box(editor_container_view(
-                        main_split.clone(),
+                        window_tab_data.clone(),
                         workspace.clone(),
                         is_active,
                         editor_data,
@@ -1111,7 +1112,7 @@ fn editor_tab_content(
                     container_box(
                         stack((
                             container(editor_container_view(
-                                main_split.clone(),
+                                window_tab_data.clone(),
                                 workspace.clone(),
                                 move |track| {
                                     is_active(track)
@@ -1139,7 +1140,7 @@ fn editor_tab_content(
                                     )
                             }),
                             container(editor_container_view(
-                                main_split.clone(),
+                                window_tab_data.clone(),
                                 workspace.clone(),
                                 move |track| {
                                     is_active(track)
@@ -1194,7 +1195,7 @@ enum DragOverPosition {
 }
 
 fn editor_tab(
-    main_split: MainSplitData,
+    window_tab_data: Rc<WindowTabData>,
     plugin: PluginData,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
@@ -1202,6 +1203,7 @@ fn editor_tab(
     diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
     dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>>,
 ) -> impl View {
+    let main_split = window_tab_data.main_split.clone();
     let common = main_split.common.clone();
     let editor_tabs = main_split.editor_tabs;
     let editor_tab_id =
@@ -1222,7 +1224,7 @@ fn editor_tab(
         ),
         stack((
             editor_tab_content(
-                main_split.clone(),
+                window_tab_data.clone(),
                 plugin.clone(),
                 active_editor_tab,
                 editor_tab,
@@ -1655,10 +1657,11 @@ fn split_border(
 
 fn split_list(
     split: ReadSignal<SplitData>,
-    main_split: MainSplitData,
+    window_tab_data: Rc<WindowTabData>,
     plugin: PluginData,
     dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>>,
 ) -> impl View {
+    let main_split = window_tab_data.main_split.clone();
     let editor_tabs = main_split.editor_tabs.read_only();
     let active_editor_tab = main_split.active_editor_tab.read_only();
     let editors = main_split.editors;
@@ -1672,91 +1675,92 @@ fn split_list(
     let key = |(_index, (_, content)): &(usize, (RwSignal<f64>, SplitContent))| {
         content.id()
     };
-    let view_fn = move |(_index, (split_size, content)): (
-        usize,
-        (RwSignal<f64>, SplitContent),
-    ),
-                        main_split: MainSplitData| {
-        let plugin = plugin.clone();
-        let child = match &content {
-            SplitContent::EditorTab(editor_tab_id) => {
-                let editor_tab_data = editor_tabs
-                    .with_untracked(|tabs| tabs.get(editor_tab_id).cloned());
-                if let Some(editor_tab_data) = editor_tab_data {
-                    container_box(editor_tab(
-                        main_split.clone(),
-                        plugin.clone(),
-                        active_editor_tab,
-                        editor_tab_data,
-                        editors,
-                        diff_editors,
-                        dragging,
-                    ))
-                } else {
-                    container_box(text("emtpy editor tab"))
-                }
-            }
-            SplitContent::Split(split_id) => {
-                if let Some(split) =
-                    splits.with(|splits| splits.get(split_id).cloned())
-                {
-                    split_list(
-                        split.read_only(),
-                        main_split.clone(),
-                        plugin.clone(),
-                        dragging,
-                    )
-                } else {
-                    container_box(text("emtpy split"))
-                }
-            }
-        };
-        let local_main_split = main_split.clone();
-        child
-            .on_resize(move |rect| match &content {
+    let view_fn = {
+        let main_split = main_split.clone();
+        let window_tab_data = window_tab_data.clone();
+        move |(_index, (split_size, content)): (
+            usize,
+            (RwSignal<f64>, SplitContent),
+        )| {
+            let plugin = plugin.clone();
+            let child = match &content {
                 SplitContent::EditorTab(editor_tab_id) => {
-                    local_main_split.editor_tab_update_layout(
-                        editor_tab_id,
-                        None,
-                        Some(rect),
-                    );
-                }
-                SplitContent::Split(split_id) => {
-                    let split_data =
-                        splits.with(|splits| splits.get(split_id).cloned());
-                    if let Some(split_data) = split_data {
-                        split_data.update(|split| {
-                            split.layout_rect = rect;
-                        });
+                    let editor_tab_data = editor_tabs
+                        .with_untracked(|tabs| tabs.get(editor_tab_id).cloned());
+                    if let Some(editor_tab_data) = editor_tab_data {
+                        container_box(editor_tab(
+                            window_tab_data.clone(),
+                            plugin.clone(),
+                            active_editor_tab,
+                            editor_tab_data,
+                            editors,
+                            diff_editors,
+                            dragging,
+                        ))
+                    } else {
+                        container_box(text("emtpy editor tab"))
                     }
                 }
-            })
-            .on_move(move |point| match &content {
-                SplitContent::EditorTab(editor_tab_id) => {
-                    main_split.editor_tab_update_layout(
-                        editor_tab_id,
-                        Some(point),
-                        None,
-                    );
-                }
                 SplitContent::Split(split_id) => {
-                    let split_data =
-                        splits.with(|splits| splits.get(split_id).cloned());
-                    if let Some(split_data) = split_data {
-                        split_data.update(|split| {
-                            split.window_origin = point;
-                        });
+                    if let Some(split) =
+                        splits.with(|splits| splits.get(split_id).cloned())
+                    {
+                        split_list(
+                            split.read_only(),
+                            window_tab_data.clone(),
+                            plugin.clone(),
+                            dragging,
+                        )
+                    } else {
+                        container_box(text("emtpy split"))
                     }
                 }
-            })
-            .style(move |s| s.flex_grow(split_size.get() as f32).flex_basis(0.0))
+            };
+            let local_main_split = main_split.clone();
+            let local_local_main_split = main_split.clone();
+            child
+                .on_resize(move |rect| match &content {
+                    SplitContent::EditorTab(editor_tab_id) => {
+                        local_main_split.editor_tab_update_layout(
+                            editor_tab_id,
+                            None,
+                            Some(rect),
+                        );
+                    }
+                    SplitContent::Split(split_id) => {
+                        let split_data =
+                            splits.with(|splits| splits.get(split_id).cloned());
+                        if let Some(split_data) = split_data {
+                            split_data.update(|split| {
+                                split.layout_rect = rect;
+                            });
+                        }
+                    }
+                })
+                .on_move(move |point| match &content {
+                    SplitContent::EditorTab(editor_tab_id) => {
+                        local_local_main_split.editor_tab_update_layout(
+                            editor_tab_id,
+                            Some(point),
+                            None,
+                        );
+                    }
+                    SplitContent::Split(split_id) => {
+                        let split_data =
+                            splits.with(|splits| splits.get(split_id).cloned());
+                        if let Some(split_data) = split_data {
+                            split_data.update(|split| {
+                                split.window_origin = point;
+                            });
+                        }
+                    }
+                })
+                .style(move |s| s.flex_grow(split_size.get() as f32).flex_basis(0.0))
+        }
     };
     container_box(
         stack((
-            list(items, key, move |(index, content)| {
-                view_fn((index, content), main_split.clone())
-            })
-            .style(move |s| {
+            list(items, key, view_fn).style(move |s| {
                 s.flex_direction(match direction() {
                     SplitDirection::Vertical => FlexDirection::Row,
                     SplitDirection::Horizontal => FlexDirection::Column,
@@ -1794,7 +1798,7 @@ fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
         create_rw_signal(None);
     split_list(
         root_split,
-        window_tab_data.main_split.clone(),
+        window_tab_data.clone(),
         plugin.clone(),
         dragging,
     )
@@ -2421,16 +2425,16 @@ fn palette_content(
     })
 }
 
-fn palette_preview(palette_data: PaletteData) -> impl View {
+fn palette_preview(window_tab_data: Rc<WindowTabData>) -> impl View {
+    let palette_data = window_tab_data.palette.clone();
     let workspace = palette_data.workspace.clone();
     let preview_editor = palette_data.preview_editor;
     let has_preview = palette_data.has_preview;
     let config = palette_data.common.config;
-    let main_split = palette_data.main_split;
     let preview_editor = create_rw_signal(preview_editor);
     container(
         container(editor_container_view(
-            main_split,
+            window_tab_data,
             workspace,
             |_tracked: bool| true,
             preview_editor,
@@ -2464,7 +2468,7 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
         stack((
             palette_input(window_tab_data.clone()),
             palette_content(window_tab_data.clone(), layout_rect),
-            palette_preview(palette_data),
+            palette_preview(window_tab_data.clone()),
         ))
         .on_event(EventListener::PointerDown, move |_| true)
         .style(move |s| {

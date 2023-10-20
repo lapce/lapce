@@ -2,10 +2,15 @@ use std::{rc::Rc, sync::Arc};
 
 use floem::{
     cosmic_text::Style as FontStyle,
-    reactive::{ReadSignal, RwSignal},
+    event::EventListener,
+    peniko::Color,
+    reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::CursorStyle,
     view::View,
-    views::{container, container_box, label, list, scroll, stack, svg, Decorators},
+    views::{
+        container, container_box, label, list, scroll, stack, svg, text,
+        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
+    },
 };
 use lapce_rpc::{
     dap_types::{DapId, ThreadId},
@@ -17,9 +22,10 @@ use crate::{
     app::clickable_icon,
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    debug::{RunDebugMode, StackTraceData},
+    debug::{DapVariable, RunDebugMode, StackTraceData},
     editor::location::{EditorLocation, EditorPosition},
     listener::Listener,
+    settings::checkbox,
     terminal::panel::TerminalPanelData,
     window_tab::WindowTabData,
 };
@@ -42,10 +48,20 @@ pub fn debug_panel(
             .style(|s| s.width_pct(100.0).flex_col().height(150.0))
         },
         stack((
+            panel_header("Variables".to_string(), config),
+            variables_view(window_tab_data.clone()),
+        ))
+        .style(|s| s.width_pct(100.0).flex_grow(1.0).flex_basis(0.0).flex_col()),
+        stack((
             panel_header("Stack Frames".to_string(), config),
             debug_stack_traces(terminal, internal_command, config),
         ))
         .style(|s| s.width_pct(100.0).flex_grow(1.0).flex_basis(0.0).flex_col()),
+        stack((
+            panel_header("Breakpoints".to_string(), config),
+            breakpoints_view(window_tab_data.clone()),
+        ))
+        .style(|s| s.width_pct(100.0).flex_col().height(150.0)),
     ))
     .style(move |s| {
         s.width_pct(100.0)
@@ -81,7 +97,7 @@ fn debug_process_icons(
                     || false,
                     config,
                 )
-                .style(|s| s.margin_horiz(6.0))
+                .style(|s| s.margin_horiz(4.0))
             },
             {
                 let terminal = terminal.clone();
@@ -94,7 +110,7 @@ fn debug_process_icons(
                     move || stopped,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
             },
             {
                 let terminal = terminal.clone();
@@ -107,7 +123,7 @@ fn debug_process_icons(
                     || false,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
             },
         ))),
         RunDebugMode::Debug => container_box(stack((
@@ -135,7 +151,46 @@ fn debug_process_icons(
                     move || paused() || stopped,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
+            },
+            {
+                let terminal = terminal.clone();
+                clickable_icon(
+                    || LapceIcons::DEBUG_STEP_OVER,
+                    move || {
+                        terminal.dap_step_over(term_id);
+                    },
+                    || false,
+                    move || !paused() || stopped,
+                    config,
+                )
+                .style(|s| s.margin_right(4.0))
+            },
+            {
+                let terminal = terminal.clone();
+                clickable_icon(
+                    || LapceIcons::DEBUG_STEP_INTO,
+                    move || {
+                        terminal.dap_step_into(term_id);
+                    },
+                    || false,
+                    move || !paused() || stopped,
+                    config,
+                )
+                .style(|s| s.margin_right(4.0))
+            },
+            {
+                let terminal = terminal.clone();
+                clickable_icon(
+                    || LapceIcons::DEBUG_STEP_OUT,
+                    move || {
+                        terminal.dap_step_out(term_id);
+                    },
+                    || false,
+                    move || !paused() || stopped,
+                    config,
+                )
+                .style(|s| s.margin_right(4.0))
             },
             {
                 let terminal = terminal.clone();
@@ -148,7 +203,7 @@ fn debug_process_icons(
                     || false,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
             },
             {
                 let terminal = terminal.clone();
@@ -161,7 +216,7 @@ fn debug_process_icons(
                     move || stopped,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
             },
             {
                 let terminal = terminal.clone();
@@ -174,7 +229,7 @@ fn debug_process_icons(
                     || false,
                     config,
                 )
-                .style(|s| s.margin_right(6.0))
+                .style(|s| s.margin_right(4.0))
             },
         ))),
     }
@@ -195,6 +250,7 @@ fn debug_processes(
                 let is_active =
                     move || terminal.debug.active_term.get() == Some(term_id);
                 let local_terminal = terminal.clone();
+                let is_hovered = create_rw_signal(false);
                 stack((
                     {
                         let svg_str = match (&p.mode, p.stopped) {
@@ -208,9 +264,12 @@ fn debug_processes(
                         svg(move || config.get().ui_svg(svg_str)).style(move |s| {
                             let config = config.get();
                             let size = config.ui.icon_size() as f32;
-                            s.size(size, size).margin_horiz(10.0).color(
-                                *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                            )
+                            s.size(size, size)
+                                .margin_vert(5.0)
+                                .margin_horiz(10.0)
+                                .color(
+                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                                )
                         })
                     },
                     label(move || p.config.name.clone()).style(|s| {
@@ -226,11 +285,22 @@ fn debug_processes(
                         p.mode,
                         p.stopped,
                         config,
-                    ),
+                    )
+                    .style(move |s| {
+                        s.apply_if(!is_hovered.get() && !is_active(), |s| s.hide())
+                    }),
                 ))
                 .on_click(move |_| {
                     local_terminal.debug.active_term.set(Some(term_id));
                     local_terminal.focus_terminal(term_id);
+                    true
+                })
+                .on_event(EventListener::PointerEnter, move |_| {
+                    is_hovered.set(true);
+                    true
+                })
+                .on_event(EventListener::PointerLeave, move |_| {
+                    is_hovered.set(false);
                     true
                 })
                 .style(move |s| {
@@ -259,7 +329,131 @@ fn debug_processes(
     })
 }
 
+fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
+    let terminal = window_tab_data.terminal.clone();
+    let local_terminal = window_tab_data.terminal.clone();
+    let ui_line_height = window_tab_data.common.ui_line_height;
+    let config = window_tab_data.common.config;
+    container(
+        scroll(
+            virtual_list(
+                VirtualListDirection::Vertical,
+                VirtualListItemSize::Fixed(Box::new(move || ui_line_height.get())),
+                move || {
+                    let dap = terminal.get_active_dap(true);
+                    dap.map(|dap| {
+                        if !dap.stopped.get() {
+                            return DapVariable::default();
+                        }
+                        let process_stopped = terminal
+                            .get_terminal(&dap.term_id)
+                            .and_then(|t| {
+                                t.run_debug.with(|r| r.as_ref().map(|r| r.stopped))
+                            })
+                            .unwrap_or(true);
+                        if process_stopped {
+                            return DapVariable::default();
+                        }
+                        dap.variables.get()
+                    })
+                    .unwrap_or_default()
+                },
+                |node| {
+                    (
+                        node.item.name().to_string(),
+                        node.item.value().map(|v| v.to_string()),
+                        node.item.reference(),
+                        node.expanded,
+                        node.level,
+                    )
+                },
+                move |node| {
+                    let local_terminal = local_terminal.clone();
+                    let level = node.level;
+                    let reference = node.item.reference();
+                    let name = node.item.name();
+                    let ty = node.item.ty();
+                    let type_exists = ty.map(|ty| !ty.is_empty()).unwrap_or(false);
+                    stack((
+                        svg(move || {
+                            let config = config.get();
+                            let svg_str = match node.expanded {
+                                true => LapceIcons::ITEM_OPENED,
+                                false => LapceIcons::ITEM_CLOSED,
+                            };
+                            config.ui_svg(svg_str)
+                        })
+                        .style(move |s| {
+                            let config = config.get();
+                            let size = config.ui.icon_size() as f32;
+
+                            let color = if reference > 0 {
+                                *config.get_color(LapceColor::LAPCE_ICON_ACTIVE)
+                            } else {
+                                Color::TRANSPARENT
+                            };
+                            s.size(size, size).margin_left(10.0).color(color)
+                        }),
+                        text(name),
+                        text(": ").style(move |s| {
+                            s.apply_if(!type_exists || reference == 0, |s| s.hide())
+                        }),
+                        text(node.item.ty().unwrap_or("")).style(move |s| {
+                            s.color(*config.get().get_style_color("type").unwrap())
+                                .apply_if(!type_exists || reference == 0, |s| {
+                                    s.hide()
+                                })
+                        }),
+                        text(format!(" = {}", node.item.value().unwrap_or("")))
+                            .style(move |s| s.apply_if(reference > 0, |s| s.hide())),
+                    ))
+                    .on_click(move |_| {
+                        if reference > 0 {
+                            let dap = local_terminal.get_active_dap(false);
+                            if let Some(dap) = dap {
+                                let process_stopped = local_terminal
+                                    .get_terminal(&dap.term_id)
+                                    .and_then(|t| {
+                                        t.run_debug
+                                            .with(|r| r.as_ref().map(|r| r.stopped))
+                                    })
+                                    .unwrap_or(true);
+                                if !process_stopped {
+                                    dap.toggle_expand(
+                                        node.parent.clone(),
+                                        reference,
+                                    );
+                                }
+                            }
+                        }
+                        true
+                    })
+                    .style(move |s| {
+                        s.items_center()
+                            .padding_right(10.0)
+                            .padding_left((level * 10) as f32)
+                            .min_width_pct(100.0)
+                    })
+                    .hover_style(move |s| {
+                        s.apply_if(reference > 0, |s| {
+                            s.background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                        })
+                    })
+                },
+            )
+            .style(|s| s.flex_col().min_width_full()),
+        )
+        .style(|s| s.absolute().size_full()),
+    )
+    .style(|s| s.width_full().line_height(1.6).flex_grow(1.0).flex_basis(0))
+}
+
 fn debug_stack_frames(
+    dap_id: DapId,
     thread_id: ThreadId,
     stack_trace: StackTraceData,
     stopped: RwSignal<bool>,
@@ -339,6 +533,10 @@ fn debug_stack_frames(
                             },
                         });
                     }
+                    internal_command.send(InternalCommand::DapFrameScopes {
+                        dap_id,
+                        frame_id: frame.id,
+                    });
                     true
                 })
                 .style(move |s| {
@@ -402,8 +600,9 @@ fn debug_stack_traces(
                 |(dap_id, stopped, thread_id, _)| {
                     (*dap_id, *thread_id, stopped.get_untracked())
                 },
-                move |(_, stopped, thread_id, stack_trace)| {
+                move |(dap_id, stopped, thread_id, stack_trace)| {
                     debug_stack_frames(
+                        dap_id,
                         thread_id,
                         stack_trace,
                         stopped,
@@ -422,4 +621,139 @@ fn debug_stack_traces(
             .flex_grow(1.0)
             .flex_basis(0.0)
     })
+}
+
+fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
+    let breakpoints = window_tab_data.terminal.debug.breakpoints;
+    let config = window_tab_data.common.config;
+    let workspace = window_tab_data.common.workspace.clone();
+    let available_width = create_rw_signal(0.0);
+    let internal_command = window_tab_data.common.internal_command;
+    container(
+        scroll(
+            list(
+                move || {
+                    breakpoints
+                        .get()
+                        .into_iter()
+                        .flat_map(|(path, breakpoints)| {
+                            breakpoints.into_values().map(move |b| (path.clone(), b))
+                        })
+                },
+                move |(path, breakpoint)| {
+                    (path.clone(), breakpoint.line, breakpoint.active)
+                },
+                move |(path, breakpoint)| {
+                    let line = breakpoint.line;
+                    let full_path = path.clone();
+                    let full_path_for_jump = path.clone();
+                    let full_path_for_close = path.clone();
+                    let path = if let Some(workspace_path) = workspace.path.as_ref()
+                    {
+                        path.strip_prefix(workspace_path)
+                            .unwrap_or(&full_path)
+                            .to_path_buf()
+                    } else {
+                        path
+                    };
+
+                    let file_name =
+                        path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                    let folder =
+                        path.parent().and_then(|s| s.to_str()).unwrap_or("");
+                    let folder_empty = folder.is_empty();
+
+                    stack((
+                        clickable_icon(
+                            move || LapceIcons::CLOSE,
+                            move || {
+                                breakpoints.update(|breakpoints| {
+                                    if let Some(breakpoints) =
+                                        breakpoints.get_mut(&full_path_for_close)
+                                    {
+                                        breakpoints.remove(&line);
+                                    }
+                                });
+                            },
+                            || false,
+                            || false,
+                            config,
+                        )
+                        .on_event(EventListener::PointerDown, |_| true),
+                        checkbox(move || breakpoint.active, config)
+                            .style(|s| {
+                                s.margin_right(6.0).cursor(CursorStyle::Pointer)
+                            })
+                            .on_click(move |_| {
+                                breakpoints.update(|breakpoints| {
+                                    if let Some(breakpoints) =
+                                        breakpoints.get_mut(&full_path)
+                                    {
+                                        if let Some(breakpoint) =
+                                            breakpoints.get_mut(&line)
+                                        {
+                                            breakpoint.active = !breakpoint.active;
+                                        }
+                                    }
+                                });
+                                true
+                            }),
+                        text(format!("{file_name}:{}", breakpoint.line + 1)).style(
+                            move |s| {
+                                let size = config.get().ui.icon_size() as f32;
+                                s.text_ellipsis().max_width(
+                                    available_width.get() as f32
+                                        - 20.0
+                                        - size
+                                        - 6.0
+                                        - size
+                                        - 8.0,
+                                )
+                            },
+                        ),
+                        text(folder).style(move |s| {
+                            s.text_ellipsis()
+                                .flex_grow(1.0)
+                                .flex_basis(0.0)
+                                .color(
+                                    *config.get().get_color(LapceColor::EDITOR_DIM),
+                                )
+                                .min_width(0.0)
+                                .margin_left(6.0)
+                                .apply_if(folder_empty, |s| s.hide())
+                        }),
+                    ))
+                    .style(|s| s.items_center().padding_horiz(10.0).width_pct(100.0))
+                    .hover_style(move |s| {
+                        s.background(
+                            *config
+                                .get()
+                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        )
+                    })
+                    .on_click(move |_| {
+                        internal_command.send(InternalCommand::JumpToLocation {
+                            location: EditorLocation {
+                                path: full_path_for_jump.clone(),
+                                position: Some(EditorPosition::Line(line)),
+                                scroll_offset: None,
+                                ignore_unconfirmed: false,
+                                same_editor_tab: false,
+                            },
+                        });
+                        true
+                    })
+                },
+            )
+            .style(|s| s.flex_col().line_height(1.6).width_pct(100.0)),
+        )
+        .on_resize(move |rect| {
+            let width = rect.width();
+            if available_width.get_untracked() != width {
+                available_width.set(width);
+            }
+        })
+        .style(|s| s.absolute().size_pct(100.0, 100.0)),
+    )
+    .style(|s| s.size_pct(100.0, 100.0))
 }

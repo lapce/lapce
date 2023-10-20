@@ -6,7 +6,7 @@ use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
 };
 use lapce_rpc::{
-    dap_types::RunDebugConfig,
+    dap_types::{DapId, RunDebugConfig},
     plugin::PluginId,
     proxy::ProxyStatus,
     terminal::{TermId, TerminalProfile},
@@ -638,6 +638,10 @@ pub enum InternalCommand {
     },
     UpdateProxyStatus {
         status: ProxyStatus,
+    },
+    DapFrameScopes {
+        dap_id: DapId,
+        frame_id: usize,
     },
 }
 

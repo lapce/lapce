@@ -48,14 +48,19 @@ pub fn source_control_panel(
         let doc = doc.get();
         doc.buffer.with(|b| b.len() == 0)
     });
+    let debug_breakline = create_memo(move |_| None);
 
     stack((
         stack((
             container({
                 scroll({
                     let view = stack((
-                        editor_view(editor.get_untracked(), is_active)
-                            .style(|s| s.min_size_pct(100.0, 100.0)),
+                        editor_view(
+                            editor.get_untracked(),
+                            debug_breakline,
+                            is_active,
+                        )
+                        .style(|s| s.min_size_pct(100.0, 100.0)),
                         label(|| "Commit Message".to_string()).style(move |s| {
                             let config = config.get();
                             s.absolute()

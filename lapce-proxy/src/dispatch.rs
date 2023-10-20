@@ -50,8 +50,7 @@ pub struct Dispatcher {
     core_rpc: CoreRpcHandler,
     catalog_rpc: PluginCatalogRpcHandler,
     buffers: HashMap<PathBuf, Buffer>,
-    #[allow(deprecated)]
-    terminals: HashMap<TermId, mio::channel::Sender<Msg>>,
+    terminals: HashMap<TermId, Sender<Msg>>,
     file_watcher: FileWatcher,
     window_id: usize,
     tab_id: usize,
@@ -136,7 +135,6 @@ impl ProxyHandler for Dispatcher {
             Shutdown {} => {
                 self.catalog_rpc.shutdown();
                 for (_, sender) in self.terminals.iter() {
-                    #[allow(deprecated)]
                     let _ = sender.send(Msg::Shutdown);
                 }
                 self.proxy_rpc.shutdown();
@@ -181,7 +179,6 @@ impl ProxyHandler for Dispatcher {
             }
             TerminalWrite { term_id, content } => {
                 if let Some(tx) = self.terminals.get(&term_id) {
-                    #[allow(deprecated)]
                     let _ = tx.send(Msg::Input(content.into_bytes().into()));
                 }
             }
@@ -198,13 +195,11 @@ impl ProxyHandler for Dispatcher {
                         cell_height: 1,
                     };
 
-                    #[allow(deprecated)]
                     let _ = tx.send(Msg::Resize(size));
                 }
             }
             TerminalClose { term_id } => {
                 if let Some(tx) = self.terminals.remove(&term_id) {
-                    #[allow(deprecated)]
                     let _ = tx.send(Msg::Shutdown);
                 }
             }
@@ -226,6 +221,15 @@ impl ProxyHandler for Dispatcher {
             }
             DapPause { dap_id, thread_id } => {
                 let _ = self.catalog_rpc.dap_pause(dap_id, thread_id);
+            }
+            DapStepOver { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_step_over(dap_id, thread_id);
+            }
+            DapStepInto { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_step_into(dap_id, thread_id);
+            }
+            DapStepOut { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_step_out(dap_id, thread_id);
             }
             DapStop { dap_id } => {
                 let _ = self.catalog_rpc.dap_stop(dap_id);
@@ -866,6 +870,30 @@ impl ProxyHandler for Dispatcher {
                         proxy_rpc.handle_response(id, result);
                     },
                 );
+            }
+            DapVariable { dap_id, reference } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc
+                    .dap_variable(dap_id, reference, move |result| {
+                        proxy_rpc.handle_response(
+                            id,
+                            result.map(|resp| ProxyResponse::DapVariableResponse {
+                                varialbes: resp,
+                            }),
+                        );
+                    });
+            }
+            DapGetScopes { dap_id, frame_id } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc
+                    .dap_get_scopes(dap_id, frame_id, move |result| {
+                        proxy_rpc.handle_response(
+                            id,
+                            result.map(|resp| ProxyResponse::DapGetScopesResponse {
+                                scopes: resp,
+                            }),
+                        );
+                    });
             }
         }
     }
