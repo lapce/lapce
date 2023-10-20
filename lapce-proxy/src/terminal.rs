@@ -130,7 +130,7 @@ impl Terminal {
                                         buf[..n].to_vec(),
                                     );
                                 }
-                                Err(_e) => {
+                                Err(err) => {
                                     // On Linux, a `read` on the master side of a PTY can fail
                                     // with `EIO` if the client side hangs up.  In that case,
                                     // just loop back round for the inevitable `Exited` event.
@@ -141,10 +141,10 @@ impl Terminal {
                                         continue;
                                     }
 
-                                    // error!(
-                                    //     "Error reading from PTY in event loop: {}",
-                                    //     err
-                                    // );
+                                    tracing::error!(
+                                        "Error reading from PTY in event loop: {}",
+                                        err
+                                    );
                                     break 'event_loop;
                                 }
                             }
