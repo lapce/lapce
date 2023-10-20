@@ -8,7 +8,7 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
-    reactive::{create_effect, ReadSignal},
+    reactive::{create_effect, ReadSignal, RwSignal},
     view::{ChangeFlags, View},
     Renderer,
 };
@@ -41,6 +41,7 @@ pub struct TerminalView {
     config: ReadSignal<Arc<LapceConfig>>,
     run_config: ReadSignal<Option<RunDebugProcess>>,
     proxy: ProxyRpcHandler,
+    launch_error: RwSignal<Option<String>>,
 }
 
 pub fn terminal_view(
@@ -49,12 +50,18 @@ pub fn terminal_view(
     mode: ReadSignal<Mode>,
     run_config: ReadSignal<Option<RunDebugProcess>>,
     terminal_panel_data: TerminalPanelData,
+    launch_error: RwSignal<Option<String>>,
 ) -> TerminalView {
     let id = Id::next();
 
     create_effect(move |_| {
         let raw = raw.get();
         id.update_state(TerminalViewState::Raw(raw), false);
+    });
+
+    create_effect(move |_| {
+        launch_error.track();
+        id.request_paint();
     });
 
     let config = terminal_panel_data.common.config;
@@ -94,6 +101,7 @@ pub fn terminal_view(
         run_config,
         size: Size::ZERO,
         is_focused: false,
+        launch_error,
     }
 }
 
@@ -215,6 +223,21 @@ impl View for TerminalView {
         let family: Vec<FamilyOwned> =
             FamilyOwned::parse_list(font_family).collect();
         let attrs = Attrs::new().family(&family).font_size(font_size as f32);
+
+        if let Some(error) = self.launch_error.get() {
+            let mut text_layout = TextLayout::new();
+            text_layout.set_text(
+                &format!("Terminal failed to launch. Error: {error}"),
+                AttrsList::new(
+                    attrs.color(*config.get_color(LapceColor::EDITOR_FOREGROUND)),
+                ),
+            );
+            cx.draw_text(
+                &text_layout,
+                Point::new(6.0, 0.0 + (line_height - char_size.height) / 2.0),
+            );
+            return;
+        }
 
         let raw = self.raw.read();
         let term = &raw.term;

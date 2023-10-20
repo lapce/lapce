@@ -13,6 +13,7 @@ use alacritty_terminal::{
     event_loop::Msg,
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
+use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
 use directories::BaseDirs;
 use lapce_rpc::{
@@ -39,7 +40,7 @@ impl Terminal {
         profile: TerminalProfile,
         width: usize,
         height: usize,
-    ) -> Terminal {
+    ) -> Result<Terminal> {
         let poll = polling::Poller::new().expect("create Poll").into();
         let mut config = TermConfig::default();
 
@@ -61,17 +62,17 @@ impl Terminal {
             cell_width: 1,
             cell_height: 1,
         };
-        let pty = alacritty_terminal::tty::new(&config.pty_config, size, 0).unwrap();
+        let pty = alacritty_terminal::tty::new(&config.pty_config, size, 0)?;
 
         let (tx, rx) = crossbeam_channel::unbounded();
 
-        Terminal {
+        Ok(Terminal {
             term_id,
             poll,
             pty,
             tx,
             rx,
-        }
+        })
     }
 
     pub fn run(&mut self, core_rpc: CoreRpcHandler) {

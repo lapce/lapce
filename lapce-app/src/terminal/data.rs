@@ -42,6 +42,7 @@ pub struct TerminalData {
     pub term_id: TermId,
     pub workspace: Arc<LapceWorkspace>,
     pub title: RwSignal<String>,
+    pub launch_error: RwSignal<Option<String>>,
     pub mode: RwSignal<Mode>,
     pub visual_mode: RwSignal<VisualMode>,
     pub raw: RwSignal<Arc<RwLock<RawTerminal>>>,
@@ -326,6 +327,7 @@ impl TerminalData {
         let mode = cx.create_rw_signal(Mode::Terminal);
         let visual_mode = cx.create_rw_signal(VisualMode::Normal);
         let raw = cx.create_rw_signal(raw);
+        let launch_error = cx.create_rw_signal(None);
 
         Self {
             scope: cx,
@@ -337,6 +339,7 @@ impl TerminalData {
             mode,
             visual_mode,
             common,
+            launch_error,
         }
     }
 

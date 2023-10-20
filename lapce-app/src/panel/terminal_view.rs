@@ -203,6 +203,7 @@ fn terminal_tab_split(
                     terminal.mode.read_only(),
                     terminal.run_debug.read_only(),
                     terminal_panel_data,
+                    terminal.launch_error,
                 )
                 .on_event(EventListener::PointerDown, move |_| {
                     active.set(index.get_untracked());

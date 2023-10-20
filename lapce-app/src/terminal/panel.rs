@@ -302,6 +302,12 @@ impl TerminalPanelData {
         }
     }
 
+    pub fn launch_failed(&self, term_id: &TermId, error: &str) {
+        if let Some(terminal) = self.get_terminal(term_id) {
+            terminal.launch_error.set(Some(error.to_string()));
+        }
+    }
+
     pub fn terminal_stopped(&self, term_id: &TermId) {
         if let Some(terminal) = self.get_terminal(term_id) {
             if terminal.run_debug.with_untracked(|r| r.is_some()) {
