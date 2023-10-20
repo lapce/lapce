@@ -18,7 +18,7 @@ pub struct TerminalConfig {
     #[field_names(
         desc = "Set the terminal line height, If 0, it uses editor line height"
     )]
-    pub line_height: usize,
+    pub line_height: f64,
     #[field_names(desc = "Profiles available in terminal pane")]
     pub profiles: HashMap<String, TerminalProfile>,
     #[field_names(desc = "Default profile for each platform")]

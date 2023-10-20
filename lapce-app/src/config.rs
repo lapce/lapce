@@ -19,7 +19,7 @@ use self::{
     color::LapceColor,
     color_theme::{ColorThemeConfig, ThemeColor, ThemeColorPreference},
     core::CoreConfig,
-    editor::EditorConfig,
+    editor::{EditorConfig, SCALE_OR_SIZE_LIMIT},
     icon::LapceIcons,
     icon_theme::IconThemeConfig,
     svg::SvgStore,
@@ -613,8 +613,17 @@ impl LapceConfig {
     }
 
     pub fn terminal_line_height(&self) -> usize {
-        if self.terminal.line_height > 0 {
-            self.terminal.line_height
+        let font_size = self.terminal_font_size();
+
+        if self.terminal.line_height > 0.0 {
+            let line_height = if self.terminal.line_height < SCALE_OR_SIZE_LIMIT {
+                self.terminal.line_height * font_size as f64
+            } else {
+                self.terminal.line_height
+            };
+
+            // Prevent overlapping lines
+            (line_height.round() as usize).max(font_size)
         } else {
             self.editor.line_height()
         }

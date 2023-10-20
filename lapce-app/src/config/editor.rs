@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 
+pub const SCALE_OR_SIZE_LIMIT: f64 = 5.0;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum ClickMode {
     #[default]
@@ -165,8 +167,6 @@ impl EditorConfig {
     }
 
     pub fn line_height(&self) -> usize {
-        const SCALE_OR_SIZE_LIMIT: f64 = 5.0;
-
         let line_height = if self.line_height < SCALE_OR_SIZE_LIMIT {
             self.line_height * self.font_size as f64
         } else {
