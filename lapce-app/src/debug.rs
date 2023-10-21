@@ -83,11 +83,13 @@ pub struct RunDebugData {
 }
 
 impl RunDebugData {
-    pub fn new(cx: Scope) -> Self {
+    pub fn new(
+        cx: Scope,
+        breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
+    ) -> Self {
         let active_term: RwSignal<Option<TermId>> = cx.create_rw_signal(None);
         let daps: RwSignal<im::HashMap<DapId, DapData>> =
             cx.create_rw_signal(im::HashMap::new());
-        let breakpoints = cx.create_rw_signal(BTreeMap::new());
 
         let breakline = cx.create_memo(move |_| {
             let active_term = active_term.get();

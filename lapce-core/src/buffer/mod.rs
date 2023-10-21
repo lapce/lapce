@@ -69,6 +69,7 @@ pub struct InvalLines {
     pub start_line: usize,
     pub inval_count: usize,
     pub new_count: usize,
+    pub old_text: Rope,
 }
 
 #[derive(Clone)]
@@ -349,6 +350,7 @@ impl Buffer {
 
         let (iv, newlen) = delta.summary();
         let old_logical_end_line = self.text.line_of_offset(iv.end) + 1;
+        let old_text = self.text.clone();
 
         self.revs.push(new_rev);
         self.text = new_text;
@@ -364,6 +366,7 @@ impl Buffer {
             start_line: logical_start_line,
             inval_count: old_hard_count,
             new_count: new_hard_count,
+            old_text,
         };
         self.update_size(&inval_lines);
 

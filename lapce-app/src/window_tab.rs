@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, HashSet},
     env,
-    path::Path,
+    path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
     time::Instant,
@@ -139,6 +139,7 @@ pub struct CommonData {
     pub mouse_hover_timer: RwSignal<TimerToken>,
     pub hide_cursor: RwSignal<bool>,
     pub ime_allowed: RwSignal<bool>,
+    pub breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
 }
 
 #[derive(Clone)]
@@ -358,6 +359,7 @@ impl WindowTabData {
             hide_cursor: cx.create_rw_signal(false),
             window_origin: cx.create_rw_signal(Point::ZERO),
             ime_allowed,
+            breakpoints: cx.create_rw_signal(BTreeMap::new()),
         });
 
         let main_split = MainSplitData::new(cx, common.clone());

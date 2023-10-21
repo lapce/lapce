@@ -61,7 +61,7 @@ impl TerminalPanelData {
         let tab_info = TerminalTabInfo { active: 0, tabs };
         let tab_info = cx.create_rw_signal(tab_info);
 
-        let debug = RunDebugData::new(cx);
+        let debug = RunDebugData::new(cx, common.breakpoints);
 
         Self {
             cx,
