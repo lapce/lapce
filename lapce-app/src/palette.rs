@@ -769,24 +769,26 @@ impl PaletteData {
                         indices: vec![],
                     },
                 ));
-                items.push((
-                    executed_run_configs
-                        .get(&(RunDebugMode::Debug, config.name.clone())),
-                    PaletteItem {
-                        content: PaletteItemContent::RunAndDebug {
-                            mode: RunDebugMode::Debug,
-                            config: config.clone(),
+                if config.ty.is_some() {
+                    items.push((
+                        executed_run_configs
+                            .get(&(RunDebugMode::Debug, config.name.clone())),
+                        PaletteItem {
+                            content: PaletteItemContent::RunAndDebug {
+                                mode: RunDebugMode::Debug,
+                                config: config.clone(),
+                            },
+                            filter_text: format!(
+                                "Debug {} {} {}",
+                                config.name,
+                                config.program,
+                                config.args.clone().unwrap_or_default().join(" ")
+                            ),
+                            score: 0,
+                            indices: vec![],
                         },
-                        filter_text: format!(
-                            "Debug {} {} {}",
-                            config.name,
-                            config.program,
-                            config.args.clone().unwrap_or_default().join(" ")
-                        ),
-                        score: 0,
-                        indices: vec![],
-                    },
-                ));
+                    ));
+                }
             }
         }
 

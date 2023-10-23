@@ -26,7 +26,7 @@ use psp_types::Notification;
 use serde_json::Value;
 
 use super::{
-    dap::{DapClient, DapRpcHandler},
+    dap::{DapClient, DapRpcHandler, DebuggerData},
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
     wasi::{load_all_volts, start_volt},
     PluginCatalogNotification, PluginCatalogRpcHandler,
@@ -40,6 +40,7 @@ pub struct PluginCatalog {
     plugin_rpc: PluginCatalogRpcHandler,
     plugins: HashMap<PluginId, PluginServerRpcHandler>,
     daps: HashMap<DapId, DapRpcHandler>,
+    debuggers: HashMap<String, DebuggerData>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
     unactivated_volts: HashMap<VoltID, VoltMetadata>,
     open_files: HashMap<PathBuf, String>,
@@ -87,6 +88,7 @@ impl PluginCatalog {
             plugin_configurations,
             plugins: HashMap::new(),
             daps: HashMap::new(),
+            debuggers: HashMap::new(),
             unactivated_volts: HashMap::new(),
             open_files: HashMap::new(),
         };
@@ -561,23 +563,30 @@ impl PluginCatalog {
             } => {
                 let workspace = self.workspace.clone();
                 let plugin_rpc = self.plugin_rpc.clone();
-                thread::spawn(move || {
-                    if let Ok(dap_rpc) = DapClient::start(
-                        DapServer {
-                            program: "/opt/homebrew/opt/llvm@14/bin/lldb-vscode"
-                                .to_string(),
-                            args: Vec::new(),
-                            cwd: workspace,
-                        },
-                        config.clone(),
-                        breakpoints,
-                        plugin_rpc.clone(),
-                    ) {
-                        let _ = plugin_rpc.dap_loaded(dap_rpc.clone());
+                if let Some(debugger) = config
+                    .ty
+                    .as_ref()
+                    .and_then(|ty| self.debuggers.get(ty).cloned())
+                {
+                    thread::spawn(move || {
+                        if let Ok(dap_rpc) = DapClient::start(
+                            DapServer {
+                                // program: "/opt/homebrew/opt/llvm@14/bin/lldb-vscode"
+                                //     .to_string(),
+                                program: debugger.program,
+                                args: debugger.args.unwrap_or_default(),
+                                cwd: workspace,
+                            },
+                            config.clone(),
+                            breakpoints,
+                            plugin_rpc.clone(),
+                        ) {
+                            let _ = plugin_rpc.dap_loaded(dap_rpc.clone());
 
-                        let _ = dap_rpc.launch(&config);
-                    }
-                });
+                            let _ = dap_rpc.launch(&config);
+                        }
+                    });
+                }
             }
             DapProcessId {
                 dap_id,
@@ -661,6 +670,20 @@ impl PluginCatalog {
                         },
                     );
                 }
+            }
+            RegisterDebuggerType {
+                debugger_type,
+                program,
+                args,
+            } => {
+                self.debuggers.insert(
+                    debugger_type.clone(),
+                    DebuggerData {
+                        debugger_type,
+                        program,
+                        args,
+                    },
+                );
             }
             Shutdown => {
                 for (_, plugin) in self.plugins.iter() {

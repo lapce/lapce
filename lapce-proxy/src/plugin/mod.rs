@@ -194,6 +194,11 @@ pub enum PluginCatalogNotification {
         path: PathBuf,
         breakpoints: Vec<SourceBreakpoint>,
     },
+    RegisterDebuggerType {
+        debugger_type: String,
+        program: String,
+        args: Option<Vec<String>>,
+    },
     Shutdown,
 }
 
@@ -1208,6 +1213,21 @@ impl PluginCatalogRpcHandler {
             frame_id,
             f: Box::new(f),
         });
+    }
+
+    pub fn register_debugger_type(
+        &self,
+        debugger_type: String,
+        program: String,
+        args: Option<Vec<String>>,
+    ) {
+        let _ = self.catalog_notification(
+            PluginCatalogNotification::RegisterDebuggerType {
+                debugger_type,
+                program,
+                args,
+            },
+        );
     }
 }
 

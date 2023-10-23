@@ -4,6 +4,9 @@
 # the name of this task
 name = "task"
 
+# the type of the debugger. If not set, it can't be debugged but can still be run
+# type = "lldb"
+
 # the program to run
 program = ""
 

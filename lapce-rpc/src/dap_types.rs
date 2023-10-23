@@ -45,6 +45,8 @@ pub struct RunDebugProgram {
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub struct RunDebugConfig {
+    #[serde(rename = "type")]
+    pub ty: Option<String>,
     pub name: String,
     pub program: String,
     pub args: Option<Vec<String>>,
