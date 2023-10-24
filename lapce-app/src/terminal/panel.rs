@@ -1,8 +1,8 @@
-use std::{collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     ext_event::create_ext_action,
-    reactive::{RwSignal, Scope},
+    reactive::{Memo, RwSignal, Scope},
 };
 use lapce_core::mode::Mode;
 use lapce_rpc::{
@@ -37,6 +37,7 @@ pub struct TerminalPanelData {
     pub workspace: Arc<LapceWorkspace>,
     pub tab_info: RwSignal<TerminalTabInfo>,
     pub debug: RunDebugData,
+    pub breakline: Memo<Option<(usize, PathBuf)>>,
     pub common: Rc<CommonData>,
 }
 
@@ -63,11 +64,54 @@ impl TerminalPanelData {
 
         let debug = RunDebugData::new(cx, common.breakpoints);
 
+        let breakline = {
+            let active_term = debug.active_term;
+            let daps = debug.daps;
+            cx.create_memo(move |_| {
+                let active_term = active_term.get();
+                let active_term = match active_term {
+                    Some(active_term) => active_term,
+                    None => return None,
+                };
+
+                let term = tab_info.with_untracked(|info| {
+                    for (_, tab) in &info.tabs {
+                        let terminal = tab.terminals.with_untracked(|terminals| {
+                            terminals
+                                .iter()
+                                .find(|(_, t)| t.term_id == active_term)
+                                .cloned()
+                        });
+                        if let Some(terminal) = terminal {
+                            return Some(terminal.1);
+                        }
+                    }
+                    None
+                });
+                let term = match term {
+                    Some(term) => term,
+                    None => return None,
+                };
+                let stopped = term
+                    .run_debug
+                    .with(|run_debug| run_debug.as_ref().map(|r| r.stopped))
+                    .unwrap_or(true);
+                if stopped {
+                    return None;
+                }
+
+                let daps = daps.get();
+                let dap = daps.values().find(|d| d.term_id == active_term);
+                dap.and_then(|dap| dap.breakline.get())
+            })
+        };
+
         Self {
             cx,
             workspace,
             tab_info,
             debug,
+            breakline,
             common,
         }
     }
@@ -459,7 +503,11 @@ impl TerminalPanelData {
                 if current_active != Some(term_id) {
                     self.debug.active_term.set(Some(term_id));
                 }
+            } else {
+                self.debug.active_term.set(None);
             }
+        } else {
+            self.debug.active_term.set(None);
         }
     }
 

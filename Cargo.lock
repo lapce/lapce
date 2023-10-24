@@ -1623,7 +1623,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ccb0f71170bce4d4ae5b4503fc94a60e1088b49a#ccb0f71170bce4d4ae5b4503fc94a60e1088b49a"
+source = "git+https://github.com/lapce/floem?rev=b304e9518d90d60e6b73923ea0dca22926ec0d9a#b304e9518d90d60e6b73923ea0dca22926ec0d9a"
 dependencies = [
  "bitflags 2.4.0",
  "clipboard",
@@ -1653,12 +1653,12 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ccb0f71170bce4d4ae5b4503fc94a60e1088b49a#ccb0f71170bce4d4ae5b4503fc94a60e1088b49a"
+source = "git+https://github.com/lapce/floem?rev=b304e9518d90d60e6b73923ea0dca22926ec0d9a#b304e9518d90d60e6b73923ea0dca22926ec0d9a"
 
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ccb0f71170bce4d4ae5b4503fc94a60e1088b49a#ccb0f71170bce4d4ae5b4503fc94a60e1088b49a"
+source = "git+https://github.com/lapce/floem?rev=b304e9518d90d60e6b73923ea0dca22926ec0d9a#b304e9518d90d60e6b73923ea0dca22926ec0d9a"
 dependencies = [
  "cosmic-text",
  "image",
@@ -1669,7 +1669,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ccb0f71170bce4d4ae5b4503fc94a60e1088b49a#ccb0f71170bce4d4ae5b4503fc94a60e1088b49a"
+source = "git+https://github.com/lapce/floem?rev=b304e9518d90d60e6b73923ea0dca22926ec0d9a#b304e9518d90d60e6b73923ea0dca22926ec0d9a"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1686,7 +1686,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ccb0f71170bce4d4ae5b4503fc94a60e1088b49a#ccb0f71170bce4d4ae5b4503fc94a60e1088b49a"
+source = "git+https://github.com/lapce/floem?rev=b304e9518d90d60e6b73923ea0dca22926ec0d9a#b304e9518d90d60e6b73923ea0dca22926ec0d9a"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -2823,6 +2823,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2 0.10.7",
  "sled",
  "smallvec",
  "structdesc",
@@ -5833,7 +5834,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.7"
-source = "git+https://github.com/lapce/vger-rs?rev=2cb0c2b28fa7bbb98e7fa1f4527c8c27c4512067#2cb0c2b28fa7bbb98e7fa1f4527c8c27c4512067"
+source = "git+https://github.com/lapce/vger-rs?rev=2fbbbf022fd1d8e370ebce1d54368b200e0217b7#2fbbbf022fd1d8e370ebce1d54368b200e0217b7"
 dependencies = [
  "cosmic-text",
  "euclid",

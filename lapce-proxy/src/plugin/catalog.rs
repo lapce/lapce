@@ -53,35 +53,6 @@ impl PluginCatalog {
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
-        {
-            thread::spawn(move || {
-                // let mut dap = DapClient::new(
-                //     workspace,
-                //     Url::parse("file:///opt/homebrew/opt/llvm@14/bin/lldb-vscode")
-                //         .unwrap(),
-                //     Vec::new(),
-                //     core_rpc,
-                // )
-                // .unwrap();
-                // let dap_rpc = dap.dap_rpc.clone();
-                // // let _ = dap.initialize();
-
-                // {
-                //     let dap_rpc = dap_rpc.clone();
-                //     thread::spawn(move || {
-                //         dap_rpc.mainloop(&mut dap);
-                //     });
-                // }
-
-                // std::thread::sleep(std::time::Duration::from_secs(1));
-                // let _ = dap_rpc.launch(serde_json::json!({
-                //     "program": "/Users/dz/lapce/target/debug/lapce",
-                //     "args": vec!["--wait", "--new"],
-                //     "runInTerminal": true,
-                // }));
-            });
-        }
-
         let plugin = Self {
             workspace,
             plugin_rpc: plugin_rpc.clone(),
@@ -571,8 +542,6 @@ impl PluginCatalog {
                     thread::spawn(move || {
                         if let Ok(dap_rpc) = DapClient::start(
                             DapServer {
-                                // program: "/opt/homebrew/opt/llvm@14/bin/lldb-vscode"
-                                //     .to_string(),
                                 program: debugger.program,
                                 args: debugger.args.unwrap_or_default(),
                                 cwd: workspace,

@@ -823,6 +823,11 @@ impl Syntax {
     }
 
     pub fn find_enclosing_pair(&self, offset: usize) -> Option<(usize, usize)> {
+        if self.language == LapceLanguage::Markdown {
+            // TODO: fix the issue that sometimes node.prev_sibling can stuck for markdown
+            return None;
+        }
+
         if offset >= self.text.len() {
             return None;
         }

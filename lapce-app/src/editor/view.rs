@@ -1542,7 +1542,7 @@ pub fn editor_container_view(
     let replace_editor = main_split.replace_editor;
     let replace_active = main_split.common.find.replace_active;
     let replace_focus = main_split.common.find.replace_focus;
-    let debug_breakline = window_tab_data.terminal.debug.breakline;
+    let debug_breakline = window_tab_data.terminal.breakline;
 
     let editor_rect = create_rw_signal(Rect::ZERO);
 

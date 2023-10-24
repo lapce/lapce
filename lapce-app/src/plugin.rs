@@ -7,10 +7,11 @@ use floem::{
     reactive::{use_context, RwSignal, Scope},
 };
 use indexmap::IndexMap;
-use lapce_core::mode::Mode;
+use lapce_core::{directory::Directory, mode::Mode};
 use lapce_proxy::plugin::{download_volt, volt_icon, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltID, VoltInfo, VoltMetadata};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::{
     command::{CommandExecuted, CommandKind},
@@ -21,6 +22,22 @@ use crate::{
     window_tab::CommonData,
 };
 
+#[derive(Clone)]
+pub enum VoltIcon {
+    Svg(String),
+    Img(Vec<u8>),
+}
+
+impl VoltIcon {
+    pub fn from_bytes(buf: &[u8]) -> Result<Self> {
+        if let Ok(s) = std::str::from_utf8(buf) {
+            Ok(VoltIcon::Svg(s.to_string()))
+        } else {
+            Ok(VoltIcon::Img(buf.to_vec()))
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct VoltsInfo {
     pub plugins: Vec<VoltInfo>,
@@ -30,13 +47,14 @@ pub struct VoltsInfo {
 #[derive(Clone)]
 pub struct InstalledVoltData {
     pub meta: RwSignal<VoltMetadata>,
-    pub icon: RwSignal<Option<Vec<u8>>>,
+    pub icon: RwSignal<Option<VoltIcon>>,
     pub latest: RwSignal<VoltInfo>,
 }
 
 #[derive(Clone, PartialEq)]
 pub struct AvailableVoltData {
     pub info: RwSignal<VoltInfo>,
+    pub icon: RwSignal<Option<VoltIcon>>,
     pub installing: RwSignal<bool>,
 }
 
@@ -181,7 +199,10 @@ impl PluginData {
             .try_update(|installed| {
                 if let Some(v) = installed.get_mut(&volt_id) {
                     v.meta.set(volt.clone());
-                    v.icon.set(icon.clone());
+                    v.icon.set(
+                        icon.as_ref()
+                            .and_then(|icon| VoltIcon::from_bytes(icon).ok()),
+                    );
                     (true, v.latest)
                 } else {
                     let (info, is_latest) = if let Some(volt) = self
@@ -197,7 +218,10 @@ impl PluginData {
                     let latest = self.common.scope.create_rw_signal(info);
                     let data = InstalledVoltData {
                         meta: self.common.scope.create_rw_signal(volt.clone()),
-                        icon: self.common.scope.create_rw_signal(icon.clone()),
+                        icon: self.common.scope.create_rw_signal(
+                            icon.as_ref()
+                                .and_then(|icon| VoltIcon::from_bytes(icon).ok()),
+                        ),
                         latest,
                     };
                     installed.insert(volt_id, data);
@@ -278,10 +302,25 @@ impl PluginData {
                 if let Ok(new) = new {
                     volts.update(|volts| {
                         volts.extend(new.plugins.into_iter().map(|volt| {
+                            let icon = cx.create_rw_signal(None);
+                            let send = create_ext_action(cx, move |result| {
+                                if let Ok(i) = result {
+                                    icon.set(Some(i));
+                                }
+                            });
+                            {
+                                let volt = volt.clone();
+                                std::thread::spawn(move || {
+                                    let result = Self::load_icon(&volt);
+                                    send(result);
+                                });
+                            }
+
                             (
                                 volt.id(),
                                 AvailableVoltData {
                                     info: cx.create_rw_signal(volt),
+                                    icon,
                                     installing: cx.create_rw_signal(false),
                                 },
                             )
@@ -296,6 +335,42 @@ impl PluginData {
             let volts = Self::query_volts(&query, offset);
             send(volts);
         });
+    }
+
+    fn load_icon(volt: &VoltInfo) -> Result<VoltIcon> {
+        let url = format!(
+            "https://plugins.lapce.dev/api/v1/plugins/{}/{}/{}/icon?id={}",
+            volt.author, volt.name, volt.version, volt.updated_at_ts
+        );
+
+        let cache_file_path = Directory::cache_directory().map(|cache_dir| {
+            let mut hasher = Sha256::new();
+            hasher.update(url.as_bytes());
+            let filename = format!("{:x}", hasher.finalize());
+            cache_dir.join(filename)
+        });
+
+        let cache_content =
+            cache_file_path.as_ref().and_then(|p| std::fs::read(p).ok());
+
+        let content = match cache_content {
+            Some(content) => content,
+            None => {
+                let resp = reqwest::blocking::get(&url)?;
+                if !resp.status().is_success() {
+                    return Err(anyhow::anyhow!("can't download icon"));
+                }
+                let buf = resp.bytes()?.to_vec();
+
+                if let Some(path) = cache_file_path.as_ref() {
+                    let _ = std::fs::write(path, &buf);
+                }
+
+                buf
+            }
+        };
+
+        VoltIcon::from_bytes(&content)
     }
 
     fn query_volts(query: &str, offset: usize) -> Result<VoltsInfo> {

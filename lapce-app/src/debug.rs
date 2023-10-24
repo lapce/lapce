@@ -78,7 +78,6 @@ pub fn run_configs(workspace: Option<&Path>) -> Option<RunDebugConfigs> {
 pub struct RunDebugData {
     pub active_term: RwSignal<Option<TermId>>,
     pub daps: RwSignal<im::HashMap<DapId, DapData>>,
-    pub breakline: Memo<Option<(usize, PathBuf)>>,
     pub breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
 }
 
@@ -91,17 +90,9 @@ impl RunDebugData {
         let daps: RwSignal<im::HashMap<DapId, DapData>> =
             cx.create_rw_signal(im::HashMap::new());
 
-        let breakline = cx.create_memo(move |_| {
-            let active_term = active_term.get();
-            let daps = daps.get();
-            let dap = daps.values().find(|d| Some(d.term_id) == active_term);
-            dap.and_then(|dap| dap.breakline.get())
-        });
-
         Self {
             active_term,
             daps,
-            breakline,
             breakpoints,
         }
     }

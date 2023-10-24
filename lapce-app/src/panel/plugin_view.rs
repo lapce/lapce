@@ -8,8 +8,9 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, empty, label, scroll, stack, virtual_list, Decorators,
-        VirtualListDirection, VirtualListItemSize, VirtualListVector,
+        container, dyn_container,  img, label, scroll, stack, svg,
+        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
+        VirtualListVector,
     },
 };
 use indexmap::IndexMap;
@@ -19,10 +20,12 @@ use super::{kind::PanelKind, position::PanelPosition, view::panel_header};
 use crate::{
     app::clickable_icon,
     config::{color::LapceColor, icon::LapceIcons},
-    plugin::{AvailableVoltData, InstalledVoltData, PluginData},
+    plugin::{AvailableVoltData, InstalledVoltData, PluginData, VoltIcon},
     text_input::text_input,
     window_tab::{Focus, WindowTabData},
 };
+
+const VOLT_DEFAULT_PNG: &[u8] = include_bytes!("../../../extra/images/volt.png");
 
 struct IndexMapItems<K, V>(IndexMap<K, V>);
 
@@ -168,12 +171,29 @@ fn installed_view(plugin: PluginData) -> impl View {
         let meta = volt.meta.get_untracked();
         let local_meta = meta.clone();
         let volt_id = meta.id();
+        let icon = volt.icon;
         stack((
-            empty().style(|s| {
+            dyn_container(
+                move || icon.get(),
+                move |icon| match icon {
+                    None => Box::new(
+                        img(move || VOLT_DEFAULT_PNG.to_vec())
+                            .style(|s| s.size_full()),
+                    ),
+                    Some(VoltIcon::Svg(svg_str)) => Box::new(
+                        svg(move || svg_str.clone()).style(|s| s.size_full()),
+                    ),
+                    Some(VoltIcon::Img(buf)) => {
+                        Box::new(img(move || buf.clone()).style(|s| s.size_full()))
+                    }
+                },
+            )
+            .style(|s| {
                 s.min_size(50.0, 50.0)
                     .size(50.0, 50.0)
                     .margin_top(5.0)
                     .margin_right(10.0)
+                    .padding(5)
             }),
             stack((
                 label(move || meta.display_name.clone())
@@ -308,12 +328,29 @@ fn available_view(plugin: PluginData) -> impl View {
 
     let view_fn = move |(_, id, volt): (usize, VoltID, AvailableVoltData)| {
         let info = volt.info.get_untracked();
+        let icon = volt.icon;
         stack((
-            empty().style(|s| {
+            dyn_container(
+                move || icon.get(),
+                move |icon| match icon {
+                    None => Box::new(
+                        img(move || VOLT_DEFAULT_PNG.to_vec())
+                            .style(|s| s.size_full()),
+                    ),
+                    Some(VoltIcon::Svg(svg_str)) => Box::new(
+                        svg(move || svg_str.clone()).style(|s| s.size_full()),
+                    ),
+                    Some(VoltIcon::Img(buf)) => {
+                        Box::new(img(move || buf.clone()).style(|s| s.size_full()))
+                    }
+                },
+            )
+            .style(|s| {
                 s.min_size(50.0, 50.0)
                     .size(50.0, 50.0)
                     .margin_top(5.0)
                     .margin_right(10.0)
+                    .padding(5)
             }),
             stack((
                 label(move || info.display_name.clone())
