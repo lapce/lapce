@@ -2,30 +2,29 @@ use std::{ops::Range, rc::Rc};
 
 use floem::{
     event::EventListener,
-    menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Size},
     reactive::{create_memo, create_rw_signal, RwSignal},
     style::CursorStyle,
     view::View,
     views::{
-        container, dyn_container,  img, label, scroll, stack, svg,
-        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
-        VirtualListVector,
+        container, dyn_container, img, label, scroll, stack, svg, virtual_list,
+        Decorators, VirtualListDirection, VirtualListItemSize, VirtualListVector,
     },
 };
 use indexmap::IndexMap;
-use lapce_rpc::plugin::{VoltID, VoltInfo, VoltMetadata};
+use lapce_rpc::plugin::{VoltID, VoltInfo};
 
 use super::{kind::PanelKind, position::PanelPosition, view::panel_header};
 use crate::{
     app::clickable_icon,
+    command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons},
     plugin::{AvailableVoltData, InstalledVoltData, PluginData, VoltIcon},
     text_input::text_input,
     window_tab::{Focus, WindowTabData},
 };
 
-const VOLT_DEFAULT_PNG: &[u8] = include_bytes!("../../../extra/images/volt.png");
+pub const VOLT_DEFAULT_PNG: &[u8] = include_bytes!("../../../extra/images/volt.png");
 
 struct IndexMapItems<K, V>(IndexMap<K, V>);
 
@@ -92,85 +91,12 @@ fn installed_view(plugin: PluginData) -> impl View {
     let config = plugin.common.config;
     let disabled = plugin.disabled;
     let workspace_disabled = plugin.workspace_disabled;
-
-    let plugin_controls =
-        {
-            move |plugin: PluginData, volt: VoltInfo, meta: VoltMetadata| {
-                let volt_id = volt.id();
-                Menu::new("")
-                    .entry(MenuItem::new("Reload Plugin").action({
-                        let plugin = plugin.clone();
-                        let meta = meta.clone();
-                        move || {
-                            plugin.reload_volt(meta.clone());
-                        }
-                    }))
-                    .separator()
-                    .entry(
-                        MenuItem::new("Enable")
-                            .enabled(disabled.with_untracked(|disabled| {
-                                disabled.contains(&volt_id)
-                            }))
-                            .action({
-                                let plugin = plugin.clone();
-                                let volt = volt.clone();
-                                move || {
-                                    plugin.enable_volt(volt.clone());
-                                }
-                            }),
-                    )
-                    .entry(
-                        MenuItem::new("Disable")
-                            .enabled(disabled.with_untracked(|disabled| {
-                                !disabled.contains(&volt_id)
-                            }))
-                            .action({
-                                let plugin = plugin.clone();
-                                let volt = volt.clone();
-                                move || {
-                                    plugin.disable_volt(volt.clone());
-                                }
-                            }),
-                    )
-                    .separator()
-                    .entry(
-                        MenuItem::new("Enable For Workspace")
-                            .enabled(workspace_disabled.with_untracked(|disabled| {
-                                disabled.contains(&volt_id)
-                            }))
-                            .action({
-                                let plugin = plugin.clone();
-                                let volt = volt.clone();
-                                move || {
-                                    plugin.enable_volt_for_ws(volt.clone());
-                                }
-                            }),
-                    )
-                    .entry(
-                        MenuItem::new("Disable For Workspace")
-                            .enabled(workspace_disabled.with_untracked(|disabled| {
-                                !disabled.contains(&volt_id)
-                            }))
-                            .action({
-                                let plugin = plugin.clone();
-                                move || {
-                                    plugin.disable_volt_for_ws(volt.clone());
-                                }
-                            }),
-                    )
-                    .separator()
-                    .entry(MenuItem::new("Uninstall").action({
-                        move || {
-                            plugin.uninstall_volt(meta.clone());
-                        }
-                    }))
-            }
-        };
+    let internal_command = plugin.common.internal_command;
 
     let view_fn = move |volt: InstalledVoltData, plugin: PluginData| {
         let meta = volt.meta.get_untracked();
-        let local_meta = meta.clone();
         let volt_id = meta.id();
+        let local_volt_id = volt_id.clone();
         let icon = volt.icon;
         stack((
             dyn_container(
@@ -209,8 +135,12 @@ fn installed_view(plugin: PluginData) -> impl View {
                                 || workspace_disabled.with(|d| d.contains(&volt_id))
                             {
                                 "Disabled".to_string()
+                            } else if volt.meta.with(|m| {
+                                volt.latest.with(|i| i.version != m.version)
+                            }) {
+                                "Upgrade".to_string()
                             } else {
-                                format!("v{}", meta.version.clone())
+                                format!("v{}", volt.meta.with(|m| m.version.clone()))
                             }
                         })
                         .style(|s| s.text_ellipsis()),
@@ -230,18 +160,25 @@ fn installed_view(plugin: PluginData) -> impl View {
                     )
                     .style(|s| s.padding_left(6.0))
                     .popout_menu(move || {
-                        plugin_controls(
-                            plugin.clone(),
-                            local_meta.info(),
-                            local_meta.clone(),
-                        )
+                        plugin.plugin_controls(volt.meta.get(), volt.latest.get())
                     }),
                 ))
                 .style(|s| s.width_pct(100.0).items_center()),
             ))
             .style(|s| s.flex_col().flex_grow(1.0).flex_basis(0.0).min_width(0.0)),
         ))
+        .on_click(move |_| {
+            internal_command.send(InternalCommand::OpenVoltView {
+                volt_id: local_volt_id.clone(),
+            });
+            true
+        })
         .style(|s| s.width_pct(100.0).padding_horiz(10.0).padding_vert(5.0))
+        .hover_style(move |s| {
+            s.background(
+                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+            )
+        })
     };
 
     container(
@@ -269,9 +206,10 @@ fn installed_view(plugin: PluginData) -> impl View {
 
 fn available_view(plugin: PluginData) -> impl View {
     let ui_line_height = plugin.common.ui_line_height;
-    let volts = plugin.all.volts;
+    let volts = plugin.available.volts;
     let installed = plugin.installed;
     let config = plugin.common.config;
+    let internal_command = plugin.common.internal_command;
 
     let local_plugin = plugin.clone();
     let install_button = move |id: VoltID,
@@ -329,6 +267,7 @@ fn available_view(plugin: PluginData) -> impl View {
     let view_fn = move |(_, id, volt): (usize, VoltID, AvailableVoltData)| {
         let info = volt.info.get_untracked();
         let icon = volt.icon;
+        let volt_id = info.id();
         stack((
             dyn_container(
                 move || icon.get(),
@@ -370,12 +309,23 @@ fn available_view(plugin: PluginData) -> impl View {
             ))
             .style(|s| s.flex_col().flex_grow(1.0).flex_basis(0.0).min_width(0.0)),
         ))
+        .on_click(move |_| {
+            internal_command.send(InternalCommand::OpenVoltView {
+                volt_id: volt_id.clone(),
+            });
+            true
+        })
         .style(|s| s.width_pct(100.0).padding_horiz(10.0).padding_vert(5.0))
+        .hover_style(move |s| {
+            s.background(
+                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+            )
+        })
     };
 
     let content_rect = create_rw_signal(Rect::ZERO);
 
-    let editor = plugin.all.query_editor.clone();
+    let editor = plugin.available.query_editor.clone();
     let focus = plugin.common.focus;
     let is_focused = move || focus.get() == Focus::Panel(PanelKind::Plugin);
     let cursor_x = create_rw_signal(0.0);

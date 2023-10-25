@@ -20,6 +20,7 @@ use crate::{
     config::{color::LapceColor, icon::LapceIcons},
     editor_tab::{EditorTabChild, EditorTabData},
     panel::{position::PanelPosition, view::panel_header},
+    plugin::PluginData,
     window_tab::WindowTabData,
 };
 
@@ -172,14 +173,16 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
     let config = window_tab_data.common.config;
     let internal_command = window_tab_data.common.internal_command;
     let active_editor_tab = window_tab_data.main_split.active_editor_tab;
+    let plugin = window_tab_data.plugin.clone();
 
-    let child_view = move |editor_tab: RwSignal<EditorTabData>,
+    let child_view = move |plugin: PluginData,
+                           editor_tab: RwSignal<EditorTabData>,
                            child_index: RwSignal<usize>,
                            child: EditorTabChild| {
         let editor_tab_id =
             editor_tab.with_untracked(|editor_tab| editor_tab.editor_tab_id);
         let child_for_close = child.clone();
-        let info = child.view_info(editors, diff_editors, config);
+        let info = child.view_info(editors, diff_editors, plugin, config);
         let hovered = create_rw_signal(false);
 
         stack((
@@ -264,6 +267,7 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
             move || editor_tabs.get().into_iter().enumerate(),
             move |(index, (editor_tab_id, _))| (*index, *editor_tab_id),
             move |(index, (_, editor_tab))| {
+                let plugin = plugin.clone();
                 stack((
                     label(move || format!("Group {}", index + 1))
                         .style(|s| s.margin_left(10.0)),
@@ -271,7 +275,12 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                         move || editor_tab.get().children,
                         move |(_, _, child)| child.id(),
                         move |(child_index, _, child)| {
-                            child_view(editor_tab, child_index, child)
+                            child_view(
+                                plugin.clone(),
+                                editor_tab,
+                                child_index,
+                                child,
+                            )
                         },
                     )
                     .style(|s| s.flex_col().width_pct(100.0)),

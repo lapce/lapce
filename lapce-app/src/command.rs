@@ -7,7 +7,7 @@ use lapce_core::command::{
 };
 use lapce_rpc::{
     dap_types::{DapId, RunDebugConfig},
-    plugin::PluginId,
+    plugin::{PluginId, VoltID},
     proxy::ProxyStatus,
     terminal::{TermId, TerminalProfile},
 };
@@ -642,6 +642,9 @@ pub enum InternalCommand {
     DapFrameScopes {
         dap_id: DapId,
         frame_id: usize,
+    },
+    OpenVoltView {
+        volt_id: VoltID,
     },
 }
 

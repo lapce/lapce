@@ -67,27 +67,24 @@ use crate::{
     db::LapceDb,
     debug::RunDebugMode,
     editor::{
-        diff::{diff_show_more_section_view, DiffEditorData},
+        diff::diff_show_more_section_view,
         location::{EditorLocation, EditorPosition},
         view::editor_container_view,
-        EditorData,
     },
     editor_tab::{EditorTabChild, EditorTabData},
     focus_text::focus_text,
-    id::{DiffEditorId, EditorId, EditorTabId, SplitId},
+    id::{EditorTabId, SplitId},
     keymap::keymap_view,
     keypress::keymap::KeyMap,
     listener::Listener,
-    main_split::{
-        MainSplitData, SplitContent, SplitData, SplitDirection, SplitMoveDirection,
-    },
+    main_split::{SplitContent, SplitData, SplitDirection, SplitMoveDirection},
     markdown::MarkdownContent,
     palette::{
         item::{PaletteItem, PaletteItemContent},
         PaletteStatus,
     },
     panel::{position::PanelContainerPosition, view::panel_container_view},
-    plugin::PluginData,
+    plugin::{plugin_info_view, PluginData},
     settings::settings_view,
     status::status,
     text_input::text_input,
@@ -550,17 +547,19 @@ impl AppData {
 }
 
 fn editor_tab_header(
-    main_split: MainSplitData,
+    window_tab_data: Rc<WindowTabData>,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
-    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-    diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
     dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>>,
 ) -> impl View {
-    let focus = main_split.common.focus;
-    let config = main_split.common.config;
-    let internal_command = main_split.common.internal_command;
-    let workbench_command = main_split.common.workbench_command;
+    let main_split = window_tab_data.main_split.clone();
+    let plugin = window_tab_data.plugin.clone();
+    let editors = window_tab_data.main_split.editors;
+    let diff_editors = window_tab_data.main_split.diff_editors;
+    let focus = window_tab_data.common.focus;
+    let config = window_tab_data.common.config;
+    let internal_command = window_tab_data.common.internal_command;
+    let workbench_command = window_tab_data.common.workbench_command;
     let editor_tab_id =
         editor_tab.with_untracked(|editor_tab| editor_tab.editor_tab_id);
 
@@ -596,8 +595,9 @@ fn editor_tab_header(
         let child_for_close = child.clone();
         let child_for_mouse_close = child.clone();
         let main_split = main_split.clone();
+        let plugin = plugin.clone();
         let child_view = move || {
-            let info = child.view_info(editors, diff_editors, config);
+            let info = child.view_info(editors, diff_editors, plugin, config);
             let hovered = create_rw_signal(false);
 
             use crate::config::ui::TabCloseButton;
@@ -1177,6 +1177,9 @@ fn editor_tab_content(
                 container_box(settings_view(plugin.installed, common))
             }
             EditorTabChild::Keymap(_) => container_box(keymap_view(common)),
+            EditorTabChild::Volt(_, id) => {
+                container_box(plugin_info_view(plugin.clone(), id))
+            }
         };
         child.style(|s| s.size_full())
     };
@@ -1199,8 +1202,6 @@ fn editor_tab(
     plugin: PluginData,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
     editor_tab: RwSignal<EditorTabData>,
-    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-    diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
     dragging: RwSignal<Option<(RwSignal<usize>, EditorTabId)>>,
 ) -> impl View {
     let main_split = window_tab_data.main_split.clone();
@@ -1215,11 +1216,9 @@ fn editor_tab(
     let drag_over: RwSignal<Option<DragOverPosition>> = create_rw_signal(None);
     stack((
         editor_tab_header(
-            main_split.clone(),
+            window_tab_data.clone(),
             active_editor_tab,
             editor_tab,
-            editors,
-            diff_editors,
             dragging,
         ),
         stack((
@@ -1664,8 +1663,6 @@ fn split_list(
     let main_split = window_tab_data.main_split.clone();
     let editor_tabs = main_split.editor_tabs.read_only();
     let active_editor_tab = main_split.active_editor_tab.read_only();
-    let editors = main_split.editors;
-    let diff_editors = main_split.diff_editors;
     let splits = main_split.splits.read_only();
     let config = main_split.common.config;
     let split_id = split.with_untracked(|split| split.split_id);
@@ -1693,8 +1690,6 @@ fn split_list(
                             plugin.clone(),
                             active_editor_tab,
                             editor_tab_data,
-                            editors,
-                            diff_editors,
                             dragging,
                         ))
                     } else {

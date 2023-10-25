@@ -17,7 +17,11 @@ use lapce_core::{
     buffer::rope_text::RopeText, command::FocusCommand, cursor::Cursor,
     selection::Selection, syntax::Syntax,
 };
-use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
+use lapce_rpc::{
+    buffer::BufferId,
+    plugin::{PluginId, VoltID},
+    proxy::ProxyResponse,
+};
 use lapce_xi_rope::Rope;
 use lsp_types::{
     CodeAction, CodeActionOrCommand, DiagnosticSeverity, DocumentChangeOperation,
@@ -37,7 +41,10 @@ use crate::{
     editor_tab::{
         EditorTabChild, EditorTabChildSource, EditorTabData, EditorTabInfo,
     },
-    id::{DiffEditorId, EditorId, EditorTabId, KeymapId, SettingsId, SplitId},
+    id::{
+        DiffEditorId, EditorId, EditorTabId, KeymapId, SettingsId, SplitId,
+        VoltViewId,
+    },
     keypress::{EventRef, KeyPressData},
     window_tab::{CommonData, Focus, WindowTabData},
 };
@@ -353,6 +360,7 @@ impl MainSplitData {
             }
             EditorTabChild::Settings(_) => None,
             EditorTabChild::Keymap(_) => None,
+            EditorTabChild::Volt(_, _) => None,
         }
     }
 
@@ -690,6 +698,7 @@ impl MainSplitData {
                         }
                         EditorTabChild::Settings(_) => true,
                         EditorTabChild::Keymap(_) => true,
+                        EditorTabChild::Volt(_, _) => true,
                     };
 
                     if can_be_selected {
@@ -804,6 +813,32 @@ impl MainSplitData {
                         })
                     }
                 }
+                EditorTabChildSource::Volt(id) => {
+                    if let Some(index) =
+                        active_editor_tab.with_untracked(|editor_tab| {
+                            editor_tab.children.iter().position(|(_, _, child)| {
+                                if let EditorTabChild::Volt(_, current_id) = child {
+                                    current_id == id
+                                } else {
+                                    false
+                                }
+                            })
+                        })
+                    {
+                        Some(index)
+                    } else if ignore_unconfirmed {
+                        None
+                    } else {
+                        active_editor_tab.with_untracked(|editor_tab| {
+                            editor_tab
+                                .get_unconfirmed_editor_tab_child(
+                                    &editors,
+                                    &diff_editors,
+                                )
+                                .map(|(i, _)| i)
+                        })
+                    }
+                }
             }
         };
 
@@ -862,6 +897,9 @@ impl MainSplitData {
                 EditorTabChildSource::Keymap => {
                     EditorTabChild::Keymap(KeymapId::next())
                 }
+                EditorTabChildSource::Volt(id) => {
+                    EditorTabChild::Volt(VoltViewId::next(), id.to_owned())
+                }
                 EditorTabChildSource::DiffEditor { left, right } => {
                     let diff_editor_id = DiffEditorId::next();
                     let diff_editor = DiffEditorData::new(
@@ -893,6 +931,7 @@ impl MainSplitData {
                         EditorTabChild::DiffEditor(_) => {}
                         EditorTabChild::Settings(_) => {}
                         EditorTabChild::Keymap(_) => {}
+                        EditorTabChild::Volt(_, _) => {}
                     }
                     (editor_tab_id, current_child.clone())
                 });
@@ -957,6 +996,7 @@ impl MainSplitData {
                 }
                 EditorTabChild::Settings(_) => {}
                 EditorTabChild::Keymap(_) => {}
+                EditorTabChild::Volt(_, _) => {}
             }
 
             // Now loading the new child
@@ -1010,6 +1050,18 @@ impl MainSplitData {
                                 .iter()
                                 .position(|(_, _, child)| {
                                     matches!(child, EditorTabChild::Keymap(_))
+                                }),
+                            EditorTabChildSource::Volt(id) => editor_tab
+                                .children
+                                .iter()
+                                .position(|(_, _, child)| {
+                                    if let EditorTabChild::Volt(_, current_id) =
+                                        child
+                                    {
+                                        current_id == id
+                                    } else {
+                                        false
+                                    }
                                 }),
                             EditorTabChildSource::NewFileEditor => None,
                         })
@@ -1320,6 +1372,9 @@ impl MainSplitData {
                 EditorTabChild::Settings(SettingsId::next())
             }
             EditorTabChild::Keymap(_) => EditorTabChild::Keymap(KeymapId::next()),
+            EditorTabChild::Volt(_, id) => {
+                EditorTabChild::Volt(VoltViewId::next(), id.to_owned())
+            }
         };
 
         let editor_tab = {
@@ -1663,6 +1718,7 @@ impl MainSplitData {
             EditorTabChild::DiffEditor(_) => None,
             EditorTabChild::Settings(_) => None,
             EditorTabChild::Keymap(_) => None,
+            EditorTabChild::Volt(_, _) => None,
         }
     }
 
@@ -1840,6 +1896,7 @@ impl MainSplitData {
             }
             EditorTabChild::Settings(_) => {}
             EditorTabChild::Keymap(_) => {}
+            EditorTabChild::Volt(_, _) => {}
         }
 
         if editor_tab_children_len == 0 {
@@ -2042,6 +2099,10 @@ impl MainSplitData {
         self.find_editor
             .cursor
             .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));
+    }
+
+    pub fn open_volt_view(&self, id: VoltID) {
+        self.get_editor_tab_child(EditorTabChildSource::Volt(id), false, false);
     }
 
     pub fn open_settings(&self) {
@@ -2280,6 +2341,7 @@ impl MainSplitData {
             }
             EditorTabChild::Settings(_) => {}
             EditorTabChild::Keymap(_) => {}
+            EditorTabChild::Volt(_, _) => {}
         }
         Some(())
     }

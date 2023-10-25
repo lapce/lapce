@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use floem::keyboard::{Key, KeyCode, ModifiersState};
+use floem::keyboard::{Key, KeyCode, ModifiersState, PhysicalKey};
 use tracing::warn;
 
 use super::key::KeyInput;
@@ -41,15 +41,15 @@ impl KeyPress {
         if let KeyInput::Keyboard(_, scancode) = &self.key {
             matches!(
                 scancode,
-                KeyCode::Meta
-                    | KeyCode::SuperLeft
-                    | KeyCode::SuperRight
-                    | KeyCode::ShiftLeft
-                    | KeyCode::ShiftRight
-                    | KeyCode::ControlLeft
-                    | KeyCode::ControlRight
-                    | KeyCode::AltLeft
-                    | KeyCode::AltRight
+                PhysicalKey::Code(KeyCode::Meta)
+                    | PhysicalKey::Code(KeyCode::SuperLeft)
+                    | PhysicalKey::Code(KeyCode::SuperRight)
+                    | PhysicalKey::Code(KeyCode::ShiftLeft)
+                    | PhysicalKey::Code(KeyCode::ShiftRight)
+                    | PhysicalKey::Code(KeyCode::ControlLeft)
+                    | PhysicalKey::Code(KeyCode::ControlRight)
+                    | PhysicalKey::Code(KeyCode::AltLeft)
+                    | PhysicalKey::Code(KeyCode::AltRight)
             )
         } else {
             false

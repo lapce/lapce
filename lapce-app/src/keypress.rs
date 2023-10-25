@@ -8,7 +8,7 @@ use std::{path::PathBuf, rc::Rc, str::FromStr};
 
 use anyhow::Result;
 use floem::{
-    keyboard::{Key, KeyEvent, ModifiersState},
+    keyboard::{Key, KeyEvent, ModifiersState, NamedKey},
     pointer::PointerInputEvent,
     reactive::{RwSignal, Scope},
 };
@@ -295,7 +295,9 @@ impl KeyPressData {
             if let KeyInput::Keyboard(Key::Character(c), _key_code) = &keypress.key {
                 focus.receive_char(c);
                 return true;
-            } else if let KeyInput::Keyboard(Key::Space, _) = &keypress.key {
+            } else if let KeyInput::Keyboard(Key::Named(NamedKey::Space), _) =
+                &keypress.key
+            {
                 focus.receive_char(" ");
                 return true;
             }
@@ -308,10 +310,12 @@ impl KeyPressData {
         let mut mods = key_event.modifiers;
 
         match &key_event.key.logical_key {
-            Key::Shift => mods.set(ModifiersState::SHIFT, false),
-            Key::Alt => mods.set(ModifiersState::ALT, false),
-            Key::Meta => mods.set(ModifiersState::SUPER, false),
-            Key::Control => mods.set(ModifiersState::CONTROL, false),
+            Key::Named(NamedKey::Shift) => mods.set(ModifiersState::SHIFT, false),
+            Key::Named(NamedKey::Alt) => mods.set(ModifiersState::ALT, false),
+            Key::Named(NamedKey::Meta) => mods.set(ModifiersState::SUPER, false),
+            Key::Named(NamedKey::Control) => {
+                mods.set(ModifiersState::CONTROL, false)
+            }
             _ => (),
         }
 

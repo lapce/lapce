@@ -8,7 +8,7 @@ use alacritty_terminal::{
     Term,
 };
 use floem::{
-    keyboard::{Key, KeyEvent, ModifiersState},
+    keyboard::{Key, KeyEvent, ModifiersState, NamedKey},
     reactive::{RwSignal, Scope},
 };
 use lapce_core::{
@@ -567,7 +567,7 @@ impl TerminalData {
                     None
                 }
             }
-            Key::Backspace => {
+            Key::Named(NamedKey::Backspace) => {
                 Some(if key.modifiers.control_key() {
                     "\x08" // backspace
                 } else if key.modifiers.alt_key() {
@@ -577,21 +577,41 @@ impl TerminalData {
                 })
             }
 
-            Key::Tab => Some("\x09"),
-            Key::Enter => Some("\r"),
-            Key::Escape => Some("\x1b"),
+            Key::Named(NamedKey::Tab) => Some("\x09"),
+            Key::Named(NamedKey::Enter) => Some("\r"),
+            Key::Named(NamedKey::Escape) => Some("\x1b"),
 
             // The following either expands to `\x1b[X` or `\x1b[1;NX` where N is a modifier value
-            Key::ArrowUp => term_sequence!([all], key, "\x1b[A", "\x1b[1;", "A"),
-            Key::ArrowDown => term_sequence!([all], key, "\x1b[B", "\x1b[1;", "B"),
-            Key::ArrowRight => term_sequence!([all], key, "\x1b[C", "\x1b[1;", "C"),
-            Key::ArrowLeft => term_sequence!([all], key, "\x1b[D", "\x1b[1;", "D"),
-            Key::Home => term_sequence!([all], key, "\x1bOH", "\x1b[1;", "H"),
-            Key::End => term_sequence!([all], key, "\x1bOF", "\x1b[1;", "F"),
-            Key::Insert => term_sequence!([all], key, "\x1b[2~", "\x1b[2;", "~"),
-            Key::Delete => term_sequence!([all], key, "\x1b[3~", "\x1b[3;", "~"),
-            Key::PageUp => term_sequence!([all], key, "\x1b[5~", "\x1b[5;", "~"),
-            Key::PageDown => term_sequence!([all], key, "\x1b[6~", "\x1b[6;", "~"),
+            Key::Named(NamedKey::ArrowUp) => {
+                term_sequence!([all], key, "\x1b[A", "\x1b[1;", "A")
+            }
+            Key::Named(NamedKey::ArrowDown) => {
+                term_sequence!([all], key, "\x1b[B", "\x1b[1;", "B")
+            }
+            Key::Named(NamedKey::ArrowRight) => {
+                term_sequence!([all], key, "\x1b[C", "\x1b[1;", "C")
+            }
+            Key::Named(NamedKey::ArrowLeft) => {
+                term_sequence!([all], key, "\x1b[D", "\x1b[1;", "D")
+            }
+            Key::Named(NamedKey::Home) => {
+                term_sequence!([all], key, "\x1bOH", "\x1b[1;", "H")
+            }
+            Key::Named(NamedKey::End) => {
+                term_sequence!([all], key, "\x1bOF", "\x1b[1;", "F")
+            }
+            Key::Named(NamedKey::Insert) => {
+                term_sequence!([all], key, "\x1b[2~", "\x1b[2;", "~")
+            }
+            Key::Named(NamedKey::Delete) => {
+                term_sequence!([all], key, "\x1b[3~", "\x1b[3;", "~")
+            }
+            Key::Named(NamedKey::PageUp) => {
+                term_sequence!([all], key, "\x1b[5~", "\x1b[5;", "~")
+            }
+            Key::Named(NamedKey::PageDown) => {
+                term_sequence!([all], key, "\x1b[6~", "\x1b[6;", "~")
+            }
             _ => None,
         }
     }

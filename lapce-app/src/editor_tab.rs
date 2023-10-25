@@ -11,6 +11,7 @@ use floem::{
     },
     reactive::{create_memo, create_rw_signal, Memo, ReadSignal, RwSignal, Scope},
 };
+use lapce_rpc::plugin::VoltID;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -21,8 +22,12 @@ use crate::{
         location::EditorLocation,
         EditorData, EditorInfo,
     },
-    id::{DiffEditorId, EditorId, EditorTabId, KeymapId, SettingsId, SplitId},
+    id::{
+        DiffEditorId, EditorId, EditorTabId, KeymapId, SettingsId, SplitId,
+        VoltViewId,
+    },
     main_split::MainSplitData,
+    plugin::PluginData,
     window_tab::WindowTabData,
 };
 
@@ -32,6 +37,7 @@ pub enum EditorTabChildInfo {
     DiffEditor(DiffEditorInfo),
     Settings,
     Keymap,
+    Volt(VoltID),
 }
 
 impl EditorTabChildInfo {
@@ -53,6 +59,9 @@ impl EditorTabChildInfo {
                 EditorTabChild::Settings(SettingsId::next())
             }
             EditorTabChildInfo::Keymap => EditorTabChild::Keymap(KeymapId::next()),
+            EditorTabChildInfo::Volt(id) => {
+                EditorTabChild::Volt(VoltViewId::next(), id.to_owned())
+            }
         }
     }
 }
@@ -118,6 +127,7 @@ pub enum EditorTabChildSource {
     NewFileEditor,
     Settings,
     Keymap,
+    Volt(VoltID),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -126,6 +136,7 @@ pub enum EditorTabChild {
     DiffEditor(DiffEditorId),
     Settings(SettingsId),
     Keymap(KeymapId),
+    Volt(VoltViewId, VoltID),
 }
 
 #[derive(PartialEq)]
@@ -144,6 +155,7 @@ impl EditorTabChild {
             EditorTabChild::DiffEditor(id) => id.to_raw(),
             EditorTabChild::Settings(id) => id.to_raw(),
             EditorTabChild::Keymap(id) => id.to_raw(),
+            EditorTabChild::Volt(id, _) => id.to_raw(),
         }
     }
 
@@ -175,6 +187,7 @@ impl EditorTabChild {
             }
             EditorTabChild::Settings(_) => EditorTabChildInfo::Settings,
             EditorTabChild::Keymap(_) => EditorTabChildInfo::Keymap,
+            EditorTabChild::Volt(_, id) => EditorTabChildInfo::Volt(id.to_owned()),
         }
     }
 
@@ -182,6 +195,7 @@ impl EditorTabChild {
         &self,
         editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
         diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
+        plugin: PluginData,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Memo<EditorTabChildViewInfo> {
         match self.clone() {
@@ -308,6 +322,29 @@ impl EditorTabChild {
                     icon: config.ui_svg(LapceIcons::KEYBOARD),
                     color: Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
                     path: "Keyboard Shortcuts".to_string(),
+                    confirmed: None,
+                    is_pristine: true,
+                }
+            }),
+            EditorTabChild::Volt(_, id) => create_memo(move |_| {
+                let config = config.get();
+                let display_name = plugin
+                    .installed
+                    .with(|volts| volts.get(&id).cloned())
+                    .map(|volt| volt.meta.with(|m| m.display_name.clone()))
+                    .or_else(|| {
+                        plugin.available.volts.with(|volts| {
+                            let volt = volts.get(&id);
+                            volt.map(|volt| {
+                                volt.info.with(|m| m.display_name.clone())
+                            })
+                        })
+                    })
+                    .unwrap_or_else(|| id.name.clone());
+                EditorTabChildViewInfo {
+                    icon: config.ui_svg(LapceIcons::EXTENSIONS),
+                    color: Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                    path: display_name,
                     confirmed: None,
                     is_pristine: true,
                 }
