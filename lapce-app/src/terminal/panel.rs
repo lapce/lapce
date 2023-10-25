@@ -491,20 +491,22 @@ impl TerminalPanelData {
         }
     }
 
-    fn update_debug_active_term(&self) {
+    pub fn update_debug_active_term(&self) {
         let tab = self.active_tab(false);
         let terminal = tab.and_then(|tab| tab.active_terminal(false));
         if let Some(terminal) = terminal {
             let term_id = terminal.term_id;
             let is_run_debug =
                 terminal.run_debug.with_untracked(|run| run.is_some());
+            let current_active = self.debug.active_term.get_untracked();
             if is_run_debug {
-                let current_active = self.debug.active_term.get_untracked();
                 if current_active != Some(term_id) {
                     self.debug.active_term.set(Some(term_id));
                 }
-            } else {
-                self.debug.active_term.set(None);
+            } else if let Some(active) = current_active {
+                if self.get_terminal(&active).is_none() {
+                    self.debug.active_term.set(None);
+                }
             }
         } else {
             self.debug.active_term.set(None);

@@ -52,6 +52,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
         |(_, tab)| tab.terminal_tab_id,
         move |(index, tab)| {
             let terminal = terminal.clone();
+            let local_terminal = terminal.clone();
             let terminal_tab_id = tab.terminal_tab_id;
 
             let title = {
@@ -162,6 +163,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                     tab_info.update(|tab| {
                         tab.active = index.get_untracked();
                     });
+                    local_terminal.update_debug_active_term();
                 }
                 false
             })

@@ -1636,7 +1636,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=0d2b7e7c6fe9fa1dfa15bfa88252224614d5ba70#0d2b7e7c6fe9fa1dfa15bfa88252224614d5ba70"
+source = "git+https://github.com/lapce/floem?rev=286ffb9f940ba969950ba948467256743a61d395#286ffb9f940ba969950ba948467256743a61d395"
 dependencies = [
  "bitflags 2.4.0",
  "clipboard",
@@ -1666,12 +1666,12 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=0d2b7e7c6fe9fa1dfa15bfa88252224614d5ba70#0d2b7e7c6fe9fa1dfa15bfa88252224614d5ba70"
+source = "git+https://github.com/lapce/floem?rev=286ffb9f940ba969950ba948467256743a61d395#286ffb9f940ba969950ba948467256743a61d395"
 
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=0d2b7e7c6fe9fa1dfa15bfa88252224614d5ba70#0d2b7e7c6fe9fa1dfa15bfa88252224614d5ba70"
+source = "git+https://github.com/lapce/floem?rev=286ffb9f940ba969950ba948467256743a61d395#286ffb9f940ba969950ba948467256743a61d395"
 dependencies = [
  "cosmic-text",
  "image",
@@ -1682,7 +1682,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=0d2b7e7c6fe9fa1dfa15bfa88252224614d5ba70#0d2b7e7c6fe9fa1dfa15bfa88252224614d5ba70"
+source = "git+https://github.com/lapce/floem?rev=286ffb9f940ba969950ba948467256743a61d395#286ffb9f940ba969950ba948467256743a61d395"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1699,7 +1699,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=0d2b7e7c6fe9fa1dfa15bfa88252224614d5ba70#0d2b7e7c6fe9fa1dfa15bfa88252224614d5ba70"
+source = "git+https://github.com/lapce/floem?rev=286ffb9f940ba969950ba948467256743a61d395#286ffb9f940ba969950ba948467256743a61d395"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -1719,6 +1719,9 @@ version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55ac459de2512911e4b674ce33cf20befaba382d05b62b008afc1c8b57cbf181"
 dependencies = [
+ "futures-core",
+ "futures-sink",
+ "nanorand",
  "spin",
 ]
 
@@ -2009,8 +2012,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4eb1a864a501629691edf6c15a593b7a51eebaa1e8468e9ddc623de7c9b58ec6"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -2050,6 +2055,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "gl_generator"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a95dfc23a2b4a9a2f5ab41d194f8bfda3cabec42af4e39f08c339eb2a0c124d"
+dependencies = [
+ "khronos_api",
+ "log",
+ "xml-rs",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2082,14 +2098,23 @@ dependencies = [
 
 [[package]]
 name = "glow"
-version = "0.12.3"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca0fe580e4b60a8ab24a868bc08e2f03cbcb20d3d676601fa909386713333728"
+checksum = "886c2a30b160c4c6fec8f987430c26b526b7988ca71f664e6a699ddf6f9601e4"
 dependencies = [
  "js-sys",
  "slotmap",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "glutin_wgl_sys"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c8098adac955faa2d31079b65dc48841251f69efd3ac25477903fc424362ead"
+dependencies = [
+ "gl_generator",
 ]
 
 [[package]]
@@ -2113,15 +2138,16 @@ dependencies = [
 
 [[package]]
 name = "gpu-allocator"
-version = "0.22.0"
+version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce95f9e2e11c2c6fadfce42b5af60005db06576f231f5c92550fdded43c423e8"
+checksum = "40fe17c8a05d60c38c0a4e5a3c802f2f1ceb66b76c67d96ffb34bef0475a7fad"
 dependencies = [
  "backtrace",
  "log",
+ "presser",
  "thiserror",
  "winapi",
- "windows",
+ "windows 0.51.1",
 ]
 
 [[package]]
@@ -2739,14 +2765,20 @@ dependencies = [
 
 [[package]]
 name = "khronos-egl"
-version = "4.1.0"
+version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c2352bd1d0bceb871cb9d40f24360c8133c11d7486b68b5381c1dd1a32015e3"
+checksum = "6aae1df220ece3c0ada96b8153459b67eebe9ae9212258bb0134ae60416fdf76"
 dependencies = [
  "libc",
- "libloading 0.7.3",
+ "libloading 0.8.1",
  "pkg-config",
 ]
+
+[[package]]
+name = "khronos_api"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "kqueue"
@@ -3229,9 +3261,9 @@ dependencies = [
 
 [[package]]
 name = "metal"
-version = "0.26.0"
+version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "623b5e6cefd76e58f774bd3cc0c6f5c7615c58c03a97815245a25c3c9bdee318"
+checksum = "c43f73953f8cbe511f021b58f18c3ce1c3d1ae13fe953293e13345bf83217f25"
 dependencies = [
  "bitflags 2.4.0",
  "block",
@@ -3296,15 +3328,15 @@ dependencies = [
 
 [[package]]
 name = "naga"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1ceaaa4eedaece7e4ec08c55c640ba03dbb73fb812a6570a59bcf1930d0f70e"
+checksum = "61d829abac9f5230a85d8cc83ec0879b4c09790208ae25b5ea031ef84562e071"
 dependencies = [
  "bit-set",
  "bitflags 2.4.0",
  "codespan-reporting",
  "hexf-parse",
- "indexmap 1.9.2",
+ "indexmap 2.0.0",
  "log",
  "num-traits",
  "rustc-hash",
@@ -3312,6 +3344,15 @@ dependencies = [
  "termcolor",
  "thiserror",
  "unicode-xid",
+]
+
+[[package]]
+name = "nanorand"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
+dependencies = [
+ "getrandom",
 ]
 
 [[package]]
@@ -3605,9 +3646,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.17.1"
+version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7e5500299e16ebb147ae15a00a942af264cf3688f47923b8fc2cd5858f23ad3"
+checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 
 [[package]]
 name = "opaque-debug"
@@ -3939,6 +3980,12 @@ name = "ppv-lite86"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb9f9e6e233e5c4a35559a617bf40a4ec447db2e84c20b55a6f83167b7e57872"
+
+[[package]]
+name = "presser"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8cf8e6a8aa66ce33f63993ffc4ea4271eb5b0530a9002db8455ea6050c77bfa"
 
 [[package]]
 name = "proc-macro-crate"
@@ -4334,7 +4381,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "windows",
+ "windows 0.44.0",
 ]
 
 [[package]]
@@ -5508,7 +5555,7 @@ dependencies = [
  "once_cell",
  "scopeguard",
  "url",
- "windows",
+ "windows 0.44.0",
 ]
 
 [[package]]
@@ -5856,7 +5903,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.7"
-source = "git+https://github.com/lapce/vger-rs?rev=4ef94b8682ef5df1b3d03fc7debfe74f056d24aa#4ef94b8682ef5df1b3d03fc7debfe74f056d24aa"
+source = "git+https://github.com/lapce/vger-rs?rev=9b994a61bdf84d1d6a2bb3c3830ba3fd3661edad#9b994a61bdf84d1d6a2bb3c3830ba3fd3661edad"
 dependencies = [
  "cosmic-text",
  "euclid",
@@ -6503,16 +6550,17 @@ dependencies = [
 
 [[package]]
 name = "wgpu"
-version = "0.17.0"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7472f3b69449a8ae073f6ec41d05b6f846902d92a6c45313c50cb25857b736ce"
+checksum = "30e7d227c9f961f2061c26f4cb0fbd4df0ef37e056edd0931783599d6c94ef24"
 dependencies = [
  "arrayvec",
  "cfg-if",
+ "flume",
  "js-sys",
  "log",
  "naga",
- "parking_lot 0.12.1",
+ "parking_lot 0.11.2",
  "profiling",
  "raw-window-handle 0.5.2",
  "smallvec",
@@ -6527,9 +6575,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu-core"
-version = "0.17.0"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecf7454d9386f602f7399225c92dd2fbdcde52c519bc8fb0bd6fbeb388075dc2"
+checksum = "837e02ddcdc6d4a9b56ba4598f7fd4202a7699ab03f6ef4dcdebfad2c966aea6"
 dependencies = [
  "arrayvec",
  "bit-vec",
@@ -6537,7 +6585,7 @@ dependencies = [
  "codespan-reporting",
  "log",
  "naga",
- "parking_lot 0.12.1",
+ "parking_lot 0.11.2",
  "profiling",
  "raw-window-handle 0.5.2",
  "rustc-hash",
@@ -6550,9 +6598,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu-hal"
-version = "0.17.0"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6654a13885a17f475e8324efb46dc6986d7aaaa98353330f8de2077b153d0101"
+checksum = "1e30b9a8155c83868e82a8c5d3ce899de6c3961d2ef595de8fc168a1677fc2d8"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -6563,6 +6611,7 @@ dependencies = [
  "core-graphics-types",
  "d3d12",
  "glow",
+ "glutin_wgl_sys",
  "gpu-alloc",
  "gpu-allocator",
  "gpu-descriptor",
@@ -6570,12 +6619,13 @@ dependencies = [
  "js-sys",
  "khronos-egl",
  "libc",
- "libloading 0.8.1",
+ "libloading 0.7.3",
  "log",
  "metal",
  "naga",
  "objc",
- "parking_lot 0.12.1",
+ "once_cell",
+ "parking_lot 0.11.2",
  "profiling",
  "range-alloc",
  "raw-window-handle 0.5.2",
@@ -6591,9 +6641,9 @@ dependencies = [
 
 [[package]]
 name = "wgpu-types"
-version = "0.17.0"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee64d7398d0c2f9ca48922c902ef69c42d000c759f3db41e355f4a570b052b67"
+checksum = "0d5ed5f0edf0de351fe311c53304986315ce866f394a2e6df0c4b3c70774bcdd"
 dependencies = [
  "bitflags 2.4.0",
  "js-sys",
@@ -6695,6 +6745,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e745dab35a0c4c77aa3ce42d595e13d2003d6902d6b08c9ef5fc326d08da12b"
 dependencies = [
  "windows-targets 0.42.2",
+]
+
+[[package]]
+name = "windows"
+version = "0.51.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca229916c5ee38c2f2bc1e9d8f04df975b4bd93f9955dc69fabb5d91270045c9"
+dependencies = [
+ "windows-core",
+ "windows-targets 0.48.5",
+]
+
+[[package]]
+name = "windows-core"
+version = "0.51.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1f8cf84f35d2db49a46868f947758c7a1138116f7fac3bc844f43ade1292e64"
+dependencies = [
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -6890,7 +6959,7 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 [[package]]
 name = "winit"
 version = "0.29.2"
-source = "git+https://github.com/lapce/winit?rev=fa3a4f5cb8eadcfe07d9a629e57f4c3c0f6ce109#fa3a4f5cb8eadcfe07d9a629e57f4c3c0f6ce109"
+source = "git+https://github.com/lapce/winit?rev=96d8a1f7d8ab7969d836f940d0b18d3540979e6c#96d8a1f7d8ab7969d836f940d0b18d3540979e6c"
 dependencies = [
  "ahash 0.8.3",
  "android-activity",
@@ -7069,6 +7138,12 @@ name = "xkeysym"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "054a8e68b76250b253f671d1268cb7f1ae089ec35e195b2efb2a4e9a836d0621"
+
+[[package]]
+name = "xml-rs"
+version = "0.8.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fcb9cbac069e033553e8bb871be2fbdffcab578eb25bd0f7c508cedc6dcd75a"
 
 [[package]]
 name = "xmlparser"
