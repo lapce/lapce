@@ -30,20 +30,11 @@ checksum = "c71b1793ee61086797f5c80b6efa2b8ffa6d5dd703f118545808a7f2e27f7046"
 
 [[package]]
 name = "addr2line"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9ecd88a8c8378ca913a680cd98f0f13ac67383d35993f86c90a70e3f137816b"
-dependencies = [
- "gimli 0.26.2",
-]
-
-[[package]]
-name = "addr2line"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a30b2e23b9e17a9f90641c7ab1549cd9b44f296d3ccbf309d2863cfe398a0cb"
 dependencies = [
- "gimli 0.28.0",
+ "gimli",
 ]
 
 [[package]]
@@ -416,16 +407,16 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
 name = "backtrace"
-version = "0.3.66"
+version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cab84319d616cfb654d03394f38ab7e6f0919e181b1b57e1fd15e7fb4077d9a7"
+checksum = "2089b7e3f35b9dd2d0ed921ead4f6d318c27680d4a5bd167b3ee120edb105837"
 dependencies = [
- "addr2line 0.17.0",
+ "addr2line",
  "cc",
  "cfg-if",
  "libc",
- "miniz_oxide 0.5.4",
- "object 0.29.0",
+ "miniz_oxide 0.7.1",
+ "object",
  "rustc-demangle",
 ]
 
@@ -1009,7 +1000,7 @@ dependencies = [
  "cranelift-control",
  "cranelift-entity",
  "cranelift-isle",
- "gimli 0.28.0",
+ "gimli",
  "hashbrown 0.14.0",
  "log",
  "regalloc2",
@@ -2009,12 +2000,6 @@ dependencies = [
  "color_quant",
  "weezl",
 ]
-
-[[package]]
-name = "gimli"
-version = "0.26.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22030e2c5a68ec659fde1e949a745124b48e6fa8b045b7ed5bd1fe4ccc5c4e5d"
 
 [[package]]
 name = "gimli"
@@ -3602,15 +3587,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c92d4ddb4bd7b50d730c215ff871754d0da6b2178849f8a2a2ab69712d0c073b"
 dependencies = [
  "objc",
-]
-
-[[package]]
-name = "object"
-version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21158b2c33aa6d4561f1c0a6ea283ca92bc54802a93b263e910746d679a7eb53"
-dependencies = [
- "memchr",
 ]
 
 [[package]]
@@ -6128,7 +6104,7 @@ dependencies = [
  "indexmap 2.0.0",
  "libc",
  "log",
- "object 0.32.1",
+ "object",
  "once_cell",
  "paste",
  "psm",
@@ -6216,9 +6192,9 @@ dependencies = [
  "cranelift-frontend",
  "cranelift-native",
  "cranelift-wasm",
- "gimli 0.28.0",
+ "gimli",
  "log",
- "object 0.32.1",
+ "object",
  "target-lexicon",
  "thiserror",
  "wasmparser",
@@ -6237,8 +6213,8 @@ dependencies = [
  "cranelift-codegen",
  "cranelift-control",
  "cranelift-native",
- "gimli 0.28.0",
- "object 0.32.1",
+ "gimli",
+ "object",
  "target-lexicon",
  "wasmtime-environ",
 ]
@@ -6251,10 +6227,10 @@ checksum = "d72b405647d5378ed3ff7889586d26d79825641f477f288bc72ab416136ad4da"
 dependencies = [
  "anyhow",
  "cranelift-entity",
- "gimli 0.28.0",
+ "gimli",
  "indexmap 2.0.0",
  "log",
- "object 0.32.1",
+ "object",
  "serde",
  "serde_derive",
  "target-lexicon",
@@ -6286,15 +6262,15 @@ version = "14.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c7462341d96d44b30776c7aec411c0cc11b15fde44b58efcbf269d21570bd7a"
 dependencies = [
- "addr2line 0.21.0",
+ "addr2line",
  "anyhow",
  "bincode",
  "cfg-if",
  "cpp_demangle",
- "gimli 0.28.0",
+ "gimli",
  "ittapi",
  "log",
- "object 0.32.1",
+ "object",
  "rustc-demangle",
  "rustix 0.38.20",
  "serde",
@@ -6313,7 +6289,7 @@ version = "14.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fa128cdc680b5982087ea64eb73b63e96570b338fd6438b704b313eb854fd94"
 dependencies = [
- "object 0.32.1",
+ "object",
  "once_cell",
  "rustix 0.38.20",
  "wasmtime-versioned-export-macros",
@@ -6427,8 +6403,8 @@ checksum = "eff589e9b8f701ea4d66472115d23145fe58b62d1289c51f4a2e36c5dccf6053"
 dependencies = [
  "anyhow",
  "cranelift-codegen",
- "gimli 0.28.0",
- "object 0.32.1",
+ "gimli",
+ "object",
  "target-lexicon",
  "wasmparser",
  "wasmtime-cranelift-shared",
@@ -6879,7 +6855,7 @@ checksum = "d2942fc0530ed88259df32f09f52a4222583e1ec7c3fa3f4a911905bbf70c3b0"
 dependencies = [
  "anyhow",
  "cranelift-codegen",
- "gimli 0.28.0",
+ "gimli",
  "regalloc2",
  "smallvec",
  "target-lexicon",
