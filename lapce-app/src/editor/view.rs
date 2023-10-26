@@ -2090,6 +2090,12 @@ fn editor_content(
                 }
                 true
             })
+            .on_event(EventListener::PointerLeave, move |event| {
+                if let Event::PointerLeave = event {
+                    editor.get_untracked().pointer_leave();
+                }
+                true
+            })
     })
     .on_move(move |point| {
         window_origin.set(point);

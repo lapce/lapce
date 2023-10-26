@@ -2123,6 +2123,10 @@ impl EditorData {
         self.active.set(false);
     }
 
+    pub fn pointer_leave(&self) {
+        self.common.mouse_hover_timer.set(TimerToken::INVALID);
+    }
+
     fn right_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (offset, _) = self.view.offset_of_point(mode, pointer_event.pos);
