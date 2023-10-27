@@ -285,6 +285,7 @@ name = ""
 "extensions" = "extensions.svg"
 "keyboard" = "keyboard.svg"
 "breadcrumb_separator" = "chevron-right.svg"
+"symbol_color" = "symbol-color.svg"
 
 "window.close" = "chrome-close.svg"
 "window.restore" = "chrome-restore.svg"

@@ -494,6 +494,19 @@ impl LapceConfig {
         ))
     }
 
+    pub fn export_theme(&self) -> String {
+        let mut table = toml::value::Table::new();
+        let mut theme = self.color_theme.clone();
+        theme.name = "".to_string();
+        table.insert(
+            "color-theme".to_string(),
+            toml::Value::try_from(&theme).unwrap(),
+        );
+        table.insert("ui".to_string(), toml::Value::try_from(&self.ui).unwrap());
+        let value = toml::Value::Table(table);
+        toml::to_string_pretty(&value).unwrap()
+    }
+
     pub fn settings_file() -> Option<PathBuf> {
         let path = Directory::config_directory()?.join("settings.toml");
 
@@ -822,6 +835,30 @@ impl LapceConfig {
         let content = std::fs::read_to_string(path).ok()?;
         let document: toml_edit::Document = content.parse().ok()?;
         Some(document)
+    }
+
+    pub fn reset_setting(parent: &str, key: &str) -> Option<()> {
+        let mut main_table = Self::get_file_table().unwrap_or_default();
+
+        // Find the container table
+        let mut table = main_table.as_table_mut();
+        for key in parent.split('.') {
+            if !table.contains_key(key) {
+                table.insert(
+                    key,
+                    toml_edit::Item::Table(toml_edit::Table::default()),
+                );
+            }
+            table = table.get_mut(key)?.as_table_mut()?;
+        }
+
+        table.remove(key);
+
+        // Store
+        let path = Self::settings_file()?;
+        std::fs::write(path, main_table.to_string().as_bytes()).ok()?;
+
+        Some(())
     }
 
     /// Update the config file with the given edit.  

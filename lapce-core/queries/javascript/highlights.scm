@@ -1,44 +1,3 @@
-; source: https://github.com/helix-editor/helix/blob/master/runtime/queries/javascript/highlights.scm
-; licence: https://github.com/helix-editor/helix/blob/master/LICENSE
-; spdx: MPL-2.0
-
-; Function and method parameters
-;-------------------------------
-
-; (p) => ...
-(formal_parameters 
-  (identifier) @variable.parameter)
-
-; (...p) => ...
-(formal_parameters
-  (rest_pattern
-    (identifier) @variable.parameter))
-
-; ({ p }) => ...
-(formal_parameters
-  (object_pattern
-    (shorthand_property_identifier_pattern) @variable.parameter))
-
-; ({ a: p }) => ...
-(formal_parameters
-  (object_pattern
-    (pair_pattern
-      value: (identifier) @variable.parameter)))
-
-; ([ p ]) => ...
-(formal_parameters
-  (array_pattern
-    (identifier) @variable.parameter))
-
-; (p = 1) => ...
-(formal_parameters
-  (assignment_pattern
-    left: (identifier) @variable.parameter))
-
-; p => ...
-(arrow_function
-  parameter: (identifier) @variable.parameter)
-
 ; Special identifiers
 ;--------------------
 
@@ -87,7 +46,6 @@
 (assignment_expression
   left: (identifier) @function
   right: [(function) (arrow_function)])
-  
 
 ; Function and method calls
 ;--------------------------
@@ -107,9 +65,7 @@
 ; Properties
 ;-----------
 
-(property_identifier) @variable.other.member
-(shorthand_property_identifier) @variable.other.member
-(shorthand_property_identifier_pattern) @variable.other.member
+(property_identifier) @property
 
 ; Literals
 ;---------
@@ -131,8 +87,8 @@
   (template_string)
 ] @string
 
-(regex) @string.regexp
-(number) @constant.numeric.integer
+(regex) @string.special
+(number) @number
 
 ; Tokens
 ;-------
@@ -143,7 +99,7 @@
 
 [
   ";"
-  "?."
+  (optional_chain)
   "."
   ","
 ] @punctuation.delimiter
@@ -193,10 +149,7 @@
   "&&="
   "||="
   "??="
-  "..."
 ] @operator
-
-(ternary_expression ["?" ":"] @operator)
 
 [
   "("
@@ -210,52 +163,43 @@
 [
   "as"
   "async"
+  "await"
+  "break"
+  "case"
+  "catch"
+  "class"
+  "const"
+  "continue"
   "debugger"
+  "default"
   "delete"
+  "do"
+  "else"
+  "export"
   "extends"
+  "finally"
+  "for"
+  "from"
   "function"
   "get"
+  "if"
+  "import"
   "in"
   "instanceof"
+  "let"
   "new"
   "of"
+  "return"
   "set"
   "static"
+  "switch"
   "target"
+  "throw"
   "try"
   "typeof"
-  "void"
-  "with"
-] @keyword
-
-[
-  "class"
-  "let"
-  "const"
   "var"
-] @keyword.storage.type
-
-[
-  "switch"
-  "case"
-  "if"
-  "else"
-  "yield"
-  "throw"
-  "finally"
-  "return"
-  "catch"
-  "continue"
+  "void"
   "while"
-  "break"
-  "for"
-  "do"
-  "await"
-] @keyword.control
-
-[
-  "import"
-  "default"
-  "from"
-  "export"
-] @keyword.control.import 
+  "with"
+  "yield"
+] @keyword

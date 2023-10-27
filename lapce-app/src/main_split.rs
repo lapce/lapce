@@ -43,7 +43,7 @@ use crate::{
     },
     id::{
         DiffEditorId, EditorId, EditorTabId, KeymapId, SettingsId, SplitId,
-        VoltViewId,
+        ThemeColorSettingsId, VoltViewId,
     },
     keypress::{EventRef, KeyPressData},
     window_tab::{CommonData, Focus, WindowTabData},
@@ -359,6 +359,7 @@ impl MainSplitData {
                 Some(processed)
             }
             EditorTabChild::Settings(_) => None,
+            EditorTabChild::ThemeColorSettings(_) => None,
             EditorTabChild::Keymap(_) => None,
             EditorTabChild::Volt(_, _) => None,
         }
@@ -697,6 +698,7 @@ impl MainSplitData {
                             }
                         }
                         EditorTabChild::Settings(_) => true,
+                        EditorTabChild::ThemeColorSettings(_) => true,
                         EditorTabChild::Keymap(_) => true,
                         EditorTabChild::Volt(_, _) => true,
                     };
@@ -774,6 +776,31 @@ impl MainSplitData {
                         active_editor_tab.with_untracked(|editor_tab| {
                             editor_tab.children.iter().position(|(_, _, child)| {
                                 matches!(child, EditorTabChild::Settings(_))
+                            })
+                        })
+                    {
+                        Some(index)
+                    } else if ignore_unconfirmed {
+                        None
+                    } else {
+                        active_editor_tab.with_untracked(|editor_tab| {
+                            editor_tab
+                                .get_unconfirmed_editor_tab_child(
+                                    &editors,
+                                    &diff_editors,
+                                )
+                                .map(|(i, _)| i)
+                        })
+                    }
+                }
+                EditorTabChildSource::ThemeColorSettings => {
+                    if let Some(index) =
+                        active_editor_tab.with_untracked(|editor_tab| {
+                            editor_tab.children.iter().position(|(_, _, child)| {
+                                matches!(
+                                    child,
+                                    EditorTabChild::ThemeColorSettings(_)
+                                )
                             })
                         })
                     {
@@ -894,6 +921,9 @@ impl MainSplitData {
                 EditorTabChildSource::Settings => {
                     EditorTabChild::Settings(SettingsId::next())
                 }
+                EditorTabChildSource::ThemeColorSettings => {
+                    EditorTabChild::ThemeColorSettings(SettingsId::next())
+                }
                 EditorTabChildSource::Keymap => {
                     EditorTabChild::Keymap(KeymapId::next())
                 }
@@ -930,6 +960,7 @@ impl MainSplitData {
                         }
                         EditorTabChild::DiffEditor(_) => {}
                         EditorTabChild::Settings(_) => {}
+                        EditorTabChild::ThemeColorSettings(_) => {}
                         EditorTabChild::Keymap(_) => {}
                         EditorTabChild::Volt(_, _) => {}
                     }
@@ -995,6 +1026,7 @@ impl MainSplitData {
                     });
                 }
                 EditorTabChild::Settings(_) => {}
+                EditorTabChild::ThemeColorSettings(_) => {}
                 EditorTabChild::Keymap(_) => {}
                 EditorTabChild::Volt(_, _) => {}
             }
@@ -1044,6 +1076,15 @@ impl MainSplitData {
                                 .iter()
                                 .position(|(_, _, child)| {
                                     matches!(child, EditorTabChild::Settings(_))
+                                }),
+                            EditorTabChildSource::ThemeColorSettings => editor_tab
+                                .children
+                                .iter()
+                                .position(|(_, _, child)| {
+                                    matches!(
+                                        child,
+                                        EditorTabChild::ThemeColorSettings(_)
+                                    )
                                 }),
                             EditorTabChildSource::Keymap => editor_tab
                                 .children
@@ -1370,6 +1411,9 @@ impl MainSplitData {
             }
             EditorTabChild::Settings(_) => {
                 EditorTabChild::Settings(SettingsId::next())
+            }
+            EditorTabChild::ThemeColorSettings(_) => {
+                EditorTabChild::ThemeColorSettings(ThemeColorSettingsId::next())
             }
             EditorTabChild::Keymap(_) => EditorTabChild::Keymap(KeymapId::next()),
             EditorTabChild::Volt(_, id) => {
@@ -1717,6 +1761,7 @@ impl MainSplitData {
             }
             EditorTabChild::DiffEditor(_) => None,
             EditorTabChild::Settings(_) => None,
+            EditorTabChild::ThemeColorSettings(_) => None,
             EditorTabChild::Keymap(_) => None,
             EditorTabChild::Volt(_, _) => None,
         }
@@ -1895,6 +1940,7 @@ impl MainSplitData {
                 }
             }
             EditorTabChild::Settings(_) => {}
+            EditorTabChild::ThemeColorSettings(_) => {}
             EditorTabChild::Keymap(_) => {}
             EditorTabChild::Volt(_, _) => {}
         }
@@ -2109,12 +2155,20 @@ impl MainSplitData {
         self.get_editor_tab_child(EditorTabChildSource::Settings, false, false);
     }
 
+    pub fn open_theme_color_settings(&self) {
+        self.get_editor_tab_child(
+            EditorTabChildSource::ThemeColorSettings,
+            false,
+            false,
+        );
+    }
+
     pub fn open_keymap(&self) {
         self.get_editor_tab_child(EditorTabChildSource::Keymap, false, false);
     }
 
-    pub fn new_file(&self) {
-        self.get_editor_tab_child(EditorTabChildSource::NewFileEditor, false, false);
+    pub fn new_file(&self) -> EditorTabChild {
+        self.get_editor_tab_child(EditorTabChildSource::NewFileEditor, false, false)
     }
 
     pub fn save_as(
@@ -2340,6 +2394,7 @@ impl MainSplitData {
                     .set(Some((editor_tab_id, *diff_editor_id)));
             }
             EditorTabChild::Settings(_) => {}
+            EditorTabChild::ThemeColorSettings(_) => {}
             EditorTabChild::Keymap(_) => {}
             EditorTabChild::Volt(_, _) => {}
         }
@@ -2546,6 +2601,19 @@ impl MainSplitData {
         }
 
         Some(())
+    }
+
+    pub fn export_theme(&self) {
+        let child = self.new_file();
+        if let EditorTabChild::Editor(id) = child {
+            if let Some(editor) = self.editors.get_untracked().get(&id) {
+                let doc = editor.view.doc.get_untracked();
+                doc.reload(
+                    Rope::from(self.common.config.get_untracked().export_theme()),
+                    true,
+                );
+            }
+        }
     }
 }
 

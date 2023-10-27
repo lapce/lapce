@@ -14,6 +14,7 @@ strum.workspace = true
 strum_macros.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+include_dir.workspace = true
 
 lsp-types.workspace = true
 

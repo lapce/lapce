@@ -85,7 +85,7 @@ use crate::{
     },
     panel::{position::PanelContainerPosition, view::panel_container_view},
     plugin::{plugin_info_view, PluginData},
-    settings::settings_view,
+    settings::{settings_view, theme_color_settings_view},
     status::status,
     text_input::text_input,
     title::{title, window_controls_view},
@@ -1175,6 +1175,9 @@ fn editor_tab_content(
             }
             EditorTabChild::Settings(_) => {
                 container_box(settings_view(plugin.installed, common))
+            }
+            EditorTabChild::ThemeColorSettings(_) => {
+                container_box(theme_color_settings_view(common))
             }
             EditorTabChild::Keymap(_) => container_box(keymap_view(common)),
             EditorTabChild::Volt(_, id) => {

@@ -64,7 +64,7 @@ yellow = "#C18401"
 "text.uri" = "$cyan"
 "text.reference" = "$yellow"
 "variable" = "$red"
-"variable.other.member" = "$green"
+"variable.other.member" = "$red"
 "tag" = "$blue"
 
 [color-theme.ui]

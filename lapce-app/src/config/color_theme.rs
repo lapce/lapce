@@ -1,7 +1,9 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+};
 
 use floem::peniko::Color;
-use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Default)]
@@ -129,6 +131,23 @@ impl ThemeBaseConfig {
             _ => return None,
         })
     }
+
+    pub fn key_values(&self) -> BTreeMap<String, String> {
+        [
+            ("white".to_string(), self.white.clone()),
+            ("black".to_string(), self.black.clone()),
+            ("grey".to_string(), self.grey.clone()),
+            ("blue".to_string(), self.blue.clone()),
+            ("red".to_string(), self.red.clone()),
+            ("yellow".to_string(), self.yellow.clone()),
+            ("orange".to_string(), self.orange.clone()),
+            ("green".to_string(), self.green.clone()),
+            ("purple".to_string(), self.purple.clone()),
+            ("cyan".to_string(), self.cyan.clone()),
+            ("magenta".to_string(), self.magenta.clone()),
+        ]
+        .into()
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -139,13 +158,13 @@ pub struct ColorThemeConfig {
     pub name: String,
     pub high_contrast: Option<bool>,
     pub base: ThemeBaseConfig,
-    pub syntax: IndexMap<String, String>,
-    pub ui: IndexMap<String, String>,
+    pub syntax: BTreeMap<String, String>,
+    pub ui: BTreeMap<String, String>,
 }
 
 impl ColorThemeConfig {
     fn resolve_color(
-        colors: &IndexMap<String, String>,
+        colors: &BTreeMap<String, String>,
         base: &ThemeBaseColor,
         default: Option<&HashMap<String, Color>>,
     ) -> HashMap<String, Color> {

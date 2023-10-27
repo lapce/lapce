@@ -326,6 +326,12 @@ fn right(
                                 .send(LapceWorkbenchCommand::OpenKeyboardShortcuts)
                         },
                     ))
+                    .entry(MenuItem::new("Open Theme Color Settings").action(
+                        move || {
+                            workbench_command
+                                .send(LapceWorkbenchCommand::OpenThemeColorSettings)
+                        },
+                    ))
                     .separator()
                     .entry(if let Some(v) = latest_version.get_untracked() {
                         if update_in_progress.get_untracked() {

@@ -749,6 +749,9 @@ impl WindowTabData {
                     open_uri(&dir);
                 }
             }
+            OpenThemeColorSettings => {
+                self.main_split.open_theme_color_settings();
+            }
             OpenKeyboardShortcuts => {
                 self.main_split.open_keymap();
             }
@@ -799,7 +802,9 @@ impl WindowTabData {
             }
 
             InstallTheme => {}
-            ExportCurrentThemeSettings => {}
+            ExportCurrentThemeSettings => {
+                self.main_split.export_theme();
+            }
             ToggleInlayHints => {}
 
             // ==== Window ====

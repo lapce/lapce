@@ -24,7 +24,7 @@ use crate::{
     },
     id::{
         DiffEditorId, EditorId, EditorTabId, KeymapId, SettingsId, SplitId,
-        VoltViewId,
+        ThemeColorSettingsId, VoltViewId,
     },
     main_split::MainSplitData,
     plugin::PluginData,
@@ -36,6 +36,7 @@ pub enum EditorTabChildInfo {
     Editor(EditorInfo),
     DiffEditor(DiffEditorInfo),
     Settings,
+    ThemeColorSettings,
     Keymap,
     Volt(VoltID),
 }
@@ -57,6 +58,9 @@ impl EditorTabChildInfo {
             }
             EditorTabChildInfo::Settings => {
                 EditorTabChild::Settings(SettingsId::next())
+            }
+            EditorTabChildInfo::ThemeColorSettings => {
+                EditorTabChild::ThemeColorSettings(ThemeColorSettingsId::next())
             }
             EditorTabChildInfo::Keymap => EditorTabChild::Keymap(KeymapId::next()),
             EditorTabChildInfo::Volt(id) => {
@@ -126,6 +130,7 @@ pub enum EditorTabChildSource {
     },
     NewFileEditor,
     Settings,
+    ThemeColorSettings,
     Keymap,
     Volt(VoltID),
 }
@@ -135,6 +140,7 @@ pub enum EditorTabChild {
     Editor(EditorId),
     DiffEditor(DiffEditorId),
     Settings(SettingsId),
+    ThemeColorSettings(ThemeColorSettingsId),
     Keymap(KeymapId),
     Volt(VoltViewId, VoltID),
 }
@@ -154,6 +160,7 @@ impl EditorTabChild {
             EditorTabChild::Editor(id) => id.to_raw(),
             EditorTabChild::DiffEditor(id) => id.to_raw(),
             EditorTabChild::Settings(id) => id.to_raw(),
+            EditorTabChild::ThemeColorSettings(id) => id.to_raw(),
             EditorTabChild::Keymap(id) => id.to_raw(),
             EditorTabChild::Volt(id, _) => id.to_raw(),
         }
@@ -186,6 +193,9 @@ impl EditorTabChild {
                 EditorTabChildInfo::DiffEditor(diff_editor_data.diff_editor_info())
             }
             EditorTabChild::Settings(_) => EditorTabChildInfo::Settings,
+            EditorTabChild::ThemeColorSettings(_) => {
+                EditorTabChildInfo::ThemeColorSettings
+            }
             EditorTabChild::Keymap(_) => EditorTabChildInfo::Keymap,
             EditorTabChild::Volt(_, id) => EditorTabChildInfo::Volt(id.to_owned()),
         }
@@ -312,6 +322,16 @@ impl EditorTabChild {
                     icon: config.ui_svg(LapceIcons::SETTINGS),
                     color: Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
                     path: "Settings".to_string(),
+                    confirmed: None,
+                    is_pristine: true,
+                }
+            }),
+            EditorTabChild::ThemeColorSettings(_) => create_memo(move |_| {
+                let config = config.get();
+                EditorTabChildViewInfo {
+                    icon: config.ui_svg(LapceIcons::SYMBOL_COLOR),
+                    color: Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                    path: "Theme Colors".to_string(),
                     confirmed: None,
                     is_pristine: true,
                 }

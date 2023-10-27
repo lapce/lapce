@@ -1607,7 +1607,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=7fb3c9a65bdac04608cfb0e2721b77e1f8b7b366#7fb3c9a65bdac04608cfb0e2721b77e1f8b7b366"
+source = "git+https://github.com/lapce/floem?rev=6dbaa00a677a374487fece3d345ab0185447c7af#6dbaa00a677a374487fece3d345ab0185447c7af"
 dependencies = [
  "bitflags 2.4.0",
  "clipboard",
@@ -1637,12 +1637,12 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=7fb3c9a65bdac04608cfb0e2721b77e1f8b7b366#7fb3c9a65bdac04608cfb0e2721b77e1f8b7b366"
+source = "git+https://github.com/lapce/floem?rev=6dbaa00a677a374487fece3d345ab0185447c7af#6dbaa00a677a374487fece3d345ab0185447c7af"
 
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=7fb3c9a65bdac04608cfb0e2721b77e1f8b7b366#7fb3c9a65bdac04608cfb0e2721b77e1f8b7b366"
+source = "git+https://github.com/lapce/floem?rev=6dbaa00a677a374487fece3d345ab0185447c7af#6dbaa00a677a374487fece3d345ab0185447c7af"
 dependencies = [
  "cosmic-text",
  "image",
@@ -1653,7 +1653,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=7fb3c9a65bdac04608cfb0e2721b77e1f8b7b366#7fb3c9a65bdac04608cfb0e2721b77e1f8b7b366"
+source = "git+https://github.com/lapce/floem?rev=6dbaa00a677a374487fece3d345ab0185447c7af#6dbaa00a677a374487fece3d345ab0185447c7af"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1670,7 +1670,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=7fb3c9a65bdac04608cfb0e2721b77e1f8b7b366#7fb3c9a65bdac04608cfb0e2721b77e1f8b7b366"
+source = "git+https://github.com/lapce/floem?rev=6dbaa00a677a374487fece3d345ab0185447c7af#6dbaa00a677a374487fece3d345ab0185447c7af"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -2870,6 +2870,7 @@ dependencies = [
  "arc-swap",
  "bitflags 1.3.2",
  "directories",
+ "include_dir",
  "itertools",
  "lapce-rpc",
  "lapce-xi-rope",

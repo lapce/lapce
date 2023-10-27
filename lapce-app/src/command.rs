@@ -183,6 +183,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open Settings Directory")]
     OpenSettingsDirectory,
 
+    #[strum(serialize = "open_theme_color_settings")]
+    #[strum(message = "Open Theme Color Settings")]
+    OpenThemeColorSettings,
+
     #[strum(serialize = "open_keyboard_shortcuts")]
     #[strum(message = "Open Keyboard Shortcuts")]
     OpenKeyboardShortcuts,

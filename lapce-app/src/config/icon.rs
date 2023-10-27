@@ -37,6 +37,7 @@ impl LapceIcons {
     pub const EXTENSIONS: &str = "extensions";
     pub const KEYBOARD: &str = "keyboard";
     pub const BREADCRUMB_SEPARATOR: &str = "breadcrumb_separator";
+    pub const SYMBOL_COLOR: &str = "symbol_color";
 
     pub const FILE: &str = "file";
     pub const FILE_EXPLORER: &str = "file_explorer";
