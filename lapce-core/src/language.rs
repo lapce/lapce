@@ -1136,11 +1136,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("#"),
 
-        #[cfg(feature = "lang-python")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_python::language,
-            highlight: Some(tree_sitter_python::HIGHLIGHT_QUERY),
-            injection: None,
+            #[cfg(feature = "lang-python")]
+            language: Some(tree_sitter_python::language),
+            #[cfg(not(feature = "lang-python"))]
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (
                 &[
                     "source_file",
@@ -1155,8 +1157,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             ),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-python"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Ql,
@@ -1395,16 +1395,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("//"),
 
-        #[cfg(feature = "lang-typescript")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_typescript::language_tsx,
-            highlight: Some(include_str!("../queries/typescript/highlights.scm")),
-            injection: None,
+            language: None,
+            grammar: Some("typescript"),
+            query: Some("typescript"),
             code_lens: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-typescript"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Typescript,
@@ -1415,16 +1412,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("//"),
 
-        #[cfg(feature = "lang-typescript")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_typescript::language_typescript,
-            highlight: Some(include_str!("../queries/typescript/highlights.scm")),
-            injection: None,
+            language: None,
+            grammar: Some("typescript"),
+            query: Some("typescript"),
             code_lens: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-typescript"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Vue,

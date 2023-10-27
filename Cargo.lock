@@ -2890,6 +2890,7 @@ dependencies = [
  "tree-sitter-javascript",
  "tree-sitter-json",
  "tree-sitter-md",
+ "tree-sitter-python",
  "tree-sitter-rust",
  "tree-sitter-toml",
  "tree-sitter-yaml",
@@ -5617,6 +5618,16 @@ dependencies = [
 name = "tree-sitter-md"
 version = "0.1.2"
 source = "git+https://github.com/MDeiml/tree-sitter-markdown.git?rev=272e080bca0efd19a06a7f4252d746417224959e#272e080bca0efd19a06a7f4252d746417224959e"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-python"
+version = "0.20.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6c93b1b1fbd0d399db3445f51fd3058e43d0b4dcff62ddbdb46e66550978aa5"
 dependencies = [
  "cc",
  "tree-sitter",

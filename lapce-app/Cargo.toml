@@ -83,6 +83,7 @@ all-languages = [
     "lapce-core/lang-javascript",
     "lapce-core/lang-json",
     "lapce-core/lang-markdown",
+    "lapce-core/lang-python",
     "lapce-core/lang-rust",
     "lapce-core/lang-toml",
     "lapce-core/lang-yaml",
