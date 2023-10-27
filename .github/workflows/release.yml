@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag name for release'
+        description: "Tag name for release"
         required: false
         default: nightly
   push:
@@ -37,7 +37,7 @@ jobs:
         run: |
           TAG_NAME=${{ github.ref }}
           echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
-          
+
       - if: github.event_name == 'pull_request'
         run: echo 'TAG_NAME=debug' >> $GITHUB_ENV
 
@@ -50,7 +50,7 @@ jobs:
 
       - id: tag
         run: echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
-  
+
   windows:
     runs-on: windows-latest
     needs: tagname
@@ -66,7 +66,7 @@ jobs:
 
       - name: Update rust
         run: rustup update
-        
+
       - name: Fetch dependencies
         run: cargo fetch --locked
 
@@ -123,7 +123,7 @@ jobs:
         run: |
           apt-get -y update
           apt-get -y install python3 curl wget clang libxkbcommon-x11-dev pkg-config libvulkan-dev libwayland-dev xorg-dev libxcb-shape0-dev libxcb-xfixes0-dev
-      
+
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -143,11 +143,17 @@ jobs:
           cp ./target/release-lto/lapce Lapce/
           tar -zcvf ./Lapce-linux.tar.gz Lapce
 
+      - name: Vendor dependencies
+        run: |
+          cargo vendor --frozen
+          tar -zcf vendor.tar.gz ./vendor/
+
       - uses: actions/upload-artifact@v3
         with:
           name: lapce-linux
           path: |
             ./Lapce-linux.tar.gz
+            ./vendor.tar.gz
           retention-days: 1
 
   linux-musl:
@@ -208,11 +214,11 @@ jobs:
           PKG_CONFIG_LIBDIR: ${{ env.CROSS_SYSROOT }}/usr/lib/pkgconfig
           RUSTFLAGS: -C target-feature=+crt-static -C linker=/usr/bin/ld.lld # link runtime static, use universal linker
           CARGO_BUILD_TARGET: ${{ matrix.triple }}
-          CARGO_PROFILE_RELEASE_LTO: 'true'
+          CARGO_PROFILE_RELEASE_LTO: "true"
           CARGO_PROFILE_RELEASE_STRIP: symbols # remove unneeded debug stuff
-          CARGO_PROFILE_RELEASE_OPT_LEVEL: 's' # optimise for size
-          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '1' # optimise each crate
-          SYSROOT: /dummy  # workaround for https://github.com/rust-lang/pkg-config-rs/issues/102
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: "s" # optimise for size
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1" # optimise each crate
+          SYSROOT: /dummy # workaround for https://github.com/rust-lang/pkg-config-rs/issues/102
           CC: clang
         run: |
           # Workaround for https://github.com/rust-lang/pkg-config-rs/issues/102
@@ -305,8 +311,8 @@ jobs:
       # before running, and would therefore delete the downloaded artifacts
       - uses: actions/checkout@v3
 
-      - uses: actions/download-artifact@v3          
-      
+      - uses: actions/download-artifact@v3
+
       - if: github.event_name == 'workflow_dispatch'
         run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
 
