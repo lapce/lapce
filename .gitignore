@@ -6,6 +6,7 @@ shell.nix
 lib/
 target/
 core/languages/
+vendor/
 
 .DS_Store
 *.patch

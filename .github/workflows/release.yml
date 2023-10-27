@@ -145,8 +145,8 @@ jobs:
 
       - name: Vendor dependencies
         run: |
-          mkdir -p ./vendor
-          cargo vendor --frozen > ./vendor/vendor-config.toml
+          cargo vendor --frozen > ./vendor-config.toml
+          mv ./vendor-config.toml ./vendor/
           tar -zcf vendor.tar.gz ./vendor/
 
       - uses: actions/upload-artifact@v3
