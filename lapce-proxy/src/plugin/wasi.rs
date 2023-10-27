@@ -465,7 +465,7 @@ pub fn start_volt(
             .get_func(&mut store, "handle_rpc")
             .ok_or_else(|| anyhow!("can't convet to function"))
             .unwrap()
-            .typed::<(), (), _>(&mut store)
+            .typed::<(), ()>(&mut store)
             .unwrap();
         for msg in io_rx {
             if let Ok(msg) = serde_json::to_string(&msg) {
