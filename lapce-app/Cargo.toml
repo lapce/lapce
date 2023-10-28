@@ -64,7 +64,7 @@ fs_extra = "1.2.0"
 dmg = "0.1.1"
 
 [target.'cfg(target_os="windows")'.dependencies]
-zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
+zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
 
 [features]
 default = ["all-languages", "updater"]
