@@ -39,7 +39,7 @@ lapce-rpc.workspace = true
 
 url = "2.3.1"
 zstd = "0.11.2" # follow same version wasmtime-cache in lockfile
-dyn-clone = "1.0.10"
+dyn-clone = "1.0.14"
 walkdir = "2.3.2"
 globset = "0.4.9"
 locale_config = "0.3.0"
