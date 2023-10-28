@@ -62,7 +62,7 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Update rust
         run: rustup update
@@ -118,7 +118,7 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           apt-get -y update
@@ -178,7 +178,7 @@ jobs:
           - triple: aarch64-unknown-linux-musl
             platform: aarch64
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Alpine Linux for ${{ matrix.platform }} (target arch)
         id: alpine-target
@@ -255,7 +255,7 @@ jobs:
       NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install ARM target
         run: rustup update && rustup target add aarch64-apple-darwin
@@ -310,7 +310,7 @@ jobs:
     steps:
       # Must perform checkout first, since it deletes the target directory
       # before running, and would therefore delete the downloaded artifacts
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v3
 
