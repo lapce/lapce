@@ -56,7 +56,7 @@ floem = { git = "https://github.com/lapce/floem", rev = "4fbe6f4489c3dcca232df2e
 # floem = { path = "../../workspaces/floem" }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
-base64 = "0.21.4"
+base64 = "0.21.5"
 sha2 = "0.10.6"
 
 [target.'cfg(target_os="macos")'.dependencies]
