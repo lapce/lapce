@@ -58,13 +58,11 @@ config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
 base64 = "0.21.5"
 sha2 = "0.10.6"
+zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_os="macos")'.dependencies]
 fs_extra = "1.2.0"
 dmg = "0.1.1"
-
-[target.'cfg(target_os="windows")'.dependencies]
-zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
 
 [features]
 default = ["all-languages", "updater"]

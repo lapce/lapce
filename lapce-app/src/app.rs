@@ -3403,6 +3403,12 @@ pub fn launch() {
         }
     }
 
+    std::thread::spawn(move || {
+        if let Err(e) = fetch_grammars() {
+            error!("failed to fetch grammars: {e}");
+        }
+    });
+
     #[cfg(feature = "updater")]
     crate::update::cleanup();
 
@@ -3723,4 +3729,57 @@ pub fn window_menu(
                     });
                 })),
         )
+}
+
+fn fetch_grammars() -> Result<()> {
+    let dir = Directory::grammars_directory()
+        .ok_or_else(|| anyhow!("can't get grammars directory"))?;
+    if !dir.exists() {
+        let _ = std::fs::create_dir(&dir);
+    }
+
+    let url =
+        "https://api.github.com/repos/lapce/tree-sitter-grammars/releases/latest";
+    let resp = reqwest::blocking::ClientBuilder::new()
+        .user_agent("Lapce")
+        .build()?
+        .get(url)
+        .send()?;
+    if !resp.status().is_success() {
+        return Err(anyhow!("get release info failed {}", resp.text()?));
+    }
+    let current_version =
+        std::fs::read_to_string(dir.join("version")).unwrap_or_default();
+    let release: ReleaseInfo = serde_json::from_str(&resp.text()?)?;
+    if release.tag_name == current_version {
+        return Ok(());
+    }
+
+    let file_name = format!(
+        "grammars-{}-{}.zip",
+        std::env::consts::OS,
+        std::env::consts::ARCH
+    );
+
+    for asset in &release.assets {
+        if asset.name == file_name {
+            let mut resp = reqwest::blocking::get(&asset.browser_download_url)?;
+            if !resp.status().is_success() {
+                return Err(anyhow!("download file error {}", resp.text()?));
+            }
+            {
+                let mut out = std::fs::File::create(dir.join(&file_name))?;
+                resp.copy_to(&mut out)?;
+            }
+
+            let mut archive =
+                zip::ZipArchive::new(std::fs::File::open(dir.join(&file_name))?)?;
+            archive.extract(&dir)?;
+            let _ = std::fs::remove_file(dir.join(&file_name));
+            std::fs::write(dir.join("version"), release.tag_name)?;
+            return Ok(());
+        }
+    }
+
+    Err(anyhow!("can't find support grammars"))
 }
