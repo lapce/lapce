@@ -851,7 +851,7 @@ impl PaletteData {
         if let Some(editor) = self.main_split.active_editor.get_untracked() {
             let doc = editor.view.doc.get_untracked();
             let language = doc.syntax.with_untracked(|syntax| {
-                syntax.language.get_message().unwrap_or("")
+                syntax.language.name()
             });
             self.preselect_matching(&items, language);
         }
