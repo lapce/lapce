@@ -841,9 +841,9 @@ impl PaletteData {
             .iter()
             .map(|lang| PaletteItem {
                 content: PaletteItemContent::Language {
-                    name: lang.to_owned().to_owned(),
+                    name: lang.to_string(),
                 },
-                filter_text: lang.to_owned().to_owned(),
+                filter_text: lang.to_string(),
                 score: 0,
                 indices: Vec::new(),
             })
