@@ -1,6 +1,6 @@
 [package]
 name = "lapce"
-version = "0.2.8"
+version = "0.3.0"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 rust-version = "1.65"
@@ -27,7 +27,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.8"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.64"
 homepage = "https://lapce.dev"

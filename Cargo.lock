@@ -2794,7 +2794,7 @@ dependencies = [
 
 [[package]]
 name = "lapce"
-version = "0.2.8"
+version = "0.3.0"
 dependencies = [
  "lapce-app",
  "lapce-proxy",
@@ -2802,7 +2802,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-app"
-version = "0.2.8"
+version = "0.3.0"
 dependencies = [
  "Inflector",
  "alacritty_terminal",
@@ -2850,7 +2850,7 @@ dependencies = [
  "tar",
  "thiserror",
  "tokio",
- "toml 0.8.2",
+ "toml 0.5.9",
  "toml_edit 0.19.14",
  "tracing 0.2.0",
  "tracing-appender",
@@ -2862,7 +2862,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-core"
-version = "0.2.8"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2896,7 +2896,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-proxy"
-version = "0.2.8"
+version = "0.3.0"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -2934,7 +2934,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "tar",
- "toml 0.8.2",
+ "toml 0.5.9",
  "toml_edit 0.19.14",
  "tracing 0.2.0",
  "trash",
@@ -2949,7 +2949,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-rpc"
-version = "0.2.8"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",

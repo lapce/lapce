@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Features/Changes
+
+### Bug Fixes
+
+## 0.3.0
+
+### Features/Changes
 - [#2190](https://github.com/lapce/lapce/pull/2190): Rewrite with Floem UI
 - [#2425](https://github.com/lapce/lapce/pull/2425): Reimplement completion lens
 - [#2498](https://github.com/lapce/lapce/pull/2498): Show Lapce as an option when doing "Open With..." on Linux
