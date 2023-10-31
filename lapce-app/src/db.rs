@@ -275,6 +275,10 @@ impl LapceDb {
 
     pub fn insert_app(&self, data: AppData) -> Result<()> {
         let windows = data.windows.get_untracked();
+        if windows.is_empty() {
+            // insert_app is called after window is closed, so we don't want to store it
+            return Ok(());
+        }
         for (_, window) in &windows {
             let _ = self.insert_window(window.clone());
         }

@@ -36,9 +36,25 @@ const PTY_CHILD_EVENT_TOKEN: usize = 1;
 
 pub type TermConfig = alacritty_terminal::config::Config;
 
+pub struct TerminalSender {
+    tx: Sender<Msg>,
+    poller: Arc<polling::Poller>,
+}
+
+impl TerminalSender {
+    pub fn new(tx: Sender<Msg>, poller: Arc<polling::Poller>) -> Self {
+        Self { tx, poller }
+    }
+
+    pub fn send(&self, msg: Msg) {
+        let _ = self.tx.send(msg);
+        let _ = self.poller.notify();
+    }
+}
+
 pub struct Terminal {
     term_id: TermId,
-    poll: Arc<polling::Poller>,
+    pub(crate) poller: Arc<polling::Poller>,
     pub(crate) pty: alacritty_terminal::tty::Pty,
     rx: Receiver<Msg>,
     pub tx: Sender<Msg>,
@@ -78,7 +94,7 @@ impl Terminal {
 
         Ok(Terminal {
             term_id,
-            poll,
+            poller: poll,
             pty,
             tx,
             rx,
@@ -94,7 +110,9 @@ impl Terminal {
 
         // Register TTY through EventedRW interface.
         unsafe {
-            self.pty.register(&self.poll, interest, poll_opts).unwrap();
+            self.pty
+                .register(&self.poller, interest, poll_opts)
+                .unwrap();
         }
 
         let mut events =
@@ -102,10 +120,7 @@ impl Terminal {
 
         'event_loop: loop {
             events.clear();
-            if let Err(err) = self
-                .poll
-                .wait(&mut events, Some(std::time::Duration::from_millis(16)))
-            {
+            if let Err(err) = self.poller.wait(&mut events, None) {
                 match err.kind() {
                     ErrorKind::Interrupted => continue,
                     _ => panic!("EventLoop polling error: {err:?}"),
@@ -134,30 +149,22 @@ impl Terminal {
                         }
 
                         if event.readable {
-                            match self.pty.reader().read(&mut buf) {
-                                Ok(n) => {
-                                    core_rpc.update_terminal(
-                                        self.term_id,
-                                        buf[..n].to_vec(),
-                                    );
+                            if let Err(err) = self.pty_read(&core_rpc, &mut buf) {
+                                // On Linux, a `read` on the master side of a PTY can fail
+                                // with `EIO` if the client side hangs up.  In that case,
+                                // just loop back round for the inevitable `Exited` event.
+                                // This sucks, but checking the process is either racy or
+                                // blocking.
+                                #[cfg(target_os = "linux")]
+                                if err.raw_os_error() == Some(libc::EIO) {
+                                    continue;
                                 }
-                                Err(err) => {
-                                    // On Linux, a `read` on the master side of a PTY can fail
-                                    // with `EIO` if the client side hangs up.  In that case,
-                                    // just loop back round for the inevitable `Exited` event.
-                                    // This sucks, but checking the process is either racy or
-                                    // blocking.
-                                    #[cfg(target_os = "linux")]
-                                    if err.raw_os_error() == Some(libc::EIO) {
-                                        continue;
-                                    }
 
-                                    tracing::error!(
-                                        "Error reading from PTY in event loop: {}",
-                                        err
-                                    );
-                                    break 'event_loop;
-                                }
+                                tracing::error!(
+                                    "Error reading from PTY in event loop: {}",
+                                    err
+                                );
+                                break 'event_loop;
                             }
                         }
 
@@ -182,12 +189,12 @@ impl Terminal {
 
                 // Re-register with new interest.
                 self.pty
-                    .reregister(&self.poll, interest, poll_opts)
+                    .reregister(&self.poller, interest, poll_opts)
                     .unwrap();
             }
         }
         core_rpc.terminal_process_stopped(self.term_id);
-        let _ = self.pty.deregister(&self.poll);
+        let _ = self.pty.deregister(&self.poller);
     }
 
     /// Drain the channel.
@@ -203,6 +210,29 @@ impl Terminal {
         }
 
         true
+    }
+
+    #[inline]
+    fn pty_read(
+        &mut self,
+        core_rpc: &CoreRpcHandler,
+        buf: &mut [u8],
+    ) -> io::Result<()> {
+        loop {
+            match self.pty.reader().read(buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    core_rpc.update_terminal(self.term_id, buf[..n].to_vec());
+                }
+                Err(err) => match err.kind() {
+                    ErrorKind::Interrupted | ErrorKind::WouldBlock => {
+                        break;
+                    }
+                    _ => return Err(err),
+                },
+            }
+        }
+        Ok(())
     }
 
     #[inline]

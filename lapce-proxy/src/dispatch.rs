@@ -37,7 +37,7 @@ use parking_lot::Mutex;
 use crate::{
     buffer::{get_mod_time, load_file, Buffer},
     plugin::{catalog::PluginCatalog, remove_volt, PluginCatalogRpcHandler},
-    terminal::Terminal,
+    terminal::{Terminal, TerminalSender},
     watcher::{FileWatcher, Notify, WatchToken},
 };
 
@@ -50,7 +50,7 @@ pub struct Dispatcher {
     core_rpc: CoreRpcHandler,
     catalog_rpc: PluginCatalogRpcHandler,
     buffers: HashMap<PathBuf, Buffer>,
-    terminals: HashMap<TermId, Sender<Msg>>,
+    terminals: HashMap<TermId, TerminalSender>,
     file_watcher: FileWatcher,
     window_id: usize,
     tab_id: usize,
@@ -135,7 +135,7 @@ impl ProxyHandler for Dispatcher {
             Shutdown {} => {
                 self.catalog_rpc.shutdown();
                 for (_, sender) in self.terminals.iter() {
-                    let _ = sender.send(Msg::Shutdown);
+                    sender.send(Msg::Shutdown);
                 }
                 self.proxy_rpc.shutdown();
             }
@@ -177,7 +177,9 @@ impl ProxyHandler for Dispatcher {
 
                 self.core_rpc.terminal_process_id(term_id, child_id);
                 let tx = terminal.tx.clone();
-                self.terminals.insert(term_id, tx);
+                let poller = terminal.poller.clone();
+                let sender = TerminalSender::new(tx, poller);
+                self.terminals.insert(term_id, sender);
                 let rpc = self.core_rpc.clone();
                 thread::spawn(move || {
                     terminal.run(rpc);
@@ -185,7 +187,7 @@ impl ProxyHandler for Dispatcher {
             }
             TerminalWrite { term_id, content } => {
                 if let Some(tx) = self.terminals.get(&term_id) {
-                    let _ = tx.send(Msg::Input(content.into_bytes().into()));
+                    tx.send(Msg::Input(content.into_bytes().into()));
                 }
             }
             TerminalResize {
@@ -201,12 +203,12 @@ impl ProxyHandler for Dispatcher {
                         cell_height: 1,
                     };
 
-                    let _ = tx.send(Msg::Resize(size));
+                    tx.send(Msg::Resize(size));
                 }
             }
             TerminalClose { term_id } => {
                 if let Some(tx) = self.terminals.remove(&term_id) {
-                    let _ = tx.send(Msg::Shutdown);
+                    tx.send(Msg::Shutdown);
                 }
             }
             DapStart {

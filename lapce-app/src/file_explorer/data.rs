@@ -35,7 +35,10 @@ impl FileExplorerData {
             root,
             common,
         };
-        data.toggle_expand(&path);
+        if data.common.workspace.path.is_some() {
+            // only fill in the child files if there is open folder
+            data.toggle_expand(&path);
+        }
         data
     }
 
