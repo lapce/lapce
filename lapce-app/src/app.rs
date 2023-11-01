@@ -3329,36 +3329,51 @@ fn window(window_data: WindowData) -> impl View {
 }
 
 #[inline(always)]
-fn logging() -> (Handle<Targets>, WorkerGuard) {
+fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
     use tracing_subscriber::{filter, fmt, prelude::*, reload};
 
-    let file_appender = tracing_appender::rolling::Builder::new()
-        .max_log_files(10)
-        .rotation(tracing_appender::rolling::Rotation::DAILY)
-        .filename_prefix("lapce")
-        .filename_suffix("log")
-        .build(Directory::logs_directory().expect("Failed to obtain log directory"))
-        .expect("Couldn't create rolling appender");
-    let (log_file, guard) = tracing_appender::non_blocking(file_appender);
+    let (log_file, guard) = match Directory::logs_directory()
+        .and_then(|dir| {
+            tracing_appender::rolling::Builder::new()
+                .max_log_files(10)
+                .rotation(tracing_appender::rolling::Rotation::DAILY)
+                .filename_prefix("lapce")
+                .filename_suffix("log")
+                .build(dir)
+                .ok()
+        })
+        .map(tracing_appender::non_blocking)
+    {
+        Some((log_file, guard)) => (Some(log_file), Some(guard)),
+        None => (None, None),
+    };
+
     let log_file_filter_targets = filter::Targets::new()
         .with_target("lapce_app", LevelFilter::DEBUG)
         .with_target("lapce_proxy", LevelFilter::DEBUG);
     let (log_file_filter, reload_handle) =
         reload::Subscriber::new(log_file_filter_targets);
-    let file_layer = tracing_subscriber::fmt::subscriber()
-        .with_ansi(false)
-        .with_writer(log_file)
-        .with_filter(log_file_filter);
 
     let console_filter_targets = std::env::var("LAPCE_LOG")
         .unwrap_or_default()
         .parse::<filter::Targets>()
         .unwrap_or_default();
 
-    tracing_subscriber::registry()
-        .with(file_layer)
-        .with(fmt::Subscriber::default().with_filter(console_filter_targets))
-        .init();
+    let registry = tracing_subscriber::registry();
+    if let Some(log_file) = log_file {
+        let file_layer = tracing_subscriber::fmt::subscriber()
+            .with_ansi(false)
+            .with_writer(log_file)
+            .with_filter(log_file_filter);
+        registry
+            .with(file_layer)
+            .with(fmt::Subscriber::default().with_filter(console_filter_targets))
+            .init();
+    } else {
+        registry
+            .with(fmt::Subscriber::default().with_filter(console_filter_targets))
+            .init();
+    };
 
     (reload_handle, guard)
 }
