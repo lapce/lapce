@@ -120,7 +120,7 @@ pub fn start_remote(
             if meta::VERSION == "debug" {
                 String::from_utf8_lossy(&output.stdout).starts_with("Lapce-proxy")
             } else {
-                String::from_utf8_lossy(&output.stdout)
+                String::from_utf8_lossy(&output.stdout).trim()
                     == format!("Lapce-proxy {}", meta::VERSION)
             }
         })
