@@ -158,7 +158,7 @@ impl KeyPressFocus for TerminalData {
                 }
                 EditCommand::ClipboardCopy => {
                     let mut clipboard = SystemClipboard::new();
-                    if self.mode.get_untracked() == Mode::Visual {
+                    if matches!(self.mode.get_untracked(), Mode::Visual(_)) {
                         self.mode.set(Mode::Normal);
                     }
                     let raw = self.raw.get_untracked();
@@ -638,10 +638,10 @@ impl TerminalData {
 
         match self.mode.get_untracked() {
             Mode::Normal => {
-                self.mode.set(Mode::Visual);
+                self.mode.set(Mode::Visual(visual_mode));
                 self.visual_mode.set(visual_mode);
             }
-            Mode::Visual => {
+            Mode::Visual(_) => {
                 if self.visual_mode.get_untracked() == visual_mode {
                     self.mode.set(Mode::Normal);
                 } else {

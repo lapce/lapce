@@ -104,7 +104,7 @@ impl Cursor {
     pub fn get_mode(&self) -> Mode {
         match &self.mode {
             CursorMode::Normal(_) => Mode::Normal,
-            CursorMode::Visual { .. } => Mode::Visual,
+            CursorMode::Visual { mode, .. } => Mode::Visual(*mode),
             CursorMode::Insert(_) => Mode::Insert,
         }
     }

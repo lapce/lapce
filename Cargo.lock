@@ -933,9 +933,9 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.7.0"
-source = "git+https://github.com/lapce/cosmic-text?rev=5bfa288f19970a0b482ad75d5f460ad2c4e08900#5bfa288f19970a0b482ad75d5f460ad2c4e08900"
+source = "git+https://github.com/lapce/cosmic-text?rev=f7a20704d6ebbe8fb82d0bb579c37c53e7ae9747#f7a20704d6ebbe8fb82d0bb579c37c53e7ae9747"
 dependencies = [
- "fontdb 0.13.1",
+ "fontdb 0.16.0",
  "libm",
  "log",
  "once_cell",
@@ -1596,7 +1596,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ae64eafd4225ea879e9b9e863ac19801efd9c1ac#ae64eafd4225ea879e9b9e863ac19801efd9c1ac"
+source = "git+https://github.com/lapce/floem?rev=639d86b650ec689b0dc34651decf5c1ad0fc2a0d#639d86b650ec689b0dc34651decf5c1ad0fc2a0d"
 dependencies = [
  "bitflags 2.4.0",
  "clipboard",
@@ -1626,7 +1626,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ae64eafd4225ea879e9b9e863ac19801efd9c1ac#ae64eafd4225ea879e9b9e863ac19801efd9c1ac"
+source = "git+https://github.com/lapce/floem?rev=639d86b650ec689b0dc34651decf5c1ad0fc2a0d#639d86b650ec689b0dc34651decf5c1ad0fc2a0d"
 dependencies = [
  "smallvec",
 ]
@@ -1634,7 +1634,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ae64eafd4225ea879e9b9e863ac19801efd9c1ac#ae64eafd4225ea879e9b9e863ac19801efd9c1ac"
+source = "git+https://github.com/lapce/floem?rev=639d86b650ec689b0dc34651decf5c1ad0fc2a0d#639d86b650ec689b0dc34651decf5c1ad0fc2a0d"
 dependencies = [
  "cosmic-text",
  "image",
@@ -1645,7 +1645,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ae64eafd4225ea879e9b9e863ac19801efd9c1ac#ae64eafd4225ea879e9b9e863ac19801efd9c1ac"
+source = "git+https://github.com/lapce/floem?rev=639d86b650ec689b0dc34651decf5c1ad0fc2a0d#639d86b650ec689b0dc34651decf5c1ad0fc2a0d"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1662,7 +1662,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=ae64eafd4225ea879e9b9e863ac19801efd9c1ac#ae64eafd4225ea879e9b9e863ac19801efd9c1ac"
+source = "git+https://github.com/lapce/floem?rev=639d86b650ec689b0dc34651decf5c1ad0fc2a0d#639d86b650ec689b0dc34651decf5c1ad0fc2a0d"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -1705,18 +1705,6 @@ dependencies = [
 
 [[package]]
 name = "fontdb"
-version = "0.13.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "237ff9f0813bbfc9de836016472e0c9ae7802f174a51594607e5f4ff334cb2f5"
-dependencies = [
- "log",
- "memmap2 0.5.10",
- "slotmap",
- "ttf-parser 0.18.1",
-]
-
-[[package]]
-name = "fontdb"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af8d8cbea8f21307d7e84bca254772981296f058a1d36b461bf4d83a7499fc9e"
@@ -1727,6 +1715,20 @@ dependencies = [
  "slotmap",
  "tinyvec",
  "ttf-parser 0.19.1",
+]
+
+[[package]]
+name = "fontdb"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98b88c54a38407f7352dd2c4238830115a6377741098ffd1f997c813d0e088a6"
+dependencies = [
+ "fontconfig-parser",
+ "log",
+ "memmap2 0.9.0",
+ "slotmap",
+ "tinyvec",
+ "ttf-parser 0.20.0",
 ]
 
 [[package]]
@@ -2853,7 +2855,7 @@ dependencies = [
  "tar",
  "thiserror",
  "tokio",
- "toml 0.5.9",
+ "toml 0.8.2",
  "toml_edit 0.19.14",
  "tracing 0.2.0",
  "tracing-appender",
@@ -2937,7 +2939,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "tar",
- "toml 0.5.9",
+ "toml 0.8.2",
  "toml_edit 0.19.14",
  "tracing 0.2.0",
  "trash",
@@ -5699,6 +5701,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a464a4b34948a5f67fddd2b823c62d9d92e44be75058b99939eae6c5b6960b33"
 
 [[package]]
+name = "ttf-parser"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17f77d76d837a7830fe1d4f12b7b4ba4192c1888001c7164257e4bc6d21d96b4"
+
+[[package]]
 name = "typenum"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5919,7 +5927,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.7"
-source = "git+https://github.com/lapce/vger-rs?rev=9b994a61bdf84d1d6a2bb3c3830ba3fd3661edad#9b994a61bdf84d1d6a2bb3c3830ba3fd3661edad"
+source = "git+https://github.com/lapce/vger-rs?rev=ed10537c72a732a03f782225a39da80e6f9acbbe#ed10537c72a732a03f782225a39da80e6f9acbbe"
 dependencies = [
  "cosmic-text",
  "euclid",

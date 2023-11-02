@@ -1386,8 +1386,11 @@ fn visual_cursor(
                 if line == end_line {
                     let max_col = view.line_end_col(line, true);
 
-                    let end_offset =
-                        view.move_right(start.max(end), Mode::Visual, 1);
+                    let end_offset = view.move_right(
+                        start.max(end),
+                        Mode::Visual(VisualMode::Normal),
+                        1,
+                    );
                     let (_, end_col) = view.offset_to_line_col(end_offset);
 
                     (end_col.min(max_col), false)
@@ -1401,8 +1404,11 @@ fn visual_cursor(
                 let right = match horiz.as_ref() {
                     Some(&ColPosition::End) => max_col,
                     _ => {
-                        let end_offset =
-                            view.move_right(start.max(end), Mode::Visual, 1);
+                        let end_offset = view.move_right(
+                            start.max(end),
+                            Mode::Visual(VisualMode::Normal),
+                            1,
+                        );
                         let (_, end_col) = view.offset_to_line_col(end_offset);
                         end_col.max(start_col).min(max_col)
                     }

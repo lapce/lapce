@@ -24,7 +24,17 @@ impl MotionMode {
 }
 
 #[derive(
-    Clone, PartialEq, Eq, Hash, Debug, Copy, Deserialize, Serialize, Default,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    Debug,
+    Copy,
+    Deserialize,
+    Serialize,
+    Default,
+    PartialOrd,
+    Ord,
 )]
 pub enum VisualMode {
     #[default]
@@ -37,7 +47,7 @@ pub enum VisualMode {
 pub enum Mode {
     Normal,
     Insert,
-    Visual,
+    Visual(VisualMode),
     Terminal,
 }
 
@@ -55,7 +65,7 @@ impl From<Mode> for Modes {
         match mode {
             Mode::Normal => Self::NORMAL,
             Mode::Insert => Self::INSERT,
-            Mode::Visual => Self::VISUAL,
+            Mode::Visual(_) => Self::VISUAL,
             Mode::Terminal => Self::TERMINAL,
         }
     }

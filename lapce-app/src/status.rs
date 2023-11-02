@@ -10,7 +10,7 @@ use floem::{
     views::{label, list, stack, svg, Decorators},
 };
 use indexmap::IndexMap;
-use lapce_core::mode::Mode;
+use lapce_core::mode::{Mode, VisualMode};
 use lsp_types::{DiagnosticSeverity, ProgressToken};
 
 use crate::{
@@ -74,7 +74,11 @@ pub fn status(
             label(move || match mode.get() {
                 Mode::Normal => "Normal".to_string(),
                 Mode::Insert => "Insert".to_string(),
-                Mode::Visual => "Visual".to_string(),
+                Mode::Visual(mode) => match mode {
+                    VisualMode::Normal => "Visual".to_string(),
+                    VisualMode::Linewise => "Visual Line".to_string(),
+                    VisualMode::Blockwise => "Visual Block".to_string(),
+                },
                 Mode::Terminal => "Terminal".to_string(),
             })
             .style(move |s| {
@@ -94,7 +98,7 @@ pub fn status(
                         LapceColor::STATUS_MODAL_INSERT_BACKGROUND,
                         LapceColor::STATUS_MODAL_INSERT_FOREGROUND,
                     ),
-                    Mode::Visual => (
+                    Mode::Visual(_) => (
                         LapceColor::STATUS_MODAL_VISUAL_BACKGROUND,
                         LapceColor::STATUS_MODAL_VISUAL_FOREGROUND,
                     ),

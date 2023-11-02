@@ -7,7 +7,7 @@ use lapce_core::{
     command::MultiSelectionCommand,
     cursor::{ColPosition, Cursor, CursorMode},
     editor::Editor,
-    mode::{Mode, MotionMode},
+    mode::{Mode, MotionMode, VisualMode},
     movement::{LinePosition, Movement},
     register::Register,
     selection::{SelRegion, Selection},
@@ -475,7 +475,7 @@ pub fn move_cursor(
                 cursor.horiz.as_ref(),
                 count,
                 movement,
-                Mode::Visual,
+                Mode::Visual(VisualMode::Normal),
             );
             cursor.mode = CursorMode::Visual {
                 start,

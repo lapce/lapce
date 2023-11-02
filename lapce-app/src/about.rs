@@ -54,7 +54,7 @@ impl AboutData {
 
 impl KeyPressFocus for AboutData {
     fn get_mode(&self) -> Mode {
-        Mode::Visual
+        Mode::Insert
     }
 
     fn check_condition(
