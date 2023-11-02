@@ -2856,7 +2856,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "toml 0.8.2",
- "toml_edit 0.19.14",
+ "toml_edit 0.20.2",
  "tracing 0.2.0",
  "tracing-appender",
  "tracing-subscriber",
@@ -2940,7 +2940,7 @@ dependencies = [
  "strum_macros",
  "tar",
  "toml 0.8.2",
- "toml_edit 0.19.14",
+ "toml_edit 0.20.2",
  "tracing 0.2.0",
  "trash",
  "url",
@@ -3972,7 +3972,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
 dependencies = [
  "once_cell",
- "toml_edit 0.19.14",
+ "toml_edit 0.19.15",
 ]
 
 [[package]]
@@ -5419,13 +5419,11 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.19.14"
+version = "0.19.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8123f27e969974a3dfba720fdb560be359f57b44302d280ba72e76a74480e8a"
+checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
  "indexmap 2.0.2",
- "serde",
- "serde_spanned",
  "toml_datetime",
  "winnow",
 ]
