@@ -1,6 +1,7 @@
 use floem::{
     id::Id,
     peniko::kurbo::{BezPath, Point, Size},
+    style::TextColor,
     view::{ChangeFlags, View},
     Renderer,
 };
@@ -59,7 +60,7 @@ impl View for WaveBox {
     }
 
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
-        if let Some(color) = cx.get_computed_style(self.id).color {
+        if let Some(color) = cx.get_computed_style(self.id).get(TextColor) {
             let layout = cx.get_layout(self.id).unwrap();
             let size = layout.size;
             let size = Size::new(size.width as f64, size.height as f64);

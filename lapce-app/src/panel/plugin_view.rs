@@ -173,11 +173,17 @@ fn installed_view(plugin: PluginData) -> impl View {
             });
             true
         })
-        .style(|s| s.width_pct(100.0).padding_horiz(10.0).padding_vert(5.0))
-        .hover_style(move |s| {
-            s.background(
-                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-            )
+        .style(move |s| {
+            s.width_pct(100.0)
+                .padding_horiz(10.0)
+                .padding_vert(5.0)
+                .hover(|s| {
+                    s.background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
         })
     };
 
@@ -229,6 +235,10 @@ fn available_view(plugin: PluginData) -> impl View {
             }
         })
         .disabled(move || installed.get() || installing.get())
+        .on_click(move |_| {
+            plugin.install_volt(info.get_untracked());
+            true
+        })
         .style(move |s| {
             let config = config.get();
             s.color(*config.get_color(LapceColor::LAPCE_BUTTON_PRIMARY_FOREGROUND))
@@ -238,29 +248,23 @@ fn available_view(plugin: PluginData) -> impl View {
                 .margin_left(6.0)
                 .padding_horiz(6.0)
                 .border_radius(6.0)
-        })
-        .on_click(move |_| {
-            plugin.install_volt(info.get_untracked());
-            true
-        })
-        .hover_style(move |s| {
-            s.cursor(CursorStyle::Pointer).background(
-                config
-                    .get()
-                    .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
-                    .with_alpha_factor(0.8),
-            )
-        })
-        .active_style(move |s| {
-            s.background(
-                config
-                    .get()
-                    .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
-                    .with_alpha_factor(0.6),
-            )
-        })
-        .disabled_style(move |s| {
-            s.background(*config.get().get_color(LapceColor::EDITOR_DIM))
+                .hover(|s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        config
+                            .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
+                            .with_alpha_factor(0.8),
+                    )
+                })
+                .active(|s| {
+                    s.background(
+                        config
+                            .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
+                            .with_alpha_factor(0.6),
+                    )
+                })
+                .disabled(|s| {
+                    s.background(*config.get_color(LapceColor::EDITOR_DIM))
+                })
         })
     };
 
@@ -315,11 +319,17 @@ fn available_view(plugin: PluginData) -> impl View {
             });
             true
         })
-        .style(|s| s.width_pct(100.0).padding_horiz(10.0).padding_vert(5.0))
-        .hover_style(move |s| {
-            s.background(
-                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-            )
+        .style(move |s| {
+            s.width_pct(100.0)
+                .padding_horiz(10.0)
+                .padding_vert(5.0)
+                .hover(|s| {
+                    s.background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
         })
     };
 

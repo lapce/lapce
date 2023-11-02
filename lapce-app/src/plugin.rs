@@ -692,99 +692,99 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
             })
     });
 
-    let version_view = move |plugin: PluginData, plugin_info: PluginInfo| {
-        let version_info = plugin_info.as_ref().map(|(_, volt, _, latest, _)| {
-            (
-                volt.version.clone(),
-                latest.as_ref().map(|i| i.version.clone()),
-            )
-        });
-        let installing = plugin_info
-            .as_ref()
-            .and_then(|(_, _, _, _, installing)| *installing);
-        let local_version_info = version_info.clone();
-        let control = {
-            move |version_info: Option<(String, Option<String>)>| match version_info
+    let version_view =
+        move |plugin: PluginData, plugin_info: PluginInfo| {
+            let version_info =
+                plugin_info.as_ref().map(|(_, volt, _, latest, _)| {
+                    (
+                        volt.version.clone(),
+                        latest.as_ref().map(|i| i.version.clone()),
+                    )
+                });
+            let installing = plugin_info
                 .as_ref()
-                .map(|(v, l)| match l {
-                    Some(l) => (true, l == v),
-                    None => (false, false),
-                }) {
-                Some((true, true)) => "Installed ▼",
-                Some((true, false)) => "Upgrade ▼",
-                _ => {
-                    if installing.map(|i| i.get()).unwrap_or(false) {
-                        "Installing"
-                    } else {
-                        "Install"
+                .and_then(|(_, _, _, _, installing)| *installing);
+            let local_version_info = version_info.clone();
+            let control = {
+                move |version_info: Option<(String, Option<String>)>| {
+                    match version_info.as_ref().map(|(v, l)| match l {
+                        Some(l) => (true, l == v),
+                        None => (false, false),
+                    }) {
+                        Some((true, true)) => "Installed ▼",
+                        Some((true, false)) => "Upgrade ▼",
+                        _ => {
+                            if installing.map(|i| i.get()).unwrap_or(false) {
+                                "Installing"
+                            } else {
+                                "Install"
+                            }
+                        }
                     }
                 }
-            }
-        };
-        let local_plugin_info = plugin_info.clone();
-        let local_plugin = plugin.clone();
-        stack((
-            text(
-                version_info
-                    .as_ref()
-                    .map(|(v, _)| format!("v{v}"))
-                    .unwrap_or_default(),
-            ),
-            label(move || control(local_version_info.clone()))
-                .style(move |s| {
-                    let config = config.get();
-                    s.margin_left(10)
-                        .padding_horiz(10)
-                        .border_radius(6.0)
-                        .color(
-                            *config.get_color(
+            };
+            let local_plugin_info = plugin_info.clone();
+            let local_plugin = plugin.clone();
+            stack((
+                text(
+                    version_info
+                        .as_ref()
+                        .map(|(v, _)| format!("v{v}"))
+                        .unwrap_or_default(),
+                ),
+                label(move || control(local_version_info.clone()))
+                    .style(move |s| {
+                        let config = config.get();
+                        s.margin_left(10)
+                            .padding_horiz(10)
+                            .border_radius(6.0)
+                            .color(*config.get_color(
                                 LapceColor::LAPCE_BUTTON_PRIMARY_FOREGROUND,
-                            ),
-                        )
-                        .background(
-                            *config.get_color(
+                            ))
+                            .background(*config.get_color(
                                 LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND,
-                            ),
-                        )
-                })
-                .hover_style(move |s| {
-                    s.cursor(CursorStyle::Pointer).background(
+                            ))
+                            .hover(|s| {
+                                s.cursor(CursorStyle::Pointer).background(
                         config
-                            .get()
                             .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
                             .with_alpha_factor(0.8),
                     )
-                })
-                .active_style(move |s| {
-                    s.background(
+                            })
+                            .active(|s| {
+                                s.background(
                         config
-                            .get()
                             .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
                             .with_alpha_factor(0.6),
                     )
-                })
-                .disabled_style(move |s| {
-                    s.background(*config.get().get_color(LapceColor::EDITOR_DIM))
-                })
-                .disabled(move || installing.map(|i| i.get()).unwrap_or(false))
-                .on_click(move |_| {
-                    if let Some((meta, info, _, latest, _)) =
-                        local_plugin_info.as_ref()
-                    {
-                        if let Some(meta) = meta {
-                            let menu = local_plugin.plugin_controls(
-                                meta.to_owned(),
-                                latest.clone().unwrap_or_else(|| info.to_owned()),
-                            );
-                            show_context_menu(menu, None);
-                        } else {
-                            local_plugin.install_volt(info.to_owned());
+                            })
+                            .disabled(|s| {
+                                s.background(
+                                    *config.get_color(LapceColor::EDITOR_DIM),
+                                )
+                            })
+                    })
+                    .disabled(move || installing.map(|i| i.get()).unwrap_or(false))
+                    .on_click(move |_| {
+                        if let Some((meta, info, _, latest, _)) =
+                            local_plugin_info.as_ref()
+                        {
+                            if let Some(meta) = meta {
+                                let menu = local_plugin.plugin_controls(
+                                    meta.to_owned(),
+                                    latest
+                                        .clone()
+                                        .unwrap_or_else(|| info.to_owned()),
+                                );
+                                show_context_menu(menu, None);
+                            } else {
+                                local_plugin.install_volt(info.to_owned());
+                            }
                         }
-                    }
-                    true
-                }),
-        ))
-    };
+                        true
+                    }),
+            ))
+        };
 
     scroll(
         dyn_container(

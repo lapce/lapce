@@ -304,24 +304,24 @@ fn debug_processes(
                     true
                 })
                 .style(move |s| {
+                    let config = config.get();
                     s.padding_vert(6.0)
                         .width_pct(100.0)
                         .items_center()
                         .apply_if(is_active(), |s| {
                             s.background(
                                 *config
-                                    .get()
                                     .get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
                             )
                         })
-                })
-                .hover_style(move |s| {
-                    s.cursor(CursorStyle::Pointer).background(
-                        (*config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND))
-                        .with_alpha_factor(0.3),
-                    )
+                        .hover(|s| {
+                            s.cursor(CursorStyle::Pointer).background(
+                                (*config.get_color(
+                                    LapceColor::PANEL_HOVERED_BACKGROUND,
+                                ))
+                                .with_alpha_factor(0.3),
+                            )
+                        })
                 })
             },
         )
@@ -433,15 +433,13 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             .padding_right(10.0)
                             .padding_left((level * 10) as f32)
                             .min_width_pct(100.0)
-                    })
-                    .hover_style(move |s| {
-                        s.apply_if(reference > 0, |s| {
-                            s.background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
-                        })
+                            .hover(|s| {
+                                s.apply_if(reference > 0, |s| {
+                                    s.background(*config.get().get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ))
+                                })
+                            })
                     })
                 },
             )
@@ -469,11 +467,14 @@ fn debug_stack_frames(
                 });
                 true
             })
-            .style(|s| s.padding_horiz(10.0).min_width_pct(100.0))
-            .hover_style(move |s| {
-                s.cursor(CursorStyle::Pointer).background(
-                    *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                )
+            .style(move |s| {
+                s.padding_horiz(10.0).min_width_pct(100.0).hover(move |s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
             }),
         list(
             move || {
@@ -502,12 +503,14 @@ fn debug_stack_frames(
                 let source_path = format!("{source_path}:{}", frame.line);
 
                 container(stack((
-                    label(move || frame.name.clone()).hover_style(move |s| {
-                        s.background(
-                            *config
-                                .get()
-                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                        )
+                    label(move || frame.name.clone()).style(move |s| {
+                        s.hover(|s| {
+                            s.background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                        })
                     }),
                     label(move || source_path.clone()).style(move |s| {
                         s.margin_left(10.0)
@@ -540,20 +543,20 @@ fn debug_stack_frames(
                     true
                 })
                 .style(move |s| {
+                    let config = config.get();
                     s.padding_left(20.0)
                         .padding_right(10.0)
                         .min_width_pct(100.0)
                         .apply_if(!has_source, |s| {
-                            s.color(*config.get().get_color(LapceColor::EDITOR_DIM))
+                            s.color(*config.get_color(LapceColor::EDITOR_DIM))
                         })
-                })
-                .hover_style(move |s| {
-                    s.background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
-                    .apply_if(has_source, |s| s.cursor(CursorStyle::Pointer))
+                        .hover(|s| {
+                            s.background(
+                                *config
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                            .apply_if(has_source, |s| s.cursor(CursorStyle::Pointer))
+                        })
                 })
             },
         )
@@ -723,12 +726,15 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                                 .apply_if(folder_empty, |s| s.hide())
                         }),
                     ))
-                    .style(|s| s.items_center().padding_horiz(10.0).width_pct(100.0))
-                    .hover_style(move |s| {
-                        s.background(
-                            *config
-                                .get()
-                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    .style(move |s| {
+                        s.items_center().padding_horiz(10.0).width_pct(100.0).hover(
+                            |s| {
+                                s.background(
+                                    *config.get().get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
+                                )
+                            },
                         )
                     })
                     .on_click(move |_| {

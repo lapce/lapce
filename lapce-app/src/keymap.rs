@@ -425,14 +425,27 @@ fn keyboard_picker_view(
             stack((
                 text("Save")
                     .style(move |s| {
+                        let config = config.get();
                         s.width(100.0)
                             .justify_center()
                             .padding_vert(8.0)
                             .border(1.0)
                             .border_radius(6.0)
                             .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                                *config.get_color(LapceColor::LAPCE_BORDER),
                             )
+                            .hover(|s| {
+                                s.cursor(CursorStyle::Pointer).background(
+                                    *config.get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
+                                )
+                            })
+                            .active(|s| {
+                                s.background(*config.get_color(
+                                    LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
+                                ))
+                            })
                     })
                     .on_click(move |_| {
                         let keymap = picker.keymap.get_untracked();
@@ -448,23 +461,10 @@ fn keyboard_picker_view(
                             );
                         }
                         true
-                    })
-                    .hover_style(move |s| {
-                        s.cursor(CursorStyle::Pointer).background(
-                            *config
-                                .get()
-                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                        )
-                    })
-                    .active_style(move |s| {
-                        s.background(
-                            *config.get().get_color(
-                                LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
-                            ),
-                        )
                     }),
                 text("Cancel")
                     .style(move |s| {
+                        let config = config.get();
                         s.margin_left(20.0)
                             .width(100.0)
                             .justify_center()
@@ -472,26 +472,24 @@ fn keyboard_picker_view(
                             .border(1.0)
                             .border_radius(6.0)
                             .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                                *config.get_color(LapceColor::LAPCE_BORDER),
                             )
+                            .hover(|s| {
+                                s.cursor(CursorStyle::Pointer).background(
+                                    *config.get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
+                                )
+                            })
+                            .active(|s| {
+                                s.background(*config.get_color(
+                                    LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
+                                ))
+                            })
                     })
                     .on_click(move |_| {
                         picker.keymap.set(None);
                         true
-                    })
-                    .hover_style(move |s| {
-                        s.cursor(CursorStyle::Pointer).background(
-                            *config
-                                .get()
-                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                        )
-                    })
-                    .active_style(move |s| {
-                        s.background(
-                            *config.get().get_color(
-                                LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
-                            ),
-                        )
                     }),
             ))
             .style(move |s| {

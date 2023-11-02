@@ -162,17 +162,16 @@ fn file_view(
                 true
             })
             .style(move |s| {
+                let config = config.get();
                 s.width_pct(100.0)
                     .min_width(0.0)
-                    .padding_left(
-                        10.0 + (config.get().ui.icon_size() as f32 + 6.0) * 2.0,
-                    )
+                    .padding_left(10.0 + (config.ui.icon_size() as f32 + 6.0) * 2.0)
                     .padding_right(10.0)
-            })
-            .hover_style(move |s| {
-                s.cursor(CursorStyle::Pointer).background(
-                    *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                )
+                    .hover(|s| {
+                        s.cursor(CursorStyle::Pointer).background(
+                            *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        )
+                    })
             }),
             stack((
                 svg(move || {
@@ -273,11 +272,14 @@ fn item_view(
                     )
                 }),
             ))
-            .style(move |s| s.width_pct(100.0).min_width(0.0))
-            .hover_style(move |s| {
-                s.cursor(CursorStyle::Pointer).background(
-                    *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                )
+            .style(move |s| {
+                s.width_pct(100.0).min_width(0.0).hover(|s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
             })
         })
         .on_click(move |_| {
@@ -336,19 +338,17 @@ fn related_view(
                     true
                 })
                 .style(move |s| {
-                    s.padding_left(
-                        10.0 + (config.get().ui.icon_size() as f32 + 6.0) * 4.0,
-                    )
-                    .padding_right(10.0)
-                    .width_pct(100.0)
-                    .min_width(0.0)
-                })
-                .hover_style(move |s| {
-                    s.cursor(CursorStyle::Pointer).background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
+                    let config = config.get();
+                    s.padding_left(10.0 + (config.ui.icon_size() as f32 + 6.0) * 4.0)
+                        .padding_right(10.0)
+                        .width_pct(100.0)
+                        .min_width(0.0)
+                        .hover(|s| {
+                            s.cursor(CursorStyle::Pointer).background(
+                                *config
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                        })
                 })
             },
         )

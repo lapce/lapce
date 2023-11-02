@@ -5,7 +5,11 @@ use floem::{
     kurbo::Size,
     reactive::create_rw_signal,
     view::View,
-    views::{container, empty, label, list, scroll, stack, svg, tab, Decorators},
+    views::{
+        container, empty, label, list,
+        scroll::{scroll, Thickness},
+        stack, svg, tab, Decorators,
+    },
 };
 
 use super::kind::PanelKind;
@@ -199,7 +203,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
             let icon_width = icon_width.get();
             s.absolute()
                 .max_width(header_width - icon_width)
-                .scroll_bar_thickness(3)
+                .set(Thickness, 3)
         }),
         empty().style(move |s| {
             let size = scroll_size.get();

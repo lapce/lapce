@@ -74,8 +74,8 @@ pub fn source_control_panel(
                         s.min_size_pct(100.0, 100.0)
                             .padding_left(10.0)
                             .padding_vert(6.0)
-                    })
-                    .hover_style(|s| s.cursor(CursorStyle::Text));
+                            .hover(|s| s.cursor(CursorStyle::Text))
+                    });
                     let id = view.id();
                     view.on_event(EventListener::PointerDown, move |event| {
                         let event = event.clone().offset((10.0, 6.0));
@@ -144,7 +144,12 @@ pub fn source_control_panel(
             {
                 let source_control = source_control.clone();
                 label(|| "Commit".to_string())
+                    .on_click(move |_| {
+                        source_control.commit();
+                        true
+                    })
                     .style(move |s| {
+                        let config = config.get();
                         s.margin_top(10.0)
                             .line_height(1.6)
                             .width_pct(100.0)
@@ -152,26 +157,20 @@ pub fn source_control_panel(
                             .border(1.0)
                             .border_radius(6.0)
                             .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                                *config.get_color(LapceColor::LAPCE_BORDER),
                             )
-                    })
-                    .on_click(move |_| {
-                        source_control.commit();
-                        true
-                    })
-                    .hover_style(move |s| {
-                        s.cursor(CursorStyle::Pointer).background(
-                            *config
-                                .get()
-                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                        )
-                    })
-                    .active_style(move |s| {
-                        s.background(
-                            *config.get().get_color(
-                                LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
-                            ),
-                        )
+                            .hover(|s| {
+                                s.cursor(CursorStyle::Pointer).background(
+                                    *config.get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
+                                )
+                            })
+                            .active(|s| {
+                                s.background(*config.get_color(
+                                    LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
+                                ))
+                            })
                     })
             },
         ))
@@ -226,6 +225,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
         let style_path = path.clone();
         stack((
             checkbox(move || checked, config)
+                .style(|s| s.hover(|s| s.cursor(CursorStyle::Pointer)))
                 .on_click(move |_| {
                     file_diffs.update(|diffs| {
                         if let Some((_, checked)) = diffs.get_mut(&full_path) {
@@ -233,8 +233,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                         }
                     });
                     true
-                })
-                .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+                }),
             svg(move || config.get().file_svg(&path).0).style(move |s| {
                 let config = config.get();
                 let size = config.ui.icon_size() as f32;
@@ -332,11 +331,11 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                 .padding_right(10.0 + size + 6.0)
                 .width_pct(100.0)
                 .items_center()
-        })
-        .hover_style(move |s| {
-            s.background(
-                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-            )
+                .hover(|s| {
+                    s.background(
+                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
         })
     };
 

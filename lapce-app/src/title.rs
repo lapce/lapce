@@ -87,18 +87,6 @@ fn left(
             }
             menu
         })
-        .hover_style(move |s| {
-            s.cursor(CursorStyle::Pointer).background(
-                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-            )
-        })
-        .active_style(move |s| {
-            s.cursor(CursorStyle::Pointer).background(
-                *config
-                    .get()
-                    .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
-            )
-        })
         .style(move |s| {
             let config = config.get();
             let color = if is_local {
@@ -121,6 +109,17 @@ fn left(
                 .padding_horiz(10.0)
                 .items_center()
                 .background(color)
+                .hover(|s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
+                .active(|s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                    )
+                })
         }),
         drag_window_area(empty())
             .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0)),

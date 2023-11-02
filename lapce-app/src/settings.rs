@@ -396,28 +396,25 @@ pub fn settings_view(
             true
         })
         .style(move |s| {
-            s.padding_horiz(20.0).width_pct(100.0).apply_if(
-                kind == current_kind.get(),
-                |s| {
+            let config = config.get();
+            s.padding_horiz(20.0)
+                .width_pct(100.0)
+                .apply_if(kind == current_kind.get(), |s| {
+                    s.background(
+                        *config.get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
+                    )
+                })
+                .hover(|s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
+                .active(|s| {
                     s.background(
                         *config
-                            .get()
-                            .get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
+                            .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
                     )
-                },
-            )
-        })
-        .hover_style(move |s| {
-            s.cursor(CursorStyle::Pointer).background(
-                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-            )
-        })
-        .active_style(move |s| {
-            s.background(
-                *config
-                    .get()
-                    .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
-            )
+                })
         })
     };
 
@@ -659,13 +656,14 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             expanded.set(false);
                             true
                         })
-                        .style(|s| s.text_ellipsis().padding_horiz(10.0))
-                        .hover_style(move |s| {
-                            s.cursor(CursorStyle::Pointer).background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
+                        .style(move |s| {
+                            s.text_ellipsis().padding_horiz(10.0).hover(|s| {
+                                s.cursor(CursorStyle::Pointer).background(
+                                    *config.get().get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
+                                )
+                            })
                         })
                 };
                 container_box(
@@ -1117,13 +1115,13 @@ fn color_section_list(
                                         *config.get_color(LapceColor::LAPCE_BORDER),
                                     )
                                     .apply_if(same, |s| s.hide())
-                            })
-                            .active_style(move |s| {
-                                s.background(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::PANEL_BACKGROUND),
-                                )
+                                    .active(|s| {
+                                        s.background(
+                                            *config.get_color(
+                                                LapceColor::PANEL_BACKGROUND,
+                                            ),
+                                        )
+                                    })
                             })
                     },
                 ))

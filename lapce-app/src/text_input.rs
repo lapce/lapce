@@ -3,18 +3,19 @@ use std::{rc::Rc, sync::Arc};
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::EventCx,
-    cosmic_text::{
-        Attrs, AttrsList, FamilyOwned, LineHeightValue, Style as FontStyle,
-        TextLayout, Weight,
-    },
+    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     event::{Event, EventListener},
     id::Id,
     peniko::{
         kurbo::{Line, Point, Rect, Size, Vec2},
         Color,
     },
+    prop_extracter,
     reactive::{create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal},
-    style::{ComputedStyle, CursorStyle, Style},
+    style::{
+        CursorStyle, FontFamily, FontSize, FontStyle, FontWeight, LineHeight,
+        PaddingLeft, PaddingRight, Style, TextColor,
+    },
     taffy::prelude::Node,
     unit::PxPct,
     view::{ChangeFlags, View},
@@ -33,6 +34,17 @@ use crate::{
     editor::EditorData,
     keypress::KeyPressFocus,
 };
+
+prop_extracter! {
+    Extracter {
+        color: TextColor,
+        font_size: FontSize,
+        font_family: FontFamily,
+        font_weight: FontWeight,
+        font_style: FontStyle,
+        line_height: LineHeight,
+    }
+}
 
 pub fn text_input(
     editor: EditorData,
@@ -129,15 +141,10 @@ pub fn text_input(
         placeholder_text_layout: None,
         cursor,
         doc,
-        color: None,
-        font_size: None,
-        font_family: None,
-        font_weight: None,
-        font_style: None,
         cursor_pos: Point::ZERO,
         on_cursor_pos: None,
         hide_cursor: editor.common.hide_cursor,
-        line_height: None,
+        style: Default::default(),
     }
     .base_style(|s| {
         s.cursor(CursorStyle::Text)
@@ -223,16 +230,11 @@ pub struct TextInput {
     cursor_line: RwSignal<Line>,
     placeholder: String,
     placeholder_text_layout: Option<TextLayout>,
-    color: Option<Color>,
-    font_size: Option<f32>,
-    font_family: Option<String>,
-    font_weight: Option<Weight>,
-    font_style: Option<FontStyle>,
-    line_height: Option<LineHeightValue>,
     cursor_pos: Point,
     on_cursor_pos: Option<Box<dyn Fn(Point)>>,
     hide_cursor: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
+    style: Extracter,
 }
 
 impl TextInput {
@@ -252,14 +254,15 @@ impl TextInput {
 
     fn set_text_layout(&mut self) {
         let mut text_layout = TextLayout::new();
-        let mut attrs = Attrs::new().color(self.color.unwrap_or(Color::BLACK));
-        if let Some(font_size) = self.font_size {
+        let mut attrs =
+            Attrs::new().color(self.style.color().unwrap_or(Color::BLACK));
+        if let Some(font_size) = self.style.font_size() {
             attrs = attrs.font_size(font_size);
         }
-        if let Some(font_style) = self.font_style {
+        if let Some(font_style) = self.style.font_style() {
             attrs = attrs.style(font_style);
         }
-        let font_family = self.font_family.as_ref().map(|font_family| {
+        let font_family = self.style.font_family().as_ref().map(|font_family| {
             let family: Vec<FamilyOwned> =
                 FamilyOwned::parse_list(font_family).collect();
             family
@@ -267,10 +270,10 @@ impl TextInput {
         if let Some(font_family) = font_family.as_ref() {
             attrs = attrs.family(font_family);
         }
-        if let Some(font_weight) = self.font_weight {
+        if let Some(font_weight) = self.style.font_weight() {
             attrs = attrs.weight(font_weight);
         }
-        if let Some(line_height) = self.line_height {
+        if let Some(line_height) = self.style.line_height() {
             attrs = attrs.line_height(line_height);
         }
         text_layout.set_text(
@@ -284,8 +287,12 @@ impl TextInput {
         self.text_layout.set(Some(text_layout));
 
         let mut placeholder_text_layout = TextLayout::new();
-        attrs =
-            attrs.color(self.color.unwrap_or(Color::BLACK).with_alpha_factor(0.5));
+        attrs = attrs.color(
+            self.style
+                .color()
+                .unwrap_or(Color::BLACK)
+                .with_alpha_factor(0.5),
+        );
         placeholder_text_layout.set_text(&self.placeholder, AttrsList::new(attrs));
         self.placeholder_text_layout = Some(placeholder_text_layout);
     }
@@ -295,7 +302,7 @@ impl TextInput {
             if let Some(text_layout) = text_layout.as_ref() {
                 let padding_left = cx
                     .get_computed_style(self.id)
-                    .map(|s| match s.padding_left {
+                    .map(|s| match s.get(PaddingLeft) {
                         PxPct::Px(v) => v,
                         PxPct::Pct(pct) => {
                             let layout = cx.get_layout(self.id()).unwrap();
@@ -453,17 +460,7 @@ impl View for TextInput {
         cx: &mut floem::context::LayoutCx,
     ) -> floem::taffy::prelude::Node {
         cx.layout_node(self.id, true, |cx| {
-            if self.font_size != cx.current_font_size()
-                || self.font_family.as_deref() != cx.current_font_family()
-                || self.font_weight != cx.current_font_weight()
-                || self.font_style != cx.current_font_style()
-                || self.line_height != cx.current_line_height()
-            {
-                self.font_size = cx.current_font_size();
-                self.font_family = cx.current_font_family().map(|s| s.to_string());
-                self.font_weight = cx.current_font_weight();
-                self.font_style = cx.current_font_style();
-                self.line_height = cx.current_line_height();
+            if self.style.read(cx) {
                 self.text_layout.set(None);
                 self.placeholder_text_layout = None;
             }
@@ -496,10 +493,7 @@ impl View for TextInput {
 
                 let text_node = self.text_node.unwrap();
 
-                let style = Style::BASE
-                    .height(height)
-                    .compute(&ComputedStyle::default())
-                    .to_taffy_style();
+                let style = Style::new().height(height).to_taffy_style();
                 cx.set_style(text_node, style);
             });
 
@@ -508,14 +502,19 @@ impl View for TextInput {
     }
 
     fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) -> Option<Rect> {
+        if self.style.read(cx) {
+            self.set_text_layout();
+            cx.app_state_mut().request_layout(self.id());
+        }
+
         let layout = cx.get_layout(self.id).unwrap();
 
         let style = cx.get_computed_style(self.id);
-        let padding_left = match style.padding_left {
+        let padding_left = match style.get(PaddingLeft) {
             PxPct::Px(padding) => padding,
             PxPct::Pct(pct) => pct * layout.size.width as f64,
         };
-        let padding_right = match style.padding_right {
+        let padding_right = match style.get(PaddingRight) {
             PxPct::Px(padding) => padding,
             PxPct::Pct(pct) => pct * layout.size.width as f64,
         };
@@ -613,11 +612,6 @@ impl View for TextInput {
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
         cx.save();
         cx.clip(&self.text_rect.inflate(1.0, 0.0));
-        if self.color != cx.current_color() {
-            self.color = cx.current_color();
-            self.set_text_layout();
-        }
-
         let text_node = self.text_node.unwrap();
         let location = cx.layout(text_node).unwrap().location;
         let point = Point::new(location.x as f64, location.y as f64)

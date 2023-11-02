@@ -1596,7 +1596,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4fbe6f4489c3dcca232df2e2787b6ab7ac8f83c9#4fbe6f4489c3dcca232df2e2787b6ab7ac8f83c9"
+source = "git+https://github.com/lapce/floem?rev=cc41cae13f8d11621a8a9e63408bcb63008342c7#cc41cae13f8d11621a8a9e63408bcb63008342c7"
 dependencies = [
  "bitflags 2.4.0",
  "clipboard",
@@ -1626,12 +1626,15 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4fbe6f4489c3dcca232df2e2787b6ab7ac8f83c9#4fbe6f4489c3dcca232df2e2787b6ab7ac8f83c9"
+source = "git+https://github.com/lapce/floem?rev=cc41cae13f8d11621a8a9e63408bcb63008342c7#cc41cae13f8d11621a8a9e63408bcb63008342c7"
+dependencies = [
+ "smallvec",
+]
 
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4fbe6f4489c3dcca232df2e2787b6ab7ac8f83c9#4fbe6f4489c3dcca232df2e2787b6ab7ac8f83c9"
+source = "git+https://github.com/lapce/floem?rev=cc41cae13f8d11621a8a9e63408bcb63008342c7#cc41cae13f8d11621a8a9e63408bcb63008342c7"
 dependencies = [
  "cosmic-text",
  "image",
@@ -1642,7 +1645,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4fbe6f4489c3dcca232df2e2787b6ab7ac8f83c9#4fbe6f4489c3dcca232df2e2787b6ab7ac8f83c9"
+source = "git+https://github.com/lapce/floem?rev=cc41cae13f8d11621a8a9e63408bcb63008342c7#cc41cae13f8d11621a8a9e63408bcb63008342c7"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1659,7 +1662,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4fbe6f4489c3dcca232df2e2787b6ab7ac8f83c9#4fbe6f4489c3dcca232df2e2787b6ab7ac8f83c9"
+source = "git+https://github.com/lapce/floem?rev=cc41cae13f8d11621a8a9e63408bcb63008342c7#cc41cae13f8d11621a8a9e63408bcb63008342c7"
 dependencies = [
  "anyhow",
  "floem_renderer",

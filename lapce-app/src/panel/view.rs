@@ -173,6 +173,7 @@ pub fn panel_container_view(
             .style(move |s| {
                 let is_dragging = drag_start.get().is_some();
                 let current_size = current_size.get();
+                let config = config.get();
                 s.absolute()
                     .apply_if(position == PanelContainerPosition::Bottom, |s| {
                         s.width_pct(100.0).height(4.0).margin_top(-2.0)
@@ -186,27 +187,29 @@ pub fn panel_container_view(
                         s.width(4.0).margin_left(-2.0).height_pct(100.0)
                     })
                     .apply_if(is_dragging, |s| {
-                        s.background(
-                            *config.get().get_color(LapceColor::EDITOR_CARET),
-                        )
-                        .apply_if(position == PanelContainerPosition::Bottom, |s| {
-                            s.cursor(CursorStyle::RowResize)
-                        })
-                        .apply_if(position != PanelContainerPosition::Bottom, |s| {
-                            s.cursor(CursorStyle::ColResize)
-                        })
-                        .z_index(2)
+                        s.background(*config.get_color(LapceColor::EDITOR_CARET))
+                            .apply_if(
+                                position == PanelContainerPosition::Bottom,
+                                |s| s.cursor(CursorStyle::RowResize),
+                            )
+                            .apply_if(
+                                position != PanelContainerPosition::Bottom,
+                                |s| s.cursor(CursorStyle::ColResize),
+                            )
+                            .z_index(2)
                     })
-            })
-            .hover_style(move |s| {
-                s.background(*config.get().get_color(LapceColor::EDITOR_CARET))
-                    .apply_if(position == PanelContainerPosition::Bottom, |s| {
-                        s.cursor(CursorStyle::RowResize)
+                    .hover(|s| {
+                        s.background(*config.get_color(LapceColor::EDITOR_CARET))
+                            .apply_if(
+                                position == PanelContainerPosition::Bottom,
+                                |s| s.cursor(CursorStyle::RowResize),
+                            )
+                            .apply_if(
+                                position != PanelContainerPosition::Bottom,
+                                |s| s.cursor(CursorStyle::ColResize),
+                            )
+                            .z_index(2)
                     })
-                    .apply_if(position != PanelContainerPosition::Bottom, |s| {
-                        s.cursor(CursorStyle::ColResize)
-                    })
-                    .z_index(2)
             })
         }
     };

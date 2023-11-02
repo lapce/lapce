@@ -179,8 +179,12 @@ fn exclusive_popup<V: View>(
                 })
                 .on_event(EventListener::PointerDown, move |_| true),
         )
-        .style(move |s| s.flex_grow(1.0).flex_row().items_center())
-        .hover_style(move |s| s.cursor(CursorStyle::Default)),
+        .style(move |s| {
+            s.flex_grow(1.0)
+                .flex_row()
+                .items_center()
+                .hover(move |s| s.cursor(CursorStyle::Default))
+        }),
     )
     .on_event(EventListener::PointerDown, move |_| {
         window_tab_data.about_data.close();

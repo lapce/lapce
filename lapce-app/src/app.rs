@@ -32,8 +32,9 @@ use floem::{
     view::View,
     views::{
         clip, container, container_box, drag_resize_window_area, drag_window_area,
-        empty, label, list, rich_text, scroll, stack, svg, tab, text, virtual_list,
-        Decorators, VirtualListDirection, VirtualListItemSize, VirtualListVector,
+        empty, label, list, rich_text, scroll::scroll, stack, svg, tab, text,
+        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
+        VirtualListVector,
     },
     window::{ResizeDirection, WindowConfig, WindowId},
 };
@@ -194,6 +195,7 @@ impl AppData {
         } else {
             config
         };
+        let config = config.title("Lapce");
         let app_data = self.clone();
         floem::new_window(
             move |window_id| {
@@ -1572,14 +1574,15 @@ fn split_resize_border(
                             *config.get().get_color(LapceColor::EDITOR_CARET),
                         )
                     })
-            })
-            .hover_style(move |s| {
-                let direction = direction(true);
-                s.cursor(match direction {
-                    SplitDirection::Vertical => CursorStyle::ColResize,
-                    SplitDirection::Horizontal => CursorStyle::RowResize,
-                })
-                .background(*config.get().get_color(LapceColor::EDITOR_CARET))
+                    .hover(|s| {
+                        s.cursor(match direction {
+                            SplitDirection::Vertical => CursorStyle::ColResize,
+                            SplitDirection::Horizontal => CursorStyle::RowResize,
+                        })
+                        .background(
+                            *config.get().get_color(LapceColor::EDITOR_CARET),
+                        )
+                    })
             })
         },
     )
@@ -1828,12 +1831,14 @@ pub fn clickable_icon(
                     let size = config.ui.icon_size() as f32;
                     s.size(size, size)
                         .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+                        .disabled(|s| {
+                            s.color(
+                                *config.get_color(LapceColor::LAPCE_ICON_INACTIVE),
+                            )
+                            .cursor(CursorStyle::Default)
+                        })
                 })
-                .disabled(disabled_fn)
-                .disabled_style(move |s| {
-                    s.color(*config.get().get_color(LapceColor::LAPCE_ICON_INACTIVE))
-                        .cursor(CursorStyle::Default)
-                }),
+                .disabled(disabled_fn),
         )
         .on_click(move |_| {
             on_click();
@@ -1841,25 +1846,25 @@ pub fn clickable_icon(
         })
         .disabled(disabled_fn)
         .style(move |s| {
+            let config = config.get();
             s.padding(4.0)
                 .border_radius(6.0)
                 .border(1.0)
                 .border_color(Color::TRANSPARENT)
                 .apply_if(active_fn(), |s| {
-                    s.border_color(*config.get().get_color(LapceColor::EDITOR_CARET))
+                    s.border_color(*config.get_color(LapceColor::EDITOR_CARET))
                 })
-        })
-        .hover_style(move |s| {
-            s.cursor(CursorStyle::Pointer).background(
-                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-            )
-        })
-        .active_style(move |s| {
-            s.background(
-                *config
-                    .get()
-                    .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
-            )
+                .hover(|s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
+                .active(|s| {
+                    s.background(
+                        *config
+                            .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                    )
+                })
         }),
     )
 }
@@ -2384,13 +2389,14 @@ fn palette_content(
                         clicked_index.set(Some(i));
                         true
                     })
-                    .style(|s| s.width_full().cursor(CursorStyle::Pointer))
-                    .hover_style(move |s| {
-                        s.background(
-                            *config
-                                .get()
-                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                        )
+                    .style(move |s| {
+                        s.width_full().cursor(CursorStyle::Pointer).hover(|s| {
+                            s.background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                        })
                     })
                 },
             )
@@ -2962,7 +2968,9 @@ fn window_tab(window_tab_data: Rc<WindowTabData>) -> impl View {
             .apply_if(!config.ui.font_family.is_empty(), |s| {
                 s.font_family(config.ui.font_family.clone())
             })
-            .scroll_bar_color(*config.get_color(LapceColor::LAPCE_SCROLL_BAR))
+            .class(floem::views::scroll::Handle, |s| {
+                s.background(*config.get_color(LapceColor::LAPCE_SCROLL_BAR))
+            })
     });
 
     let view_id = view.id();

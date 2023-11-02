@@ -853,16 +853,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: Some("=#"),
         },
 
-        #[cfg(feature = "lang-julia")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_julia::language,
-            highlight: Some(include_str!("../queries/julia/highlights.scm")),
-            injection: Some(include_str!("../queries/julia/injections.scm")),
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-julia"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Kotlin,
@@ -1055,11 +1052,10 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("//"),
 
-        #[cfg(feature = "lang-php")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_php::language,
-            highlight: Some(tree_sitter_php::HIGHLIGHT_QUERY),
-            injection: Some(tree_sitter_php::INJECTIONS_QUERY),
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (
                 &[
                     "program",
@@ -1084,8 +1080,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             ),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-php"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Prisma,

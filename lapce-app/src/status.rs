@@ -136,15 +136,17 @@ pub fn status(
                 .height_pct(100.0)
                 .padding_horiz(10.0)
                 .align_items(Some(AlignItems::Center))
+                .hover(|s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        *config
+                            .get()
+                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
             })
             .on_click(move |_| {
                 workbench_command.send(LapceWorkbenchCommand::PaletteSCMReferences);
                 true
-            })
-            .hover_style(move |s| {
-                s.cursor(CursorStyle::Pointer).background(
-                    *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                )
             }),
             {
                 let panel = panel.clone();
@@ -190,13 +192,17 @@ pub fn status(
                     panel.show_panel(&PanelKind::Problem);
                     true
                 })
-                .style(|s| s.height_pct(100.0).padding_horiz(10.0).items_center())
-                .hover_style(move |s| {
-                    s.cursor(CursorStyle::Pointer).background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
+                .style(move |s| {
+                    s.height_pct(100.0)
+                        .padding_horiz(10.0)
+                        .items_center()
+                        .hover(|s| {
+                            s.cursor(CursorStyle::Pointer).background(
+                                *config
+                                    .get()
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                        })
                 })
             },
             progress_view(config, progresses),
@@ -327,6 +333,7 @@ pub fn status(
                 true
             })
             .style(move |s| {
+                let config = config.get();
                 s.display(
                     if editor
                         .get()
@@ -343,12 +350,12 @@ pub fn status(
                 .height_pct(100.0)
                 .padding_horiz(10.0)
                 .items_center()
-                .color(*config.get().get_color(LapceColor::STATUS_FOREGROUND))
-            })
-            .hover_style(move |s| {
-                s.cursor(CursorStyle::Pointer).background(
-                    *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                )
+                .color(*config.get_color(LapceColor::STATUS_FOREGROUND))
+                .hover(|s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
             });
             let palette_clone = palette.clone();
             let language_info = label(move || {
@@ -364,6 +371,7 @@ pub fn status(
                 true
             })
             .style(move |s| {
+                let config = config.get();
                 s.display(
                     if editor
                         .get()
@@ -380,12 +388,12 @@ pub fn status(
                 .height_pct(100.0)
                 .padding_horiz(10.0)
                 .items_center()
-                .color(*config.get().get_color(LapceColor::STATUS_FOREGROUND))
-            })
-            .hover_style(move |s| {
-                s.cursor(CursorStyle::Pointer).background(
-                    *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                )
+                .color(*config.get_color(LapceColor::STATUS_FOREGROUND))
+                .hover(|s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
             });
             (cursor_info, language_info)
         })

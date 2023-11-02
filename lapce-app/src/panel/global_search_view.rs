@@ -205,14 +205,16 @@ fn search_result(
                             true
                         })
                         .style(move |s| {
-                            s.width_pct(100.0).min_width_pct(100.0).items_center()
-                        })
-                        .hover_style(move |s| {
-                            s.cursor(CursorStyle::Pointer).background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
+                            s.width_pct(100.0)
+                                .min_width_pct(100.0)
+                                .items_center()
+                                .hover(|s| {
+                                    s.cursor(CursorStyle::Pointer).background(
+                                        *config.get().get_color(
+                                            LapceColor::PANEL_HOVERED_BACKGROUND,
+                                        ),
+                                    )
+                                })
                         }),
                         virtual_list(
                             VirtualListDirection::Vertical,
@@ -274,34 +276,34 @@ fn search_result(
                                 .style(move |s| {
                                     let config = config.get();
                                     let icon_size = config.ui.icon_size() as f32;
-                                    s.margin_left(10.0 + icon_size + 6.0)
-                                })
-                                .on_click(move |_| {
-                                    internal_command.send(
-                                        InternalCommand::JumpToLocation {
-                                            location: EditorLocation {
-                                                path: path.clone(),
-                                                position: Some(
-                                                    EditorPosition::Line(
-                                                        line_number
-                                                            .saturating_sub(1),
-                                                    ),
-                                                ),
-                                                scroll_offset: None,
-                                                ignore_unconfirmed: false,
-                                                same_editor_tab: false,
-                                            },
-                                        },
-                                    );
-                                    true
-                                })
-                                .hover_style(
-                                    move |s| {
-                                        s.cursor(CursorStyle::Pointer).background(
-                                            *config.get().get_color(
+                                    s.margin_left(10.0 + icon_size + 6.0).hover(
+                                        |s| {
+                                            s.cursor(CursorStyle::Pointer)
+                                                .background(*config.get_color(
                                                 LapceColor::PANEL_HOVERED_BACKGROUND,
-                                            ),
-                                        )
+                                            ))
+                                        },
+                                    )
+                                })
+                                .on_click(
+                                    move |_| {
+                                        internal_command.send(
+                                            InternalCommand::JumpToLocation {
+                                                location: EditorLocation {
+                                                    path: path.clone(),
+                                                    position: Some(
+                                                        EditorPosition::Line(
+                                                            line_number
+                                                                .saturating_sub(1),
+                                                        ),
+                                                    ),
+                                                    scroll_offset: None,
+                                                    ignore_unconfirmed: false,
+                                                    same_editor_tab: false,
+                                                },
+                                            },
+                                        );
+                                        true
                                     },
                                 )
                             },

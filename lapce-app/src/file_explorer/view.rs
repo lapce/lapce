@@ -139,12 +139,14 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                     .padding_right(10.0)
                     .padding_left((level * 10) as f32)
                     .min_width_pct(100.0)
-            })
-            .hover_style(move |s| {
-                s.background(
-                    *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                )
-                .cursor(CursorStyle::Pointer)
+                    .hover(|s| {
+                        s.background(
+                            *config
+                                .get()
+                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        )
+                        .cursor(CursorStyle::Pointer)
+                    })
             })
             .on_click(move |_| {
                 data.click(&click_path);
@@ -235,23 +237,24 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
             }),
         ))
         .style(move |s| {
-            s.items_center().width_pct(100.0).apply_if(
-                active_editor_tab.get() == Some(editor_tab_id)
-                    && editor_tab.with(|editor_tab| editor_tab.active)
-                        == child_index.get(),
-                |s| {
+            let config = config.get();
+            s.items_center()
+                .width_pct(100.0)
+                .apply_if(
+                    active_editor_tab.get() == Some(editor_tab_id)
+                        && editor_tab.with(|editor_tab| editor_tab.active)
+                            == child_index.get(),
+                    |s| {
+                        s.background(
+                            *config.get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
+                        )
+                    },
+                )
+                .hover(|s| {
                     s.background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
+                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
-                },
-            )
-        })
-        .hover_style(move |s| {
-            s.background(
-                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-            )
+                })
         })
         .on_event(EventListener::PointerDown, move |_| {
             editor_tab.update(|editor_tab| {

@@ -100,18 +100,18 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                                     .border_color(
                                         *config.get_color(LapceColor::LAPCE_BORDER),
                                     )
-                            })
-                            .hover_style(move |s| {
-                                s.cursor(CursorStyle::Pointer).background(
-                                    *config.get().get_color(
-                                        LapceColor::PANEL_HOVERED_BACKGROUND,
-                                    ),
-                                )
-                            })
-                            .active_style(move |s| {
-                                s.background(*config.get().get_color(
+                                    .hover(|s| {
+                                        s.cursor(CursorStyle::Pointer).background(
+                                            *config.get_color(
+                                                LapceColor::PANEL_HOVERED_BACKGROUND,
+                                            ),
+                                        )
+                                    })
+                                    .active(|s| {
+                                        s.background(*config.get_color(
                                     LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
+                                    })
                             })
                     },
                 )
@@ -133,20 +133,18 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                             .border_color(
                                 *config.get_color(LapceColor::LAPCE_BORDER),
                             )
-                    })
-                    .hover_style(move |s| {
-                        s.cursor(CursorStyle::Pointer).background(
-                            *config
-                                .get()
-                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                        )
-                    })
-                    .active_style(move |s| {
-                        s.background(
-                            *config.get().get_color(
-                                LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
-                            ),
-                        )
+                            .hover(|s| {
+                                s.cursor(CursorStyle::Pointer).background(
+                                    *config.get_color(
+                                        LapceColor::PANEL_HOVERED_BACKGROUND,
+                                    ),
+                                )
+                            })
+                            .active(|s| {
+                                s.background(*config.get_color(
+                                    LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
+                                ))
+                            })
                     }),
             ))
             .style(|s| s.flex_col().items_center().width_pct(100.0))

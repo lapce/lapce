@@ -209,9 +209,8 @@ impl KeyPressData {
         };
         let mods = keypress.mods;
 
-        let mode = focus.get_mode();
         if self.handle_count(focus, &keypress) {
-            return false;
+            return true;
         }
 
         self.pending_keypress.update(|pending_keypress| {
@@ -271,15 +270,6 @@ impl KeyPressData {
             }
         }
 
-        if mode != Mode::Insert
-            && mode != Mode::Terminal
-            && self.handle_count(focus, &keypress)
-        {
-            return false;
-        }
-
-        self.count.set(None);
-
         let mut mods = keypress.mods;
 
         #[cfg(target_os = "macos")]
@@ -294,11 +284,13 @@ impl KeyPressData {
         if mods.is_empty() {
             if let KeyInput::Keyboard(Key::Character(c), _key_code) = &keypress.key {
                 focus.receive_char(c);
+                self.count.set(None);
                 return true;
             } else if let KeyInput::Keyboard(Key::Named(NamedKey::Space), _) =
                 &keypress.key
             {
                 focus.receive_char(" ");
+                self.count.set(None);
                 return true;
             }
         }

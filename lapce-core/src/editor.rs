@@ -436,9 +436,9 @@ impl Editor {
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let mut deltas = Vec::new();
         match motion_mode {
-            MotionMode::Delete { count } => {
+            MotionMode::Delete { .. } => {
                 let (start, end) =
-                    format_start_end(buffer, start, end, is_vertical, false, count);
+                    format_start_end(buffer, start, end, is_vertical, false, 1);
                 register.add(
                     RegisterKind::Delete,
                     RegisterData {
@@ -456,9 +456,9 @@ impl Editor {
                 cursor.apply_delta(&delta);
                 deltas.push((delta, inval_lines, edits));
             }
-            MotionMode::Yank { count } => {
+            MotionMode::Yank { .. } => {
                 let (start, end) =
-                    format_start_end(buffer, start, end, is_vertical, false, count);
+                    format_start_end(buffer, start, end, is_vertical, false, 1);
                 register.add(
                     RegisterKind::Yank,
                     RegisterData {

@@ -18,6 +18,8 @@ pub fn web_link(
             internal_command.send(InternalCommand::OpenWebUri { uri: uri() });
             true
         })
-        .base_style(move |s| s.color(color()))
-        .hover_style(move |s| s.cursor(CursorStyle::Pointer))
+        .base_style(move |s| {
+            s.color(color())
+                .hover(move |s| s.cursor(CursorStyle::Pointer))
+        })
 }

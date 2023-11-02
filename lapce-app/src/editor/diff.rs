@@ -421,8 +421,12 @@ pub fn diff_show_more_section_view(
                 });
                 true
             })
-            .style(|s| s.margin_left(10.0).height_pct(100.0).items_center())
-            .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+            .style(|s| {
+                s.margin_left(10.0)
+                    .height_pct(100.0)
+                    .items_center()
+                    .hover(|s| s.cursor(CursorStyle::Pointer))
+            }),
             label(|| "|".to_string()).style(|s| s.margin_left(10.0)),
             stack((
                 svg(move || config.get().ui_svg(LapceIcons::FOLD_UP)).style(
@@ -459,8 +463,12 @@ pub fn diff_show_more_section_view(
                 });
                 true
             })
-            .style(move |s| s.margin_left(10.0).height_pct(100.0).items_center())
-            .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+            .style(move |s| {
+                s.margin_left(10.0)
+                    .height_pct(100.0)
+                    .items_center()
+                    .hover(|s| s.cursor(CursorStyle::Pointer))
+            }),
             label(|| "|".to_string()).style(|s| s.margin_left(10.0)),
             stack((
                 svg(move || config.get().ui_svg(LapceIcons::FOLD_DOWN)).style(
@@ -497,8 +505,12 @@ pub fn diff_show_more_section_view(
                 });
                 true
             })
-            .style(move |s| s.margin_left(10.0).height_pct(100.0).items_center())
-            .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+            .style(move |s| {
+                s.margin_left(10.0)
+                    .height_pct(100.0)
+                    .items_center()
+                    .hover(|s| s.cursor(CursorStyle::Pointer))
+            }),
         ))
         .style(move |s| {
             let config = config.get();
@@ -511,8 +523,8 @@ pub fn diff_show_more_section_view(
                     (section.visual_line * config.editor.line_height()) as f32
                         - viewport.get().y0 as f32,
                 )
+                .hover(|s| s.cursor(CursorStyle::Default))
         })
-        .hover_style(|s| s.cursor(CursorStyle::Default))
     };
 
     stack((

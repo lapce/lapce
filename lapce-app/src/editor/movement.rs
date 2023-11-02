@@ -411,6 +411,11 @@ pub fn move_cursor(
 ) {
     match cursor.mode {
         CursorMode::Normal(offset) => {
+            let count = if let Some(motion_mode) = cursor.motion_mode.as_ref() {
+                count.max(motion_mode.count())
+            } else {
+                count
+            };
             let (new_offset, horiz) = move_offset(
                 view,
                 offset,

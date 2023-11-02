@@ -14,7 +14,7 @@ use floem::{
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
     },
-    style::{ComputedStyle, CursorStyle, Style},
+    style::{CursorStyle, Style},
     taffy::prelude::Node,
     view::{ChangeFlags, View},
     views::{clip, container, empty, label, list, scroll, stack, svg, Decorators},
@@ -1147,11 +1147,7 @@ impl View for EditorView {
                     doc.buffer.with_untracked(|buffer| buffer.last_line()),
                 ) + 1) as f64;
 
-            let style = Style::BASE
-                .width(width as f32)
-                .height(height as f32)
-                .compute(&ComputedStyle::default())
-                .to_taffy_style();
+            let style = Style::new().width(width).height(height).to_taffy_style();
             cx.set_style(inner_node, style);
 
             vec![inner_node]
@@ -1891,20 +1887,17 @@ fn editor_gutter(
                         .margin_left(margin_left)
                         .margin_top(margin_top)
                         .apply_if(code_action_line.is_none(), |s| s.hide())
-                })
-                .hover_style(move |s| {
-                    s.cursor(CursorStyle::Pointer).background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
-                })
-                .active_style(move |s| {
-                    s.background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
-                    )
+                        .hover(|s| {
+                            s.cursor(CursorStyle::Pointer).background(
+                                *config
+                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                        })
+                        .active(|s| {
+                            s.background(*config.get_color(
+                                LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
+                            ))
+                        })
                 }),
             ))
             .style(|s| s.size_pct(100.0, 100.0)),

@@ -12,6 +12,17 @@ pub enum MotionMode {
     Outdent,
 }
 
+impl MotionMode {
+    pub fn count(&self) -> usize {
+        match self {
+            MotionMode::Delete { count } => *count,
+            MotionMode::Yank { count } => *count,
+            MotionMode::Indent => 1,
+            MotionMode::Outdent => 1,
+        }
+    }
+}
+
 #[derive(
     Clone, PartialEq, Eq, Hash, Debug, Copy, Deserialize, Serialize, Default,
 )]
