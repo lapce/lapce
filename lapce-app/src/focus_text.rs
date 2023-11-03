@@ -213,10 +213,6 @@ impl View for FocusText {
         cx: &mut floem::context::LayoutCx,
     ) -> floem::taffy::prelude::Node {
         cx.layout_node(self.id, true, |cx| {
-            if self.style.read(cx) {
-                self.set_text_layout();
-            }
-
             if self.text_layout.is_none() {
                 self.set_text_layout();
             }

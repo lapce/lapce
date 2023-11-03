@@ -60,7 +60,7 @@ pub struct EditorConfig {
     )]
     pub signature_label_code_block: bool,
     #[field_names(
-        desc = "Whether the editor should disable automatic closing of matching pairs"
+        desc = "Whether the editor should enable automatic closing of matching pairs"
     )]
     pub auto_closing_matching_pairs: bool,
     #[field_names(

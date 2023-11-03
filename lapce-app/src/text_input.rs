@@ -502,11 +502,6 @@ impl View for TextInput {
     }
 
     fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) -> Option<Rect> {
-        if self.style.read(cx) {
-            self.set_text_layout();
-            cx.app_state_mut().request_layout(self.id());
-        }
-
         let layout = cx.get_layout(self.id).unwrap();
 
         let style = cx.get_computed_style(self.id);

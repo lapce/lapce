@@ -1596,7 +1596,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=639d86b650ec689b0dc34651decf5c1ad0fc2a0d#639d86b650ec689b0dc34651decf5c1ad0fc2a0d"
+source = "git+https://github.com/lapce/floem?rev=459388c2d25d4c190acde7e2e29c199b4d93f569#459388c2d25d4c190acde7e2e29c199b4d93f569"
 dependencies = [
  "bitflags 2.4.0",
  "clipboard",
@@ -1626,7 +1626,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=639d86b650ec689b0dc34651decf5c1ad0fc2a0d#639d86b650ec689b0dc34651decf5c1ad0fc2a0d"
+source = "git+https://github.com/lapce/floem?rev=459388c2d25d4c190acde7e2e29c199b4d93f569#459388c2d25d4c190acde7e2e29c199b4d93f569"
 dependencies = [
  "smallvec",
 ]
@@ -1634,7 +1634,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=639d86b650ec689b0dc34651decf5c1ad0fc2a0d#639d86b650ec689b0dc34651decf5c1ad0fc2a0d"
+source = "git+https://github.com/lapce/floem?rev=459388c2d25d4c190acde7e2e29c199b4d93f569#459388c2d25d4c190acde7e2e29c199b4d93f569"
 dependencies = [
  "cosmic-text",
  "image",
@@ -1645,7 +1645,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=639d86b650ec689b0dc34651decf5c1ad0fc2a0d#639d86b650ec689b0dc34651decf5c1ad0fc2a0d"
+source = "git+https://github.com/lapce/floem?rev=459388c2d25d4c190acde7e2e29c199b4d93f569#459388c2d25d4c190acde7e2e29c199b4d93f569"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1662,7 +1662,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=639d86b650ec689b0dc34651decf5c1ad0fc2a0d#639d86b650ec689b0dc34651decf5c1ad0fc2a0d"
+source = "git+https://github.com/lapce/floem?rev=459388c2d25d4c190acde7e2e29c199b4d93f569#459388c2d25d4c190acde7e2e29c199b4d93f569"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -5108,9 +5108,9 @@ dependencies = [
 
 [[package]]
 name = "taffy"
-version = "0.3.16"
+version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c488aa2bf4bb0cafed312e0876b79a591e3cfa47391f842b7198f9a56547561b"
+checksum = "3c2287b6d7f721ada4cddf61ade5e760b2c6207df041cac9bfaa192897362fd3"
 dependencies = [
  "arrayvec",
  "grid",
@@ -7136,8 +7136,8 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 
 [[package]]
 name = "winit"
-version = "0.29.2"
-source = "git+https://github.com/lapce/winit?rev=96d8a1f7d8ab7969d836f940d0b18d3540979e6c#96d8a1f7d8ab7969d836f940d0b18d3540979e6c"
+version = "0.29.3"
+source = "git+https://github.com/lapce/winit?rev=7608048ad91efceb6d97d03dcd74b33c60cc2072#7608048ad91efceb6d97d03dcd74b33c60cc2072"
 dependencies = [
  "ahash 0.8.3",
  "android-activity",
