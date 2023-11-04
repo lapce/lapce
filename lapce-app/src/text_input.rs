@@ -461,8 +461,7 @@ impl View for TextInput {
     ) -> floem::taffy::prelude::Node {
         cx.layout_node(self.id, true, |cx| {
             if self.style.read(cx) {
-                self.text_layout.set(None);
-                self.placeholder_text_layout = None;
+                self.set_text_layout();
             }
 
             if self
