@@ -28,6 +28,7 @@ use lsp_types::{
     DocumentChanges, OneOf, Position, TextEdit, Url, WorkspaceEdit,
 };
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
 use crate::{
     alert::AlertButton,
@@ -2188,7 +2189,9 @@ impl MainSplitData {
                 let send = {
                     let path = path.clone();
                     create_ext_action(self.scope, move |result| {
-                        if let Ok(_r) = result {
+                        if let Err(err) = result {
+                            warn!("Failed to save as a file: {:?}", err);
+                        } else {
                             let syntax = Syntax::init(&path);
                             doc.content.set(DocContent::File {
                                 path: path.clone(),
