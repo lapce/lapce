@@ -65,6 +65,9 @@ pub mod movement;
 pub mod view;
 pub mod view_data;
 
+const CHAR_WIDTH: f64 = 7.5;
+const FONT_SIZE: usize = 12;
+
 #[derive(Clone, Debug)]
 pub enum InlineFindDirection {
     Left,
@@ -1113,7 +1116,7 @@ impl EditorData {
         clear_completion_lens(self.view.doc.get_untracked());
     }
 
-    /// Update the displayed autocompletion box  
+    /// Update the displayed autocompletion box
     /// Sends a request to the LSP for completion information
     fn update_completion(&self, display_if_empty_input: bool) {
         if self.get_mode() != Mode::Insert {

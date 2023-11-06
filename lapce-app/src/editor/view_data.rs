@@ -25,7 +25,7 @@ use crate::{
     find::{Find, FindResult},
 };
 
-use super::diff::DiffInfo;
+use super::{diff::DiffInfo, FONT_SIZE};
 
 #[derive(Clone)]
 pub struct LineExtraStyle {
@@ -53,7 +53,7 @@ pub struct TextLayoutCache {
     /// the cache.
     config_id: u64,
     cache_rev: u64,
-    /// (Font Size -> (Line Number -> Text Layout))  
+    /// (Font Size -> (Line Number -> Text Layout))
     /// Different font-sizes are cached separately, which is useful for features like code lens
     /// where the text becomes small but you may wish to revert quickly.
     pub layouts: HashMap<usize, HashMap<usize, Arc<TextLayoutLine>>>,
@@ -104,10 +104,10 @@ impl EditorViewKind {
 }
 
 // TODO(minor): Should this go in another file? It doesn't really need to be with the drawing code for editor views
-/// Data specific to the rendering of a view.  
+/// Data specific to the rendering of a view.
 /// This has various helper methods that may dispatch to the held [`Document`] signal, but are
 /// untracked by default. If you need your signal to depend on the document,
-/// then you should call [`EditorViewData::track_doc`].  
+/// then you should call [`EditorViewData::track_doc`].
 /// Note: This should be cheap to clone.
 #[derive(Clone)]
 pub struct EditorViewData {
@@ -134,7 +134,7 @@ impl VirtualListVector<DocLine> for EditorViewData {
                 rev: self.rev(),
                 style_rev: self.cache_rev(),
                 line,
-                text: self.get_text_layout(line, 12),
+                text: self.get_text_layout(line, FONT_SIZE),
             })
             .collect::<Vec<_>>();
         lines.into_iter()
@@ -170,7 +170,7 @@ impl EditorViewData {
         doc.buffer.with_untracked(|b| b.text().clone())
     }
 
-    /// Return a [`RopeTextVal`] wrapper.  
+    /// Return a [`RopeTextVal`] wrapper.
     /// Unfortunately, we can't implement [`RopeText`] directly on [`EditorViewData`] due to
     /// it not having a reference to the rope.
     pub fn rope_text(&self) -> RopeTextVal {
@@ -232,7 +232,7 @@ impl EditorViewData {
         self.doc.with_untracked(|doc| doc.line_phantom_text(line))
     }
 
-    /// Get the text layout for the given line.  
+    /// Get the text layout for the given line.
     /// If the text layout is not cached, it will be created and cached.
     pub fn get_text_layout(
         &self,
@@ -627,7 +627,7 @@ impl EditorViewData {
         })
     }
 
-    /// Get the offset of a particular point within the editor.  
+    /// Get the offset of a particular point within the editor.
     /// The boolean indicates whether the point is inside the text or not
     /// Points outside of vertical bounds will return the last line.
     /// Points outside of horizontal bounds will return the last column on the line.
@@ -637,7 +637,7 @@ impl EditorViewData {
     }
 
     /// Get the (line, col) of a particular point within the editor.
-    /// The boolean indicates whether the point is within the text bounds.  
+    /// The boolean indicates whether the point is within the text bounds.
     /// Points outside of vertical bounds will return the last line.
     /// Points outside of horizontal bounds will return the last column on the line.
     pub fn line_col_of_point(
@@ -699,7 +699,7 @@ impl EditorViewData {
         }
     }
 
-    /// Advance to the right in the manner of the given mode.  
+    /// Advance to the right in the manner of the given mode.
     /// This is not the same as the [`Movement::Right`] command.
     pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
         self.doc.with_untracked(|doc| {
@@ -744,7 +744,7 @@ impl EditorViewData {
         })
     }
 
-    /// Find the offset of the matching pair character.  
+    /// Find the offset of the matching pair character.
     /// This is intended for use by the [`Movement::MatchPairs`] command.
     pub fn find_matching_pair(&self, offset: usize) -> usize {
         // This needs the doc's syntax, but it isn't cheap to clone

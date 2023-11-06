@@ -4,7 +4,7 @@ use floem::{
     action::show_context_menu,
     event::{Event, EventListener},
     menu::{Menu, MenuItem},
-    peniko::kurbo::{Point, Rect, Size},
+    peniko::kurbo::Rect,
     reactive::{create_memo, create_rw_signal},
     style::{CursorStyle, Style},
     view::View,
@@ -17,7 +17,7 @@ use super::{kind::PanelKind, position::PanelPosition, view::panel_header};
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
     config::{color::LapceColor, icon::LapceIcons},
-    editor::view::{cursor_caret, editor_view, CursorRender},
+    editor::view::{cursor_caret, editor_view, LineRegion},
     settings::checkbox,
     source_control::SourceControlData,
     window_tab::{Focus, WindowTabData},
@@ -113,18 +113,16 @@ pub fn source_control_panel(
                     let editor_view = editor.view.clone();
                     editor_view.doc.track();
                     editor_view.kind.track();
-                    let caret =
+                    let LineRegion { x, width, line } =
                         cursor_caret(&editor_view, offset, !cursor.is_insert());
                     let config = config.get_untracked();
                     let line_height = config.editor.line_height();
-                    if let CursorRender::Caret { x, width, line } = caret {
-                        Size::new(width, line_height as f64)
-                            .to_rect()
-                            .with_origin(Point::new(x, (line * line_height) as f64))
-                            .inflate(30.0, 10.0)
-                    } else {
-                        Rect::ZERO
-                    }
+
+                    Rect::from_origin_size(
+                        (x, (line * line_height) as f64),
+                        (width, line_height as f64),
+                    )
+                    .inflate(30.0, 10.0)
                 })
                 .style(|s| s.absolute().size_pct(100.0, 100.0))
             })

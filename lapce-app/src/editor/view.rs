@@ -24,7 +24,6 @@ use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText},
     cursor::{ColPosition, CursorMode},
     mode::{Mode, VisualMode},
-    selection::Selection,
 };
 use lapce_rpc::dap_types::{DapId, SourceBreakpoint};
 use lapce_xi_rope::find::CaseMatching;
@@ -32,7 +31,7 @@ use lapce_xi_rope::find::CaseMatching;
 use super::{
     gutter::editor_gutter_view,
     view_data::{EditorViewData, LineExtraStyle},
-    EditorData,
+    EditorData, CHAR_WIDTH, FONT_SIZE,
 };
 use crate::{
     app::clickable_icon,
@@ -341,13 +340,145 @@ impl EditorView {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    fn paint_normal_selection(
+        &self,
+        cx: &mut PaintCx,
+        color: Color,
+        line_height: f64,
+        screen_lines: &ScreenLines,
+        start_offset: usize,
+        end_offset: usize,
+        is_block_cursor: bool,
+    ) {
+        let view = &self.editor.view;
+        let viewport = self.viewport.get_untracked();
+
+        let (start_line, start_col) = view.offset_to_line_col(start_offset);
+        let (end_line, end_col) = view.offset_to_line_col(end_offset);
+
+        for line in start_line..=end_line {
+            if let Some(info) = screen_lines.info.get(&line) {
+                let phantom_text = view.line_phantom_text(line);
+                let right_col = if line == end_line {
+                    end_col
+                } else {
+                    view.line_end_col(line, true)
+                };
+                let right_col = phantom_text.col_after(right_col, false);
+
+                let x0 = if line == start_line {
+                    let left_col =
+                        phantom_text.col_after(start_col, is_block_cursor);
+                    view.line_point_of_line_col(line, left_col, FONT_SIZE).x
+                } else {
+                    viewport.x0
+                };
+                let x1 = view.line_point_of_line_col(line, right_col, FONT_SIZE).x;
+                let x1 = if line != end_line {
+                    x1 + CHAR_WIDTH
+                } else {
+                    x1
+                };
+
+                let rect = Rect::from_origin_size(
+                    (x0, info.y as f64),
+                    (x1 - x0, line_height),
+                );
+                cx.fill(&rect, color, 0.0);
+            }
+        }
+    }
+
+    fn paint_linewise_selection(
+        &self,
+        cx: &mut PaintCx,
+        color: Color,
+        line_height: f64,
+        screen_lines: &ScreenLines,
+        start_offset: usize,
+        end_offset: usize,
+    ) {
+        let view = &self.editor.view;
+        let viewport = self.viewport.get_untracked();
+
+        let (start_line, _) = view.offset_to_line_col(start_offset);
+        let (end_line, _) = view.offset_to_line_col(end_offset);
+
+        for line in start_line..=end_line {
+            if let Some(info) = screen_lines.info.get(&line) {
+                let phantom_text = view.line_phantom_text(line);
+                let right_col = view.line_end_col(line, true);
+                let right_col = phantom_text.col_after(right_col, false);
+
+                let x1 = view.line_point_of_line_col(line, right_col, FONT_SIZE).x
+                    + CHAR_WIDTH;
+
+                let rect = Rect::from_origin_size(
+                    (viewport.x0, info.y as f64),
+                    (x1 - viewport.x0, line_height),
+                );
+                cx.fill(&rect, color, 0.0);
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn paint_blockwise_selection(
+        &self,
+        cx: &mut PaintCx,
+        color: Color,
+        line_height: f64,
+        screen_lines: &ScreenLines,
+        start_offset: usize,
+        end_offset: usize,
+        horiz: Option<ColPosition>,
+    ) {
+        let view = &self.editor.view;
+
+        let (start_line, start_col) = view.offset_to_line_col(start_offset);
+        let (end_line, end_col) = view.offset_to_line_col(end_offset);
+        let left_col = start_col.min(end_col);
+        let right_col = start_col.max(end_col) + 1;
+
+        let lines = (start_line..=end_line)
+            .filter_map(|line| {
+                let max_col = view.line_end_col(line, true);
+                (max_col > left_col).then_some((line, max_col))
+            })
+            .filter_map(|(line, max_col)| {
+                screen_lines
+                    .info
+                    .get(&line)
+                    .map(|info| (line, max_col, info))
+            });
+
+        for (line, max_col, info) in lines {
+            let right_col = if let Some(ColPosition::End) = horiz {
+                max_col
+            } else {
+                right_col.min(max_col)
+            };
+            let phantom_text = view.line_phantom_text(line);
+            let left_col = phantom_text.col_after(left_col, true);
+            let right_col = phantom_text.col_after(right_col, false);
+
+            let x0 = view.line_point_of_line_col(line, left_col, FONT_SIZE).x;
+            let x1 = view.line_point_of_line_col(line, right_col, FONT_SIZE).x;
+
+            let rect =
+                Rect::from_origin_size((x0, info.y as f64), (x1 - x0, line_height));
+            cx.fill(&rect, color, 0.0);
+        }
+    }
+
     fn paint_cursor(
         &self,
         cx: &mut PaintCx,
         is_local: bool,
         screen_lines: &ScreenLines,
     ) {
-        let view = self.editor.view.clone();
+        let view = &self.editor.view;
         let cursor = self.editor.cursor;
         let find_focus = self.editor.find_focus;
         let hide_cursor = self.editor.common.window_common.hide_cursor;
@@ -359,30 +490,9 @@ impl EditorView {
         let is_active =
             self.is_active.get_untracked() && !find_focus.get_untracked();
 
-        let renders = cursor.with_untracked(|cursor| match &cursor.mode {
-            CursorMode::Normal(offset) => {
-                let line = view.line_of_offset(*offset);
-                let mut renders = vec![CursorRender::CurrentLine { line }];
-                if is_active {
-                    let caret = cursor_caret(&view, *offset, true);
-                    renders.push(caret);
-                }
-                renders
-            }
-            CursorMode::Visual { start, end, mode } => visual_cursor(
-                &view,
-                *start,
-                *end,
-                mode,
-                cursor.horiz.as_ref(),
-                7.5,
-                is_active,
-                screen_lines,
-            ),
-            CursorMode::Insert(selection) => {
-                insert_cursor(&view, selection, 7.5, is_active, screen_lines)
-            }
-        });
+        let current_line_color = *config.get_color(LapceColor::EDITOR_CURRENT_LINE);
+        let selection_color = *config.get_color(LapceColor::EDITOR_SELECTION);
+        let caret_color = *config.get_color(LapceColor::EDITOR_CARET);
 
         let breakline = self.debug_breakline.get_untracked().and_then(
             |(breakline, breakline_path)| {
@@ -401,63 +511,130 @@ impl EditorView {
 
         if let Some(breakline) = breakline {
             if let Some(info) = screen_lines.info.get(&breakline) {
+                let rect = Rect::from_origin_size(
+                    (viewport.x0, info.y as f64),
+                    (viewport.width(), line_height),
+                );
+
                 cx.fill(
-                    &Rect::ZERO
-                        .with_size(Size::new(viewport.width(), line_height))
-                        .with_origin(Point::new(viewport.x0, info.y as f64)),
+                    &rect,
                     config.get_color(LapceColor::EDITOR_DEBUG_BREAK_LINE),
                     0.0,
                 );
             }
         }
 
-        for render in renders {
-            match render {
-                CursorRender::CurrentLine { line } => {
-                    if !is_local && Some(line) != breakline {
-                        if let Some(info) = screen_lines.info.get(&line) {
-                            cx.fill(
-                                &Rect::ZERO
-                                    .with_size(Size::new(
-                                        viewport.width(),
-                                        line_height,
-                                    ))
-                                    .with_origin(Point::new(
-                                        viewport.x0,
-                                        info.y as f64,
-                                    )),
-                                config.get_color(LapceColor::EDITOR_CURRENT_LINE),
-                                0.0,
-                            );
-                        }
-                    }
-                }
-                CursorRender::Selection { x, width, line } => {
-                    if let Some(info) = screen_lines.info.get(&line) {
-                        cx.fill(
-                            &Rect::ZERO
-                                .with_size(Size::new(width, line_height))
-                                .with_origin(Point::new(x, info.y as f64)),
-                            config.get_color(LapceColor::EDITOR_SELECTION),
-                            0.0,
+        cursor.with_untracked(|cursor| {
+            let highlight_current_line = match cursor.mode {
+                CursorMode::Normal(_) | CursorMode::Insert(_) => true,
+                CursorMode::Visual { .. } => false,
+            };
+
+            if !is_local && highlight_current_line {
+                for (_, end) in cursor.regions_iter() {
+                    let line = view.line_of_offset(end);
+
+                    if let Some(info) = screen_lines
+                        .info
+                        .get(&line)
+                        .filter(|_| Some(line) != breakline)
+                    {
+                        let rect = Rect::from_origin_size(
+                            (viewport.x0, info.y as f64),
+                            (viewport.width(), line_height),
                         );
-                    }
-                }
-                CursorRender::Caret { x, width, line } => {
-                    if !hide_cursor.get_untracked() {
-                        if let Some(info) = screen_lines.info.get(&line) {
-                            cx.fill(
-                                &Rect::ZERO
-                                    .with_size(Size::new(width, line_height))
-                                    .with_origin(Point::new(x, info.y as f64)),
-                                config.get_color(LapceColor::EDITOR_CARET),
-                                0.0,
-                            );
-                        }
+
+                        cx.fill(&rect, current_line_color, 0.0);
                     }
                 }
             }
-        }
+
+            match cursor.mode {
+                CursorMode::Normal(_) => {}
+                CursorMode::Visual {
+                    start,
+                    end,
+                    mode: VisualMode::Normal,
+                } => {
+                    let start_offset = start.min(end);
+                    let end_offset =
+                        view.move_right(start.max(end), Mode::Insert, 1);
+
+                    self.paint_normal_selection(
+                        cx,
+                        selection_color,
+                        line_height,
+                        screen_lines,
+                        start_offset,
+                        end_offset,
+                        true,
+                    );
+                }
+                CursorMode::Visual {
+                    start,
+                    end,
+                    mode: VisualMode::Linewise,
+                } => {
+                    self.paint_linewise_selection(
+                        cx,
+                        selection_color,
+                        line_height,
+                        screen_lines,
+                        start.min(end),
+                        start.max(end),
+                    );
+                }
+                CursorMode::Visual {
+                    start,
+                    end,
+                    mode: VisualMode::Blockwise,
+                } => {
+                    self.paint_blockwise_selection(
+                        cx,
+                        selection_color,
+                        line_height,
+                        screen_lines,
+                        start.min(end),
+                        start.max(end),
+                        cursor.horiz,
+                    );
+                }
+                CursorMode::Insert(_) => {
+                    for (start, end) in
+                        cursor.regions_iter().filter(|(start, end)| start != end)
+                    {
+                        self.paint_normal_selection(
+                            cx,
+                            selection_color,
+                            line_height,
+                            screen_lines,
+                            start.min(end),
+                            start.max(end),
+                            false,
+                        );
+                    }
+                }
+            }
+
+            if is_active && !hide_cursor.get_untracked() {
+                for (_, end) in cursor.regions_iter() {
+                    let is_block = match cursor.mode {
+                        CursorMode::Normal(_) | CursorMode::Visual { .. } => true,
+                        CursorMode::Insert(_) => false,
+                    };
+                    let LineRegion { x, width, line } =
+                        cursor_caret(view, end, is_block);
+
+                    if let Some(info) = screen_lines.info.get(&line) {
+                        let rect = Rect::from_origin_size(
+                            (x, info.y as f64),
+                            (width, line_height),
+                        );
+                        cx.fill(&rect, caret_color, 0.0);
+                    }
+                }
+            }
+        });
     }
 
     fn paint_wave_line(
@@ -710,8 +887,8 @@ impl EditorView {
                 let left_col = phantom_text.col_after(left_col, false);
                 let right_col = phantom_text.col_after(right_col, false);
 
-                let x0 = view.line_point_of_line_col(line, left_col, 12).x;
-                let x1 = view.line_point_of_line_col(line, right_col, 12).x;
+                let x0 = view.line_point_of_line_col(line, left_col, FONT_SIZE).x;
+                let x1 = view.line_point_of_line_col(line, right_col, FONT_SIZE).x;
 
                 if start != end {
                     rects.push(
@@ -887,8 +1064,6 @@ impl EditorView {
         col: usize,
         before_cursor: bool,
     ) -> f64 {
-        const FONT_SIZE: usize = 12;
-
         let phantom_text = view.line_phantom_text(line);
         let col = phantom_text.col_after(col, before_cursor);
         view.line_point_of_line_col(line, col, FONT_SIZE).x
@@ -1268,241 +1443,60 @@ fn get_sticky_header_info(
 }
 
 #[derive(Clone, Debug)]
-pub enum CursorRender {
-    CurrentLine { line: usize },
-    Selection { x: f64, width: f64, line: usize },
-    Caret { x: f64, width: f64, line: usize },
+pub struct LineRegion {
+    pub x: f64,
+    pub width: f64,
+    pub line: usize,
 }
 
 pub fn cursor_caret(
     view: &EditorViewData,
     offset: usize,
     block: bool,
-) -> CursorRender {
+) -> LineRegion {
     let (line, col) = view.offset_to_line_col(offset);
+    let after_last_char = col == view.line_end_col(line, true);
     let phantom_text = view.line_phantom_text(line);
-    let col = phantom_text.col_after(col, block);
+    // The left edge of the block cursor goes after any inlay hint unless the cursor is after
+    // the final character on the line.
+    let col = phantom_text.col_after(col, block && !after_last_char);
     let doc = view.doc.get_untracked();
-    let col = doc
-        .preedit
-        .with_untracked(|preedit| {
-            preedit.as_ref().map(|preedit| {
-                if let Some((start, _)) = preedit.cursor.as_ref() {
-                    let preedit_line = doc
-                        .buffer
-                        .with_untracked(|b| b.line_of_offset(preedit.offset));
-                    if preedit_line == line {
-                        col + *start
-                    } else {
-                        col
-                    }
-                } else {
-                    col
-                }
+
+    let col = col
+        + doc
+            .preedit
+            .with_untracked(|preedit| {
+                preedit.as_ref().and_then(|preedit| {
+                    preedit.cursor.as_ref().and_then(|&(start, _)| {
+                        let preedit_line = doc
+                            .buffer
+                            .with_untracked(|b| b.line_of_offset(preedit.offset));
+
+                        (preedit_line == line).then_some(start)
+                    })
+                })
             })
-        })
-        .unwrap_or(col);
+            .unwrap_or(0);
 
-    let x0 = view.line_point_of_line_col(line, col, 12).x;
     if block {
-        let right_offset = view.move_right(offset, Mode::Insert, 1);
-        let (_, right_col) = view.offset_to_line_col(right_offset);
-        let x1 = view.line_point_of_line_col(line, right_col, 12).x;
+        let x0 = view.line_point_of_line_col(line, col, FONT_SIZE).x;
 
-        let width = if x1 > x0 { x1 - x0 } else { 7.0 };
-        CursorRender::Caret { x: x0, width, line }
+        let width = if after_last_char {
+            CHAR_WIDTH
+        } else {
+            let x1 = view.line_point_of_line_col(line, col + 1, FONT_SIZE).x;
+            x1 - x0
+        };
+
+        LineRegion { x: x0, width, line }
     } else {
-        CursorRender::Caret {
-            x: x0 - 1.0,
+        let x = view.line_point_of_line_col(line, col, FONT_SIZE).x;
+        LineRegion {
+            x: x - 1.0,
             width: 2.0,
             line,
         }
     }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn visual_cursor(
-    view: &EditorViewData,
-    start: usize,
-    end: usize,
-    mode: &VisualMode,
-    horiz: Option<&ColPosition>,
-    char_width: f64,
-    is_active: bool,
-    screen_lines: &ScreenLines,
-) -> Vec<CursorRender> {
-    let (start_line, start_col) = view.offset_to_line_col(start.min(end));
-    let (end_line, end_col) = view.offset_to_line_col(start.max(end));
-    let (cursor_line, _) = view.offset_to_line_col(end);
-
-    let mut renders = Vec::new();
-
-    for line in &screen_lines.lines {
-        let line = *line;
-        if line < start_line {
-            continue;
-        }
-
-        if line > end_line {
-            break;
-        }
-
-        let left_col = match mode {
-            VisualMode::Normal => {
-                if start_line == line {
-                    start_col
-                } else {
-                    0
-                }
-            }
-            VisualMode::Linewise => 0,
-            VisualMode::Blockwise => {
-                let max_col = view.line_end_col(line, false);
-                let left = start_col.min(end_col);
-                if left > max_col {
-                    continue;
-                }
-                left
-            }
-        };
-
-        let (right_col, line_end) = match mode {
-            VisualMode::Normal => {
-                if line == end_line {
-                    let max_col = view.line_end_col(line, true);
-
-                    let end_offset = view.move_right(
-                        start.max(end),
-                        Mode::Visual(VisualMode::Normal),
-                        1,
-                    );
-                    let (_, end_col) = view.offset_to_line_col(end_offset);
-
-                    (end_col.min(max_col), false)
-                } else {
-                    (view.line_end_col(line, true), true)
-                }
-            }
-            VisualMode::Linewise => (view.line_end_col(line, true), true),
-            VisualMode::Blockwise => {
-                let max_col = view.line_end_col(line, true);
-                let right = match horiz.as_ref() {
-                    Some(&ColPosition::End) => max_col,
-                    _ => {
-                        let end_offset = view.move_right(
-                            start.max(end),
-                            Mode::Visual(VisualMode::Normal),
-                            1,
-                        );
-                        let (_, end_col) = view.offset_to_line_col(end_offset);
-                        end_col.max(start_col).min(max_col)
-                    }
-                };
-                (right, false)
-            }
-        };
-
-        let phantom_text = view.line_phantom_text(line);
-        let left_col = phantom_text.col_after(left_col, false);
-        let right_col = phantom_text.col_after(right_col, false);
-        let x0 = view.line_point_of_line_col(line, left_col, 12).x;
-        let mut x1 = view.line_point_of_line_col(line, right_col, 12).x;
-        if line_end {
-            x1 += char_width;
-        }
-
-        renders.push(CursorRender::Selection {
-            x: x0,
-            width: x1 - x0,
-            line,
-        });
-
-        if is_active && line == cursor_line {
-            let caret = cursor_caret(view, end, true);
-            renders.push(caret);
-        }
-    }
-
-    renders
-}
-
-fn insert_cursor(
-    view: &EditorViewData,
-    selection: &Selection,
-    char_width: f64,
-    is_active: bool,
-    screen_lines: &ScreenLines,
-) -> Vec<CursorRender> {
-    if screen_lines.lines.is_empty() {
-        return Vec::new();
-    }
-    let start_line = *screen_lines.lines.first().unwrap();
-    let end_line = *screen_lines.lines.last().unwrap();
-    let start = view.offset_of_line(start_line);
-    let end = view.offset_of_line(end_line + 1);
-    let regions = selection.regions_in_range(start, end);
-
-    let mut renders = Vec::new();
-
-    for region in regions {
-        let cursor_offset = region.end;
-        let (cursor_line, _) = view.offset_to_line_col(cursor_offset);
-        let start = region.start;
-        let end = region.end;
-        let (start_line, start_col) = view.offset_to_line_col(start.min(end));
-        let (end_line, end_col) = view.offset_to_line_col(start.max(end));
-        for line in &screen_lines.lines {
-            let line = *line;
-            if line < start_line {
-                continue;
-            }
-
-            if line > end_line {
-                break;
-            }
-
-            let left_col = match line {
-                _ if line == start_line => start_col,
-                _ => 0,
-            };
-            let (right_col, line_end) = match line {
-                _ if line == end_line => {
-                    let max_col = view.line_end_col(line, true);
-                    (end_col.min(max_col), false)
-                }
-                _ => (view.line_end_col(line, true), true),
-            };
-
-            // Shift it by the inlay hints
-            let phantom_text = view.line_phantom_text(line);
-            let left_col = phantom_text.col_after(left_col, false);
-            let right_col = phantom_text.col_after(right_col, false);
-
-            let x0 = view.line_point_of_line_col(line, left_col, 12).x;
-            let mut x1 = view.line_point_of_line_col(line, right_col, 12).x;
-            if line_end {
-                x1 += char_width;
-            }
-
-            if line == cursor_line {
-                renders.push(CursorRender::CurrentLine { line });
-            }
-
-            if start != end {
-                renders.push(CursorRender::Selection {
-                    x: x0,
-                    width: x1 - x0,
-                    line,
-                });
-            }
-
-            if is_active && line == cursor_line {
-                let caret = cursor_caret(view, cursor_offset, false);
-                renders.push(caret);
-            }
-        }
-    }
-    renders
 }
 
 pub fn editor_container_view(
@@ -2082,45 +2076,39 @@ fn editor_content(
         let cursor = cursor.get();
         let offset = cursor.offset();
         editor.view.doc.track();
-        let caret = cursor_caret(&editor.view, offset, !cursor.is_insert());
+        editor.view.kind.track();
+        let LineRegion { x, width, line } =
+            cursor_caret(&editor.view, offset, !cursor.is_insert());
         let config = config.get_untracked();
         let line_height = config.editor.line_height();
-        if let CursorRender::Caret { x, width, line } = caret {
-            let rect = Size::new(width, line_height as f64)
-                .to_rect()
-                .with_origin(Point::new(
-                    x,
-                    (editor.view.visual_line(line) * line_height) as f64,
-                ))
-                .inflate(10.0, 0.0);
+        let rect = Rect::from_origin_size(
+            (x, (editor.view.visual_line(line) * line_height) as f64),
+            (width, line_height as f64),
+        )
+        .inflate(10.0, 0.0);
 
-            let viewport = viewport.get_untracked();
-            let smallest_distance = (viewport.y0 - rect.y0)
-                .abs()
-                .min((viewport.y1 - rect.y0).abs())
-                .min((viewport.y0 - rect.y1).abs())
-                .min((viewport.y1 - rect.y1).abs());
-            let biggest_distance = (viewport.y0 - rect.y0)
-                .abs()
-                .max((viewport.y1 - rect.y0).abs())
-                .max((viewport.y0 - rect.y1).abs())
-                .max((viewport.y1 - rect.y1).abs());
-            let jump_to_middle = biggest_distance > viewport.height()
-                && smallest_distance > viewport.height() / 2.0;
+        let viewport = viewport.get_untracked();
+        let smallest_distance = (viewport.y0 - rect.y0)
+            .abs()
+            .min((viewport.y1 - rect.y0).abs())
+            .min((viewport.y0 - rect.y1).abs())
+            .min((viewport.y1 - rect.y1).abs());
+        let biggest_distance = (viewport.y0 - rect.y0)
+            .abs()
+            .max((viewport.y1 - rect.y0).abs())
+            .max((viewport.y0 - rect.y1).abs())
+            .max((viewport.y1 - rect.y1).abs());
+        let jump_to_middle = biggest_distance > viewport.height()
+            && smallest_distance > viewport.height() / 2.0;
 
-            if jump_to_middle {
-                rect.inflate(0.0, viewport.height() / 2.0)
-            } else {
-                let mut rect = rect;
-                rect.y0 -= (config.editor.cursor_surrounding_lines * line_height)
-                    as f64
-                    + sticky_header_height.get_untracked();
-                rect.y1 +=
-                    (config.editor.cursor_surrounding_lines * line_height) as f64;
-                rect
-            }
+        if jump_to_middle {
+            rect.inflate(0.0, viewport.height() / 2.0)
         } else {
-            Rect::ZERO
+            let mut rect = rect;
+            rect.y0 -= (config.editor.cursor_surrounding_lines * line_height) as f64
+                + sticky_header_height.get_untracked();
+            rect.y1 += (config.editor.cursor_surrounding_lines * line_height) as f64;
+            rect
         }
     })
     .style(|s| s.absolute().size_pct(100.0, 100.0))
