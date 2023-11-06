@@ -2,7 +2,7 @@ use std::{collections::HashSet, path::Path, str::FromStr};
 
 use anyhow::Result;
 use once_cell::sync::Lazy;
-use strum_macros::{AsRefStr, Display, EnumMessage, EnumString};
+use strum_macros::{AsRefStr, AsStaticStr, Display, EnumMessage, EnumString};
 use tracing::{debug, error};
 use tree_sitter::TreeCursor;
 
@@ -140,6 +140,7 @@ struct CommentProperties {
     Debug,
     Display,
     AsRefStr,
+    AsStaticStr,
     EnumString,
     EnumMessage,
     Default,
@@ -1557,9 +1558,10 @@ impl LapceLanguage {
     pub fn languages() -> Vec<&'static str> {
         let mut langs = vec![];
         for l in LANGUAGES {
-            if let Some(lang) = strum::EnumMessage::get_message(&l.id) {
-                langs.push(lang)
-            }
+            langs.push(
+                strum::EnumMessage::get_message(&l.id)
+                    .unwrap_or(strum::AsStaticRef::as_static(&l.id)),
+            )
         }
         langs
     }
@@ -1577,6 +1579,11 @@ impl LapceLanguage {
             self
         );
         l
+    }
+
+    pub fn name(&self) -> &'static str {
+        strum::EnumMessage::get_message(self)
+            .unwrap_or(strum::AsStaticRef::as_static(self))
     }
 
     fn tree_sitter(&self) -> Option<TreeSitterProperties> {

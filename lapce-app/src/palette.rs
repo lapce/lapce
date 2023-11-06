@@ -841,18 +841,17 @@ impl PaletteData {
             .iter()
             .map(|lang| PaletteItem {
                 content: PaletteItemContent::Language {
-                    name: lang.to_owned().to_owned(),
+                    name: lang.to_string(),
                 },
-                filter_text: lang.to_owned().to_owned(),
+                filter_text: lang.to_string(),
                 score: 0,
                 indices: Vec::new(),
             })
             .collect();
         if let Some(editor) = self.main_split.active_editor.get_untracked() {
             let doc = editor.view.doc.get_untracked();
-            let language = doc.syntax.with_untracked(|syntax| {
-                syntax.language.get_message().unwrap_or("")
-            });
+            let language =
+                doc.syntax.with_untracked(|syntax| syntax.language.name());
             self.preselect_matching(&items, language);
         }
         self.items.set(items);

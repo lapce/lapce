@@ -365,9 +365,9 @@ pub fn status(
             let language_info = label(move || {
                 if let Some(editor) = editor.get() {
                     let doc = editor.view.doc.get_untracked();
-                    doc.syntax.with(|s| s.language.to_string())
+                    doc.syntax.with(|s| s.language.name())
                 } else {
-                    String::new()
+                    "unknown"
                 }
             })
             .on_click(move |_| {
