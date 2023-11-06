@@ -1,18 +1,21 @@
-use std::rc::Rc;
+use std::{path::Path, rc::Rc};
 
 use floem::{
     cosmic_text::Style as FontStyle,
     event::{Event, EventListener},
     peniko::Color,
     reactive::{create_rw_signal, RwSignal},
-    style::{CursorStyle, Style},
+    style::{AlignItems, CursorStyle, Style},
     view::View,
     views::{
-        container, label, list, scroll, stack, svg, virtual_list, Decorators,
-        VirtualListDirection, VirtualListItemSize,
+        container, container_box, label, list, scroll, stack, svg, virtual_list,
+        Decorators, VirtualListDirection, VirtualListItemSize,
     },
     EventPropagation,
 };
+use lapce_core::selection::Selection;
+use lapce_rpc::file::FileNodeViewData;
+use lapce_xi_rope::Rope;
 
 use super::{data::FileExplorerData, node::FileNodeVirtualList};
 use crate::{
@@ -20,9 +23,10 @@ use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons},
     editor_tab::{EditorTabChild, EditorTabData},
-    panel::{position::PanelPosition, view::panel_header},
+    panel::{kind::PanelKind, position::PanelPosition, view::panel_header},
     plugin::PluginData,
-    window_tab::WindowTabData,
+    text_input::text_input,
+    window_tab::{Focus, WindowTabData},
 };
 
 pub fn file_explorer_panel(
@@ -54,6 +58,91 @@ pub fn file_explorer_panel(
     })
 }
 
+fn file_node_text_view(
+    data: FileExplorerData,
+    node: FileNodeViewData,
+    path: &Path,
+) -> impl View {
+    let ui_line_height = data.common.ui_line_height;
+
+    let view = if node.is_renaming {
+        let rename_editor_data = data.rename_editor_data.clone();
+        let text_input_file_explorer_data = data.clone();
+        let focus = data.common.focus;
+        let config = data.common.config;
+
+        let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+        // Start with the part of the file or directory name before the extension
+        // selected.
+        let selection_end = {
+            let without_leading_dot =
+                file_name.strip_prefix('.').unwrap_or(&file_name);
+
+            without_leading_dot.find('.').unwrap_or(file_name.len())
+        };
+
+        let doc = data.rename_editor_data.view.doc.get_untracked();
+        doc.reload(Rope::from(&file_name), true);
+        rename_editor_data
+            .cursor
+            .update(|cursor| cursor.set_insert(Selection::region(0, selection_end)));
+
+        container_box({
+            let text_input_view =
+                text_input(rename_editor_data.clone(), move || {
+                    focus.with_untracked(|focus| {
+                        focus == &Focus::Panel(PanelKind::FileExplorer)
+                    })
+                })
+                .on_event_stop(EventListener::FocusLost, move |_| {
+                    let new_relative_path: String =
+                        rename_editor_data.view.text().into();
+
+                    data.finish_rename(new_relative_path.as_ref());
+                })
+                .on_event(EventListener::KeyDown, move |event| {
+                    if let Event::KeyDown(event) = event {
+                        let keypress =
+                            rename_editor_data.common.keypress.get_untracked();
+                        if keypress.key_down(event, &text_input_file_explorer_data) {
+                            EventPropagation::Stop
+                        } else {
+                            EventPropagation::Continue
+                        }
+                    } else {
+                        EventPropagation::Continue
+                    }
+                })
+                .style(move |s| {
+                    s.flex_grow(1.0)
+                        .height(ui_line_height.get())
+                        .padding(0.0)
+                        .margin(0.0)
+                        .border_radius(6.0)
+                        .border(1.0)
+                        .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                });
+
+            let text_input_id = text_input_view.id();
+            text_input_id.request_focus();
+
+            text_input_view
+        })
+    } else {
+        container_box(
+            label(move || {
+                node.path
+                    .file_name()
+                    .map(|f| f.to_string_lossy().to_string())
+                    .unwrap_or_default()
+            })
+            .style(move |s| s.flex_grow(1.0).height(ui_line_height.get())),
+        )
+    };
+
+    view.style(|s| s.flex_grow(1.0).padding(0.0).margin(0.0))
+}
+
 fn new_file_node_view(data: FileExplorerData) -> impl View {
     let root = data.root;
     let ui_line_height = data.common.ui_line_height;
@@ -61,20 +150,33 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
     virtual_list(
         VirtualListDirection::Vertical,
         VirtualListItemSize::Fixed(Box::new(move || ui_line_height.get())),
-        move || FileNodeVirtualList(root.get()),
-        move |node| (node.path.clone(), node.is_dir, node.open, node.level),
+        move || FileNodeVirtualList::new(root.get(), data.rename_path.get()),
+        move |node| {
+            (
+                node.path.clone(),
+                node.is_dir,
+                node.open,
+                node.is_renaming,
+                node.level,
+            )
+        },
         move |node| {
             let level = node.level;
             let data = data.clone();
+            let click_data = data.clone();
             let double_click_data = data.clone();
+            let secondary_click_data = data.clone();
             let aux_click_data = data.clone();
             let path = node.path.clone();
             let click_path = node.path.clone();
             let double_click_path = node.path.clone();
+            let secondary_click_path = node.path.clone();
             let aux_click_path = path.clone();
             let open = node.open;
             let is_dir = node.is_dir;
-            stack((
+            let is_renaming = node.is_renaming;
+
+            let view = stack((
                 svg(move || {
                     let config = config.get();
                     let svg_str = match open {
@@ -92,7 +194,10 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                     } else {
                         Color::TRANSPARENT
                     };
-                    s.size(size, size).margin_left(10.0).color(color)
+                    s.size(size, size)
+                        .flex_shrink(0.0)
+                        .margin_left(10.0)
+                        .color(color)
                 }),
                 {
                     let path = path.clone();
@@ -114,6 +219,7 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                         let size = config.ui.icon_size() as f32;
 
                         s.size(size, size)
+                            .flex_shrink(0.0)
                             .margin_horiz(6.0)
                             .apply_if(is_dir, |s| {
                                 s.color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
@@ -126,45 +232,46 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                             })
                     })
                 },
-                label(move || {
-                    node.path
-                        .file_name()
-                        .map(|f| f.to_string_lossy().to_string())
-                        .unwrap_or_default()
-                }),
+                file_node_text_view(data, node, &path),
             ))
             .style(move |s| {
-                s.items_center()
-                    .padding_right(10.0)
+                s.padding_right(5.0)
                     .padding_left((level * 10) as f32)
-                    .min_width_pct(100.0)
+                    .align_items(AlignItems::Center)
                     .hover(|s| {
                         s.background(
                             config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
                         )
                         .cursor(CursorStyle::Pointer)
                     })
-            })
-            .on_click_stop(move |_| {
-                data.click(&click_path);
-            })
-            .on_double_click(move |_| {
-                if double_click_data.double_click(&double_click_path) {
-                    EventPropagation::Stop
-                } else {
-                    EventPropagation::Continue
-                }
-            })
-            .on_event_stop(EventListener::PointerDown, move |event| {
-                if let Event::PointerDown(pointer_event) = event {
-                    if pointer_event.button.is_auxiliary() {
-                        aux_click_data.middle_click(&aux_click_path);
-                    }
-                }
-            })
+            });
+
+            if !is_renaming {
+                view.on_click_stop(move |_| {
+                    click_data.click(&click_path);
+                })
+                .on_double_click(move |_| {
+                    double_click_data.double_click(&double_click_path)
+                })
+                .on_secondary_click_stop(move |_| {
+                    secondary_click_data.secondary_click(&secondary_click_path);
+                })
+                .on_event_stop(
+                    EventListener::PointerDown,
+                    move |event| {
+                        if let Event::PointerDown(pointer_event) = event {
+                            if pointer_event.button.is_auxiliary() {
+                                aux_click_data.middle_click(&aux_click_path);
+                            }
+                        }
+                    },
+                )
+            } else {
+                view
+            }
         },
     )
-    .style(|s| s.flex_col().min_width_pct(100.0))
+    .style(|s| s.flex_col().align_items(AlignItems::Stretch).width_full())
 }
 
 fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {

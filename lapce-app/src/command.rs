@@ -524,6 +524,13 @@ pub enum InternalCommand {
     OpenFileChanges {
         path: PathBuf,
     },
+    StartRenameFile {
+        path: PathBuf,
+    },
+    FinishRenameFile {
+        current_path: PathBuf,
+        new_path: PathBuf,
+    },
     GoToLocation {
         location: EditorLocation,
     },

@@ -52,6 +52,7 @@ pub struct FileNodeViewData {
     pub path: PathBuf,
     pub is_dir: bool,
     pub open: bool,
+    pub is_renaming: bool,
     pub level: usize,
 }
 
@@ -223,6 +224,7 @@ impl FileNodeItem {
     pub fn append_view_slice(
         &self,
         view_items: &mut Vec<FileNodeViewData>,
+        rename_path: Option<&Path>,
         min: usize,
         max: usize,
         current: usize,
@@ -241,13 +243,21 @@ impl FileNodeItem {
                 path: self.path.clone(),
                 is_dir: self.is_dir,
                 open: self.open,
+                is_renaming: rename_path == Some(&self.path),
                 level,
             });
         }
 
         if self.open {
             for item in self.sorted_children() {
-                i = item.append_view_slice(view_items, min, max, i + 1, level + 1);
+                i = item.append_view_slice(
+                    view_items,
+                    rename_path,
+                    min,
+                    max,
+                    i + 1,
+                    level + 1,
+                );
                 if i > max {
                     return i;
                 }

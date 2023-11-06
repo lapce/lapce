@@ -1296,6 +1296,19 @@ impl WindowTabData {
             InternalCommand::OpenFileChanges { path } => {
                 self.main_split.open_file_changes(path);
             }
+            InternalCommand::StartRenameFile { path } => {
+                self.file_explorer.rename_path.set(Some(path));
+                self.file_explorer.root.update(|_| {});
+            }
+            InternalCommand::FinishRenameFile {
+                current_path,
+                new_path,
+            } => {
+                self.file_explorer.rename_path.set(None);
+                self.common
+                    .proxy
+                    .rename_path(current_path, new_path, |_| {})
+            }
             InternalCommand::GoToLocation { location } => {
                 self.main_split.go_to_location(location, None);
             }
