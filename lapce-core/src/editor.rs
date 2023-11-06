@@ -117,9 +117,11 @@ impl Editor {
                         None
                     };
 
-                    // when text is selected, and [,{,(,'," is inserted
+                    // when text is selected, and [,{,(,'," is inserted and
+                    // when auto_closing_matching_pairs is enabled
                     // wrap the text with that char and its corresponding closing pair
                     if region.start != region.end
+                        && auto_closing_matching_pairs
                         && (matching_pair_type == Some(true)
                             || c == '"'
                             || c == '\'')
