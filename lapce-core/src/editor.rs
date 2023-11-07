@@ -86,6 +86,7 @@ impl Editor {
         s: &str,
         syntax: &Syntax,
         auto_closing_matching_pairs: bool,
+        auto_surround: bool,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let mut deltas = Vec::new();
         if let CursorMode::Insert(selection) = &cursor.mode {
@@ -117,11 +118,10 @@ impl Editor {
                         None
                     };
 
-                    // when text is selected, and [,{,(,'," is inserted and
-                    // when auto_closing_matching_pairs is enabled
+                    // when text is selected, and [,{,(,'," is inserted
                     // wrap the text with that char and its corresponding closing pair
                     if region.start != region.end
-                        && auto_closing_matching_pairs
+                        && auto_surround
                         && (matching_pair_type == Some(true)
                             || c == '"'
                             || c == '\'')
@@ -1654,7 +1654,14 @@ mod test {
         let mut cursor =
             Cursor::new(CursorMode::Insert(Selection::caret(1)), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "e", &Syntax::plaintext(), true);
+        Editor::insert(
+            &mut cursor,
+            &mut buffer,
+            "e",
+            &Syntax::plaintext(),
+            true,
+            true,
+        );
         assert_eq!("aebc", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1666,7 +1673,14 @@ mod test {
         selection.add_region(SelRegion::caret(5));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "i", &Syntax::plaintext(), true);
+        Editor::insert(
+            &mut cursor,
+            &mut buffer,
+            "i",
+            &Syntax::plaintext(),
+            true,
+            true,
+        );
         assert_eq!("aibc\neifg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1678,13 +1692,41 @@ mod test {
         selection.add_region(SelRegion::caret(5));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "i", &Syntax::plaintext(), true);
+        Editor::insert(
+            &mut cursor,
+            &mut buffer,
+            "i",
+            &Syntax::plaintext(),
+            true,
+            true,
+        );
         assert_eq!("aibc\neifg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "j", &Syntax::plaintext(), true);
+        Editor::insert(
+            &mut cursor,
+            &mut buffer,
+            "j",
+            &Syntax::plaintext(),
+            true,
+            true,
+        );
         assert_eq!("aijbc\neijfg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "{", &Syntax::plaintext(), true);
+        Editor::insert(
+            &mut cursor,
+            &mut buffer,
+            "{",
+            &Syntax::plaintext(),
+            true,
+            true,
+        );
         assert_eq!("aij{bc\neij{fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, " ", &Syntax::plaintext(), true);
+        Editor::insert(
+            &mut cursor,
+            &mut buffer,
+            " ",
+            &Syntax::plaintext(),
+            true,
+            true,
+        );
         assert_eq!("aij{ bc\neij{ fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1696,9 +1738,23 @@ mod test {
         selection.add_region(SelRegion::caret(6));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "{", &Syntax::plaintext(), true);
+        Editor::insert(
+            &mut cursor,
+            &mut buffer,
+            "{",
+            &Syntax::plaintext(),
+            true,
+            true,
+        );
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "}", &Syntax::plaintext(), true);
+        Editor::insert(
+            &mut cursor,
+            &mut buffer,
+            "}",
+            &Syntax::plaintext(),
+            true,
+            true,
+        );
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1709,7 +1765,14 @@ mod test {
         selection.add_region(SelRegion::new(0, 4, None));
         selection.add_region(SelRegion::new(5, 9, None));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
-        Editor::insert(&mut cursor, &mut buffer, "{", &Syntax::plaintext(), true);
+        Editor::insert(
+            &mut cursor,
+            &mut buffer,
+            "{",
+            &Syntax::plaintext(),
+            true,
+            true,
+        );
         assert_eq!("{a bc}\n{e fg}\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1721,9 +1784,23 @@ mod test {
         selection.add_region(SelRegion::caret(6));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "{", &Syntax::plaintext(), false);
+        Editor::insert(
+            &mut cursor,
+            &mut buffer,
+            "{",
+            &Syntax::plaintext(),
+            false,
+            false,
+        );
         assert_eq!("a{ bc\ne{ fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "}", &Syntax::plaintext(), false);
+        Editor::insert(
+            &mut cursor,
+            &mut buffer,
+            "}",
+            &Syntax::plaintext(),
+            false,
+            false,
+        );
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1865,7 +1942,14 @@ mod test {
         selection.add_region(SelRegion::caret(12));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "(", &Syntax::plaintext(), true);
+        Editor::insert(
+            &mut cursor,
+            &mut buffer,
+            "(",
+            &Syntax::plaintext(),
+            true,
+            true,
+        );
 
         assert_eq!(
             "() 123() 567() 9ab() def",

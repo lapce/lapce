@@ -393,6 +393,7 @@ impl Document {
                         s,
                         syntax,
                         config.editor.auto_closing_matching_pairs,
+                        config.editor.auto_surround,
                     )
                 })
                 .unwrap()
