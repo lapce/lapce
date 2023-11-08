@@ -2730,7 +2730,9 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
                     )
                     .style(move |s| {
                         let config = config.get();
-                        s.width(config.editor.line_height() as f32)
+                        let width = config.editor.line_height() as f32;
+                        s.width(width)
+                            .min_width(width)
                             .height_full()
                             .align_items(Some(AlignItems::Center))
                             .font_weight(Weight::BOLD)
@@ -2749,6 +2751,7 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
                     .style(move |s| {
                         let config = config.get();
                         s.padding_horiz(5.0)
+                            .min_width(0.0)
                             .align_items(Some(AlignItems::Center))
                             .size_full()
                             .apply_if(active.get() == i, |s| {

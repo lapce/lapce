@@ -38,7 +38,7 @@ use crate::{
         CommandExecuted, CommandKind, InternalCommand, LapceCommand, WindowCommand,
     },
     db::LapceDb,
-    debug::{run_configs, RunDebugMode},
+    debug::{RunDebugConfigs, RunDebugMode},
     editor::{
         location::{EditorLocation, EditorPosition},
         EditorData,
@@ -54,6 +54,8 @@ use crate::{
 
 pub mod item;
 pub mod kind;
+
+const DEFAULT_RUN_TOML: &str = include_str!("../../defaults/run.toml");
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum PaletteStatus {
@@ -736,8 +738,8 @@ impl PaletteData {
         self.items.set(items);
     }
 
-    fn get_run_configs(&self) {
-        let configs = run_configs(self.common.workspace.path.as_deref());
+    fn set_run_configs(&self, content: String) {
+        let configs: Option<RunDebugConfigs> = toml::from_str(&content).ok();
         if configs.is_none() {
             if let Some(path) = self.workspace.path.as_ref() {
                 let path = path.join(".lapce").join("run.toml");
@@ -746,8 +748,8 @@ impl PaletteData {
                     .send(InternalCommand::OpenFile { path });
             }
         }
-        let executed_run_configs = self.executed_run_configs.borrow();
 
+        let executed_run_configs = self.executed_run_configs.borrow();
         let mut items = Vec::new();
         if let Some(configs) = configs.as_ref() {
             for config in &configs.configs {
@@ -795,6 +797,35 @@ impl PaletteData {
         items.sort_by_key(|(executed, _item)| std::cmp::Reverse(executed.copied()));
         self.items
             .set(items.into_iter().map(|(_, item)| item).collect());
+    }
+
+    fn get_run_configs(&self) {
+        if let Some(workspace) = self.common.workspace.path.as_deref() {
+            let run_toml = workspace.join(".lapce").join("run.toml");
+            let (doc, new_doc) = self.main_split.get_doc(run_toml.clone());
+            if !new_doc {
+                let content = doc.buffer.with_untracked(|b| b.to_string());
+                self.set_run_configs(content);
+            } else {
+                let loaded = doc.loaded;
+                let palette = self.clone();
+                self.common.scope.create_effect(move |prev_loaded| {
+                    if prev_loaded == Some(true) {
+                        return true;
+                    }
+
+                    let loaded = loaded.get();
+                    if loaded {
+                        let content = doc.buffer.with_untracked(|b| b.to_string());
+                        if content.is_empty() {
+                            doc.reload(Rope::from(DEFAULT_RUN_TOML), false);
+                        }
+                        palette.set_run_configs(content);
+                    }
+                    loaded
+                });
+            }
+        }
     }
 
     fn get_color_themes(&self) {

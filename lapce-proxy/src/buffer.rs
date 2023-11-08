@@ -36,7 +36,7 @@ impl Buffer {
                     std::io::ErrorKind::PermissionDenied => {
                         ("Permission Denied".to_string(), true)
                     }
-                    std::io::ErrorKind::NotFound => ("Not Found".to_string(), false),
+                    std::io::ErrorKind::NotFound => ("".to_string(), false),
                     _ => ("Not Supported".to_string(), true),
                 },
                 None => ("Not Supported".to_string(), true),
