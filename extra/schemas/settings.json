@@ -221,6 +221,9 @@
                 "auto-closing-matching-pairs": {
                     "type": "boolean"
                 },
+                "auto-surround": {
+                    "type": "boolean"
+                },
                 "hover-delay": {
                     "type": "integer"
                 },

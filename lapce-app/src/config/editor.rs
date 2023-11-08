@@ -64,6 +64,10 @@ pub struct EditorConfig {
     )]
     pub auto_closing_matching_pairs: bool,
     #[field_names(
+        desc = "Whether the editor should automatically surround selected text when typing quotes or brackets"
+    )]
+    pub auto_surround: bool,
+    #[field_names(
         desc = "How long (in ms) it should take before the hover information appears"
     )]
     pub hover_delay: u64,
