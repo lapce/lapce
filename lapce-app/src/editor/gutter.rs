@@ -5,7 +5,7 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
-    view::{ChangeFlags, View},
+    view::View,
     Renderer,
 };
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
@@ -115,37 +115,6 @@ impl View for EditorGutterView {
         self.id
     }
 
-    fn child(&self, _id: Id) -> Option<&dyn View> {
-        None
-    }
-
-    fn child_mut(&mut self, _id: Id) -> Option<&mut dyn View> {
-        None
-    }
-
-    fn children(&self) -> Vec<&dyn View> {
-        Vec::new()
-    }
-
-    fn children_mut(&mut self) -> Vec<&mut dyn View> {
-        Vec::new()
-    }
-
-    fn update(
-        &mut self,
-        _cx: &mut floem::context::UpdateCx,
-        _state: Box<dyn std::any::Any>,
-    ) -> ChangeFlags {
-        ChangeFlags::default()
-    }
-
-    fn layout(
-        &mut self,
-        cx: &mut floem::context::LayoutCx,
-    ) -> floem::taffy::prelude::Node {
-        cx.layout_node(self.id, false, |_| Vec::new())
-    }
-
     fn compute_layout(
         &mut self,
         cx: &mut floem::context::LayoutCx,
@@ -154,15 +123,6 @@ impl View for EditorGutterView {
             self.width = width;
         }
         None
-    }
-
-    fn event(
-        &mut self,
-        _cx: &mut floem::context::EventCx,
-        _id_path: Option<&[Id]>,
-        _event: floem::event::Event,
-    ) -> bool {
-        false
     }
 
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {

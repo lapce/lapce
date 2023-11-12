@@ -16,7 +16,7 @@ use floem::{
     },
     style::{CursorStyle, Style},
     taffy::prelude::Node,
-    view::{ChangeFlags, View},
+    view::View,
     views::{clip, container, empty, label, list, scroll, stack, svg, Decorators},
     Renderer,
 };
@@ -1091,33 +1091,14 @@ impl View for EditorView {
         self.id
     }
 
-    fn child(&self, _id: floem::id::Id) -> Option<&dyn View> {
-        None
-    }
-
-    fn child_mut(&mut self, _id: floem::id::Id) -> Option<&mut dyn View> {
-        None
-    }
-
-    fn children(&self) -> Vec<&dyn View> {
-        Vec::new()
-    }
-
-    fn children_mut(&mut self) -> Vec<&mut dyn View> {
-        Vec::new()
-    }
-
     fn update(
         &mut self,
         cx: &mut floem::context::UpdateCx,
         state: Box<dyn std::any::Any>,
-    ) -> floem::view::ChangeFlags {
+    ) {
         if let Ok(state) = state.downcast() {
             self.sticky_header_info = *state;
             cx.request_layout(self.id);
-            ChangeFlags::LAYOUT
-        } else {
-            ChangeFlags::default()
         }
     }
 
@@ -1160,15 +1141,6 @@ impl View for EditorView {
             self.viewport.set(viewport);
         }
         None
-    }
-
-    fn event(
-        &mut self,
-        _cx: &mut floem::context::EventCx,
-        _id_path: Option<&[floem::id::Id]>,
-        _event: Event,
-    ) -> bool {
-        false
     }
 
     fn paint(&mut self, cx: &mut PaintCx) {

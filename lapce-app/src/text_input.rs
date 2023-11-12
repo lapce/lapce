@@ -18,7 +18,7 @@ use floem::{
     },
     taffy::prelude::Node,
     unit::PxPct,
-    view::{ChangeFlags, View},
+    view::View,
     views::Decorators,
     Renderer,
 };
@@ -407,27 +407,11 @@ impl View for TextInput {
         self.id
     }
 
-    fn child(&self, _id: Id) -> Option<&dyn View> {
-        None
-    }
-
-    fn child_mut(&mut self, _id: Id) -> Option<&mut dyn View> {
-        None
-    }
-
-    fn children(&self) -> Vec<&dyn View> {
-        Vec::new()
-    }
-
-    fn children_mut(&mut self) -> Vec<&mut dyn View> {
-        Vec::new()
-    }
-
     fn update(
         &mut self,
         cx: &mut floem::context::UpdateCx,
         state: Box<dyn std::any::Any>,
-    ) -> ChangeFlags {
+    ) {
         if let Ok(state) = state.downcast() {
             match *state {
                 TextInputState::Content {
@@ -449,9 +433,13 @@ impl View for TextInput {
                 }
             }
             cx.request_layout(self.id);
-            ChangeFlags::LAYOUT
-        } else {
-            ChangeFlags::empty()
+        }
+    }
+
+    fn style(&mut self, cx: &mut floem::context::StyleCx<'_>) {
+        if self.style.read(cx) {
+            self.set_text_layout();
+            cx.app_state_mut().request_layout(self.id());
         }
     }
 
@@ -460,10 +448,6 @@ impl View for TextInput {
         cx: &mut floem::context::LayoutCx,
     ) -> floem::taffy::prelude::Node {
         cx.layout_node(self.id, true, |cx| {
-            if self.style.read(cx) {
-                self.set_text_layout();
-            }
-
             if self
                 .text_layout
                 .with_untracked(|text_layout| text_layout.is_none())

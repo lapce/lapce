@@ -158,7 +158,7 @@ pub fn about_popup(window_tab_data: Rc<WindowTabData>) -> impl View {
     })
 }
 
-fn exclusive_popup<V: View>(
+fn exclusive_popup<V: View + 'static>(
     window_tab_data: Rc<WindowTabData>,
     visibility: RwSignal<bool>,
     content: impl FnOnce() -> V,

@@ -171,22 +171,28 @@ impl AppData {
             .or_else(|| windows.iter().next().map(|(_, window)| window.clone()))
     }
 
+    fn default_window_config(&self) -> WindowConfig {
+        WindowConfig::default().themed(false).title("Lapce")
+    }
+
     pub fn new_window(&self) {
         let config = self
             .active_window()
             .map(|window| {
-                WindowConfig::default()
+                self.default_window_config()
                     .size(window.size.get_untracked())
                     .position(window.position.get_untracked() + (50.0, 50.0))
             })
             .or_else(|| {
                 let db: Arc<LapceDb> = use_context().unwrap();
                 db.get_window().ok().map(|info| {
-                    WindowConfig::default().size(info.size).position(info.pos)
+                    self.default_window_config()
+                        .size(info.size)
+                        .position(info.pos)
                 })
             })
             .unwrap_or_else(|| {
-                WindowConfig::default().size(Size::new(800.0, 600.0))
+                self.default_window_config().size(Size::new(800.0, 600.0))
             });
         let config = if cfg!(target_os = "macos")
             || self.config.get_untracked().core.custom_titlebar
@@ -195,7 +201,6 @@ impl AppData {
         } else {
             config
         };
-        let config = config.title("Lapce");
         let app_data = self.clone();
         floem::new_window(
             move |window_id| {
@@ -302,8 +307,10 @@ impl AppData {
 
                 pos += (50.0, 50.0);
 
-                let config =
-                    WindowConfig::default().size(info.size).position(info.pos);
+                let config = self
+                    .default_window_config()
+                    .size(info.size)
+                    .position(info.pos);
                 let config = if cfg!(target_os = "macos")
                     || self.config.get_untracked().core.custom_titlebar
                 {
@@ -321,8 +328,10 @@ impl AppData {
             // There were no dirs and no files specified, so we'll load the last windows
             if let Ok(app_info) = db.get_app() {
                 for info in app_info.windows {
-                    let config =
-                        WindowConfig::default().size(info.size).position(info.pos);
+                    let config = self
+                        .default_window_config()
+                        .size(info.size)
+                        .position(info.pos);
                     let config = if cfg!(target_os = "macos")
                         || self.config.get_untracked().core.custom_titlebar
                     {
@@ -353,7 +362,10 @@ impl AppData {
                 active_tab: 0,
                 workspaces: vec![LapceWorkspace::default()],
             };
-            let config = WindowConfig::default().size(info.size).position(info.pos);
+            let config = self
+                .default_window_config()
+                .size(info.size)
+                .position(info.pos);
             let config = if cfg!(target_os = "macos")
                 || self.config.get_untracked().core.custom_titlebar
             {

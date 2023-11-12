@@ -9,7 +9,7 @@ use floem::{
     reactive::create_effect,
     style::{FontFamily, FontSize, LineHeight, Style, TextColor},
     taffy::prelude::Node,
-    view::{ChangeFlags, View},
+    view::View,
     Renderer,
 };
 
@@ -167,27 +167,11 @@ impl View for FocusText {
         self.id
     }
 
-    fn child(&self, _id: floem::id::Id) -> Option<&dyn View> {
-        None
-    }
-
-    fn child_mut(&mut self, _id: floem::id::Id) -> Option<&mut dyn View> {
-        None
-    }
-
-    fn children(&self) -> Vec<&dyn View> {
-        Vec::new()
-    }
-
-    fn children_mut(&mut self) -> Vec<&mut dyn View> {
-        Vec::new()
-    }
-
     fn update(
         &mut self,
         cx: &mut floem::context::UpdateCx,
         state: Box<dyn std::any::Any>,
-    ) -> floem::view::ChangeFlags {
+    ) {
         if let Ok(state) = state.downcast() {
             match *state {
                 FocusTextState::Text(text) => {
@@ -202,9 +186,13 @@ impl View for FocusText {
             }
             self.set_text_layout();
             cx.request_layout(self.id());
-            ChangeFlags::LAYOUT
-        } else {
-            ChangeFlags::empty()
+        }
+    }
+
+    fn style(&mut self, cx: &mut floem::context::StyleCx<'_>) {
+        if self.style.read(cx) {
+            self.set_text_layout();
+            cx.app_state_mut().request_layout(self.id());
         }
     }
 
@@ -213,10 +201,6 @@ impl View for FocusText {
         cx: &mut floem::context::LayoutCx,
     ) -> floem::taffy::prelude::Node {
         cx.layout_node(self.id, true, |cx| {
-            if self.style.read(cx) {
-                self.set_text_layout();
-            }
-
             if self.text_layout.is_none() {
                 self.set_text_layout();
             }
@@ -286,15 +270,6 @@ impl View for FocusText {
         }
 
         None
-    }
-
-    fn event(
-        &mut self,
-        _cx: &mut floem::context::EventCx,
-        _id_path: Option<&[floem::id::Id]>,
-        _event: floem::event::Event,
-    ) -> bool {
-        false
     }
 
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
