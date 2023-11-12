@@ -195,7 +195,7 @@ impl AppData {
         } else {
             config
         };
-        let config = config.title("Lapce");
+        let config = config.title("Lapce").themed(false);
         let app_data = self.clone();
         floem::new_window(
             move |window_id| {
@@ -302,8 +302,10 @@ impl AppData {
 
                 pos += (50.0, 50.0);
 
-                let config =
-                    WindowConfig::default().size(info.size).position(info.pos);
+                let config = WindowConfig::default()
+                    .themed(false)
+                    .size(info.size)
+                    .position(info.pos);
                 let config = if cfg!(target_os = "macos")
                     || self.config.get_untracked().core.custom_titlebar
                 {
@@ -321,8 +323,10 @@ impl AppData {
             // There were no dirs and no files specified, so we'll load the last windows
             if let Ok(app_info) = db.get_app() {
                 for info in app_info.windows {
-                    let config =
-                        WindowConfig::default().size(info.size).position(info.pos);
+                    let config = WindowConfig::default()
+                        .themed(false)
+                        .size(info.size)
+                        .position(info.pos);
                     let config = if cfg!(target_os = "macos")
                         || self.config.get_untracked().core.custom_titlebar
                     {
@@ -353,7 +357,10 @@ impl AppData {
                 active_tab: 0,
                 workspaces: vec![LapceWorkspace::default()],
             };
-            let config = WindowConfig::default().size(info.size).position(info.pos);
+            let config = WindowConfig::default()
+                .themed(false)
+                .size(info.size)
+                .position(info.pos);
             let config = if cfg!(target_os = "macos")
                 || self.config.get_untracked().core.custom_titlebar
             {

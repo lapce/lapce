@@ -9,7 +9,7 @@ use floem::{
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{create_effect, ReadSignal, RwSignal},
-    view::{ChangeFlags, View},
+    view::View,
     Renderer,
 };
 use lapce_core::mode::Mode;
@@ -140,27 +140,11 @@ impl View for TerminalView {
         self.id
     }
 
-    fn child(&self, _id: Id) -> Option<&dyn View> {
-        None
-    }
-
-    fn child_mut(&mut self, _id: Id) -> Option<&mut dyn View> {
-        None
-    }
-
-    fn children(&self) -> Vec<&dyn View> {
-        Vec::new()
-    }
-
-    fn children_mut(&mut self) -> Vec<&mut dyn View> {
-        Vec::new()
-    }
-
     fn update(
         &mut self,
-        _cx: &mut floem::context::UpdateCx,
+        cx: &mut floem::context::UpdateCx,
         state: Box<dyn std::any::Any>,
-    ) -> ChangeFlags {
+    ) {
         if let Ok(state) = state.downcast() {
             match *state {
                 TerminalViewState::Config => {}
@@ -171,9 +155,7 @@ impl View for TerminalView {
                     self.raw = raw;
                 }
             }
-            ChangeFlags::PAINT
-        } else {
-            ChangeFlags::empty()
+            cx.app_state_mut().request_paint(self.id);
         }
     }
 
@@ -200,15 +182,6 @@ impl View for TerminalView {
         }
 
         None
-    }
-
-    fn event(
-        &mut self,
-        _cx: &mut floem::context::EventCx,
-        _id_path: Option<&[Id]>,
-        _event: floem::event::Event,
-    ) -> bool {
-        false
     }
 
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
