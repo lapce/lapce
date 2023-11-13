@@ -1130,7 +1130,7 @@ impl WindowTabData {
                 self.common.focus.set(Focus::Panel(PanelKind::Terminal));
             }
             OpenUIInspector => {
-                self.common.view_id.get().inspect();
+                self.common.view_id.get_untracked().inspect();
             }
 
             // ==== Source Control ====
