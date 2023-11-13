@@ -163,6 +163,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Reveal Active File in File Explorer")]
     RevealActiveFileInFileExplorer,
 
+    #[strum(serialize = "open_ui_inspector")]
+    #[strum(message = "Open Internal UI Inspector")]
+    OpenUIInspector,
+
     #[strum(serialize = "change_color_theme")]
     #[strum(message = "Change Color Theme")]
     ChangeColorTheme,
