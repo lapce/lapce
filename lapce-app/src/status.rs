@@ -364,7 +364,7 @@ pub fn status(
             let palette_clone = palette.clone();
             let language_info = label(move || {
                 if let Some(editor) = editor.get() {
-                    let doc = editor.view.doc.get_untracked();
+                    let doc = editor.view.doc.get();
                     doc.syntax.with(|s| s.language.name())
                 } else {
                     "unknown"
