@@ -77,29 +77,26 @@ pub fn source_control_panel(
                             .hover(|s| s.cursor(CursorStyle::Text))
                     });
                     let id = view.id();
-                    view.on_event(EventListener::PointerDown, move |event| {
+                    view.on_event_cont(EventListener::PointerDown, move |event| {
                         let event = event.clone().offset((10.0, 6.0));
                         if let Event::PointerDown(pointer_event) = event {
                             id.request_active();
                             editor.get_untracked().pointer_down(&pointer_event);
                         }
-                        false
                     })
-                    .on_event(EventListener::PointerMove, move |event| {
+                    .on_event_stop(EventListener::PointerMove, move |event| {
                         let event = event.clone().offset((10.0, 6.0));
                         if let Event::PointerMove(pointer_event) = event {
                             editor.get_untracked().pointer_move(&pointer_event);
                         }
-                        true
                     })
-                    .on_event(
+                    .on_event_stop(
                         EventListener::PointerUp,
                         move |event| {
                             let event = event.clone().offset((10.0, 6.0));
                             if let Event::PointerUp(pointer_event) = event {
                                 editor.get_untracked().pointer_up(&pointer_event);
                             }
-                            true
                         },
                     )
                 })
@@ -144,9 +141,8 @@ pub fn source_control_panel(
             {
                 let source_control = source_control.clone();
                 label(|| "Commit".to_string())
-                    .on_click(move |_| {
+                    .on_click_stop(move |_| {
                         source_control.commit();
-                        true
                     })
                     .style(move |s| {
                         let config = config.get();
@@ -181,11 +177,10 @@ pub fn source_control_panel(
         ))
         .style(|s| s.flex_col().size_pct(100.0, 100.0)),
     ))
-    .on_event(EventListener::PointerDown, move |_| {
+    .on_event_stop(EventListener::PointerDown, move |_| {
         if focus.get_untracked() != Focus::Panel(PanelKind::SourceControl) {
             focus.set(Focus::Panel(PanelKind::SourceControl));
         }
-        true
     })
     .style(|s| s.flex_col().size_pct(100.0, 100.0))
 }
@@ -226,13 +221,12 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
         stack((
             checkbox(move || checked, config)
                 .style(|s| s.hover(|s| s.cursor(CursorStyle::Pointer)))
-                .on_click(move |_| {
+                .on_click_stop(move |_| {
                     file_diffs.update(|diffs| {
                         if let Some((_, checked)) = diffs.get_mut(&full_path) {
                             *checked = !*checked;
                         }
                     });
-                    true
                 }),
             svg(move || config.get().file_svg(&path).0).style(move |s| {
                 let config = config.get();
@@ -297,13 +291,12 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                     .justify_end()
             }),
         ))
-        .on_click(move |_| {
+        .on_click_stop(move |_| {
             internal_command.send(InternalCommand::OpenFileChanges {
                 path: path_for_click.clone(),
             });
-            true
         })
-        .on_event(EventListener::PointerDown, move |event| {
+        .on_event_cont(EventListener::PointerDown, move |event| {
             let diff_for_menu = diff_for_menu.clone();
 
             let discard = move || {
@@ -322,7 +315,6 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                     show_context_menu(menu, None);
                 }
             }
-            false
         })
         .style(move |s| {
             let config = config.get();

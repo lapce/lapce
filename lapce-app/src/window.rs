@@ -1,6 +1,7 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::{
+    action::TimerToken,
     peniko::kurbo::{Point, Size},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope},
     window::WindowId,
@@ -8,9 +9,15 @@ use floem::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    app::AppCommand, command::WindowCommand, config::LapceConfig, db::LapceDb,
-    keypress::EventRef, listener::Listener, update::ReleaseInfo,
-    window_tab::WindowTabData, workspace::LapceWorkspace,
+    app::AppCommand,
+    command::{InternalCommand, WindowCommand},
+    config::LapceConfig,
+    db::LapceDb,
+    keypress::EventRef,
+    listener::Listener,
+    update::ReleaseInfo,
+    window_tab::WindowTabData,
+    workspace::LapceWorkspace,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,6 +32,21 @@ pub struct WindowInfo {
     pub pos: Point,
     pub maximised: bool,
     pub tabs: TabsInfo,
+}
+
+#[derive(Clone)]
+pub struct WindowCommonData {
+    pub window_command: Listener<WindowCommand>,
+    pub window_scale: RwSignal<f64>,
+    pub size: RwSignal<Size>,
+    pub num_window_tabs: Memo<usize>,
+    pub window_maximized: RwSignal<bool>,
+    pub window_tab_header_height: RwSignal<f64>,
+    pub latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
+    pub ime_allowed: RwSignal<bool>,
+    pub cursor_blink_timer: RwSignal<TimerToken>,
+    // the value to be update by curosr blinking
+    pub hide_cursor: RwSignal<bool>,
 }
 
 /// `WindowData` is the application model for a top-level window.
@@ -46,18 +68,13 @@ pub struct WindowData {
     pub num_window_tabs: Memo<usize>,
     /// The index of the active window tab.
     pub active: RwSignal<usize>,
-    pub window_command: Listener<WindowCommand>,
-    pub window_maximized: RwSignal<bool>,
     pub app_command: Listener<AppCommand>,
-    pub size: RwSignal<Size>,
-    pub window_tab_header_height: RwSignal<f64>,
     pub position: RwSignal<Point>,
     pub root_view_id: RwSignal<floem::id::Id>,
     pub window_scale: RwSignal<f64>,
-    pub latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
     pub config: RwSignal<Arc<LapceConfig>>,
-    pub ime_allowed: RwSignal<bool>,
     pub ime_enabled: RwSignal<bool>,
+    pub common: Rc<WindowCommonData>,
 }
 
 impl WindowData {
@@ -82,20 +99,25 @@ impl WindowData {
         let window_maximized = cx.create_rw_signal(false);
         let size = cx.create_rw_signal(Size::ZERO);
         let window_tab_header_height = cx.create_rw_signal(0.0);
+        let cursor_blink_timer = cx.create_rw_signal(TimerToken::INVALID);
+        let hide_cursor = cx.create_rw_signal(false);
+
+        let common = Rc::new(WindowCommonData {
+            window_command,
+            window_scale,
+            size,
+            num_window_tabs,
+            window_maximized,
+            window_tab_header_height,
+            latest_release,
+            ime_allowed,
+            cursor_blink_timer,
+            hide_cursor,
+        });
 
         for w in info.tabs.workspaces {
-            let window_tab = Rc::new(WindowTabData::new(
-                cx,
-                Arc::new(w),
-                window_command,
-                window_scale,
-                latest_release,
-                size,
-                num_window_tabs,
-                window_maximized,
-                window_tab_header_height,
-                ime_allowed,
-            ));
+            let window_tab =
+                Rc::new(WindowTabData::new(cx, Arc::new(w), common.clone()));
             window_tabs.update(|window_tabs| {
                 window_tabs.push_back((cx.create_rw_signal(0), window_tab));
             });
@@ -105,14 +127,7 @@ impl WindowData {
             let window_tab = Rc::new(WindowTabData::new(
                 cx,
                 Arc::new(LapceWorkspace::default()),
-                window_command,
-                window_scale,
-                latest_release,
-                size,
-                num_window_tabs,
-                window_maximized,
-                window_tab_header_height,
-                ime_allowed,
+                common.clone(),
             ));
             window_tabs.update(|window_tabs| {
                 window_tabs.push_back((cx.create_rw_signal(0), window_tab));
@@ -127,26 +142,34 @@ impl WindowData {
             scope: cx,
             window_tabs,
             num_window_tabs,
-            window_maximized,
             active,
-            window_command,
-            size,
-            window_tab_header_height,
             position,
             root_view_id,
             window_scale,
-            latest_release,
             app_command,
             config,
-            ime_allowed,
             ime_enabled: cx.create_rw_signal(false),
+            common,
         };
 
         {
             let window_data = window_data.clone();
-            window_data.window_command.listen(move |cmd| {
+            window_data.common.window_command.listen(move |cmd| {
                 window_data.run_window_command(cmd);
             });
+        }
+
+        {
+            cx.create_effect(move |_| {
+                let active = active.get();
+                let tab = window_tabs
+                    .with(|tabs| tabs.get(active).map(|(_, tab)| tab.clone()));
+                if let Some(tab) = tab {
+                    tab.common
+                        .internal_command
+                        .send(InternalCommand::ResetBlinkCursor);
+                }
+            })
         }
 
         window_data
@@ -178,14 +201,7 @@ impl WindowData {
                 let window_tab = Rc::new(WindowTabData::new(
                     self.scope,
                     Arc::new(workspace),
-                    self.window_command,
-                    self.window_scale,
-                    self.latest_release,
-                    self.size,
-                    self.num_window_tabs,
-                    self.window_maximized,
-                    self.window_tab_header_height,
-                    self.ime_allowed,
+                    self.common.clone(),
                 ));
                 self.window_tabs.update(|window_tabs| {
                     if window_tabs.is_empty() {
@@ -208,14 +224,7 @@ impl WindowData {
                 let window_tab = Rc::new(WindowTabData::new(
                     self.scope,
                     Arc::new(workspace),
-                    self.window_command,
-                    self.window_scale,
-                    self.latest_release,
-                    self.size,
-                    self.num_window_tabs,
-                    self.window_maximized,
-                    self.window_tab_header_height,
-                    self.ime_allowed,
+                    self.common.clone(),
                 ));
                 let active = self.active.get_untracked();
                 let active = self
@@ -321,7 +330,7 @@ impl WindowData {
             .map(|(_, t)| (*t.workspace).clone())
             .collect();
         WindowInfo {
-            size: self.size.get_untracked(),
+            size: self.common.size.get_untracked(),
             pos: self.position.get_untracked(),
             maximised: false,
             tabs: TabsInfo {

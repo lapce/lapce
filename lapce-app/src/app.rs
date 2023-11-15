@@ -37,6 +37,7 @@ use floem::{
         VirtualListVector,
     },
     window::{ResizeDirection, WindowConfig, WindowId},
+    EventPropagation,
 };
 use lapce_core::{
     command::{EditCommand, FocusCommand},
@@ -180,7 +181,7 @@ impl AppData {
             .active_window()
             .map(|window| {
                 self.default_window_config()
-                    .size(window.size.get_untracked())
+                    .size(window.common.size.get_untracked())
                     .position(window.position.get_untracked() + (50.0, 50.0))
             })
             .or_else(|| {
@@ -426,7 +427,7 @@ impl AppData {
         self.windows.update(|windows| {
             windows.insert(window_id, window_data.clone());
         });
-        let window_size = window_data.size;
+        let window_size = window_data.common.size;
         let position = window_data.position;
         let window_scale = window_data.window_scale;
         let app_command = window_data.app_command;
@@ -524,38 +525,34 @@ impl AppData {
                     if key_down_window_data.key_down(key_event) {
                         view_id.request_focus();
                     }
-                    true
+                    EventPropagation::Stop
                 } else {
-                    false
+                    EventPropagation::Continue
                 }
             })
             .on_event(EventListener::PointerDown, move |event| {
                 if let Event::PointerDown(pointer_event) = event {
                     window_data.key_down(pointer_event);
-                    true
+                    EventPropagation::Stop
                 } else {
-                    false
+                    EventPropagation::Continue
                 }
             })
-            .on_event(EventListener::WindowResized, move |event| {
+            .on_event_stop(EventListener::WindowResized, move |event| {
                 if let Event::WindowResized(size) = event {
                     window_size.set(*size);
                 }
-                true
             })
-            .on_event(EventListener::WindowMoved, move |event| {
+            .on_event_stop(EventListener::WindowMoved, move |event| {
                 if let Event::WindowMoved(point) = event {
                     position.set(*point);
                 }
-                true
             })
-            .on_event(EventListener::WindowGotFocus, move |_| {
+            .on_event_stop(EventListener::WindowGotFocus, move |_| {
                 app_command.send(AppCommand::WindowGotFocus(window_id));
-                true
             })
-            .on_event(EventListener::WindowClosed, move |_| {
+            .on_event_stop(EventListener::WindowClosed, move |_| {
                 app_command.send(AppCommand::WindowClosed(window_id));
-                true
             })
     }
 }
@@ -660,14 +657,12 @@ fn editor_tab_header(
                 || false,
                 config,
             )
-            .on_event(EventListener::PointerDown, |_| true)
-            .on_event(EventListener::PointerEnter, move |_| {
+            .on_event_stop(EventListener::PointerDown, |_| {})
+            .on_event_stop(EventListener::PointerEnter, move |_| {
                 hovered.set(true);
-                true
             })
-            .on_event(EventListener::PointerLeave, move |_| {
+            .on_event_stop(EventListener::PointerLeave, move |_| {
                 hovered.set(false);
-                true
             })
             .style(|s| s.margin_horiz(6.0));
 
@@ -706,11 +701,10 @@ fn editor_tab_header(
         let drag_over_left: RwSignal<Option<bool>> = create_rw_signal(None);
         stack((
             container(child_view())
-                .on_double_click(move |_| {
+                .on_double_click_stop(move |_| {
                     if let Some(confirmed) = confirmed {
                         confirmed.set(true);
                     }
-                    true
                 })
                 .on_event(EventListener::PointerDown, move |event| {
                     if let Event::PointerDown(pointer_event) = event {
@@ -723,26 +717,24 @@ fn editor_tab_header(
                                     child: child_for_mouse_close.clone(),
                                 },
                             );
-                            true
+                            EventPropagation::Stop
                         } else {
                             editor_tab.update(|editor_tab| {
                                 editor_tab.active = i.get_untracked();
                             });
-                            false
+                            EventPropagation::Continue
                         }
                     } else {
-                        false
+                        EventPropagation::Continue
                     }
                 })
-                .on_event(EventListener::DragStart, move |_| {
+                .on_event_stop(EventListener::DragStart, move |_| {
                     dragging.set(Some((i, editor_tab_id)));
-                    true
                 })
-                .on_event(EventListener::DragEnd, move |_| {
+                .on_event_stop(EventListener::DragEnd, move |_| {
                     dragging.set(None);
-                    true
                 })
-                .on_event(EventListener::DragOver, move |event| {
+                .on_event_stop(EventListener::DragOver, move |event| {
                     if dragging.with_untracked(|dragging| dragging.is_some()) {
                         if let Event::PointerMove(pointer_event) = event {
                             let new_left = pointer_event.pos.x
@@ -752,7 +744,6 @@ fn editor_tab_header(
                             }
                         }
                     }
-                    true
                 })
                 .on_event(EventListener::Drop, move |event| {
                     if let Some((from_index, from_editor_tab_id)) =
@@ -771,14 +762,13 @@ fn editor_tab_header(
                                 new_index,
                             );
                         }
-                        true
+                        EventPropagation::Stop
                     } else {
-                        false
+                        EventPropagation::Continue
                     }
                 })
-                .on_event(EventListener::DragLeave, move |_| {
+                .on_event_stop(EventListener::DragLeave, move |_| {
                     drag_over_left.set(None);
-                    true
                 })
                 .on_resize(move |rect| {
                     header_content_size.set(rect.size());
@@ -1138,9 +1128,8 @@ fn editor_tab_content(
                                 },
                                 left_editor,
                             ))
-                            .on_event(EventListener::PointerDown, move |_| {
+                            .on_event_cont(EventListener::PointerDown, move |_| {
                                 focus_right.set(false);
-                                false
                             })
                             .style(move |s| {
                                 s.height_full()
@@ -1166,9 +1155,8 @@ fn editor_tab_content(
                                 },
                                 right_editor,
                             ))
-                            .on_event(EventListener::PointerDown, move |_| {
+                            .on_event_cont(EventListener::PointerDown, move |_| {
                                 focus_right.set(true);
-                                false
                             })
                             .style(|s| {
                                 s.height_full().flex_grow(1.0).flex_basis(0.0)
@@ -1300,7 +1288,7 @@ fn editor_tab(
                     )
             }),
             empty()
-                .on_event(EventListener::DragOver, move |event| {
+                .on_event_stop(EventListener::DragOver, move |event| {
                     if dragging.with_untracked(|dragging| dragging.is_some()) {
                         if let Event::PointerMove(pointer_event) = event {
                             let size = tab_size.get_untracked();
@@ -1321,11 +1309,9 @@ fn editor_tab(
                             }
                         }
                     }
-                    true
                 })
-                .on_event(EventListener::DragLeave, move |_| {
+                .on_event_stop(EventListener::DragLeave, move |_| {
                     drag_over.set(None);
-                    true
                 })
                 .on_event(EventListener::Drop, move |_| {
                     if let Some((from_index, from_editor_tab_id)) =
@@ -1378,9 +1364,9 @@ fn editor_tab(
                             }
                         }
                         drag_over.set(None);
-                        true
+                        EventPropagation::Stop
                     } else {
-                        false
+                        EventPropagation::Continue
                     }
                 })
                 .on_resize(move |rect| {
@@ -1390,13 +1376,12 @@ fn editor_tab(
         ))
         .style(|s| s.size_full()),
     ))
-    .on_event(EventListener::PointerDown, move |_| {
+    .on_event_cont(EventListener::PointerDown, move |_| {
         if focus.get_untracked() != Focus::Workbench {
             focus.set(Focus::Workbench);
         }
         let editor_tab_id = editor_tab.with_untracked(|t| t.editor_tab_id);
         internal_command.send(InternalCommand::FocusEditorTab { editor_tab_id });
-        false
     })
     .on_cleanup(move || {
         if editor_tabs
@@ -1480,18 +1465,16 @@ fn split_resize_border(
             let drag_start: RwSignal<Option<Point>> = create_rw_signal(None);
             let view = empty();
             let view_id = view.id();
-            view.on_event(EventListener::PointerDown, move |event| {
+            view.on_event_stop(EventListener::PointerDown, move |event| {
                 view_id.request_active();
                 if let Event::PointerDown(pointer_event) = event {
                     drag_start.set(Some(pointer_event.pos));
                 }
-                true
             })
-            .on_event(EventListener::PointerUp, move |_| {
+            .on_event_stop(EventListener::PointerUp, move |_| {
                 drag_start.set(None);
-                true
             })
-            .on_event(EventListener::PointerMove, move |event| {
+            .on_event_stop(EventListener::PointerMove, move |event| {
                 if let Event::PointerMove(pointer_event) = event {
                     if let Some(drag_start_point) = drag_start.get_untracked() {
                         let rects = split.with_untracked(|split| {
@@ -1552,7 +1535,6 @@ fn split_resize_border(
                         }
                     }
                 }
-                true
             })
             .style(move |s| {
                 let rect = content_rect(&content, true);
@@ -1852,9 +1834,8 @@ pub fn clickable_icon(
                 })
                 .disabled(disabled_fn),
         )
-        .on_click(move |_| {
+        .on_click_stop(move |_| {
             on_click();
-            true
         })
         .disabled(disabled_fn)
         .style(move |s| {
@@ -2397,9 +2378,8 @@ fn palette_content(
                         config,
                         keymap,
                     ))
-                    .on_click(move |_| {
+                    .on_click_stop(move |_| {
                         clicked_index.set(Some(i));
-                        true
                     })
                     .style(move |s| {
                         s.width_full().cursor(CursorStyle::Pointer).hover(|s| {
@@ -2489,7 +2469,7 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
             palette_content(window_tab_data.clone(), layout_rect),
             palette_preview(window_tab_data.clone()),
         ))
-        .on_event(EventListener::PointerDown, move |_| true)
+        .on_event_stop(EventListener::PointerDown, move |_| {})
         .style(move |s| {
             let config = config.get();
             s.width(500.0)
@@ -2692,7 +2672,7 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
     .on_resize(move |rect| {
         layout_rect.set(rect);
     })
-    .on_event(EventListener::PointerMove, |_| true)
+    .on_event_stop(EventListener::PointerMove, |_| {})
     .style(move |s| {
         let active = window_tab_data.common.hover.active.get();
         if !active {
@@ -2802,7 +2782,7 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
             c.layout_rect = rect;
         });
     })
-    .on_event(EventListener::PointerMove, |_| true)
+    .on_event_stop(EventListener::PointerMove, |_| {})
     .style(move |s| {
         let config = config.get();
         let origin = window_tab_data.completion_origin();
@@ -2874,7 +2854,7 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
             c.layout_rect = rect;
         });
     })
-    .on_event(EventListener::PointerMove, |_| true)
+    .on_event_stop(EventListener::PointerMove, |_| {})
     .style(move |s| {
         let origin = window_tab_data.code_action_origin();
         s.display(match status.get() {
@@ -2914,8 +2894,8 @@ fn rename(window_tab_data: Rc<WindowTabData>) -> impl View {
     .on_resize(move |rect| {
         layout_rect.set(rect);
     })
-    .on_event(EventListener::PointerMove, |_| true)
-    .on_event(EventListener::PointerDown, |_| true)
+    .on_event_stop(EventListener::PointerMove, |_| {})
+    .on_event_stop(EventListener::PointerDown, |_| {})
     .style(move |s| {
         let origin = window_tab_data.rename_origin();
         s.position(Position::Absolute)
@@ -2968,11 +2948,10 @@ fn window_tab(window_tab_data: Rc<WindowTabData>) -> impl View {
     .on_cleanup(move || {
         window_tab_scope.dispose();
     })
-    .on_event(EventListener::PointerMove, move |_| {
+    .on_event_cont(EventListener::PointerMove, move |_| {
         if hover_active.get_untracked() {
             hover_active.set(false);
         }
-        false
     })
     .style(move |s| {
         let config = config.get();
@@ -3008,13 +2987,13 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
     let tabs = window_data.window_tabs;
     let active = window_data.active;
     let config = window_data.config;
-    let window_tab_header_height = window_data.window_tab_header_height;
+    let window_tab_header_height = window_data.common.window_tab_header_height;
     let available_width = create_rw_signal(0.0);
     let add_icon_width = create_rw_signal(0.0);
     let window_control_width = create_rw_signal(0.0);
-    let window_maximized = window_data.window_maximized;
+    let window_maximized = window_data.common.window_maximized;
     let num_window_tabs = window_data.num_window_tabs;
-    let window_command = window_data.window_command;
+    let window_command = window_data.common.window_command;
 
     let tab_width = create_memo(move |_| {
         let window_control_width = if !cfg!(target_os = "macos")
@@ -3075,7 +3054,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                             .style(|s| s.margin_horiz(6.0))
                         },
                     ))
-                    .on_event(EventListener::DragOver, move |event| {
+                    .on_event_stop(EventListener::DragOver, move |event| {
                         if dragging_index.get_untracked().is_some() {
                             if let Event::PointerMove(pointer_event) = event {
                                 let left = pointer_event.pos.x
@@ -3085,7 +3064,6 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                                 }
                             }
                         }
-                        true
                     })
                     .on_event(EventListener::Drop, move |event| {
                         if dragging_index.get_untracked().is_some() {
@@ -3105,14 +3083,13 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                                 }
                                 dragging_index.set(None);
                             }
-                            true
+                            EventPropagation::Stop
                         } else {
-                            false
+                            EventPropagation::Continue
                         }
                     })
-                    .on_event(EventListener::DragLeave, move |_| {
+                    .on_event_stop(EventListener::DragLeave, move |_| {
                         drag_over_left.set(None);
-                        true
                     })
                     .style(move |s| {
                         let config = config.get();
@@ -3148,13 +3125,11 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                 .style(move |s| s.size_full().items_center())
             })
             .draggable()
-            .on_event(EventListener::DragStart, move |_| {
+            .on_event_stop(EventListener::DragStart, move |_| {
                 dragging_index.set(Some(index));
-                true
             })
-            .on_event(EventListener::DragEnd, move |_| {
+            .on_event_stop(EventListener::DragEnd, move |_| {
                 dragging_index.set(None);
-                true
             })
             .dragging_style(move |s| {
                 let config = config.get();
@@ -3172,9 +3147,8 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                             .with_alpha_factor(0.7),
                     )
             })
-            .on_click(move |_| {
+            .on_click_stop(move |_| {
                 active.set(index.get_untracked());
-                true
             })
             .style(move |s| s.size_full()),
             empty().style(move |s| {
@@ -3299,7 +3273,7 @@ fn window(window_data: WindowData) -> impl View {
     let active = move || active.get();
     let window_focus = create_rw_signal(false);
     let ime_enabled = window_data.ime_enabled;
-    let window_maximized = window_data.window_maximized;
+    let window_maximized = window_data.common.window_maximized;
 
     tab(active, items, key, |(_, window_tab_data)| {
         window_tab(window_tab_data)
@@ -3316,23 +3290,19 @@ fn window(window_data: WindowData) -> impl View {
             None => "Lapce".to_string(),
         }
     })
-    .on_event(EventListener::ImeEnabled, move |_| {
+    .on_event_stop(EventListener::ImeEnabled, move |_| {
         ime_enabled.set(true);
-        true
     })
-    .on_event(EventListener::ImeDisabled, move |_| {
+    .on_event_stop(EventListener::ImeDisabled, move |_| {
         ime_enabled.set(false);
-        true
     })
-    .on_event(EventListener::WindowGotFocus, move |_| {
+    .on_event_cont(EventListener::WindowGotFocus, move |_| {
         window_focus.set(true);
-        false
     })
-    .on_event(EventListener::WindowMaximizeChanged, move |event| {
+    .on_event_cont(EventListener::WindowMaximizeChanged, move |event| {
         if let Event::WindowMaximizeChanged(maximized) = event {
             window_maximized.set(*maximized);
         }
-        false
     })
     .window_menu(move || {
         window_focus.track();

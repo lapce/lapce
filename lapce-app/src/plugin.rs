@@ -765,7 +765,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                             })
                     })
                     .disabled(move || installing.map(|i| i.get()).unwrap_or(false))
-                    .on_click(move |_| {
+                    .on_click_stop(move |_| {
                         if let Some((meta, info, _, latest, _)) =
                             local_plugin_info.as_ref()
                         {
@@ -781,7 +781,6 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                                 local_plugin.install_volt(info.to_owned());
                             }
                         }
-                        true
                     }),
             ))
         };

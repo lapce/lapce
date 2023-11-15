@@ -84,9 +84,8 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                     },
                     move |button| {
                         label(move || button.text.clone())
-                            .on_click(move |_| {
+                            .on_click_stop(move |_| {
                                 (button.action)();
-                                true
                             })
                             .style(move |s| {
                                 let config = config.get();
@@ -117,9 +116,8 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                 )
                 .style(|s| s.flex_col().width_pct(100.0).margin_top(10.0)),
                 label(|| "Cancel".to_string())
-                    .on_click(move |_| {
+                    .on_click_stop(move |_| {
                         active.set(false);
-                        true
                     })
                     .style(move |s| {
                         let config = config.get();
@@ -149,7 +147,7 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
             ))
             .style(|s| s.flex_col().items_center().width_pct(100.0))
         })
-        .on_event(EventListener::PointerDown, |_| true)
+        .on_event_stop(EventListener::PointerDown, |_| {})
         .style(move |s| {
             let config = config.get();
             s.padding(20.0)
@@ -161,7 +159,7 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                 .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
         })
     })
-    .on_event(EventListener::PointerDown, move |_| true)
+    .on_event_stop(EventListener::PointerDown, move |_| {})
     .style(move |s| {
         s.absolute()
             .size_pct(100.0, 100.0)

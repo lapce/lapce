@@ -9,7 +9,7 @@ use floem::{
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{create_effect, ReadSignal, RwSignal},
-    view::View,
+    view::{View, ViewData},
     Renderer,
 };
 use lapce_core::mode::Mode;
@@ -33,6 +33,7 @@ enum TerminalViewState {
 
 pub struct TerminalView {
     id: Id,
+    data: ViewData,
     term_id: TermId,
     raw: Arc<RwLock<RawTerminal>>,
     mode: ReadSignal<Mode>,
@@ -93,6 +94,7 @@ pub fn terminal_view(
 
     TerminalView {
         id,
+        data: ViewData::new(id),
         term_id,
         raw: raw.get_untracked(),
         mode,
@@ -140,6 +142,14 @@ impl View for TerminalView {
         self.id
     }
 
+    fn view_data(&self) -> &ViewData {
+        &self.data
+    }
+
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
+    }
+
     fn update(
         &mut self,
         cx: &mut floem::context::UpdateCx,
@@ -166,7 +176,10 @@ impl View for TerminalView {
         cx.layout_node(self.id, false, |_cx| Vec::new())
     }
 
-    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) -> Option<Rect> {
+    fn compute_layout(
+        &mut self,
+        cx: &mut floem::context::ComputeLayoutCx,
+    ) -> Option<Rect> {
         let layout = cx.get_layout(self.id).unwrap();
         let size = layout.size;
         let size = Size::new(size.width as f64, size.height as f64);

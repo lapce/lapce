@@ -290,18 +290,15 @@ fn debug_processes(
                         s.apply_if(!is_hovered.get() && !is_active(), |s| s.hide())
                     }),
                 ))
-                .on_click(move |_| {
+                .on_click_stop(move |_| {
                     local_terminal.debug.active_term.set(Some(term_id));
                     local_terminal.focus_terminal(term_id);
-                    true
                 })
-                .on_event(EventListener::PointerEnter, move |_| {
+                .on_event_stop(EventListener::PointerEnter, move |_| {
                     is_hovered.set(true);
-                    true
                 })
-                .on_event(EventListener::PointerLeave, move |_| {
+                .on_event_stop(EventListener::PointerLeave, move |_| {
                     is_hovered.set(false);
-                    true
                 })
                 .style(move |s| {
                     let config = config.get();
@@ -407,7 +404,7 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                         text(format!(" = {}", node.item.value().unwrap_or("")))
                             .style(move |s| s.apply_if(reference > 0, |s| s.hide())),
                     ))
-                    .on_click(move |_| {
+                    .on_click_stop(move |_| {
                         if reference > 0 {
                             let dap = local_terminal.get_active_dap(false);
                             if let Some(dap) = dap {
@@ -426,7 +423,6 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                                 }
                             }
                         }
-                        true
                     })
                     .style(move |s| {
                         s.items_center()
@@ -461,11 +457,10 @@ fn debug_stack_frames(
     let expanded = stack_trace.expanded;
     stack((
         container(label(move || thread_id.to_string()))
-            .on_click(move |_| {
+            .on_click_stop(move |_| {
                 expanded.update(|expanded| {
                     *expanded = !*expanded;
                 });
-                true
             })
             .style(move |s| {
                 s.padding_horiz(10.0).min_width_pct(100.0).hover(move |s| {
@@ -519,7 +514,7 @@ fn debug_stack_frames(
                             .apply_if(!has_source, |s| s.hide())
                     }),
                 )))
-                .on_click(move |_| {
+                .on_click_stop(move |_| {
                     if let Some(path) = full_path.clone() {
                         internal_command.send(InternalCommand::JumpToLocation {
                             location: EditorLocation {
@@ -540,7 +535,6 @@ fn debug_stack_frames(
                         dap_id,
                         frame_id: frame.id,
                     });
-                    true
                 })
                 .style(move |s| {
                     let config = config.get();
@@ -682,12 +676,12 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             || false,
                             config,
                         )
-                        .on_event(EventListener::PointerDown, |_| true),
+                        .on_event_stop(EventListener::PointerDown, |_| {}),
                         checkbox(move || breakpoint.active, config)
                             .style(|s| {
                                 s.margin_right(6.0).cursor(CursorStyle::Pointer)
                             })
-                            .on_click(move |_| {
+                            .on_click_stop(move |_| {
                                 breakpoints.update(|breakpoints| {
                                     if let Some(breakpoints) =
                                         breakpoints.get_mut(&full_path)
@@ -699,7 +693,6 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                                         }
                                     }
                                 });
-                                true
                             }),
                         text(format!("{file_name}:{}", breakpoint.line + 1)).style(
                             move |s| {
@@ -737,7 +730,7 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             },
                         )
                     })
-                    .on_click(move |_| {
+                    .on_click_stop(move |_| {
                         internal_command.send(InternalCommand::JumpToLocation {
                             location: EditorLocation {
                                 path: full_path_for_jump.clone(),
@@ -747,7 +740,6 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                                 same_editor_tab: false,
                             },
                         });
-                        true
                     })
                 },
             )

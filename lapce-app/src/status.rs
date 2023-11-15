@@ -148,9 +148,8 @@ pub fn status(
                     )
                 })
             })
-            .on_click(move |_| {
+            .on_click_stop(move |_| {
                 workbench_command.send(LapceWorkbenchCommand::PaletteSCMReferences);
-                true
             }),
             {
                 let panel = panel.clone();
@@ -192,9 +191,8 @@ pub fn status(
                         },
                     ),
                 ))
-                .on_click(move |_| {
+                .on_click_stop(move |_| {
                     panel.show_panel(&PanelKind::Problem);
-                    true
                 })
                 .style(move |s| {
                     s.height_pct(100.0)
@@ -332,9 +330,8 @@ pub fn status(
                 }
                 String::new()
             })
-            .on_click(move |_| {
+            .on_click_stop(move |_| {
                 palette_clone.run(PaletteKind::Line);
-                true
             })
             .style(move |s| {
                 let config = config.get();
@@ -370,9 +367,8 @@ pub fn status(
                     "unknown"
                 }
             })
-            .on_click(move |_| {
+            .on_click_stop(move |_| {
                 palette_clone.run(PaletteKind::Language);
-                true
             })
             .style(move |s| {
                 let config = config.get();

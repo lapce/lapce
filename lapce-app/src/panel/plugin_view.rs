@@ -167,11 +167,10 @@ fn installed_view(plugin: PluginData) -> impl View {
             ))
             .style(|s| s.flex_col().flex_grow(1.0).flex_basis(0.0).min_width(0.0)),
         ))
-        .on_click(move |_| {
+        .on_click_stop(move |_| {
             internal_command.send(InternalCommand::OpenVoltView {
                 volt_id: local_volt_id.clone(),
             });
-            true
         })
         .style(move |s| {
             s.width_pct(100.0)
@@ -235,9 +234,8 @@ fn available_view(plugin: PluginData) -> impl View {
             }
         })
         .disabled(move || installed.get() || installing.get())
-        .on_click(move |_| {
+        .on_click_stop(move |_| {
             plugin.install_volt(info.get_untracked());
-            true
         })
         .style(move |s| {
             let config = config.get();
@@ -313,11 +311,10 @@ fn available_view(plugin: PluginData) -> impl View {
             ))
             .style(|s| s.flex_col().flex_grow(1.0).flex_basis(0.0).min_width(0.0)),
         ))
-        .on_click(move |_| {
+        .on_click_stop(move |_| {
             internal_command.send(InternalCommand::OpenVoltView {
                 volt_id: volt_id.clone(),
             });
-            true
         })
         .style(move |s| {
             s.width_pct(100.0)
@@ -357,9 +354,8 @@ fn available_view(plugin: PluginData) -> impl View {
                     .to_rect()
                     .with_origin(Point::new(cursor_x.get(), 0.0))
             })
-            .on_event(EventListener::PointerDown, move |_| {
+            .on_event_cont(EventListener::PointerDown, move |_| {
                 focus.set(Focus::Panel(PanelKind::Plugin));
-                false
             })
             .style(move |s| {
                 let config = config.get();

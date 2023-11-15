@@ -11,6 +11,7 @@ use floem::{
         container, label, list, scroll, stack, svg, virtual_list, Decorators,
         VirtualListDirection, VirtualListItemSize,
     },
+    EventPropagation,
 };
 
 use super::{data::FileExplorerData, node::FileNodeVirtualList};
@@ -148,20 +149,22 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                         .cursor(CursorStyle::Pointer)
                     })
             })
-            .on_click(move |_| {
+            .on_click_stop(move |_| {
                 data.click(&click_path);
-                true
             })
             .on_double_click(move |_| {
-                double_click_data.double_click(&double_click_path)
+                if double_click_data.double_click(&double_click_path) {
+                    EventPropagation::Stop
+                } else {
+                    EventPropagation::Continue
+                }
             })
-            .on_event(EventListener::PointerDown, move |event| {
+            .on_event_stop(EventListener::PointerDown, move |event| {
                 if let Event::PointerDown(pointer_event) = event {
                     if pointer_event.button.is_auxiliary() {
                         aux_click_data.middle_click(&aux_click_path);
                     }
                 }
-                true
             })
         },
     )
@@ -208,15 +211,13 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                 || false,
                 config,
             )
-            .on_event(EventListener::PointerEnter, move |_| {
+            .on_event_stop(EventListener::PointerEnter, move |_| {
                 hovered.set(true);
-                true
             })
-            .on_event(EventListener::PointerLeave, move |_| {
+            .on_event_stop(EventListener::PointerLeave, move |_| {
                 hovered.set(false);
-                true
             })
-            .on_event(EventListener::PointerDown, |_| true)
+            .on_event_stop(EventListener::PointerDown, |_| {})
             .style(|s| s.margin_left(10.0)),
             container(svg(move || info.with(|info| info.icon.clone())).style(
                 move |s| {
@@ -256,12 +257,11 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                     )
                 })
         })
-        .on_event(EventListener::PointerDown, move |_| {
+        .on_event_cont(EventListener::PointerDown, move |_| {
             editor_tab.update(|editor_tab| {
                 editor_tab.active = child_index.get_untracked();
             });
             active_editor_tab.set(Some(editor_tab_id));
-            false
         })
     };
 

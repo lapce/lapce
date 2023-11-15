@@ -4,12 +4,12 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use crossbeam_channel::Sender;
 use floem::{
-    action::{open_file, TimerToken},
+    action::{exec_after, open_file, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
     file::FileDialogOptions,
@@ -49,10 +49,7 @@ use crate::{
     db::LapceDb,
     debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
     doc::{DocContent, EditorDiagnostic},
-    editor::{
-        location::{EditorLocation, EditorPosition},
-        reset_blink_cursor,
-    },
+    editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
     find::Find,
@@ -76,7 +73,7 @@ use crate::{
         event::{terminal_update_process, TermEvent, TermNotification},
         panel::TerminalPanelData,
     },
-    update::ReleaseInfo,
+    window::WindowCommonData,
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
 
@@ -122,8 +119,6 @@ pub struct CommonData {
     pub find: Find,
     pub workbench_size: RwSignal<Size>,
     pub window_origin: RwSignal<Point>,
-    pub window_maximized: RwSignal<bool>,
-    pub window_command: Listener<WindowCommand>,
     pub internal_command: Listener<InternalCommand>,
     pub lapce_command: Listener<LapceCommand>,
     pub workbench_command: Listener<LapceWorkbenchCommand>,
@@ -135,11 +130,11 @@ pub struct CommonData {
     pub dragging: RwSignal<Option<DragContent>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub proxy_status: RwSignal<Option<ProxyStatus>>,
-    pub cursor_blink_timer: RwSignal<TimerToken>,
     pub mouse_hover_timer: RwSignal<TimerToken>,
-    pub hide_cursor: RwSignal<bool>,
-    pub ime_allowed: RwSignal<bool>,
     pub breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
+    // the current focused view which will receive keyboard events
+    pub keyboard_focus: RwSignal<Option<floem::id::Id>>,
+    pub window_common: Rc<WindowCommonData>,
 }
 
 #[derive(Clone)]
@@ -163,11 +158,8 @@ pub struct WindowTabData {
     pub title_height: RwSignal<f64>,
     pub status_height: RwSignal<f64>,
     pub proxy: ProxyData,
-    pub window_scale: RwSignal<f64>,
     pub set_config: WriteSignal<Arc<LapceConfig>>,
     pub update_in_progress: RwSignal<bool>,
-    pub latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-    pub num_window_tabs: Memo<usize>,
     pub progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
     pub messages: RwSignal<Vec<(String, ShowMessageParams)>>,
     pub common: Rc<CommonData>,
@@ -254,14 +246,7 @@ impl WindowTabData {
     pub fn new(
         cx: Scope,
         workspace: Arc<LapceWorkspace>,
-        window_command: Listener<WindowCommand>,
-        window_scale: RwSignal<f64>,
-        latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-        window_size: RwSignal<Size>,
-        num_window_tabs: Memo<usize>,
-        window_maximized: RwSignal<bool>,
-        window_tab_header_height: RwSignal<f64>,
-        ime_allowed: RwSignal<bool>,
+        window_common: Rc<WindowCommonData>,
     ) -> Self {
         let cx = cx.create_child();
         let db: Arc<LapceDb> = use_context().unwrap();
@@ -340,8 +325,6 @@ impl WindowTabData {
             hover,
             register,
             find,
-            window_command,
-            window_maximized,
             internal_command,
             lapce_command,
             workbench_command,
@@ -354,12 +337,11 @@ impl WindowTabData {
             workbench_size: cx.create_rw_signal(Size::ZERO),
             config,
             proxy_status,
-            cursor_blink_timer: cx.create_rw_signal(TimerToken::INVALID),
             mouse_hover_timer: cx.create_rw_signal(TimerToken::INVALID),
-            hide_cursor: cx.create_rw_signal(false),
             window_origin: cx.create_rw_signal(Point::ZERO),
-            ime_allowed,
             breakpoints: cx.create_rw_signal(BTreeMap::new()),
+            keyboard_focus: cx.create_rw_signal(None),
+            window_common: window_common.clone(),
         });
 
         let main_split = MainSplitData::new(cx, common.clone());
@@ -405,15 +387,15 @@ impl WindowTabData {
         let panel_available_size = cx.create_memo(move |_| {
             let title_height = title_height.get();
             let status_height = status_height.get();
-            let num_window_tabs = num_window_tabs.get();
-            let window_size = window_size.get();
+            let num_window_tabs = window_common.num_window_tabs.get();
+            let window_size = window_common.size.get();
             Size::new(
                 window_size.width,
                 window_size.height
                     - title_height
                     - status_height
                     - if num_window_tabs > 1 {
-                        window_tab_header_height.get()
+                        window_common.window_tab_header_height.get()
                     } else {
                         0.0
                     },
@@ -513,11 +495,8 @@ impl WindowTabData {
             title_height,
             status_height,
             proxy,
-            window_scale,
             set_config,
             update_in_progress: cx.create_rw_signal(false),
-            num_window_tabs,
-            latest_release,
             progresses: cx.create_rw_signal(IndexMap::new()),
             messages: cx.create_rw_signal(Vec::new()),
             common,
@@ -525,15 +504,14 @@ impl WindowTabData {
 
         {
             let focus = window_tab_data.common.focus;
-            let cursor_blink_timer = window_tab_data.common.cursor_blink_timer;
-            let hide_cursor = window_tab_data.common.hide_cursor;
-            let config = window_tab_data.common.config;
             let active_editor = window_tab_data.main_split.active_editor;
             let rename_active = window_tab_data.rename.active;
+            let internal_command = window_tab_data.common.internal_command;
             cx.create_effect(move |_| {
                 let focus = focus.get();
                 active_editor.track();
-                reset_blink_cursor(cursor_blink_timer, hide_cursor, config);
+                internal_command.send(InternalCommand::ResetBlinkCursor);
+
                 if focus != Focus::Rename && rename_active.get_untracked() {
                     rename_active.set(false);
                 }
@@ -636,7 +614,7 @@ impl WindowTabData {
             // ==== Files / Folders ====
             OpenFolder => {
                 if !self.workspace.kind.is_remote() {
-                    let window_command = self.common.window_command;
+                    let window_command = self.common.window_common.window_command;
                     let options = FileDialogOptions::new().select_directories();
                     open_file(options, move |file| {
                         if let Some(file) = file {
@@ -656,7 +634,7 @@ impl WindowTabData {
             }
             CloseFolder => {
                 if !self.workspace.kind.is_remote() {
-                    let window_command = self.common.window_command;
+                    let window_command = self.common.window_common.window_command;
                     let workspace = LapceWorkspace {
                         kind: LapceWorkspaceType::Local,
                         path: None,
@@ -809,39 +787,48 @@ impl WindowTabData {
 
             // ==== Window ====
             ReloadWindow => {
-                self.common
-                    .window_command
-                    .send(WindowCommand::SetWorkspace {
+                self.common.window_common.window_command.send(
+                    WindowCommand::SetWorkspace {
                         workspace: (*self.workspace).clone(),
-                    });
+                    },
+                );
             }
             NewWindow => {
-                self.common.window_command.send(WindowCommand::NewWindow);
+                self.common
+                    .window_common
+                    .window_command
+                    .send(WindowCommand::NewWindow);
             }
             CloseWindow => {
-                self.common.window_command.send(WindowCommand::CloseWindow);
+                self.common
+                    .window_common
+                    .window_command
+                    .send(WindowCommand::CloseWindow);
             }
             // ==== Window Tabs ====
             NewWindowTab => {
-                self.common
-                    .window_command
-                    .send(WindowCommand::NewWorkspaceTab {
+                self.common.window_common.window_command.send(
+                    WindowCommand::NewWorkspaceTab {
                         workspace: LapceWorkspace::default(),
                         end: false,
-                    });
+                    },
+                );
             }
             CloseWindowTab => {
                 self.common
+                    .window_common
                     .window_command
                     .send(WindowCommand::CloseWorkspaceTab { index: None });
             }
             NextWindowTab => {
                 self.common
+                    .window_common
                     .window_command
                     .send(WindowCommand::NextWorkspaceTab);
             }
             PreviousWindowTab => {
                 self.common
+                    .window_common
                     .window_command
                     .send(WindowCommand::PreviousWorkspaceTab);
             }
@@ -955,15 +942,15 @@ impl WindowTabData {
                 // TODO:
             }
             DisconnectRemote => {
-                self.common
-                    .window_command
-                    .send(WindowCommand::SetWorkspace {
+                self.common.window_common.window_command.send(
+                    WindowCommand::SetWorkspace {
                         workspace: LapceWorkspace {
                             kind: LapceWorkspaceType::Local,
                             path: None,
                             last_open: 0,
                         },
-                    });
+                    },
+                );
             }
 
             // ==== Palette Commands ====
@@ -1019,23 +1006,25 @@ impl WindowTabData {
 
             // ==== UI ====
             ZoomIn => {
-                let mut scale = self.window_scale.get_untracked();
+                let mut scale =
+                    self.common.window_common.window_scale.get_untracked();
                 scale += 0.1;
                 if scale > 4.0 {
                     scale = 4.0
                 }
-                self.window_scale.set(scale);
+                self.common.window_common.window_scale.set(scale);
             }
             ZoomOut => {
-                let mut scale = self.window_scale.get_untracked();
+                let mut scale =
+                    self.common.window_common.window_scale.get_untracked();
                 scale -= 0.1;
                 if scale < 0.1 {
                     scale = 0.1
                 }
-                self.window_scale.set(scale);
+                self.common.window_common.window_scale.set(scale);
             }
             ZoomReset => {
-                self.window_scale.set(1.0);
+                self.common.window_common.window_scale.set(1.0);
             }
 
             ToggleMaximizedPanel => {
@@ -1185,7 +1174,13 @@ impl WindowTabData {
 
             // ==== Updating ====
             RestartToUpdate => {
-                if let Some(release) = self.latest_release.get_untracked().as_ref() {
+                if let Some(release) = self
+                    .common
+                    .window_common
+                    .latest_release
+                    .get_untracked()
+                    .as_ref()
+                {
                     let release = release.clone();
                     let update_in_progress = self.update_in_progress;
                     if release.version != *meta::VERSION {
@@ -1474,6 +1469,44 @@ impl WindowTabData {
             }
             InternalCommand::OpenVoltView { volt_id } => {
                 self.main_split.open_volt_view(volt_id);
+            }
+            InternalCommand::ResetBlinkCursor => {
+                if self.common.window_common.hide_cursor.get_untracked() {
+                    self.common.window_common.hide_cursor.set(false);
+                }
+                self.common
+                    .window_common
+                    .cursor_blink_timer
+                    .set(TimerToken::INVALID);
+
+                let should_blink = {
+                    let focus = self.common.focus;
+                    let keyboard_focus = self.common.keyboard_focus;
+                    move || {
+                        let focus = focus.get_untracked();
+                        if matches!(
+                            focus,
+                            Focus::Workbench
+                                | Focus::Palette
+                                | Focus::Panel(PanelKind::Plugin)
+                                | Focus::Panel(PanelKind::Search)
+                                | Focus::Panel(PanelKind::SourceControl)
+                        ) {
+                            return true;
+                        }
+                        if keyboard_focus.get_untracked().is_some() {
+                            return true;
+                        }
+                        false
+                    }
+                };
+
+                blink_cursor(
+                    self.common.window_common.cursor_blink_timer,
+                    self.common.window_common.hide_cursor,
+                    should_blink,
+                    self.common.config,
+                );
             }
         }
     }
@@ -2130,16 +2163,16 @@ impl WindowTabData {
             paths.iter().partition(|p| p.is_dir);
 
         for folder in folders {
-            self.common
-                .window_command
-                .send(WindowCommand::NewWorkspaceTab {
+            self.common.window_common.window_command.send(
+                WindowCommand::NewWorkspaceTab {
                     workspace: LapceWorkspace {
                         kind: self.workspace.kind.clone(),
                         path: Some(folder.path.clone()),
                         last_open: 0,
                     },
                     end: false,
-                });
+                },
+            );
         }
 
         for file in files {
@@ -2209,6 +2242,33 @@ impl WindowTabData {
         self.messages.update(|messages| {
             messages.push((title.to_string(), message.clone()));
         });
+    }
+}
+
+fn blink_cursor(
+    cursor_blink_timer: RwSignal<TimerToken>,
+    hide_cursor: RwSignal<bool>,
+    should_blink: impl Fn() -> bool + 'static + Copy,
+    config: ReadSignal<Arc<LapceConfig>>,
+) {
+    let blink_interval =
+        config.with_untracked(|config| config.editor.blink_interval());
+    if blink_interval > 0 && should_blink() {
+        let timer_token =
+            exec_after(Duration::from_millis(blink_interval), move |timer_token| {
+                if cursor_blink_timer.try_get_untracked() == Some(timer_token) {
+                    hide_cursor.update(|hide| {
+                        *hide = !*hide;
+                    });
+                    blink_cursor(
+                        cursor_blink_timer,
+                        hide_cursor,
+                        should_blink,
+                        config,
+                    );
+                }
+            });
+        cursor_blink_timer.set(timer_token);
     }
 }
 

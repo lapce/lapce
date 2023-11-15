@@ -384,7 +384,7 @@ pub fn settings_view(
             label(move || k.clone())
                 .style(move |s| s.text_ellipsis().padding_left(margin)),
         )
-        .on_click(move |_| {
+        .on_click_stop(move |_| {
             if let Some(pos) = pos() {
                 ensure_visible.set(
                     settings_content_size
@@ -393,7 +393,6 @@ pub fn settings_view(
                         .with_origin(pos.get_untracked()),
                 );
             }
-            true
         })
         .style(move |s| {
             let config = config.get();
@@ -645,7 +644,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     let field = field.clone();
                     let local_item_string = item_string.clone();
                     label(move || local_item_string.clone())
-                        .on_click(move |_| {
+                        .on_click_stop(move |_| {
                             current_value.set(item_string.clone());
                             if let Ok(value) = serde::Serialize::serialize(
                                 &item_string,
@@ -654,7 +653,6 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 LapceConfig::update_file(&kind, &field, value);
                             }
                             expanded.set(false);
-                            true
                         })
                         .style(move |s| {
                             s.text_ellipsis().padding_horiz(10.0).hover(|s| {
@@ -690,11 +688,10 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             )
                             .style(|s| s.padding_right(4.0)),
                         ))
-                        .on_click(move |_| {
+                        .on_click_stop(move |_| {
                             expanded.update(|expanded| {
                                 *expanded = !*expanded;
                             });
-                            true
                         })
                         .style(move |s| {
                             s.items_center()
@@ -742,11 +739,10 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             }),
                         ))
                         .keyboard_navigatable()
-                        .on_event(EventListener::FocusLost, move |_| {
+                        .on_event_stop(EventListener::FocusLost, move |_| {
                             if expanded.get_untracked() {
                                 expanded.set(false);
                             }
-                            true
                         })
                         .style(move |s| {
                             s.absolute()
@@ -826,11 +822,10 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     ))
                     .style(|s| s.items_center()),
                 )
-                .on_click(move |_| {
+                .on_click_stop(move |_| {
                     checked.update(|checked| {
                         *checked = !*checked;
                     });
-                    true
                 })
                 .style(|s| {
                     s.absolute()
@@ -1078,12 +1073,11 @@ fn color_section_list(
                         let local_key = key.clone();
                         let local_kind = kind.clone();
                         text("Reset")
-                            .on_click(move |_| {
+                            .on_click_stop(move |_| {
                                 LapceConfig::reset_setting(
                                     &format!("color-theme.{local_kind}"),
                                     &local_key,
                                 );
-                                true
                             })
                             .style(move |s| {
                                 let config = config.get();

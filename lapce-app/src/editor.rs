@@ -11,7 +11,7 @@ use floem::{
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Vec2},
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
-    reactive::{use_context, ReadSignal, RwSignal, Scope},
+    reactive::{use_context, RwSignal, Scope},
 };
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, InvalLines},
@@ -215,12 +215,10 @@ impl EditorData {
         let view =
             EditorViewData::new(cx, doc, EditorViewKind::Normal, common.config);
         {
-            let config = common.config;
-            let cursor_blink_timer = common.cursor_blink_timer;
-            let hide_cursor = common.hide_cursor;
+            let internal_comamnd = common.internal_command;
             cx.create_effect(move |_| {
                 cursor.track();
-                reset_blink_cursor(cursor_blink_timer, hide_cursor, config);
+                internal_comamnd.send(InternalCommand::ResetBlinkCursor);
             });
         }
         Self {
@@ -281,12 +279,10 @@ impl EditorData {
         let cx = cx.create_child();
         let cursor = cx.create_rw_signal(self.cursor.get_untracked());
         {
-            let config = self.common.config;
-            let cursor_blink_timer = self.common.cursor_blink_timer;
-            let hide_cursor = self.common.hide_cursor;
+            let internal_comamnd = self.common.internal_command;
             cx.create_effect(move |_| {
                 cursor.track();
-                reset_blink_cursor(cursor_blink_timer, hide_cursor, config);
+                internal_comamnd.send(InternalCommand::ResetBlinkCursor);
             });
         }
         EditorData {
@@ -2620,39 +2616,6 @@ fn show_completion(
     };
 
     show_completion
-}
-
-pub fn reset_blink_cursor(
-    cursor_blink_timer: RwSignal<TimerToken>,
-    hide_cursor: RwSignal<bool>,
-    config: ReadSignal<Arc<LapceConfig>>,
-) {
-    if hide_cursor.get_untracked() {
-        hide_cursor.set(false);
-        cursor_blink_timer.set(TimerToken::INVALID);
-    }
-    blink_cursor(cursor_blink_timer, hide_cursor, config);
-}
-
-fn blink_cursor(
-    cursor_blink_timer: RwSignal<TimerToken>,
-    hide_cursor: RwSignal<bool>,
-    config: ReadSignal<Arc<LapceConfig>>,
-) {
-    let blink_interval =
-        config.with_untracked(|config| config.editor.blink_interval());
-    if blink_interval > 0 {
-        let timer_token =
-            exec_after(Duration::from_millis(blink_interval), move |timer_token| {
-                if cursor_blink_timer.try_get_untracked() == Some(timer_token) {
-                    hide_cursor.update(|hide| {
-                        *hide = !*hide;
-                    });
-                    blink_cursor(cursor_blink_timer, hide_cursor, config);
-                }
-            });
-        cursor_blink_timer.set(timer_token);
-    }
 }
 
 fn parse_hover_resp(

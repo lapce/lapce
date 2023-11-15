@@ -9,7 +9,7 @@ use floem::{
     reactive::create_effect,
     style::{FontFamily, FontSize, LineHeight, Style, TextColor},
     taffy::prelude::Node,
-    view::View,
+    view::{View, ViewData},
     Renderer,
 };
 
@@ -52,6 +52,7 @@ pub fn focus_text(
 
     FocusText {
         id,
+        data: ViewData::new(id),
         text: "".to_string(),
         text_layout: None,
         focus_color: Color::default(),
@@ -66,6 +67,7 @@ pub fn focus_text(
 
 pub struct FocusText {
     id: Id,
+    data: ViewData,
     text: String,
     text_layout: Option<TextLayout>,
     focus_color: Color,
@@ -167,6 +169,14 @@ impl View for FocusText {
         self.id
     }
 
+    fn view_data(&self) -> &ViewData {
+        &self.data
+    }
+
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
+    }
+
     fn update(
         &mut self,
         cx: &mut floem::context::UpdateCx,
@@ -221,7 +231,10 @@ impl View for FocusText {
         })
     }
 
-    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) -> Option<Rect> {
+    fn compute_layout(
+        &mut self,
+        cx: &mut floem::context::ComputeLayoutCx,
+    ) -> Option<Rect> {
         let text_node = self.text_node.unwrap();
         let layout = cx.layout(text_node).unwrap();
         let text_layout = self.text_layout.as_ref().unwrap();

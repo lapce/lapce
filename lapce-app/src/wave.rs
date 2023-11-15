@@ -2,21 +2,34 @@ use floem::{
     id::Id,
     peniko::kurbo::{BezPath, Point, Size},
     style::TextColor,
-    view::View,
+    view::{View, ViewData},
     Renderer,
 };
 
 pub fn wave_box() -> WaveBox {
-    WaveBox { id: Id::next() }
+    let id = Id::next();
+    WaveBox {
+        id,
+        data: ViewData::new(id),
+    }
 }
 
 pub struct WaveBox {
     id: Id,
+    data: ViewData,
 }
 
 impl View for WaveBox {
     fn id(&self) -> Id {
         self.id
+    }
+
+    fn view_data(&self) -> &ViewData {
+        &self.data
+    }
+
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
     }
 
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {

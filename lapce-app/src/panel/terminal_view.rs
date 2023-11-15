@@ -10,6 +10,7 @@ use floem::{
         scroll::{scroll, Thickness},
         stack, svg, tab, Decorators,
     },
+    EventPropagation,
 };
 
 use super::kind::PanelKind;
@@ -30,11 +31,10 @@ pub fn terminal_panel(window_tab_data: Rc<WindowTabData>) -> impl View {
         terminal_tab_header(window_tab_data.clone()),
         terminal_tab_content(window_tab_data),
     ))
-    .on_event(EventListener::PointerDown, move |_| {
+    .on_event_cont(EventListener::PointerDown, move |_| {
         if focus.get_untracked() != Focus::Panel(PanelKind::Terminal) {
             focus.set(Focus::Panel(PanelKind::Terminal));
         }
-        false
     })
     .style(|s| s.absolute().size_pct(100.0, 100.0).flex_col())
 }
@@ -179,17 +179,19 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                         s.absolute().padding_horiz(3.0).size_pct(100.0, 100.0)
                     }),
                 ))
-                .on_event(EventListener::PointerDown, move |_| {
-                    if tab_info.with_untracked(|tab| tab.active)
-                        != index.get_untracked()
-                    {
-                        tab_info.update(|tab| {
-                            tab.active = index.get_untracked();
-                        });
-                        local_terminal.update_debug_active_term();
-                    }
-                    false
-                })
+                .on_event_cont(
+                    EventListener::PointerDown,
+                    move |_| {
+                        if tab_info.with_untracked(|tab| tab.active)
+                            != index.get_untracked()
+                        {
+                            tab_info.update(|tab| {
+                                tab.active = index.get_untracked();
+                            });
+                            local_terminal.update_debug_active_term();
+                        }
+                    },
+                )
             },
         ))
         .vertical_scroll_as_horizontal(|| true)
@@ -274,16 +276,15 @@ fn terminal_tab_split(
                     terminal_panel_data,
                     terminal.launch_error,
                 )
-                .on_event(EventListener::PointerDown, move |_| {
+                .on_event_cont(EventListener::PointerDown, move |_| {
                     active.set(index.get_untracked());
-                    false
                 })
                 .on_event(EventListener::PointerWheel, move |event| {
                     if let Event::PointerWheel(pointer_event) = event {
                         terminal.clone().wheel_scroll(pointer_event.delta.y);
-                        true
+                        EventPropagation::Stop
                     } else {
-                        false
+                        EventPropagation::Continue
                     }
                 })
                 .on_cleanup(move || {

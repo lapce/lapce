@@ -5,7 +5,7 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
-    view::View,
+    view::{View, ViewData},
     Renderer,
 };
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
@@ -19,6 +19,7 @@ use super::{view::changes_colors, EditorData};
 
 pub struct EditorGutterView {
     id: Id,
+    data: ViewData,
     editor: Rc<EditorData>,
     width: f64,
 }
@@ -28,6 +29,7 @@ pub fn editor_gutter_view(editor: Rc<EditorData>) -> EditorGutterView {
 
     EditorGutterView {
         id,
+        data: ViewData::new(id),
         editor,
         width: 0.0,
     }
@@ -115,9 +117,17 @@ impl View for EditorGutterView {
         self.id
     }
 
+    fn view_data(&self) -> &ViewData {
+        &self.data
+    }
+
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
+    }
+
     fn compute_layout(
         &mut self,
-        cx: &mut floem::context::LayoutCx,
+        cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<floem::peniko::kurbo::Rect> {
         if let Some(width) = cx.get_layout(self.id).map(|l| l.size.width as f64) {
             self.width = width;

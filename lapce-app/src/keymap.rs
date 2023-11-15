@@ -237,7 +237,7 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                         .flex_grow(1.0)
                 }),
             ))
-            .on_click(move |_| {
+            .on_click_stop(move |_| {
                 let keymap = if let Some(keymap) = local_keymap.clone() {
                     keymap
                 } else {
@@ -253,7 +253,6 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                 picker.keys.update(|keys| {
                     keys.clear();
                 });
-                true
             })
             .style(move |s| {
                 let config = config.get();
@@ -447,7 +446,7 @@ fn keyboard_picker_view(
                                 ))
                             })
                     })
-                    .on_click(move |_| {
+                    .on_click_stop(move |_| {
                         let keymap = picker.keymap.get_untracked();
                         if let Some(keymap) = keymap {
                             let keys = picker.keys.get_untracked();
@@ -460,7 +459,6 @@ fn keyboard_picker_view(
                                     .collect::<Vec<KeyPress>>(),
                             );
                         }
-                        true
                     }),
                 text("Cancel")
                     .style(move |s| {
@@ -487,9 +485,8 @@ fn keyboard_picker_view(
                                 ))
                             })
                     })
-                    .on_click(move |_| {
+                    .on_click_stop(move |_| {
                         picker.keymap.set(None);
-                        true
                     }),
             ))
             .style(move |s| {
@@ -514,7 +511,7 @@ fn keyboard_picker_view(
         }),
     )
     .keyboard_navigatable()
-    .on_event(EventListener::KeyDown, move |event| {
+    .on_event_stop(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             if let Some(keypress) = KeyPressData::keypress(key_event) {
                 picker.keys.update(|keys| {
@@ -530,9 +527,8 @@ fn keyboard_picker_view(
                 })
             }
         }
-        true
     })
-    .on_event(EventListener::KeyUp, move |event| {
+    .on_event_stop(EventListener::KeyUp, move |event| {
         if let Event::KeyUp(_key_event) = event {
             picker.keys.update(|keys| {
                 if let Some((_last_key, last_key_confirmed)) = keys.last_mut() {
@@ -540,7 +536,6 @@ fn keyboard_picker_view(
                 }
             })
         }
-        true
     })
     .style(move |s| {
         s.absolute()

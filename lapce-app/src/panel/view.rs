@@ -7,6 +7,7 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{container, container_box, empty, label, list, stack, tab, Decorators},
+    EventPropagation,
 };
 
 use super::{
@@ -49,17 +50,17 @@ pub fn panel_container_view(
                 .on_event(EventListener::DragEnter, move |_| {
                     if is_dragging_panel() {
                         dragging_over.set(true);
-                        true
+                        EventPropagation::Stop
                     } else {
-                        false
+                        EventPropagation::Continue
                     }
                 })
                 .on_event(EventListener::DragLeave, move |_| {
                     if is_dragging_panel() {
                         dragging_over.set(false);
-                        true
+                        EventPropagation::Stop
                     } else {
-                        false
+                        EventPropagation::Continue
                     }
                 })
                 .on_event(EventListener::Drop, move |_| {
@@ -67,9 +68,9 @@ pub fn panel_container_view(
                     {
                         dragging_over.set(false);
                         panel.move_panel_to_position(kind, &position);
-                        true
+                        EventPropagation::Stop
                     } else {
-                        false
+                        EventPropagation::Continue
                     }
                 })
                 .style(move |s| {
@@ -92,14 +93,13 @@ pub fn panel_container_view(
             let view = empty();
             let view_id = view.id();
             let drag_start: RwSignal<Option<Point>> = create_rw_signal(None);
-            view.on_event(EventListener::PointerDown, move |event| {
+            view.on_event_stop(EventListener::PointerDown, move |event| {
                 view_id.request_active();
                 if let Event::PointerDown(pointer_event) = event {
                     drag_start.set(Some(pointer_event.pos));
                 }
-                true
             })
-            .on_event(EventListener::PointerMove, move |event| {
+            .on_event_stop(EventListener::PointerMove, move |event| {
                 if let Event::PointerMove(pointer_event) = event {
                     if let Some(drag_start_point) = drag_start.get_untracked() {
                         let current_size = current_size.get_untracked();
@@ -164,11 +164,9 @@ pub fn panel_container_view(
                         }
                     }
                 }
-                true
             })
-            .on_event(EventListener::PointerUp, move |_| {
+            .on_event_stop(EventListener::PointerUp, move |_| {
                 drag_start.set(None);
-                true
             })
             .style(move |s| {
                 let is_dragging = drag_start.get().is_some();
@@ -391,13 +389,11 @@ fn panel_picker(
                     config,
                 )
                 .draggable()
-                .on_event(EventListener::DragStart, move |_| {
+                .on_event_stop(EventListener::DragStart, move |_| {
                     dragging.set(Some(DragContent::Panel(p)));
-                    true
                 })
-                .on_event(EventListener::DragEnd, move |_| {
+                .on_event_stop(EventListener::DragEnd, move |_| {
                     dragging.set(None);
-                    true
                 })
                 .dragging_style(move |s| {
                     let config = config.get();

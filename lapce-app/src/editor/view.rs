@@ -16,9 +16,9 @@ use floem::{
     },
     style::{CursorStyle, Style},
     taffy::prelude::Node,
-    view::View,
+    view::{View, ViewData},
     views::{clip, container, empty, label, list, scroll, stack, svg, Decorators},
-    Renderer,
+    EventPropagation, Renderer,
 };
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText},
@@ -79,6 +79,7 @@ struct StickyHeaderInfo {
 
 pub struct EditorView {
     id: Id,
+    data: ViewData,
     editor: Rc<EditorData>,
     is_active: Memo<bool>,
     inner_node: Option<Node>,
@@ -105,7 +106,7 @@ pub fn editor_view(
         id.request_layout();
     });
 
-    let hide_cursor = editor.common.hide_cursor;
+    let hide_cursor = editor.common.window_common.hide_cursor;
     create_effect(move |_| {
         hide_cursor.track();
         let occurrences = doc.with(|doc| doc.find_result.occurrences);
@@ -158,7 +159,7 @@ pub fn editor_view(
     let editor_window_origin = editor.window_origin;
     let cursor = editor.cursor;
     let find_focus = editor.find_focus;
-    let ime_allowed = editor.common.ime_allowed;
+    let ime_allowed = editor.common.window_common.ime_allowed;
     let editor_viewport = editor.viewport;
     let editor_view = editor.view.clone();
     let doc = editor.view.doc;
@@ -190,6 +191,7 @@ pub fn editor_view(
 
     EditorView {
         id,
+        data: ViewData::new(id),
         editor,
         is_active,
         inner_node: None,
@@ -203,7 +205,7 @@ pub fn editor_view(
     }
     .on_event(EventListener::ImePreedit, move |event| {
         if !is_active.get_untracked() {
-            return false;
+            return EventPropagation::Continue;
         }
 
         if let Event::ImePreedit { text, cursor } = event {
@@ -215,11 +217,11 @@ pub fn editor_view(
                 doc.set_preedit(text.clone(), *cursor, offset);
             }
         }
-        true
+        EventPropagation::Stop
     })
     .on_event(EventListener::ImeCommit, move |event| {
         if !is_active.get_untracked() {
-            return false;
+            return EventPropagation::Continue;
         }
 
         if let Event::ImeCommit(text) = event {
@@ -227,7 +229,7 @@ pub fn editor_view(
             doc.clear_preedit();
             local_editor.receive_char(text);
         }
-        true
+        EventPropagation::Stop
     })
 }
 
@@ -348,7 +350,7 @@ impl EditorView {
         let view = self.editor.view.clone();
         let cursor = self.editor.cursor;
         let find_focus = self.editor.find_focus;
-        let hide_cursor = self.editor.common.hide_cursor;
+        let hide_cursor = self.editor.common.window_common.hide_cursor;
         let config = self.editor.common.config;
 
         let config = config.get_untracked();
@@ -1091,6 +1093,14 @@ impl View for EditorView {
         self.id
     }
 
+    fn view_data(&self) -> &ViewData {
+        &self.data
+    }
+
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
+    }
+
     fn update(
         &mut self,
         cx: &mut floem::context::UpdateCx,
@@ -1135,8 +1145,11 @@ impl View for EditorView {
         })
     }
 
-    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) -> Option<Rect> {
-        let viewport = cx.current_viewport().unwrap_or_default();
+    fn compute_layout(
+        &mut self,
+        cx: &mut floem::context::ComputeLayoutCx,
+    ) -> Option<Rect> {
+        let viewport = cx.current_viewport();
         if self.viewport.with_untracked(|v| v != &viewport) {
             self.viewport.set(viewport);
         }
@@ -1648,7 +1661,7 @@ fn editor_gutter(
                 },
             ),
         )
-        .on_click(move |_| {
+        .on_click_stop(move |_| {
             let line = (viewport.get_untracked().y0
                 / config.get_untracked().editor.line_height() as f64)
                 .floor() as usize
@@ -1714,15 +1727,12 @@ fn editor_gutter(
                     );
                 }
             }
-            true
         })
-        .on_event(EventListener::PointerEnter, move |_| {
+        .on_event_stop(EventListener::PointerEnter, move |_| {
             hovered.set(true);
-            true
         })
-        .on_event(EventListener::PointerLeave, move |_| {
+        .on_event_stop(EventListener::PointerLeave, move |_| {
             hovered.set(false);
-            true
         })
         .style(move |s| {
             s.width(padding_left)
@@ -1822,11 +1832,10 @@ fn editor_gutter(
                     .on_resize(move |rect| {
                         gutter_rect.set(rect);
                     })
-                    .on_event(EventListener::PointerWheel, move |event| {
+                    .on_event_stop(EventListener::PointerWheel, move |event| {
                         if let Event::PointerWheel(pointer_event) = event {
                             scroll_delta.set(pointer_event.delta);
                         }
-                        true
                     })
                     .style(|s| s.size_pct(100.0, 100.0)),
                 container(
@@ -1839,9 +1848,8 @@ fn editor_gutter(
                         },
                     ),
                 )
-                .on_click(move |_| {
+                .on_click_stop(move |_| {
                     editor.get_untracked().show_code_actions(true);
-                    true
                 })
                 .style(move |s| {
                     let config = config.get();
@@ -2042,30 +2050,26 @@ fn editor_content(
             );
         let id = editor_content_view.id();
         editor_content_view
-            .on_event(EventListener::PointerDown, move |event| {
+            .on_event_cont(EventListener::PointerDown, move |event| {
                 if let Event::PointerDown(pointer_event) = event {
                     id.request_active();
                     editor.get_untracked().pointer_down(pointer_event);
                 }
-                false
             })
-            .on_event(EventListener::PointerMove, move |event| {
+            .on_event_stop(EventListener::PointerMove, move |event| {
                 if let Event::PointerMove(pointer_event) = event {
                     editor.get_untracked().pointer_move(pointer_event);
                 }
-                true
             })
-            .on_event(EventListener::PointerUp, move |event| {
+            .on_event_stop(EventListener::PointerUp, move |event| {
                 if let Event::PointerUp(pointer_event) = event {
                     editor.get_untracked().pointer_up(pointer_event);
                 }
-                true
             })
-            .on_event(EventListener::PointerLeave, move |event| {
+            .on_event_stop(EventListener::PointerLeave, move |event| {
                 if let Event::PointerLeave = event {
                     editor.get_untracked().pointer_leave();
                 }
-                true
             })
     })
     .on_move(move |point| {
@@ -2142,10 +2146,9 @@ fn search_editor_view(
                 && find_focus.get()
                 && !replace_focus.get()
         })
-        .on_event(EventListener::PointerDown, move |_| {
+        .on_event_cont(EventListener::PointerDown, move |_| {
             find_focus.set(true);
             replace_focus.set(false);
-            false
         })
         .style(|s| s.width_pct(100.0)),
         clickable_icon(
@@ -2216,10 +2219,9 @@ fn replace_editor_view(
                 && replace_active.get()
                 && replace_focus.get()
         })
-        .on_event(EventListener::PointerDown, move |_| {
+        .on_event_cont(EventListener::PointerDown, move |_| {
             find_focus.set(true);
             replace_focus.set(true);
-            false
         })
         .style(|s| s.width_pct(100.0)),
         empty().style(move |s| {
@@ -2401,7 +2403,7 @@ fn find_view(
                 .cursor(CursorStyle::Default)
                 .flex_col()
         })
-        .on_event(EventListener::PointerDown, move |_| {
+        .on_event_stop(EventListener::PointerDown, move |_| {
             let editor = editor.get_untracked();
             if let Some(editor_tab_id) = editor.editor_tab_id.get_untracked() {
                 editor
@@ -2410,7 +2412,6 @@ fn find_view(
                     .send(InternalCommand::FocusEditorTab { editor_tab_id });
             }
             focus.set(Focus::Workbench);
-            true
         }),
     )
     .style(move |s| {

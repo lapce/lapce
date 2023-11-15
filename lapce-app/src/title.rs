@@ -224,14 +224,13 @@ fn middle(
             ))
             .style(|s| s.align_items(Some(AlignItems::Center))),
         )
-        .on_event(EventListener::PointerDown, |_| true)
-        .on_click(move |_| {
+        .on_event_stop(EventListener::PointerDown, |_| {})
+        .on_click_stop(move |_| {
             if workspace.clone().path.is_some() {
                 workbench_command.send(LapceWorkbenchCommand::Palette);
             } else {
                 workbench_command.send(LapceWorkbenchCommand::PaletteWorkspace);
             }
-            true
         })
         .style(move |s| {
             let config = config.get();
@@ -390,11 +389,11 @@ pub fn title(window_tab_data: Rc<WindowTabData>) -> impl View {
     let workspace = window_tab_data.workspace.clone();
     let lapce_command = window_tab_data.common.lapce_command;
     let workbench_command = window_tab_data.common.workbench_command;
-    let window_command = window_tab_data.common.window_command;
-    let latest_release = window_tab_data.latest_release;
+    let window_command = window_tab_data.common.window_common.window_command;
+    let latest_release = window_tab_data.common.window_common.latest_release;
     let proxy_status = window_tab_data.common.proxy_status;
-    let num_window_tabs = window_tab_data.num_window_tabs;
-    let window_maximized = window_tab_data.common.window_maximized;
+    let num_window_tabs = window_tab_data.common.window_common.num_window_tabs;
+    let window_maximized = window_tab_data.common.window_common.window_maximized;
     let title_height = window_tab_data.title_height;
     let update_in_progress = window_tab_data.update_in_progress;
     let config = window_tab_data.common.config;

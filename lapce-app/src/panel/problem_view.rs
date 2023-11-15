@@ -157,9 +157,8 @@ fn file_view(
                 ))
                 .style(move |s| s.width_pct(100.0).min_width(0.0)),
             )
-            .on_click(move |_| {
+            .on_click_stop(move |_| {
                 collpased.update(|collpased| *collpased = !*collpased);
-                true
             })
             .style(move |s| {
                 let config = config.get();
@@ -282,11 +281,10 @@ fn item_view(
                 })
             })
         })
-        .on_click(move |_| {
+        .on_click_stop(move |_| {
             internal_command.send(InternalCommand::JumpToLocation {
                 location: location.clone(),
             });
-            true
         })
         .style(|s| s.width_pct(100.0).min_width_pct(0.0)),
         related_view(related, internal_command, config),
@@ -331,11 +329,10 @@ fn related_view(
                     label(move || message.clone())
                         .style(move |s| s.width_pct(100.0).min_width(0.0)),
                 )
-                .on_click(move |_| {
+                .on_click_stop(move |_| {
                     internal_command.send(InternalCommand::JumpToLocation {
                         location: location.clone(),
                     });
-                    true
                 })
                 .style(move |s| {
                     let config = config.get();

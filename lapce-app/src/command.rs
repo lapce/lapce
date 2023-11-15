@@ -654,6 +654,7 @@ pub enum InternalCommand {
     OpenVoltView {
         volt_id: VoltID,
     },
+    ResetBlinkCursor,
 }
 
 #[derive(Clone)]

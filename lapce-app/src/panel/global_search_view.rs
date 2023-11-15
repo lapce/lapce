@@ -85,9 +85,8 @@ pub fn global_search_panel(
                 )
                 .style(|s| s.padding_left(6.0)),
             ))
-            .on_event(EventListener::PointerDown, move |_| {
+            .on_event_cont(EventListener::PointerDown, move |_| {
                 focus.set(Focus::Panel(PanelKind::Search));
-                false
             })
             .style(move |s| {
                 s.width_pct(100.0)
@@ -200,9 +199,8 @@ fn search_result(
                             ))
                             .style(move |s| s.min_width(0.0).items_center()),
                         ))
-                        .on_click(move |_| {
+                        .on_click_stop(move |_| {
                             expanded.update(|expanded| *expanded = !*expanded);
-                            true
                         })
                         .style(move |s| {
                             s.width_pct(100.0)
@@ -285,7 +283,7 @@ fn search_result(
                                         },
                                     )
                                 })
-                                .on_click(
+                                .on_click_stop(
                                     move |_| {
                                         internal_command.send(
                                             InternalCommand::JumpToLocation {
@@ -303,7 +301,6 @@ fn search_result(
                                                 },
                                             },
                                         );
-                                        true
                                     },
                                 )
                             },

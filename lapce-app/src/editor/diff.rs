@@ -397,8 +397,8 @@ pub fn diff_show_more_section_view(
                 }),
                 label(|| "Expand All".to_string()).style(|s| s.margin_left(6.0)),
             ))
-            .on_event(EventListener::PointerDown, move |_| true)
-            .on_click(move |_event| {
+            .on_event_stop(EventListener::PointerDown, move |_| {})
+            .on_click_stop(move |_event| {
                 left_editor_view.update(|editor_view| {
                     if let EditorViewKind::Diff(diff_info) = editor_view {
                         expand_diff_lines(
@@ -419,7 +419,6 @@ pub fn diff_show_more_section_view(
                         );
                     }
                 });
-                true
             })
             .style(|s| {
                 s.margin_left(10.0)
@@ -439,8 +438,8 @@ pub fn diff_show_more_section_view(
                 ),
                 label(|| "Expand Up".to_string()).style(|s| s.margin_left(6.0)),
             ))
-            .on_event(EventListener::PointerDown, move |_| true)
-            .on_click(move |_event| {
+            .on_event_stop(EventListener::PointerDown, move |_| {})
+            .on_click_stop(move |_event| {
                 left_editor_view.update(|editor_view| {
                     if let EditorViewKind::Diff(diff_info) = editor_view {
                         expand_diff_lines(
@@ -461,7 +460,6 @@ pub fn diff_show_more_section_view(
                         );
                     }
                 });
-                true
             })
             .style(move |s| {
                 s.margin_left(10.0)
@@ -481,8 +479,8 @@ pub fn diff_show_more_section_view(
                 ),
                 label(|| "Expand Down".to_string()).style(|s| s.margin_left(6.0)),
             ))
-            .on_event(EventListener::PointerDown, move |_| true)
-            .on_click(move |_event| {
+            .on_event_stop(EventListener::PointerDown, move |_| {})
+            .on_click_stop(move |_event| {
                 left_editor_view.update(|editor_view| {
                     if let EditorViewKind::Diff(diff_info) = editor_view {
                         expand_diff_lines(
@@ -503,7 +501,6 @@ pub fn diff_show_more_section_view(
                         );
                     }
                 });
-                true
             })
             .style(move |s| {
                 s.margin_left(10.0)

@@ -14,9 +14,8 @@ pub fn web_link(
     internal_command: Listener<InternalCommand>,
 ) -> impl View {
     label(text)
-        .on_click(move |_| {
+        .on_click_stop(move |_| {
             internal_command.send(InternalCommand::OpenWebUri { uri: uri() });
-            true
         })
         .base_style(move |s| {
             s.color(color())

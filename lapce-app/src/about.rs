@@ -177,7 +177,7 @@ fn exclusive_popup<V: View + 'static>(
                         .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
                         .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
                 })
-                .on_event(EventListener::PointerDown, move |_| true),
+                .on_event_stop(EventListener::PointerDown, move |_| {}),
         )
         .style(move |s| {
             s.flex_grow(1.0)
@@ -186,12 +186,11 @@ fn exclusive_popup<V: View + 'static>(
                 .hover(move |s| s.cursor(CursorStyle::Default))
         }),
     )
-    .on_event(EventListener::PointerDown, move |_| {
+    .on_event_stop(EventListener::PointerDown, move |_| {
         window_tab_data.about_data.close();
-        true
     })
     // Prevent things behind the grayed out area from being hovered.
-    .on_event(EventListener::PointerMove, move |_| true)
+    .on_event_stop(EventListener::PointerMove, move |_| {})
     .style(move |s| {
         s.display(if visibility.get() {
             Display::Flex
