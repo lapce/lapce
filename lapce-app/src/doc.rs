@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
+    ops::DerefMut,
     path::{Path, PathBuf},
     rc::Rc,
     sync::{atomic, Arc},
@@ -437,7 +438,7 @@ impl Document {
             return Vec::new();
         }
 
-        let mut clipboard = SystemClipboard::new();
+        let mut clipboard = self.common.clipboard.lock();
         let old_cursor = cursor.mode.clone();
         let deltas = self.syntax.with_untracked(|syntax| {
             self.buffer
@@ -447,7 +448,7 @@ impl Document {
                         buffer,
                         cmd,
                         syntax,
-                        &mut clipboard,
+                        clipboard.deref_mut(),
                         modal,
                         register,
                         smart_tab,

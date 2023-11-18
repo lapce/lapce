@@ -30,7 +30,6 @@ use super::{
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
     debug::RunDebugProcess,
-    doc::SystemClipboard,
     keypress::{condition::Condition, KeyPressFocus},
     window_tab::CommonData,
     workspace::LapceWorkspace,
@@ -157,7 +156,6 @@ impl KeyPressFocus for TerminalData {
                     term.selection = None;
                 }
                 EditCommand::ClipboardCopy => {
-                    let mut clipboard = SystemClipboard::new();
                     if matches!(self.mode.get_untracked(), Mode::Visual(_)) {
                         self.mode.set(Mode::Normal);
                     }
@@ -165,6 +163,7 @@ impl KeyPressFocus for TerminalData {
                     let mut raw = raw.write();
                     let term = &mut raw.term;
                     if let Some(content) = term.selection_to_string() {
+                        let mut clipboard = self.common.clipboard.lock();
                         clipboard.put_string(content);
                     }
                     if self.mode.get_untracked() != Mode::Terminal {
@@ -172,7 +171,6 @@ impl KeyPressFocus for TerminalData {
                     }
                 }
                 EditCommand::ClipboardPaste => {
-                    let mut clipboard = SystemClipboard::new();
                     let mut check_bracketed_paste: bool = false;
                     if self.mode.get_untracked() == Mode::Terminal {
                         let raw = self.raw.get_untracked();
@@ -183,6 +181,7 @@ impl KeyPressFocus for TerminalData {
                             check_bracketed_paste = true;
                         }
                     }
+                    let mut clipboard = self.common.clipboard.lock();
                     if let Some(s) = clipboard.get_string() {
                         if check_bracketed_paste {
                             self.receive_char("\x1b[200~");

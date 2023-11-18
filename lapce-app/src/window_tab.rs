@@ -33,6 +33,7 @@ use lapce_rpc::{
     terminal::TermId,
 };
 use lsp_types::{ProgressParams, ProgressToken, ShowMessageParams};
+use parking_lot::Mutex;
 use serde_json::Value;
 use tracing::{debug, error};
 
@@ -48,7 +49,7 @@ use crate::{
     config::LapceConfig,
     db::LapceDb,
     debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
-    doc::{DocContent, EditorDiagnostic},
+    doc::{DocContent, EditorDiagnostic, SystemClipboard},
     editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
@@ -135,6 +136,7 @@ pub struct CommonData {
     // the current focused view which will receive keyboard events
     pub keyboard_focus: RwSignal<Option<floem::id::Id>>,
     pub window_common: Rc<WindowCommonData>,
+    pub clipboard: Rc<Mutex<SystemClipboard>>,
 }
 
 #[derive(Clone)]
@@ -316,6 +318,8 @@ impl WindowTabData {
             text_layout.size().height
         });
 
+        let clipboard = Rc::new(Mutex::new(SystemClipboard::new()));
+
         let common = Rc::new(CommonData {
             workspace: workspace.clone(),
             scope: cx,
@@ -342,6 +346,7 @@ impl WindowTabData {
             breakpoints: cx.create_rw_signal(BTreeMap::new()),
             keyboard_focus: cx.create_rw_signal(None),
             window_common: window_common.clone(),
+            clipboard,
         });
 
         let main_split = MainSplitData::new(cx, common.clone());
