@@ -51,7 +51,6 @@ sled = "0.34.7"
 bytemuck = "1.14.0"
 tokio = { version = "1.21", features = ["full"] }
 futures = "0.3.26"
-clipboard = "0.5.0"
 floem = { git = "https://github.com/lapce/floem", rev = "4621c89a5f3d43ec7d8d0f51c0a0b7214eb03a56" }
 # floem = { path = "../../workspaces/floem" }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
@@ -59,6 +58,7 @@ structdesc = { git = "https://github.com/lapce/structdesc" }
 base64 = "0.21.5"
 sha2 = "0.10.6"
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
+arboard = { version = "3.2.1", default-features = false }
 
 [target.'cfg(target_os="macos")'.dependencies]
 fs_extra = "1.2.0"

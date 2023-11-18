@@ -8,7 +8,6 @@ use std::{
     time::Duration,
 };
 
-use clipboard::{ClipboardContext, ClipboardProvider};
 use floem::{
     action::exec_after,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
@@ -47,6 +46,7 @@ use lsp_types::{
 };
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
+use tracing::error;
 
 use self::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine};
 use crate::{
@@ -61,7 +61,7 @@ use crate::{
 pub mod phantom_text;
 
 pub struct SystemClipboard {
-    ctx: ClipboardContext,
+    inner: arboard::Clipboard,
 }
 
 impl Default for SystemClipboard {
@@ -73,18 +73,32 @@ impl Default for SystemClipboard {
 impl SystemClipboard {
     pub fn new() -> Self {
         SystemClipboard {
-            ctx: ClipboardProvider::new().unwrap(),
+            inner: arboard::Clipboard::new().unwrap(),
         }
     }
 }
 
 impl Clipboard for SystemClipboard {
     fn get_string(&mut self) -> Option<String> {
-        self.ctx.get_contents().ok()
+        self.inner
+            .get_text()
+            .map_err(|error| {
+                if !matches!(error, arboard::Error::ContentNotAvailable) {
+                    error!("clipboard error: paste: {error:?}");
+                }
+                error
+            })
+            .ok()
     }
 
     fn put_string(&mut self, s: impl AsRef<str>) {
-        let _ = self.ctx.set_contents(s.as_ref().to_string());
+        let _ = self
+            .inner
+            .set_text(s.as_ref().to_string())
+            .map_err(|error| {
+                error!("clipboard error: copy: {error:?}");
+                error
+            });
     }
 }
 
