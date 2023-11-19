@@ -1518,12 +1518,12 @@ const LANGUAGES: &[SyntaxProperties] = &[
 ];
 
 impl LapceLanguage {
-    const HIGHLIGHTS_QUERIES_FILE_NAME: &str = "highlights.scm";
-    const HIGHLIGHTS_INJECTIONS_FILE_NAME: &str = "injections.scm";
+    const HIGHLIGHTS_QUERIES_FILE_NAME: &'static str = "highlights.scm";
+    const HIGHLIGHTS_INJECTIONS_FILE_NAME: &'static str = "injections.scm";
     #[cfg(unix)]
-    const SYSTEM_GRAMMARS_DIRECTORY: &str = "/usr/lib";
+    const SYSTEM_GRAMMARS_DIRECTORY: &'static str = "/usr/lib";
     #[cfg(unix)]
-    const SYSTEM_QUERIES_DIRECTORY: &str = "/usr/share/tree-sitter/grammars";
+    const SYSTEM_QUERIES_DIRECTORY: &'static str = "/usr/share/tree-sitter/grammars";
 
     pub fn from_path(path: &Path) -> LapceLanguage {
         Self::from_path_raw(path).unwrap_or(LapceLanguage::Plaintext)
