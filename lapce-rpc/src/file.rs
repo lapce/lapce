@@ -65,25 +65,26 @@ pub struct FileNodeItem {
     pub children_open_count: usize,
 }
 
-#[allow(clippy::incorrect_partial_ord_impl_on_ord_type)]
 impl PartialOrd for FileNodeItem {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (self.is_dir, other.is_dir) {
-            (true, false) => return Some(Ordering::Less),
-            (false, true) => return Some(Ordering::Greater),
-            _ => {}
-        }
-
-        let self_file_name = self.path.file_name()?.to_str()?;
-        let other_file_name = other.path.file_name()?.to_str()?;
-
-        Some(human_sort::compare(self_file_name, other_file_name))
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for FileNodeItem {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        match (self.is_dir, other.is_dir) {
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            _ => {
+                let [self_file_name, other_file_name] = [&self.path, &other.path]
+                    .map(|path| {
+                        path.file_name().unwrap_or_default().to_string_lossy()
+                    });
+
+                human_sort::compare(&self_file_name, &other_file_name)
+            }
+        }
     }
 }
 
