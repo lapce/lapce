@@ -35,6 +35,52 @@ pub enum CursorMode {
     Insert(Selection),
 }
 
+struct RegionsIter<'c> {
+    cursor_mode: &'c CursorMode,
+    idx: usize,
+}
+
+impl<'c> Iterator for RegionsIter<'c> {
+    type Item = (usize, usize);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.cursor_mode {
+            &CursorMode::Normal(offset) => (self.idx == 0).then(|| {
+                self.idx = 1;
+                (offset, offset)
+            }),
+            &CursorMode::Visual { start, end, .. } => (self.idx == 0).then(|| {
+                self.idx = 1;
+                (start, end)
+            }),
+            CursorMode::Insert(selection) => {
+                let next = selection
+                    .regions()
+                    .get(self.idx)
+                    .map(|&SelRegion { start, end, .. }| (start, end));
+
+                if next.is_some() {
+                    self.idx += 1;
+                }
+
+                next
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let total_len = match self.cursor_mode {
+            CursorMode::Normal(_) | CursorMode::Visual { .. } => 1,
+            CursorMode::Insert(selection) => selection.len(),
+        };
+        let len = total_len - self.idx;
+
+        (len, Some(len))
+    }
+}
+
+impl<'c> ExactSizeIterator for RegionsIter<'c> {}
+
 impl CursorMode {
     pub fn offset(&self) -> usize {
         match &self {
@@ -51,6 +97,15 @@ impl CursorMode {
             CursorMode::Insert(selection) => {
                 selection.first().map(|s| s.start).unwrap_or(0)
             }
+        }
+    }
+
+    pub fn regions_iter(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (usize, usize)> + '_ {
+        RegionsIter {
+            cursor_mode: self,
+            idx: 0,
         }
     }
 }
@@ -87,6 +142,12 @@ impl Cursor {
 
     pub fn start_offset(&self) -> usize {
         self.mode.start_offset()
+    }
+
+    pub fn regions_iter(
+        &self,
+    ) -> impl ExactSizeIterator<Item = (usize, usize)> + '_ {
+        self.mode.regions_iter()
     }
 
     pub fn is_normal(&self) -> bool {
