@@ -241,9 +241,8 @@ impl EditorTabChild {
                             color.cloned(),
                             path.file_name()
                                 .unwrap_or_default()
-                                .to_str()
-                                .unwrap_or_default()
-                                .to_string(),
+                                .to_string_lossy()
+                                .into_owned(),
                             confirmed,
                             is_pritine,
                         )
@@ -295,8 +294,7 @@ impl EditorTabChild {
                                 "{} (Diff)",
                                 path.file_name()
                                     .unwrap_or_default()
-                                    .to_str()
-                                    .unwrap_or_default()
+                                    .to_string_lossy()
                             ),
                             is_pritine,
                         )

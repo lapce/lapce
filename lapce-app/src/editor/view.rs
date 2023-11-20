@@ -1931,14 +1931,16 @@ fn editor_breadcrumbs(
                                     .to_path_buf();
                             }
                             path.ancestors()
-                                .collect::<Vec<_>>()
-                                .iter()
-                                .rev()
                                 .filter_map(|path| {
-                                    Some(path.file_name()?.to_str()?.to_string())
+                                    Some(
+                                        path.file_name()?
+                                            .to_string_lossy()
+                                            .into_owned(),
+                                    )
                                 })
                                 .collect::<Vec<_>>()
                                 .into_iter()
+                                .rev()
                                 .enumerate()
                         },
                         |(i, section)| (*i, section.to_string()),
