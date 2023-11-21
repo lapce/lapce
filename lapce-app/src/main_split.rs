@@ -2211,6 +2211,7 @@ impl MainSplitData {
                     path,
                     rev,
                     content,
+                    true,
                     Box::new(move |result| {
                         send(result);
                     }),

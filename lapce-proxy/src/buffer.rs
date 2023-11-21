@@ -57,7 +57,7 @@ impl Buffer {
         }
     }
 
-    pub fn save(&mut self, rev: u64) -> Result<()> {
+    pub fn save(&mut self, rev: u64, create_parents: bool) -> Result<()> {
         if self.read_only {
             return Err(anyhow!("can't save to read only file"));
         }
@@ -83,6 +83,12 @@ impl Buffer {
         let bak_file_path = &path.with_extension(bak_extension);
         if !new_file {
             fs::copy(&path, bak_file_path)?;
+        }
+
+        if create_parents {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
         }
 
         let mut f = fs::OpenOptions::new()

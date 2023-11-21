@@ -730,10 +730,14 @@ impl ProxyHandler for Dispatcher {
                     proxy_rpc.handle_response(id, result);
                 });
             }
-            Save { rev, path } => {
+            Save {
+                rev,
+                path,
+                create_parents,
+            } => {
                 let buffer = self.buffers.get_mut(&path).unwrap();
                 let result = buffer
-                    .save(rev)
+                    .save(rev, create_parents)
                     .map(|_r| {
                         self.catalog_rpc
                             .did_save_text_document(&path, buffer.rope.clone());
@@ -750,12 +754,13 @@ impl ProxyHandler for Dispatcher {
                 path,
                 rev,
                 content,
+                create_parents,
             } => {
                 let mut buffer = Buffer::new(buffer_id, path.clone());
                 buffer.rope = Rope::from(content);
                 buffer.rev = rev;
                 let result = buffer
-                    .save(rev)
+                    .save(rev, create_parents)
                     .map(|_| ProxyResponse::Success {})
                     .map_err(|e| RpcError {
                         code: 0,

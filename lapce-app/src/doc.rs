@@ -1589,7 +1589,7 @@ impl Document {
                 }
             });
 
-            self.common.proxy.save(rev, path, move |result| {
+            self.common.proxy.save(rev, path, true, move |result| {
                 send(result);
             })
         }

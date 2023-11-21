@@ -148,12 +148,16 @@ pub enum ProxyRequest {
     Save {
         rev: u64,
         path: PathBuf,
+        /// Whether to create the parent directories if they do not exist.
+        create_parents: bool,
     },
     SaveBufferAs {
         buffer_id: BufferId,
         path: PathBuf,
         rev: u64,
         content: String,
+        /// Whether to create the parent directories if they do not exist.
+        create_parents: bool,
     },
     CreateFile {
         path: PathBuf,
@@ -668,6 +672,7 @@ impl ProxyRpcHandler {
         path: PathBuf,
         rev: u64,
         content: String,
+        create_parents: bool,
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(
@@ -676,6 +681,7 @@ impl ProxyRpcHandler {
                 path,
                 rev,
                 content,
+                create_parents,
             },
             f,
         );
@@ -700,8 +706,21 @@ impl ProxyRpcHandler {
         );
     }
 
-    pub fn save(&self, rev: u64, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(ProxyRequest::Save { rev, path }, f);
+    pub fn save(
+        &self,
+        rev: u64,
+        path: PathBuf,
+        create_parents: bool,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::Save {
+                rev,
+                path,
+                create_parents,
+            },
+            f,
+        );
     }
 
     pub fn get_files(&self, f: impl ProxyCallback + 'static) {
