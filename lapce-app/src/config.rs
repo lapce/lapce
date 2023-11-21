@@ -19,7 +19,7 @@ use self::{
     color::LapceColor,
     color_theme::{ColorThemeConfig, ThemeColor, ThemeColorPreference},
     core::CoreConfig,
-    editor::{EditorConfig, SCALE_OR_SIZE_LIMIT},
+    editor::{EditorConfig, WrapStyle, SCALE_OR_SIZE_LIMIT},
     icon::LapceIcons,
     icon_theme::IconThemeConfig,
     svg::SvgStore,
@@ -91,6 +91,9 @@ pub struct LapceConfig {
     color_theme_list: im::Vector<String>,
     #[serde(skip)]
     icon_theme_list: im::Vector<String>,
+    /// The couple names for the wrap style
+    #[serde(skip)]
+    wrap_style_list: im::Vector<String>,
 }
 
 impl LapceConfig {
@@ -120,6 +123,13 @@ impl LapceConfig {
             .sorted()
             .collect();
         lapce_config.icon_theme_list.sort();
+
+        lapce_config.wrap_style_list = im::vector![
+            WrapStyle::None.to_string(),
+            WrapStyle::EditorWidth.to_string(),
+            // TODO: WrapStyle::WrapColumn.to_string(),
+            WrapStyle::WrapWidth.to_string()
+        ];
 
         lapce_config.terminal.get_indexed_colors();
 
@@ -801,6 +811,18 @@ impl LapceConfig {
                     .position(|s| s == &self.icon_theme.name)
                     .unwrap_or(0),
                 items: self.icon_theme_list.clone(),
+            }),
+            ("editor", "wrap-style") => Some(DropdownInfo {
+                // TODO: it would be better to have the text not be the default kebab-case when
+                // displayed in settings, but we would need to map back from the dropdown's value
+                // or index.
+                active_index: self
+                    .wrap_style_list
+                    .iter()
+                    .flat_map(|w| WrapStyle::try_from_str(w))
+                    .position(|w| w == self.editor.wrap_style)
+                    .unwrap_or(0),
+                items: self.wrap_style_list.clone(),
             }),
             ("ui", "tab-close-button") => Some(DropdownInfo {
                 active_index: self.ui.tab_close_button as usize,

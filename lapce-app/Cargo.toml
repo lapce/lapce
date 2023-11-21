@@ -85,3 +85,10 @@ all-languages = [
     "lapce-core/lang-toml",
     "lapce-core/lang-yaml",
 ]
+
+[dev-dependencies]
+criterion = "0.4"
+
+[[bench]]
+name = "visual_line"
+harness = false

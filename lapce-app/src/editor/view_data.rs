@@ -1,18 +1,23 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    rc::Rc,
+    sync::Arc,
+};
 
 use floem::{
-    cosmic_text::TextLayout,
-    peniko::{kurbo::Point, Color},
-    reactive::{ReadSignal, RwSignal, Scope},
-    views::VirtualListVector,
+    cosmic_text::{LayoutLine, TextLayout, Wrap},
+    peniko::{
+        kurbo::{Point, Rect},
+        Color,
+    },
+    reactive::{batch, create_trigger, untrack, ReadSignal, RwSignal, Scope},
 };
 use lapce_core::{
-    buffer::{
-        diff::DiffLines,
-        rope_text::{RopeText, RopeTextVal},
-    },
+    buffer::rope_text::{RopeText, RopeTextVal},
     char_buffer::CharBuffer,
-    cursor::ColPosition,
+    cursor::{ColPosition, CursorAffinity},
     mode::Mode,
     soft_tab::{snap_to_soft_tab_line_col, SnapDirection},
     word::WordCursor,
@@ -20,17 +25,27 @@ use lapce_core::{
 use lapce_xi_rope::Rope;
 
 use crate::{
-    config::LapceConfig,
+    config::{editor::WrapStyle, LapceConfig},
     doc::{phantom_text::PhantomTextLine, Document},
     find::{Find, FindResult},
 };
 
-use super::{diff::DiffInfo, FONT_SIZE};
+use super::{
+    compute_screen_lines,
+    diff::DiffInfo,
+    view::ScreenLines,
+    visual_line::{
+        hit_position_aff, FontSizeCacheId, LayoutEvent, LineFontSizeProvider, Lines,
+        RVLine, ResolvedWrap, TextLayoutProvider, VLine, VLineInfo,
+    },
+};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LineExtraStyle {
     pub x: f64,
+    pub y: f64,
     pub width: Option<f64>,
+    pub height: f64,
     pub bg_color: Option<Color>,
     pub under_line: Option<Color>,
     pub wave_line: Option<Color>,
@@ -45,50 +60,122 @@ pub struct TextLayoutLine {
     pub whitespaces: Option<Vec<(char, (f64, f64))>>,
     pub indent: f64,
 }
+impl TextLayoutLine {
+    /// The number of line breaks in the text layout. Always at least `1`.
+    pub fn line_count(&self) -> usize {
+        self.relevant_layouts().count().max(1)
+    }
 
-/// Keeps track of the text layouts so that we can efficiently reuse them.
-#[derive(Clone, Default)]
-pub struct TextLayoutCache {
-    /// The id of the last config, which lets us know when the config changes so we can update
-    /// the cache.
-    config_id: u64,
-    cache_rev: u64,
-    /// (Font Size -> (Line Number -> Text Layout))
-    /// Different font-sizes are cached separately, which is useful for features like code lens
-    /// where the text becomes small but you may wish to revert quickly.
-    pub layouts: HashMap<usize, HashMap<usize, Arc<TextLayoutLine>>>,
-    pub max_width: f64,
-}
+    /// Iterate over all the layouts that are nonempty.  
+    /// Note that this may be empty if the line is completely empty, like the last line
+    fn relevant_layouts(&self) -> impl Iterator<Item = &'_ LayoutLine> + '_ {
+        // Even though we only have one hard line (and thus only one `lines` entry) typically, for
+        // normal buffer lines, we can have more than one due to multiline phantom text. So we have
+        // to sum over all of the entries line counts.
+        self.text
+            .lines
+            .iter()
+            .flat_map(|l| l.layout_opt().as_deref())
+            .flat_map(|ls| ls.iter())
+            .filter(|l| !l.glyphs.is_empty())
+    }
 
-impl TextLayoutCache {
-    pub fn new() -> Self {
-        Self {
-            config_id: 0,
-            cache_rev: 0,
-            layouts: HashMap::new(),
-            max_width: 0.0,
+    /// Iterator over the (start, end) columns of the relevant layouts.  
+    pub fn layout_cols<'a>(
+        &'a self,
+        text_prov: impl TextLayoutProvider + 'a,
+        line: usize,
+    ) -> impl Iterator<Item = (usize, usize)> + 'a {
+        // TODO: Is there a more nicer function we can use this for? Can we just strip parts out of layout runs to get what we want in a more principled fashion?
+        let mut prefix = None;
+        if self.text.lines.len() == 1 {
+            let line_start = self.text.lines[0].start_index();
+            if let Some(layouts) = self.text.lines[0].layout_opt().as_deref() {
+                // Do we need to require !layouts.is_empty()?
+                if !layouts.is_empty() && layouts.iter().all(|l| l.glyphs.is_empty())
+                {
+                    // We assume the implicit glyph start is zero
+                    prefix = Some((line_start, line_start));
+                }
+            }
         }
+
+        let phantom_text = text_prov.line_phantom_text(line);
+
+        let iter = self
+            .text
+            .lines
+            .iter()
+            .filter_map(|line| line.layout_opt().as_deref().map(|ls| (line, ls)))
+            .flat_map(|(line, ls)| ls.iter().map(move |l| (line, l)))
+            .filter(|(_, l)| !l.glyphs.is_empty())
+            .map(move |(tl_line, l)| {
+                let line_start = tl_line.start_index();
+
+                let start = line_start + l.glyphs[0].start;
+                let end = line_start + l.glyphs.last().unwrap().end;
+
+                let text = text_prov.rope_text();
+                // We can't just use the original end, because the *true* last glyph on the line
+                // may be a space, but it isn't included in the layout! Though this only happens
+                // for single spaces, for some reason.
+                let pre_end = phantom_text.before_col(end);
+                let line_offset = text.offset_of_line(line);
+
+                // TODO(minor): We don't really need the entire line, just the two characters after
+                let line_end = text.line_end_col(line, true);
+
+                let end = if pre_end <= line_end {
+                    let after = text
+                        .slice_to_cow(line_offset + pre_end..line_offset + line_end);
+                    if after.starts_with(' ') && !after.starts_with("  ") {
+                        end + 1
+                    } else {
+                        end
+                    }
+                } else {
+                    end
+                };
+
+                (start, end)
+            });
+
+        prefix.into_iter().chain(iter)
     }
 
-    pub fn clear(&mut self, cache_rev: u64) {
-        self.layouts.clear();
-        self.cache_rev = cache_rev;
-        self.max_width = 0.0;
-    }
-
-    pub fn check_attributes(&mut self, config_id: u64) {
-        if self.config_id != config_id {
-            self.clear(self.cache_rev + 1);
-            self.config_id = config_id;
+    /// Get the top y position of the given line index
+    pub fn get_layout_y(&self, nth: usize) -> Option<f64> {
+        if nth == 0 {
+            return Some(0.0);
         }
-    }
-}
 
-pub struct DocLine {
-    pub rev: u64,
-    pub style_rev: u64,
-    pub line: usize,
-    pub text: Arc<TextLayoutLine>,
+        let mut line_y = 0.0;
+        for (i, layout) in self.relevant_layouts().enumerate() {
+            // This logic matches how layout run iter computes the line_y
+            let line_height = layout.line_ascent + layout.line_descent;
+            if i == nth {
+                let offset = (line_height
+                    - (layout.glyph_ascent + layout.glyph_descent))
+                    / 2.0;
+
+                return Some((line_y - offset - layout.glyph_descent) as f64);
+            }
+
+            line_y += line_height;
+        }
+
+        None
+    }
+
+    /// Get the (start x, end x) positions of the given line index
+    pub fn get_layout_x(&self, nth: usize) -> Option<(f32, f32)> {
+        let layout = self.relevant_layouts().nth(nth)?;
+
+        let start = layout.glyphs.first().map(|g| g.x).unwrap_or(0.0);
+        let end = layout.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0);
+
+        Some((start, end))
+    }
 }
 
 #[derive(Clone)]
@@ -114,31 +201,15 @@ pub struct EditorViewData {
     /// Equivalent to the `EditorData::doc` that contains this view.
     pub doc: RwSignal<Rc<Document>>,
     pub kind: RwSignal<EditorViewKind>,
-    /// The text layouts for the document. This may be shared with other views.
-    pub text_layouts: Rc<RefCell<TextLayoutCache>>,
+    /// Equivalent to the `EditorData::viewport that contains this view data.
+    pub viewport: RwSignal<Rect>,
+    /// Lines holds various `RefCell`/`Cell`s so it can be accessed immutably, while still in
+    /// reality modifying it.
+    lines: Rc<Lines>,
 
     pub config: ReadSignal<Arc<LapceConfig>>,
-}
 
-impl VirtualListVector<DocLine> for EditorViewData {
-    type ItemIterator = std::vec::IntoIter<DocLine>;
-
-    fn total_len(&self) -> usize {
-        self.num_lines()
-    }
-
-    fn slice(&mut self, range: std::ops::Range<usize>) -> Self::ItemIterator {
-        let lines = range
-            .into_iter()
-            .map(|line| DocLine {
-                rev: self.rev(),
-                style_rev: self.cache_rev(),
-                line,
-                text: self.get_text_layout(line, FONT_SIZE),
-            })
-            .collect::<Vec<_>>();
-        lines.into_iter()
-    }
+    pub screen_lines: RwSignal<ScreenLines>,
 }
 
 impl EditorViewData {
@@ -146,14 +217,33 @@ impl EditorViewData {
         cx: Scope,
         doc: Rc<Document>,
         kind: EditorViewKind,
+        viewport: RwSignal<Rect>,
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> EditorViewData {
-        EditorViewData {
-            doc: cx.create_rw_signal(doc),
-            kind: cx.create_rw_signal(kind),
-            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+        let font_sizes = RefCell::new(Arc::new(ViewDataFontSizes {
             config,
-        }
+            loaded: doc.loaded.read_only(),
+        }));
+        let lines = Rc::new(Lines::new(cx, font_sizes));
+        let doc = cx.create_rw_signal(doc);
+        let kind = cx.create_rw_signal(kind);
+
+        let screen_lines =
+            cx.create_rw_signal(ScreenLines::new(cx, viewport.get_untracked()));
+
+        let view = EditorViewData {
+            doc,
+            kind,
+            viewport,
+            lines,
+            config,
+            screen_lines,
+        };
+
+        // Watch the relevant parts for recalculating the screen lines
+        create_view_effects(cx, &view);
+
+        view
     }
 
     // Note: There is no document / buffer function as that would require cloning it
@@ -175,6 +265,16 @@ impl EditorViewData {
     /// it not having a reference to the rope.
     pub fn rope_text(&self) -> RopeTextVal {
         RopeTextVal::new(self.text())
+    }
+
+    /// Get the text layout provider of this view.  
+    /// Typically should not be needed outside of view's code.
+    pub(crate) fn text_prov(&self) -> ViewDataTextLayoutProv {
+        ViewDataTextLayoutProv {
+            text: self.text(),
+            // TODO: Should we just give it the Rc instead?
+            doc: self.doc,
+        }
     }
 
     /// Return the [`Document`]'s [`Find`] instance. Find uses signals, and so can be updated.
@@ -210,22 +310,31 @@ impl EditorViewData {
 
     /// The document for the given view was swapped out.
     pub fn update_doc(&self, doc: Rc<Document>) {
-        self.doc.set(doc);
-        self.text_layouts.borrow_mut().clear(0);
+        batch(|| {
+            *self.lines.font_sizes.borrow_mut() = Arc::new(ViewDataFontSizes {
+                config: self.config.clone(),
+                loaded: doc.loaded.read_only(),
+            });
+            self.lines.clear(0, None);
+            self.doc.set(doc);
+            self.screen_lines.update(|screen_lines| {
+                screen_lines.clear(self.viewport.get_untracked())
+            });
+        });
     }
 
     /// Duplicate as a new view which refers to the same document.
-    pub fn duplicate(&self, cx: Scope) -> Self {
-        // TODO: This is correct right now, as it has the views share the same text layout cache.
-        // However, once we have line wrapping or other view-specific rendering changes, this should check for whether they're different.
-        // This will likely require more information to be passed into duplicate,
-        // like whether the wrap width will be the editor's width, and so it is unlikely to be exactly the same as the current view.
-        EditorViewData {
-            doc: cx.create_rw_signal(self.doc.get_untracked()),
-            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
-            kind: cx.create_rw_signal(self.kind.get_untracked()),
-            config: self.config,
-        }
+    pub fn duplicate(&self, cx: Scope, viewport: RwSignal<Rect>) -> Self {
+        let kind = self.kind.get_untracked();
+        // TODO(minor): we could use the font sizes arc
+
+        EditorViewData::new(
+            cx,
+            self.doc.get_untracked(),
+            kind,
+            viewport,
+            self.config,
+        )
     }
 
     pub fn line_phantom_text(&self, line: usize) -> PhantomTextLine {
@@ -234,65 +343,35 @@ impl EditorViewData {
 
     /// Get the text layout for the given line.
     /// If the text layout is not cached, it will be created and cached.
-    pub fn get_text_layout(
+    /// This triggers a layout event.
+    pub fn get_text_layout(&self, line: usize) -> Arc<TextLayoutLine> {
+        self.get_text_layout_trigger(line, true)
+    }
+
+    /// Get the text layout for the given line, deciding whether or not it should trigger a layout
+    /// event.  
+    /// If the text layout is not cached, it will be created and cached.
+    pub fn get_text_layout_trigger(
         &self,
         line: usize,
-        font_size: usize,
+        trigger: bool,
     ) -> Arc<TextLayoutLine> {
-        {
-            let mut text_layouts = self.text_layouts.borrow_mut();
-            let cache_rev = self.doc.get_untracked().cache_rev.get_untracked();
-            if cache_rev != text_layouts.cache_rev {
-                text_layouts.clear(cache_rev);
-            }
-        }
-
-        // TODO: Should we just move the config cache check into `check_cache`?
         let config = self.config.get_untracked();
-        // Check if the text layout needs to update due to the config being changed
-        self.text_layouts.borrow_mut().check_attributes(config.id);
-        // If we don't have a second layer of the hashmap initialized for this specific font size,
-        // do it now
-        if self.text_layouts.borrow().layouts.get(&font_size).is_none() {
-            let mut cache = self.text_layouts.borrow_mut();
-            cache.layouts.insert(font_size, HashMap::new());
-        }
+        let config_id: u64 = config.id;
 
-        // Get whether there's an entry for this specific font size and line
-        let cache_exists = self
-            .text_layouts
-            .borrow()
-            .layouts
-            .get(&font_size)
-            .unwrap()
-            .get(&line)
-            .is_some();
-        // If there isn't an entry then we actually have to create it
-        if !cache_exists {
-            let text_layout = self
-                .doc
-                .with_untracked(|doc| doc.get_text_layout(line, font_size));
-            let mut cache = self.text_layouts.borrow_mut();
-            let width = text_layout.text.size().width;
-            if width > cache.max_width {
-                cache.max_width = width;
-            }
-            cache
-                .layouts
-                .get_mut(&font_size)
-                .unwrap()
-                .insert(line, text_layout);
-        }
+        let text_prov = self.text_prov();
 
-        // Just get the entry, assuming it has been created because we initialize it above.
-        self.text_layouts
-            .borrow()
-            .layouts
-            .get(&font_size)
-            .unwrap()
-            .get(&line)
-            .cloned()
-            .unwrap()
+        self.lines
+            .get_init_text_layout(config_id, &text_prov, line, trigger)
+    }
+
+    /// Try to get a text layout for the given line, without creating it if it doesn't exist.  
+    /// Note that it may still clear the cache if the config id has changed.
+    pub fn try_get_text_layout(&self, line: usize) -> Option<Arc<TextLayoutLine>> {
+        let config = self.config.get_untracked();
+        let config_id = config.id;
+
+        self.lines.try_get_text_layout(config_id, line)
     }
 
     pub fn indent_unit(&self) -> &'static str {
@@ -300,23 +379,88 @@ impl EditorViewData {
             .with_untracked(|doc| doc.buffer.with_untracked(|b| b.indent_unit()))
     }
 
+    // TODO(minor): It would be nice to not manage this. Should we just do a create_effect on the doc and automatically update the cache rev? I'd be worried about accidentally ending up with an infinite cycle since depending on doc would be too much.
+    // The other alternative is to have the cache rev be provided as cache information by text_prov.
+
+    /// Iterate over the visual lines in the view, starting at the given line.
+    pub fn iter_vlines(
+        &self,
+        backwards: bool,
+        start: VLine,
+    ) -> impl Iterator<Item = VLineInfo> {
+        self.lines.iter_vlines(self.text_prov(), backwards, start)
+    }
+
+    /// Iterate over the visual lines in the view, starting at the given line and ending at the
+    /// given line. `start_line..end_line`
+    pub fn iter_vlines_over(
+        &self,
+        backwards: bool,
+        start: VLine,
+        end: VLine,
+    ) -> impl Iterator<Item = VLineInfo> {
+        self.lines
+            .iter_vlines_over(self.text_prov(), backwards, start, end)
+    }
+
+    /// Iterator over *relative* [`VLineInfo`]s, starting at the buffer line, `start_line`.  
+    /// The `visual_line`s provided by this will start at 0 from your `start_line`.  
+    /// This is preferable over `iter_lines` if you do not need to absolute visual line value.
+    pub fn iter_rvlines(
+        &self,
+        backwards: bool,
+        start: RVLine,
+    ) -> impl Iterator<Item = VLineInfo<()>> {
+        self.lines.iter_rvlines(self.text_prov(), backwards, start)
+    }
+
+    /// Iterator over *relative* [`VLineInfo`]s, starting at the buffer line, `start_line` and
+    /// ending at `end_line`.  
+    /// `start_line..end_line`  
+    /// This is preferable over `iter_lines` if you do not need to absolute visual line value.
+    pub fn iter_rvlines_over(
+        &self,
+        backwards: bool,
+        start: RVLine,
+        end_line: usize,
+    ) -> impl Iterator<Item = VLineInfo<()>> {
+        self.lines
+            .iter_rvlines_over(self.text_prov(), backwards, start, end_line)
+    }
+
     // ==== Position Information ====
 
-    /// The number of visual lines in the document.
+    pub fn first_rvline_info(&self) -> VLineInfo<()> {
+        self.rvline_info(RVLine::default())
+    }
+
+    /// The number of lines in the document.
     pub fn num_lines(&self) -> usize {
         self.doc
             .with_untracked(|doc| doc.buffer.with_untracked(|b| b.num_lines()))
     }
 
-    /// The last allowed line in the document.
+    /// The last allowed buffer line in the document.
     pub fn last_line(&self) -> usize {
         self.doc
             .with_untracked(|doc| doc.buffer.with_untracked(|b| b.last_line()))
     }
 
+    pub fn last_vline(&self) -> VLine {
+        self.lines.last_vline(self.text_prov())
+    }
+
+    pub fn last_rvline(&self) -> RVLine {
+        self.lines.last_rvline(self.text_prov())
+    }
+
+    pub fn last_rvline_info(&self) -> VLineInfo<()> {
+        self.rvline_info(self.last_rvline())
+    }
+
     // ==== Line/Column Positioning ====
 
-    /// Convert an offset into the buffer into a line and column.
+    /// Convert an offset into the buffer into a line and idx.  
     pub fn offset_to_line_col(&self, offset: usize) -> (usize, usize) {
         self.doc.with_untracked(|doc| {
             doc.buffer.with_untracked(|b| b.offset_to_line_col(offset))
@@ -336,6 +480,7 @@ impl EditorViewData {
         })
     }
 
+    /// Get the buffer line of an offset
     pub fn line_of_offset(&self, offset: usize) -> usize {
         self.doc.with_untracked(|doc| {
             doc.buffer.with_untracked(|b| b.line_of_offset(offset))
@@ -362,269 +507,169 @@ impl EditorViewData {
         })
     }
 
-    // ==== Points of locations ====
-
-    /// Returns the point into the text layout of the line at the given offset.
-    /// `x` being the leading edge of the character, and `y` being the baseline.
-    pub fn line_point_of_offset(&self, offset: usize, font_size: usize) -> Point {
-        let (line, col) = self.offset_to_line_col(offset);
-        self.line_point_of_line_col(line, col, font_size)
+    /// `affinity` decides whether an offset at a soft line break is considered to be on the
+    /// previous line or the next line.  
+    /// If `affinity` is `CursorAffinity::Forward` and is at the very end of the wrapped line, then
+    /// the offset is considered to be on the next line.
+    pub fn vline_of_offset(&self, offset: usize, affinity: CursorAffinity) -> VLine {
+        self.lines
+            .vline_of_offset(self.text_prov(), offset, affinity)
     }
 
-    /// Returns the point into the text layout of the line at the given line and column.
+    pub fn vline_of_line(&self, line: usize) -> VLine {
+        self.lines.vline_of_line(self.text_prov(), line)
+    }
+
+    pub fn vline_of_rvline(&self, rvline: RVLine) -> VLine {
+        self.lines.vline_of_rvline(self.text_prov(), rvline)
+    }
+
+    /// Get the nearest offset to the start of the visual line.
+    pub fn offset_of_vline(&self, vline: VLine) -> usize {
+        self.lines.offset_of_vline(self.text_prov(), vline)
+    }
+
+    /// Get the visual line and column of the given offset.  
+    /// The column is before phantom text is applied.
+    pub fn vline_col_of_offset(
+        &self,
+        offset: usize,
+        affinity: CursorAffinity,
+    ) -> (VLine, usize) {
+        self.lines
+            .vline_col_of_offset(self.text_prov(), offset, affinity)
+    }
+
+    pub fn rvline_of_offset(
+        &self,
+        offset: usize,
+        affinity: CursorAffinity,
+    ) -> RVLine {
+        self.lines
+            .rvline_of_offset(self.text_prov(), offset, affinity)
+    }
+
+    pub fn rvline_col_of_offset(
+        &self,
+        offset: usize,
+        affinity: CursorAffinity,
+    ) -> (RVLine, usize) {
+        self.lines
+            .rvline_col_of_offset(self.text_prov(), offset, affinity)
+    }
+
+    pub fn offset_of_rvline(&self, rvline: RVLine) -> usize {
+        self.lines.offset_of_rvline(self.text_prov(), rvline)
+    }
+
+    pub fn vline_info(&self, vline: VLine) -> VLineInfo {
+        let vline = vline.min(self.last_vline());
+        // TODO: don't unwrap?
+        self.iter_vlines(false, vline).next().unwrap()
+    }
+
+    pub fn screen_rvline_info_of_offset(
+        &self,
+        offset: usize,
+        affinity: CursorAffinity,
+    ) -> Option<VLineInfo<()>> {
+        let rvline = self.rvline_of_offset(offset, affinity);
+        self.screen_lines.with_untracked(|screen_lines| {
+            screen_lines
+                .iter_vline_info()
+                .find(|vline_info| vline_info.rvline == rvline)
+        })
+    }
+
+    pub fn rvline_info(&self, rvline: RVLine) -> VLineInfo<()> {
+        let rvline = rvline.min(self.last_rvline());
+        // TODO: don't unwrap?
+        self.iter_rvlines(false, rvline).next().unwrap()
+    }
+
+    pub fn rvline_info_of_offset(
+        &self,
+        offset: usize,
+        affinity: CursorAffinity,
+    ) -> VLineInfo<()> {
+        let rvline = self.rvline_of_offset(offset, affinity);
+        self.rvline_info(rvline)
+    }
+
+    /// Get the first column of the overall line of the visual line
+    pub fn first_col<T: std::fmt::Debug>(&self, info: VLineInfo<T>) -> usize {
+        info.first_col(self.text_prov())
+    }
+
+    /// Get the last column in the overall line of the visual line
+    pub fn last_col<T: std::fmt::Debug>(
+        &self,
+        info: VLineInfo<T>,
+        caret: bool,
+    ) -> usize {
+        info.last_col(self.text_prov(), caret)
+    }
+
+    // ==== Points of locations ====
+
+    pub fn max_line_width(&self) -> f64 {
+        self.lines.max_width()
+    }
+
+    // TODO: Should this use affinity?
+    /// Returns the point into the text layout of the line at the given offset.
     /// `x` being the leading edge of the character, and `y` being the baseline.
+    pub fn line_point_of_offset(
+        &self,
+        offset: usize,
+        affinity: CursorAffinity,
+    ) -> Point {
+        let (line, col) = self.offset_to_line_col(offset);
+        self.line_point_of_line_col(line, col, affinity)
+    }
+
+    /// Returns the point into the text layout of the line at the given line and col.
+    /// `x` being the leading edge of the character, and `y` being the baseline.  
     pub fn line_point_of_line_col(
         &self,
         line: usize,
         col: usize,
-        font_size: usize,
+        affinity: CursorAffinity,
     ) -> Point {
-        let text_layout = self.get_text_layout(line, font_size);
-        text_layout.text.hit_position(col).point
+        let text_layout = self.get_text_layout(line);
+        hit_position_aff(
+            &text_layout.text,
+            col,
+            affinity == CursorAffinity::Backward,
+        )
+        .point
     }
 
     /// Get the (point above, point below) of a particular offset within the editor.
-    pub fn points_of_offset(&self, offset: usize) -> (Point, Point) {
-        let (line, col) = self.offset_to_line_col(offset);
-        self.points_of_line_col(line, col)
-    }
-
-    /// Get the (point above, point below) of a particular (line, col) within the editor.
-    pub fn points_of_line_col(&self, line: usize, col: usize) -> (Point, Point) {
+    pub fn points_of_offset(
+        &self,
+        offset: usize,
+        affinity: CursorAffinity,
+    ) -> (Point, Point) {
         let config = self.config.get_untracked();
-        let (line_height, font_size) =
-            (config.editor.line_height(), config.editor.font_size());
+        let line_height = config.editor.line_height() as f64;
 
-        let y = self.visual_line(line) * line_height;
+        let info = self.screen_lines.with_untracked(|sl| {
+            sl.iter_line_info()
+                .find(|info| info.vline_info.interval.contains(offset))
+        });
+        let Some(info) = info else {
+            // TODO: We could do a smarter method where we get the approximate y position
+            // because, for example, this spot could be folded away, and so it would be better to
+            // supply the *nearest* position on the screen.
+            return (Point::new(0.0, 0.0), Point::new(0.0, 0.0));
+        };
 
-        let line = line.min(self.last_line());
+        let y = info.vline_y;
 
-        let phantom_text = self.line_phantom_text(line);
-        let col = phantom_text.col_after(col, false);
+        let x = self.line_point_of_offset(offset, affinity).x;
 
-        let mut x_shift = 0.0;
-        if font_size < config.editor.font_size() {
-            let mut col = 0usize;
-            self.doc.get_untracked().buffer.with_untracked(|buffer| {
-                let line_content = buffer.line_content(line);
-                for ch in line_content.chars() {
-                    if ch == ' ' || ch == '\t' {
-                        col += 1;
-                    } else {
-                        break;
-                    }
-                }
-            });
-
-            if col > 0 {
-                let normal_text_layout =
-                    self.get_text_layout(line, config.editor.font_size());
-                let small_text_layout = self.get_text_layout(line, font_size);
-                x_shift = normal_text_layout.text.hit_position(col).point.x
-                    - small_text_layout.text.hit_position(col).point.x;
-            }
-        }
-
-        let x = self.line_point_of_line_col(line, col, font_size).x + x_shift;
-        (
-            Point::new(x, y as f64),
-            Point::new(x, (y + line_height) as f64),
-        )
-    }
-
-    pub fn actual_line(&self, visual_line: usize, bottom_affinity: bool) -> usize {
-        self.kind.with_untracked(|kind| match kind {
-            EditorViewKind::Normal => visual_line,
-            EditorViewKind::Diff(diff) => {
-                let is_right = diff.is_right;
-                let mut actual_line: usize = 0;
-                let mut current_visual_line = 0;
-                let mut last_change: Option<&DiffLines> = None;
-                let mut changes = diff.changes.iter().peekable();
-                while let Some(change) = changes.next() {
-                    match (is_right, change) {
-                        (true, DiffLines::Left(range)) => {
-                            if let Some(DiffLines::Right(_)) = changes.peek() {
-                            } else {
-                                current_visual_line += range.len();
-                                if current_visual_line >= visual_line {
-                                    return if bottom_affinity {
-                                        actual_line
-                                    } else {
-                                        actual_line.saturating_sub(1)
-                                    };
-                                }
-                            }
-                        }
-                        (false, DiffLines::Right(range)) => {
-                            let len = if let Some(DiffLines::Left(r)) = last_change {
-                                range.len() - r.len().min(range.len())
-                            } else {
-                                range.len()
-                            };
-                            if len > 0 {
-                                current_visual_line += len;
-                                if current_visual_line >= visual_line {
-                                    return actual_line;
-                                }
-                            }
-                        }
-                        (true, DiffLines::Right(range))
-                        | (false, DiffLines::Left(range)) => {
-                            let len = range.len();
-                            if current_visual_line + len > visual_line {
-                                return range.start
-                                    + (visual_line - current_visual_line);
-                            }
-                            current_visual_line += len;
-                            actual_line += len;
-                            if is_right {
-                                if let Some(DiffLines::Left(r)) = last_change {
-                                    let len = r.len() - r.len().min(range.len());
-                                    if len > 0 {
-                                        current_visual_line += len;
-                                        if current_visual_line > visual_line {
-                                            return if bottom_affinity {
-                                                actual_line
-                                            } else {
-                                                actual_line - range.len()
-                                            };
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        (_, DiffLines::Both(info)) => {
-                            let len = info.right.len();
-                            let start = if is_right {
-                                info.right.start
-                            } else {
-                                info.left.start
-                            };
-
-                            if let Some(skip) = info.skip.as_ref() {
-                                if current_visual_line + skip.start == visual_line {
-                                    return if bottom_affinity {
-                                        actual_line + skip.end
-                                    } else {
-                                        (actual_line + skip.start).saturating_sub(1)
-                                    };
-                                } else if current_visual_line + skip.start + 1
-                                    > visual_line
-                                {
-                                    return actual_line + visual_line
-                                        - current_visual_line;
-                                } else if current_visual_line + len - skip.len() + 1
-                                    >= visual_line
-                                {
-                                    return actual_line
-                                        + skip.end
-                                        + (visual_line
-                                            - current_visual_line
-                                            - skip.start
-                                            - 1);
-                                }
-                                actual_line += len;
-                                current_visual_line += len - skip.len() + 1;
-                            } else {
-                                if current_visual_line + len > visual_line {
-                                    return start
-                                        + (visual_line - current_visual_line);
-                                }
-                                current_visual_line += len;
-                                actual_line += len;
-                            }
-                        }
-                    }
-                    last_change = Some(change);
-                }
-                actual_line
-            }
-        })
-    }
-
-    pub fn visual_line(&self, line: usize) -> usize {
-        self.kind.with_untracked(|kind| match kind {
-            EditorViewKind::Normal => line,
-            EditorViewKind::Diff(diff) => {
-                let is_right = diff.is_right;
-                let mut last_change: Option<&DiffLines> = None;
-                let mut visual_line = 0;
-                let mut changes = diff.changes.iter().peekable();
-                while let Some(change) = changes.next() {
-                    match (is_right, change) {
-                        (true, DiffLines::Left(range)) => {
-                            if let Some(DiffLines::Right(_)) = changes.peek() {
-                            } else {
-                                visual_line += range.len();
-                            }
-                        }
-                        (false, DiffLines::Right(range)) => {
-                            let len = if let Some(DiffLines::Left(r)) = last_change {
-                                range.len() - r.len().min(range.len())
-                            } else {
-                                range.len()
-                            };
-                            if len > 0 {
-                                visual_line += len;
-                            }
-                        }
-                        (true, DiffLines::Right(range))
-                        | (false, DiffLines::Left(range)) => {
-                            if line < range.end {
-                                return visual_line + line - range.start;
-                            }
-                            visual_line += range.len();
-                            if is_right {
-                                if let Some(DiffLines::Left(r)) = last_change {
-                                    let len = r.len() - r.len().min(range.len());
-                                    if len > 0 {
-                                        visual_line += len;
-                                    }
-                                }
-                            }
-                        }
-                        (_, DiffLines::Both(info)) => {
-                            let end = if is_right {
-                                info.right.end
-                            } else {
-                                info.left.end
-                            };
-                            if line >= end {
-                                visual_line += info.right.len()
-                                    - info
-                                        .skip
-                                        .as_ref()
-                                        .map(|skip| skip.len().saturating_sub(1))
-                                        .unwrap_or(0);
-                                last_change = Some(change);
-                                continue;
-                            }
-
-                            let start = if is_right {
-                                info.right.start
-                            } else {
-                                info.left.start
-                            };
-                            if let Some(skip) = info.skip.as_ref() {
-                                if start + skip.start > line {
-                                    return visual_line + line - start;
-                                } else if start + skip.end > line {
-                                    return visual_line + skip.start;
-                                } else {
-                                    return visual_line
-                                        + (line - start - skip.len() + 1);
-                                }
-                            } else {
-                                return visual_line + line - start;
-                            }
-                        }
-                    }
-                    last_change = Some(change);
-                }
-                visual_line
-            }
-        })
+        (Point::new(x, y), Point::new(x, y + line_height))
     }
 
     /// Get the offset of a particular point within the editor.
@@ -647,13 +692,39 @@ impl EditorViewData {
     ) -> ((usize, usize), bool) {
         let config = self.config.get_untracked();
 
-        let visual_line =
-            (point.y / config.editor.line_height() as f64).floor() as usize;
-        let line = self.actual_line(visual_line, true);
-        let line = line.min(self.last_line());
-        let font_size = config.editor.font_size();
-        let text_layout = self.get_text_layout(line, font_size);
-        let hit_point = text_layout.text.hit_point(Point::new(point.x, 0.0));
+        let line_height = config.editor.line_height() as f64;
+        let info = if point.y <= 0.0 {
+            Some(self.first_rvline_info())
+        } else {
+            self.screen_lines
+                .with_untracked(|sl| {
+                    sl.iter_line_info().find(|info| {
+                        info.vline_y <= point.y
+                            && info.vline_y + line_height >= point.y
+                    })
+                })
+                .map(|info| info.vline_info)
+        };
+        let info = info.unwrap_or_else(|| {
+            for (y_idx, info) in
+                self.iter_rvlines(false, RVLine::default()).enumerate()
+            {
+                let vline_y = y_idx as f64 * line_height;
+                if vline_y <= point.y && vline_y + line_height >= point.y {
+                    return info;
+                }
+            }
+
+            self.last_rvline_info()
+        });
+
+        let rvline = info.rvline;
+        let line = rvline.line;
+        let text_layout = self.get_text_layout(line);
+
+        let y = text_layout.get_layout_y(rvline.line_index).unwrap_or(0.0);
+
+        let hit_point = text_layout.text.hit_point(Point::new(point.x, y));
         // We have to unapply the phantom text shifting in order to get back to the column in
         // the actual buffer
         let phantom_text = self.line_phantom_text(line);
@@ -662,6 +733,16 @@ impl EditorViewData {
         // right end will just go to the end of the line.
         let max_col = self.line_end_col(line, mode != Mode::Normal);
         let mut col = col.min(max_col);
+
+        // TODO: we need to handle affinity. Clicking at end of a wrapped line should give it a
+        // backwards affinity, while being at the start of the next line should be a forwards aff
+
+        // TODO: this is a hack to get around text layouts not including spaces at the end of
+        // wrapped lines, but we want to be able to click on them
+        if !hit_point.is_inside {
+            // TODO(minor): this is probably wrong in some manners
+            col = info.last_col(self.text_prov(), true);
+        }
 
         if config.editor.atomic_soft_tabs && config.editor.tab_width > 1 {
             col = snap_to_soft_tab_line_col(
@@ -676,16 +757,18 @@ impl EditorViewData {
         ((line, col), hit_point.is_inside)
     }
 
+    // TODO: colposition probably has issues with wrapping?
     pub fn line_horiz_col(
         &self,
         line: usize,
-        font_size: usize,
         horiz: &ColPosition,
         caret: bool,
     ) -> usize {
         match *horiz {
             ColPosition::Col(x) => {
-                let text_layout = self.get_text_layout(line, font_size);
+                // TODO: won't this be incorrect with phantom text? Shouldn't this just use
+                // line_col_of_point and get the col from that?
+                let text_layout = self.get_text_layout(line);
                 let hit_point = text_layout.text.hit_point(Point::new(x, 0.0));
                 let n = hit_point.index;
 
@@ -699,7 +782,35 @@ impl EditorViewData {
         }
     }
 
-    /// Advance to the right in the manner of the given mode.
+    /// Advance to the right in the manner of the given mode.  
+    /// Get the column from a horizontal at a specific line index (in a text layout)
+    pub fn rvline_horiz_col(
+        &self,
+        RVLine { line, line_index }: RVLine,
+        horiz: &ColPosition,
+        caret: bool,
+    ) -> usize {
+        match *horiz {
+            ColPosition::Col(x) => {
+                let text_layout = self.get_text_layout(line);
+                // TODO: It would be better to have an alternate hit point function that takes a
+                // line index..
+                let y_pos = text_layout
+                    .relevant_layouts()
+                    .take(line_index)
+                    .map(|l| (l.line_ascent + l.line_descent) as f64)
+                    .sum();
+                let hit_point = text_layout.text.hit_point(Point::new(x, y_pos));
+                let n = hit_point.index;
+
+                n.min(self.line_end_col(line, caret))
+            }
+            // Otherwise it is the same as the other function
+            _ => self.line_horiz_col(line, horiz, caret),
+        }
+    }
+
+    /// Advance to the right in the manner of the given mode.  
     /// This is not the same as the [`Movement::Right`] command.
     pub fn move_right(&self, offset: usize, mode: Mode, count: usize) -> usize {
         self.doc.with_untracked(|doc| {
@@ -762,4 +873,210 @@ impl EditorViewData {
             })
         })
     }
+}
+
+#[derive(Clone)]
+pub(crate) struct ViewDataTextLayoutProv {
+    text: Rope,
+    doc: RwSignal<Rc<Document>>,
+}
+impl TextLayoutProvider for ViewDataTextLayoutProv {
+    fn text(&self) -> &Rope {
+        &self.text
+    }
+
+    fn new_text_layout(
+        &self,
+        line: usize,
+        font_size: usize,
+        wrap: ResolvedWrap,
+    ) -> Arc<TextLayoutLine> {
+        let mut text_layout = self
+            .doc
+            .with_untracked(|doc| doc.get_text_layout(line, font_size));
+        // TODO: This will potentially duplicate the text layout even without wrapping, but without wrapping we can just use the same styles.
+        // TODO: It does also pretty similar for other wrapping modes. So it would be good to have smarter deduplication, like if both of your splits for the same doc have a column wrap of 100 then they can share all of the text layout lines.
+        let text_layout_r = Arc::make_mut(&mut text_layout);
+        match wrap {
+            ResolvedWrap::None => {
+                // We do not have to set the wrap mode if we do not set the width
+            }
+            ResolvedWrap::Column(_col) => todo!(),
+            ResolvedWrap::Width(px) => {
+                // TODO: we could do some more invasive text layout structure to avoid multiple arcs since this definitely clones..
+                text_layout_r.text.set_wrap(Wrap::Word);
+                text_layout_r.text.set_size(px, f32::MAX);
+            }
+        }
+
+        self.doc.with_untracked(|doc| {
+            doc.create_styles(line, text_layout_r);
+        });
+
+        text_layout
+    }
+
+    fn line_phantom_text(&self, line: usize) -> PhantomTextLine {
+        self.doc.with_untracked(|doc| doc.line_phantom_text(line))
+    }
+
+    fn has_multiline_phantom(&self) -> bool {
+        // TODO: We could be more specific here. Use the config for error lens &etc to determine
+        // whether we can ever have multiline phantom text in this view.
+        // Perhaps should track whether any multiline phantom text gets added, to get the fast path
+        // more often.
+        true
+    }
+}
+
+struct ViewDataFontSizes {
+    // TODO: this would need to track more if we had the code lens (small lines) possible to apply
+    // to specific views.
+    config: ReadSignal<Arc<LapceConfig>>,
+    loaded: ReadSignal<bool>,
+}
+impl LineFontSizeProvider for ViewDataFontSizes {
+    fn font_size(&self, _line: usize) -> usize {
+        // TODO: code lens
+        self.config
+            .with_untracked(|config| config.editor.font_size())
+    }
+
+    fn cache_id(&self) -> FontSizeCacheId {
+        let mut hasher = DefaultHasher::new();
+
+        // TODO: is this actually good enough for comparing cache state?
+        // Potentially we should just have it return an arbitrary type that impl's Eq
+        self.config.with_untracked(|config| {
+            // TODO: we could do only pieces relevant to the lines
+            config.id.hash(&mut hasher);
+        });
+
+        self.loaded.with_untracked(|loaded| {
+            loaded.hash(&mut hasher);
+        });
+
+        hasher.finish()
+    }
+}
+
+/// Create various reactive effects to update the screen lines whenever relevant parts of the view,
+/// doc, text layouts, viewport, etc. change.
+/// This tries to be smart to a degree.
+fn create_view_effects(cx: Scope, view: &EditorViewData) {
+    // Cloning is fun.
+    let view = view.clone();
+    let view2 = view.clone();
+    let view3 = view.clone();
+    let view4 = view.clone();
+
+    let update_screen_lines = |view: &EditorViewData| {
+        // This function should not depend on the viewport signal directly.
+
+        // This is wrapped in an update to make any updates-while-updating very obvious
+        // which they wouldn't be if we computed and then `set`.
+        view.screen_lines.update(|screen_lines| {
+            let new_screen_lines = compute_screen_lines(
+                view.config,
+                screen_lines.base,
+                view.kind.read_only(),
+                view.doc.read_only(),
+                &view.lines,
+                view.text_prov(),
+            );
+
+            *screen_lines = new_screen_lines;
+        });
+    };
+
+    // TODO: Screenlines gets updates more often than it should, such as during edits
+    // This can be alleviated some if we had more batching of signal updates
+    // but probably also requires smarter designs on some other pieces of the logic.
+
+    // Listen for cache revision changes (essentially edits to the file or requiring
+    // changes on text layouts, like if diagnostics load in)
+    cx.create_effect(move |_| {
+        // We can't put this with the other effects because we only want to update screen lines if
+        // the cache rev actually changed
+        let cache_rev = view.doc.with(|doc| doc.cache_rev).get();
+        view.lines.check_cache_rev(cache_rev);
+    });
+
+    let update_screen_lines2 = update_screen_lines.clone();
+
+    // Listen for layout events, currently only when a layout is created, and update screen
+    // lines based on that
+    view3.lines.layout_event.listen(move |val| {
+        let view = &view2;
+        // TODO: Move this logic onto screen lines somehow, perhaps just an auxilary
+        // function, to avoid getting confused about what is relevant where.
+
+        match val {
+            LayoutEvent::CreatedLayout { line, .. } => {
+                let sl = view.screen_lines.get_untracked();
+
+                // Intelligently update screen lines, avoiding recalculation if possible
+                let should_update = sl.on_created_layout(view, line);
+
+                if should_update {
+                    untrack(|| {
+                        update_screen_lines.clone()(view);
+                    });
+                }
+            }
+        }
+    });
+
+    // TODO: should we have some debouncing for editor width? Ideally we'll be fast enough to not
+    // even need it, though we might not want to use a bunch of cpu whilst resizing anyway.
+
+    let viewport_changed_trigger = create_trigger();
+
+    // Watch for changes to the viewport so that we can alter the wrapping
+    // As well as updating the screen lines base
+    cx.create_effect(move |_| {
+        let view = &view3;
+
+        let viewport = view.viewport.get();
+        let config = view.config.get();
+        let wrap_style = if let EditorViewKind::Diff(_) = view.kind.get() {
+            // TODO: let diff have wrapped text
+            WrapStyle::None
+        } else {
+            config.editor.wrap_style
+        };
+        let res_wrap = match wrap_style {
+            WrapStyle::None => ResolvedWrap::None,
+            // TODO: ensure that these values have some minimums that is not too small
+            WrapStyle::EditorWidth => ResolvedWrap::Width(viewport.width() as f32),
+            WrapStyle::WrapColumn => ResolvedWrap::Column(config.editor.wrap_column),
+            WrapStyle::WrapWidth => {
+                ResolvedWrap::Width(config.editor.wrap_width as f32)
+            }
+        };
+
+        view.lines.set_wrap(res_wrap);
+
+        // Update the base
+        let base = view.screen_lines.with_untracked(|sl| sl.base);
+
+        // TODO: should this be a with or with_untracked?
+        if viewport != base.with_untracked(|base| base.active_viewport) {
+            batch(|| {
+                base.update(|base| {
+                    base.active_viewport = viewport;
+                });
+                // TODO: Can I get rid of this and just call update screen lines with an
+                // untrack around it?
+                viewport_changed_trigger.notify();
+            });
+        }
+    });
+    // Watch for when the viewport as changed in a relevant manner
+    // and for anything that `update_screen_lines` tracks.
+    cx.create_effect(move |_| {
+        viewport_changed_trigger.track();
+
+        update_screen_lines2.clone()(&view4);
+    });
 }

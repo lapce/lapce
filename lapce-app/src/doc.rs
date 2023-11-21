@@ -9,9 +9,10 @@ use std::{
 
 use floem::{
     action::exec_after,
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
+    cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::create_ext_action,
-    reactive::{RwSignal, Scope},
+    peniko::Color,
+    reactive::{batch, RwSignal, Scope},
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -49,7 +50,10 @@ use smallvec::SmallVec;
 use self::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine};
 use crate::{
     config::{color::LapceColor, LapceConfig},
-    editor::view_data::{LineExtraStyle, TextLayoutCache, TextLayoutLine},
+    editor::{
+        view_data::{LineExtraStyle, TextLayoutLine},
+        visual_line::TextLayoutCache,
+    },
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     window_tab::CommonData,
@@ -228,7 +232,7 @@ impl Document {
             loaded: cx.create_rw_signal(false),
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
-            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
@@ -267,7 +271,7 @@ impl Document {
             loaded: cx.create_rw_signal(true),
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
-            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
             preedit: cx.create_rw_signal(None),
@@ -306,7 +310,7 @@ impl Document {
             loaded: cx.create_rw_signal(true),
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
-            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
+            text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
             preedit: cx.create_rw_signal(None),
@@ -315,11 +319,13 @@ impl Document {
     }
 
     pub fn set_syntax(&self, syntax: Syntax) {
-        self.syntax.set(syntax);
-        if self.semantic_styles.with_untracked(|s| s.is_none()) {
-            self.clear_style_cache();
-        }
-        self.clear_sticky_headers_cache();
+        batch(|| {
+            self.syntax.set(syntax);
+            if self.semantic_styles.with_untracked(|s| s.is_none()) {
+                self.clear_style_cache();
+            }
+            self.clear_sticky_headers_cache();
+        });
     }
 
     /// Set the syntax highlighting this document should use.
@@ -338,16 +344,18 @@ impl Document {
 
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&self, content: Rope) {
-        self.syntax.with_untracked(|syntax| {
-            self.buffer.update(|buffer| {
-                buffer.init_content(content);
-                buffer.detect_indent(syntax);
+        batch(|| {
+            self.syntax.with_untracked(|syntax| {
+                self.buffer.update(|buffer| {
+                    buffer.init_content(content);
+                    buffer.detect_indent(syntax);
+                });
             });
+            self.loaded.set(true);
+            self.on_update(None);
+            self.init_diagnostics();
+            self.retrieve_head();
         });
-        self.loaded.set(true);
-        self.on_update(None);
-        self.init_diagnostics();
-        self.retrieve_head();
     }
 
     /// Reload the document's content, and is what you should typically use when you want to *set*
@@ -464,19 +472,23 @@ impl Document {
 
     pub fn apply_deltas(&self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
         let rev = self.rev() - deltas.len() as u64;
-        for (i, (delta, inval, _)) in deltas.iter().enumerate() {
-            self.update_styles(delta);
-            self.update_inlay_hints(delta);
-            self.update_diagnostics(delta);
-            self.update_completion_lens(delta);
-            self.update_find_result(delta);
-            if let DocContent::File { path, .. } = self.content.get_untracked() {
-                self.update_breakpoints(delta, &path, &inval.old_text);
-                self.common
-                    .proxy
-                    .update(path, delta.clone(), rev + i as u64 + 1);
+        batch(|| {
+            for (i, (delta, inval, _)) in deltas.iter().enumerate() {
+                self.update_styles(delta);
+                self.update_inlay_hints(delta);
+                self.update_diagnostics(delta);
+                self.update_completion_lens(delta);
+                self.update_find_result(delta);
+                if let DocContent::File { path, .. } = self.content.get_untracked() {
+                    self.update_breakpoints(delta, &path, &inval.old_text);
+                    self.common.proxy.update(
+                        path,
+                        delta.clone(),
+                        rev + i as u64 + 1,
+                    );
+                }
             }
-        }
+        });
 
         // TODO(minor): We could avoid this potential allocation since most apply_delta callers are actually using a Vec
         // which we could reuse.
@@ -495,15 +507,17 @@ impl Document {
     }
 
     fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
-        self.clear_code_actions();
-        self.clear_style_cache();
-        self.trigger_syntax_change(edits);
-        self.clear_sticky_headers_cache();
-        self.trigger_head_change();
-        self.check_auto_save();
-        self.get_semantic_styles();
-        self.get_inlay_hints();
-        self.find_result.reset();
+        batch(|| {
+            self.clear_code_actions();
+            self.clear_style_cache();
+            self.trigger_syntax_change(edits);
+            self.clear_sticky_headers_cache();
+            self.trigger_head_change();
+            self.check_auto_save();
+            self.get_semantic_styles();
+            self.get_inlay_hints();
+            self.find_result.reset();
+        });
     }
 
     fn check_auto_save(&self) {
@@ -538,16 +552,18 @@ impl Document {
     /// Update the styles after an edit, so the highlights are at the correct positions.
     /// This does not do a reparse of the document itself.
     fn update_styles(&self, delta: &RopeDelta) {
-        self.semantic_styles.update(|styles| {
-            if let Some(styles) = styles.as_mut() {
-                styles.apply_shape(delta);
-            }
-        });
-        self.syntax.update(|syntax| {
-            if let Some(styles) = syntax.styles.as_mut() {
-                styles.apply_shape(delta);
-            }
-            syntax.lens.apply_delta(delta);
+        batch(|| {
+            self.semantic_styles.update(|styles| {
+                if let Some(styles) = styles.as_mut() {
+                    styles.apply_shape(delta);
+                }
+            });
+            self.syntax.update(|syntax| {
+                if let Some(styles) = syntax.styles.as_mut() {
+                    styles.apply_shape(delta);
+                }
+                syntax.lens.apply_delta(delta);
+            });
         });
     }
 
@@ -595,20 +611,21 @@ impl Document {
     }
 
     pub fn clear_preedit(&self) {
-        self.preedit.set(None);
-        self.clear_text_cache();
+        if self.preedit.get_untracked().is_some() {
+            self.preedit.set(None);
+            self.clear_text_cache();
+        }
     }
 
     /// Inform any dependents on this document that they should clear any cached text.
     pub fn clear_text_cache(&self) {
-        let cache_rev = self
-            .cache_rev
-            .try_update(|cache_rev| {
-                *cache_rev += 1;
-                *cache_rev
-            })
-            .unwrap();
-        self.text_layouts.borrow_mut().clear(cache_rev);
+        self.cache_rev.try_update(|cache_rev| {
+            *cache_rev += 1;
+
+            // Update the text layouts within the callback so that those alerted to cache rev
+            // will see the now empty layouts.
+            self.text_layouts.borrow_mut().clear(*cache_rev, None);
+        });
     }
 
     fn clear_sticky_headers_cache(&self) {
@@ -843,8 +860,12 @@ impl Document {
 
                     *config.get_color(theme_prop)
                 };
-                let text =
-                    format!("    {}", diag.diagnostic.message.lines().join(" "));
+
+                let text = if config.editor.error_lens_multiline {
+                    format!("    {}", diag.diagnostic.message)
+                } else {
+                    format!("    {}", diag.diagnostic.message.lines().join(" "))
+                };
                 PhantomText {
                     kind: PhantomTextKind::Diagnostic,
                     col,
@@ -987,8 +1008,10 @@ impl Document {
 
     pub fn clear_completion_lens(&self) {
         // TODO: more granular invalidation
-        self.clear_text_cache();
-        self.completion_lens.set(None);
+        if self.completion_lens.get_untracked().is_some() {
+            self.clear_text_cache();
+            self.completion_lens.set(None);
+        }
     }
 
     fn update_find_result(&self, delta: &RopeDelta) {
@@ -1315,6 +1338,7 @@ impl Document {
         let line_content_original = self
             .buffer
             .with_untracked(|b| b.line_content(line).to_string());
+        let line_height = config.editor.line_height();
 
         // Get the line content with newline characters replaced with spaces
         // and the content without the newline characters
@@ -1345,7 +1369,8 @@ impl Document {
         let attrs = Attrs::new()
             .color(*color)
             .family(&family)
-            .font_size(config.editor.font_size() as f32);
+            .font_size(config.editor.font_size() as f32)
+            .line_height(LineHeightValue::Px(line_height as f32));
         let mut attrs_list = AttrsList::new(attrs);
 
         // Apply various styles to the line's text based on our semantic/syntax highlighting
@@ -1389,22 +1414,199 @@ impl Document {
 
         // Keep track of background styling from phantom text, which is done separately
         // from the text layout attributes
-        let mut extra_style = Vec::new();
-        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
-            if phantom.bg.is_some() || phantom.under_line.is_some() {
-                let start = col + offset;
-                let end = start + size;
-                let x0 = text_layout.hit_position(start).point.x;
-                let x1 = text_layout.hit_position(end).point.x;
-                extra_style.push(LineExtraStyle {
-                    x: x0,
-                    width: Some(x1 - x0),
-                    bg_color: phantom.bg,
-                    under_line: phantom.under_line,
-                    wave_line: None,
-                });
+        // let mut extra_style = Vec::new();
+        // for (col_shift, size, col, phantom) in phantom_text.offset_size_iter() {
+        //     if phantom.bg.is_some() || phantom.under_line.is_some() {
+        //         let start = col + col_shift;
+        //         let end = start + size;
+        //         // let start_hit = text_layout.hit_position(start);
+        //         // let end_hit = text_layout.hit_position(end);
+        //         // // let x0 = text_layout.hit_position(start).point.x;
+        //         // // let x1 = text_layout.hit_position(end).point.x;
+        //         // // extra_style.push(LineExtraStyle {
+        //         // //     x: x0,
+        //         // //     width: Some(x1 - x0),
+        //         // //     bg_color: phantom.bg,
+        //         // //     under_line: phantom.under_line,
+        //         // //     wave_line: None,
+        //         // // });
+        //         // // We have to add line extra styles for each line, as they need their own separate
+        //         // // backgrounds!
+        //         // if start_hit.line == end_hit.line {
+        //         //     extra_style.push(LineExtraStyle {
+        //         //         x: start_hit.point.x,
+        //         //         y: 0.0,
+        //         //         width: Some(end_hit.point.x - start_hit.point.x),
+        //         //         bg_color: phantom.bg,
+        //         //         under_line: phantom.under_line,
+        //         //         wave_line: None,
+        //         //     });
+        //         // } else {
+        //         //     let start_line = start_hit.line;
+        //         //     let start_col = start;
+        //         //     while line <= end_hit.line {}
+        //         // }
+        //         add_styles_for_range(
+        //             &text_layout,
+        //             &mut extra_style,
+        //             start,
+        //             end,
+        //             phantom.bg,
+        //             phantom.under_line,
+        //             None,
+        //         );
+        //     }
+        // }
+
+        // // Add the styling for the diagnostic severity, if applicable
+        // if let Some(max_severity) = phantom_text.max_severity {
+        //     let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
+        //         LapceColor::ERROR_LENS_ERROR_BACKGROUND
+        //     } else if max_severity == DiagnosticSeverity::WARNING {
+        //         LapceColor::ERROR_LENS_WARNING_BACKGROUND
+        //     } else {
+        //         LapceColor::ERROR_LENS_OTHER_BACKGROUND
+        //     };
+
+        //     let size = text_layout.size();
+        //     let x1 = if !config.editor.error_lens_end_of_line {
+        //         let error_end_x =
+        //             text_layout.hit_position(line_content.len()).point.x;
+        //         Some(error_end_x.max(size.width))
+        //     } else {
+        //         None
+        //     };
+
+        //     // TODO(minor): Should we show the background only on wrapped lines that have the
+        //     // diagnostic actually on that line?
+        //     // That would make it more obvious where it is from and matches other editors.
+        //     extra_style.push(LineExtraStyle {
+        //         x: 0.0,
+        //         y: 0.0,
+        //         width: x1,
+        //         height: text_layout.size().height,
+        //         bg_color: Some(*config.get_color(theme_prop)),
+        //         under_line: None,
+        //         wave_line: None,
+        //     });
+        // }
+
+        // self.diagnostics.diagnostics.with_untracked(|diags| {
+        //     self.buffer.with_untracked(|buffer| {
+        //         for diag in diags {
+        //             if diag.diagnostic.range.start.line as usize <= line
+        //                 && line <= diag.diagnostic.range.end.line as usize
+        //             {
+        //                 let start = if diag.diagnostic.range.start.line as usize
+        //                     == line
+        //                 {
+        //                     let (_, col) = buffer.offset_to_line_col(diag.range.0);
+        //                     col
+        //                 } else {
+        //                     let offset =
+        //                         buffer.first_non_blank_character_on_line(line);
+        //                     let (_, col) = buffer.offset_to_line_col(offset);
+        //                     col
+        //                 };
+        //                 let start = phantom_text.col_after(start, true);
+
+        //                 let end = if diag.diagnostic.range.end.line as usize == line
+        //                 {
+        //                     let (_, col) = buffer.offset_to_line_col(diag.range.1);
+        //                     col
+        //                 } else {
+        //                     buffer.line_end_col(line, true)
+        //                 };
+        //                 let end = phantom_text.col_after(end, false);
+
+        //                 // let x0 = text_layout.hit_position(start).point.x;
+        //                 // let x1 = text_layout.hit_position(end).point.x;
+        //                 let color_name = match diag.diagnostic.severity {
+        //                     Some(DiagnosticSeverity::ERROR) => {
+        //                         LapceColor::LAPCE_ERROR
+        //                     }
+        //                     _ => LapceColor::LAPCE_WARN,
+        //                 };
+        //                 let color = *config.get_color(color_name);
+
+        //                 add_styles_for_range(
+        //                     &text_layout,
+        //                     &mut extra_style,
+        //                     start,
+        //                     end,
+        //                     None,
+        //                     None,
+        //                     Some(color),
+        //                 );
+        //             }
+        //         }
+        //     })
+        // });
+
+        let whitespaces = Self::new_whitespace_layout(
+            line_content_original,
+            &text_layout,
+            &phantom_text,
+            &config,
+        );
+
+        let indent_line = if line_content_original.trim().is_empty() {
+            let offset = self.buffer.with_untracked(|b| b.offset_of_line(line));
+            if let Some(offset) =
+                self.syntax.with_untracked(|s| s.parent_offset(offset))
+            {
+                self.buffer.with_untracked(|b| b.line_of_offset(offset))
+            } else {
+                line
             }
+        } else {
+            line
+        };
+
+        let indent = if indent_line != line {
+            self.get_text_layout(indent_line, font_size).indent + 1.0
+        } else {
+            let (_, col) = self.buffer.with_untracked(|buffer| {
+                let offset = buffer.first_non_blank_character_on_line(indent_line);
+                buffer.offset_to_line_col(offset)
+            });
+            text_layout.hit_position(col).point.x
+        };
+
+        TextLayoutLine {
+            text: text_layout,
+            extra_style: Vec::new(),
+            whitespaces,
+            indent,
         }
+    }
+
+    /// Get the extra styles for the given text layout
+    pub fn create_styles(&self, line: usize, text_layout_line: &mut TextLayoutLine) {
+        let config = self.common.config.get_untracked();
+
+        text_layout_line.extra_style.clear();
+        let text_layout = &text_layout_line.text;
+
+        let phantom_text = self.line_phantom_text(line);
+
+        let phantom_styles = phantom_text
+            .offset_size_iter()
+            .filter(move |(_, _, _, p)| p.bg.is_some() || p.under_line.is_some())
+            .flat_map(move |(col_shift, size, col, phantom)| {
+                let start = col + col_shift;
+                let end = start + size;
+
+                extra_styles_for_range(
+                    text_layout,
+                    start,
+                    end,
+                    phantom.bg,
+                    phantom.under_line,
+                    None,
+                )
+            });
+        text_layout_line.extra_style.extend(phantom_styles);
 
         // Add the styling for the diagnostic severity, if applicable
         if let Some(max_severity) = phantom_text.max_severity {
@@ -1416,12 +1618,22 @@ impl Document {
                 LapceColor::ERROR_LENS_OTHER_BACKGROUND
             };
 
-            let x1 = (!config.editor.error_lens_end_of_line)
-                .then(|| text_layout.hit_position(line_content.len()).point.x);
+            let size = text_layout.size();
+            let x1 = if !config.editor.error_lens_end_of_line {
+                let error_end_x = text_layout.size().width;
+                Some(error_end_x.max(size.width))
+            } else {
+                None
+            };
 
-            extra_style.push(LineExtraStyle {
+            // TODO(minor): Should we show the background only on wrapped lines that have the
+            // diagnostic actually on that line?
+            // That would make it more obvious where it is from and matches other editors.
+            text_layout_line.extra_style.push(LineExtraStyle {
                 x: 0.0,
+                y: 0.0,
                 width: x1,
+                height: text_layout.size().height,
                 bg_color: Some(*config.get_color(theme_prop)),
                 under_line: None,
                 wave_line: None,
@@ -1456,8 +1668,8 @@ impl Document {
                         };
                         let end = phantom_text.col_after(end, false);
 
-                        let x0 = text_layout.hit_position(start).point.x;
-                        let x1 = text_layout.hit_position(end).point.x;
+                        // let x0 = text_layout.hit_position(start).point.x;
+                        // let x1 = text_layout.hit_position(end).point.x;
                         let color_name = match diag.diagnostic.severity {
                             Some(DiagnosticSeverity::ERROR) => {
                                 LapceColor::LAPCE_ERROR
@@ -1465,54 +1677,21 @@ impl Document {
                             _ => LapceColor::LAPCE_WARN,
                         };
                         let color = *config.get_color(color_name);
-                        extra_style.push(LineExtraStyle {
-                            x: x0,
-                            width: Some(x1 - x0),
-                            bg_color: None,
-                            under_line: None,
-                            wave_line: Some(color),
-                        });
+
+                        let styles = extra_styles_for_range(
+                            text_layout,
+                            start,
+                            end,
+                            None,
+                            None,
+                            Some(color),
+                        );
+
+                        text_layout_line.extra_style.extend(styles);
                     }
                 }
             })
         });
-
-        let whitespaces = Self::new_whitespace_layout(
-            line_content_original,
-            &text_layout,
-            &phantom_text,
-            &config,
-        );
-
-        let indent_line = if line_content_original.trim().is_empty() {
-            let offset = self.buffer.with_untracked(|b| b.offset_of_line(line));
-            if let Some(offset) =
-                self.syntax.with_untracked(|s| s.parent_offset(offset))
-            {
-                self.buffer.with_untracked(|b| b.line_of_offset(offset))
-            } else {
-                line
-            }
-        } else {
-            line
-        };
-
-        let indent = if indent_line != line {
-            self.get_text_layout(indent_line, font_size).indent + 1.0
-        } else {
-            let (_, col) = self.buffer.with_untracked(|buffer| {
-                let offset = buffer.first_non_blank_character_on_line(indent_line);
-                buffer.offset_to_line_col(offset)
-            });
-            text_layout.hit_position(col).point.x
-        };
-
-        TextLayoutLine {
-            text: text_layout,
-            extra_style,
-            whitespaces,
-            indent,
-        }
     }
 
     /// Get the text layout for the given line.
@@ -1607,4 +1786,54 @@ impl Document {
                 })
             })
     }
+}
+
+fn extra_styles_for_range(
+    text_layout: &TextLayout,
+    start: usize,
+    end: usize,
+    bg_color: Option<Color>,
+    under_line: Option<Color>,
+    wave_line: Option<Color>,
+) -> impl Iterator<Item = LineExtraStyle> + '_ {
+    let start_hit = text_layout.hit_position(start);
+    let end_hit = text_layout.hit_position(end);
+
+    text_layout
+        .layout_runs()
+        .enumerate()
+        .filter_map(move |(current_line, run)| {
+            if current_line < start_hit.line || current_line > end_hit.line {
+                return None;
+            }
+
+            let x = if current_line == start_hit.line {
+                start_hit.point.x
+            } else {
+                run.glyphs.first().map(|g| g.x).unwrap_or(0.0) as f64
+            };
+            let end_x = if current_line == end_hit.line {
+                end_hit.point.x
+            } else {
+                run.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0) as f64
+            };
+            let width = end_x - x;
+
+            if width == 0.0 {
+                return None;
+            }
+
+            let y = (run.line_y - run.line_height + run.glyph_descent) as f64;
+            let height = run.line_height as f64;
+
+            Some(LineExtraStyle {
+                x,
+                y,
+                width: Some(width),
+                height,
+                bg_color,
+                under_line,
+                wave_line,
+            })
+        })
 }

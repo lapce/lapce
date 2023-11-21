@@ -114,13 +114,18 @@ pub fn source_control_panel(
                     let editor_view = editor.view.clone();
                     editor_view.doc.track();
                     editor_view.kind.track();
-                    let LineRegion { x, width, line } =
-                        cursor_caret(&editor_view, offset, !cursor.is_insert());
+                    let LineRegion { x, width, rvline } = cursor_caret(
+                        &editor_view,
+                        offset,
+                        !cursor.is_insert(),
+                        cursor.affinity,
+                    );
                     let config = config.get_untracked();
                     let line_height = config.editor.line_height();
-
+                    // TODO: is there a way to avoid the calculation of the vline here?
+                    let vline = editor.view.vline_of_rvline(rvline);
                     Rect::from_origin_size(
-                        (x, (line * line_height) as f64),
+                        (x, (vline.get() * line_height) as f64),
                         (width, line_height as f64),
                     )
                     .inflate(30.0, 10.0)
