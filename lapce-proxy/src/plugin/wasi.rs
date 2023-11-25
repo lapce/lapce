@@ -23,7 +23,7 @@ use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::Initialized, request::Initialize, DocumentFilter,
     InitializeParams, InitializedParams, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, Url, VersionedTextDocumentIdentifier,
+    TextDocumentIdentifier, TextDocumentItem, Url, VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
@@ -88,12 +88,21 @@ pub struct Plugin {
 }
 
 impl PluginServerHandler for Plugin {
-    fn method_registered(&mut self, method: &str) -> bool {
+    fn server_name(&self) -> &str {
+        self.host
+            .server_initialization
+            .as_ref()
+            .and_then(|s| s.server_info.as_ref())
+            .map(|s| s.name.as_str())
+            .unwrap_or(&self.host.volt_display_name)
+    }
+
+    fn method_registered(&self, method: &str) -> bool {
         self.host.method_registered(method)
     }
 
     fn document_supported(
-        &mut self,
+        &self,
         language_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool {
@@ -110,7 +119,7 @@ impl PluginServerHandler for Plugin {
                 self.initialize();
             }
             InitializeResult(result) => {
-                self.host.server_capabilities = result.capabilities;
+                self.host.server_initialization = Some(result);
             }
             Shutdown => {
                 self.shutdown();
@@ -137,8 +146,8 @@ impl PluginServerHandler for Plugin {
 
     fn handle_did_save_text_document(
         &self,
-        language_id: String,
-        path: PathBuf,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
         text_document: TextDocumentIdentifier,
         text: Rope,
     ) {
@@ -150,9 +159,23 @@ impl PluginServerHandler for Plugin {
         );
     }
 
+    fn handle_did_open_text_document(
+        &self,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
+        document: TextDocumentItem,
+    ) {
+        self.host
+            .handle_did_open_text_document(language_id, path, document);
+    }
+
+    fn handle_did_close_text_document(&self, document: TextDocumentIdentifier) {
+        self.host.handle_did_close_text_document(document);
+    }
+
     fn handle_did_change_text_document(
         &mut self,
-        language_id: String,
+        language_id: Option<String>,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,

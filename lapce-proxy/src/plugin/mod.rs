@@ -122,16 +122,19 @@ pub enum PluginCatalogRpc {
     DidOpenTextDocument {
         document: TextDocumentItem,
     },
+    DidCloseTextDocument {
+        document: TextDocumentIdentifier,
+    },
     DidChangeTextDocument {
-        language_id: String,
+        language_id: Option<String>,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
         new_text: Rope,
     },
     DidSaveTextDocument {
-        language_id: String,
-        path: PathBuf,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
         text_document: TextDocumentIdentifier,
         text: Rope,
     },
@@ -289,6 +292,9 @@ impl PluginCatalogRpcHandler {
                 }
                 PluginCatalogRpc::DidOpenTextDocument { document } => {
                     plugin.handle_did_open_text_document(document);
+                }
+                PluginCatalogRpc::DidCloseTextDocument { document } => {
+                    plugin.handle_did_close_text_document(document);
                 }
                 PluginCatalogRpc::DidSaveTextDocument {
                     language_id,
@@ -472,11 +478,11 @@ impl PluginCatalogRpcHandler {
     pub fn did_save_text_document(&self, path: &Path, text: Rope) {
         let text_document =
             TextDocumentIdentifier::new(Url::from_file_path(path).unwrap());
-        let language_id = language_id_from_path(path).unwrap_or("").to_string();
+        let language_id = language_id_from_path(path).map(String::from);
         let _ = self.plugin_tx.send(PluginCatalogRpc::DidSaveTextDocument {
             language_id,
             text_document,
-            path: path.into(),
+            path: Some(path.to_path_buf()),
             text,
         });
     }
@@ -493,7 +499,7 @@ impl PluginCatalogRpcHandler {
             Url::from_file_path(path).unwrap(),
             rev as i32,
         );
-        let language_id = language_id_from_path(path).unwrap_or("").to_string();
+        let language_id = language_id_from_path(path).map(String::from);
         let _ = self
             .plugin_tx
             .send(PluginCatalogRpc::DidChangeTextDocument {
@@ -525,8 +531,7 @@ impl PluginCatalogRpcHandler {
             partial_result_params: PartialResultParams::default(),
         };
 
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -556,8 +561,7 @@ impl PluginCatalogRpcHandler {
             partial_result_params: PartialResultParams::default(),
         };
 
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -590,8 +594,7 @@ impl PluginCatalogRpcHandler {
             },
         };
 
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -626,8 +629,7 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -653,8 +655,7 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             range,
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -679,8 +680,7 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -726,8 +726,7 @@ impl PluginCatalogRpcHandler {
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -752,8 +751,7 @@ impl PluginCatalogRpcHandler {
             text_document: TextDocumentIdentifier { uri },
             position,
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -783,8 +781,7 @@ impl PluginCatalogRpcHandler {
             new_name,
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -809,8 +806,7 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -837,8 +833,7 @@ impl PluginCatalogRpcHandler {
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: Default::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -863,9 +858,7 @@ impl PluginCatalogRpcHandler {
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
         };
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
-
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -895,9 +888,7 @@ impl PluginCatalogRpcHandler {
         };
 
         let core_rpc = self.core_rpc.clone();
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
-
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request_to_all_plugins(
             method,
             params,
@@ -972,8 +963,7 @@ impl PluginCatalogRpcHandler {
         };
 
         let core_rpc = self.core_rpc.clone();
-        let language_id =
-            Some(language_id_from_path(path).unwrap_or("").to_string());
+        let language_id = language_id_from_path(path).map(String::from);
         self.send_request(
             None,
             None,

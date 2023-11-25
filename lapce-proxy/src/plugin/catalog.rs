@@ -263,24 +263,30 @@ impl PluginCatalog {
             .collect();
         self.start_unactivated_volts(to_be_activated);
 
-        let path = document.uri.to_file_path().ok();
         for (_, plugin) in self.plugins.iter() {
-            plugin.server_notification(
-                DidOpenTextDocument::METHOD,
-                DidOpenTextDocumentParams {
-                    text_document: document.clone(),
-                },
-                Some(document.language_id.clone()),
-                path.clone(),
-                true,
-            );
+            plugin.handle_rpc(PluginServerRpc::DidOpenTextDocument {
+                language_id: Some(document.language_id.clone()),
+                path: document.uri.to_file_path().ok(),
+                document: document.clone(),
+            });
+        }
+    }
+
+    pub fn handle_did_close_text_document(
+        &mut self,
+        document: TextDocumentIdentifier,
+    ) {
+        for (_, plugin) in self.plugins.iter() {
+            plugin.handle_rpc(PluginServerRpc::DidCloseTextDocument {
+                document: document.clone(),
+            });
         }
     }
 
     pub fn handle_did_save_text_document(
         &mut self,
-        language_id: String,
-        path: PathBuf,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
         text_document: TextDocumentIdentifier,
         text: Rope,
     ) {
@@ -296,7 +302,7 @@ impl PluginCatalog {
 
     pub fn handle_did_change_text_document(
         &mut self,
-        language_id: String,
+        language_id: Option<String>,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,

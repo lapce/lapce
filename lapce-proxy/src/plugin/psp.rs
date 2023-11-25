@@ -26,9 +26,9 @@ use lapce_rpc::{
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::{
-        DidChangeTextDocument, DidOpenTextDocument, DidSaveTextDocument,
-        Initialized, LogMessage, Notification, Progress, PublishDiagnostics,
-        ShowMessage,
+        DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument,
+        DidSaveTextDocument, Initialized, LogMessage, Notification, Progress,
+        PublishDiagnostics, ShowMessage,
     },
     request::{
         CodeActionRequest, CodeActionResolveRequest, Completion,
@@ -39,12 +39,14 @@ use lsp_types::{
         WorkDoneProgressCreate, WorkspaceSymbol,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
     InitializeResult, LogMessageParams, OneOf, ProgressParams,
     PublishDiagnosticsParams, Range, Registration, RegistrationParams,
     SemanticTokens, SemanticTokensLegend, SemanticTokensServerCapabilities,
-    ServerCapabilities, ShowMessageParams, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, TextDocumentSaveRegistrationOptions,
+    ShowMessageParams, TextDocumentChangeRegistrationOptions,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentRegistrationOptions, TextDocumentSaveRegistrationOptions,
     TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncSaveOptions,
     VersionedTextDocumentIdentifier,
 };
@@ -60,7 +62,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::{
-    lsp::{DocumentFilter, LspClient},
+    lsp::{FileFilter, LspClient},
     PluginCatalogRpcHandler,
 };
 
@@ -138,13 +140,21 @@ pub enum PluginServerRpc {
         params: Params,
     },
     DidSaveTextDocument {
-        language_id: String,
-        path: PathBuf,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
         text_document: TextDocumentIdentifier,
         text: Rope,
     },
+    DidOpenTextDocument {
+        language_id: Option<String>,
+        path: Option<PathBuf>,
+        document: TextDocumentItem,
+    },
+    DidCloseTextDocument {
+        document: TextDocumentIdentifier,
+    },
     DidChangeTextDocument {
-        language_id: String,
+        language_id: Option<String>,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -205,12 +215,13 @@ impl ResponseSender {
 }
 
 pub trait PluginServerHandler {
+    fn server_name(&self) -> &str;
     fn document_supported(
-        &mut self,
+        &self,
         language_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool;
-    fn method_registered(&mut self, method: &str) -> bool;
+    fn method_registered(&self, method: &str) -> bool;
     fn handle_host_notification(&mut self, method: String, params: Params);
     fn handle_host_request(
         &mut self,
@@ -225,14 +236,21 @@ pub trait PluginServerHandler {
     );
     fn handle_did_save_text_document(
         &self,
-        language_id: String,
-        path: PathBuf,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
         text_document: TextDocumentIdentifier,
         text: Rope,
     );
+    fn handle_did_open_text_document(
+        &self,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
+        text: TextDocumentItem,
+    );
+    fn handle_did_close_text_document(&self, text: TextDocumentIdentifier);
     fn handle_did_change_text_document(
         &mut self,
-        language_id: String,
+        language_id: Option<String>,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -445,7 +463,11 @@ impl PluginServerRpcHandler {
                     } else {
                         rh.invoke(Err(RpcError {
                             code: 0,
-                            message: "server not capable".to_string(),
+                            message: format!(
+                                "'{}' server not capable responding to request '{}'",
+                                handler.server_name(),
+                                method
+                            ),
                         }));
                     }
                 }
@@ -485,6 +507,16 @@ impl PluginServerRpcHandler {
                         text_document,
                         text,
                     );
+                }
+                PluginServerRpc::DidOpenTextDocument {
+                    language_id,
+                    path,
+                    document: text,
+                } => {
+                    handler.handle_did_open_text_document(language_id, path, text);
+                }
+                PluginServerRpc::DidCloseTextDocument { document } => {
+                    handler.handle_did_close_text_document(document);
                 }
                 PluginServerRpc::DidChangeTextDocument {
                     language_id,
@@ -577,31 +609,27 @@ pub fn handle_plugin_server_message(
     }
 }
 
-struct SaveRegistration {
-    include_text: bool,
-    filters: Vec<DocumentFilter>,
-}
-
 #[derive(Default)]
-struct ServerRegistrations {
-    save: Option<SaveRegistration>,
+struct ServerCapabilities {
+    open_close: Vec<FileFilter>,
+    did_change: Vec<(TextDocumentSyncKind, FileFilter)>,
+    save: Vec<(bool, FileFilter)>,
 }
 
 pub struct PluginHostHandler {
     volt_id: VoltID,
-    volt_display_name: String,
+    pub volt_display_name: String,
     pwd: Option<PathBuf>,
     pub(crate) workspace: Option<PathBuf>,
-    document_selector: Vec<DocumentFilter>,
+    document_selector: Vec<FileFilter>,
     core_rpc: CoreRpcHandler,
     catalog_rpc: PluginCatalogRpcHandler,
     pub server_rpc: PluginServerRpcHandler,
-    pub server_capabilities: ServerCapabilities,
-    server_registrations: ServerRegistrations,
-
+    server_capabilities: ServerCapabilities,
     /// Language servers that this plugin has spawned.  
     /// Note that these plugin ids could be 'dead' if the LSP died/exited.  
     spawned_lsp: HashMap<PluginId, SpawnedLspInfo>,
+    pub server_initialization: Option<InitializeResult>,
 }
 
 impl PluginHostHandler {
@@ -615,12 +643,12 @@ impl PluginHostHandler {
         core_rpc: CoreRpcHandler,
         server_rpc: PluginServerRpcHandler,
         catalog_rpc: PluginCatalogRpcHandler,
-    ) -> Self {
+    ) -> PluginHostHandler {
         let document_selector = document_selector
             .iter()
-            .map(DocumentFilter::from_lsp_filter_loose)
+            .flat_map(FileFilter::from_document_filter)
             .collect();
-        Self {
+        PluginHostHandler {
             pwd,
             workspace,
             volt_id,
@@ -630,192 +658,225 @@ impl PluginHostHandler {
             catalog_rpc,
             server_rpc,
             server_capabilities: ServerCapabilities::default(),
-            server_registrations: ServerRegistrations::default(),
             spawned_lsp: HashMap::new(),
+            server_initialization: None,
         }
     }
 
+    /// Check if the server is interested in the given `language_id` or `path`.
+    /// Servers can register for what file/folders they care about by registring for them in text document synchronization.
+    /// See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_synchronization.
     pub fn document_supported(
         &self,
         language_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool {
-        match language_id {
-            Some(language_id) => {
-                for filter in self.document_selector.iter() {
-                    if (filter.language_id.is_none()
-                        || filter.language_id.as_deref() == Some(language_id))
-                        && (path.is_none()
-                            || filter.pattern.is_none()
-                            || filter
-                                .pattern
-                                .as_ref()
-                                .unwrap()
-                                .is_match(path.as_ref().unwrap()))
-                    {
-                        return true;
-                    }
-                }
-                false
-            }
-            None => true,
-        }
+        self.document_selector
+            .iter()
+            .any(|d| d.matches_any(language_id, path))
     }
 
-    pub fn method_registered(&mut self, method: &str) -> bool {
-        match method {
-            Initialize::METHOD => true,
-            Initialized::METHOD => true,
-            Completion::METHOD => {
-                self.server_capabilities.completion_provider.is_some()
-            }
-            ResolveCompletionItem::METHOD => self
-                .server_capabilities
-                .completion_provider
-                .as_ref()
-                .and_then(|c| c.resolve_provider)
-                .unwrap_or(false),
-            DidOpenTextDocument::METHOD => {
-                match &self.server_capabilities.text_document_sync {
-                    Some(TextDocumentSyncCapability::Kind(kind)) => {
-                        kind != &TextDocumentSyncKind::NONE
+    pub fn method_registered(&self, method: &str) -> bool {
+        // These 2 does not require initialization
+        if method == Initialize::METHOD || method == Initialized::METHOD {
+            return true;
+        }
+
+        if let Some(capabilities) =
+            self.server_initialization.as_ref().map(|s| &s.capabilities)
+        {
+            match method {
+                Completion::METHOD => capabilities.completion_provider.is_some(),
+                ResolveCompletionItem::METHOD => capabilities
+                    .completion_provider
+                    .as_ref()
+                    .and_then(|c| c.resolve_provider)
+                    .unwrap_or(false),
+                DidOpenTextDocument::METHOD => {
+                    match &capabilities.text_document_sync {
+                        Some(TextDocumentSyncCapability::Kind(kind)) => {
+                            kind != &TextDocumentSyncKind::NONE
+                        }
+                        Some(TextDocumentSyncCapability::Options(options)) => {
+                            options
+                                .open_close
+                                .or_else(|| {
+                                    options.change.map(|kind| {
+                                        kind != TextDocumentSyncKind::NONE
+                                    })
+                                })
+                                .unwrap_or(false)
+                        }
+                        None => false,
                     }
-                    Some(TextDocumentSyncCapability::Options(options)) => options
-                        .open_close
-                        .or_else(|| {
+                }
+                DidChangeTextDocument::METHOD => {
+                    match &capabilities.text_document_sync {
+                        Some(TextDocumentSyncCapability::Kind(kind)) => {
+                            kind != &TextDocumentSyncKind::NONE
+                        }
+                        Some(TextDocumentSyncCapability::Options(options)) => {
                             options
                                 .change
                                 .map(|kind| kind != TextDocumentSyncKind::NONE)
-                        })
-                        .unwrap_or(false),
-                    None => false,
-                }
-            }
-            DidChangeTextDocument::METHOD => {
-                match &self.server_capabilities.text_document_sync {
-                    Some(TextDocumentSyncCapability::Kind(kind)) => {
-                        kind != &TextDocumentSyncKind::NONE
+                                .unwrap_or(false)
+                        }
+                        None => false,
                     }
-                    Some(TextDocumentSyncCapability::Options(options)) => options
-                        .change
-                        .map(|kind| kind != TextDocumentSyncKind::NONE)
-                        .unwrap_or(false),
-                    None => false,
                 }
+                SignatureHelpRequest::METHOD => {
+                    capabilities.signature_help_provider.is_some()
+                }
+                HoverRequest::METHOD => capabilities
+                    .hover_provider
+                    .as_ref()
+                    .map(|c| match c {
+                        HoverProviderCapability::Simple(is_capable) => *is_capable,
+                        HoverProviderCapability::Options(_) => true,
+                    })
+                    .unwrap_or(false),
+                GotoDefinition::METHOD => capabilities
+                    .definition_provider
+                    .as_ref()
+                    .map(|d| match d {
+                        OneOf::Left(is_capable) => *is_capable,
+                        OneOf::Right(_) => true,
+                    })
+                    .unwrap_or(false),
+                GotoTypeDefinition::METHOD => {
+                    capabilities.type_definition_provider.is_some()
+                }
+                References::METHOD => capabilities
+                    .references_provider
+                    .as_ref()
+                    .map(|r| match r {
+                        OneOf::Left(is_capable) => *is_capable,
+                        OneOf::Right(_) => true,
+                    })
+                    .unwrap_or(false),
+                CodeActionRequest::METHOD => capabilities
+                    .code_action_provider
+                    .as_ref()
+                    .map(|a| match a {
+                        CodeActionProviderCapability::Simple(is_capable) => {
+                            *is_capable
+                        }
+                        CodeActionProviderCapability::Options(_) => true,
+                    })
+                    .unwrap_or(false),
+                Formatting::METHOD => capabilities
+                    .document_formatting_provider
+                    .as_ref()
+                    .map(|f| match f {
+                        OneOf::Left(is_capable) => *is_capable,
+                        OneOf::Right(_) => true,
+                    })
+                    .unwrap_or(false),
+                SemanticTokensFullRequest::METHOD => {
+                    capabilities.semantic_tokens_provider.is_some()
+                }
+                InlayHintRequest::METHOD => {
+                    capabilities.inlay_hint_provider.is_some()
+                }
+                DocumentSymbolRequest::METHOD => {
+                    capabilities.document_symbol_provider.is_some()
+                }
+                WorkspaceSymbol::METHOD => {
+                    capabilities.workspace_symbol_provider.is_some()
+                }
+                PrepareRenameRequest::METHOD => {
+                    capabilities.rename_provider.is_some()
+                }
+                Rename::METHOD => capabilities.rename_provider.is_some(),
+                SelectionRangeRequest::METHOD => {
+                    capabilities.selection_range_provider.is_some()
+                }
+                CodeActionResolveRequest::METHOD => {
+                    capabilities.code_action_provider.is_some()
+                }
+                _ => false,
             }
-            SignatureHelpRequest::METHOD => {
-                self.server_capabilities.signature_help_provider.is_some()
-            }
-            HoverRequest::METHOD => self
-                .server_capabilities
-                .hover_provider
-                .as_ref()
-                .map(|c| match c {
-                    HoverProviderCapability::Simple(is_capable) => *is_capable,
-                    HoverProviderCapability::Options(_) => true,
-                })
-                .unwrap_or(false),
-            GotoDefinition::METHOD => self
-                .server_capabilities
-                .definition_provider
-                .as_ref()
-                .map(|d| match d {
-                    OneOf::Left(is_capable) => *is_capable,
-                    OneOf::Right(_) => true,
-                })
-                .unwrap_or(false),
-            GotoTypeDefinition::METHOD => {
-                self.server_capabilities.type_definition_provider.is_some()
-            }
-            References::METHOD => self
-                .server_capabilities
-                .references_provider
-                .as_ref()
-                .map(|r| match r {
-                    OneOf::Left(is_capable) => *is_capable,
-                    OneOf::Right(_) => true,
-                })
-                .unwrap_or(false),
-            CodeActionRequest::METHOD => self
-                .server_capabilities
-                .code_action_provider
-                .as_ref()
-                .map(|a| match a {
-                    CodeActionProviderCapability::Simple(is_capable) => *is_capable,
-                    CodeActionProviderCapability::Options(_) => true,
-                })
-                .unwrap_or(false),
-            Formatting::METHOD => self
-                .server_capabilities
-                .document_formatting_provider
-                .as_ref()
-                .map(|f| match f {
-                    OneOf::Left(is_capable) => *is_capable,
-                    OneOf::Right(_) => true,
-                })
-                .unwrap_or(false),
-            SemanticTokensFullRequest::METHOD => {
-                self.server_capabilities.semantic_tokens_provider.is_some()
-            }
-            InlayHintRequest::METHOD => {
-                self.server_capabilities.inlay_hint_provider.is_some()
-            }
-            DocumentSymbolRequest::METHOD => {
-                self.server_capabilities.document_symbol_provider.is_some()
-            }
-            WorkspaceSymbol::METHOD => {
-                self.server_capabilities.workspace_symbol_provider.is_some()
-            }
-            PrepareRenameRequest::METHOD => {
-                self.server_capabilities.rename_provider.is_some()
-            }
-            Rename::METHOD => self.server_capabilities.rename_provider.is_some(),
-            SelectionRangeRequest::METHOD => {
-                self.server_capabilities.selection_range_provider.is_some()
-            }
-            CodeActionResolveRequest::METHOD => {
-                self.server_capabilities.code_action_provider.is_some()
-            }
-            _ => false,
+        } else {
+            false
         }
     }
 
-    fn check_save_capability(&self, language_id: &str, path: &Path) -> (bool, bool) {
-        if self.document_supported(Some(language_id), Some(path)) {
-            let (should_send, include_text) = self
-                .server_capabilities
-                .text_document_sync
-                .as_ref()
-                .and_then(|sync| match sync {
-                    TextDocumentSyncCapability::Kind(_) => None,
-                    TextDocumentSyncCapability::Options(options) => Some(options),
-                })
-                .and_then(|o| o.save.as_ref())
-                .map(|o| match o {
-                    TextDocumentSyncSaveOptions::Supported(is_supported) => {
-                        (*is_supported, true)
+    /// Check if the server said that it is capable of dealing with the given tds
+    fn check_server_capability_for_text_document_sync(
+        &self,
+        tds: TextDocumentSyncOptions,
+    ) -> bool {
+        if let Some(server_tds_capability) = self
+            .server_initialization
+            .as_ref()
+            .and_then(|s| s.capabilities.text_document_sync.as_ref())
+        {
+            match server_tds_capability {
+                TextDocumentSyncCapability::Kind(k) => match *k {
+                    TextDocumentSyncKind::NONE => return false,
+                    _ => return true,
+                },
+                TextDocumentSyncCapability::Options(o) => match tds {
+                    TextDocumentSyncOptions::Change => {
+                        if let Some(o) = o.change {
+                            match o {
+                                TextDocumentSyncKind::NONE => return false,
+                                _ => return true,
+                            }
+                        }
                     }
-                    TextDocumentSyncSaveOptions::SaveOptions(options) => {
-                        (true, options.include_text.unwrap_or(false))
+                    TextDocumentSyncOptions::OpenClose => {
+                        return o.open_close.unwrap_or(false)
                     }
-                })
-                .unwrap_or((false, false));
-            return (should_send, include_text);
-        }
-
-        if let Some(options) = self.server_registrations.save.as_ref() {
-            for filter in options.filters.iter() {
-                if (filter.language_id.is_none()
-                    || filter.language_id.as_deref() == Some(language_id))
-                    && (filter.pattern.is_none()
-                        || filter.pattern.as_ref().unwrap().is_match(path))
-                {
-                    return (true, options.include_text);
-                }
+                    TextDocumentSyncOptions::Save => {
+                        if let Some(o) = o.save.as_ref() {
+                            match o {
+                                TextDocumentSyncSaveOptions::Supported(s) => {
+                                    return *s
+                                }
+                                TextDocumentSyncSaveOptions::SaveOptions(_) => {
+                                    return true
+                                }
+                            }
+                        }
+                    }
+                },
             }
         }
 
-        (false, false)
+        false
+    }
+
+    /// Check if the server is interested in the given `language_id` or `path` given the text document sync event in `tds`.
+    /// Sometimes an LSP server will dynamically register for files it is interested in for a given text document sync events.
+    /// This will check that.
+    fn check_dynamic_registration(
+        &self,
+        language_id: Option<&str>,
+        path: Option<&Path>,
+        tds: TextDocumentSyncOptions,
+    ) -> bool {
+        if !self.check_server_capability_for_text_document_sync(tds) {
+            return false;
+        }
+
+        match tds {
+            TextDocumentSyncOptions::Change => self
+                .server_capabilities
+                .did_change
+                .iter()
+                .any(|(_, ff)| ff.matches_any(language_id, path)),
+            TextDocumentSyncOptions::Save => self
+                .server_capabilities
+                .save
+                .iter()
+                .any(|(_, ff)| ff.matches_any(language_id, path)),
+            TextDocumentSyncOptions::OpenClose => self
+                .server_capabilities
+                .open_close
+                .iter()
+                .any(|ff| ff.matches_any(language_id, path)),
+        }
     }
 
     fn register_capabilities(&mut self, registrations: Vec<Registration>) {
@@ -826,24 +887,83 @@ impl PluginHostHandler {
 
     fn register_capability(&mut self, registration: Registration) -> Result<()> {
         match registration.method.as_str() {
+            // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_didSave
+            // Tells us that the LSP is interested if we are saving the files that match the pattern
             DidSaveTextDocument::METHOD => {
                 let options = registration
                     .register_options
                     .ok_or_else(|| anyhow!("don't have options"))?;
                 let options: TextDocumentSaveRegistrationOptions =
                     serde_json::from_value(options)?;
-                self.server_registrations.save = Some(SaveRegistration {
-                    include_text: options.include_text.unwrap_or(false),
-                    filters: options
+                let include_text = options.include_text.unwrap_or(false);
+                self.server_capabilities.save.extend(
+                    options
                         .text_document_registration_options
                         .document_selector
-                        .map(|s| {
-                            s.iter()
-                                .map(DocumentFilter::from_lsp_filter_loose)
-                                .collect()
+                        .iter()
+                        .flat_map(|s| {
+                            s.iter().flat_map(FileFilter::from_document_filter)
                         })
-                        .unwrap_or_default(),
-                });
+                        .map(|s| (include_text, s))
+                        .collect::<Vec<_>>(),
+                );
+            }
+            // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_didOpen
+            // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_didClose
+            // Tells us that the LSP in the opening/closing of the following set of files.
+            DidOpenTextDocument::METHOD | DidCloseTextDocument::METHOD => {
+                let options = registration
+                    .register_options
+                    .ok_or_else(|| anyhow!("don't have options"))?;
+                let options: TextDocumentRegistrationOptions =
+                    serde_json::from_value(options)?;
+                self.server_capabilities.open_close.extend(
+                    options
+                        .document_selector
+                        .unwrap_or_default()
+                        .iter()
+                        .flat_map(FileFilter::from_document_filter),
+                );
+            }
+            // https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_didChange
+            // Tells us that the LSP is interested in any changes to the files/folders that match
+            DidChangeTextDocument::METHOD => {
+                let options = registration
+                    .register_options
+                    .ok_or_else(|| anyhow!("don't have options"))?;
+                let options: TextDocumentChangeRegistrationOptions =
+                    serde_json::from_value(options)?;
+                // See https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentSyncKind
+                let tds_kind = match options.sync_kind {
+                    0 => return Ok(()), // not interested in changes, skip
+                    1 => TextDocumentSyncKind::INCREMENTAL,
+                    2 => TextDocumentSyncKind::FULL,
+                    o => {
+                        return Err(anyhow!(
+                            "Unknown type of TextDocumentSyncKind with value '{}'",
+                            o
+                        ))
+                    }
+                };
+                self.server_capabilities.did_change.extend(
+                    options
+                        .document_selector
+                        .clone()
+                        .unwrap_or_default()
+                        .iter()
+                        .flat_map(FileFilter::from_document_filter)
+                        .map(|ff| (tds_kind, ff)),
+                );
+                // Since didOpen must come before didChange, any registration for didChange
+                // must have a didOpen equivalent
+                // TODO: Use something like a HashSet to remove duplicates?
+                self.server_capabilities.open_close.extend(
+                    options
+                        .document_selector
+                        .unwrap_or_default()
+                        .iter()
+                        .flat_map(FileFilter::from_document_filter),
+                );
             }
             _ => {
                 eprintln!(
@@ -1016,7 +1136,6 @@ impl PluginHostHandler {
                         self.volt_display_name
                     ),
                 );
-
                 let params: StartLspServerParams =
                     serde_json::from_value(serde_json::to_value(params)?)?;
                 let workspace = self.workspace.clone();
@@ -1068,18 +1187,96 @@ impl PluginHostHandler {
         Ok(())
     }
 
+    /// Sends the textDocument/didOpen notification to the server
+    ///
+    /// TODO: It should check if the file is not open yet
+    pub fn handle_did_open_text_document(
+        &self,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
+        document: TextDocumentItem,
+    ) {
+        let capable = self
+            .document_supported(language_id.as_deref(), path.as_deref())
+            || self.check_dynamic_registration(
+                language_id.as_deref(),
+                path.as_deref(),
+                TextDocumentSyncOptions::OpenClose,
+            );
+
+        if !capable {
+            return;
+        }
+
+        self.server_rpc.server_notification(
+            DidOpenTextDocument::METHOD,
+            DidOpenTextDocumentParams {
+                text_document: document,
+            },
+            language_id,
+            path,
+            true,
+        );
+    }
+
+    /// Sends the textDocument/didClose notification to the server
+    ///
+    /// TODO: It should check if the file is not open yet
+    pub fn handle_did_close_text_document(&self, document: TextDocumentIdentifier) {
+        let path = document.uri.to_file_path().ok();
+
+        let capable = self.document_supported(None, path.as_deref())
+            || self.check_dynamic_registration(
+                None,
+                path.as_deref(),
+                TextDocumentSyncOptions::OpenClose,
+            );
+
+        if !capable {
+            return;
+        }
+
+        self.server_rpc.server_notification(
+            DidCloseTextDocument::METHOD,
+            DidCloseTextDocumentParams {
+                text_document: document,
+            },
+            None,
+            path,
+            true,
+        );
+    }
+
+    /// Sends the textDocument/didOpen notification to the server
+    ///
+    /// TODO: It should check if the file is not open yet
     pub fn handle_did_save_text_document(
         &self,
-        language_id: String,
-        path: PathBuf,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
         text_document: TextDocumentIdentifier,
         text: Rope,
     ) {
-        let (should_send, include_text) =
-            self.check_save_capability(language_id.as_str(), &path);
-        if !should_send {
+        let capable = self
+            .document_supported(language_id.as_deref(), path.as_deref())
+            || self.check_dynamic_registration(
+                language_id.as_deref(),
+                path.as_deref(),
+                TextDocumentSyncOptions::Save,
+            );
+
+        if !capable {
             return;
         }
+
+        let include_text = self
+            .server_capabilities
+            .save
+            .iter()
+            .find(|(_, ff)| ff.matches_any(language_id.as_ref(), path.as_ref()))
+            .map(|v| v.0)
+            .unwrap_or(false);
+
         let params = DidSaveTextDocumentParams {
             text_document,
             text: if include_text {
@@ -1091,15 +1288,18 @@ impl PluginHostHandler {
         self.server_rpc.server_notification(
             DidSaveTextDocument::METHOD,
             params,
-            Some(language_id),
-            Some(path),
+            language_id,
+            path,
             false,
         );
     }
 
+    /// Sends the textDocument/didChange notification to the server
+    ///
+    /// TODO: It should check if the file is open first
     pub fn handle_did_change_text_document(
         &mut self,
-        lanaguage_id: String,
+        language_id: Option<String>,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -1111,7 +1311,25 @@ impl PluginHostHandler {
             )>,
         >,
     ) {
-        let kind = match &self.server_capabilities.text_document_sync {
+        let path = document.uri.to_file_path().ok();
+
+        let capable = self
+            .document_supported(language_id.as_deref(), path.as_deref())
+            || self.check_dynamic_registration(
+                language_id.as_deref(),
+                path.as_deref(),
+                TextDocumentSyncOptions::Change,
+            );
+
+        if !capable {
+            return;
+        }
+
+        let kind = match self
+            .server_initialization
+            .as_ref()
+            .and_then(|s| s.capabilities.text_document_sync.as_ref())
+        {
             Some(TextDocumentSyncCapability::Kind(kind)) => *kind,
             Some(TextDocumentSyncCapability::Options(options)) => {
                 options.change.unwrap_or(TextDocumentSyncKind::NONE)
@@ -1152,8 +1370,6 @@ impl PluginHostHandler {
             _ => return,
         };
 
-        let path = document.uri.to_file_path().ok();
-
         let params = DidChangeTextDocumentParams {
             text_document: document,
             content_changes: vec![change],
@@ -1162,7 +1378,7 @@ impl PluginHostHandler {
         self.server_rpc.server_notification(
             DidChangeTextDocument::METHOD,
             params,
-            Some(lanaguage_id),
+            language_id,
             path,
             false,
         );
@@ -1176,7 +1392,9 @@ impl PluginHostHandler {
     ) {
         let result = format_semantic_styles(
             &text,
-            self.server_capabilities.semantic_tokens_provider.as_ref(),
+            self.server_initialization
+                .as_ref()
+                .and_then(|s| s.capabilities.semantic_tokens_provider.as_ref()),
             &tokens,
         )
         .ok_or_else(|| RpcError {
@@ -1309,4 +1527,17 @@ fn semantic_tokens_legend(
             options,
         ) => &options.semantic_tokens_options.legend,
     }
+}
+
+/// The kind of text document sync.
+/// Correspond to each key of this object:
+/// https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentSyncOptions
+#[derive(Clone, Copy)]
+enum TextDocumentSyncOptions {
+    Change,
+    Save,
+    OpenClose,
+    // TODO: Lapce dont currently support any of this so we don't care
+    // WillSave,
+    // WillSaveWaitUntil,
 }
