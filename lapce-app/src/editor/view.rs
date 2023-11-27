@@ -609,6 +609,7 @@ impl EditorView {
     ) {
         let view = &self.editor.view;
 
+        // TODO: selections should have separate start/end affinity
         let (start_rvline, start_col) =
             view.rvline_col_of_offset(start_offset, affinity);
         let (end_rvline, end_col) = view.rvline_col_of_offset(end_offset, affinity);
@@ -636,6 +637,11 @@ impl EditorView {
             let left_col = phantom_text.col_after(left_col, is_block_cursor);
             let right_col = phantom_text.col_after(right_col, false);
 
+            // Skip over empty selections
+            if !info.is_empty() && left_col == right_col {
+                continue;
+            }
+
             // TODO: #2803 changed it to use this, and I reverted it to what I was doing in my
             // pr, since my version *has* to use the left col. So my version might be correct, but
             // I could also be missing something and should be using viewport.x0 in some manner.
@@ -659,20 +665,21 @@ impl EditorView {
                 x1
             };
 
-            let should_draw = if info.is_empty() {
-                // TODO: we need to custom handle phantom text lines
-                true
+            let (x0, width) = if info.is_empty() {
+                let text_layout = view.get_text_layout(line);
+                let width = text_layout
+                    .get_layout_x(rvline.line_index)
+                    .map(|(_, x1)| x1)
+                    .unwrap_or(0.0)
+                    .into();
+                (0.0, width)
             } else {
-                left_col != right_col
+                (x0, x1 - x0)
             };
 
-            if should_draw {
-                let rect = Rect::from_origin_size(
-                    (x0, vline_y as f64),
-                    (x1 - x0, line_height),
-                );
-                cx.fill(&rect, color, 0.0);
-            }
+            let rect =
+                Rect::from_origin_size((x0, vline_y as f64), (width, line_height));
+            cx.fill(&rect, color, 0.0);
         }
     }
 
@@ -741,8 +748,6 @@ impl EditorView {
         let left_col = start_col.min(end_col);
         let right_col = start_col.max(end_col) + 1;
 
-        // TODO: check if this is correct!
-        // TODO: i'm personally unsure why we're filter mapping here?
         let lines = screen_lines
             .iter_line_info_r(start_rvline..=end_rvline)
             .filter_map(|line_info| {
