@@ -213,8 +213,23 @@ impl ScreenLines {
 
     /// Get the earliest line info for a given line.
     pub fn info_for_line(&self, line: usize) -> Option<LineInfo> {
-        let rvline = self.lines.iter().find(|rvline| rvline.line == line)?;
-        self.info(*rvline)
+        self.info(self.first_rvline_for_line(line)?)
+    }
+
+    /// Get the earliest rvline for the given line
+    pub fn first_rvline_for_line(&self, line: usize) -> Option<RVLine> {
+        self.lines
+            .iter()
+            .find(|rvline| rvline.line == line)
+            .copied()
+    }
+
+    /// Get the latest rvline for the given line
+    pub fn last_rvline_for_line(&self, line: usize) -> Option<RVLine> {
+        self.lines
+            .iter()
+            .rfind(|rvline| rvline.line == line)
+            .copied()
     }
 
     /// Ran on [`LayoutEvent::CreatedLayout`] to update  [`ScreenLinesBase`] &
@@ -698,6 +713,13 @@ impl EditorView {
 
         let (start_rvline, _) = view.rvline_col_of_offset(start_offset, affinity);
         let (end_rvline, _) = view.rvline_col_of_offset(end_offset, affinity);
+        // Linewise selection is by *line* so we move to the start/end rvlines of the line
+        let start_rvline = screen_lines
+            .first_rvline_for_line(start_rvline.line)
+            .unwrap_or(start_rvline);
+        let end_rvline = screen_lines
+            .last_rvline_for_line(end_rvline.line)
+            .unwrap_or(end_rvline);
 
         for LineInfo {
             vline_info: info,
