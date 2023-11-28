@@ -756,6 +756,9 @@ impl EditorData {
             FocusCommand::Save => {
                 self.save(true, || {});
             }
+            FocusCommand::SaveWithoutFormatting => {
+                self.save(false, || {});
+            }
             FocusCommand::InlineFindLeft => {
                 self.inline_find.set(Some(InlineFindDirection::Left));
             }
