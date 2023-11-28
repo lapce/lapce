@@ -759,6 +759,9 @@ impl EditorData {
             FocusCommand::SaveWithoutFormatting => {
                 self.save(false, || {});
             }
+            FocusCommand::FormatDocument => {
+                self.format();
+            }
             FocusCommand::InlineFindLeft => {
                 self.inline_find.set(Some(InlineFindDirection::Left));
             }
@@ -1708,6 +1711,37 @@ impl EditorData {
             } else {
                 self.do_save(after_action);
             }
+        }
+    }
+
+    pub fn format(&self) {
+        let doc = self.view.doc.get_untracked();
+        let rev = doc.rev();
+        let content = doc.content.get_untracked();
+
+        if let DocContent::File { path, .. } = content {
+            let editor = self.clone();
+            let send = create_ext_action(self.scope, move |result| {
+                if let Ok(Ok(ProxyResponse::GetDocumentFormatting { edits })) =
+                    result
+                {
+                    let current_rev =
+                        editor.view.doc.with_untracked(|doc| doc.rev());
+                    if current_rev == rev {
+                        editor.do_text_edit(&edits);
+                    }
+                }
+            });
+
+            let (tx, rx) = crossbeam_channel::bounded(1);
+            let proxy = self.common.proxy.clone();
+            std::thread::spawn(move || {
+                proxy.get_document_formatting(path, move |result| {
+                    let _ = tx.send(result);
+                });
+                let result = rx.recv_timeout(std::time::Duration::from_secs(1));
+                send(result);
+            });
         }
     }
 
