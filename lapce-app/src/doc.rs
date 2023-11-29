@@ -7,7 +7,6 @@ use std::{
     time::Duration,
 };
 
-use clipboard::{ClipboardContext, ClipboardProvider};
 use floem::{
     action::exec_after,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
@@ -59,9 +58,7 @@ use crate::{
 
 pub mod phantom_text;
 
-pub struct SystemClipboard {
-    ctx: ClipboardContext,
-}
+pub struct SystemClipboard;
 
 impl Default for SystemClipboard {
     fn default() -> Self {
@@ -71,19 +68,17 @@ impl Default for SystemClipboard {
 
 impl SystemClipboard {
     pub fn new() -> Self {
-        SystemClipboard {
-            ctx: ClipboardProvider::new().unwrap(),
-        }
+        Self
     }
 }
 
 impl Clipboard for SystemClipboard {
     fn get_string(&mut self) -> Option<String> {
-        self.ctx.get_contents().ok()
+        floem::Clipboard::get_contents()
     }
 
     fn put_string(&mut self, s: impl AsRef<str>) {
-        let _ = self.ctx.set_contents(s.as_ref().to_string());
+        floem::Clipboard::set_contents(s.as_ref());
     }
 }
 
