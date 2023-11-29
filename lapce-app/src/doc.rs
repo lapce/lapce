@@ -74,11 +74,11 @@ impl SystemClipboard {
 
 impl Clipboard for SystemClipboard {
     fn get_string(&mut self) -> Option<String> {
-        floem::Clipboard::get_contents()
+        floem::Clipboard::get_contents().ok()
     }
 
     fn put_string(&mut self, s: impl AsRef<str>) {
-        floem::Clipboard::set_contents(s.as_ref());
+        let _ = floem::Clipboard::set_contents(s.as_ref().to_string());
     }
 }
 

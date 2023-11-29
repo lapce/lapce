@@ -1181,9 +1181,9 @@ dependencies = [
 
 [[package]]
 name = "cursor-icon"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "740bb192a8e2d1350119916954f4409ee7f62f149b536911eeb78ba5a20526bf"
+checksum = "96a6ac251f4a2aca6b3f91340350eab87ae57c3f127ffeb585e92bd336717991"
 
 [[package]]
 name = "d3d12"
@@ -1598,7 +1598,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=e96d11d223bbfe866773d42b99b208f19efaeb58#e96d11d223bbfe866773d42b99b208f19efaeb58"
+source = "git+https://github.com/lapce/floem?rev=0694f9672a10a49290af223cac3dc2ab53b1b1dd#0694f9672a10a49290af223cac3dc2ab53b1b1dd"
 dependencies = [
  "bitflags 2.4.0",
  "copypasta",
@@ -1628,7 +1628,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=e96d11d223bbfe866773d42b99b208f19efaeb58#e96d11d223bbfe866773d42b99b208f19efaeb58"
+source = "git+https://github.com/lapce/floem?rev=0694f9672a10a49290af223cac3dc2ab53b1b1dd#0694f9672a10a49290af223cac3dc2ab53b1b1dd"
 dependencies = [
  "smallvec",
 ]
@@ -1636,7 +1636,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=e96d11d223bbfe866773d42b99b208f19efaeb58#e96d11d223bbfe866773d42b99b208f19efaeb58"
+source = "git+https://github.com/lapce/floem?rev=0694f9672a10a49290af223cac3dc2ab53b1b1dd#0694f9672a10a49290af223cac3dc2ab53b1b1dd"
 dependencies = [
  "cosmic-text",
  "image",
@@ -1647,7 +1647,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=e96d11d223bbfe866773d42b99b208f19efaeb58#e96d11d223bbfe866773d42b99b208f19efaeb58"
+source = "git+https://github.com/lapce/floem?rev=0694f9672a10a49290af223cac3dc2ab53b1b1dd#0694f9672a10a49290af223cac3dc2ab53b1b1dd"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1664,7 +1664,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=e96d11d223bbfe866773d42b99b208f19efaeb58#e96d11d223bbfe866773d42b99b208f19efaeb58"
+source = "git+https://github.com/lapce/floem?rev=0694f9672a10a49290af223cac3dc2ab53b1b1dd#0694f9672a10a49290af223cac3dc2ab53b1b1dd"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -7154,8 +7154,8 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 
 [[package]]
 name = "winit"
-version = "0.29.3"
-source = "git+https://github.com/lapce/winit?rev=7608048ad91efceb6d97d03dcd74b33c60cc2072#7608048ad91efceb6d97d03dcd74b33c60cc2072"
+version = "0.29.4"
+source = "git+https://github.com/lapce/winit?rev=e8c26d691a20a96c4e9d841d31fc315dabd5a5a1#e8c26d691a20a96c4e9d841d31fc315dabd5a5a1"
 dependencies = [
  "ahash 0.8.3",
  "android-activity",
