@@ -2039,7 +2039,8 @@ fn editor_content(
                     } else {
                         0.0
                     };
-                    s.padding_bottom(padding_bottom)
+                    s.absolute()
+                        .padding_bottom(padding_bottom)
                         .cursor(CursorStyle::Text)
                         .min_size_pct(100.0, 100.0)
                 },

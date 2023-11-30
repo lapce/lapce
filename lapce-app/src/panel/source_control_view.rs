@@ -71,7 +71,8 @@ pub fn source_control_panel(
                         }),
                     ))
                     .style(|s| {
-                        s.min_size_pct(100.0, 100.0)
+                        s.absolute()
+                            .min_size_pct(100.0, 100.0)
                             .padding_left(10.0)
                             .padding_vert(6.0)
                             .hover(|s| s.cursor(CursorStyle::Text))
