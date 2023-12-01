@@ -28,11 +28,21 @@ impl<T: Clone + 'static> Listener<T> {
         Listener { val, cx }
     }
 
-    /// Listen for values sent to this listener.  
+    pub fn scope(&self) -> Scope {
+        self.cx
+    }
+
+    /// Listen for values sent to this listener.      
     pub fn listen(self, on_val: impl Fn(T) + 'static) {
+        self.listen_with(self.cx, on_val)
+    }
+
+    /// Listen for values sent to this listener.  
+    /// Allows creating the effect with a custom scope, letting it be disposed of.  
+    pub fn listen_with(self, cx: Scope, on_val: impl Fn(T) + 'static) {
         let val = self.val;
 
-        self.cx.create_effect(move |_| {
+        cx.create_effect(move |_| {
             // TODO(minor): Signals could have a `take` method to avoid cloning.
             if let Some(cmd) = val.get() {
                 on_val(cmd);

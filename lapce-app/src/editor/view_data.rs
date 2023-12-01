@@ -1,5 +1,5 @@
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
     rc::Rc,
@@ -12,7 +12,7 @@ use floem::{
         kurbo::{Point, Rect},
         Color,
     },
-    reactive::{batch, create_trigger, untrack, ReadSignal, RwSignal, Scope},
+    reactive::{batch, untrack, ReadSignal, RwSignal, Scope},
 };
 use lapce_core::{
     buffer::rope_text::{RopeText, RopeTextVal},
@@ -207,6 +207,9 @@ pub struct EditorViewData {
     /// reality modifying it.
     lines: Rc<Lines>,
 
+    cx: Cell<Scope>,
+    effects_cx: Cell<Scope>,
+
     pub config: ReadSignal<Arc<LapceConfig>>,
 
     pub screen_lines: RwSignal<ScreenLines>,
@@ -236,12 +239,14 @@ impl EditorViewData {
             kind,
             viewport,
             lines,
+            cx: Cell::new(cx),
+            effects_cx: Cell::new(cx.create_child()),
             config,
             screen_lines,
         };
 
         // Watch the relevant parts for recalculating the screen lines
-        create_view_effects(cx, &view);
+        create_view_effects(view.effects_cx.get(), &view);
 
         view
     }
@@ -311,6 +316,9 @@ impl EditorViewData {
     /// The document for the given view was swapped out.
     pub fn update_doc(&self, doc: Rc<Document>) {
         batch(|| {
+            // Get rid of all the effects
+            self.effects_cx.get().dispose();
+
             *self.lines.font_sizes.borrow_mut() = Arc::new(ViewDataFontSizes {
                 config: self.config.clone(),
                 loaded: doc.loaded.read_only(),
@@ -320,6 +328,9 @@ impl EditorViewData {
             self.screen_lines.update(|screen_lines| {
                 screen_lines.clear(self.viewport.get_untracked())
             });
+            // Recreate the effects
+            self.effects_cx.set(self.cx.get().create_child());
+            create_view_effects(self.effects_cx.get(), self);
         });
     }
 
@@ -1006,7 +1017,7 @@ fn create_view_effects(cx: Scope, view: &EditorViewData) {
 
     // Listen for layout events, currently only when a layout is created, and update screen
     // lines based on that
-    view3.lines.layout_event.listen(move |val| {
+    view3.lines.layout_event.listen_with(cx, move |val| {
         let view = &view2;
         // TODO: Move this logic onto screen lines somehow, perhaps just an auxilary
         // function, to avoid getting confused about what is relevant where.
@@ -1030,7 +1041,7 @@ fn create_view_effects(cx: Scope, view: &EditorViewData) {
     // TODO: should we have some debouncing for editor width? Ideally we'll be fast enough to not
     // even need it, though we might not want to use a bunch of cpu whilst resizing anyway.
 
-    let viewport_changed_trigger = create_trigger();
+    let viewport_changed_trigger = cx.create_trigger();
 
     // Watch for changes to the viewport so that we can alter the wrapping
     // As well as updating the screen lines base
