@@ -277,7 +277,7 @@ fn move_right(
     let (rvline, col) = view.rvline_col_of_offset(offset, *affinity);
     let info = view.rvline_info(rvline);
 
-    *affinity = if col == info.last_col(view.text_prov(), false) {
+    *affinity = if col == info.last_col(&view.text_prov(), false) {
         CursorAffinity::Backward
     } else {
         CursorAffinity::Forward
@@ -493,7 +493,7 @@ fn first_non_blank(
     offset: usize,
 ) -> (usize, ColPosition) {
     let info = view.rvline_info_of_offset(offset, *affinity);
-    let non_blank_offset = info.first_non_blank_character(view.text_prov());
+    let non_blank_offset = info.first_non_blank_character(&view.text_prov());
     let start_line_offset = info.interval.start;
     // TODO: is this always the correct affinity? It might be desirable for the very first character on a wrapped line?
     *affinity = CursorAffinity::Forward;
@@ -533,7 +533,7 @@ fn end_of_line(
     mode: Mode,
 ) -> (usize, ColPosition) {
     let info = view.rvline_info_of_offset(offset, *affinity);
-    let new_col = info.last_col(view.text_prov(), mode != Mode::Normal);
+    let new_col = info.last_col(&view.text_prov(), mode != Mode::Normal);
     *affinity = if new_col == 0 {
         CursorAffinity::Forward
     } else {

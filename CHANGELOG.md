@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Features/Changes
+- [#2723](https://github.com/lapce/lapce/pull/2723): Line wrapping based on width (no column-based yet)
 
 ### Bug Fixes
 - [#2754](https://github.com/lapce/lapce/pull/2754): Don't mark nonexistent files as read only (fix saving new files)

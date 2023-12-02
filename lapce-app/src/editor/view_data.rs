@@ -518,20 +518,20 @@ impl EditorViewData {
     /// the offset is considered to be on the next line.
     pub fn vline_of_offset(&self, offset: usize, affinity: CursorAffinity) -> VLine {
         self.lines
-            .vline_of_offset(self.text_prov(), offset, affinity)
+            .vline_of_offset(&self.text_prov(), offset, affinity)
     }
 
     pub fn vline_of_line(&self, line: usize) -> VLine {
-        self.lines.vline_of_line(self.text_prov(), line)
+        self.lines.vline_of_line(&self.text_prov(), line)
     }
 
     pub fn vline_of_rvline(&self, rvline: RVLine) -> VLine {
-        self.lines.vline_of_rvline(self.text_prov(), rvline)
+        self.lines.vline_of_rvline(&self.text_prov(), rvline)
     }
 
     /// Get the nearest offset to the start of the visual line.
     pub fn offset_of_vline(&self, vline: VLine) -> usize {
-        self.lines.offset_of_vline(self.text_prov(), vline)
+        self.lines.offset_of_vline(&self.text_prov(), vline)
     }
 
     /// Get the visual line and column of the given offset.  
@@ -542,7 +542,7 @@ impl EditorViewData {
         affinity: CursorAffinity,
     ) -> (VLine, usize) {
         self.lines
-            .vline_col_of_offset(self.text_prov(), offset, affinity)
+            .vline_col_of_offset(&self.text_prov(), offset, affinity)
     }
 
     pub fn rvline_of_offset(
@@ -551,7 +551,7 @@ impl EditorViewData {
         affinity: CursorAffinity,
     ) -> RVLine {
         self.lines
-            .rvline_of_offset(self.text_prov(), offset, affinity)
+            .rvline_of_offset(&self.text_prov(), offset, affinity)
     }
 
     pub fn rvline_col_of_offset(
@@ -560,11 +560,11 @@ impl EditorViewData {
         affinity: CursorAffinity,
     ) -> (RVLine, usize) {
         self.lines
-            .rvline_col_of_offset(self.text_prov(), offset, affinity)
+            .rvline_col_of_offset(&self.text_prov(), offset, affinity)
     }
 
     pub fn offset_of_rvline(&self, rvline: RVLine) -> usize {
-        self.lines.offset_of_rvline(self.text_prov(), rvline)
+        self.lines.offset_of_rvline(&self.text_prov(), rvline)
     }
 
     pub fn vline_info(&self, vline: VLine) -> VLineInfo {
@@ -601,7 +601,7 @@ impl EditorViewData {
 
     /// Get the first column of the overall line of the visual line
     pub fn first_col<T: std::fmt::Debug>(&self, info: VLineInfo<T>) -> usize {
-        info.first_col(self.text_prov())
+        info.first_col(&self.text_prov())
     }
 
     /// Get the last column in the overall line of the visual line
@@ -610,7 +610,7 @@ impl EditorViewData {
         info: VLineInfo<T>,
         caret: bool,
     ) -> usize {
-        info.last_col(self.text_prov(), caret)
+        info.last_col(&self.text_prov(), caret)
     }
 
     // ==== Points of locations ====
@@ -743,7 +743,7 @@ impl EditorViewData {
         // wrapped lines, but we want to be able to click on them
         if !hit_point.is_inside {
             // TODO(minor): this is probably wrong in some manners
-            col = info.last_col(self.text_prov(), true);
+            col = info.last_col(&self.text_prov(), true);
         }
 
         if config.editor.atomic_soft_tabs && config.editor.tab_width > 1 {
