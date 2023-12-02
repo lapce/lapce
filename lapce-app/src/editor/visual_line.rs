@@ -71,7 +71,7 @@ use lapce_core::{
 };
 use lapce_xi_rope::{Interval, Rope};
 
-use crate::{doc::phantom_text::PhantomTextLine, listener::Listener};
+use crate::listener::Listener;
 
 use super::view_data::TextLayoutLine;
 
@@ -223,11 +223,9 @@ pub trait TextLayoutProvider {
         wrap: ResolvedWrap,
     ) -> Arc<TextLayoutLine>;
 
-    // TODO: We could probably just have a couple 'unapply' / 'reapply' phantom text shifting
-    // functions, since I don't believe any callers in this code need the *contents*. Though it
-    // would need more work in the usual place we supply the phantom text to make a 'transparent'
-    // version nicely.
-    fn line_phantom_text(&self, line: usize) -> PhantomTextLine;
+    /// Translate a column position into the postiion it would be before combining with the phantom
+    /// text
+    fn before_phantom_col(&self, line: usize, col: usize) -> usize;
 
     /// Whether the text has *any* multiline phantom text.  
     /// This is used to determine whether we can use the fast route where the lines are linear,
@@ -250,8 +248,8 @@ impl<T: TextLayoutProvider> TextLayoutProvider for &T {
         (**self).new_text_layout(line, font_size, wrap)
     }
 
-    fn line_phantom_text(&self, line: usize) -> PhantomTextLine {
-        (**self).line_phantom_text(line)
+    fn before_phantom_col(&self, line: usize, col: usize) -> usize {
+        (**self).before_phantom_col(line, col)
     }
 
     fn has_multiline_phantom(&self) -> bool {
@@ -853,7 +851,7 @@ impl Lines {
                 .start_layout_cols(&text_prov, line)
                 .nth(line_index)
                 .unwrap_or(0);
-            let col = text_prov.line_phantom_text(line).before_col(col);
+            let col = text_prov.before_phantom_col(line, col);
 
             base_offset + col
         } else {
@@ -1097,23 +1095,21 @@ fn find_start_line_index(
     line: usize,
     col: usize,
 ) -> Option<usize> {
-    let phantom_text = text_prov.line_phantom_text(line);
-
     let mut starts = text_layout
-        .layout_cols(text_prov, line)
+        .layout_cols(&text_prov, line)
         .enumerate()
         .peekable();
 
     while let Some((i, (layout_start, _))) = starts.next() {
         // TODO: we should just apply after_col to col to do this transformation once
-        let layout_start = phantom_text.before_col(layout_start);
+        let layout_start = text_prov.before_phantom_col(line, layout_start);
         if layout_start >= col {
             return Some(i);
         }
 
-        let next_start = starts
-            .peek()
-            .map(|(_, (next_start, _))| phantom_text.before_col(*next_start));
+        let next_start = starts.peek().map(|(_, (next_start, _))| {
+            text_prov.before_phantom_col(line, *next_start)
+        });
 
         if let Some(next_start) = next_start {
             if next_start > col {
@@ -1307,7 +1303,7 @@ fn find_vline_init_info_forward(
                     .start_layout_cols(&text_prov, cur_line)
                     .nth(line_index)
                     .unwrap_or(0);
-                let col = text_prov.line_phantom_text(cur_line).before_col(col);
+                let col = text_prov.before_phantom_col(cur_line, col);
 
                 let base_offset = rope_text.offset_of_line(cur_line);
                 return Some((base_offset + col, RVLine::new(cur_line, line_index)));
@@ -1473,7 +1469,7 @@ fn vline_init_info_b(
         .start_layout_cols(&text_prov, rv.line)
         .nth(rv.line_index)
         .unwrap_or(0);
-    let col = text_prov.line_phantom_text(rv.line).before_col(col);
+    let col = text_prov.before_phantom_col(rv.line, col);
 
     let base_offset = rope_text.offset_of_line(rv.line);
 
@@ -1810,7 +1806,7 @@ fn end_of_rvline(
     if let Some((_, end_col)) =
         layouts.get_layout_col(&text_prov, font_size, line, line_index)
     {
-        let end_col = text_prov.line_phantom_text(line).before_col(end_col);
+        let end_col = text_prov.before_phantom_col(line, end_col);
         let base_offset = text_prov.text().offset_of_line(line);
 
         base_offset + end_col
@@ -1873,7 +1869,7 @@ fn rvline_offset(
         layouts.get_layout_col(&text_prov, font_size, line, line_index)
     {
         let line_offset = rope_text.offset_of_line(line);
-        let line_col = text_prov.line_phantom_text(line).before_col(line_col);
+        let line_col = text_prov.before_phantom_col(line, line_col);
 
         line_offset + line_col
     } else {
@@ -1899,7 +1895,7 @@ fn next_rvline(
             .nth(line_index + 1)
         {
             let line_offset = rope_text.offset_of_line(line);
-            let line_col = text_prov.line_phantom_text(line).before_col(line_col);
+            let line_col = text_prov.before_phantom_col(line, line_col);
             let offset = line_offset + line_col;
 
             (RVLine::new(line, line_index + 1), offset)
@@ -1942,8 +1938,7 @@ fn prev_rvline(
                 .enumerate()
                 .last()
                 .unwrap_or((0, 0));
-            let line_col =
-                text_prov.line_phantom_text(prev_line).before_col(line_col);
+            let line_col = text_prov.before_phantom_col(prev_line, line_col);
             let offset = line_offset + line_col;
 
             Some((RVLine::new(prev_line, i), offset))
@@ -1963,8 +1958,7 @@ fn prev_rvline(
                 .nth(prev_line_index)
             {
                 let line_offset = rope_text.offset_of_line(line);
-                let line_col =
-                    text_prov.line_phantom_text(line).before_col(line_col);
+                let line_col = text_prov.before_phantom_col(line, line_col);
                 let offset = line_offset + line_col;
 
                 Some((RVLine::new(line, prev_line_index), offset))
@@ -2224,8 +2218,11 @@ mod tests {
             })
         }
 
-        fn line_phantom_text(&self, line: usize) -> PhantomTextLine {
-            self.phantom.get(&line).cloned().unwrap_or_default()
+        fn before_phantom_col(&self, line: usize, col: usize) -> usize {
+            self.phantom
+                .get(&line)
+                .map(|x| x.before_col(col))
+                .unwrap_or(col)
         }
 
         fn has_multiline_phantom(&self) -> bool {

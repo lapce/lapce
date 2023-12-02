@@ -100,8 +100,7 @@ impl TextLayoutLine {
             }
         }
 
-        let phantom_text = text_prov.line_phantom_text(line);
-
+        let line_v = line;
         let iter = self
             .text
             .lines
@@ -119,7 +118,7 @@ impl TextLayoutLine {
                 // We can't just use the original end, because the *true* last glyph on the line
                 // may be a space, but it isn't included in the layout! Though this only happens
                 // for single spaces, for some reason.
-                let pre_end = phantom_text.before_col(end);
+                let pre_end = text_prov.before_phantom_col(line_v, end);
                 let line_offset = text.offset_of_line(line);
 
                 // TODO(minor): We don't really need the entire line, just the two characters after
@@ -919,8 +918,12 @@ impl TextLayoutProvider for ViewDataTextLayoutProv {
         text_layout
     }
 
-    fn line_phantom_text(&self, line: usize) -> PhantomTextLine {
-        self.doc.with_untracked(|doc| doc.line_phantom_text(line))
+    fn before_phantom_col(&self, line: usize, col: usize) -> usize {
+        // TODO: this only needs to shift the col so it does not need the full string allocated
+        // phantom text!
+        self.doc
+            .with_untracked(|doc| doc.line_phantom_text(line))
+            .before_col(col)
     }
 
     fn has_multiline_phantom(&self) -> bool {
