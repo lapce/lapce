@@ -573,10 +573,6 @@ fn to_line(
     (new_offset, horiz)
 }
 
-// TODO: passing a view with the document is kinda ehhh, because this would be used when you call
-// .update on the `RwSignal<Document>`, which presumably delinks it from the RwSignal the view has.
-// A solution might be to change the caller to only pass in the editor view and have this do the update, but only when it is needed.
-
 /// Move the current cursor.  
 /// This will signal-update the document for some motion modes.
 pub fn move_cursor(
@@ -931,4 +927,5 @@ pub fn do_motion_mode(
     }
 }
 
-// TODO: Write tests for the various functions.
+// TODO: Write tests for the various functions. We'll need a more easily swappable API than
+// `EditorViewData` for that.

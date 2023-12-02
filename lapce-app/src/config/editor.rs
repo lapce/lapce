@@ -22,8 +22,8 @@ pub enum WrapStyle {
     /// Wrap at the editor width
     #[default]
     EditorWidth,
-    /// Wrap at the wrap-column
-    WrapColumn,
+    // /// Wrap at the wrap-column
+    // WrapColumn,
     /// Wrap at a specific width
     WrapWidth,
 }
@@ -32,7 +32,7 @@ impl WrapStyle {
         match self {
             WrapStyle::None => "none",
             WrapStyle::EditorWidth => "editor-width",
-            WrapStyle::WrapColumn => "wrap-column",
+            // WrapStyle::WrapColumn => "wrap-column",
             WrapStyle::WrapWidth => "wrap-width",
         }
     }
@@ -41,7 +41,7 @@ impl WrapStyle {
         match s {
             "none" => Some(WrapStyle::None),
             "editor-width" => Some(WrapStyle::EditorWidth),
-            "wrap-column" => Some(WrapStyle::WrapColumn),
+            // "wrap-column" => Some(WrapStyle::WrapColumn),
             "wrap-width" => Some(WrapStyle::WrapWidth),
             _ => None,
         }
@@ -82,11 +82,10 @@ pub struct EditorConfig {
         desc = "Set the minimum number of visible lines above and below the cursor"
     )]
     pub cursor_surrounding_lines: usize,
-    // TODO: this should be a dropdown.
     #[field_names(desc = "The kind of wrapping to perform")]
     pub wrap_style: WrapStyle,
-    #[field_names(desc = "The number of columns to wrap at")]
-    pub wrap_column: usize,
+    // #[field_names(desc = "The number of columns to wrap at")]
+    // pub wrap_column: usize,
     #[field_names(desc = "The number of pixels to wrap at")]
     pub wrap_width: usize,
     #[field_names(

@@ -86,8 +86,8 @@ impl TextLayoutLine {
         text_prov: impl TextLayoutProvider + 'a,
         line: usize,
     ) -> impl Iterator<Item = (usize, usize)> + 'a {
-        // TODO: Is there a more nicer function we can use this for? Can we just strip parts out of layout runs to get what we want in a more principled fashion?
         let mut prefix = None;
+        // Include an entry if there is nothing
         if self.text.lines.len() == 1 {
             let line_start = self.text.lines[0].start_index();
             if let Some(layouts) = self.text.lines[0].layout_opt().as_deref() {
@@ -143,6 +143,15 @@ impl TextLayoutLine {
         prefix.into_iter().chain(iter)
     }
 
+    /// Iterator over the start columns of the relevant layouts
+    pub fn start_layout_cols<'a>(
+        &'a self,
+        text_prov: impl TextLayoutProvider + 'a,
+        line: usize,
+    ) -> impl Iterator<Item = usize> + 'a {
+        self.layout_cols(text_prov, line).map(|(start, _)| start)
+    }
+
     /// Get the top y position of the given line index
     pub fn get_layout_y(&self, nth: usize) -> Option<f64> {
         if nth == 0 {
@@ -190,7 +199,6 @@ impl EditorViewKind {
     }
 }
 
-// TODO(minor): Should this go in another file? It doesn't really need to be with the drawing code for editor views
 /// Data specific to the rendering of a view.
 /// This has various helper methods that may dispatch to the held [`Document`] signal, but are
 /// untracked by default. If you need your signal to depend on the document,
@@ -277,7 +285,6 @@ impl EditorViewData {
     pub(crate) fn text_prov(&self) -> ViewDataTextLayoutProv {
         ViewDataTextLayoutProv {
             text: self.text(),
-            // TODO: Should we just give it the Rc instead?
             doc: self.doc,
         }
     }
@@ -300,14 +307,6 @@ impl EditorViewData {
     pub fn rev(&self) -> u64 {
         self.doc.with_untracked(|doc| doc.rev())
     }
-
-    // TODO: Should the editor view handle the style information?
-    // It does not need to, since we can just get that information from the document,
-    // but it might be nicer? It would let us make the document more strictly about the
-    // data and the view more about the rendering.
-    // but you could also consider it as the document managing the syntax it should apply
-    // Though. There is the question of whether we'd want to allow different syntax highlighting in
-    // different views. However, we probably wouldn't.
 
     pub fn cache_rev(&self) -> u64 {
         self.doc.get_untracked().cache_rev.get_untracked()
@@ -337,7 +336,6 @@ impl EditorViewData {
     /// Duplicate as a new view which refers to the same document.
     pub fn duplicate(&self, cx: Scope, viewport: RwSignal<Rect>) -> Self {
         let kind = self.kind.get_untracked();
-        // TODO(minor): we could use the font sizes arc
 
         EditorViewData::new(
             cx,
@@ -389,9 +387,6 @@ impl EditorViewData {
         self.doc
             .with_untracked(|doc| doc.buffer.with_untracked(|b| b.indent_unit()))
     }
-
-    // TODO(minor): It would be nice to not manage this. Should we just do a create_effect on the doc and automatically update the cache rev? I'd be worried about accidentally ending up with an infinite cycle since depending on doc would be too much.
-    // The other alternative is to have the cache rev be provided as cache information by text_prov.
 
     /// Iterate over the visual lines in the view, starting at the given line.
     pub fn iter_vlines(
@@ -575,7 +570,6 @@ impl EditorViewData {
 
     pub fn vline_info(&self, vline: VLine) -> VLineInfo {
         let vline = vline.min(self.last_vline());
-        // TODO: don't unwrap?
         self.iter_vlines(false, vline).next().unwrap()
     }
 
@@ -594,7 +588,6 @@ impl EditorViewData {
 
     pub fn rvline_info(&self, rvline: RVLine) -> VLineInfo<()> {
         let rvline = rvline.min(self.last_rvline());
-        // TODO: don't unwrap?
         self.iter_rvlines(false, rvline).next().unwrap()
     }
 
@@ -627,7 +620,6 @@ impl EditorViewData {
         self.lines.max_width()
     }
 
-    // TODO: Should this use affinity?
     /// Returns the point into the text layout of the line at the given offset.
     /// `x` being the leading edge of the character, and `y` being the baseline.
     pub fn line_point_of_offset(
@@ -941,8 +933,6 @@ impl TextLayoutProvider for ViewDataTextLayoutProv {
 }
 
 struct ViewDataFontSizes {
-    // TODO: this would need to track more if we had the code lens (small lines) possible to apply
-    // to specific views.
     config: ReadSignal<Arc<LapceConfig>>,
     loaded: ReadSignal<bool>,
 }
@@ -970,6 +960,9 @@ impl LineFontSizeProvider for ViewDataFontSizes {
         hasher.finish()
     }
 }
+
+/// Minimum width that we'll allow the view to be wrapped at.
+const MIN_WRAPPED_WIDTH: f32 = 100.0;
 
 /// Create various reactive effects to update the screen lines whenever relevant parts of the view,
 /// doc, text layouts, viewport, etc. change.
@@ -999,10 +992,6 @@ fn create_view_effects(cx: Scope, view: &EditorViewData) {
             *screen_lines = new_screen_lines;
         });
     };
-
-    // TODO: Screenlines gets updates more often than it should, such as during edits
-    // This can be alleviated some if we had more batching of signal updates
-    // but probably also requires smarter designs on some other pieces of the logic.
 
     // Listen for cache revision changes (essentially edits to the file or requiring
     // changes on text layouts, like if diagnostics load in)
@@ -1057,11 +1046,13 @@ fn create_view_effects(cx: Scope, view: &EditorViewData) {
         let res_wrap = match wrap_style {
             WrapStyle::None => ResolvedWrap::None,
             // TODO: ensure that these values have some minimums that is not too small
-            WrapStyle::EditorWidth => ResolvedWrap::Width(viewport.width() as f32),
-            WrapStyle::WrapColumn => ResolvedWrap::Column(config.editor.wrap_column),
-            WrapStyle::WrapWidth => {
-                ResolvedWrap::Width(config.editor.wrap_width as f32)
+            WrapStyle::EditorWidth => {
+                ResolvedWrap::Width((viewport.width() as f32).max(MIN_WRAPPED_WIDTH))
             }
+            // WrapStyle::WrapColumn => ResolvedWrap::Column(config.editor.wrap_column),
+            WrapStyle::WrapWidth => ResolvedWrap::Width(
+                (config.editor.wrap_width as f32).max(MIN_WRAPPED_WIDTH),
+            ),
         };
 
         view.lines.set_wrap(res_wrap);
