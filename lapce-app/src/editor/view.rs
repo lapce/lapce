@@ -2021,6 +2021,7 @@ fn editor_gutter(
     editor: RwSignal<Rc<EditorData>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
+    let screen_lines = editor.with_untracked(|x| x.screen_lines());
     let breakpoints = window_tab_data.terminal.debug.breakpoints;
     let daps = window_tab_data.terminal.debug.daps;
 
@@ -2040,9 +2041,11 @@ fn editor_gutter(
     let doc = view.doc;
 
     let num_display_lines = create_memo(move |_| {
-        let viewport = viewport.get();
-        let line_height = config.get().editor.line_height() as f64;
-        (viewport.height() / line_height).ceil() as usize + 1
+        let screen_lines = screen_lines.get();
+        screen_lines.lines.len()
+        // let viewport = viewport.get();
+        // let line_height = config.get().editor.line_height() as f64;
+        // (viewport.height() / line_height).ceil() as usize + 1
     });
 
     let code_action_vline = create_memo(move |_| {
@@ -2081,10 +2084,12 @@ fn editor_gutter(
             ),
         )
         .on_click_stop(move |_| {
-            let line = (viewport.get_untracked().y0
-                / config.get_untracked().editor.line_height() as f64)
-                .floor() as usize
-                + i;
+            let screen_lines = screen_lines.get_untracked();
+            let line = screen_lines.lines.get(i).map(|r| r.line).unwrap_or(0);
+            // let line = (viewport.get_untracked().y0
+            //     / config.get_untracked().editor.line_height() as f64)
+            //     .floor() as usize
+            //     + i;
             let editor = editor.get_untracked();
             let doc = editor.view.doc.get_untracked();
             let offset = doc.buffer.with_untracked(|b| b.offset_of_line(line));
@@ -2206,6 +2211,10 @@ fn editor_gutter(
                     move |(line, b)| (*line, b.active),
                     move |(line, breakpoint)| {
                         let active = breakpoint.active;
+                        let line_y = screen_lines
+                            .with_untracked(|s| s.info_for_line(line))
+                            .map(|l| l.y)
+                            .unwrap_or_default();
                         container(
                             svg(move || {
                                 config.get().ui_svg(LapceIcons::DEBUG_BREAKPOINT)
@@ -2229,10 +2238,7 @@ fn editor_gutter(
                                 .height(config.editor.line_height() as f32)
                                 .justify_center()
                                 .items_center()
-                                .margin_top(
-                                    (line * config.editor.line_height()) as f32
-                                        - viewport.get().y0 as f32,
-                                )
+                                .margin_top(line_y as f32 - viewport.get().y0 as f32)
                         })
                     },
                 )
