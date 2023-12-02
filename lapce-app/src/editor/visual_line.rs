@@ -51,6 +51,7 @@
 
 use std::{
     cell::{Cell, RefCell},
+    cmp::Ordering,
     collections::HashMap,
     rc::Rc,
     sync::Arc,
@@ -76,12 +77,12 @@ pub enum ResolvedWrap {
 }
 impl ResolvedWrap {
     pub fn is_different_kind(self, other: ResolvedWrap) -> bool {
-        match (self, other) {
-            (ResolvedWrap::None, ResolvedWrap::None) => false,
-            (ResolvedWrap::Column(_), ResolvedWrap::Column(_)) => false,
-            (ResolvedWrap::Width(_), ResolvedWrap::Width(_)) => false,
-            _ => true,
-        }
+        !matches!(
+            (self, other),
+            (ResolvedWrap::None, ResolvedWrap::None)
+                | (ResolvedWrap::Column(_), ResolvedWrap::Column(_))
+                | (ResolvedWrap::Width(_), ResolvedWrap::Width(_))
+        )
     }
 }
 
@@ -1130,39 +1131,6 @@ fn find_vline_of_line(
     }
 }
 
-// TODO: utilize these,
-fn find_vline_of_line_from_rv_pivot(
-    lines: &Lines,
-    (pivot, p_rvline): (VLine, RVLine),
-    line: usize,
-) -> Option<VLine> {
-    let pivot = VLine(pivot.get() - p_rvline.line_index);
-
-    find_vline_of_line_from_pivot(lines, (pivot, p_rvline.line), line)
-}
-
-/// Search for the [`VLine`] for `line` from a baseline `pivot` [`VLine`] and the line it is for.  
-/// This requires that the `pivot` is the first line index of the line it is for.
-fn find_vline_of_line_from_pivot(
-    lines: &Lines,
-    (pivot, p_line): (VLine, usize),
-    line: usize,
-) -> Option<VLine> {
-    if line == 0 {
-        return Some(VLine(0));
-    }
-
-    match line.cmp(&p_line) {
-        std::cmp::Ordering::Less => {
-            find_vline_of_line_backwards(lines, (pivot, p_line), line)
-        }
-        std::cmp::Ordering::Equal => Some(pivot),
-        std::cmp::Ordering::Greater => {
-            find_vline_of_line_forwards(lines, (pivot, p_line), line)
-        }
-    }
-}
-
 /// Get the first visual line of a buffer line.  
 /// This searches backwards from `pivot`, so it should be *after* the given line.  
 /// This requires that the `pivot` is the first line index of the line it is for.
@@ -1205,10 +1173,10 @@ fn find_vline_of_line_forwards(
     (start, s_line): (VLine, usize),
     line: usize,
 ) -> Option<VLine> {
-    if line < s_line {
-        return None;
-    } else if line == s_line {
-        return Some(start);
+    match line.cmp(&s_line) {
+        Ordering::Equal => return Some(start),
+        Ordering::Less => return None,
+        Ordering::Greater => (),
     }
 
     let layouts = lines.text_layouts.borrow();
@@ -1279,41 +1247,6 @@ fn find_vline_init_info(
         )
     } else {
         find_vline_init_info_forward(lines, text_prov, (VLine(0), 0), vline)
-    }
-}
-
-fn find_vline_init_info_from_rv_pivot(
-    lines: &Lines,
-    text_prov: impl TextLayoutProvider,
-    (pivot, p_rvline): (VLine, RVLine),
-    vline: VLine,
-) -> Option<(usize, RVLine)> {
-    if vline == VLine(0) {
-        return Some((0, RVLine::new(0, 0)));
-    }
-
-    let pivot = VLine(pivot.get() - p_rvline.line_index);
-
-    match vline.get().cmp(&p_rvline.line) {
-        std::cmp::Ordering::Less => find_vline_init_info_rv_backward(
-            lines,
-            text_prov,
-            (pivot, p_rvline),
-            vline,
-        ),
-        std::cmp::Ordering::Equal => {
-            Some((lines.offset_of_vline(text_prov, pivot), p_rvline))
-        }
-        std::cmp::Ordering::Greater => {
-            // Shift back a bit.
-            let pivot = VLine(vline.get() - p_rvline.line_index);
-            find_vline_init_info_forward(
-                lines,
-                text_prov,
-                (pivot, p_rvline.line),
-                vline,
-            )
-        }
     }
 }
 
@@ -1408,43 +1341,42 @@ fn find_vline_init_info_rv_backward(
     if start < vline {
         // The start was before the target.
         return None;
-    } else if start == vline {
-        // The start is equivalent to the target
-        // but we don't handle it atm because I think the fn we call should handle it.
     }
 
     // This would the vline at the very start of the buffer line
     let shifted_start = VLine(start.get() - start_rvline.line_index);
-    if shifted_start == vline {
+    match shifted_start.cmp(&vline) {
         // The shifted start was equivalent to the vline, which makes it easy to compute
-        // TODO(minor): technically layout cols could give a nonzero shift into the line for this..
-        let offset = text_prov.rope_text().offset_of_line(start_rvline.line);
-        Some((offset, RVLine::new(start_rvline.line, 0)))
-    } else if shifted_start < vline {
-        // The new start is before the vline, that means the vline is on the same line.
-        let line_index = vline.get() - shifted_start.get();
-        let layouts = lines.text_layouts.borrow();
-        let font_size = lines.font_size(start_rvline.line);
-        if let Some(text_layout) = layouts.get(font_size, start_rvline.line) {
-            vline_init_info_b(
-                &text_prov,
-                &*text_layout,
-                RVLine::new(start_rvline.line, line_index),
-            )
-        } else {
-            // There was no text layout so we only have to consider the line breaks in this line.
-
-            let base_offset =
-                text_prov.rope_text().offset_of_line(start_rvline.line);
-            Some((base_offset, RVLine::new(start_rvline.line, 0)))
+        Ordering::Equal => {
+            // TODO(minor): technically layout cols could give a nonzero shift into the line for this..
+            let offset = text_prov.rope_text().offset_of_line(start_rvline.line);
+            Some((offset, RVLine::new(start_rvline.line, 0)))
         }
-    } else {
-        find_vline_init_info_backward(
+        // The new start is before the vline, that means the vline is on the same line.
+        Ordering::Less => {
+            let line_index = vline.get() - shifted_start.get();
+            let layouts = lines.text_layouts.borrow();
+            let font_size = lines.font_size(start_rvline.line);
+            if let Some(text_layout) = layouts.get(font_size, start_rvline.line) {
+                vline_init_info_b(
+                    &text_prov,
+                    text_layout,
+                    RVLine::new(start_rvline.line, line_index),
+                )
+            } else {
+                // There was no text layout so we only have to consider the line breaks in this line.
+
+                let base_offset =
+                    text_prov.rope_text().offset_of_line(start_rvline.line);
+                Some((base_offset, RVLine::new(start_rvline.line, 0)))
+            }
+        }
+        Ordering::Greater => find_vline_init_info_backward(
             lines,
             text_prov,
             (shifted_start, start_rvline.line),
             vline,
-        )
+        ),
     }
 }
 
@@ -1457,31 +1389,36 @@ fn find_vline_init_info_backward(
     loop {
         let (prev_vline, prev_line) = prev_line_start(lines, start, start_line)?;
 
-        if prev_vline == vline {
+        match prev_vline.cmp(&vline) {
             // We found the target, and it was at the start
-            let offset = text_prov.rope_text().offset_of_line(prev_line);
-            return Some((offset, RVLine::new(prev_line, 0)));
-        } else if prev_vline < vline {
-            // The target is on this line, so we can just search for it
-            let font_size = lines.font_size(prev_line);
-            let layouts = lines.text_layouts.borrow();
-            if let Some(text_layout) = layouts.get(font_size, prev_line) {
-                return vline_init_info_b(
-                    &text_prov,
-                    &*text_layout,
-                    RVLine::new(prev_line, vline.get() - prev_vline.get()),
-                );
-            } else {
-                // There was no text layout so we only have to consider the line breaks in this line.
-                // Which, since we don't handle phantom text, is just one.
-
-                let base_offset = text_prov.rope_text().offset_of_line(prev_line);
-                return Some((base_offset, RVLine::new(prev_line, 0)));
+            Ordering::Equal => {
+                let offset = text_prov.rope_text().offset_of_line(prev_line);
+                return Some((offset, RVLine::new(prev_line, 0)));
             }
-        } else {
+            // The target is on this line, so we can just search for it
+            Ordering::Less => {
+                let font_size = lines.font_size(prev_line);
+                let layouts = lines.text_layouts.borrow();
+                if let Some(text_layout) = layouts.get(font_size, prev_line) {
+                    return vline_init_info_b(
+                        &text_prov,
+                        text_layout,
+                        RVLine::new(prev_line, vline.get() - prev_vline.get()),
+                    );
+                } else {
+                    // There was no text layout so we only have to consider the line breaks in this line.
+                    // Which, since we don't handle phantom text, is just one.
+
+                    let base_offset =
+                        text_prov.rope_text().offset_of_line(prev_line);
+                    return Some((base_offset, RVLine::new(prev_line, 0)));
+                }
+            }
             // The target is before this line, so we have to keep searching
-            start = prev_vline;
-            start_line = prev_line;
+            Ordering::Greater => {
+                start = prev_vline;
+                start_line = prev_line;
+            }
         }
     }
 }

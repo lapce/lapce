@@ -320,7 +320,7 @@ impl EditorViewData {
             self.effects_cx.get().dispose();
 
             *self.lines.font_sizes.borrow_mut() = Arc::new(ViewDataFontSizes {
-                config: self.config.clone(),
+                config: self.config,
                 loaded: doc.loaded.read_only(),
             });
             self.lines.clear(0, None);
@@ -1013,8 +1013,6 @@ fn create_view_effects(cx: Scope, view: &EditorViewData) {
         view.lines.check_cache_rev(cache_rev);
     });
 
-    let update_screen_lines2 = update_screen_lines.clone();
-
     // Listen for layout events, currently only when a layout is created, and update screen
     // lines based on that
     view3.lines.layout_event.listen_with(cx, move |val| {
@@ -1031,7 +1029,7 @@ fn create_view_effects(cx: Scope, view: &EditorViewData) {
 
                 if should_update {
                     untrack(|| {
-                        update_screen_lines.clone()(view);
+                        update_screen_lines(view);
                     });
                 }
             }
@@ -1088,6 +1086,6 @@ fn create_view_effects(cx: Scope, view: &EditorViewData) {
     cx.create_effect(move |_| {
         viewport_changed_trigger.track();
 
-        update_screen_lines2.clone()(&view4);
+        update_screen_lines(&view4);
     });
 }

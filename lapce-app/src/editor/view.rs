@@ -657,15 +657,6 @@ impl EditorView {
                 continue;
             }
 
-            // TODO: #2803 changed it to use this, and I reverted it to what I was doing in my
-            // pr, since my version *has* to use the left col. So my version might be correct, but
-            // I could also be missing something and should be using viewport.x0 in some manner.
-            // let x0 = if line == start_line {
-            // let left_col = phantom_text.col_after(start_col, is_block_cursor);
-            // view.line_point_of_line_col(line, left_col, CursorAffinity::Forward).x
-            // } else {
-            // viewport.x0
-            // };
             // TODO: What affinity should these use?
             let x0 = view
                 .line_point_of_line_col(line, left_col, CursorAffinity::Forward)
@@ -692,12 +683,12 @@ impl EditorView {
                 (x0, x1 - x0)
             };
 
-            let rect =
-                Rect::from_origin_size((x0, vline_y as f64), (width, line_height));
+            let rect = Rect::from_origin_size((x0, vline_y), (width, line_height));
             cx.fill(&rect, color, 0.0);
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn paint_linewise_selection(
         &self,
         cx: &mut PaintCx,
@@ -743,7 +734,7 @@ impl EditorView {
                 + CHAR_WIDTH;
 
             let rect = Rect::from_origin_size(
-                (viewport.x0, vline_y as f64),
+                (viewport.x0, vline_y),
                 (x1 - viewport.x0, line_height),
             );
             cx.fill(&rect, color, 0.0);
@@ -797,7 +788,7 @@ impl EditorView {
                 .x;
 
             let rect = Rect::from_origin_size(
-                (x0, line_info.vline_y as f64),
+                (x0, line_info.vline_y),
                 (x1 - x0, line_height),
             );
             cx.fill(&rect, color, 0.0);
@@ -845,7 +836,7 @@ impl EditorView {
         if let Some(breakline) = breakline {
             if let Some(info) = screen_lines.info_for_line(breakline) {
                 let rect = Rect::from_origin_size(
-                    (viewport.x0, info.vline_y as f64),
+                    (viewport.x0, info.vline_y),
                     (viewport.width(), line_height),
                 );
 
@@ -874,7 +865,7 @@ impl EditorView {
                         .filter(|_| Some(rvline.line) != breakline)
                     {
                         let rect = Rect::from_origin_size(
-                            (viewport.x0, info.vline_y as f64),
+                            (viewport.x0, info.vline_y),
                             (viewport.width(), line_height),
                         );
 
@@ -965,7 +956,7 @@ impl EditorView {
 
                     if let Some(info) = screen_lines.info(rvline) {
                         let rect = Rect::from_origin_size(
-                            (x, info.vline_y as f64),
+                            (x, info.vline_y),
                             (width, line_height),
                         );
                         cx.fill(&rect, caret_color, 0.0);
