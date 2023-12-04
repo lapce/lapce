@@ -5,6 +5,12 @@
 ### Features/Changes
 
 ### Bug Fixes
+
+## 0.3.1
+
+### Features/Changes
+
+### Bug Fixes
 - [#2754](https://github.com/lapce/lapce/pull/2754): Don't mark nonexistent files as read only (fix saving new files)
 - [#2819](https://github.com/lapce/lapce/issues/2819): `Save Witohut Formatting` doesn't save the file
 
