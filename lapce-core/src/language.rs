@@ -1202,16 +1202,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("#"),
 
-        #[cfg(feature = "lang-ruby")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_ruby::language,
-            highlight: Some(tree_sitter_ruby::HIGHLIGHT_QUERY),
-            injection: None,
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &["module", "class", "method", "do_block"],
         }),
-        #[cfg(not(feature = "lang-ruby"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Rust,
