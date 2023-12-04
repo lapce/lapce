@@ -121,8 +121,12 @@ impl<'a> TextLayoutProvider for TLProv<'a> {
         })
     }
 
-    fn line_phantom_text(&self, line: usize) -> PhantomTextLine {
-        self.phantom.get(&line).cloned().unwrap_or_default()
+    fn before_phantom_col(&self, line: usize, col: usize) -> usize {
+        if let Some(phantom) = self.phantom.get(&line) {
+            phantom.before_col(col)
+        } else {
+            col
+        }
     }
 
     fn has_multiline_phantom(&self) -> bool {
