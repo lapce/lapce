@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Features/Changes
+- [#2723](https://github.com/lapce/lapce/pull/2723): Line wrapping based on width (no column-based yet)
 
 ### Bug Fixes
 

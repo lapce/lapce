@@ -14,6 +14,45 @@ pub enum ClickMode {
     DoubleClickAll,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum WrapStyle {
+    /// No wrapping
+    None,
+    /// Wrap at the editor width
+    #[default]
+    EditorWidth,
+    // /// Wrap at the wrap-column
+    // WrapColumn,
+    /// Wrap at a specific width
+    WrapWidth,
+}
+impl WrapStyle {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            WrapStyle::None => "none",
+            WrapStyle::EditorWidth => "editor-width",
+            // WrapStyle::WrapColumn => "wrap-column",
+            WrapStyle::WrapWidth => "wrap-width",
+        }
+    }
+
+    pub fn try_from_str(s: &str) -> Option<Self> {
+        match s {
+            "none" => Some(WrapStyle::None),
+            "editor-width" => Some(WrapStyle::EditorWidth),
+            // "wrap-column" => Some(WrapStyle::WrapColumn),
+            "wrap-width" => Some(WrapStyle::WrapWidth),
+            _ => None,
+        }
+    }
+}
+impl ToString for WrapStyle {
+    fn to_string(&self) -> String {
+        self.as_str().to_string()
+    }
+}
+
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct EditorConfig {
@@ -43,6 +82,12 @@ pub struct EditorConfig {
         desc = "Set the minimum number of visible lines above and below the cursor"
     )]
     pub cursor_surrounding_lines: usize,
+    #[field_names(desc = "The kind of wrapping to perform")]
+    pub wrap_style: WrapStyle,
+    // #[field_names(desc = "The number of columns to wrap at")]
+    // pub wrap_column: usize,
+    #[field_names(desc = "The number of pixels to wrap at")]
+    pub wrap_width: usize,
     #[field_names(
         desc = "Show code context like functions and classes at the top of editor when scroll"
     )]
@@ -103,6 +148,12 @@ pub struct EditorConfig {
         desc = "Whether error lens should go to the end of view line, or only to the end of the diagnostic"
     )]
     pub error_lens_end_of_line: bool,
+    #[field_names(
+        desc = "Whether error lens should extend over multiple lines. If false, it will have newlines stripped."
+    )]
+    pub error_lens_multiline: bool,
+    // TODO: Error lens but put entirely on the next line
+    // TODO: error lens with indentation matching.
     #[field_names(
         desc = "Set error lens font family. If empty, it uses the inlay hint font family."
     )]
