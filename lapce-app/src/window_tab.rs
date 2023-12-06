@@ -895,7 +895,14 @@ impl WindowTabData {
 
             // ==== Terminal ====
             NewTerminalTab => {
-                self.terminal.new_tab(None, None);
+                self.terminal.new_tab(
+                    None,
+                    self.common
+                        .config
+                        .get_untracked()
+                        .terminal
+                        .get_default_profile(),
+                );
                 if !self.panel.is_panel_visible(&PanelKind::Terminal) {
                     self.panel.show_panel(&PanelKind::Terminal);
                 }
