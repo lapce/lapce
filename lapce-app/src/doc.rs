@@ -28,7 +28,7 @@ use lapce_core::{
     register::{Clipboard, Register},
     selection::{InsertDrift, Selection},
     style::line_styles,
-    syntax::{edit::SyntaxEdit, Syntax, BracketParser},
+    syntax::{edit::SyntaxEdit, BracketParser, Syntax},
     word::WordCursor,
 };
 use lapce_rpc::{
@@ -376,12 +376,18 @@ impl Document {
             self.init_diagnostics();
             self.retrieve_head();
             self.syntax.with_untracked(|syntax| {
-                if let Some(_) = syntax.styles {
-                    self.parser.borrow_mut()
-                    .update_code(parser_content.to_string(), &self.buffer.get_untracked(), Some(syntax.clone()));
+                if syntax.styles.is_some() {
+                    self.parser.borrow_mut().update_code(
+                        parser_content.to_string(),
+                        &self.buffer.get_untracked(),
+                        Some(syntax.clone()),
+                    );
                 } else {
-                    self.parser.borrow_mut()
-                    .update_code(parser_content.to_string(), &self.buffer.get_untracked(), None);
+                    self.parser.borrow_mut().update_code(
+                        parser_content.to_string(),
+                        &self.buffer.get_untracked(),
+                        None,
+                    );
                 }
             });
         });
