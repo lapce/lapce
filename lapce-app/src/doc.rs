@@ -165,10 +165,94 @@ impl std::fmt::Debug for Document {
     }
 }
 
+/// The response from a save operation.  
+///
+/// Currently nothing.
+#[derive(Debug)]
+pub struct SaveResponse {}
+
+/// A backend for [`Document`] related operations, such as saving and opening files.  
+/// This allows swapping out the supplier of the documents.  
+/// Ex: A direct implementation that saves files to disk.  
+/// Ex: An implementation that uses a proxy, like `lapce-proxy` to load from local and remote
+/// locations.
+///   
+/// These functions do not take a reference to `&self`, but rather to the `Document<Self>` which
+/// the backend is accessible from.    
+///   
+/// This requires `Clone` due to some logic on other threads needing references. This does mean
+/// that types implementing backend should handle that gracefully.
+pub trait Backend: Sized + Clone {
+    /// The general error type for the backend's operations.  
+    /// This does not require [`std::error::Error`] due to the common `anyhow::Error` not
+    /// implementing it.
+    ///
+    /// A single type is used rather than many different error types at the moment, but this may be
+    /// changed in the future if it seems beneficial.
+    type Error: std::fmt::Debug;
+
+    /// Save a file (potentially asynchronously).  
+    /// The callback will be called with the result of the save operation.  
+    fn save(
+        doc: &Document<Self>,
+        cb: impl FnOnce(Result<SaveResponse, Self::Error>) + 'static,
+    );
+}
+
+// TODO(minor): we could try stripping this down to the fields it exactly needs, like proxy
+/// Lapce backend for files accessible through proxy (local or remote).
+#[derive(Clone)]
+pub struct ProxyBackend {
+    common: Rc<CommonData>,
+}
+impl ProxyBackend {
+    pub fn new(common: Rc<CommonData>) -> Self {
+        Self { common }
+    }
+}
+impl From<Rc<CommonData>> for ProxyBackend {
+    fn from(common: Rc<CommonData>) -> Self {
+        Self { common }
+    }
+}
+impl Backend for ProxyBackend {
+    type Error = ();
+
+    fn save(
+        doc: &Document<Self>,
+        cb: impl FnOnce(Result<SaveResponse, Self::Error>) + 'static,
+    ) {
+        let content = doc.content.get_untracked();
+        if let DocContent::File { path, .. } = content {
+            let rev = doc.rev();
+            let buffer = doc.buffer;
+            let send = create_ext_action(doc.scope, move |result| {
+                if let Ok(ProxyResponse::SaveResponse {}) = result {
+                    let current_rev = buffer.with_untracked(|buffer| buffer.rev());
+                    if current_rev == rev {
+                        buffer.update(|buffer| {
+                            buffer.set_pristine();
+                        });
+                        cb(Ok(SaveResponse {}));
+                    }
+                }
+            });
+
+            doc.backend
+                .common
+                .proxy
+                .save(rev, path, true, move |result| {
+                    send(result);
+                })
+        }
+    }
+}
+
+// TODO(floem-editor): when we split it out, export a type alias with the default generic
 /// A single document that can be viewed by multiple [`EditorData`]'s
 /// [`EditorViewData`]s and [`EditorView]s.
 #[derive(Clone)]
-pub struct Document {
+pub struct Document<B: Backend = ProxyBackend> {
     pub scope: Scope,
     pub buffer_id: BufferId,
     pub content: RwSignal<DocContent>,
@@ -202,14 +286,70 @@ pub struct Document {
     pub find_result: FindResult,
     /// The diagnostics for the document
     pub diagnostics: DiagnosticData,
+    backend: B,
+    // TODO(floem-editor): remove this, it is specific to Lapce
     common: Rc<CommonData>,
 }
-
-impl Document {
+impl Document<ProxyBackend> {
+    // TODO(floem-editor): These are wrapper shims to avoid needing to call `DocumentBackend::from
+    // (common)` at every current caller site in Lapce.
+    // In floem-editor, the `new_backend` should simply be the `new` functions since it wouldn't be
+    // able to infer what backend instance to use anyway
+    //    (ignoring special functions for backends that impl `Default`)
+    // An annoyance is that once floem-editor is its own crate, we can't implement fns on the
+    // `Document` type for ourselves, and a newtype would require even more boilerplate.
+    // So once we do that, we likely swap these to a couple utility functions.
     pub fn new(
         cx: Scope,
         path: PathBuf,
         diagnostics: DiagnosticData,
+        common: Rc<CommonData>,
+    ) -> Self {
+        Self::new_backend(
+            cx,
+            path,
+            diagnostics,
+            ProxyBackend::from(common.clone()),
+            common,
+        )
+    }
+
+    pub fn new_local(cx: Scope, common: Rc<CommonData>) -> Self {
+        Self::new_local_backend(cx, ProxyBackend::from(common.clone()), common)
+    }
+
+    pub fn new_content(
+        cx: Scope,
+        content: DocContent,
+        common: Rc<CommonData>,
+    ) -> Self {
+        Self::new_content_backend(
+            cx,
+            content,
+            ProxyBackend::from(common.clone()),
+            common,
+        )
+    }
+
+    pub fn new_hisotry(
+        cx: Scope,
+        content: DocContent,
+        common: Rc<CommonData>,
+    ) -> Self {
+        Self::new_hisotry_backend(
+            cx,
+            content,
+            ProxyBackend::from(common.clone()),
+            common,
+        )
+    }
+}
+impl<B: Backend + 'static> Document<B> {
+    pub fn new_backend(
+        cx: Scope,
+        path: PathBuf,
+        diagnostics: DiagnosticData,
+        backend: B,
         common: Rc<CommonData>,
     ) -> Self {
         let syntax = Syntax::init(&path);
@@ -237,17 +377,19 @@ impl Document {
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
             preedit: cx.create_rw_signal(None),
+            backend,
             common,
         }
     }
 
-    pub fn new_local(cx: Scope, common: Rc<CommonData>) -> Self {
-        Self::new_content(cx, DocContent::Local, common)
+    pub fn new_local_backend(cx: Scope, backend: B, common: Rc<CommonData>) -> Self {
+        Self::new_content_backend(cx, DocContent::Local, backend, common)
     }
 
-    pub fn new_content(
+    pub fn new_content_backend(
         cx: Scope,
         content: DocContent,
+        backend: B,
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
@@ -275,13 +417,15 @@ impl Document {
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
             preedit: cx.create_rw_signal(None),
+            backend,
             common,
         }
     }
 
-    pub fn new_hisotry(
+    pub fn new_hisotry_backend(
         cx: Scope,
         content: DocContent,
+        backend: B,
         common: Rc<CommonData>,
     ) -> Self {
         let syntax = if let DocContent::History(history) = &content {
@@ -314,6 +458,7 @@ impl Document {
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
             preedit: cx.create_rw_signal(None),
+            backend,
             common,
         }
     }
@@ -1616,26 +1761,7 @@ impl Document {
     }
 
     pub fn save(&self, after_action: impl Fn() + 'static) {
-        let content = self.content.get_untracked();
-        if let DocContent::File { path, .. } = content {
-            let rev = self.rev();
-            let buffer = self.buffer;
-            let send = create_ext_action(self.scope, move |result| {
-                if let Ok(ProxyResponse::SaveResponse {}) = result {
-                    let current_rev = buffer.with_untracked(|buffer| buffer.rev());
-                    if current_rev == rev {
-                        buffer.update(|buffer| {
-                            buffer.set_pristine();
-                        });
-                        after_action();
-                    }
-                }
-            });
-
-            self.common.proxy.save(rev, path, true, move |result| {
-                send(result);
-            })
-        }
+        B::save(self, move |_| after_action());
     }
 
     /// Returns the offsets of the brackets enclosing the given offset.
