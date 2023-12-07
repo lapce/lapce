@@ -235,6 +235,9 @@ pub struct ProxyBackend {
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
     pub head_changes: RwSignal<im::Vector<DiffLines>>,
 
+    /// Inlay hints for the document
+    pub inlay_hints: RwSignal<Option<Spans<InlayHint>>>,
+
     /// The diagnostics for the document
     pub diagnostics: DiagnosticData,
 
@@ -253,9 +256,19 @@ impl ProxyBackend {
         Self {
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
+            inlay_hints: cx.create_rw_signal(None),
             diagnostics,
             common,
         }
+    }
+
+    /// Update the inlay hints so their positions are correct after an edit.
+    fn update_inlay_hints(&self, delta: &RopeDelta) {
+        self.inlay_hints.update(|inlay_hints| {
+            if let Some(hints) = inlay_hints.as_mut() {
+                hints.apply_shape(delta);
+            }
+        });
     }
 }
 impl Backend for ProxyBackend {
@@ -268,9 +281,11 @@ impl Backend for ProxyBackend {
 
     fn on_update(doc: &Document<Self>) {
         doc.trigger_head_change();
+        doc.get_inlay_hints();
     }
 
     fn apply_delta(doc: &Document<Self>, delta: &RopeDelta, _inval: &InvalLines) {
+        doc.backend.update_inlay_hints(delta);
         doc.update_diagnostics(delta);
     }
 
@@ -311,7 +326,7 @@ impl Backend for ProxyBackend {
             (buffer.offset_of_line(line), buffer.offset_of_line(line + 1))
         });
 
-        let inlay_hints = doc.inlay_hints.get_untracked();
+        let inlay_hints = backend.inlay_hints.get_untracked();
         // If hints are enabled, and the hints field is filled, then get the hints for this line
         // and convert them into PhantomText instances
         let hints = config
@@ -612,6 +627,8 @@ pub trait DocumentExt {
 
     /// Update the diagnostics' positions after an edit
     fn update_diagnostics(&self, delta: &RopeDelta);
+
+    fn get_inlay_hints(&self);
 }
 impl DocumentExt for Document<ProxyBackend> {
     fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>> {
@@ -750,6 +767,53 @@ impl DocumentExt for Document<ProxyBackend> {
             }
         });
     }
+
+    fn get_inlay_hints(&self) {
+        if !self.loaded() {
+            return;
+        }
+
+        let backend = &self.backend;
+
+        let path =
+            if let DocContent::File { path, .. } = self.content.get_untracked() {
+                path
+            } else {
+                return;
+            };
+
+        let (buffer, rev, len) = self
+            .buffer
+            .with_untracked(|b| (b.clone(), b.rev(), b.len()));
+
+        let doc = self.clone();
+        let send = create_ext_action(self.scope, move |hints| {
+            if doc.buffer.with_untracked(|b| b.rev()) == rev {
+                doc.backend.inlay_hints.set(Some(hints));
+                doc.clear_text_cache();
+            }
+        });
+
+        backend.common.proxy.get_inlay_hints(path, move |result| {
+            if let Ok(ProxyResponse::GetInlayHints { mut hints }) = result {
+                // Sort the inlay hints by their position, as the LSP does not guarantee that it will
+                // provide them in the order that they are in within the file
+                // as well, Spans does not iterate in the order that they appear
+                hints.sort_by(|left, right| left.position.cmp(&right.position));
+
+                let mut hints_span = SpansBuilder::new(len);
+                for hint in hints {
+                    let offset = buffer.offset_of_position(&hint.position).min(len);
+                    hints_span.add_span(
+                        Interval::new(offset, (offset + 1).min(len)),
+                        hint,
+                    );
+                }
+                let hints = hints_span.build();
+                send(hints);
+            }
+        });
+    }
 }
 
 // TODO(floem-editor): when we split it out, export a type alias with the default generic
@@ -767,8 +831,6 @@ pub struct Document<B: Backend = ProxyBackend> {
     pub syntax: RwSignal<Syntax>,
     /// Semantic highlighting information (which is provided by the LSP)
     semantic_styles: RwSignal<Option<Spans<Style>>>,
-    /// Inlay hints for the document
-    pub inlay_hints: RwSignal<Option<Spans<InlayHint>>>,
     /// Current completion lens text, if any.
     /// This will be displayed even on views that are not focused.
     pub completion_lens: RwSignal<Option<String>>,
@@ -862,7 +924,6 @@ impl<B: Backend + 'static> Document<B> {
             syntax: cx.create_rw_signal(syntax),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: cx.create_rw_signal(None),
-            inlay_hints: cx.create_rw_signal(None),
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
             content: cx.create_rw_signal(DocContent::File {
@@ -901,7 +962,6 @@ impl<B: Backend + 'static> Document<B> {
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: cx.create_rw_signal(None),
-            inlay_hints: cx.create_rw_signal(None),
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
             loaded: cx.create_rw_signal(true),
@@ -936,7 +996,6 @@ impl<B: Backend + 'static> Document<B> {
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: cx.create_rw_signal(None),
-            inlay_hints: cx.create_rw_signal(None),
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
             loaded: cx.create_rw_signal(true),
@@ -1107,7 +1166,6 @@ impl<B: Backend + 'static> Document<B> {
         batch(|| {
             for (i, (delta, inval, _)) in deltas.iter().enumerate() {
                 self.update_styles(delta);
-                self.update_inlay_hints(delta);
                 self.update_completion_lens(delta);
                 self.update_find_result(delta);
                 B::apply_delta(self, delta, inval);
@@ -1146,7 +1204,6 @@ impl<B: Backend + 'static> Document<B> {
             self.clear_sticky_headers_cache();
             self.check_auto_save();
             self.get_semantic_styles();
-            self.get_inlay_hints();
             self.find_result.reset();
             B::on_update(self);
         });
@@ -1196,15 +1253,6 @@ impl<B: Backend + 'static> Document<B> {
                 }
                 syntax.lens.apply_delta(delta);
             });
-        });
-    }
-
-    /// Update the inlay hints so their positions are correct after an edit.
-    fn update_inlay_hints(&self, delta: &RopeDelta) {
-        self.inlay_hints.update(|inlay_hints| {
-            if let Some(hints) = inlay_hints.as_mut() {
-                hints.apply_shape(delta);
-            }
         });
     }
 
@@ -1346,52 +1394,6 @@ impl<B: Backend + 'static> Document<B> {
 
                     send(styles);
                 });
-            }
-        });
-    }
-
-    /// Request inlay hints for the buffer from the LSP through the proxy.
-    fn get_inlay_hints(&self) {
-        if !self.loaded() {
-            return;
-        }
-
-        let path =
-            if let DocContent::File { path, .. } = self.content.get_untracked() {
-                path
-            } else {
-                return;
-            };
-
-        let (buffer, rev, len) = self
-            .buffer
-            .with_untracked(|b| (b.clone(), b.rev(), b.len()));
-
-        let doc = self.clone();
-        let send = create_ext_action(self.scope, move |hints| {
-            if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                doc.inlay_hints.set(Some(hints));
-                doc.clear_text_cache();
-            }
-        });
-
-        self.common.proxy.get_inlay_hints(path, move |result| {
-            if let Ok(ProxyResponse::GetInlayHints { mut hints }) = result {
-                // Sort the inlay hints by their position, as the LSP does not guarantee that it will
-                // provide them in the order that they are in within the file
-                // as well, Spans does not iterate in the order that they appear
-                hints.sort_by(|left, right| left.position.cmp(&right.position));
-
-                let mut hints_span = SpansBuilder::new(len);
-                for hint in hints {
-                    let offset = buffer.offset_of_position(&hint.position).min(len);
-                    hints_span.add_span(
-                        Interval::new(offset, (offset + 1).min(len)),
-                        hint,
-                    );
-                }
-                let hints = hints_span.build();
-                send(hints);
             }
         });
     }
