@@ -241,6 +241,12 @@ pub struct ProxyBackend {
     /// The diagnostics for the document
     pub diagnostics: DiagnosticData,
 
+    /// Current completion lens text, if any.
+    /// This will be displayed even on views that are not focused.
+    pub completion_lens: RwSignal<Option<String>>,
+    /// (line, col)
+    pub completion_pos: RwSignal<(usize, usize)>,
+
     common: Rc<CommonData>,
 }
 impl ProxyBackend {
@@ -258,6 +264,8 @@ impl ProxyBackend {
             head_changes: cx.create_rw_signal(im::Vector::new()),
             inlay_hints: cx.create_rw_signal(None),
             diagnostics,
+            completion_lens: cx.create_rw_signal(None),
+            completion_pos: cx.create_rw_signal((0, 0)),
             common,
         }
     }
@@ -287,6 +295,7 @@ impl Backend for ProxyBackend {
     fn apply_delta(doc: &Document<Self>, delta: &RopeDelta, _inval: &InvalLines) {
         doc.backend.update_inlay_hints(delta);
         doc.update_diagnostics(delta);
+        doc.update_completion_lens(delta);
     }
 
     fn save(
@@ -435,12 +444,13 @@ impl Backend for ProxyBackend {
 
         text.append(&mut diag_text);
 
-        let (completion_line, completion_col) = doc.completion_pos.get_untracked();
+        let (completion_line, completion_col) =
+            backend.completion_pos.get_untracked();
         let completion_text = config
             .editor
             .enable_completion_lens
             .then_some(())
-            .and(doc.completion_lens.get_untracked())
+            .and(backend.completion_lens.get_untracked())
             // TODO: We're probably missing on various useful completion things to include here!
             .filter(|_| line == completion_line)
             .map(|completion| PhantomText {
@@ -629,6 +639,16 @@ pub trait DocumentExt {
     fn update_diagnostics(&self, delta: &RopeDelta);
 
     fn get_inlay_hints(&self);
+
+    /// Get the current completion lens text
+    fn completion_lens(&self) -> Option<String>;
+
+    fn set_completion_lens(&self, completion_lens: String, line: usize, col: usize);
+
+    fn clear_completion_lens(&self);
+
+    /// Update the completion lens position after an edit so that it appears in the correct place.
+    fn update_completion_lens(&self, delta: &RopeDelta);
 }
 impl DocumentExt for Document<ProxyBackend> {
     fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>> {
@@ -814,6 +834,70 @@ impl DocumentExt for Document<ProxyBackend> {
             }
         });
     }
+
+    fn completion_lens(&self) -> Option<String> {
+        self.backend.completion_lens.get_untracked()
+    }
+
+    fn set_completion_lens(&self, completion_lens: String, line: usize, col: usize) {
+        // TODO: more granular invalidation
+        self.clear_text_cache();
+        self.backend.completion_lens.set(Some(completion_lens));
+        self.backend.completion_pos.set((line, col));
+    }
+
+    fn clear_completion_lens(&self) {
+        // TODO: more granular invalidation
+        if self.backend.completion_lens.get_untracked().is_some() {
+            self.clear_text_cache();
+            self.backend.completion_lens.set(None);
+        }
+    }
+
+    /// Update the completion lens position after an edit so that it appears in the correct place.
+    fn update_completion_lens(&self, delta: &RopeDelta) {
+        let backend = &self.backend;
+        let Some(completion) = backend.completion_lens.get_untracked() else {
+            return;
+        };
+
+        let (line, col) = backend.completion_pos.get_untracked();
+        let offset = self
+            .buffer
+            .with_untracked(|b| b.offset_of_line_col(line, col));
+
+        // If the edit is easily checkable + updateable from, then we alter the lens' text.
+        // In normal typing, if we didn't do this, then the text would jitter forward and then
+        // backwards as the completion lens is updated.
+        // TODO: this could also handle simple deletion, but we don't currently keep track of
+        // the past copmletion lens string content in the field.
+        if delta.as_simple_insert().is_some() {
+            let (iv, new_len) = delta.summary();
+            if iv.start() == iv.end()
+                && iv.start() == offset
+                && new_len <= completion.len()
+            {
+                // Remove the # of newly inserted characters
+                // These aren't necessarily the same as the characters literally in the
+                // text, but the completion will be updated when the completion widget
+                // receives the update event, and it will fix this if needed.
+                // TODO: this could be smarter and use the insert's content
+                backend
+                    .completion_lens
+                    .set(Some(completion[new_len..].to_string()));
+            }
+        }
+
+        // Shift the position by the rope delta
+        let mut transformer = Transformer::new(delta);
+
+        let new_offset = transformer.transform(offset, true);
+        let new_pos = self
+            .buffer
+            .with_untracked(|b| b.offset_to_line_col(new_offset));
+
+        backend.completion_pos.set(new_pos);
+    }
 }
 
 // TODO(floem-editor): when we split it out, export a type alias with the default generic
@@ -831,11 +915,6 @@ pub struct Document<B: Backend = ProxyBackend> {
     pub syntax: RwSignal<Syntax>,
     /// Semantic highlighting information (which is provided by the LSP)
     semantic_styles: RwSignal<Option<Spans<Style>>>,
-    /// Current completion lens text, if any.
-    /// This will be displayed even on views that are not focused.
-    pub completion_lens: RwSignal<Option<String>>,
-    /// (line, col)
-    pub completion_pos: RwSignal<(usize, usize)>,
     /// ime preedit information
     pub preedit: RwSignal<Option<Preedit>>,
     /// (Offset -> (Plugin the code actions are from, Code Actions))
@@ -847,7 +926,7 @@ pub struct Document<B: Backend = ProxyBackend> {
     /// A cache for the sticky headers which maps a line to the lines it should show in the header.
     pub sticky_headers: Rc<RefCell<HashMap<usize, Option<Vec<usize>>>>>,
     pub find_result: FindResult,
-    backend: B,
+    pub backend: B,
     // TODO(floem-editor): remove this, it is specific to Lapce
     common: Rc<CommonData>,
 }
@@ -924,8 +1003,6 @@ impl<B: Backend + 'static> Document<B> {
             syntax: cx.create_rw_signal(syntax),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: cx.create_rw_signal(None),
-            completion_lens: cx.create_rw_signal(None),
-            completion_pos: cx.create_rw_signal((0, 0)),
             content: cx.create_rw_signal(DocContent::File {
                 path,
                 read_only: false,
@@ -962,8 +1039,6 @@ impl<B: Backend + 'static> Document<B> {
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: cx.create_rw_signal(None),
-            completion_lens: cx.create_rw_signal(None),
-            completion_pos: cx.create_rw_signal((0, 0)),
             loaded: cx.create_rw_signal(true),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
@@ -996,8 +1071,6 @@ impl<B: Backend + 'static> Document<B> {
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: cx.create_rw_signal(None),
-            completion_lens: cx.create_rw_signal(None),
-            completion_pos: cx.create_rw_signal((0, 0)),
             loaded: cx.create_rw_signal(true),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
@@ -1166,7 +1239,6 @@ impl<B: Backend + 'static> Document<B> {
         batch(|| {
             for (i, (delta, inval, _)) in deltas.iter().enumerate() {
                 self.update_styles(delta);
-                self.update_completion_lens(delta);
                 self.update_find_result(delta);
                 B::apply_delta(self, delta, inval);
                 if let DocContent::File { path, .. } = self.content.get_untracked() {
@@ -1403,31 +1475,6 @@ impl<B: Backend + 'static> Document<B> {
         B::line_phantom_text(self, line)
     }
 
-    /// Get the current completion lens text
-    pub fn completion_lens(&self) -> Option<String> {
-        self.completion_lens.get_untracked()
-    }
-
-    pub fn set_completion_lens(
-        &self,
-        completion_lens: String,
-        line: usize,
-        col: usize,
-    ) {
-        // TODO: more granular invalidation
-        self.clear_text_cache();
-        self.completion_lens.set(Some(completion_lens));
-        self.completion_pos.set((line, col));
-    }
-
-    pub fn clear_completion_lens(&self) {
-        // TODO: more granular invalidation
-        if self.completion_lens.get_untracked().is_some() {
-            self.clear_text_cache();
-            self.completion_lens.set(None);
-        }
-    }
-
     fn update_find_result(&self, delta: &RopeDelta) {
         self.find_result.occurrences.update(|s| {
             *s = s.apply_delta(delta, true, InsertDrift::Default);
@@ -1460,49 +1507,6 @@ impl<B: Backend + 'static> Document<B> {
                 }
             });
         }
-    }
-
-    /// Update the completion lens position after an edit so that it appears in the correct place.
-    pub fn update_completion_lens(&self, delta: &RopeDelta) {
-        let Some(completion) = self.completion_lens.get_untracked() else {
-            return;
-        };
-
-        let (line, col) = self.completion_pos.get_untracked();
-        let offset = self
-            .buffer
-            .with_untracked(|b| b.offset_of_line_col(line, col));
-
-        // If the edit is easily checkable + updateable from, then we alter the lens' text.
-        // In normal typing, if we didn't do this, then the text would jitter forward and then
-        // backwards as the completion lens is updated.
-        // TODO: this could also handle simple deletion, but we don't currently keep track of
-        // the past copmletion lens string content in the field.
-        if delta.as_simple_insert().is_some() {
-            let (iv, new_len) = delta.summary();
-            if iv.start() == iv.end()
-                && iv.start() == offset
-                && new_len <= completion.len()
-            {
-                // Remove the # of newly inserted characters
-                // These aren't necessarily the same as the characters literally in the
-                // text, but the completion will be updated when the completion widget
-                // receives the update event, and it will fix this if needed.
-                // TODO: this could be smarter and use the insert's content
-                self.completion_lens
-                    .set(Some(completion[new_len..].to_string()));
-            }
-        }
-
-        // Shift the position by the rope delta
-        let mut transformer = Transformer::new(delta);
-
-        let new_offset = transformer.transform(offset, true);
-        let new_pos = self
-            .buffer
-            .with_untracked(|b| b.offset_to_line_col(new_offset));
-
-        self.completion_pos.set(new_pos);
     }
 
     pub fn update_find(&self) {
