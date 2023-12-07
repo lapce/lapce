@@ -133,10 +133,11 @@ pub struct BracketParser {
     mode: BracketParserMode,
     noparsing_token: Vec<char>,
     pub active: bool,
+    pub limit: u64,
 }
 
 impl BracketParser {
-    pub fn new(code: String, active: bool) -> Self {
+    pub fn new(code: String, active: bool, limit: u64) -> Self {
         Self {
             code: code.chars().collect(),
             cur: 0,
@@ -153,6 +154,7 @@ impl BracketParser {
             mode: BracketParserMode::Parsing,
             noparsing_token: vec!['\'', '"', '`'],
             active,
+            limit,
         }
     }
 
@@ -175,7 +177,12 @@ impl BracketParser {
             "bracket.color.2".to_string(),
             "bracket.color.3".to_string(),
         ];
-        if self.active {
+        if self.active
+            && code
+                .chars()
+                .fold(0, |i, c| if c == '\n' { i + 1 } else { i })
+                < self.limit as usize
+        {
             self.bracket_pos = HashMap::new();
             if let Some(syntax) = syntax {
                 if let Some(layers) = syntax.layers {

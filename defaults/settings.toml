@@ -56,6 +56,7 @@ move-focus-while-search = true
 diff-context-lines=3
 scroll-speed-modifier=1
 bracket-pair-colorization = true
+bracket-colorization-limit = 30000
 
 [terminal]
 font-family = ""

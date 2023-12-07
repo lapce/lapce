@@ -243,6 +243,7 @@ impl Document {
             parser: Rc::new(RefCell::new(BracketParser::new(
                 "".to_string(),
                 config.editor.bracket_pair_colorization,
+                config.editor.bracket_colorization_limit,
             ))),
         }
     }
@@ -286,6 +287,7 @@ impl Document {
             parser: Rc::new(RefCell::new(BracketParser::new(
                 "".to_string(),
                 config.editor.bracket_pair_colorization,
+                config.editor.bracket_colorization_limit,
             ))),
         }
     }
@@ -330,6 +332,7 @@ impl Document {
             parser: Rc::new(RefCell::new(BracketParser::new(
                 "".to_string(),
                 config.editor.bracket_pair_colorization,
+                config.editor.bracket_colorization_limit,
             ))),
         }
     }
