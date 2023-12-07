@@ -72,4 +72,31 @@ impl TerminalConfig {
 
         self.indexed_colors = Arc::new(indexed_colors);
     }
+
+    pub fn get_default_profile(
+        &self,
+    ) -> Option<lapce_rpc::terminal::TerminalProfile> {
+        let Some(profile) = self.profiles.get(
+            self.default_profile
+                .get(&std::env::consts::OS.to_string())
+                .unwrap_or(&String::from("default")),
+        ) else {
+            return None;
+        };
+        let workdir = if let Some(workdir) = &profile.workdir {
+            url::Url::parse(&workdir.display().to_string()).ok()
+        } else {
+            None
+        };
+
+        let profile = profile.clone();
+
+        Some(lapce_rpc::terminal::TerminalProfile {
+            name: std::env::consts::OS.to_string(),
+            command: profile.command,
+            arguments: profile.arguments,
+            workdir,
+            environment: profile.environment,
+        })
+    }
 }
