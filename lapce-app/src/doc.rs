@@ -29,10 +29,7 @@ use lapce_core::{
     selection::{InsertDrift, Selection},
     style::line_styles,
     syntax::{edit::SyntaxEdit, BracketParser, Syntax},
-<<<<<<< HEAD
     word::WordCursor,
-=======
->>>>>>> 5724798f7ae1c9619a6300d400ce5f05cab08582
 };
 use lapce_rpc::{
     buffer::BufferId,
@@ -246,10 +243,7 @@ impl Document {
             parser: Rc::new(RefCell::new(BracketParser::new(
                 "".to_string(),
                 config.editor.bracket_pair_colorization,
-<<<<<<< HEAD
                 config.editor.bracket_colorization_limit,
-=======
->>>>>>> 5724798f7ae1c9619a6300d400ce5f05cab08582
             ))),
         }
     }
@@ -293,10 +287,7 @@ impl Document {
             parser: Rc::new(RefCell::new(BracketParser::new(
                 "".to_string(),
                 config.editor.bracket_pair_colorization,
-<<<<<<< HEAD
                 config.editor.bracket_colorization_limit,
-=======
->>>>>>> 5724798f7ae1c9619a6300d400ce5f05cab08582
             ))),
         }
     }
@@ -341,10 +332,7 @@ impl Document {
             parser: Rc::new(RefCell::new(BracketParser::new(
                 "".to_string(),
                 config.editor.bracket_pair_colorization,
-<<<<<<< HEAD
                 config.editor.bracket_colorization_limit,
-=======
->>>>>>> 5724798f7ae1c9619a6300d400ce5f05cab08582
             ))),
         }
     }
@@ -375,7 +363,6 @@ impl Document {
 
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&self, content: Rope) {
-<<<<<<< HEAD
         batch(|| {
             let parser_content = content.clone();
             self.syntax.with_untracked(|syntax| {
@@ -555,7 +542,6 @@ impl Document {
     }
 
     fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
-<<<<<<< HEAD
         batch(|| {
             self.clear_code_actions();
             self.clear_style_cache();
@@ -568,18 +554,6 @@ impl Document {
             self.find_result.reset();
             self.do_bracket_colorization();
         });
-=======
-        self.clear_code_actions();
-        self.clear_style_cache();
-        self.trigger_syntax_change(edits);
-        self.clear_sticky_headers_cache();
-        self.trigger_head_change();
-        self.check_auto_save();
-        self.get_semantic_styles();
-        self.get_inlay_hints();
-        self.find_result.reset();
-        self.do_bracket_colorization();
->>>>>>> 5724798f7ae1c9619a6300d400ce5f05cab08582
     }
 
     fn do_bracket_colorization(&self) {
@@ -1449,14 +1423,9 @@ impl Document {
         let attrs = Attrs::new()
             .color(*color)
             .family(&family)
-<<<<<<< HEAD
             .font_size(config.editor.font_size() as f32)
             .line_height(LineHeightValue::Px(line_height as f32));
         let mut attrs_list = AttrsList::new(attrs);
-=======
-            .font_size(config.editor.font_size() as f32);
-        let mut attrs_list: AttrsList = AttrsList::new(attrs);
->>>>>>> 5724798f7ae1c9619a6300d400ce5f05cab08582
 
         // Apply various styles to the line's text based on our semantic/syntax highlighting
         let styles = self.line_style(line);
