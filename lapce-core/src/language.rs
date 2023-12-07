@@ -6,7 +6,7 @@ use std::{
 
 use lapce_rpc::style::{LineStyle, Style};
 use once_cell::sync::Lazy;
-use strum_macros::{AsRefStr, Display, EnumMessage, EnumString};
+use strum_macros::{AsRefStr, AsStaticStr, Display, EnumMessage, EnumString};
 use tracing::{debug, error};
 use tree_sitter::{Point, TreeCursor};
 
