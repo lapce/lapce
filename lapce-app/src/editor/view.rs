@@ -43,7 +43,7 @@ use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     debug::LapceBreakpoint,
-    doc::{phantom_text::PhantomTextKind, DocContent, Document},
+    doc::{phantom_text::PhantomTextKind, DocContent, Document, DocumentExt},
     keypress::KeyPressFocus,
     text_input::text_input,
     window_tab::{Focus, WindowTabData},
@@ -1351,7 +1351,7 @@ impl EditorView {
 
         let doc = self.editor.view.doc.get_untracked();
         let total_len = doc.buffer.with_untracked(|buffer| buffer.last_line());
-        let changes = doc.head_changes.get_untracked();
+        let changes = doc.head_changes().get_untracked();
         let total_height = viewport.height();
         let total_width = viewport.width();
         let line_height = config.editor.line_height();

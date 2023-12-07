@@ -188,11 +188,19 @@ pub trait Backend: Sized + Clone {
     /// implementing it.
     ///
     /// A single type is used rather than many different error types at the moment, but this may be
-    /// changed in the future if it seems beneficial.
+    /// changed in the future if it seems beneficial
     type Error: std::fmt::Debug;
 
+    /// We're initializing the content of the document. The buffer holds the new content.
+    /// Note that this is called from within a [`batch`]
+    fn init_content(_doc: &Document<Self>) {}
+
+    /// Called when the document is updated, like when there is an edit.  
+    /// Note: this is called from within a [`batch`]
+    fn on_update(_doc: &Document<Self>) {}
+
     /// Save a file (potentially asynchronously).  
-    /// The callback will be called with the result of the save operation.  
+    /// The callback will be called with the result of the save operation
     fn save(
         doc: &Document<Self>,
         cb: impl FnOnce(Result<SaveResponse, Self::Error>) + 'static,
@@ -203,20 +211,31 @@ pub trait Backend: Sized + Clone {
 /// Lapce backend for files accessible through proxy (local or remote).
 #[derive(Clone)]
 pub struct ProxyBackend {
+    /// Stores information about different versions of the document from source control.
+    histories: RwSignal<im::HashMap<String, DocumentHistory>>,
+    pub head_changes: RwSignal<im::Vector<DiffLines>>,
+
     common: Rc<CommonData>,
 }
 impl ProxyBackend {
-    pub fn new(common: Rc<CommonData>) -> Self {
-        Self { common }
-    }
-}
-impl From<Rc<CommonData>> for ProxyBackend {
-    fn from(common: Rc<CommonData>) -> Self {
-        Self { common }
+    pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
+        Self {
+            histories: cx.create_rw_signal(im::HashMap::new()),
+            head_changes: cx.create_rw_signal(im::Vector::new()),
+            common,
+        }
     }
 }
 impl Backend for ProxyBackend {
     type Error = ();
+
+    fn init_content(doc: &Document<Self>) {
+        doc.retrieve_head();
+    }
+
+    fn on_update(doc: &Document<Self>) {
+        doc.trigger_head_change();
+    }
 
     fn save(
         doc: &Document<Self>,
@@ -248,6 +267,100 @@ impl Backend for ProxyBackend {
     }
 }
 
+/// Lapce extension functions for [`Document`].
+pub trait DocumentExt {
+    fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>>;
+
+    /// Retrieve the `head` version of the buffer
+    fn retrieve_head(&self);
+
+    fn trigger_head_change(&self);
+}
+impl DocumentExt for Document<ProxyBackend> {
+    fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>> {
+        self.backend.head_changes
+    }
+
+    fn retrieve_head(&self) {
+        if let DocContent::File { path, .. } = self.content.get_untracked() {
+            let histories = self.backend.histories;
+
+            let send = {
+                let path = path.clone();
+                let doc = self.clone();
+                create_ext_action(self.scope, move |result| {
+                    if let Ok(ProxyResponse::BufferHeadResponse {
+                        content, ..
+                    }) = result
+                    {
+                        let hisotry = DocumentHistory::new(
+                            path.clone(),
+                            "head".to_string(),
+                            &content,
+                        );
+                        histories.update(|histories| {
+                            histories.insert("head".to_string(), hisotry);
+                        });
+
+                        doc.trigger_head_change();
+                    }
+                })
+            };
+
+            let path = path.clone();
+            let proxy = self.common.proxy.clone();
+            std::thread::spawn(move || {
+                proxy.get_buffer_head(path, move |result| {
+                    send(result);
+                });
+            });
+        }
+    }
+
+    fn trigger_head_change(&self) {
+        let history = if let Some(text) =
+            self.backend.histories.with_untracked(|histories| {
+                histories
+                    .get("head")
+                    .map(|history| history.buffer.text().clone())
+            }) {
+            text
+        } else {
+            return;
+        };
+
+        let rev = self.rev();
+        let left_rope = history;
+        let (atomic_rev, right_rope) = self
+            .buffer
+            .with_untracked(|b| (b.atomic_rev(), b.text().clone()));
+
+        let send = {
+            let atomic_rev = atomic_rev.clone();
+            let head_changes = self.backend.head_changes;
+            create_ext_action(self.scope, move |changes| {
+                let changes = if let Some(changes) = changes {
+                    changes
+                } else {
+                    return;
+                };
+
+                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                    return;
+                }
+
+                head_changes.set(changes);
+            })
+        };
+
+        rayon::spawn(move || {
+            let changes =
+                rope_diff(left_rope, right_rope, rev, atomic_rev.clone(), None);
+            send(changes.map(im::Vector::from));
+        });
+    }
+}
+
 // TODO(floem-editor): when we split it out, export a type alias with the default generic
 /// A single document that can be viewed by multiple [`EditorData`]'s
 /// [`EditorViewData`]s and [`EditorView]s.
@@ -275,9 +388,6 @@ pub struct Document<B: Backend = ProxyBackend> {
     /// (Offset -> (Plugin the code actions are from, Code Actions))
     pub code_actions:
         RwSignal<im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>>,
-    /// Stores information about different versions of the document from source control.
-    histories: RwSignal<im::HashMap<String, DocumentHistory>>,
-    pub head_changes: RwSignal<im::Vector<DiffLines>>,
     line_styles: Rc<RefCell<LineStyles>>,
     /// The text layouts for the document. This may be shared with other views.
     text_layouts: Rc<RefCell<TextLayoutCache>>,
@@ -309,13 +419,13 @@ impl Document<ProxyBackend> {
             cx,
             path,
             diagnostics,
-            ProxyBackend::from(common.clone()),
+            ProxyBackend::new(cx, common.clone()),
             common,
         )
     }
 
     pub fn new_local(cx: Scope, common: Rc<CommonData>) -> Self {
-        Self::new_local_backend(cx, ProxyBackend::from(common.clone()), common)
+        Self::new_local_backend(cx, ProxyBackend::new(cx, common.clone()), common)
     }
 
     pub fn new_content(
@@ -326,7 +436,7 @@ impl Document<ProxyBackend> {
         Self::new_content_backend(
             cx,
             content,
-            ProxyBackend::from(common.clone()),
+            ProxyBackend::new(cx, common.clone()),
             common,
         )
     }
@@ -339,7 +449,7 @@ impl Document<ProxyBackend> {
         Self::new_hisotry_backend(
             cx,
             content,
-            ProxyBackend::from(common.clone()),
+            ProxyBackend::new(cx, common.clone()),
             common,
         )
     }
@@ -370,8 +480,6 @@ impl<B: Backend + 'static> Document<B> {
                 read_only: false,
             }),
             loaded: cx.create_rw_signal(false),
-            histories: cx.create_rw_signal(im::HashMap::new()),
-            head_changes: cx.create_rw_signal(im::Vector::new()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
@@ -411,8 +519,6 @@ impl<B: Backend + 'static> Document<B> {
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
             loaded: cx.create_rw_signal(true),
-            histories: cx.create_rw_signal(im::HashMap::new()),
-            head_changes: cx.create_rw_signal(im::Vector::new()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
@@ -452,8 +558,6 @@ impl<B: Backend + 'static> Document<B> {
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
             loaded: cx.create_rw_signal(true),
-            histories: cx.create_rw_signal(im::HashMap::new()),
-            head_changes: cx.create_rw_signal(im::Vector::new()),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
@@ -499,7 +603,9 @@ impl<B: Backend + 'static> Document<B> {
             self.loaded.set(true);
             self.on_update(None);
             self.init_diagnostics();
-            self.retrieve_head();
+            // Call the backend's init from within the batch, this ensures that any effects
+            // depending on loaded/content/etc don't update until we're all done.
+            B::init_content(self);
         });
     }
 
@@ -657,11 +763,11 @@ impl<B: Backend + 'static> Document<B> {
             self.clear_style_cache();
             self.trigger_syntax_change(edits);
             self.clear_sticky_headers_cache();
-            self.trigger_head_change();
             self.check_auto_save();
             self.get_semantic_styles();
             self.get_inlay_hints();
             self.find_result.reset();
+            B::on_update(self);
         });
     }
 
@@ -1325,86 +1431,6 @@ impl<B: Backend + 'static> Document<B> {
         });
         self.sticky_headers.borrow_mut().insert(line, lines.clone());
         lines
-    }
-
-    /// Retrieve the `head` version of the buffer
-    pub fn retrieve_head(&self) {
-        if let DocContent::File { path, .. } = self.content.get_untracked() {
-            let histories = self.histories;
-
-            let send = {
-                let path = path.clone();
-                let doc = self.clone();
-                create_ext_action(self.scope, move |result| {
-                    if let Ok(ProxyResponse::BufferHeadResponse {
-                        content, ..
-                    }) = result
-                    {
-                        let hisotry = DocumentHistory::new(
-                            path.clone(),
-                            "head".to_string(),
-                            &content,
-                        );
-                        histories.update(|histories| {
-                            histories.insert("head".to_string(), hisotry);
-                        });
-
-                        doc.trigger_head_change();
-                    }
-                })
-            };
-
-            let path = path.clone();
-            let proxy = self.common.proxy.clone();
-            std::thread::spawn(move || {
-                proxy.get_buffer_head(path, move |result| {
-                    send(result);
-                });
-            });
-        }
-    }
-
-    pub fn trigger_head_change(&self) {
-        let history = if let Some(text) =
-            self.histories.with_untracked(|histories| {
-                histories
-                    .get("head")
-                    .map(|history| history.buffer.text().clone())
-            }) {
-            text
-        } else {
-            return;
-        };
-
-        let rev = self.rev();
-        let left_rope = history;
-        let (atomic_rev, right_rope) = self
-            .buffer
-            .with_untracked(|b| (b.atomic_rev(), b.text().clone()));
-
-        let send = {
-            let atomic_rev = atomic_rev.clone();
-            let head_changes = self.head_changes;
-            create_ext_action(self.scope, move |changes| {
-                let changes = if let Some(changes) = changes {
-                    changes
-                } else {
-                    return;
-                };
-
-                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
-                    return;
-                }
-
-                head_changes.set(changes);
-            })
-        };
-
-        rayon::spawn(move || {
-            let changes =
-                rope_diff(left_rope, right_rope, rev, atomic_rev.clone(), None);
-            send(changes.map(im::Vector::from));
-        });
     }
 
     /// Create rendable whitespace layout by creating a new text layout
