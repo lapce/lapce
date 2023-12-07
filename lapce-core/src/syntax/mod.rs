@@ -133,11 +133,18 @@ pub struct BracketParser {
     mode: BracketParserMode,
     noparsing_token: Vec<char>,
     pub active: bool,
+<<<<<<< HEAD
     pub limit: u64,
 }
 
 impl BracketParser {
     pub fn new(code: String, active: bool, limit: u64) -> Self {
+=======
+}
+
+impl BracketParser {
+    pub fn new(code: String, active: bool) -> Self {
+>>>>>>> 5724798f7ae1c9619a6300d400ce5f05cab08582
         Self {
             code: code.chars().collect(),
             cur: 0,
@@ -154,7 +161,10 @@ impl BracketParser {
             mode: BracketParserMode::Parsing,
             noparsing_token: vec!['\'', '"', '`'],
             active,
+<<<<<<< HEAD
             limit,
+=======
+>>>>>>> 5724798f7ae1c9619a6300d400ce5f05cab08582
         }
     }
 

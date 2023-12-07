@@ -216,7 +216,6 @@ pub struct EditorConfig {
     pub diff_context_lines: i32,
     #[field_names(desc = "Whether the editor colorizes brackets")]
     pub bracket_pair_colorization: bool,
-
     #[field_names(desc = "Bracket colorization Limit")]
     pub bracket_colorization_limit: u64,
 }
