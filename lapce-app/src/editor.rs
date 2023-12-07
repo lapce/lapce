@@ -39,7 +39,7 @@ use crate::{
     completion::{clear_completion_lens, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
-    doc::{DocContent, Document},
+    doc::{DocContent, Document, DocumentExt},
     editor::{
         location::{EditorLocation, EditorPosition},
         visual_line::Lines,
@@ -1613,7 +1613,7 @@ impl EditorData {
             // Get the diagnostics for the current line, which the LSP might use to inform
             // what code actions are available (such as fixes for the diagnostics).
             let diagnostics = doc
-                .diagnostics
+                .diagnostics()
                 .diagnostics
                 .get_untracked()
                 .iter()

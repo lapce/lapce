@@ -199,12 +199,32 @@ pub trait Backend: Sized + Clone {
     /// Note: this is called from within a [`batch`]
     fn on_update(_doc: &Document<Self>) {}
 
+    // TODO(floem-editor): We may need to pass in the computed `rev` since updating proxy uses it
+    /// Apply a single edit delta  
+    fn apply_delta(_doc: &Document<Self>, _delta: &RopeDelta, _inval: &InvalLines) {}
+
     /// Save a file (potentially asynchronously).  
     /// The callback will be called with the result of the save operation
     fn save(
         doc: &Document<Self>,
         cb: impl FnOnce(Result<SaveResponse, Self::Error>) + 'static,
     );
+
+    /// Get the phantom text for the given buffer line
+    fn line_phantom_text(_doc: &Document<Self>, _line: usize) -> PhantomTextLine {
+        PhantomTextLine {
+            text: SmallVec::new(),
+            max_severity: None,
+        }
+    }
+
+    /// Apply styles onto the text layout line
+    fn apply_styles(
+        _doc: &Document<Self>,
+        _line: usize,
+        _text_layout_line: &mut TextLayoutLine,
+    ) {
+    }
 }
 
 // TODO(minor): we could try stripping this down to the fields it exactly needs, like proxy
@@ -215,13 +235,25 @@ pub struct ProxyBackend {
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
     pub head_changes: RwSignal<im::Vector<DiffLines>>,
 
+    /// The diagnostics for the document
+    pub diagnostics: DiagnosticData,
+
     common: Rc<CommonData>,
 }
 impl ProxyBackend {
-    pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
+    pub fn new(
+        cx: Scope,
+        diagnostics: Option<DiagnosticData>,
+        common: Rc<CommonData>,
+    ) -> Self {
+        let diagnostics = diagnostics.unwrap_or_else(|| DiagnosticData {
+            expanded: cx.create_rw_signal(true),
+            diagnostics: cx.create_rw_signal(im::Vector::new()),
+        });
         Self {
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
+            diagnostics,
             common,
         }
     }
@@ -230,11 +262,16 @@ impl Backend for ProxyBackend {
     type Error = ();
 
     fn init_content(doc: &Document<Self>) {
+        doc.init_diagnostics();
         doc.retrieve_head();
     }
 
     fn on_update(doc: &Document<Self>) {
         doc.trigger_head_change();
+    }
+
+    fn apply_delta(doc: &Document<Self>, delta: &RopeDelta, _inval: &InvalLines) {
+        doc.update_diagnostics(delta);
     }
 
     fn save(
@@ -265,6 +302,297 @@ impl Backend for ProxyBackend {
                 })
         }
     }
+
+    fn line_phantom_text(doc: &Document<Self>, line: usize) -> PhantomTextLine {
+        let backend = &doc.backend;
+        let config = backend.common.config.get_untracked();
+
+        let (start_offset, end_offset) = doc.buffer.with_untracked(|buffer| {
+            (buffer.offset_of_line(line), buffer.offset_of_line(line + 1))
+        });
+
+        let inlay_hints = doc.inlay_hints.get_untracked();
+        // If hints are enabled, and the hints field is filled, then get the hints for this line
+        // and convert them into PhantomText instances
+        let hints = config
+            .editor
+            .enable_inlay_hints
+            .then_some(())
+            .and(inlay_hints.as_ref())
+            .map(|hints| hints.iter_chunks(start_offset..end_offset))
+            .into_iter()
+            .flatten()
+            .filter(|(interval, _)| {
+                interval.start >= start_offset && interval.start < end_offset
+            })
+            .map(|(interval, inlay_hint)| {
+                let (_, col) = doc
+                    .buffer
+                    .with_untracked(|b| b.offset_to_line_col(interval.start));
+                let text = match &inlay_hint.label {
+                    InlayHintLabel::String(label) => label.to_string(),
+                    InlayHintLabel::LabelParts(parts) => {
+                        parts.iter().map(|p| &p.value).join("")
+                    }
+                };
+                PhantomText {
+                    kind: PhantomTextKind::InlayHint,
+                    col,
+                    text,
+                    fg: Some(*config.get_color(LapceColor::INLAY_HINT_FOREGROUND)),
+                    // font_family: Some(config.editor.inlay_hint_font_family()),
+                    font_size: Some(config.editor.inlay_hint_font_size()),
+                    bg: Some(*config.get_color(LapceColor::INLAY_HINT_BACKGROUND)),
+                    under_line: None,
+                }
+            });
+        // You're quite unlikely to have more than six hints on a single line
+        // this later has the diagnostics added onto it, but that's still likely to be below six
+        // overall.
+        let mut text: SmallVec<[PhantomText; 6]> = hints.collect();
+
+        // The max severity is used to determine the color given to the background of the line
+        let mut max_severity = None;
+        // If error lens is enabled, and the diagnostics field is filled, then get the diagnostics
+        // that end on this line which have a severity worse than HINT and convert them into
+        // PhantomText instances
+        let diag_text = config
+            .editor
+            .enable_error_lens
+            .then_some(())
+            .map(|_| backend.diagnostics.diagnostics.get_untracked())
+            .into_iter()
+            .flatten()
+            .filter(|diag| {
+                diag.diagnostic.range.end.line as usize == line
+                    && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
+            })
+            .map(|diag| {
+                match (diag.diagnostic.severity, max_severity) {
+                    (Some(severity), Some(max)) => {
+                        if severity < max {
+                            max_severity = Some(severity);
+                        }
+                    }
+                    (Some(severity), None) => {
+                        max_severity = Some(severity);
+                    }
+                    _ => {}
+                }
+
+                let col = doc.buffer.with_untracked(|buffer| {
+                    buffer.offset_of_line(line + 1) - buffer.offset_of_line(line)
+                });
+                let fg = {
+                    let severity = diag
+                        .diagnostic
+                        .severity
+                        .unwrap_or(DiagnosticSeverity::WARNING);
+                    let theme_prop = if severity == DiagnosticSeverity::ERROR {
+                        LapceColor::ERROR_LENS_ERROR_FOREGROUND
+                    } else if severity == DiagnosticSeverity::WARNING {
+                        LapceColor::ERROR_LENS_WARNING_FOREGROUND
+                    } else {
+                        // information + hint (if we keep that) + things without a severity
+                        LapceColor::ERROR_LENS_OTHER_FOREGROUND
+                    };
+
+                    *config.get_color(theme_prop)
+                };
+
+                let text = if config.editor.error_lens_multiline {
+                    format!("    {}", diag.diagnostic.message)
+                } else {
+                    format!("    {}", diag.diagnostic.message.lines().join(" "))
+                };
+                PhantomText {
+                    kind: PhantomTextKind::Diagnostic,
+                    col,
+                    text,
+                    fg: Some(fg),
+                    font_size: Some(config.editor.error_lens_font_size()),
+                    // font_family: Some(config.editor.error_lens_font_family()),
+                    bg: None,
+                    under_line: None,
+                }
+            });
+        let mut diag_text: SmallVec<[PhantomText; 6]> = diag_text.collect();
+
+        text.append(&mut diag_text);
+
+        let (completion_line, completion_col) = doc.completion_pos.get_untracked();
+        let completion_text = config
+            .editor
+            .enable_completion_lens
+            .then_some(())
+            .and(doc.completion_lens.get_untracked())
+            // TODO: We're probably missing on various useful completion things to include here!
+            .filter(|_| line == completion_line)
+            .map(|completion| PhantomText {
+                kind: PhantomTextKind::Completion,
+                col: completion_col,
+                text: completion.clone(),
+                fg: Some(*config.get_color(LapceColor::COMPLETION_LENS_FOREGROUND)),
+                font_size: Some(config.editor.completion_lens_font_size()),
+                // font_family: Some(config.editor.completion_lens_font_family()),
+                bg: None,
+                under_line: None,
+                // TODO: italics?
+            });
+        if let Some(completion_text) = completion_text {
+            text.push(completion_text);
+        }
+
+        if let Some(preedit) = doc.preedit.get_untracked() {
+            let (ime_line, col) = doc
+                .buffer
+                .with_untracked(|b| b.offset_to_line_col(preedit.offset));
+            if line == ime_line {
+                text.push(PhantomText {
+                    kind: PhantomTextKind::Ime,
+                    text: preedit.text,
+                    col,
+                    font_size: None,
+                    fg: None,
+                    bg: None,
+                    under_line: Some(
+                        *backend
+                            .common
+                            .config
+                            .get_untracked()
+                            .get_color(LapceColor::EDITOR_FOREGROUND),
+                    ),
+                });
+            }
+        }
+
+        text.sort_by(|a, b| {
+            if a.col == b.col {
+                a.kind.cmp(&b.kind)
+            } else {
+                a.col.cmp(&b.col)
+            }
+        });
+
+        PhantomTextLine { text, max_severity }
+    }
+
+    fn apply_styles(
+        doc: &Document<Self>,
+        line: usize,
+        text_layout_line: &mut TextLayoutLine,
+    ) {
+        let backend = &doc.backend;
+        let config = backend.common.config.get_untracked();
+
+        text_layout_line.extra_style.clear();
+        let text_layout = &text_layout_line.text;
+
+        let phantom_text = doc.line_phantom_text(line);
+
+        let phantom_styles = phantom_text
+            .offset_size_iter()
+            .filter(move |(_, _, _, p)| p.bg.is_some() || p.under_line.is_some())
+            .flat_map(move |(col_shift, size, col, phantom)| {
+                let start = col + col_shift;
+                let end = start + size;
+
+                extra_styles_for_range(
+                    text_layout,
+                    start,
+                    end,
+                    phantom.bg,
+                    phantom.under_line,
+                    None,
+                )
+            });
+        text_layout_line.extra_style.extend(phantom_styles);
+
+        // Add the styling for the diagnostic severity, if applicable
+        if let Some(max_severity) = phantom_text.max_severity {
+            let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
+                LapceColor::ERROR_LENS_ERROR_BACKGROUND
+            } else if max_severity == DiagnosticSeverity::WARNING {
+                LapceColor::ERROR_LENS_WARNING_BACKGROUND
+            } else {
+                LapceColor::ERROR_LENS_OTHER_BACKGROUND
+            };
+
+            let size = text_layout.size();
+            let x1 = if !config.editor.error_lens_end_of_line {
+                let error_end_x = text_layout.size().width;
+                Some(error_end_x.max(size.width))
+            } else {
+                None
+            };
+
+            // TODO(minor): Should we show the background only on wrapped lines that have the
+            // diagnostic actually on that line?
+            // That would make it more obvious where it is from and matches other editors.
+            text_layout_line.extra_style.push(LineExtraStyle {
+                x: 0.0,
+                y: 0.0,
+                width: x1,
+                height: text_layout.size().height,
+                bg_color: Some(*config.get_color(theme_prop)),
+                under_line: None,
+                wave_line: None,
+            });
+        }
+
+        backend.diagnostics.diagnostics.with_untracked(|diags| {
+            doc.buffer.with_untracked(|buffer| {
+                for diag in diags {
+                    if diag.diagnostic.range.start.line as usize <= line
+                        && line <= diag.diagnostic.range.end.line as usize
+                    {
+                        let start = if diag.diagnostic.range.start.line as usize
+                            == line
+                        {
+                            let (_, col) = buffer.offset_to_line_col(diag.range.0);
+                            col
+                        } else {
+                            let offset =
+                                buffer.first_non_blank_character_on_line(line);
+                            let (_, col) = buffer.offset_to_line_col(offset);
+                            col
+                        };
+                        let start = phantom_text.col_after(start, true);
+
+                        let end = if diag.diagnostic.range.end.line as usize == line
+                        {
+                            let (_, col) = buffer.offset_to_line_col(diag.range.1);
+                            col
+                        } else {
+                            buffer.line_end_col(line, true)
+                        };
+                        let end = phantom_text.col_after(end, false);
+
+                        // let x0 = text_layout.hit_position(start).point.x;
+                        // let x1 = text_layout.hit_position(end).point.x;
+                        let color_name = match diag.diagnostic.severity {
+                            Some(DiagnosticSeverity::ERROR) => {
+                                LapceColor::LAPCE_ERROR
+                            }
+                            _ => LapceColor::LAPCE_WARN,
+                        };
+                        let color = *config.get_color(color_name);
+
+                        let styles = extra_styles_for_range(
+                            text_layout,
+                            start,
+                            end,
+                            None,
+                            None,
+                            Some(color),
+                        );
+
+                        text_layout_line.extra_style.extend(styles);
+                    }
+                }
+            })
+        });
+    }
 }
 
 /// Lapce extension functions for [`Document`].
@@ -275,6 +603,15 @@ pub trait DocumentExt {
     fn retrieve_head(&self);
 
     fn trigger_head_change(&self);
+
+    /// Get the diagnostics
+    fn diagnostics(&self) -> &DiagnosticData;
+
+    /// Init diagnostics' offset ranges from lsp positions
+    fn init_diagnostics(&self);
+
+    /// Update the diagnostics' positions after an edit
+    fn update_diagnostics(&self, delta: &RopeDelta);
 }
 impl DocumentExt for Document<ProxyBackend> {
     fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>> {
@@ -359,6 +696,60 @@ impl DocumentExt for Document<ProxyBackend> {
             send(changes.map(im::Vector::from));
         });
     }
+
+    fn diagnostics(&self) -> &DiagnosticData {
+        &self.backend.diagnostics
+    }
+
+    fn init_diagnostics(&self) {
+        self.clear_text_cache();
+        self.clear_code_actions();
+        self.backend.diagnostics.diagnostics.update(|diagnostics| {
+            for diagnostic in diagnostics.iter_mut() {
+                let (start, end) = self.buffer.with_untracked(|buffer| {
+                    (
+                        buffer
+                            .offset_of_position(&diagnostic.diagnostic.range.start),
+                        buffer.offset_of_position(&diagnostic.diagnostic.range.end),
+                    )
+                });
+                diagnostic.range = (start, end);
+            }
+        });
+    }
+
+    fn update_diagnostics(&self, delta: &RopeDelta) {
+        if self
+            .backend
+            .diagnostics
+            .diagnostics
+            .with_untracked(|d| d.is_empty())
+        {
+            return;
+        }
+        self.backend.diagnostics.diagnostics.update(|diagnostics| {
+            for diagnostic in diagnostics.iter_mut() {
+                let mut transformer = Transformer::new(delta);
+                let (start, end) = diagnostic.range;
+                let (new_start, new_end) = (
+                    transformer.transform(start, false),
+                    transformer.transform(end, true),
+                );
+
+                let (new_start_pos, new_end_pos) = self.buffer.with_untracked(|b| {
+                    (
+                        b.offset_to_position(new_start),
+                        b.offset_to_position(new_end),
+                    )
+                });
+
+                diagnostic.range = (new_start, new_end);
+
+                diagnostic.diagnostic.range.start = new_start_pos;
+                diagnostic.diagnostic.range.end = new_end_pos;
+            }
+        });
+    }
 }
 
 // TODO(floem-editor): when we split it out, export a type alias with the default generic
@@ -394,8 +785,6 @@ pub struct Document<B: Backend = ProxyBackend> {
     /// A cache for the sticky headers which maps a line to the lines it should show in the header.
     pub sticky_headers: Rc<RefCell<HashMap<usize, Option<Vec<usize>>>>>,
     pub find_result: FindResult,
-    /// The diagnostics for the document
-    pub diagnostics: DiagnosticData,
     backend: B,
     // TODO(floem-editor): remove this, it is specific to Lapce
     common: Rc<CommonData>,
@@ -418,14 +807,17 @@ impl Document<ProxyBackend> {
         Self::new_backend(
             cx,
             path,
-            diagnostics,
-            ProxyBackend::new(cx, common.clone()),
+            ProxyBackend::new(cx, Some(diagnostics), common.clone()),
             common,
         )
     }
 
     pub fn new_local(cx: Scope, common: Rc<CommonData>) -> Self {
-        Self::new_local_backend(cx, ProxyBackend::new(cx, common.clone()), common)
+        Self::new_local_backend(
+            cx,
+            ProxyBackend::new(cx, None, common.clone()),
+            common,
+        )
     }
 
     pub fn new_content(
@@ -436,7 +828,7 @@ impl Document<ProxyBackend> {
         Self::new_content_backend(
             cx,
             content,
-            ProxyBackend::new(cx, common.clone()),
+            ProxyBackend::new(cx, None, common.clone()),
             common,
         )
     }
@@ -449,7 +841,7 @@ impl Document<ProxyBackend> {
         Self::new_hisotry_backend(
             cx,
             content,
-            ProxyBackend::new(cx, common.clone()),
+            ProxyBackend::new(cx, None, common.clone()),
             common,
         )
     }
@@ -458,7 +850,6 @@ impl<B: Backend + 'static> Document<B> {
     pub fn new_backend(
         cx: Scope,
         path: PathBuf,
-        diagnostics: DiagnosticData,
         backend: B,
         common: Rc<CommonData>,
     ) -> Self {
@@ -472,7 +863,6 @@ impl<B: Backend + 'static> Document<B> {
             line_styles: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: cx.create_rw_signal(None),
             inlay_hints: cx.create_rw_signal(None),
-            diagnostics,
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
             content: cx.create_rw_signal(DocContent::File {
@@ -512,10 +902,6 @@ impl<B: Backend + 'static> Document<B> {
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: cx.create_rw_signal(None),
             inlay_hints: cx.create_rw_signal(None),
-            diagnostics: DiagnosticData {
-                expanded: cx.create_rw_signal(true),
-                diagnostics: cx.create_rw_signal(im::Vector::new()),
-            },
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
             loaded: cx.create_rw_signal(true),
@@ -551,10 +937,6 @@ impl<B: Backend + 'static> Document<B> {
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             semantic_styles: cx.create_rw_signal(None),
             inlay_hints: cx.create_rw_signal(None),
-            diagnostics: DiagnosticData {
-                expanded: cx.create_rw_signal(true),
-                diagnostics: cx.create_rw_signal(im::Vector::new()),
-            },
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
             loaded: cx.create_rw_signal(true),
@@ -602,7 +984,6 @@ impl<B: Backend + 'static> Document<B> {
             });
             self.loaded.set(true);
             self.on_update(None);
-            self.init_diagnostics();
             // Call the backend's init from within the batch, this ensures that any effects
             // depending on loaded/content/etc don't update until we're all done.
             B::init_content(self);
@@ -727,9 +1108,9 @@ impl<B: Backend + 'static> Document<B> {
             for (i, (delta, inval, _)) in deltas.iter().enumerate() {
                 self.update_styles(delta);
                 self.update_inlay_hints(delta);
-                self.update_diagnostics(delta);
                 self.update_completion_lens(delta);
                 self.update_find_result(delta);
+                B::apply_delta(self, delta, inval);
                 if let DocContent::File { path, .. } = self.content.get_untracked() {
                     self.update_breakpoints(delta, &path, &inval.old_text);
                     self.common.proxy.update(
@@ -1017,227 +1398,7 @@ impl<B: Backend + 'static> Document<B> {
 
     /// Get the phantom text for a given line
     pub fn line_phantom_text(&self, line: usize) -> PhantomTextLine {
-        let config = self.common.config.get_untracked();
-
-        let (start_offset, end_offset) = self.buffer.with_untracked(|buffer| {
-            (buffer.offset_of_line(line), buffer.offset_of_line(line + 1))
-        });
-
-        let inlay_hints = self.inlay_hints.get_untracked();
-        // If hints are enabled, and the hints field is filled, then get the hints for this line
-        // and convert them into PhantomText instances
-        let hints = config
-            .editor
-            .enable_inlay_hints
-            .then_some(())
-            .and(inlay_hints.as_ref())
-            .map(|hints| hints.iter_chunks(start_offset..end_offset))
-            .into_iter()
-            .flatten()
-            .filter(|(interval, _)| {
-                interval.start >= start_offset && interval.start < end_offset
-            })
-            .map(|(interval, inlay_hint)| {
-                let (_, col) = self
-                    .buffer
-                    .with_untracked(|b| b.offset_to_line_col(interval.start));
-                let text = match &inlay_hint.label {
-                    InlayHintLabel::String(label) => label.to_string(),
-                    InlayHintLabel::LabelParts(parts) => {
-                        parts.iter().map(|p| &p.value).join("")
-                    }
-                };
-                PhantomText {
-                    kind: PhantomTextKind::InlayHint,
-                    col,
-                    text,
-                    fg: Some(*config.get_color(LapceColor::INLAY_HINT_FOREGROUND)),
-                    // font_family: Some(config.editor.inlay_hint_font_family()),
-                    font_size: Some(config.editor.inlay_hint_font_size()),
-                    bg: Some(*config.get_color(LapceColor::INLAY_HINT_BACKGROUND)),
-                    under_line: None,
-                }
-            });
-        // You're quite unlikely to have more than six hints on a single line
-        // this later has the diagnostics added onto it, but that's still likely to be below six
-        // overall.
-        let mut text: SmallVec<[PhantomText; 6]> = hints.collect();
-
-        // The max severity is used to determine the color given to the background of the line
-        let mut max_severity = None;
-        // If error lens is enabled, and the diagnostics field is filled, then get the diagnostics
-        // that end on this line which have a severity worse than HINT and convert them into
-        // PhantomText instances
-        let diag_text = config
-            .editor
-            .enable_error_lens
-            .then_some(())
-            .map(|_| self.diagnostics.diagnostics.get_untracked())
-            .into_iter()
-            .flatten()
-            .filter(|diag| {
-                diag.diagnostic.range.end.line as usize == line
-                    && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
-            })
-            .map(|diag| {
-                match (diag.diagnostic.severity, max_severity) {
-                    (Some(severity), Some(max)) => {
-                        if severity < max {
-                            max_severity = Some(severity);
-                        }
-                    }
-                    (Some(severity), None) => {
-                        max_severity = Some(severity);
-                    }
-                    _ => {}
-                }
-
-                let col = self.buffer.with_untracked(|buffer| {
-                    buffer.offset_of_line(line + 1) - buffer.offset_of_line(line)
-                });
-                let fg = {
-                    let severity = diag
-                        .diagnostic
-                        .severity
-                        .unwrap_or(DiagnosticSeverity::WARNING);
-                    let theme_prop = if severity == DiagnosticSeverity::ERROR {
-                        LapceColor::ERROR_LENS_ERROR_FOREGROUND
-                    } else if severity == DiagnosticSeverity::WARNING {
-                        LapceColor::ERROR_LENS_WARNING_FOREGROUND
-                    } else {
-                        // information + hint (if we keep that) + things without a severity
-                        LapceColor::ERROR_LENS_OTHER_FOREGROUND
-                    };
-
-                    *config.get_color(theme_prop)
-                };
-
-                let text = if config.editor.error_lens_multiline {
-                    format!("    {}", diag.diagnostic.message)
-                } else {
-                    format!("    {}", diag.diagnostic.message.lines().join(" "))
-                };
-                PhantomText {
-                    kind: PhantomTextKind::Diagnostic,
-                    col,
-                    text,
-                    fg: Some(fg),
-                    font_size: Some(config.editor.error_lens_font_size()),
-                    // font_family: Some(config.editor.error_lens_font_family()),
-                    bg: None,
-                    under_line: None,
-                }
-            });
-        let mut diag_text: SmallVec<[PhantomText; 6]> = diag_text.collect();
-
-        text.append(&mut diag_text);
-
-        let (completion_line, completion_col) = self.completion_pos.get_untracked();
-        let completion_text = config
-            .editor
-            .enable_completion_lens
-            .then_some(())
-            .and(self.completion_lens.get_untracked())
-            // TODO: We're probably missing on various useful completion things to include here!
-            .filter(|_| line == completion_line)
-            .map(|completion| PhantomText {
-                kind: PhantomTextKind::Completion,
-                col: completion_col,
-                text: completion.clone(),
-                fg: Some(*config.get_color(LapceColor::COMPLETION_LENS_FOREGROUND)),
-                font_size: Some(config.editor.completion_lens_font_size()),
-                // font_family: Some(config.editor.completion_lens_font_family()),
-                bg: None,
-                under_line: None,
-                // TODO: italics?
-            });
-        if let Some(completion_text) = completion_text {
-            text.push(completion_text);
-        }
-
-        if let Some(preedit) = self.preedit.get_untracked() {
-            let (ime_line, col) = self
-                .buffer
-                .with_untracked(|b| b.offset_to_line_col(preedit.offset));
-            if line == ime_line {
-                text.push(PhantomText {
-                    kind: PhantomTextKind::Ime,
-                    text: preedit.text,
-                    col,
-                    font_size: None,
-                    fg: None,
-                    bg: None,
-                    under_line: Some(
-                        *self
-                            .common
-                            .config
-                            .get_untracked()
-                            .get_color(LapceColor::EDITOR_FOREGROUND),
-                    ),
-                });
-            }
-        }
-
-        text.sort_by(|a, b| {
-            if a.col == b.col {
-                a.kind.cmp(&b.kind)
-            } else {
-                a.col.cmp(&b.col)
-            }
-        });
-
-        PhantomTextLine { text, max_severity }
-    }
-
-    /// Update the diagnostics' positions after an edit so that they appear in the correct place.
-    fn update_diagnostics(&self, delta: &RopeDelta) {
-        if self
-            .diagnostics
-            .diagnostics
-            .with_untracked(|d| d.is_empty())
-        {
-            return;
-        }
-        self.diagnostics.diagnostics.update(|diagnostics| {
-            for diagnostic in diagnostics.iter_mut() {
-                let mut transformer = Transformer::new(delta);
-                let (start, end) = diagnostic.range;
-                let (new_start, new_end) = (
-                    transformer.transform(start, false),
-                    transformer.transform(end, true),
-                );
-
-                let (new_start_pos, new_end_pos) = self.buffer.with_untracked(|b| {
-                    (
-                        b.offset_to_position(new_start),
-                        b.offset_to_position(new_end),
-                    )
-                });
-
-                diagnostic.range = (new_start, new_end);
-
-                diagnostic.diagnostic.range.start = new_start_pos;
-                diagnostic.diagnostic.range.end = new_end_pos;
-            }
-        });
-    }
-
-    /// init diagnostics offset ranges from lsp positions
-    pub fn init_diagnostics(&self) {
-        self.clear_text_cache();
-        self.clear_code_actions();
-        self.diagnostics.diagnostics.update(|diagnostics| {
-            for diagnostic in diagnostics.iter_mut() {
-                let (start, end) = self.buffer.with_untracked(|buffer| {
-                    (
-                        buffer
-                            .offset_of_position(&diagnostic.diagnostic.range.start),
-                        buffer.offset_of_position(&diagnostic.diagnostic.range.end),
-                    )
-                });
-                diagnostic.range = (start, end);
-            }
-        });
+        B::line_phantom_text(self, line)
     }
 
     /// Get the current completion lens text
@@ -1621,117 +1782,8 @@ impl<B: Backend + 'static> Document<B> {
         }
     }
 
-    /// Get the extra styles for the given text layout
-    pub fn create_styles(&self, line: usize, text_layout_line: &mut TextLayoutLine) {
-        let config = self.common.config.get_untracked();
-
-        text_layout_line.extra_style.clear();
-        let text_layout = &text_layout_line.text;
-
-        let phantom_text = self.line_phantom_text(line);
-
-        let phantom_styles = phantom_text
-            .offset_size_iter()
-            .filter(move |(_, _, _, p)| p.bg.is_some() || p.under_line.is_some())
-            .flat_map(move |(col_shift, size, col, phantom)| {
-                let start = col + col_shift;
-                let end = start + size;
-
-                extra_styles_for_range(
-                    text_layout,
-                    start,
-                    end,
-                    phantom.bg,
-                    phantom.under_line,
-                    None,
-                )
-            });
-        text_layout_line.extra_style.extend(phantom_styles);
-
-        // Add the styling for the diagnostic severity, if applicable
-        if let Some(max_severity) = phantom_text.max_severity {
-            let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
-                LapceColor::ERROR_LENS_ERROR_BACKGROUND
-            } else if max_severity == DiagnosticSeverity::WARNING {
-                LapceColor::ERROR_LENS_WARNING_BACKGROUND
-            } else {
-                LapceColor::ERROR_LENS_OTHER_BACKGROUND
-            };
-
-            let size = text_layout.size();
-            let x1 = if !config.editor.error_lens_end_of_line {
-                let error_end_x = text_layout.size().width;
-                Some(error_end_x.max(size.width))
-            } else {
-                None
-            };
-
-            // TODO(minor): Should we show the background only on wrapped lines that have the
-            // diagnostic actually on that line?
-            // That would make it more obvious where it is from and matches other editors.
-            text_layout_line.extra_style.push(LineExtraStyle {
-                x: 0.0,
-                y: 0.0,
-                width: x1,
-                height: text_layout.size().height,
-                bg_color: Some(*config.get_color(theme_prop)),
-                under_line: None,
-                wave_line: None,
-            });
-        }
-
-        self.diagnostics.diagnostics.with_untracked(|diags| {
-            self.buffer.with_untracked(|buffer| {
-                for diag in diags {
-                    if diag.diagnostic.range.start.line as usize <= line
-                        && line <= diag.diagnostic.range.end.line as usize
-                    {
-                        let start = if diag.diagnostic.range.start.line as usize
-                            == line
-                        {
-                            let (_, col) = buffer.offset_to_line_col(diag.range.0);
-                            col
-                        } else {
-                            let offset =
-                                buffer.first_non_blank_character_on_line(line);
-                            let (_, col) = buffer.offset_to_line_col(offset);
-                            col
-                        };
-                        let start = phantom_text.col_after(start, true);
-
-                        let end = if diag.diagnostic.range.end.line as usize == line
-                        {
-                            let (_, col) = buffer.offset_to_line_col(diag.range.1);
-                            col
-                        } else {
-                            buffer.line_end_col(line, true)
-                        };
-                        let end = phantom_text.col_after(end, false);
-
-                        // let x0 = text_layout.hit_position(start).point.x;
-                        // let x1 = text_layout.hit_position(end).point.x;
-                        let color_name = match diag.diagnostic.severity {
-                            Some(DiagnosticSeverity::ERROR) => {
-                                LapceColor::LAPCE_ERROR
-                            }
-                            _ => LapceColor::LAPCE_WARN,
-                        };
-                        let color = *config.get_color(color_name);
-
-                        let styles = extra_styles_for_range(
-                            text_layout,
-                            start,
-                            end,
-                            None,
-                            None,
-                            Some(color),
-                        );
-
-                        text_layout_line.extra_style.extend(styles);
-                    }
-                }
-            })
-        });
+    pub fn apply_styles(&self, line: usize, text_layout_line: &mut TextLayoutLine) {
+        B::apply_styles(self, line, text_layout_line)
     }
 
     /// Get the text layout for the given line.

@@ -912,7 +912,7 @@ impl TextLayoutProvider for ViewDataTextLayoutProv {
         }
 
         self.doc.with_untracked(|doc| {
-            doc.create_styles(line, text_layout_r);
+            doc.apply_styles(line, text_layout_r);
         });
 
         text_layout
