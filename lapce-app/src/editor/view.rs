@@ -2045,7 +2045,7 @@ fn editor_gutter(
             let (offset, affinity) =
                 cursor.with(|cursor| (cursor.offset(), cursor.affinity));
             let has_code_actions = doc
-                .code_actions
+                .code_actions()
                 .with(|c| c.get(&offset).map(|c| !c.1.is_empty()).unwrap_or(false));
             if has_code_actions {
                 let vline = view.vline_of_offset(offset, affinity);

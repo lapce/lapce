@@ -227,6 +227,8 @@ pub trait Backend: Sized + Clone {
     }
 }
 
+/// (Offset -> (Plugin the code actions are from, Code Actions))
+pub type CodeActions = im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>;
 // TODO(minor): we could try stripping this down to the fields it exactly needs, like proxy
 /// Lapce backend for files accessible through proxy (local or remote).
 #[derive(Clone)]
@@ -247,6 +249,9 @@ pub struct ProxyBackend {
     /// (line, col)
     pub completion_pos: RwSignal<(usize, usize)>,
 
+    /// (Offset -> (Plugin the code actions are from, Code Actions))
+    pub code_actions: RwSignal<CodeActions>,
+
     common: Rc<CommonData>,
 }
 impl ProxyBackend {
@@ -266,6 +271,7 @@ impl ProxyBackend {
             diagnostics,
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
+            code_actions: cx.create_rw_signal(im::HashMap::new()),
             common,
         }
     }
@@ -278,6 +284,12 @@ impl ProxyBackend {
             }
         });
     }
+
+    fn clear_code_actions(&self) {
+        self.code_actions.update(|c| {
+            c.clear();
+        });
+    }
 }
 impl Backend for ProxyBackend {
     type Error = ();
@@ -288,6 +300,7 @@ impl Backend for ProxyBackend {
     }
 
     fn on_update(doc: &Document<Self>) {
+        doc.backend.clear_code_actions();
         doc.trigger_head_change();
         doc.get_inlay_hints();
     }
@@ -649,6 +662,8 @@ pub trait DocumentExt {
 
     /// Update the completion lens position after an edit so that it appears in the correct place.
     fn update_completion_lens(&self, delta: &RopeDelta);
+
+    fn code_actions(&self) -> RwSignal<CodeActions>;
 }
 impl DocumentExt for Document<ProxyBackend> {
     fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>> {
@@ -740,7 +755,7 @@ impl DocumentExt for Document<ProxyBackend> {
 
     fn init_diagnostics(&self) {
         self.clear_text_cache();
-        self.clear_code_actions();
+        self.backend.clear_code_actions();
         self.backend.diagnostics.diagnostics.update(|diagnostics| {
             for diagnostic in diagnostics.iter_mut() {
                 let (start, end) = self.buffer.with_untracked(|buffer| {
@@ -898,6 +913,10 @@ impl DocumentExt for Document<ProxyBackend> {
 
         backend.completion_pos.set(new_pos);
     }
+
+    fn code_actions(&self) -> RwSignal<CodeActions> {
+        self.backend.code_actions
+    }
 }
 
 // TODO(floem-editor): when we split it out, export a type alias with the default generic
@@ -917,9 +936,6 @@ pub struct Document<B: Backend = ProxyBackend> {
     semantic_styles: RwSignal<Option<Spans<Style>>>,
     /// ime preedit information
     pub preedit: RwSignal<Option<Preedit>>,
-    /// (Offset -> (Plugin the code actions are from, Code Actions))
-    pub code_actions:
-        RwSignal<im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>>,
     line_styles: Rc<RefCell<LineStyles>>,
     /// The text layouts for the document. This may be shared with other views.
     text_layouts: Rc<RefCell<TextLayoutCache>>,
@@ -1010,7 +1026,6 @@ impl<B: Backend + 'static> Document<B> {
             loaded: cx.create_rw_signal(false),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
-            code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
             preedit: cx.create_rw_signal(None),
             backend,
@@ -1041,7 +1056,6 @@ impl<B: Backend + 'static> Document<B> {
             semantic_styles: cx.create_rw_signal(None),
             loaded: cx.create_rw_signal(true),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
-            code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
             preedit: cx.create_rw_signal(None),
             backend,
@@ -1073,7 +1087,6 @@ impl<B: Backend + 'static> Document<B> {
             semantic_styles: cx.create_rw_signal(None),
             loaded: cx.create_rw_signal(true),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
-            code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
             preedit: cx.create_rw_signal(None),
             backend,
@@ -1270,7 +1283,6 @@ impl<B: Backend + 'static> Document<B> {
 
     fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
         batch(|| {
-            self.clear_code_actions();
             self.clear_style_cache();
             self.trigger_syntax_change(edits);
             self.clear_sticky_headers_cache();
@@ -1340,12 +1352,6 @@ impl<B: Backend + 'static> Document<B> {
     fn clear_style_cache(&self) {
         self.line_styles.borrow_mut().clear();
         self.clear_text_cache();
-    }
-
-    fn clear_code_actions(&self) {
-        self.code_actions.update(|c| {
-            c.clear();
-        });
     }
 
     pub fn set_preedit(
