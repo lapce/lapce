@@ -1555,10 +1555,10 @@ impl LapceLanguage {
     pub fn languages() -> Vec<&'static str> {
         let mut langs = vec![];
         for l in LANGUAGES {
-            langs.push(
-                strum::EnumMessage::get_message(&l.id)
-                    .unwrap_or(strum::AsStaticRef::as_static(&l.id)),
-            )
+            // Get only languages with display name to hide inline grammars
+            if let Some(lang) = strum::EnumMessage::get_message(&l.id) {
+                langs.push(lang)
+            }
         }
         langs
     }
