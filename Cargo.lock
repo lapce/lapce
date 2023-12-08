@@ -1673,7 +1673,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=0694f9672a10a49290af223cac3dc2ab53b1b1dd#0694f9672a10a49290af223cac3dc2ab53b1b1dd"
+source = "git+https://github.com/lapce/floem?rev=9dba15607de6d850e47a94f27cd2909967d9e732#9dba15607de6d850e47a94f27cd2909967d9e732"
 dependencies = [
  "bitflags 2.4.0",
  "copypasta",
@@ -1703,7 +1703,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=0694f9672a10a49290af223cac3dc2ab53b1b1dd#0694f9672a10a49290af223cac3dc2ab53b1b1dd"
+source = "git+https://github.com/lapce/floem?rev=9dba15607de6d850e47a94f27cd2909967d9e732#9dba15607de6d850e47a94f27cd2909967d9e732"
 dependencies = [
  "smallvec",
 ]
@@ -1711,7 +1711,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=0694f9672a10a49290af223cac3dc2ab53b1b1dd#0694f9672a10a49290af223cac3dc2ab53b1b1dd"
+source = "git+https://github.com/lapce/floem?rev=9dba15607de6d850e47a94f27cd2909967d9e732#9dba15607de6d850e47a94f27cd2909967d9e732"
 dependencies = [
  "cosmic-text",
  "image",
@@ -1722,7 +1722,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=0694f9672a10a49290af223cac3dc2ab53b1b1dd#0694f9672a10a49290af223cac3dc2ab53b1b1dd"
+source = "git+https://github.com/lapce/floem?rev=9dba15607de6d850e47a94f27cd2909967d9e732#9dba15607de6d850e47a94f27cd2909967d9e732"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1739,7 +1739,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=0694f9672a10a49290af223cac3dc2ab53b1b1dd#0694f9672a10a49290af223cac3dc2ab53b1b1dd"
+source = "git+https://github.com/lapce/floem?rev=9dba15607de6d850e47a94f27cd2909967d9e732#9dba15607de6d850e47a94f27cd2909967d9e732"
 dependencies = [
  "anyhow",
  "floem_renderer",
