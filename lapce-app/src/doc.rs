@@ -284,7 +284,7 @@ pub type CodeActions = im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>;
 // TODO(minor): we could try stripping this down to the fields it exactly needs, like proxy
 /// Lapce backend for files accessible through proxy (local or remote).
 #[derive(Clone)]
-pub struct ProxyBackend {
+pub struct DocBackend {
     pub syntax: RwSignal<Syntax>,
     /// LSP Semantic highlighting information
     semantic_styles: RwSignal<Option<Spans<Style>>>,
@@ -311,7 +311,7 @@ pub struct ProxyBackend {
 
     common: Rc<CommonData>,
 }
-impl ProxyBackend {
+impl DocBackend {
     pub fn new(
         cx: Scope,
         syntax: Syntax,
@@ -380,7 +380,7 @@ impl ProxyBackend {
         });
     }
 }
-impl Backend for ProxyBackend {
+impl Backend for DocBackend {
     type Error = ();
 
     fn pre_update_init_content(doc: &Document<Self>) {
@@ -877,7 +877,7 @@ pub trait DocumentExt {
 
     fn update_breakpoints(&self, delta: &RopeDelta, path: &Path, old_text: &Rope);
 }
-impl DocumentExt for Document<ProxyBackend> {
+impl DocumentExt for Document<DocBackend> {
     fn syntax(&self) -> RwSignal<Syntax> {
         self.backend.syntax
     }
@@ -1265,7 +1265,7 @@ impl DocumentExt for Document<ProxyBackend> {
 /// A single document that can be viewed by multiple [`EditorData`]'s
 /// [`EditorViewData`]s and [`EditorView]s.
 #[derive(Clone)]
-pub struct Document<B: Backend = ProxyBackend> {
+pub struct Document<B: Backend = DocBackend> {
     pub scope: Scope,
     pub buffer_id: BufferId,
     pub content: RwSignal<DocContent>,
@@ -1284,7 +1284,7 @@ pub struct Document<B: Backend = ProxyBackend> {
     // TODO(floem-editor): remove this, it is specific to Lapce
     common: Rc<CommonData>,
 }
-impl Document<ProxyBackend> {
+impl Document<DocBackend> {
     // TODO(floem-editor): These are wrapper shims to avoid needing to call `DocumentBackend::from
     // (common)` at every current caller site in Lapce.
     // In floem-editor, the `new_backend` should simply be the `new` functions since it wouldn't be
@@ -1303,7 +1303,7 @@ impl Document<ProxyBackend> {
         Self::new_backend(
             cx,
             path,
-            ProxyBackend::new(cx, syntax, Some(diagnostics), common.clone()),
+            DocBackend::new(cx, syntax, Some(diagnostics), common.clone()),
             common,
         )
     }
@@ -1312,7 +1312,7 @@ impl Document<ProxyBackend> {
         let syntax = Syntax::plaintext();
         Self::new_local_backend(
             cx,
-            ProxyBackend::new(cx, syntax, None, common.clone()),
+            DocBackend::new(cx, syntax, None, common.clone()),
             common,
         )
     }
@@ -1326,7 +1326,7 @@ impl Document<ProxyBackend> {
         Self::new_content_backend(
             cx,
             content,
-            ProxyBackend::new(cx, syntax, None, common.clone()),
+            DocBackend::new(cx, syntax, None, common.clone()),
             common,
         )
     }
@@ -1344,7 +1344,7 @@ impl Document<ProxyBackend> {
         Self::new_hisotry_backend(
             cx,
             content,
-            ProxyBackend::new(cx, syntax, None, common.clone()),
+            DocBackend::new(cx, syntax, None, common.clone()),
             common,
         )
     }
