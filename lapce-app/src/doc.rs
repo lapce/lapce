@@ -207,7 +207,13 @@ pub trait Backend: Sized + Clone {
 
     // TODO(floem-editor): We may need to pass in the computed `rev` since updating proxy uses it
     /// Apply a single edit delta  
-    fn apply_delta(_doc: &Document<Self>, _delta: &RopeDelta, _inval: &InvalLines) {}
+    fn apply_delta(
+        _doc: &Document<Self>,
+        _rev: u64,
+        _delta: &RopeDelta,
+        _inval: &InvalLines,
+    ) {
+    }
 
     /// Save a file (potentially asynchronously).  
     /// The callback will be called with the result of the save operation
@@ -398,11 +404,20 @@ impl Backend for ProxyBackend {
         doc.get_inlay_hints();
     }
 
-    fn apply_delta(doc: &Document<Self>, delta: &RopeDelta, _inval: &InvalLines) {
+    fn apply_delta(
+        doc: &Document<Self>,
+        rev: u64,
+        delta: &RopeDelta,
+        inval: &InvalLines,
+    ) {
         doc.backend.update_styles(delta);
         doc.backend.update_inlay_hints(delta);
         doc.update_diagnostics(delta);
         doc.update_completion_lens(delta);
+        if let DocContent::File { path, .. } = doc.content.get_untracked() {
+            doc.update_breakpoints(delta, &path, &inval.old_text);
+            doc.backend.common.proxy.update(path, delta.clone(), rev);
+        }
     }
 
     fn save(
@@ -859,6 +874,8 @@ pub trait DocumentExt {
     fn code_actions(&self) -> RwSignal<CodeActions>;
 
     fn find_enclosing_brackets(&self, offset: usize) -> Option<(usize, usize)>;
+
+    fn update_breakpoints(&self, delta: &RopeDelta, path: &Path, old_text: &Rope);
 }
 impl DocumentExt for Document<ProxyBackend> {
     fn syntax(&self) -> RwSignal<Syntax> {
@@ -1213,6 +1230,35 @@ impl DocumentExt for Document<ProxyBackend> {
                 })
             })
     }
+
+    fn update_breakpoints(&self, delta: &RopeDelta, path: &Path, old_text: &Rope) {
+        if self
+            .backend
+            .common
+            .breakpoints
+            .with_untracked(|breakpoints| breakpoints.contains_key(path))
+        {
+            self.backend.common.breakpoints.update(|breakpoints| {
+                if let Some(path_breakpoints) = breakpoints.get_mut(path) {
+                    let mut transformer = Transformer::new(delta);
+                    self.buffer.with_untracked(|buffer| {
+                        *path_breakpoints = path_breakpoints
+                            .clone()
+                            .into_values()
+                            .map(|mut b| {
+                                let offset = old_text.offset_of_line(b.line);
+                                let offset = transformer.transform(offset, false);
+                                let line = buffer.line_of_offset(offset);
+                                b.line = line;
+                                b.offset = offset;
+                                (b.line, b)
+                            })
+                            .collect();
+                    });
+                }
+            });
+        }
+    }
 }
 
 // TODO(floem-editor): when we split it out, export a type alias with the default generic
@@ -1520,16 +1566,9 @@ impl<B: Backend + 'static> Document<B> {
         let rev = self.rev() - deltas.len() as u64;
         batch(|| {
             for (i, (delta, inval, _)) in deltas.iter().enumerate() {
+                let rev = rev + i as u64 + 1;
                 self.update_find_result(delta);
-                B::apply_delta(self, delta, inval);
-                if let DocContent::File { path, .. } = self.content.get_untracked() {
-                    self.update_breakpoints(delta, &path, &inval.old_text);
-                    self.common.proxy.update(
-                        path,
-                        delta.clone(),
-                        rev + i as u64 + 1,
-                    );
-                }
+                B::apply_delta(self, rev, delta, inval);
             }
         });
 
@@ -1643,34 +1682,6 @@ impl<B: Backend + 'static> Document<B> {
         self.find_result.occurrences.update(|s| {
             *s = s.apply_delta(delta, true, InsertDrift::Default);
         })
-    }
-
-    fn update_breakpoints(&self, delta: &RopeDelta, path: &Path, old_text: &Rope) {
-        if self
-            .common
-            .breakpoints
-            .with_untracked(|breakpoints| breakpoints.contains_key(path))
-        {
-            self.common.breakpoints.update(|breakpoints| {
-                if let Some(path_breakpoints) = breakpoints.get_mut(path) {
-                    let mut transformer = Transformer::new(delta);
-                    self.buffer.with_untracked(|buffer| {
-                        *path_breakpoints = path_breakpoints
-                            .clone()
-                            .into_values()
-                            .map(|mut b| {
-                                let offset = old_text.offset_of_line(b.line);
-                                let offset = transformer.transform(offset, false);
-                                let line = buffer.line_of_offset(offset);
-                                b.line = line;
-                                b.offset = offset;
-                                (b.line, b)
-                            })
-                            .collect();
-                    });
-                }
-            });
-        }
     }
 
     pub fn update_find(&self) {
