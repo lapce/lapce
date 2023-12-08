@@ -21,6 +21,7 @@ use lapce_core::{
         rope_text::RopeText,
         Buffer, InvalLines,
     },
+    char_buffer::CharBuffer,
     command::EditCommand,
     cursor::Cursor,
     editor::{EditType, Editor},
@@ -191,13 +192,18 @@ pub trait Backend: Sized + Clone {
     /// changed in the future if it seems beneficial
     type Error: std::fmt::Debug;
 
+    /// We've initialized the content of the document. The buffer holds the new content.  
+    /// This is ran before `on_update` is called.  
+    /// Note that this is called from within a [`batch`]
+    fn pre_update_init_content(_doc: &Document<Self>) {}
+
     /// We're initializing the content of the document. The buffer holds the new content.
     /// Note that this is called from within a [`batch`]
     fn init_content(_doc: &Document<Self>) {}
 
     /// Called when the document is updated, like when there is an edit.  
     /// Note: this is called from within a [`batch`]
-    fn on_update(_doc: &Document<Self>) {}
+    fn on_update(_doc: &Document<Self>, _edits: Option<&[SyntaxEdit]>) {}
 
     // TODO(floem-editor): We may need to pass in the computed `rev` since updating proxy uses it
     /// Apply a single edit delta  
@@ -218,12 +224,52 @@ pub trait Backend: Sized + Clone {
         }
     }
 
+    // TODO: merge line phantom text and line style into a single struct for style information
+    // it would be an associated type on Backend with various helper functions for common operations
+    // It would allow us to isolate the syntax part, as well as making it feasible to do the
+    // phantom text operations without actually creating the phantom text which we need.
+    fn line_style(_doc: &Document<Self>, _line: usize) -> Arc<Vec<LineStyle>> {
+        Arc::new(Vec::new())
+    }
+
     /// Apply styles onto the text layout line
     fn apply_styles(
         _doc: &Document<Self>,
         _line: usize,
         _text_layout_line: &mut TextLayoutLine,
     ) {
+    }
+
+    fn clear_style_cache(_doc: &Document<Self>) {}
+
+    // TODO: should sticky headers be supplied conditionally from the outside instead? So they can
+    // set them however they want to whatever they want?
+    /// Get the sticky headers for a line
+    fn sticky_headers(_doc: &Document<Self>, _line: usize) -> Option<Vec<usize>> {
+        None
+    }
+
+    /// Get the indentation line for a line
+    fn indent_line(
+        _doc: &Document<Self>,
+        line: usize,
+        _line_content: &str,
+    ) -> usize {
+        line
+    }
+
+    /// Get the previous unmatched character `c` from the offset
+    fn previous_unmatched(
+        &self,
+        buffer: &Buffer,
+        c: char,
+        offset: usize,
+    ) -> Option<usize> {
+        WordCursor::new(buffer.text(), offset).previous_unmatched(c)
+    }
+
+    fn comment_token(_doc: &Document<Self>) -> &str {
+        ""
     }
 }
 
@@ -233,6 +279,11 @@ pub type CodeActions = im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>;
 /// Lapce backend for files accessible through proxy (local or remote).
 #[derive(Clone)]
 pub struct ProxyBackend {
+    pub syntax: RwSignal<Syntax>,
+    /// LSP Semantic highlighting information
+    semantic_styles: RwSignal<Option<Spans<Style>>>,
+    line_styles: Rc<RefCell<LineStyles>>,
+
     /// Stores information about different versions of the document from source control.
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
     pub head_changes: RwSignal<im::Vector<DiffLines>>,
@@ -257,6 +308,7 @@ pub struct ProxyBackend {
 impl ProxyBackend {
     pub fn new(
         cx: Scope,
+        syntax: Syntax,
         diagnostics: Option<DiagnosticData>,
         common: Rc<CommonData>,
     ) -> Self {
@@ -265,6 +317,9 @@ impl ProxyBackend {
             diagnostics: cx.create_rw_signal(im::Vector::new()),
         });
         Self {
+            syntax: cx.create_rw_signal(syntax),
+            semantic_styles: cx.create_rw_signal(None),
+            line_styles: Rc::new(RefCell::new(HashMap::new())),
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
             inlay_hints: cx.create_rw_signal(None),
@@ -273,6 +328,34 @@ impl ProxyBackend {
             completion_pos: cx.create_rw_signal((0, 0)),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             common,
+        }
+    }
+
+    /// Update the styles after an edit, so the highlights are at the correct positions.
+    /// This does not do a reparse of the document itself.
+    fn update_styles(&self, delta: &RopeDelta) {
+        batch(|| {
+            self.semantic_styles.update(|styles| {
+                if let Some(styles) = styles.as_mut() {
+                    styles.apply_shape(delta);
+                }
+            });
+            self.syntax.update(|syntax| {
+                if let Some(styles) = syntax.styles.as_mut() {
+                    styles.apply_shape(delta);
+                }
+                syntax.lens.apply_delta(delta);
+            });
+        });
+    }
+
+    /// Get the active style information, either the semantic styles or the
+    /// tree-sitter syntax styles.
+    fn styles(&self) -> Option<Spans<Style>> {
+        if let Some(semantic_styles) = self.semantic_styles.get_untracked() {
+            Some(semantic_styles)
+        } else {
+            self.syntax.with_untracked(|syntax| syntax.styles.clone())
         }
     }
 
@@ -294,18 +377,29 @@ impl ProxyBackend {
 impl Backend for ProxyBackend {
     type Error = ();
 
+    fn pre_update_init_content(doc: &Document<Self>) {
+        doc.backend.syntax.with_untracked(|syntax| {
+            doc.buffer.update(|buffer| {
+                buffer.detect_indent(syntax);
+            });
+        });
+    }
+
     fn init_content(doc: &Document<Self>) {
         doc.init_diagnostics();
         doc.retrieve_head();
     }
 
-    fn on_update(doc: &Document<Self>) {
+    fn on_update(doc: &Document<Self>, edits: Option<&[SyntaxEdit]>) {
         doc.backend.clear_code_actions();
+        doc.trigger_syntax_change(edits);
         doc.trigger_head_change();
+        doc.get_semantic_styles();
         doc.get_inlay_hints();
     }
 
     fn apply_delta(doc: &Document<Self>, delta: &RopeDelta, _inval: &InvalLines) {
+        doc.backend.update_styles(delta);
         doc.backend.update_inlay_hints(delta);
         doc.update_diagnostics(delta);
         doc.update_completion_lens(delta);
@@ -515,6 +609,28 @@ impl Backend for ProxyBackend {
         PhantomTextLine { text, max_severity }
     }
 
+    /// Get the style information for the particular line from semantic/syntax highlighting.
+    /// This caches the result if possible.
+    fn line_style(doc: &Document<Self>, line: usize) -> Arc<Vec<LineStyle>> {
+        let backend = &doc.backend;
+        if backend.line_styles.borrow().get(&line).is_none() {
+            let styles = backend.styles();
+
+            let line_styles = styles
+                .map(|styles| {
+                    let text =
+                        doc.buffer.with_untracked(|buffer| buffer.text().clone());
+                    line_styles(&text, line, &styles)
+                })
+                .unwrap_or_default();
+            backend
+                .line_styles
+                .borrow_mut()
+                .insert(line, Arc::new(line_styles));
+        }
+        backend.line_styles.borrow().get(&line).cloned().unwrap()
+    }
+
     fn apply_styles(
         doc: &Document<Self>,
         line: usize,
@@ -631,10 +747,87 @@ impl Backend for ProxyBackend {
             })
         });
     }
+
+    fn clear_style_cache(doc: &Document<Self>) {
+        doc.backend.line_styles.borrow_mut().clear();
+    }
+
+    fn sticky_headers(doc: &Document<Self>, line: usize) -> Option<Vec<usize>> {
+        doc.buffer.with_untracked(|buffer| {
+            let offset = buffer.offset_of_line(line + 1);
+            doc.backend.syntax.with_untracked(|syntax| {
+                syntax.sticky_headers(offset).map(|offsets| {
+                    offsets
+                        .iter()
+                        .filter_map(|offset| {
+                            let l = buffer.line_of_offset(*offset);
+                            if l <= line {
+                                Some(l)
+                            } else {
+                                None
+                            }
+                        })
+                        .dedup()
+                        .sorted()
+                        .collect()
+                })
+            })
+        })
+    }
+
+    fn indent_line(doc: &Document<Self>, line: usize, line_content: &str) -> usize {
+        if line_content.trim().is_empty() {
+            let offset = doc.buffer.with_untracked(|b| b.offset_of_line(line));
+            if let Some(offset) = doc
+                .backend
+                .syntax
+                .with_untracked(|s| s.parent_offset(offset))
+            {
+                return doc.buffer.with_untracked(|b| b.line_of_offset(offset));
+            }
+        }
+
+        line
+    }
+
+    fn previous_unmatched(
+        &self,
+        buffer: &Buffer,
+        c: char,
+        offset: usize,
+    ) -> Option<usize> {
+        if self.syntax.with_untracked(|syntax| syntax.layers.is_some()) {
+            self.syntax.with_untracked(|syntax| {
+                syntax.find_tag(offset, true, &CharBuffer::new(c))
+            })
+        } else {
+            WordCursor::new(buffer.text(), offset).previous_unmatched(c)
+        }
+    }
+
+    fn comment_token(doc: &Document<Self>) -> &str {
+        doc.backend
+            .syntax
+            .with_untracked(|syntax| syntax.language)
+            .comment_token()
+    }
 }
 
-/// Lapce extension functions for [`Document`].
+/// Lapce extension functions for [`Document`].  
+/// Some of these are not actually made to be public, but putting them on this trait simplifies
+/// giving them the [`Document`]
 pub trait DocumentExt {
+    fn syntax(&self) -> RwSignal<Syntax>;
+
+    fn set_syntax(&self, syntax: Syntax);
+
+    /// Set the syntax highlighting this document should use.
+    fn set_language(&self, language: LapceLanguage);
+
+    fn trigger_syntax_change(&self, edits: Option<&[SyntaxEdit]>);
+
+    fn get_semantic_styles(&self);
+
     fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>>;
 
     /// Retrieve the `head` version of the buffer
@@ -664,8 +857,95 @@ pub trait DocumentExt {
     fn update_completion_lens(&self, delta: &RopeDelta);
 
     fn code_actions(&self) -> RwSignal<CodeActions>;
+
+    fn find_enclosing_brackets(&self, offset: usize) -> Option<(usize, usize)>;
 }
 impl DocumentExt for Document<ProxyBackend> {
+    fn syntax(&self) -> RwSignal<Syntax> {
+        self.backend.syntax
+    }
+
+    fn set_syntax(&self, syntax: Syntax) {
+        batch(|| {
+            self.backend.syntax.set(syntax);
+            if self.backend.semantic_styles.with_untracked(|s| s.is_none()) {
+                self.clear_style_cache();
+            }
+            self.clear_sticky_headers_cache();
+        });
+    }
+
+    fn set_language(&self, language: LapceLanguage) {
+        self.backend.syntax.set(Syntax::from_language(language));
+    }
+
+    fn trigger_syntax_change(&self, edits: Option<&[SyntaxEdit]>) {
+        let (rev, text) =
+            self.buffer.with_untracked(|b| (b.rev(), b.text().clone()));
+
+        self.backend.syntax.update(|syntax| {
+            syntax.parse(rev, text, edits);
+        });
+    }
+
+    /// Request semantic styles for the buffer from the LSP through the proxy.
+    fn get_semantic_styles(&self) {
+        if !self.loaded() {
+            return;
+        }
+
+        let path =
+            if let DocContent::File { path, .. } = self.content.get_untracked() {
+                path
+            } else {
+                return;
+            };
+
+        let (rev, len) = self.buffer.with_untracked(|b| (b.rev(), b.len()));
+
+        let syntactic_styles = self
+            .backend
+            .syntax
+            .with_untracked(|syntax| syntax.styles.clone());
+
+        let doc = self.clone();
+        let send = create_ext_action(self.scope, move |styles| {
+            if doc.buffer.with_untracked(|b| b.rev()) == rev {
+                doc.backend.semantic_styles.set(Some(styles));
+                doc.clear_style_cache();
+            }
+        });
+
+        self.common.proxy.get_semantic_tokens(path, move |result| {
+            if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
+                rayon::spawn(move || {
+                    let mut styles_span = SpansBuilder::new(len);
+                    for style in styles.styles {
+                        styles_span.add_span(
+                            Interval::new(style.start, style.end),
+                            style.style,
+                        );
+                    }
+
+                    let styles = styles_span.build();
+
+                    let styles = if let Some(syntactic_styles) = syntactic_styles {
+                        syntactic_styles.merge(&styles, |a, b| {
+                            if let Some(b) = b {
+                                return b.clone();
+                            }
+                            a.clone()
+                        })
+                    } else {
+                        styles
+                    };
+
+                    send(styles);
+                });
+            }
+        });
+    }
+
     fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>> {
         self.backend.head_changes
     }
@@ -917,6 +1197,22 @@ impl DocumentExt for Document<ProxyBackend> {
     fn code_actions(&self) -> RwSignal<CodeActions> {
         self.backend.code_actions
     }
+
+    fn find_enclosing_brackets(&self, offset: usize) -> Option<(usize, usize)> {
+        self.backend
+            .syntax
+            .with_untracked(|syntax| {
+                (!syntax.text.is_empty()).then(|| syntax.find_enclosing_pair(offset))
+            })
+            // If syntax.text is empty, either the buffer is empty or we don't have syntax support
+            // for the current language.
+            // Try a language unaware search for enclosing brackets in case it is the latter.
+            .unwrap_or_else(|| {
+                self.buffer.with_untracked(|buffer| {
+                    WordCursor::new(buffer.text(), offset).find_enclosing_pair()
+                })
+            })
+    }
 }
 
 // TODO(floem-editor): when we split it out, export a type alias with the default generic
@@ -931,12 +1227,8 @@ pub struct Document<B: Backend = ProxyBackend> {
     /// Whether the buffer's content has been loaded/initialized into the buffer.
     pub loaded: RwSignal<bool>,
     pub buffer: RwSignal<Buffer>,
-    pub syntax: RwSignal<Syntax>,
-    /// Semantic highlighting information (which is provided by the LSP)
-    semantic_styles: RwSignal<Option<Spans<Style>>>,
     /// ime preedit information
     pub preedit: RwSignal<Option<Preedit>>,
-    line_styles: Rc<RefCell<LineStyles>>,
     /// The text layouts for the document. This may be shared with other views.
     text_layouts: Rc<RefCell<TextLayoutCache>>,
     /// A cache for the sticky headers which maps a line to the lines it should show in the header.
@@ -961,18 +1253,20 @@ impl Document<ProxyBackend> {
         diagnostics: DiagnosticData,
         common: Rc<CommonData>,
     ) -> Self {
+        let syntax = Syntax::init(&path);
         Self::new_backend(
             cx,
             path,
-            ProxyBackend::new(cx, Some(diagnostics), common.clone()),
+            ProxyBackend::new(cx, syntax, Some(diagnostics), common.clone()),
             common,
         )
     }
 
     pub fn new_local(cx: Scope, common: Rc<CommonData>) -> Self {
+        let syntax = Syntax::plaintext();
         Self::new_local_backend(
             cx,
-            ProxyBackend::new(cx, None, common.clone()),
+            ProxyBackend::new(cx, syntax, None, common.clone()),
             common,
         )
     }
@@ -982,10 +1276,11 @@ impl Document<ProxyBackend> {
         content: DocContent,
         common: Rc<CommonData>,
     ) -> Self {
+        let syntax = Syntax::plaintext();
         Self::new_content_backend(
             cx,
             content,
-            ProxyBackend::new(cx, None, common.clone()),
+            ProxyBackend::new(cx, syntax, None, common.clone()),
             common,
         )
     }
@@ -995,10 +1290,15 @@ impl Document<ProxyBackend> {
         content: DocContent,
         common: Rc<CommonData>,
     ) -> Self {
+        let syntax = if let DocContent::History(history) = &content {
+            Syntax::init(&history.path)
+        } else {
+            Syntax::plaintext()
+        };
         Self::new_hisotry_backend(
             cx,
             content,
-            ProxyBackend::new(cx, None, common.clone()),
+            ProxyBackend::new(cx, syntax, None, common.clone()),
             common,
         )
     }
@@ -1010,15 +1310,11 @@ impl<B: Backend + 'static> Document<B> {
         backend: B,
         common: Rc<CommonData>,
     ) -> Self {
-        let syntax = Syntax::init(&path);
         Self {
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: cx.create_rw_signal(Buffer::new("")),
             cache_rev: cx.create_rw_signal(0),
-            syntax: cx.create_rw_signal(syntax),
-            line_styles: Rc::new(RefCell::new(HashMap::new())),
-            semantic_styles: cx.create_rw_signal(None),
             content: cx.create_rw_signal(DocContent::File {
                 path,
                 read_only: false,
@@ -1050,10 +1346,7 @@ impl<B: Backend + 'static> Document<B> {
             buffer: cx.create_rw_signal(Buffer::new("")),
             cache_rev: cx.create_rw_signal(0),
             content: cx.create_rw_signal(content),
-            syntax: cx.create_rw_signal(Syntax::plaintext()),
-            line_styles: Rc::new(RefCell::new(HashMap::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
-            semantic_styles: cx.create_rw_signal(None),
             loaded: cx.create_rw_signal(true),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
             find_result: FindResult::new(cx),
@@ -1069,11 +1362,6 @@ impl<B: Backend + 'static> Document<B> {
         backend: B,
         common: Rc<CommonData>,
     ) -> Self {
-        let syntax = if let DocContent::History(history) = &content {
-            Syntax::init(&history.path)
-        } else {
-            Syntax::plaintext()
-        };
         let cx = cx.create_child();
         Self {
             scope: cx,
@@ -1081,10 +1369,7 @@ impl<B: Backend + 'static> Document<B> {
             buffer: cx.create_rw_signal(Buffer::new("")),
             cache_rev: cx.create_rw_signal(0),
             content: cx.create_rw_signal(content),
-            syntax: cx.create_rw_signal(syntax),
-            line_styles: Rc::new(RefCell::new(HashMap::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
-            semantic_styles: cx.create_rw_signal(None),
             loaded: cx.create_rw_signal(true),
             text_layouts: Rc::new(RefCell::new(TextLayoutCache::default())),
             find_result: FindResult::new(cx),
@@ -1092,21 +1377,6 @@ impl<B: Backend + 'static> Document<B> {
             backend,
             common,
         }
-    }
-
-    pub fn set_syntax(&self, syntax: Syntax) {
-        batch(|| {
-            self.syntax.set(syntax);
-            if self.semantic_styles.with_untracked(|s| s.is_none()) {
-                self.clear_style_cache();
-            }
-            self.clear_sticky_headers_cache();
-        });
-    }
-
-    /// Set the syntax highlighting this document should use.
-    pub fn set_language(&self, language: LapceLanguage) {
-        self.syntax.set(Syntax::from_language(language));
     }
 
     pub fn find(&self) -> &Find {
@@ -1121,12 +1391,10 @@ impl<B: Backend + 'static> Document<B> {
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&self, content: Rope) {
         batch(|| {
-            self.syntax.with_untracked(|syntax| {
-                self.buffer.update(|buffer| {
-                    buffer.init_content(content);
-                    buffer.detect_indent(syntax);
-                });
+            self.buffer.update(|buffer| {
+                buffer.init_content(content);
             });
+            B::pre_update_init_content(self);
             self.loaded.set(true);
             self.on_update(None);
             // Call the backend's init from within the batch, this ensures that any effects
@@ -1164,20 +1432,21 @@ impl<B: Backend + 'static> Document<B> {
         }
 
         let old_cursor = cursor.mode.clone();
-        let deltas = self.syntax.with_untracked(|syntax| {
-            self.buffer
-                .try_update(|buffer| {
-                    Editor::insert(
-                        cursor,
-                        buffer,
-                        s,
-                        syntax,
-                        config.editor.auto_closing_matching_pairs,
-                        config.editor.auto_surround,
-                    )
-                })
-                .unwrap()
-        });
+        let deltas = self
+            .buffer
+            .try_update(|buffer| {
+                Editor::insert(
+                    cursor,
+                    buffer,
+                    s,
+                    &|buffer, c, offset| {
+                        self.backend.previous_unmatched(buffer, c, offset)
+                    },
+                    config.editor.auto_closing_matching_pairs,
+                    config.editor.auto_surround,
+                )
+            })
+            .unwrap();
         // Keep track of the change in the cursor mode for undo/redo
         self.buffer.update(|buffer| {
             buffer.set_cursor_before(old_cursor);
@@ -1219,22 +1488,22 @@ impl<B: Backend + 'static> Document<B> {
 
         let mut clipboard = SystemClipboard::new();
         let old_cursor = cursor.mode.clone();
-        let deltas = self.syntax.with_untracked(|syntax| {
-            self.buffer
-                .try_update(|buffer| {
-                    Editor::do_edit(
-                        cursor,
-                        buffer,
-                        cmd,
-                        syntax,
-                        &mut clipboard,
-                        modal,
-                        register,
-                        smart_tab,
-                    )
-                })
-                .unwrap()
-        });
+        let comment_token = B::comment_token(self);
+        let deltas = self
+            .buffer
+            .try_update(|buffer| {
+                Editor::do_edit(
+                    cursor,
+                    buffer,
+                    cmd,
+                    comment_token,
+                    &mut clipboard,
+                    modal,
+                    register,
+                    smart_tab,
+                )
+            })
+            .unwrap();
 
         if !deltas.is_empty() {
             self.buffer.update(|buffer| {
@@ -1251,7 +1520,6 @@ impl<B: Backend + 'static> Document<B> {
         let rev = self.rev() - deltas.len() as u64;
         batch(|| {
             for (i, (delta, inval, _)) in deltas.iter().enumerate() {
-                self.update_styles(delta);
                 self.update_find_result(delta);
                 B::apply_delta(self, delta, inval);
                 if let DocContent::File { path, .. } = self.content.get_untracked() {
@@ -1268,8 +1536,9 @@ impl<B: Backend + 'static> Document<B> {
         // TODO(minor): We could avoid this potential allocation since most apply_delta callers are actually using a Vec
         // which we could reuse.
         // We use a smallvec because there is unlikely to be more than a couple of deltas
-        let edits = deltas.iter().map(|(_, _, edits)| edits.clone()).collect();
-        self.on_update(Some(edits));
+        let edits: SmallVec<[SyntaxEdit; 3]> =
+            deltas.iter().map(|(_, _, edits)| edits.clone()).collect();
+        self.on_update(Some(&edits));
     }
 
     pub fn is_pristine(&self) -> bool {
@@ -1281,15 +1550,13 @@ impl<B: Backend + 'static> Document<B> {
         self.buffer.with_untracked(|b| b.rev())
     }
 
-    fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
+    fn on_update(&self, edits: Option<&[SyntaxEdit]>) {
         batch(|| {
             self.clear_style_cache();
-            self.trigger_syntax_change(edits);
             self.clear_sticky_headers_cache();
             self.check_auto_save();
-            self.get_semantic_styles();
             self.find_result.reset();
-            B::on_update(self);
+            B::on_update(self, edits);
         });
     }
 
@@ -1322,36 +1589,9 @@ impl<B: Backend + 'static> Document<B> {
         }
     }
 
-    /// Update the styles after an edit, so the highlights are at the correct positions.
-    /// This does not do a reparse of the document itself.
-    fn update_styles(&self, delta: &RopeDelta) {
-        batch(|| {
-            self.semantic_styles.update(|styles| {
-                if let Some(styles) = styles.as_mut() {
-                    styles.apply_shape(delta);
-                }
-            });
-            self.syntax.update(|syntax| {
-                if let Some(styles) = syntax.styles.as_mut() {
-                    styles.apply_shape(delta);
-                }
-                syntax.lens.apply_delta(delta);
-            });
-        });
-    }
-
-    pub fn trigger_syntax_change(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
-        let (rev, text) =
-            self.buffer.with_untracked(|b| (b.rev(), b.text().clone()));
-
-        self.syntax.update(|syntax| {
-            syntax.parse(rev, text, edits.as_deref());
-        });
-    }
-
     fn clear_style_cache(&self) {
-        self.line_styles.borrow_mut().clear();
         self.clear_text_cache();
+        B::clear_style_cache(self);
     }
 
     pub fn set_preedit(
@@ -1390,90 +1630,8 @@ impl<B: Backend + 'static> Document<B> {
         self.sticky_headers.borrow_mut().clear();
     }
 
-    /// Get the active style information, either the semantic styles or the
-    /// tree-sitter syntax styles.
-    fn styles(&self) -> Option<Spans<Style>> {
-        if let Some(semantic_styles) = self.semantic_styles.get_untracked() {
-            Some(semantic_styles)
-        } else {
-            self.syntax.with_untracked(|syntax| syntax.styles.clone())
-        }
-    }
-
-    /// Get the style information for the particular line from semantic/syntax highlighting.
-    /// This caches the result if possible.
     pub fn line_style(&self, line: usize) -> Arc<Vec<LineStyle>> {
-        if self.line_styles.borrow().get(&line).is_none() {
-            let styles = self.styles();
-
-            let line_styles = styles
-                .map(|styles| {
-                    let text =
-                        self.buffer.with_untracked(|buffer| buffer.text().clone());
-                    line_styles(&text, line, &styles)
-                })
-                .unwrap_or_default();
-            self.line_styles
-                .borrow_mut()
-                .insert(line, Arc::new(line_styles));
-        }
-        self.line_styles.borrow().get(&line).cloned().unwrap()
-    }
-
-    /// Request semantic styles for the buffer from the LSP through the proxy.
-    fn get_semantic_styles(&self) {
-        if !self.loaded() {
-            return;
-        }
-
-        let path =
-            if let DocContent::File { path, .. } = self.content.get_untracked() {
-                path
-            } else {
-                return;
-            };
-
-        let (rev, len) = self.buffer.with_untracked(|b| (b.rev(), b.len()));
-
-        let syntactic_styles =
-            self.syntax.with_untracked(|syntax| syntax.styles.clone());
-
-        let doc = self.clone();
-        let send = create_ext_action(self.scope, move |styles| {
-            if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                doc.semantic_styles.set(Some(styles));
-                doc.clear_style_cache();
-            }
-        });
-
-        self.common.proxy.get_semantic_tokens(path, move |result| {
-            if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
-                rayon::spawn(move || {
-                    let mut styles_span = SpansBuilder::new(len);
-                    for style in styles.styles {
-                        styles_span.add_span(
-                            Interval::new(style.start, style.end),
-                            style.style,
-                        );
-                    }
-
-                    let styles = styles_span.build();
-
-                    let styles = if let Some(syntactic_styles) = syntactic_styles {
-                        syntactic_styles.merge(&styles, |a, b| {
-                            if let Some(b) = b {
-                                return b.clone();
-                            }
-                            a.clone()
-                        })
-                    } else {
-                        styles
-                    };
-
-                    send(styles);
-                });
-            }
-        });
+        B::line_style(self, line)
     }
 
     /// Get the phantom text for a given line
@@ -1582,26 +1740,8 @@ impl<B: Backend + 'static> Document<B> {
         if let Some(lines) = self.sticky_headers.borrow().get(&line) {
             return lines.clone();
         }
-        let lines = self.buffer.with_untracked(|buffer| {
-            let offset = buffer.offset_of_line(line + 1);
-            self.syntax.with_untracked(|syntax| {
-                syntax.sticky_headers(offset).map(|offsets| {
-                    offsets
-                        .iter()
-                        .filter_map(|offset| {
-                            let l = buffer.line_of_offset(*offset);
-                            if l <= line {
-                                Some(l)
-                            } else {
-                                None
-                            }
-                        })
-                        .dedup()
-                        .sorted()
-                        .collect()
-                })
-            })
-        });
+
+        let lines = B::sticky_headers(self, line);
         self.sticky_headers.borrow_mut().insert(line, lines.clone());
         lines
     }
@@ -1763,18 +1903,7 @@ impl<B: Backend + 'static> Document<B> {
             &config,
         );
 
-        let indent_line = if line_content_original.trim().is_empty() {
-            let offset = self.buffer.with_untracked(|b| b.offset_of_line(line));
-            if let Some(offset) =
-                self.syntax.with_untracked(|s| s.parent_offset(offset))
-            {
-                self.buffer.with_untracked(|b| b.line_of_offset(offset))
-            } else {
-                line
-            }
-        } else {
-            line
-        };
+        let indent_line = B::indent_line(self, line, line_content_original);
 
         let indent = if indent_line != line {
             self.get_text_layout(indent_line, font_size).indent + 1.0
@@ -1852,24 +1981,6 @@ impl<B: Backend + 'static> Document<B> {
 
     pub fn save(&self, after_action: impl Fn() + 'static) {
         B::save(self, move |_| after_action());
-    }
-
-    /// Returns the offsets of the brackets enclosing the given offset.
-    /// Uses a language aware algorithm if syntax support is available for the current language,
-    /// else falls back to a language unaware algorithm.
-    pub fn find_enclosing_brackets(&self, offset: usize) -> Option<(usize, usize)> {
-        self.syntax
-            .with_untracked(|syntax| {
-                (!syntax.text.is_empty()).then(|| syntax.find_enclosing_pair(offset))
-            })
-            // If syntax.text is empty, either the buffer is empty or we don't have syntax support
-            // for the current language.
-            // Try a language unaware search for enclosing brackets in case it is the latter.
-            .unwrap_or_else(|| {
-                self.buffer.with_untracked(|buffer| {
-                    WordCursor::new(buffer.text(), offset).find_enclosing_pair()
-                })
-            })
     }
 }
 

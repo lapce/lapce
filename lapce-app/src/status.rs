@@ -17,6 +17,7 @@ use crate::{
     app::clickable_icon,
     command::LapceWorkbenchCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    doc::DocumentExt,
     listener::Listener,
     palette::kind::PaletteKind,
     panel::{kind::PanelKind, position::PanelContainerPosition},
@@ -362,7 +363,7 @@ pub fn status(
             let language_info = label(move || {
                 if let Some(editor) = editor.get() {
                     let doc = editor.view.doc.get();
-                    doc.syntax.with(|s| s.language.name())
+                    doc.syntax().with(|s| s.language.name())
                 } else {
                     "unknown"
                 }

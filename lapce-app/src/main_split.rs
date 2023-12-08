@@ -33,7 +33,10 @@ use tracing::warn;
 use crate::{
     alert::AlertButton,
     command::InternalCommand,
-    doc::{DiagnosticData, DocContent, DocHistory, Document, EditorDiagnostic},
+    doc::{
+        DiagnosticData, DocContent, DocHistory, Document, DocumentExt,
+        EditorDiagnostic,
+    },
     editor::{
         diff::DiffEditorData,
         location::{EditorLocation, EditorPosition},
