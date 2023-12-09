@@ -681,6 +681,7 @@ impl Syntax {
         builder.build()
     }
 
+    /// Returns the matching bracket of the character at the given `offset`.
     pub fn find_matching_pair(&self, offset: usize) -> Option<usize> {
         let tree = self.layers.as_ref()?.try_tree()?;
         let node = tree
@@ -748,6 +749,7 @@ impl Syntax {
         } else {
             node.next_sibling()
         } {
+
             if sibling.kind() == tag {
                 let offset = sibling.start_byte();
                 return Some(offset);
