@@ -39,7 +39,7 @@ use crate::{
     completion::{clear_completion_lens, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
-    doc::{DocContent, Document},
+    doc::{DocContent, Document, DocumentExt},
     editor::{
         location::{EditorLocation, EditorPosition},
         visual_line::Lines,
@@ -1595,14 +1595,16 @@ impl EditorData {
         };
 
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let exists = doc.code_actions.with_untracked(|c| c.contains_key(&offset));
+        let exists = doc
+            .code_actions()
+            .with_untracked(|c| c.contains_key(&offset));
 
         if exists {
             return;
         }
 
         // insert some empty data, so that we won't make the request again
-        doc.code_actions.update(|c| {
+        doc.code_actions().update(|c| {
             c.insert(offset, Arc::new((PluginId(0), Vec::new())));
         });
 
@@ -1613,7 +1615,7 @@ impl EditorData {
             // Get the diagnostics for the current line, which the LSP might use to inform
             // what code actions are available (such as fixes for the diagnostics).
             let diagnostics = doc
-                .diagnostics
+                .diagnostics()
                 .diagnostics
                 .get_untracked()
                 .iter()
@@ -1630,7 +1632,7 @@ impl EditorData {
 
         let send = create_ext_action(self.scope, move |resp| {
             if doc.rev() == rev {
-                doc.code_actions.update(|c| {
+                doc.code_actions().update(|c| {
                     c.insert(offset, Arc::new(resp));
                 });
             }
@@ -1655,8 +1657,9 @@ impl EditorData {
     pub fn show_code_actions(&self, mouse_click: bool) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let doc = self.view.doc.get_untracked();
-        let code_actions =
-            doc.code_actions.with_untracked(|c| c.get(&offset).cloned());
+        let code_actions = doc
+            .code_actions()
+            .with_untracked(|c| c.get(&offset).cloned());
         if let Some(code_actions) = code_actions {
             if !code_actions.1.is_empty() {
                 self.common.internal_command.send(

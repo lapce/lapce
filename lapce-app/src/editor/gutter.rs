@@ -10,7 +10,10 @@ use floem::{
 };
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 
-use crate::config::{color::LapceColor, LapceConfig};
+use crate::{
+    config::{color::LapceColor, LapceConfig},
+    doc::DocumentExt,
+};
 
 use super::{view::changes_colors_screen, view_data::EditorViewData, EditorData};
 
@@ -47,7 +50,7 @@ impl EditorGutterView {
 
         let changes = view
             .doc
-            .with_untracked(|doc| doc.head_changes.get_untracked());
+            .with_untracked(|doc| doc.head_changes().get_untracked());
         let line_height = config.editor.line_height() as f64;
 
         let changes = changes_colors_screen(view, changes);

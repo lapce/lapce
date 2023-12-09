@@ -16,7 +16,6 @@ use crate::{
             has_unmatched_pair, matching_char, matching_pair_direction,
             str_is_pair_left, str_matching_pair,
         },
-        Syntax,
     },
     word::{get_char_property, CharClassification},
 };
@@ -84,7 +83,7 @@ impl Editor {
         cursor: &mut Cursor,
         buffer: &mut Buffer,
         s: &str,
-        syntax: &Syntax,
+        prev_unmatched: &dyn Fn(&Buffer, char, usize) -> Option<usize>,
         auto_closing_matching_pairs: bool,
         auto_surround: bool,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
@@ -168,12 +167,8 @@ impl Editor {
                             let line_start = buffer.offset_of_line(line);
                             if buffer.slice_to_cow(line_start..offset).trim() == "" {
                                 let opening_character = matching_char(c).unwrap();
-                                if let Some(previous_offset) = buffer
-                                    .previous_unmatched(
-                                        syntax,
-                                        opening_character,
-                                        offset,
-                                    )
+                                if let Some(previous_offset) =
+                                    prev_unmatched(buffer, opening_character, offset)
                                 {
                                     // Auto-indent closing character to the same level as the opening.
                                     let previous_line =
@@ -801,7 +796,7 @@ impl Editor {
         cursor: &mut Cursor,
         buffer: &mut Buffer,
         cmd: &EditCommand,
-        syntax: &Syntax,
+        comment_token: &str,
         clipboard: &mut T,
         modal: bool,
         register: &mut Register,
@@ -975,7 +970,6 @@ impl Editor {
             ToggleLineComment => {
                 let mut lines = HashSet::new();
                 let selection = cursor.edit_selection(buffer);
-                let comment_token = syntax.language.comment_token();
                 let mut had_comment = true;
                 let mut smallest_indent = usize::MAX;
                 for region in selection.regions() {
@@ -1645,8 +1639,12 @@ mod test {
         cursor::{Cursor, CursorMode},
         editor::{DuplicateDirection, Editor},
         selection::{SelRegion, Selection},
-        syntax::Syntax,
+        word::WordCursor,
     };
+
+    fn prev_unmatched(buffer: &Buffer, c: char, offset: usize) -> Option<usize> {
+        WordCursor::new(buffer.text(), offset).previous_unmatched(c)
+    }
 
     #[test]
     fn test_insert_simple() {
@@ -1654,14 +1652,7 @@ mod test {
         let mut cursor =
             Cursor::new(CursorMode::Insert(Selection::caret(1)), None, None);
 
-        Editor::insert(
-            &mut cursor,
-            &mut buffer,
-            "e",
-            &Syntax::plaintext(),
-            true,
-            true,
-        );
+        Editor::insert(&mut cursor, &mut buffer, "e", &prev_unmatched, true, true);
         assert_eq!("aebc", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1673,14 +1664,7 @@ mod test {
         selection.add_region(SelRegion::caret(5));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(
-            &mut cursor,
-            &mut buffer,
-            "i",
-            &Syntax::plaintext(),
-            true,
-            true,
-        );
+        Editor::insert(&mut cursor, &mut buffer, "i", &prev_unmatched, true, true);
         assert_eq!("aibc\neifg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1692,41 +1676,13 @@ mod test {
         selection.add_region(SelRegion::caret(5));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(
-            &mut cursor,
-            &mut buffer,
-            "i",
-            &Syntax::plaintext(),
-            true,
-            true,
-        );
+        Editor::insert(&mut cursor, &mut buffer, "i", &prev_unmatched, true, true);
         assert_eq!("aibc\neifg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(
-            &mut cursor,
-            &mut buffer,
-            "j",
-            &Syntax::plaintext(),
-            true,
-            true,
-        );
+        Editor::insert(&mut cursor, &mut buffer, "j", &prev_unmatched, true, true);
         assert_eq!("aijbc\neijfg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(
-            &mut cursor,
-            &mut buffer,
-            "{",
-            &Syntax::plaintext(),
-            true,
-            true,
-        );
+        Editor::insert(&mut cursor, &mut buffer, "{", &prev_unmatched, true, true);
         assert_eq!("aij{bc\neij{fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(
-            &mut cursor,
-            &mut buffer,
-            " ",
-            &Syntax::plaintext(),
-            true,
-            true,
-        );
+        Editor::insert(&mut cursor, &mut buffer, " ", &prev_unmatched, true, true);
         assert_eq!("aij{ bc\neij{ fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1738,23 +1694,9 @@ mod test {
         selection.add_region(SelRegion::caret(6));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(
-            &mut cursor,
-            &mut buffer,
-            "{",
-            &Syntax::plaintext(),
-            true,
-            true,
-        );
+        Editor::insert(&mut cursor, &mut buffer, "{", &prev_unmatched, true, true);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(
-            &mut cursor,
-            &mut buffer,
-            "}",
-            &Syntax::plaintext(),
-            true,
-            true,
-        );
+        Editor::insert(&mut cursor, &mut buffer, "}", &prev_unmatched, true, true);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1765,14 +1707,7 @@ mod test {
         selection.add_region(SelRegion::new(0, 4, None));
         selection.add_region(SelRegion::new(5, 9, None));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
-        Editor::insert(
-            &mut cursor,
-            &mut buffer,
-            "{",
-            &Syntax::plaintext(),
-            true,
-            true,
-        );
+        Editor::insert(&mut cursor, &mut buffer, "{", &prev_unmatched, true, true);
         assert_eq!("{a bc}\n{e fg}\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1784,23 +1719,9 @@ mod test {
         selection.add_region(SelRegion::caret(6));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(
-            &mut cursor,
-            &mut buffer,
-            "{",
-            &Syntax::plaintext(),
-            false,
-            false,
-        );
+        Editor::insert(&mut cursor, &mut buffer, "{", &prev_unmatched, false, false);
         assert_eq!("a{ bc\ne{ fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(
-            &mut cursor,
-            &mut buffer,
-            "}",
-            &Syntax::plaintext(),
-            false,
-            false,
-        );
+        Editor::insert(&mut cursor, &mut buffer, "}", &prev_unmatched, false, false);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1942,14 +1863,7 @@ mod test {
         selection.add_region(SelRegion::caret(12));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(
-            &mut cursor,
-            &mut buffer,
-            "(",
-            &Syntax::plaintext(),
-            true,
-            true,
-        );
+        Editor::insert(&mut cursor, &mut buffer, "(", &prev_unmatched, true, true);
 
         assert_eq!(
             "() 123() 567() 9ab() def",

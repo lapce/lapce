@@ -13,8 +13,11 @@ use lsp_types::{
 use nucleo::Utf32Str;
 
 use crate::{
-    config::LapceConfig, doc::Document, editor::view_data::EditorViewData,
-    id::EditorId, snippet::Snippet,
+    config::LapceConfig,
+    doc::{Document, DocumentExt},
+    editor::view_data::EditorViewData,
+    id::EditorId,
+    snippet::Snippet,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -340,7 +343,10 @@ impl CompletionData {
 
 /// Clear the current completion lens. Only `update`s if there is a completion lens.
 pub fn clear_completion_lens(doc: Rc<Document>) {
-    let has_completion = doc.completion_lens.with_untracked(|lens| lens.is_some());
+    let has_completion = doc
+        .backend
+        .completion_lens
+        .with_untracked(|lens| lens.is_some());
     if has_completion {
         doc.clear_completion_lens();
     }

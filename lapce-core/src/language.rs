@@ -1595,7 +1595,7 @@ impl LapceLanguage {
         }
     }
 
-    pub fn comment_token(&self) -> &str {
+    pub fn comment_token(&self) -> &'static str {
         self.properties()
             .comment
             .single_line_start

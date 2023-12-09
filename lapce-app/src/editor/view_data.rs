@@ -26,7 +26,7 @@ use lapce_xi_rope::Rope;
 
 use crate::{
     config::{editor::WrapStyle, LapceConfig},
-    doc::{phantom_text::PhantomTextLine, Document},
+    doc::{phantom_text::PhantomTextLine, Document, DocumentExt},
     find::{Find, FindResult},
 };
 
@@ -837,7 +837,7 @@ impl EditorViewData {
         // This needs the doc's syntax, but it isn't cheap to clone
         // so this has to be a method on view for now.
         self.doc.with_untracked(|doc| {
-            doc.syntax.with_untracked(|syntax| {
+            doc.syntax().with_untracked(|syntax| {
                 if syntax.layers.is_some() {
                     syntax
                         .find_tag(offset, previous, &CharBuffer::from(ch))
@@ -863,7 +863,7 @@ impl EditorViewData {
         // This needs the doc's syntax, but it isn't cheap to clone
         // so this has to be a method on view for now.
         self.doc.with_untracked(|doc| {
-            doc.syntax.with_untracked(|syntax| {
+            doc.syntax().with_untracked(|syntax| {
                 if syntax.layers.is_some() {
                     syntax.find_matching_pair(offset).unwrap_or(offset)
                 } else {
@@ -912,7 +912,7 @@ impl TextLayoutProvider for ViewDataTextLayoutProv {
         }
 
         self.doc.with_untracked(|doc| {
-            doc.create_styles(line, text_layout_r);
+            doc.apply_styles(line, text_layout_r);
         });
 
         text_layout
