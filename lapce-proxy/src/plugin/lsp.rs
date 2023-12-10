@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use globset::{Glob, GlobMatcher};
 use jsonrpc_lite::{Id, Params};
 use lapce_core::meta;
 use lapce_rpc::{
@@ -20,7 +21,10 @@ use lapce_xi_rope::Rope;
 use lsp_types::{
     notification::{Initialized, Notification},
     request::{Initialize, Request},
-    *,
+    ClientInfo, DocumentFilter, DocumentSelector, InitializeParams,
+    InitializeResult, InitializedParams, SemanticTokens,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentSyncKind, TraceValue, Url, WorkspaceFolder,
 };
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -67,12 +71,21 @@ pub struct LspClient {
 }
 
 impl PluginServerHandler for LspClient {
-    fn method_registered(&mut self, method: &str) -> bool {
+    fn server_name(&self) -> &str {
+        self.host
+            .server_initialization
+            .as_ref()
+            .and_then(|s| s.server_info.as_ref())
+            .map(|s| s.name.as_str())
+            .unwrap_or(&self.host.volt_display_name)
+    }
+
+    fn method_registered(&self, method: &str) -> bool {
         self.host.method_registered(method)
     }
 
     fn document_supported(
-        &mut self,
+        &self,
         lanaguage_id: Option<&str>,
         path: Option<&Path>,
     ) -> bool {
@@ -89,7 +102,7 @@ impl PluginServerHandler for LspClient {
                 self.initialize();
             }
             InitializeResult(result) => {
-                self.host.server_capabilities = result.capabilities;
+                self.host.server_initialization = Some(result);
             }
             Shutdown => {
                 self.shutdown();
@@ -114,8 +127,8 @@ impl PluginServerHandler for LspClient {
 
     fn handle_did_save_text_document(
         &self,
-        language_id: String,
-        path: PathBuf,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
         text_document: TextDocumentIdentifier,
         text: lapce_xi_rope::Rope,
     ) {
@@ -127,9 +140,23 @@ impl PluginServerHandler for LspClient {
         );
     }
 
+    fn handle_did_open_text_document(
+        &self,
+        language_id: Option<String>,
+        path: Option<PathBuf>,
+        text: TextDocumentItem,
+    ) {
+        self.host
+            .handle_did_open_text_document(language_id, path, text);
+    }
+
+    fn handle_did_close_text_document(&self, text: TextDocumentIdentifier) {
+        self.host.handle_did_close_text_document(text);
+    }
+
     fn handle_did_change_text_document(
         &mut self,
-        language_id: String,
+        language_id: Option<String>,
         document: lsp_types::VersionedTextDocumentIdentifier,
         delta: lapce_xi_rope::RopeDelta,
         text: lapce_xi_rope::Rope,
@@ -220,11 +247,10 @@ impl LspClient {
             let mut reader = Box::new(BufReader::new(stdout));
             loop {
                 match read_message(&mut reader) {
-                    Ok(message_str) => {
-                        if let Some(resp) = handle_plugin_server_message(
-                            &local_server_rpc,
-                            &message_str,
-                        ) {
+                    Ok(msg) => {
+                        if let Some(resp) =
+                            handle_plugin_server_message(&local_server_rpc, &msg)
+                        {
                             let _ = io_tx.send(resp);
                         }
                     }
@@ -272,7 +298,7 @@ impl LspClient {
             plugin_rpc.clone(),
         );
 
-        Ok(Self {
+        Ok(LspClient {
             plugin_rpc,
             server_rpc,
             process,
@@ -295,8 +321,8 @@ impl LspClient {
         server_uri: Url,
         args: Vec<String>,
         options: Option<Value>,
-    ) -> Result<PluginId> {
-        let mut lsp = Self::new(
+    ) -> Result<()> {
+        let mut lsp = LspClient::new(
             plugin_rpc,
             document_selector,
             workspace,
@@ -309,13 +335,11 @@ impl LspClient {
             args,
             options,
         )?;
-        let plugin_id = lsp.server_rpc.plugin_id;
-
         let rpc = lsp.server_rpc.clone();
         thread::spawn(move || {
             rpc.mainloop(&mut lsp);
         });
-        Ok(plugin_id)
+        Ok(())
     }
 
     fn initialize(&mut self) {
@@ -351,7 +375,7 @@ impl LspClient {
             false,
         ) {
             let result: InitializeResult = serde_json::from_value(value).unwrap();
-            self.host.server_capabilities = result.capabilities;
+            self.host.server_initialization = Some(result);
             self.server_rpc.server_notification(
                 Initialized::METHOD,
                 InitializedParams {},
@@ -408,28 +432,51 @@ impl LspClient {
     }
 }
 
-pub struct DocumentFilter {
+pub enum FileFilter {
     /// The document must have this language id, if it exists
-    pub language_id: Option<String>,
+    Language(String),
     /// The document's path must match this glob, if it exists
-    pub pattern: Option<globset::GlobMatcher>,
+    Pattern(GlobMatcher),
     // TODO: URI Scheme from lsp-types document filter
 }
-impl DocumentFilter {
+
+impl FileFilter {
     /// Constructs a document filter from the LSP version
     /// This ignores any fields that are badly constructed
-    pub(crate) fn from_lsp_filter_loose(
-        filter: &lsp_types::DocumentFilter,
-    ) -> DocumentFilter {
-        DocumentFilter {
-            language_id: filter.language.clone(),
-            // TODO: clean this up
-            pattern: filter
-                .pattern
-                .as_deref()
-                .map(globset::Glob::new)
-                .and_then(Result::ok)
-                .map(|x| globset::Glob::compile_matcher(&x)),
+    pub(crate) fn from_document_filter(
+        filter: &DocumentFilter,
+    ) -> impl Iterator<Item = FileFilter> + '_ {
+        filter
+            .language
+            .iter()
+            .map(|l| FileFilter::Language(l.to_string()))
+            .chain(
+                filter
+                    .pattern
+                    .as_deref()
+                    .map(Glob::new)
+                    .and_then(Result::ok)
+                    .map(|x| FileFilter::Pattern(Glob::compile_matcher(&x))),
+            )
+    }
+
+    pub fn matches_any<S1, S2>(
+        &self,
+        language_id: Option<S1>,
+        path: Option<S2>,
+    ) -> bool
+    where
+        S1: AsRef<str>,
+        S2: AsRef<Path>,
+    {
+        match self {
+            FileFilter::Language(l) => {
+                Some(l.as_str()) == language_id.as_ref().map(|s| s.as_ref())
+            }
+            FileFilter::Pattern(g) => match path {
+                Some(p) => g.is_match(p.as_ref()),
+                None => false,
+            },
         }
     }
 }
