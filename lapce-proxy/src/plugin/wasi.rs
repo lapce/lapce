@@ -24,6 +24,7 @@ use lsp_types::{
     notification::Initialized, request::Initialize, DocumentFilter,
     InitializeParams, InitializedParams, TextDocumentContentChangeEvent,
     TextDocumentIdentifier, Url, VersionedTextDocumentIdentifier,
+    WorkDoneProgressParams,
 };
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
@@ -203,6 +204,7 @@ impl Plugin {
                 locale: None,
                 initialization_options: configurations,
                 workspace_folders: None,
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
             None,
             None,

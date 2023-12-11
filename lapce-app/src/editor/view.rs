@@ -1859,12 +1859,14 @@ pub fn cursor_caret(
     let phantom_text = view.line_phantom_text(info.rvline.line);
 
     let (_, col) = view.offset_to_line_col(offset);
+    let ime_kind = preedit_start.map(|_| PhantomTextKind::Ime);
     // The cursor should be after phantom text if the affinity is forward, or it is a block cursor.
-    // As well, if we have a relevant preedit we skip over IMEs
+    // - if we have a relevant preedit we skip over IMEs
+    // - we skip over completion lens, as the text should be after the cursor
     let col = phantom_text.col_after_ignore(
         col,
         affinity == CursorAffinity::Forward || (block && !after_last_char),
-        preedit_start.map(|_| PhantomTextKind::Ime),
+        |p| p.kind == PhantomTextKind::Completion || Some(p.kind) == ime_kind,
     );
     // We shift forward by the IME's start. This is due to the cursor potentially being in the
     // middle of IME phantom text while editing it.

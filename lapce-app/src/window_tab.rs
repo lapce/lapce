@@ -56,6 +56,7 @@ use crate::{
     global_search::GlobalSearchData,
     hover::HoverData,
     id::WindowTabId,
+    inline_completion::InlineCompletionData,
     keypress::{condition::Condition, EventRef, KeyPressData, KeyPressFocus},
     listener::Listener,
     main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
@@ -114,6 +115,7 @@ pub struct CommonData {
     pub focus: RwSignal<Focus>,
     pub keypress: RwSignal<KeyPressData>,
     pub completion: RwSignal<CompletionData>,
+    pub inline_completion: RwSignal<InlineCompletionData>,
     pub hover: HoverData,
     pub register: RwSignal<Register>,
     pub find: Find,
@@ -295,6 +297,7 @@ impl WindowTabData {
 
         let focus = cx.create_rw_signal(Focus::Workbench);
         let completion = cx.create_rw_signal(CompletionData::new(cx, config));
+        let inline_completion = cx.create_rw_signal(InlineCompletionData::new(cx));
         let hover = HoverData::new(cx);
 
         let register = cx.create_rw_signal(Register::default());
@@ -322,6 +325,7 @@ impl WindowTabData {
             keypress,
             focus,
             completion,
+            inline_completion,
             hover,
             register,
             find,

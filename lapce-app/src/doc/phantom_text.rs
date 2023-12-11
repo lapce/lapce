@@ -22,7 +22,7 @@ pub struct PhantomText {
 pub enum PhantomTextKind {
     /// Input methods
     Ime,
-    /// Completion lens
+    /// Completion lens / Inline completion
     Completion,
     /// Inlay hints supplied by an LSP/PSP (like type annotations)
     InlayHint,
@@ -78,11 +78,11 @@ impl PhantomTextLine {
         &self,
         pre_col: usize,
         before_cursor: bool,
-        ignored: Option<PhantomTextKind>,
+        skip: impl Fn(&PhantomText) -> bool,
     ) -> usize {
         let mut last = pre_col;
         for (col_shift, size, col, phantom) in self.offset_size_iter() {
-            if ignored == Some(phantom.kind) {
+            if skip(phantom) {
                 continue;
             }
 

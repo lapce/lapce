@@ -27,7 +27,7 @@ use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     CompletionItem, CompletionTextEdit, GotoDefinitionResponse, HoverContents,
-    Location, MarkedString, MarkupKind, TextEdit,
+    InlineCompletionTriggerKind, Location, MarkedString, MarkupKind, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 
@@ -36,7 +36,7 @@ use crate::{
         CommandExecuted, CommandKind, InternalCommand, LapceCommand,
         LapceWorkbenchCommand,
     },
-    completion::{clear_completion_lens, CompletionStatus},
+    completion::CompletionStatus,
     config::LapceConfig,
     db::LapceDb,
     doc::{DocContent, Document, DocumentExt},
@@ -46,6 +46,7 @@ use crate::{
     },
     editor_tab::EditorTabChild,
     id::{DiffEditorId, EditorId, EditorTabId},
+    inline_completion::{InlineCompletionItem, InlineCompletionStatus},
     keypress::{condition::Condition, KeyPressFocus},
     main_split::{MainSplitData, SplitDirection, SplitMoveDirection},
     markdown::{
@@ -372,6 +373,17 @@ impl EditorData {
         } else {
             self.cancel_completion();
         }
+
+        if *cmd == EditCommand::InsertNewLine {
+            // Cancel so that there's no flickering
+            self.cancel_inline_completion();
+            self.update_inline_completion(InlineCompletionTriggerKind::Automatic);
+        } else if show_inline_completion(cmd) {
+            self.update_inline_completion(InlineCompletionTriggerKind::Automatic);
+        } else {
+            self.cancel_inline_completion();
+        }
+
         self.apply_deltas(&deltas);
         if let EditCommand::NormalMode = cmd {
             self.snippet.set(None);
@@ -417,6 +429,7 @@ impl EditorData {
         self.cursor.set(cursor);
         // self.cancel_signature();
         self.cancel_completion();
+        self.cancel_inline_completion();
         CommandExecuted::Yes
     }
 
@@ -494,6 +507,9 @@ impl EditorData {
             .with_untracked(|c| c.active.get_untracked());
 
         match cmd {
+            FocusCommand::ModalClose => {
+                self.cancel_completion();
+            }
             FocusCommand::SplitVertical => {
                 if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
                     self.common.internal_command.send(InternalCommand::Split {
@@ -682,6 +698,7 @@ impl EditorData {
             }
             FocusCommand::ListSelect => {
                 self.select_completion();
+                self.cancel_inline_completion();
             }
             FocusCommand::JumpToNextSnippetPlaceholder => {
                 self.snippet.update(|snippet| {
@@ -716,6 +733,7 @@ impl EditorData {
                         }
                         // self.update_signature();
                         self.cancel_completion();
+                        self.cancel_inline_completion();
                     }
                 });
             }
@@ -748,6 +766,7 @@ impl EditorData {
                             }
                             // self.update_signature();
                             self.cancel_completion();
+                            self.cancel_inline_completion();
                         }
                     }
                 });
@@ -803,6 +822,21 @@ impl EditorData {
                 if self.common.find.replace_active.get_untracked() {
                     self.common.find.replace_focus.set(true);
                 }
+            }
+            FocusCommand::InlineCompletionSelect => {
+                self.select_inline_completion();
+            }
+            FocusCommand::InlineCompletionNext => {
+                self.next_inline_completion();
+            }
+            FocusCommand::InlineCompletionPrevious => {
+                self.previous_inline_completion();
+            }
+            FocusCommand::InlineCompletionCancel => {
+                self.cancel_inline_completion();
+            }
+            FocusCommand::InlineCompletionInvoke => {
+                self.update_inline_completion(InlineCompletionTriggerKind::Invoked);
             }
             _ => {}
         }
@@ -1073,6 +1107,165 @@ impl EditorData {
         };
     }
 
+    fn select_inline_completion(&self) {
+        if self
+            .common
+            .inline_completion
+            .with_untracked(|c| c.status == InlineCompletionStatus::Inactive)
+        {
+            return;
+        }
+
+        let data = self
+            .common
+            .inline_completion
+            .with_untracked(|c| (c.current_item().cloned(), c.start_offset));
+        self.cancel_inline_completion();
+
+        let (Some(item), start_offset) = data else {
+            return;
+        };
+
+        let _ = item.apply(self, start_offset);
+    }
+
+    fn next_inline_completion(&self) {
+        if self
+            .common
+            .inline_completion
+            .with_untracked(|c| c.status == InlineCompletionStatus::Inactive)
+        {
+            return;
+        }
+
+        self.common.inline_completion.update(|c| {
+            c.next();
+        });
+    }
+
+    fn previous_inline_completion(&self) {
+        if self
+            .common
+            .inline_completion
+            .with_untracked(|c| c.status == InlineCompletionStatus::Inactive)
+        {
+            return;
+        }
+
+        self.common.inline_completion.update(|c| {
+            c.previous();
+        });
+    }
+
+    fn cancel_inline_completion(&self) {
+        if self
+            .common
+            .inline_completion
+            .with_untracked(|c| c.status == InlineCompletionStatus::Inactive)
+        {
+            return;
+        }
+
+        self.common.inline_completion.update(|c| {
+            c.cancel();
+        });
+
+        self.view.doc.get_untracked().clear_inline_completion();
+    }
+
+    /// Update the current inline completion
+    fn update_inline_completion(&self, trigger_kind: InlineCompletionTriggerKind) {
+        if self.get_mode() != Mode::Insert {
+            self.cancel_inline_completion();
+            return;
+        }
+
+        let doc = self.view.doc.get_untracked();
+        let path = match if doc.loaded() {
+            doc.content.with_untracked(|c| c.path().cloned())
+        } else {
+            None
+        } {
+            Some(path) => path,
+            None => return,
+        };
+
+        let offset = self.cursor.with_untracked(|c| c.offset());
+        let line = doc
+            .buffer
+            .with_untracked(|buffer| buffer.line_of_offset(offset));
+        let position = doc
+            .buffer
+            .with_untracked(|buffer| buffer.offset_to_position(offset));
+
+        let inline_completion = self.common.inline_completion;
+        let doc = self.view.doc.get_untracked();
+
+        // Update the inline completion's text if it's already active to avoid flickering
+        let has_relevant = inline_completion.with_untracked(|completion| {
+            let c_line = doc.buffer.with_untracked(|buffer| {
+                buffer.line_of_offset(completion.start_offset)
+            });
+            completion.status != InlineCompletionStatus::Inactive
+                && line == c_line
+                && completion.path == path
+        });
+        if has_relevant {
+            let config = self.common.config.get_untracked();
+            inline_completion.update(|completion| {
+                completion.update_inline_completion(&config, &doc, offset);
+            });
+        }
+
+        let path2 = path.clone();
+        let send = create_ext_action(
+            self.scope,
+            move |items: Vec<lsp_types::InlineCompletionItem>| {
+                let items = doc.buffer.with_untracked(|buffer| {
+                    items
+                        .into_iter()
+                        .map(|item| InlineCompletionItem::from_lsp(buffer, item))
+                        .collect()
+                });
+                inline_completion.update(|c| {
+                    c.set_items(items, offset, path2);
+                    c.update_doc(&doc, offset);
+                });
+            },
+        );
+
+        inline_completion.update(|c| c.status = InlineCompletionStatus::Started);
+
+        self.common.proxy.get_inline_completions(
+            path,
+            position,
+            trigger_kind,
+            move |res| {
+                if let Ok(ProxyResponse::GetInlineCompletions {
+                    completions: items,
+                }) = res
+                {
+                    let items = match items {
+                        lsp_types::InlineCompletionResponse::Array(items) => items,
+                        // Currently does not have any relevant extra fields
+                        lsp_types::InlineCompletionResponse::List(items) => {
+                            items.items
+                        }
+                    };
+                    send(items);
+                }
+            },
+        );
+    }
+
+    /// Check if there are inline completions that are being rendered
+    fn has_inline_completions(&self) -> bool {
+        self.common.inline_completion.with_untracked(|completion| {
+            completion.status != InlineCompletionStatus::Inactive
+                && !completion.items.is_empty()
+        })
+    }
+
     fn select_completion(&self) {
         let item = self
             .common
@@ -1133,7 +1326,9 @@ impl EditorData {
             c.cancel();
         });
 
-        clear_completion_lens(self.view.doc.get_untracked());
+        self.view
+            .doc
+            .with_untracked(|doc| doc.clear_completion_lens());
     }
 
     /// Update the displayed autocompletion box
@@ -1338,7 +1533,7 @@ impl EditorData {
         Ok(())
     }
 
-    fn completion_apply_snippet(
+    pub fn completion_apply_snippet(
         &self,
         snippet: &str,
         selection: &Selection,
@@ -1426,7 +1621,7 @@ impl EditorData {
         });
     }
 
-    fn do_edit(
+    pub fn do_edit(
         &self,
         selection: &Selection,
         edits: &[(impl AsRef<Selection>, &str)],
@@ -2302,6 +2497,7 @@ impl KeyPressFocus for EditorData {
             }
             Condition::ListFocus => self.has_completions(),
             Condition::CompletionFocus => self.has_completions(),
+            Condition::InlineCompletionVisible => self.has_inline_completions(),
             Condition::InSnippet => self.snippet.with_untracked(|s| s.is_some()),
             Condition::EditorFocus => self
                 .view
@@ -2437,6 +2633,11 @@ impl KeyPressFocus for EditorData {
                 } else {
                     self.cancel_completion();
                 }
+
+                self.update_inline_completion(
+                    InlineCompletionTriggerKind::Automatic,
+                );
+
                 self.apply_deltas(&deltas);
             } else if let Some(direction) = self.inline_find.get_untracked() {
                 self.inline_find(direction.clone(), c);
@@ -2482,6 +2683,19 @@ fn show_completion(
     };
 
     show_completion
+}
+
+fn show_inline_completion(cmd: &EditCommand) -> bool {
+    matches!(
+        cmd,
+        EditCommand::DeleteBackward
+            | EditCommand::DeleteForward
+            | EditCommand::DeleteWordBackward
+            | EditCommand::DeleteWordForward
+            | EditCommand::DeleteForwardAndInsert
+            | EditCommand::IndentLine
+            | EditCommand::InsertMode
+    )
 }
 
 // TODO(minor): Should we just put this on view, since it only requires those values?

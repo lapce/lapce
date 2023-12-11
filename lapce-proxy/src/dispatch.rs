@@ -521,6 +521,24 @@ impl ProxyHandler for Dispatcher {
                         proxy_rpc.handle_response(id, result);
                     });
             }
+            GetInlineCompletions {
+                path,
+                position,
+                trigger_kind,
+            } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.get_inline_completions(
+                    &path,
+                    position,
+                    trigger_kind,
+                    move |_, result| {
+                        let result = result.map(|completions| {
+                            ProxyResponse::GetInlineCompletions { completions }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
             GetSemanticTokens { path } => {
                 let buffer = self.buffers.get(&path).unwrap();
                 let text = buffer.rope.clone();
