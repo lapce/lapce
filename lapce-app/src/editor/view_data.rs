@@ -294,7 +294,7 @@ impl EditorViewData {
     }
 
     pub fn find_result(&self) -> FindResult {
-        self.doc.get_untracked().find_result.clone()
+        self.doc.get_untracked().backend.find_result.clone()
     }
 
     pub fn update_find(&self) {
