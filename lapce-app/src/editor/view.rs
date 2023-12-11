@@ -374,7 +374,7 @@ pub fn editor_view(
     let hide_cursor = editor.common.window_common.hide_cursor;
     create_effect(move |_| {
         hide_cursor.track();
-        let occurrences = doc.with(|doc| doc.find_result.occurrences);
+        let occurrences = doc.with(|doc| doc.backend.find_result.occurrences);
         occurrences.track();
         id.request_paint();
     });
@@ -2681,7 +2681,7 @@ fn find_view(
         let editor = editor.get_untracked();
         let cursor = editor.cursor;
         let offset = cursor.with(|cursor| cursor.offset());
-        let occurrences = editor.view.doc.get().find_result.occurrences;
+        let occurrences = editor.view.doc.get().backend.find_result.occurrences;
         occurrences.with(|occurrences| {
             for (i, region) in occurrences.regions().iter().enumerate() {
                 if offset <= region.max() {

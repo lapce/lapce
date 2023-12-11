@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 
+use crate::doc::RenderWhitespace;
+
 pub const SCALE_OR_SIZE_LIMIT: f64 = 5.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -191,7 +193,7 @@ pub struct EditorConfig {
     #[field_names(
         desc = "How the editor should render whitespace characters.\nOptions: none, all, boundary, trailing."
     )]
-    pub render_whitespace: String,
+    pub render_whitespace: RenderWhitespace,
     #[field_names(desc = "Whether the editor show indent guide.")]
     pub show_indent_guide: bool,
     #[field_names(
