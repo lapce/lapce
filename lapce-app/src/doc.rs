@@ -306,6 +306,12 @@ pub struct DocBackend {
     /// (line, col)
     pub completion_pos: RwSignal<(usize, usize)>,
 
+    /// Current inline completion text, if any.  
+    /// This will be displayed even on views that are not focused.
+    pub inline_completion: RwSignal<Option<String>>,
+    /// (line, col)
+    pub inline_completion_pos: RwSignal<(usize, usize)>,
+
     /// (Offset -> (Plugin the code actions are from, Code Actions))
     pub code_actions: RwSignal<CodeActions>,
 
@@ -332,6 +338,8 @@ impl DocBackend {
             diagnostics,
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
+            inline_completion: cx.create_rw_signal(None),
+            inline_completion_pos: cx.create_rw_signal((0, 0)),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             common,
         }
@@ -588,6 +596,32 @@ impl Backend for DocBackend {
             });
         if let Some(completion_text) = completion_text {
             text.push(completion_text);
+        }
+
+        // TODO: don't display completion lens and inline completion at the same time
+        // and/or merge them so that they can be shifted between like multiple inline completions
+        // can
+        let (inline_completion_line, inline_completion_col) =
+            backend.inline_completion_pos.get_untracked();
+        let inline_completion_text = config
+            .editor
+            .enable_inline_completion
+            .then_some(())
+            .and(backend.inline_completion.get_untracked())
+            .filter(|_| line == inline_completion_line)
+            .map(|completion| PhantomText {
+                kind: PhantomTextKind::Completion,
+                col: inline_completion_col,
+                text: completion.clone(),
+                fg: Some(*config.get_color(LapceColor::COMPLETION_LENS_FOREGROUND)),
+                font_size: Some(config.editor.completion_lens_font_size()),
+                // font_family: Some(config.editor.completion_lens_font_family()),
+                bg: None,
+                under_line: None,
+                // TODO: italics?
+            });
+        if let Some(inline_completion_text) = inline_completion_text {
+            text.push(inline_completion_text);
         }
 
         if let Some(preedit) = doc.preedit.get_untracked() {
@@ -860,7 +894,6 @@ pub trait DocumentExt {
     fn update_diagnostics(&self, delta: &RopeDelta);
 
     fn get_inlay_hints(&self);
-
     /// Get the current completion lens text
     fn completion_lens(&self) -> Option<String>;
 
@@ -870,6 +903,18 @@ pub trait DocumentExt {
 
     /// Update the completion lens position after an edit so that it appears in the correct place.
     fn update_completion_lens(&self, delta: &RopeDelta);
+
+    fn set_inline_completion(
+        &self,
+        inline_completion: String,
+        line: usize,
+        col: usize,
+    );
+
+    fn clear_inline_completion(&self);
+
+    /// Update the inline completion position after an edit so that it appears in the correct place.
+    fn update_inline_completion(&self, delta: &RopeDelta);
 
     fn code_actions(&self) -> RwSignal<CodeActions>;
 
@@ -1160,9 +1205,9 @@ impl DocumentExt for Document<DocBackend> {
 
     fn clear_completion_lens(&self) {
         // TODO: more granular invalidation
-        if self.backend.completion_lens.get_untracked().is_some() {
-            self.clear_text_cache();
+        if self.backend.completion_lens.with_untracked(Option::is_some) {
             self.backend.completion_lens.set(None);
+            self.clear_text_cache();
         }
     }
 
@@ -1209,6 +1254,74 @@ impl DocumentExt for Document<DocBackend> {
             .with_untracked(|b| b.offset_to_line_col(new_offset));
 
         backend.completion_pos.set(new_pos);
+    }
+
+    fn set_inline_completion(
+        &self,
+        inline_completion: String,
+        line: usize,
+        col: usize,
+    ) {
+        // TODO: more granular invalidation
+        batch(|| {
+            self.clear_text_cache();
+            self.backend.inline_completion.set(Some(inline_completion));
+            self.backend.inline_completion_pos.set((line, col));
+        });
+    }
+
+    fn clear_inline_completion(&self) {
+        if self
+            .backend
+            .inline_completion
+            .with_untracked(Option::is_some)
+        {
+            self.backend.inline_completion.set(None);
+            self.clear_text_cache();
+        }
+    }
+
+    fn update_inline_completion(&self, delta: &RopeDelta) {
+        let backend = &self.backend;
+        let Some(completion) = backend.inline_completion.get_untracked() else {
+            return;
+        };
+
+        let (line, col) = backend.completion_pos.get_untracked();
+        let offset = self
+            .buffer
+            .with_untracked(|b| b.offset_of_line_col(line, col));
+
+        // If the edit is easily checkable + updateable from, then we alter the text.
+        // In normal typing, if we didn't do this, then the text would jitter forward and then
+        // backwards as the completion is updated.
+        // TODO: this could also handle simple deletion, but we don't currently keep track of
+        // the past completion string content in the field.
+        if delta.as_simple_insert().is_some() {
+            let (iv, new_len) = delta.summary();
+            if iv.start() == iv.end()
+                && iv.start() == offset
+                && new_len <= completion.len()
+            {
+                // Remove the # of newly inserted characters
+                // These aren't necessarily the same as the characters literally in the
+                // text, but the completion will be updated when the completion widget
+                // receives the update event, and it will fix this if needed.
+                backend
+                    .inline_completion
+                    .set(Some(completion[new_len..].to_string()));
+            }
+        }
+
+        // Shift the position by the rope delta
+        let mut transformer = Transformer::new(delta);
+
+        let new_offset = transformer.transform(offset, true);
+        let new_pos = self
+            .buffer
+            .with_untracked(|b| b.offset_to_line_col(new_offset));
+
+        backend.inline_completion_pos.set(new_pos);
     }
 
     fn code_actions(&self) -> RwSignal<CodeActions> {

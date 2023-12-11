@@ -49,6 +49,8 @@ pub enum Condition {
     PaletteFocus,
     #[strum(serialize = "completion_focus")]
     CompletionFocus,
+    #[strum(serialize = "inline_completion_visible")]
+    InlineCompletionVisible,
     #[strum(serialize = "modal_focus")]
     ModalFocus,
     #[strum(serialize = "in_snippet")]

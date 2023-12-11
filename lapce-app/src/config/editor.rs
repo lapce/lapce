@@ -166,6 +166,8 @@ pub struct EditorConfig {
         desc = "If the editor should display the completion item as phantom text"
     )]
     pub enable_completion_lens: bool,
+    #[field_names(desc = "If the editor should display inline completions")]
+    pub enable_inline_completion: bool,
     #[field_names(
         desc = "Set completion lens font family. If empty, it uses the inlay hint font family."
     )]
