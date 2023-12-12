@@ -1,5 +1,4 @@
 use floem::peniko::Color;
-use lsp_types::DiagnosticSeverity;
 use smallvec::SmallVec;
 
 /// `PhantomText` is for text that is not in the actual document, but should be rendered with it.  
@@ -37,9 +36,6 @@ pub enum PhantomTextKind {
 pub struct PhantomTextLine {
     /// This uses a smallvec because most lines rarely have more than a couple phantom texts
     pub text: SmallVec<[PhantomText; 6]>,
-    /// Maximum diagnostic severity, so that we can color the background as an error if there is a
-    /// warning and error on the line. (For error lens)
-    pub max_severity: Option<DiagnosticSeverity>,
 }
 
 impl PhantomTextLine {
