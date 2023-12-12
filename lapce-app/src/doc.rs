@@ -355,6 +355,18 @@ pub trait Backend: Sized + Clone {
     fn comment_token(_doc: &Document<Self>) -> &str {
         ""
     }
+
+    // TODO: configurable
+    /// Wheter it should automatically close matching pairs like `()`, `[]`, `""`, etc.
+    fn auto_closing_matching_pairs(_doc: &Document<Self>) -> bool {
+        false
+    }
+
+    /// Whether it should automatically surround the selection with matching pairs like `()`, `""`,
+    /// etc.
+    fn auto_surround(_doc: &Document<Self>) -> bool {
+        false
+    }
 }
 
 #[derive(Clone)]
@@ -1004,6 +1016,20 @@ impl Backend for DocBackend {
             .syntax
             .with_untracked(|syntax| syntax.language)
             .comment_token()
+    }
+
+    fn auto_closing_matching_pairs(doc: &Document<Self>) -> bool {
+        doc.backend
+            .common
+            .config
+            .with_untracked(|config| config.editor.auto_closing_matching_pairs)
+    }
+
+    fn auto_surround(doc: &Document<Self>) -> bool {
+        doc.backend
+            .common
+            .config
+            .with_untracked(|config| config.editor.auto_surround)
     }
 }
 
@@ -1768,11 +1794,13 @@ impl<B: Backend + 'static> Document<B> {
         &self,
         cursor: &mut Cursor,
         s: &str,
-        config: &LapceConfig,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         if self.content.with_untracked(|c| c.read_only()) {
             return Vec::new();
         }
+
+        let auto_closing_matching_pairs = B::auto_closing_matching_pairs(self);
+        let auto_surround = B::auto_surround(self);
 
         let old_cursor = cursor.mode.clone();
         let deltas = self
@@ -1785,8 +1813,8 @@ impl<B: Backend + 'static> Document<B> {
                     &|buffer, c, offset| {
                         self.backend.previous_unmatched(buffer, c, offset)
                     },
-                    config.editor.auto_closing_matching_pairs,
-                    config.editor.auto_surround,
+                    auto_closing_matching_pairs,
+                    auto_surround,
                 )
             })
             .unwrap();
