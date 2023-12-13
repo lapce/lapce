@@ -355,6 +355,18 @@ pub trait Backend: Sized + Clone {
     fn comment_token(_doc: &Document<Self>) -> &str {
         ""
     }
+
+    // TODO: configurable
+    /// Wheter it should automatically close matching pairs like `()`, `[]`, `""`, etc.
+    fn auto_closing_matching_pairs(_doc: &Document<Self>) -> bool {
+        false
+    }
+
+    /// Whether it should automatically surround the selection with matching pairs like `()`, `""`,
+    /// etc.
+    fn auto_surround(_doc: &Document<Self>) -> bool {
+        false
+    }
 }
 
 #[derive(Clone)]
@@ -363,6 +375,43 @@ pub struct DocLineStyling {
     // TODO: should we just clone document due to how much of this it grabs....
     config: Arc<LapceConfig>,
     doc: Document<DocBackend>,
+}
+impl DocLineStyling {
+    /// Iterate over the editor diagnostics on this line
+    fn iter_diagnostics(&self) -> impl Iterator<Item = EditorDiagnostic> + '_ {
+        self.config
+            .editor
+            .enable_completion_lens
+            .then_some(())
+            .map(|_| self.doc.backend.diagnostics.diagnostics.get_untracked())
+            .into_iter()
+            .flatten()
+            .filter(|diag| {
+                diag.diagnostic.range.end.line as usize == self.line
+                    && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
+            })
+    }
+
+    /// Get the max severity of the diagnostics.  
+    /// This is used to determine the color given to the background of the line
+    fn max_diag_severity(&self) -> Option<DiagnosticSeverity> {
+        let mut max_severity = None;
+        for diag in self.iter_diagnostics() {
+            match (diag.diagnostic.severity, max_severity) {
+                (Some(severity), Some(max)) => {
+                    if severity < max {
+                        max_severity = Some(severity);
+                    }
+                }
+                (Some(severity), None) => {
+                    max_severity = Some(severity);
+                }
+                _ => {}
+            }
+        }
+
+        max_severity
+    }
 }
 impl LineStyling for DocLineStyling {
     fn line_height(&self) -> f32 {
@@ -445,8 +494,6 @@ impl LineStyling for DocLineStyling {
         // overall.
         let mut text: SmallVec<[PhantomText; 6]> = hints.collect();
 
-        // The max severity is used to determine the color given to the background of the line
-        let mut max_severity = None;
         // If error lens is enabled, and the diagnostics field is filled, then get the diagnostics
         // that end on this line which have a severity worse than HINT and convert them into
         // PhantomText instances
@@ -462,18 +509,6 @@ impl LineStyling for DocLineStyling {
                     && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
             })
             .map(|diag| {
-                match (diag.diagnostic.severity, max_severity) {
-                    (Some(severity), Some(max)) => {
-                        if severity < max {
-                            max_severity = Some(severity);
-                        }
-                    }
-                    (Some(severity), None) => {
-                        max_severity = Some(severity);
-                    }
-                    _ => {}
-                }
-
                 let col = self.doc.buffer.with_untracked(|buffer| {
                     buffer.offset_of_line(self.line + 1)
                         - buffer.offset_of_line(self.line)
@@ -580,7 +615,7 @@ impl LineStyling for DocLineStyling {
             }
         });
 
-        PhantomTextLine { text, max_severity }
+        PhantomTextLine { text }
     }
 
     /// Get the style information for the particular line from semantic/syntax highlighting.
@@ -836,7 +871,8 @@ impl Backend for DocBackend {
         text_layout_line.extra_style.clear();
         let text_layout = &text_layout_line.text;
 
-        let phantom_text = doc.line_phantom_text(line);
+        let styling = doc.line_styling(line);
+        let phantom_text = styling.phantom_text();
 
         let phantom_styles = phantom_text
             .offset_size_iter()
@@ -857,7 +893,7 @@ impl Backend for DocBackend {
         text_layout_line.extra_style.extend(phantom_styles);
 
         // Add the styling for the diagnostic severity, if applicable
-        if let Some(max_severity) = phantom_text.max_severity {
+        if let Some(max_severity) = styling.max_diag_severity() {
             let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
                 LapceColor::ERROR_LENS_ERROR_BACKGROUND
             } else if max_severity == DiagnosticSeverity::WARNING {
@@ -1004,6 +1040,20 @@ impl Backend for DocBackend {
             .syntax
             .with_untracked(|syntax| syntax.language)
             .comment_token()
+    }
+
+    fn auto_closing_matching_pairs(doc: &Document<Self>) -> bool {
+        doc.backend
+            .common
+            .config
+            .with_untracked(|config| config.editor.auto_closing_matching_pairs)
+    }
+
+    fn auto_surround(doc: &Document<Self>) -> bool {
+        doc.backend
+            .common
+            .config
+            .with_untracked(|config| config.editor.auto_surround)
     }
 }
 
@@ -1768,11 +1818,13 @@ impl<B: Backend + 'static> Document<B> {
         &self,
         cursor: &mut Cursor,
         s: &str,
-        config: &LapceConfig,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         if self.content.with_untracked(|c| c.read_only()) {
             return Vec::new();
         }
+
+        let auto_closing_matching_pairs = B::auto_closing_matching_pairs(self);
+        let auto_surround = B::auto_surround(self);
 
         let old_cursor = cursor.mode.clone();
         let deltas = self
@@ -1785,8 +1837,8 @@ impl<B: Backend + 'static> Document<B> {
                     &|buffer, c, offset| {
                         self.backend.previous_unmatched(buffer, c, offset)
                     },
-                    config.editor.auto_closing_matching_pairs,
-                    config.editor.auto_surround,
+                    auto_closing_matching_pairs,
+                    auto_surround,
                 )
             })
             .unwrap();

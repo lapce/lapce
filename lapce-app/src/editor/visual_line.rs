@@ -2398,7 +2398,6 @@ mod tests {
                     0,
                     "hello world abc"
                 )],
-                max_severity: None,
             },
         );
         let (text_prov, lines) = make_lines_ph(&text, 20.0, false, ph);
@@ -2506,7 +2505,6 @@ mod tests {
             0,
             PhantomTextLine {
                 text: smallvec![mph(PhantomTextKind::Completion, 0, "greet world")],
-                max_severity: None,
             },
         );
 
@@ -2545,7 +2543,6 @@ mod tests {
                  text: smallvec![
                      mph(PhantomTextKind::Completion, 0, "greet\nworld"),
                  ],
-                 max_severity: None,
              },
          );
 
@@ -2635,7 +2632,6 @@ mod tests {
                  text: smallvec![
                      mph(PhantomTextKind::Completion, 3, "greet\nworld"),
                  ],
-                 max_severity: None,
              },
          );
 
@@ -2874,7 +2870,6 @@ mod tests {
             0,
             PhantomTextLine {
                 text: smallvec![mph(PhantomTextKind::Completion, 0, "greet world")],
-                max_severity: None,
             },
         );
 
@@ -2997,7 +2992,6 @@ mod tests {
             0,
             PhantomTextLine {
                 text: smallvec![mph(PhantomTextKind::Completion, 0, "greet\nworld")],
-                max_severity: None,
             },
         );
 
@@ -3175,7 +3169,6 @@ mod tests {
             0,
             PhantomTextLine {
                 text: smallvec![mph(PhantomTextKind::Completion, 1, "hi")],
-                max_severity: None,
             },
         );
 
@@ -3226,7 +3219,6 @@ mod tests {
             0,
             PhantomTextLine {
                 text: smallvec![mph(PhantomTextKind::Completion, 2, "hi")],
-                max_severity: None,
             },
         );
 

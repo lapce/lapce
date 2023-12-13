@@ -2617,12 +2617,7 @@ impl KeyPressFocus for EditorData {
             // normal editor receive char
             if self.get_mode() == Mode::Insert {
                 let mut cursor = self.cursor.get_untracked();
-                let config = self.common.config.get_untracked();
-                let deltas =
-                    self.view
-                        .doc
-                        .get_untracked()
-                        .do_insert(&mut cursor, c, &config);
+                let deltas = self.view.doc.get_untracked().do_insert(&mut cursor, c);
                 self.cursor.set(cursor);
 
                 if !c
