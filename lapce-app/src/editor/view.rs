@@ -534,7 +534,7 @@ impl EditorView {
                                 (section.y_idx * config.editor.line_height()) as f64,
                             )),
                         config
-                            .get_color(LapceColor::SOURCE_CONTROL_ADDED)
+                            .color(LapceColor::SOURCE_CONTROL_ADDED)
                             .with_alpha_factor(0.2),
                         0.0,
                     );
@@ -552,7 +552,7 @@ impl EditorView {
                                 (section.y_idx * config.editor.line_height()) as f64,
                             )),
                         config
-                            .get_color(LapceColor::SOURCE_CONTROL_REMOVED)
+                            .color(LapceColor::SOURCE_CONTROL_REMOVED)
                             .with_alpha_factor(0.2),
                         0.0,
                     );
@@ -603,7 +603,7 @@ impl EditorView {
                 let p1 = Point::new(x as f64 - height, y + height);
                 cx.stroke(
                     &Line::new(p0, p1),
-                    *config.get_color(LapceColor::EDITOR_DIM),
+                    config.color(LapceColor::EDITOR_DIM),
                     1.0,
                 );
             }
@@ -813,9 +813,9 @@ impl EditorView {
         let is_active =
             self.is_active.get_untracked() && !find_focus.get_untracked();
 
-        let current_line_color = *config.get_color(LapceColor::EDITOR_CURRENT_LINE);
-        let selection_color = *config.get_color(LapceColor::EDITOR_SELECTION);
-        let caret_color = *config.get_color(LapceColor::EDITOR_CARET);
+        let current_line_color = config.color(LapceColor::EDITOR_CURRENT_LINE);
+        let selection_color = config.color(LapceColor::EDITOR_SELECTION);
+        let caret_color = config.color(LapceColor::EDITOR_CARET);
 
         let breakline = self.debug_breakline.get_untracked().and_then(
             |(breakline, breakline_path)| {
@@ -842,7 +842,7 @@ impl EditorView {
 
                 cx.fill(
                     &rect,
-                    config.get_color(LapceColor::EDITOR_DEBUG_BREAK_LINE),
+                    config.color(LapceColor::EDITOR_DEBUG_BREAK_LINE),
                     0.0,
                 );
             }
@@ -1077,7 +1077,7 @@ impl EditorView {
                 let family: Vec<FamilyOwned> =
                     FamilyOwned::parse_list(&config.editor.font_family).collect();
                 let attrs = Attrs::new()
-                    .color(*config.get_color(LapceColor::EDITOR_VISIBLE_WHITESPACE))
+                    .color(config.color(LapceColor::EDITOR_VISIBLE_WHITESPACE))
                     .family(&family)
                     .font_size(config.editor.font_size() as f32);
                 let attrs_list = AttrsList::new(attrs);
@@ -1104,7 +1104,7 @@ impl EditorView {
                 while x + 1.0 < text_layout.indent {
                     cx.stroke(
                         &Line::new(Point::new(x, y), Point::new(x, y + line_height)),
-                        config.get_color(LapceColor::EDITOR_INDENT_GUIDE),
+                        config.color(LapceColor::EDITOR_INDENT_GUIDE),
                         1.0,
                     );
                     x += indent_text_width;
@@ -1204,7 +1204,7 @@ impl EditorView {
             }
         }
 
-        let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
+        let color = config.color(LapceColor::EDITOR_FOREGROUND);
         for rect in rects {
             cx.stroke(&rect, color, 1.0);
         }
@@ -1276,12 +1276,12 @@ impl EditorView {
 
         cx.fill(
             &sticky_area_rect,
-            config.get_color(LapceColor::LAPCE_DROPDOWN_SHADOW),
+            config.color(LapceColor::LAPCE_DROPDOWN_SHADOW),
             3.0,
         );
         cx.fill(
             &sticky_area_rect,
-            config.get_color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
+            config.color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
             0.0,
         );
 
@@ -1341,7 +1341,7 @@ impl EditorView {
                     viewport.y0,
                 ))
                 .inflate(0.0, 10.0),
-            config.get_color(LapceColor::LAPCE_SCROLL_BAR),
+            config.color(LapceColor::LAPCE_SCROLL_BAR),
             0.0,
         );
 
@@ -1425,11 +1425,7 @@ impl EditorView {
 
                 let rect = Rect::new(x0, y0, x1, y1);
 
-                cx.stroke(
-                    &rect,
-                    config.get_color(LapceColor::EDITOR_FOREGROUND),
-                    1.0,
-                );
+                cx.stroke(&rect, config.color(LapceColor::EDITOR_FOREGROUND), 1.0);
             }
         }
     }
@@ -1448,7 +1444,7 @@ impl EditorView {
         let doc = view.doc.get_untracked();
         let config = self.editor.common.config.get_untracked();
         let line_height = config.editor.line_height() as f64;
-        let brush = config.get_color(LapceColor::EDITOR_FOREGROUND);
+        let brush = config.color(LapceColor::EDITOR_FOREGROUND);
 
         if start == end {
             if let Some(line_info) = screen_lines.info(start) {
@@ -1957,7 +1953,7 @@ pub fn editor_container_view(
                         // .box_shadow_blur(5.0)
                         // .border_bottom(1.0)
                         // .border_color(
-                        //     *config.get_color(LapceColor::LAPCE_BORDER),
+                        //     config.get_color(LapceColor::LAPCE_BORDER),
                         // )
                         .apply_if(
                             !config.editor.sticky_header
@@ -2071,7 +2067,7 @@ fn editor_gutter(
                     let config = config.get();
                     let size = config.ui.icon_size() as f32 + 2.0;
                     s.size(size, size)
-                        .color(*config.get_color(LapceColor::DEBUG_BREAKPOINT_HOVER))
+                        .color(config.color(LapceColor::DEBUG_BREAKPOINT_HOVER))
                         .apply_if(!hovered.get(), |s| s.hide())
                 },
             ),
@@ -2220,7 +2216,7 @@ fn editor_gutter(
                                 } else {
                                     LapceColor::EDITOR_DIM
                                 };
-                                let color = *config.get_color(color);
+                                let color = config.color(color);
                                 s.size(size, size).color(color)
                             }),
                         )
@@ -2242,7 +2238,7 @@ fn editor_gutter(
         .style(move |s| {
             s.absolute()
                 .size_pct(100.0, 100.0)
-                .background(*config.get().get_color(LapceColor::EDITOR_BACKGROUND))
+                .background(config.get().color(LapceColor::EDITOR_BACKGROUND))
         }),
         clip(
             stack((
@@ -2262,7 +2258,7 @@ fn editor_gutter(
                             let config = config.get();
                             let size = config.ui.icon_size() as f32;
                             s.size(size, size)
-                                .color(*config.get_color(LapceColor::LAPCE_WARN))
+                                .color(config.color(LapceColor::LAPCE_WARN))
                         },
                     ),
                 )
@@ -2293,14 +2289,15 @@ fn editor_gutter(
                         .apply_if(code_action_vline.is_none(), |s| s.hide())
                         .hover(|s| {
                             s.cursor(CursorStyle::Pointer).background(
-                                *config
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
                         })
                         .active(|s| {
-                            s.background(*config.get_color(
-                                LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
-                            ))
+                            s.background(
+                                config.color(
+                                    LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
+                                ),
+                            )
                         })
                 }),
             ))
@@ -2374,9 +2371,11 @@ fn editor_breadcrumbs(
                                     let size = config.ui.icon_size() as f32;
                                     s.apply_if(i == 0, |s| s.hide())
                                         .size(size, size)
-                                        .color(*config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ))
+                                        .color(
+                                            config.color(
+                                                LapceColor::LAPCE_ICON_ACTIVE,
+                                            ),
+                                        )
                                 }),
                                 label(move || section.clone()),
                             ))
@@ -2413,7 +2412,7 @@ fn editor_breadcrumbs(
             s.absolute()
                 .size_pct(100.0, 100.0)
                 .border_bottom(1.0)
-                .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+                .border_color(config.get().color(LapceColor::LAPCE_BORDER))
                 .items_center()
         }),
     )
@@ -2614,8 +2613,8 @@ fn search_editor_view(
             .items_center()
             .border(1.0)
             .border_radius(6.0)
-            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-            .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+            .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .background(config.color(LapceColor::EDITOR_BACKGROUND))
     })
 }
 
@@ -2654,8 +2653,8 @@ fn replace_editor_view(
             .items_center()
             .border(1.0)
             .border_radius(6.0)
-            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-            .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+            .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .background(config.color(LapceColor::EDITOR_BACKGROUND))
     })
 }
 
@@ -2813,10 +2812,10 @@ fn find_view(
         .style(move |s| {
             let config = config.get();
             s.margin_right(50.0)
-                .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+                .background(config.color(LapceColor::PANEL_BACKGROUND))
                 .border_radius(6.0)
                 .border(1.0)
-                .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                .border_color(config.color(LapceColor::LAPCE_BORDER))
                 .padding_vert(4.0)
                 .cursor(CursorStyle::Default)
                 .flex_col()
@@ -2856,21 +2855,20 @@ fn changes_color_iter<'a>(
         let mut modified = false;
         let color = match change {
             DiffLines::Left(_range) => {
-                Some(config.get_color(LapceColor::SOURCE_CONTROL_REMOVED))
+                Some(config.color(LapceColor::SOURCE_CONTROL_REMOVED))
             }
             DiffLines::Right(_range) => {
                 if let Some(DiffLines::Left(_)) = last_change.as_ref() {
                     modified = true;
                 }
                 if modified {
-                    Some(config.get_color(LapceColor::SOURCE_CONTROL_MODIFIED))
+                    Some(config.color(LapceColor::SOURCE_CONTROL_MODIFIED))
                 } else {
-                    Some(config.get_color(LapceColor::SOURCE_CONTROL_ADDED))
+                    Some(config.color(LapceColor::SOURCE_CONTROL_ADDED))
                 }
             }
             _ => None,
-        }
-        .cloned();
+        };
 
         last_change = Some(change.clone());
 

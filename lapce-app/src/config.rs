@@ -314,16 +314,17 @@ impl LapceConfig {
     /// # Panics
     /// If the color was not able to be found in either theme, which may be indicative that
     /// it is misspelled or needs to be added to the base-theme.
-    pub fn get_color(&self, name: &str) -> &Color {
-        self.color
+    pub fn color(&self, name: &str) -> Color {
+        *self
+            .color
             .ui
             .get(name)
             .unwrap_or_else(|| panic!("Key not found: {name}"))
     }
 
     /// Retrieve a color value whose key starts with "style."
-    pub fn get_style_color(&self, name: &str) -> Option<&Color> {
-        self.color.syntax.get(name)
+    pub fn style_color(&self, name: &str) -> Option<Color> {
+        self.color.syntax.get(name).copied()
     }
 
     pub fn completion_color(
@@ -349,7 +350,7 @@ impl LapceConfig {
             _ => "string",
         };
 
-        self.get_style_color(theme_str).cloned()
+        self.style_color(theme_str)
     }
 
     fn resolve_colors(&mut self, default_config: Option<&LapceConfig>) {
@@ -365,8 +366,8 @@ impl LapceConfig {
             default_config.map(|c| &c.color.syntax),
         );
 
-        let fg = self.get_color(LapceColor::EDITOR_FOREGROUND);
-        let bg = self.get_color(LapceColor::EDITOR_BACKGROUND);
+        let fg = self.color(LapceColor::EDITOR_FOREGROUND);
+        let bg = self.color(LapceColor::EDITOR_BACKGROUND);
         let is_light = fg.r as u32 + fg.g as u32 + fg.b as u32
             > bg.r as u32 + bg.g as u32 + bg.b as u32;
         let high_contrast = self.color_theme.high_contrast.unwrap_or(false);
@@ -555,14 +556,14 @@ impl LapceConfig {
         })
     }
 
-    pub fn file_svg(&self, path: &Path) -> (String, Option<&Color>) {
+    pub fn file_svg(&self, path: &Path) -> (String, Option<Color>) {
         let svg = self
             .icon_theme
             .resolve_path_to_icon(path)
             .and_then(|p| self.svg_store.write().get_svg_on_disk(&p));
         if let Some(svg) = svg {
             let color = if self.icon_theme.use_editor_color.unwrap_or(false) {
-                Some(self.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+                Some(self.color(LapceColor::LAPCE_ICON_ACTIVE))
             } else {
                 None
             };
@@ -570,7 +571,7 @@ impl LapceConfig {
         } else {
             (
                 self.ui_svg(LapceIcons::FILE),
-                Some(self.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                Some(self.color(LapceColor::LAPCE_ICON_ACTIVE)),
             )
         }
     }
@@ -788,7 +789,7 @@ impl LapceConfig {
                 (LapceColor::TERMINAL_FOREGROUND, 0.66)
             }
         };
-        (*self.get_color(color)).with_alpha_factor(alpha)
+        self.color(color).with_alpha_factor(alpha)
     }
 
     /// Get the dropdown information for the specific setting, used for the settings UI.

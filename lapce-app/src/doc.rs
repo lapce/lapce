@@ -382,7 +382,7 @@ impl LineStyling for DocLineStyling {
     }
 
     fn color(&self) -> Color {
-        *self.config.get_color(LapceColor::EDITOR_FOREGROUND)
+        self.config.color(LapceColor::EDITOR_FOREGROUND)
     }
 
     fn tab_width(&self) -> usize {
@@ -390,7 +390,7 @@ impl LineStyling for DocLineStyling {
     }
 
     fn style_color(&self, style: &str) -> Option<Color> {
-        self.config.get_style_color(style).copied()
+        self.config.style_color(style)
     }
 
     fn phantom_text(&self) -> PhantomTextLine {
@@ -433,10 +433,10 @@ impl LineStyling for DocLineStyling {
                     kind: PhantomTextKind::InlayHint,
                     col,
                     text,
-                    fg: Some(*config.get_color(LapceColor::INLAY_HINT_FOREGROUND)),
+                    fg: Some(config.color(LapceColor::INLAY_HINT_FOREGROUND)),
                     // font_family: Some(config.editor.inlay_hint_font_family()),
                     font_size: Some(config.editor.inlay_hint_font_size()),
-                    bg: Some(*config.get_color(LapceColor::INLAY_HINT_BACKGROUND)),
+                    bg: Some(config.color(LapceColor::INLAY_HINT_BACKGROUND)),
                     under_line: None,
                 }
             });
@@ -492,7 +492,7 @@ impl LineStyling for DocLineStyling {
                         LapceColor::ERROR_LENS_OTHER_FOREGROUND
                     };
 
-                    *config.get_color(theme_prop)
+                    config.color(theme_prop)
                 };
 
                 let text = if config.editor.error_lens_multiline {
@@ -528,7 +528,7 @@ impl LineStyling for DocLineStyling {
                 kind: PhantomTextKind::Completion,
                 col: completion_col,
                 text: completion.clone(),
-                fg: Some(*config.get_color(LapceColor::COMPLETION_LENS_FOREGROUND)),
+                fg: Some(config.color(LapceColor::COMPLETION_LENS_FOREGROUND)),
                 font_size: Some(config.editor.completion_lens_font_size()),
                 // font_family: Some(config.editor.completion_lens_font_family()),
                 bg: None,
@@ -554,7 +554,7 @@ impl LineStyling for DocLineStyling {
                 kind: PhantomTextKind::Completion,
                 col: inline_completion_col,
                 text: completion.clone(),
-                fg: Some(*config.get_color(LapceColor::COMPLETION_LENS_FOREGROUND)),
+                fg: Some(config.color(LapceColor::COMPLETION_LENS_FOREGROUND)),
                 font_size: Some(config.editor.completion_lens_font_size()),
                 // font_family: Some(config.editor.completion_lens_font_family()),
                 bg: None,
@@ -566,7 +566,7 @@ impl LineStyling for DocLineStyling {
         }
 
         if let Some(preedit) = self.doc.preedit_phantom_text(
-            Some(*config.get_color(LapceColor::EDITOR_FOREGROUND)),
+            Some(config.color(LapceColor::EDITOR_FOREGROUND)),
             self.line,
         ) {
             text.push(preedit)
@@ -882,7 +882,7 @@ impl Backend for DocBackend {
                 y: 0.0,
                 width: x1,
                 height: text_layout.size().height,
-                bg_color: Some(*config.get_color(theme_prop)),
+                bg_color: Some(config.color(theme_prop)),
                 under_line: None,
                 wave_line: None,
             });
@@ -924,7 +924,7 @@ impl Backend for DocBackend {
                             }
                             _ => LapceColor::LAPCE_WARN,
                         };
-                        let color = *config.get_color(color_name);
+                        let color = config.color(color_name);
 
                         let styles = extra_styles_for_range(
                             text_layout,
