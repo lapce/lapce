@@ -399,19 +399,16 @@ pub fn settings_view(
             s.padding_horiz(20.0)
                 .width_pct(100.0)
                 .apply_if(kind == current_kind.get(), |s| {
-                    s.background(
-                        *config.get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
-                    )
+                    s.background(config.color(LapceColor::PANEL_CURRENT_BACKGROUND))
                 })
                 .hover(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
                 .active(|s| {
                     s.background(
-                        *config
-                            .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                        config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
                     )
                 })
         })
@@ -469,7 +466,7 @@ pub fn settings_view(
             s.height_pct(100.0)
                 .width(200.0)
                 .border_right(1.0)
-                .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+                .border_color(config.get().color(LapceColor::LAPCE_BORDER))
         }),
         stack((
             container({
@@ -481,7 +478,7 @@ pub fn settings_view(
                             .border_radius(6.0)
                             .border(1.0)
                             .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                                config.get().color(LapceColor::LAPCE_BORDER),
                             )
                     })
             })
@@ -620,9 +617,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 .border(1.0)
                                 .border_radius(6.0)
                                 .border_color(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::LAPCE_BORDER),
+                                    config.get().color(LapceColor::LAPCE_BORDER),
                                 )
                         },
                     ),
@@ -657,9 +652,9 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                         .style(move |s| {
                             s.text_ellipsis().padding_horiz(10.0).hover(|s| {
                                 s.cursor(CursorStyle::Pointer).background(
-                                    *config.get().get_color(
-                                        LapceColor::PANEL_HOVERED_BACKGROUND,
-                                    ),
+                                    config
+                                        .get()
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
                                 )
                             })
                         })
@@ -680,9 +675,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                     let config = config.get();
                                     let size = config.ui.icon_size() as f32;
                                     s.size(size, size).color(
-                                        *config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ),
+                                        config.color(LapceColor::LAPCE_ICON_ACTIVE),
                                     )
                                 }),
                             )
@@ -702,9 +695,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 .border_radius(6.0)
                                 .apply_if(!expanded.get(), |s| {
                                     s.border_color(
-                                        *config
-                                            .get()
-                                            .get_color(LapceColor::LAPCE_BORDER),
+                                        config.get().color(LapceColor::LAPCE_BORDER),
                                     )
                                 })
                         }),
@@ -725,16 +716,14 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             .style(move |s| {
                                 let config = config.get();
                                 s.background(
-                                    *config.get_color(LapceColor::EDITOR_BACKGROUND),
+                                    config.color(LapceColor::EDITOR_BACKGROUND),
                                 )
                                 .width_pct(100.0)
                                 .max_height(300.0)
                                 .z_index(1)
                                 .border_top(1.0)
                                 .border_radius(6.0)
-                                .border_color(
-                                    *config.get_color(LapceColor::LAPCE_BORDER),
-                                )
+                                .border_color(config.color(LapceColor::LAPCE_BORDER))
                                 .apply_if(!expanded.get(), |s| s.hide())
                             }),
                         ))
@@ -751,9 +740,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 .border(1.0)
                                 .border_radius(6.0)
                                 .border_color(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::LAPCE_BORDER),
+                                    config.get().color(LapceColor::LAPCE_BORDER),
                                 )
                                 .apply_if(!expanded.get(), |s| {
                                     s.border_color(Color::TRANSPARENT)
@@ -770,7 +757,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                         .width_pct(100.0)
                         .padding_horiz(10.0)
                         .font_size(config.ui.font_size() as f32 + 2.0)
-                        .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+                        .background(config.color(LapceColor::PANEL_BACKGROUND))
                 }))
             } else {
                 container_box(empty())
@@ -867,7 +854,7 @@ pub fn checkbox(
     svg(svg_str).base_style(move |s| {
         let config = config.get();
         let size = config.ui.font_size() as f32;
-        let color = *config.get_color(LapceColor::EDITOR_FOREGROUND);
+        let color = config.color(LapceColor::EDITOR_FOREGROUND);
 
         s.min_width(size)
             .size(size, size)
@@ -1041,9 +1028,7 @@ fn color_section_list(
                                 .border(1)
                                 .border_radius(6)
                                 .border_color(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::LAPCE_BORDER),
+                                    config.get().color(LapceColor::LAPCE_BORDER),
                                 )
                         },
                     ),
@@ -1060,11 +1045,9 @@ fn color_section_list(
                             .border_radius(6)
                             .size(size, size)
                             .margin_left(10)
-                            .border_color(
-                                *config.get_color(LapceColor::LAPCE_BORDER),
-                            )
-                            .background(*color.unwrap_or_else(|| {
-                                config.get_color(LapceColor::EDITOR_FOREGROUND)
+                            .border_color(config.color(LapceColor::LAPCE_BORDER))
+                            .background(color.copied().unwrap_or_else(|| {
+                                config.color(LapceColor::EDITOR_FOREGROUND)
                             }))
                     }),
                     {
@@ -1106,14 +1089,13 @@ fn color_section_list(
                                     .border(1)
                                     .border_radius(6)
                                     .border_color(
-                                        *config.get_color(LapceColor::LAPCE_BORDER),
+                                        config.color(LapceColor::LAPCE_BORDER),
                                     )
                                     .apply_if(same, |s| s.hide())
                                     .active(|s| {
                                         s.background(
-                                            *config.get_color(
-                                                LapceColor::PANEL_BACKGROUND,
-                                            ),
+                                            config
+                                                .color(LapceColor::PANEL_BACKGROUND),
                                         )
                                     })
                             })

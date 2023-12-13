@@ -88,7 +88,7 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                     let size = config.ui.icon_size() as f32;
 
                     let color = if is_dir {
-                        *config.get_color(LapceColor::LAPCE_ICON_ACTIVE)
+                        config.color(LapceColor::LAPCE_ICON_ACTIVE)
                     } else {
                         Color::TRANSPARENT
                     };
@@ -116,13 +116,11 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                         s.size(size, size)
                             .margin_horiz(6.0)
                             .apply_if(is_dir, |s| {
-                                s.color(
-                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                                )
+                                s.color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
                             })
                             .apply_if(!is_dir, |s| {
                                 s.apply_opt(
-                                    config.file_svg(&path_for_style).1.cloned(),
+                                    config.file_svg(&path_for_style).1,
                                     Style::color,
                                 )
                             })
@@ -142,9 +140,7 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                     .min_width_pct(100.0)
                     .hover(|s| {
                         s.background(
-                            *config
-                                .get()
-                                .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
                         )
                         .cursor(CursorStyle::Pointer)
                     })
@@ -247,14 +243,12 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             == child_index.get(),
                     |s| {
                         s.background(
-                            *config.get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
+                            config.color(LapceColor::PANEL_CURRENT_BACKGROUND),
                         )
                     },
                 )
                 .hover(|s| {
-                    s.background(
-                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
+                    s.background(config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
                 })
         })
         .on_event_cont(EventListener::PointerDown, move |_| {
