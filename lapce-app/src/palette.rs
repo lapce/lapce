@@ -39,6 +39,7 @@ use crate::{
     },
     db::LapceDb,
     debug::{RunDebugConfigs, RunDebugMode},
+    doc::DocumentExt,
     editor::{
         location::{EditorLocation, EditorPosition},
         EditorData,
@@ -882,7 +883,7 @@ impl PaletteData {
         if let Some(editor) = self.main_split.active_editor.get_untracked() {
             let doc = editor.view.doc.get_untracked();
             let language =
-                doc.syntax.with_untracked(|syntax| syntax.language.name());
+                doc.syntax().with_untracked(|syntax| syntax.language.name());
             self.preselect_matching(&items, language);
         }
         self.items.set(items);

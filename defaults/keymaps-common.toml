@@ -205,7 +205,37 @@ mode = "n"
 [[keymaps]]
 key = "esc"
 command = "modal.close"
-when = "modal_focus"
+when = "modal_focus || completion_focus"
+
+[[keymaps]]
+key = "tab"
+command = "inline_completion.select"
+when = "inline_completion_visible && !search_focus && !modal_focus && !list_focus && !search_active"
+mode = "i"
+
+[[keymaps]]
+key = "esc"
+command = "inline_completion.cancel"
+when = "inline_completion_visible && !search_focus && !modal_focus && !list_focus && !search_active"
+mode = "i"
+
+[[keymaps]]
+key = "alt+["
+command = "inline_completion.previous"
+when = "inline_completion_visible && !search_focus && !modal_focus && !list_focus && !search_active"
+mode = "i"
+
+[[keymaps]]
+key = "alt+]"
+command = "inline_completion.next"
+when = "inline_completion_visible && !search_focus && !modal_focus && !list_focus && !search_active"
+mode = "i"
+
+[[keymaps]]
+key = "alt+\\"
+command = "inline_completion.invoke"
+when = "!inline_completion_visible && !search_focus && !modal_focus && !list_focus && !search_active"
+mode = "i"
 
 [[keymaps]]
 key = "ctrl+b"
@@ -299,7 +329,7 @@ mode = "i"
 [[keymaps]]
 key = "tab"
 command = "insert_tab"
-when = "!in_snippet && !completion_focus && !search_focus && !replace_focus"
+when = "!in_snippet && !completion_focus && !inline_completion_visible && !search_focus && !replace_focus"
 mode = "i"
 
 [[keymaps]]
@@ -324,7 +354,7 @@ mode = "i"
 key = "esc"
 command = "normal_mode"
 mode = "niv"
-when = "!search_focus && !modal_focus && !search_active"
+when = "!search_focus && !modal_focus && !search_active && !inline_completion_visible"
 
 [[keymaps]]
 key = "ctrl+c"

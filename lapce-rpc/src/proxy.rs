@@ -13,8 +13,9 @@ use lapce_xi_rope::RopeDelta;
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
     CompletionItem, Diagnostic, DocumentSymbolResponse, GotoDefinitionResponse,
-    Hover, InlayHint, Location, Position, PrepareRenameResponse, SelectionRange,
-    SymbolInformation, TextDocumentItem, TextEdit, WorkspaceEdit,
+    Hover, InlayHint, InlineCompletionResponse, InlineCompletionTriggerKind,
+    Location, Position, PrepareRenameResponse, SelectionRange, SymbolInformation,
+    TextDocumentItem, TextEdit, WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -110,6 +111,11 @@ pub enum ProxyRequest {
     },
     GetInlayHints {
         path: PathBuf,
+    },
+    GetInlineCompletions {
+        path: PathBuf,
+        position: Position,
+        trigger_kind: InlineCompletionTriggerKind,
     },
     GetSemanticTokens {
         path: PathBuf,
@@ -372,6 +378,9 @@ pub enum ProxyResponse {
     },
     GetInlayHints {
         hints: Vec<InlayHint>,
+    },
+    GetInlineCompletions {
+        completions: InlineCompletionResponse,
     },
     GetSemanticTokens {
         styles: SemanticStyles,
@@ -915,6 +924,23 @@ impl ProxyRpcHandler {
 
     pub fn get_inlay_hints(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::GetInlayHints { path }, f);
+    }
+
+    pub fn get_inline_completions(
+        &self,
+        path: PathBuf,
+        position: Position,
+        trigger_kind: InlineCompletionTriggerKind,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::GetInlineCompletions {
+                path,
+                position,
+                trigger_kind,
+            },
+            f,
+        );
     }
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {

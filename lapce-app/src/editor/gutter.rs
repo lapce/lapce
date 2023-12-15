@@ -10,7 +10,10 @@ use floem::{
 };
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 
-use crate::config::{color::LapceColor, LapceConfig};
+use crate::{
+    config::{color::LapceColor, LapceConfig},
+    doc::DocumentExt,
+};
 
 use super::{view::changes_colors_screen, view_data::EditorViewData, EditorData};
 
@@ -47,7 +50,7 @@ impl EditorGutterView {
 
         let changes = view
             .doc
-            .with_untracked(|doc| doc.head_changes.get_untracked());
+            .with_untracked(|doc| doc.head_changes().get_untracked());
         let line_height = config.editor.line_height() as f64;
 
         let changes = changes_colors_screen(view, changes);
@@ -97,12 +100,12 @@ impl EditorGutterView {
                 .inflate(25.0, 0.0);
         cx.fill(
             &sticky_area_rect,
-            config.get_color(LapceColor::LAPCE_DROPDOWN_SHADOW),
+            config.color(LapceColor::LAPCE_DROPDOWN_SHADOW),
             3.0,
         );
         cx.fill(
             &sticky_area_rect,
-            config.get_color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
+            config.color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
             0.0,
         );
     }
@@ -158,12 +161,11 @@ impl View for EditorGutterView {
             FamilyOwned::parse_list(&config.editor.font_family).collect();
         let attrs = Attrs::new()
             .family(&family)
-            .color(*config.get_color(LapceColor::EDITOR_DIM))
+            .color(config.color(LapceColor::EDITOR_DIM))
             .font_size(config.editor.font_size() as f32);
         let attrs_list = AttrsList::new(attrs);
-        let current_line_attrs_list = AttrsList::new(
-            attrs.color(*config.get_color(LapceColor::EDITOR_FOREGROUND)),
-        );
+        let current_line_attrs_list =
+            AttrsList::new(attrs.color(config.color(LapceColor::EDITOR_FOREGROUND)));
         let show_relative = config.core.modal
             && config.editor.modal_mode_relative_line_numbers
             && mode != Mode::Insert

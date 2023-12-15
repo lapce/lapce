@@ -342,6 +342,7 @@ impl LspClient {
             }),
             locale: None,
             root_path: None,
+            work_done_progress_params: WorkDoneProgressParams::default(),
         };
         if let Ok(value) = self.server_rpc.server_request(
             Initialize::METHOD,

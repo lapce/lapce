@@ -43,6 +43,7 @@ error-lens-font-family = ""
 error-lens-font-size = 0
 error-lens-multiline = false
 enable-completion-lens = false
+enable-inline-completion = true
 completion-lens-font-family = ""
 completion-lens-font-size = 0
 blink-interval = 500                    # ms
@@ -57,7 +58,6 @@ diff-context-lines=3
 scroll-speed-modifier=1
 bracket-pair-colorization = true
 bracket-colorization-limit = 30000
-
 [terminal]
 font-family = ""
 font-size = 0

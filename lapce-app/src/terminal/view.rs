@@ -215,7 +215,7 @@ impl View for TerminalView {
             text_layout.set_text(
                 &format!("Terminal failed to launch. Error: {error}"),
                 AttrsList::new(
-                    attrs.color(*config.get_color(LapceColor::EDITOR_FOREGROUND)),
+                    attrs.color(config.color(LapceColor::EDITOR_FOREGROUND)),
                 ),
             );
             cx.draw_text(
@@ -259,7 +259,7 @@ impl View for TerminalView {
                 let y1 = y0 + line_height;
                 cx.fill(
                     &Rect::new(x0, y0, x1, y1),
-                    config.get_color(LapceColor::EDITOR_SELECTION),
+                    config.color(LapceColor::EDITOR_SELECTION),
                     0.0,
                 );
             }
@@ -269,14 +269,14 @@ impl View for TerminalView {
                 * line_height;
             cx.fill(
                 &Rect::new(0.0, y, self.size.width, y + line_height),
-                config.get_color(LapceColor::EDITOR_CURRENT_LINE),
+                config.color(LapceColor::EDITOR_CURRENT_LINE),
                 0.0,
             );
         }
 
         let cursor_point = &content.cursor.point;
 
-        let term_bg = *config.get_color(LapceColor::TERMINAL_BACKGROUND);
+        let term_bg = config.color(LapceColor::TERMINAL_BACKGROUND);
         let mut text_layout = TextLayout::new();
         for item in content.display_iter {
             let point = item.point;
@@ -321,12 +321,12 @@ impl View for TerminalView {
                     if self.run_config.with_untracked(|run_config| {
                         run_config.as_ref().map(|r| r.stopped).unwrap_or(false)
                     }) {
-                        config.get_color(LapceColor::LAPCE_ERROR)
+                        config.color(LapceColor::LAPCE_ERROR)
                     } else {
-                        config.get_color(LapceColor::TERMINAL_CURSOR)
+                        config.color(LapceColor::TERMINAL_CURSOR)
                     }
                 } else {
-                    config.get_color(LapceColor::EDITOR_CARET)
+                    config.color(LapceColor::EDITOR_CARET)
                 };
                 if self.is_focused {
                     cx.fill(&rect, cursor_color, 0.0);

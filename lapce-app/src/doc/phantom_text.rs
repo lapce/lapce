@@ -1,5 +1,4 @@
 use floem::peniko::Color;
-use lsp_types::DiagnosticSeverity;
 use smallvec::SmallVec;
 
 /// `PhantomText` is for text that is not in the actual document, but should be rendered with it.  
@@ -22,7 +21,7 @@ pub struct PhantomText {
 pub enum PhantomTextKind {
     /// Input methods
     Ime,
-    /// Completion lens
+    /// Completion lens / Inline completion
     Completion,
     /// Inlay hints supplied by an LSP/PSP (like type annotations)
     InlayHint,
@@ -37,9 +36,6 @@ pub enum PhantomTextKind {
 pub struct PhantomTextLine {
     /// This uses a smallvec because most lines rarely have more than a couple phantom texts
     pub text: SmallVec<[PhantomText; 6]>,
-    /// Maximum diagnostic severity, so that we can color the background as an error if there is a
-    /// warning and error on the line. (For error lens)
-    pub max_severity: Option<DiagnosticSeverity>,
 }
 
 impl PhantomTextLine {
@@ -78,11 +74,11 @@ impl PhantomTextLine {
         &self,
         pre_col: usize,
         before_cursor: bool,
-        ignored: Option<PhantomTextKind>,
+        skip: impl Fn(&PhantomText) -> bool,
     ) -> usize {
         let mut last = pre_col;
         for (col_shift, size, col, phantom) in self.offset_size_iter() {
-            if ignored == Some(phantom.kind) {
+            if skip(phantom) {
                 continue;
             }
 

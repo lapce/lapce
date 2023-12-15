@@ -115,9 +115,7 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                         .flex_basis(0.0)
                         .flex_grow(1.0)
                         .border_right(1.0)
-                        .border_color(
-                            *config.get().get_color(LapceColor::LAPCE_BORDER),
-                        )
+                        .border_color(config.get().color(LapceColor::LAPCE_BORDER))
                 }),
                 {
                     let keymap = keymap.clone();
@@ -144,9 +142,7 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                                     .border(1.0)
                                     .border_radius(3.0)
                                     .border_color(
-                                        *config
-                                            .get()
-                                            .get_color(LapceColor::LAPCE_BORDER),
+                                        config.get().color(LapceColor::LAPCE_BORDER),
                                     )
                             })
                         },
@@ -158,7 +154,7 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                             .height_pct(100.0)
                             .border_right(1.0)
                             .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                                config.get().color(LapceColor::LAPCE_BORDER),
                             )
                     })
                 },
@@ -195,9 +191,7 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                                     .border(1.0)
                                     .border_radius(3.0)
                                     .border_color(
-                                        *config
-                                            .get()
-                                            .get_color(LapceColor::LAPCE_BORDER),
+                                        config.get().color(LapceColor::LAPCE_BORDER),
                                     )
                             })
                         },
@@ -209,7 +203,7 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                             .height_pct(100.0)
                             .border_right(1.0)
                             .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                                config.get().color(LapceColor::LAPCE_BORDER),
                             )
                             .apply_if(!modal.get(), |s| s.hide())
                     })
@@ -260,12 +254,10 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                     .height(ui_line_height() as f32)
                     .width_pct(100.0)
                     .apply_if(i % 2 > 0, |s| {
-                        s.background(
-                            *config.get_color(LapceColor::EDITOR_CURRENT_LINE),
-                        )
+                        s.background(config.color(LapceColor::EDITOR_CURRENT_LINE))
                     })
                     .border_bottom(1.0)
-                    .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                    .border_color(config.color(LapceColor::LAPCE_BORDER))
             })
         };
 
@@ -278,9 +270,7 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                     s.width_pct(100.0)
                         .border_radius(6.0)
                         .border(1.0)
-                        .border_color(
-                            *config.get().get_color(LapceColor::LAPCE_BORDER),
-                        )
+                        .border_color(config.get().color(LapceColor::LAPCE_BORDER))
                 }),
         )
         .style(|s| s.padding_bottom(10.0).width_pct(100.0)),
@@ -295,7 +285,7 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                     .flex_basis(0.0)
                     .flex_grow(1.0)
                     .border_right(1.0)
-                    .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+                    .border_color(config.get().color(LapceColor::LAPCE_BORDER))
             }),
             text("Key Binding").style(move |s| {
                 s.width(200.0)
@@ -303,7 +293,7 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                     .padding_horiz(10.0)
                     .height_pct(100.0)
                     .border_right(1.0)
-                    .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+                    .border_color(config.get().color(LapceColor::LAPCE_BORDER))
             }),
             text("Modes").style(move |s| {
                 s.width(200.0)
@@ -311,7 +301,7 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                     .padding_horiz(10.0)
                     .height_pct(100.0)
                     .border_right(1.0)
-                    .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+                    .border_color(config.get().color(LapceColor::LAPCE_BORDER))
                     .apply_if(!modal.get(), |s| s.hide())
             }),
             container(text("When").style(move |s| {
@@ -332,8 +322,8 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
                 .width_pct(100.0)
                 .border_top(1.0)
                 .border_bottom(1.0)
-                .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-                .background(*config.get_color(LapceColor::EDITOR_CURRENT_LINE))
+                .border_color(config.color(LapceColor::LAPCE_BORDER))
+                .background(config.color(LapceColor::EDITOR_CURRENT_LINE))
         }),
         container(
             scroll(
@@ -404,7 +394,7 @@ fn keyboard_picker_view(
                             .border(1.0)
                             .border_radius(6.0)
                             .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                                config.get().color(LapceColor::LAPCE_BORDER),
                             )
                     })
                 },
@@ -418,8 +408,8 @@ fn keyboard_picker_view(
                     .height(ui_line_height.get() as f32 + 16.0)
                     .border(1.0)
                     .border_radius(6.0)
-                    .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-                    .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+                    .border_color(config.color(LapceColor::LAPCE_BORDER))
+                    .background(config.color(LapceColor::EDITOR_BACKGROUND))
             }),
             stack((
                 text("Save")
@@ -430,18 +420,15 @@ fn keyboard_picker_view(
                             .padding_vert(8.0)
                             .border(1.0)
                             .border_radius(6.0)
-                            .border_color(
-                                *config.get_color(LapceColor::LAPCE_BORDER),
-                            )
+                            .border_color(config.color(LapceColor::LAPCE_BORDER))
                             .hover(|s| {
                                 s.cursor(CursorStyle::Pointer).background(
-                                    *config.get_color(
-                                        LapceColor::PANEL_HOVERED_BACKGROUND,
-                                    ),
+                                    config
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
                                 )
                             })
                             .active(|s| {
-                                s.background(*config.get_color(
+                                s.background(config.color(
                                     LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
                             })
@@ -469,18 +456,15 @@ fn keyboard_picker_view(
                             .padding_vert(8.0)
                             .border(1.0)
                             .border_radius(6.0)
-                            .border_color(
-                                *config.get_color(LapceColor::LAPCE_BORDER),
-                            )
+                            .border_color(config.color(LapceColor::LAPCE_BORDER))
                             .hover(|s| {
                                 s.cursor(CursorStyle::Pointer).background(
-                                    *config.get_color(
-                                        LapceColor::PANEL_HOVERED_BACKGROUND,
-                                    ),
+                                    config
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
                                 )
                             })
                             .active(|s| {
-                                s.background(*config.get_color(
+                                s.background(config.color(
                                     LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
                             })
@@ -495,7 +479,7 @@ fn keyboard_picker_view(
                     .justify_center()
                     .width_pct(100.0)
                     .margin_top(20.0)
-                    .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                    .border_color(config.color(LapceColor::LAPCE_BORDER))
             }),
         ))
         .style(move |s| {
@@ -506,8 +490,8 @@ fn keyboard_picker_view(
                 .width(400.0)
                 .border(1.0)
                 .border_radius(6.0)
-                .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-                .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+                .border_color(config.color(LapceColor::LAPCE_BORDER))
+                .background(config.color(LapceColor::PANEL_BACKGROUND))
         }),
     )
     .keyboard_navigatable()
