@@ -732,7 +732,7 @@ impl DocBackend {
             find_result: FindResult::new(cx),
             common,
             parser: Rc::new(RefCell::new(BracketParser::new(
-                "".to_string(),
+                String::new(),
                 config.editor.bracket_pair_colorization,
                 config.editor.bracket_colorization_limit,
             ))),
