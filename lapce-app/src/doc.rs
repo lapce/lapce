@@ -32,7 +32,7 @@ use lapce_core::{
     register::{Clipboard, Register},
     selection::{InsertDrift, Selection},
     style::line_styles,
-    syntax::{edit::SyntaxEdit, Syntax},
+    syntax::{edit::SyntaxEdit, BracketParser, Syntax},
     word::WordCursor,
 };
 use lapce_rpc::{
@@ -287,9 +287,27 @@ pub trait Backend: Sized + Clone {
     /// Note that this is called from within a [`batch`]
     fn init_content(_doc: &Document<Self>) {}
 
+    /// Initialize bracket parser using the content of the document
+    /// Note that this is called from within a [`batch`]
+    fn init_parser(_doc: &Document<Self>) {}
+
     /// Called when the document is updated, like when there is an edit.  
     /// Note: this is called from within a [`batch`]
     fn on_update(_doc: &Document<Self>, _edits: Option<&[SyntaxEdit]>) {}
+
+    /// Do bracket colorization when update
+    /// Note: this is called from within a [`batch`]
+    fn do_bracket_colorization(_doc: &Document<Self>) {}
+
+    /// Apply colorized bracket to layout. Since parser is only accessible from the backend, the function is placed here
+    fn apply_colorization(
+        _doc: &Document<Self>,
+        _styling: &Self::LineStyling,
+        _attrs_list: &mut AttrsList,
+        _attrs: &Attrs,
+        _line: usize,
+    ) {
+    }
 
     // TODO(floem-editor): We may need to pass in the computed `rev` since updating proxy uses it
     /// Apply a single edit delta  
@@ -682,6 +700,8 @@ pub struct DocBackend {
 
     pub find_result: FindResult,
 
+    pub parser: Rc<RefCell<BracketParser>>,
+
     common: Rc<CommonData>,
 }
 impl DocBackend {
@@ -691,6 +711,7 @@ impl DocBackend {
         diagnostics: Option<DiagnosticData>,
         common: Rc<CommonData>,
     ) -> Self {
+        let config = common.config.get_untracked();
         let diagnostics = diagnostics.unwrap_or_else(|| DiagnosticData {
             expanded: cx.create_rw_signal(true),
             diagnostics: cx.create_rw_signal(im::Vector::new()),
@@ -710,6 +731,11 @@ impl DocBackend {
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
             common,
+            parser: Rc::new(RefCell::new(BracketParser::new(
+                "".to_string(),
+                config.editor.bracket_pair_colorization,
+                config.editor.bracket_colorization_limit,
+            ))),
         }
     }
 
@@ -783,6 +809,25 @@ impl Backend for DocBackend {
         doc.retrieve_head();
     }
 
+    fn init_parser(doc: &Document<Self>) {
+        let code = doc.buffer.get_untracked().to_string();
+        doc.backend.syntax.with_untracked(|syntax| {
+            if syntax.styles.is_some() {
+                doc.backend.parser.borrow_mut().update_code(
+                    code,
+                    &doc.buffer.get_untracked(),
+                    Some(syntax.clone()),
+                );
+            } else {
+                doc.backend.parser.borrow_mut().update_code(
+                    code,
+                    &doc.buffer.get_untracked(),
+                    None,
+                );
+            }
+        });
+    }
+
     fn on_update(doc: &Document<Self>, edits: Option<&[SyntaxEdit]>) {
         doc.backend.clear_code_actions();
         doc.trigger_syntax_change(edits);
@@ -790,6 +835,47 @@ impl Backend for DocBackend {
         doc.get_semantic_styles();
         doc.get_inlay_hints();
         doc.backend.find_result.reset();
+    }
+
+    fn do_bracket_colorization(doc: &Document<Self>) {
+        doc.backend.syntax.with_untracked(|syntax| {
+            if syntax.styles.is_some() {
+                doc.backend.parser.borrow_mut().update_code(
+                    doc.buffer.get_untracked().to_string(),
+                    &doc.buffer.get_untracked(),
+                    Some(syntax.clone()),
+                );
+            } else {
+                doc.backend.parser.borrow_mut().update_code(
+                    doc.buffer.get_untracked().to_string(),
+                    &doc.buffer.get_untracked(),
+                    None,
+                );
+            }
+        })
+    }
+
+    fn apply_colorization(
+        doc: &Document<Self>,
+        styling: &Self::LineStyling,
+        attrs_list: &mut AttrsList,
+        attrs: &Attrs,
+        line: usize,
+    ) {
+        let phantom_text = styling.phantom_text();
+        if let Some(bracket_styles) =
+            doc.backend.parser.borrow().bracket_pos.get(&line)
+        {
+            for bracket_style in bracket_styles.iter() {
+                if let Some(fg_color) = bracket_style.style.fg_color.as_ref() {
+                    if let Some(fg_color) = styling.style_color(fg_color) {
+                        let start = phantom_text.col_at(bracket_style.start);
+                        let end = phantom_text.col_at(bracket_style.end);
+                        attrs_list.add_span(start..end, attrs.color(fg_color));
+                    }
+                }
+            }
+        }
     }
 
     fn apply_delta(
@@ -1790,6 +1876,7 @@ impl<B: Backend + 'static> Document<B> {
             B::pre_update_init_content(self);
             self.loaded.set(true);
             self.on_update(None);
+            B::init_parser(self);
             // Call the backend's init from within the batch, this ensures that any effects
             // depending on loaded/content/etc don't update until we're all done.
             B::init_content(self);
@@ -1943,6 +2030,7 @@ impl<B: Backend + 'static> Document<B> {
             self.clear_sticky_headers_cache();
             self.check_auto_save();
             B::on_update(self, edits);
+            B::do_bracket_colorization(self);
         });
     }
 
@@ -2139,7 +2227,7 @@ impl<B: Backend + 'static> Document<B> {
             .buffer
             .with_untracked(|b| b.line_content(line).to_string());
 
-        let styling = B::line_styling(self, line);
+        let styling: <B as Backend>::LineStyling = B::line_styling(self, line);
         let font_size = styling.font_size();
 
         // Get the line content with newline characters replaced with spaces
@@ -2184,6 +2272,8 @@ impl<B: Backend + 'static> Document<B> {
                 }
             }
         }
+
+        B::apply_colorization(self, &styling, &mut attrs_list, &attrs, line);
 
         // Apply phantom text specific styling
         for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
