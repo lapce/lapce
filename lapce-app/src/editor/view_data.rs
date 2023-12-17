@@ -68,7 +68,7 @@ impl TextLayoutLine {
 
     /// Iterate over all the layouts that are nonempty.  
     /// Note that this may be empty if the line is completely empty, like the last line
-    fn relevant_layouts(&self) -> impl Iterator<Item = &'_ LayoutLine> + '_ {
+    pub fn relevant_layouts(&self) -> impl Iterator<Item = &'_ LayoutLine> + '_ {
         // Even though we only have one hard line (and thus only one `lines` entry) typically, for
         // normal buffer lines, we can have more than one due to multiline phantom text. So we have
         // to sum over all of the entries line counts.
