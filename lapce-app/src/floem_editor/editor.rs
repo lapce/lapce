@@ -1,7 +1,7 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::{
-    cosmic_text::{Attrs, AttrsList, LineHeightValue, TextLayout},
+    cosmic_text::{Attrs, AttrsList, LineHeightValue, TextLayout, Wrap},
     kurbo::Rect,
     reactive::{RwSignal, Scope},
 };
@@ -13,7 +13,7 @@ use crate::editor::{
     visual_line::{Lines, ResolvedWrap, TextLayoutProvider},
 };
 
-use super::text::{Document, Styling};
+use super::text::{Document, Styling, WrapMethod};
 /// The data for a specific editor view
 #[derive(Clone)]
 pub struct Editor {
@@ -44,6 +44,7 @@ impl Editor {
             text: doc.text(),
             doc,
             style: self.style.get_untracked(),
+            viewport: self.viewport.get_untracked(),
         }
     }
 
@@ -64,6 +65,8 @@ struct EditorTextProv {
     text: Rope,
     doc: Rc<dyn Document>,
     style: Rc<dyn Styling>,
+
+    viewport: Rect,
 }
 impl TextLayoutProvider for EditorTextProv {
     // TODO: should this just return a `Rope`, or should `Document::text` return a `&Rope`?
@@ -112,8 +115,23 @@ impl TextLayoutProvider for EditorTextProv {
         self.style.apply_attr_styles(line, attrs, &mut attrs_list);
 
         let mut text_layout = TextLayout::new();
+        // TODO: we could move tab width setting to be done by the document
         text_layout.set_tab_width(self.style.tab_width(line));
         text_layout.set_text(&line_content, attrs_list);
+
+        match self.style.wrap(line) {
+            WrapMethod::None => {}
+            WrapMethod::EditorWidth => {
+                text_layout.set_wrap(Wrap::Word);
+                text_layout.set_size(self.viewport.width() as f32, f32::MAX);
+            }
+            WrapMethod::WrapWidth { width } => {
+                text_layout.set_wrap(Wrap::Word);
+                text_layout.set_size(width, f32::MAX);
+            }
+            // TODO:
+            WrapMethod::WrapColumn { .. } => {}
+        }
 
         // TODO(floem-editor):
         // let whitespaces = Self::new_whitespace_layout(
@@ -137,12 +155,15 @@ impl TextLayoutProvider for EditorTextProv {
         let whitespaces = None;
         let indent = 0.0;
 
-        Arc::new(TextLayoutLine {
+        let mut layout_line = TextLayoutLine {
             text: text_layout,
             extra_style: Vec::new(),
             whitespaces,
             indent,
-        })
+        };
+        self.style.apply_layout_styles(line, &mut layout_line);
+
+        Arc::new(layout_line)
     }
 
     // TODO: doc has these two functions, should we just make it a common subtrait for having

@@ -1,6 +1,9 @@
 use std::{borrow::Cow, fmt::Debug, rc::Rc};
 
-use crate::doc::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine};
+use crate::{
+    doc::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
+    editor::view_data::TextLayoutLine,
+};
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, Stretch, Weight},
     peniko::Color,
@@ -37,13 +40,40 @@ pub trait DocumentPhantom {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub enum WrapMethod {
+    None,
+    #[default]
+    EditorWidth,
+    WrapColumn {
+        col: usize,
+    },
+    WrapWidth {
+        width: f32,
+    },
+}
+impl WrapMethod {
+    pub fn is_none(&self) -> bool {
+        matches!(self, WrapMethod::None)
+    }
+
+    pub fn is_constant(&self) -> bool {
+        matches!(
+            self,
+            WrapMethod::None
+                | WrapMethod::WrapColumn { .. }
+                | WrapMethod::WrapWidth { .. }
+        )
+    }
+}
+
 /// There's currently three stages of styling text:  
 /// - `Attrs`: This sets the default values for the text
 ///   - Default font size, font family, etc.
 /// - `AttrsList`: This lets you set spans of text to have different styling
 ///   - Syntax highlighting, bolding specific words, etc.
 /// Then once the text layout for the line is created from that, we have:
-/// - `Extra Styles`: Where it may depend on the position of text in the line (after wrapping)
+/// - `Layout Styles`: Where it may depend on the position of text in the line (after wrapping)
 ///   - Outline boxes
 ///
 /// TODO: We could unify the first two steps if we expose a `.defaults_mut()` on `AttrsList`, and
@@ -96,6 +126,12 @@ pub trait Styling {
         _attrs: &mut AttrsList,
     ) {
     }
+
+    fn wrap(&self, _line: usize) -> WrapMethod {
+        WrapMethod::EditorWidth
+    }
+
+    fn apply_layout_styles(&self, _line: usize, _layout_line: &mut TextLayoutLine) {}
 }
 
 pub type DocumentRef = Rc<dyn Document>;
