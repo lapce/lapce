@@ -1,4 +1,9 @@
-use floem::peniko::Color;
+use std::borrow::Cow;
+
+use floem::{
+    cosmic_text::{Attrs, AttrsList},
+    peniko::Color,
+};
 use smallvec::SmallVec;
 
 /// `PhantomText` is for text that is not in the actual document, but should be rendered with it.  
@@ -108,8 +113,8 @@ impl PhantomTextLine {
     }
 
     /// Insert the hints at their positions in the text
-    pub fn combine_with_text(&self, text: String) -> String {
-        let mut text = text;
+    pub fn combine_with_text<'a>(&self, text: &'a str) -> Cow<'a, str> {
+        let mut text = Cow::Borrowed(text);
         let mut col_shift = 0;
 
         for phantom in self.text.iter() {
@@ -120,7 +125,10 @@ impl PhantomTextLine {
                 return text;
             }
 
-            text.insert_str(location, &phantom.text);
+            let mut text_o = text.into_owned();
+            text_o.insert_str(location, &phantom.text);
+            text = Cow::Owned(text_o);
+
             col_shift += phantom.text.len();
         }
 
@@ -145,5 +153,23 @@ impl PhantomTextLine {
                 phantom,
             )
         })
+    }
+
+    pub fn apply_attr_styles(&self, default: Attrs, attrs_list: &mut AttrsList) {
+        for (offset, size, col, phantom) in self.offset_size_iter() {
+            let start = col + offset;
+            let end = start + size;
+
+            let mut attrs = default;
+            if let Some(fg) = phantom.fg {
+                attrs = attrs.color(fg);
+            }
+            if let Some(phantom_font_size) = phantom.font_size {
+                attrs =
+                    attrs.font_size((phantom_font_size as f32).min(attrs.font_size));
+            }
+
+            attrs_list.add_span(start..end, attrs);
+        }
     }
 }

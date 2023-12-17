@@ -67,7 +67,7 @@ impl<'a> TextLayoutProvider for TLProv<'a> {
             };
 
         let phantom_text = self.phantom.get(&line).cloned().unwrap_or_default();
-        let line_content = phantom_text.combine_with_text(line_content);
+        let line_content = phantom_text.combine_with_text(&line_content);
 
         let attrs = Attrs::new()
             .family(&self.font_family)

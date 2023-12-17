@@ -2251,7 +2251,7 @@ impl<B: Backend + 'static> Document<B> {
             };
         // Combine the phantom text with the line content
         let phantom_text = styling.phantom_text();
-        let line_content = phantom_text.combine_with_text(line_content);
+        let line_content = phantom_text.combine_with_text(&line_content);
 
         let family = styling.font_family();
         let attrs = Attrs::new()
