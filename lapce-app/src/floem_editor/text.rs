@@ -13,7 +13,7 @@ use lapce_xi_rope::Rope;
 use smallvec::smallvec;
 
 /// A document. This holds text.  
-pub trait Document: DocumentStyle {
+pub trait Document: DocumentPhantom {
     /// Get the text of the document
     fn text(&self) -> Rope;
 
@@ -22,8 +22,19 @@ pub trait Document: DocumentStyle {
     }
 }
 
-pub trait DocumentStyle {
+pub trait DocumentPhantom {
     fn phantom_text(&self, line: usize) -> PhantomTextLine;
+
+    /// Translate a column position into the position it would be before combining with
+    /// the phantom text.
+    fn before_phantom_col(&self, line: usize, col: usize) -> usize {
+        let phantom = self.phantom_text(line);
+        phantom.before_col(col)
+    }
+
+    fn has_multiline_phantom(&self) -> bool {
+        true
+    }
 }
 
 /// There's currently three stages of styling text:  
@@ -100,9 +111,13 @@ impl Document for TextDocument {
         self.buffer.text().clone()
     }
 }
-impl DocumentStyle for TextDocument {
+impl DocumentPhantom for TextDocument {
     fn phantom_text(&self, _line: usize) -> PhantomTextLine {
         PhantomTextLine::default()
+    }
+
+    fn has_multiline_phantom(&self) -> bool {
+        false
     }
 }
 
@@ -132,7 +147,7 @@ impl Document for PhantomTextDocument {
         self.doc.text()
     }
 }
-impl DocumentStyle for PhantomTextDocument {
+impl DocumentPhantom for PhantomTextDocument {
     fn phantom_text(&self, line: usize) -> PhantomTextLine {
         let rope_text = self.rope_text();
         let line_end = rope_text.line_end_col(line, true);
@@ -151,5 +166,9 @@ impl DocumentStyle for PhantomTextDocument {
             text: smallvec![phantom],
             max_severity: None,
         };
+    }
+
+    fn has_multiline_phantom(&self) -> bool {
+        false
     }
 }

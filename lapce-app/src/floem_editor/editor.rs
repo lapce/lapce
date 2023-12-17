@@ -145,15 +145,13 @@ impl TextLayoutProvider for EditorTextProv {
         })
     }
 
+    // TODO: doc has these two functions, should we just make it a common subtrait for having
+    // phantom text?
     fn before_phantom_col(&self, line: usize, col: usize) -> usize {
-        // TODO: this should be provided by the `Document` somehow?
-        // We could have document provide all the phantom text information preemptively but that
-        // would be a lot of extra work that isn't necessarily needed.
-        // Having some way to supply it from `Document` seems best.
-        todo!()
+        self.doc.before_phantom_col(line, col)
     }
 
     fn has_multiline_phantom(&self) -> bool {
-        todo!()
+        self.doc.has_multiline_phantom()
     }
 }
