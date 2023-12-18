@@ -16,7 +16,7 @@ use lapce_core::{
 use lapce_xi_rope::Rope;
 
 use crate::{
-    doc::phantom_text::PhantomTextLine,
+    doc::{phantom_text::PhantomTextLine, Preedit},
     editor::{
         view_data::TextLayoutLine,
         visual_line::{
@@ -28,7 +28,7 @@ use crate::{
 
 use super::{
     color::EditorColor,
-    text::{Document, Styling, WrapMethod},
+    text::{Document, PreeditData, Styling, WrapMethod},
     view::ScreenLines,
 };
 
@@ -42,8 +42,8 @@ pub struct Editor {
     /// Whether you can scroll beyond the last line of the document.
     pub scroll_beyond_last_line: RwSignal<bool>,
 
-    doc: RwSignal<Rc<dyn Document>>,
-    style: RwSignal<Rc<dyn Styling>>,
+    pub(crate) doc: RwSignal<Rc<dyn Document>>,
+    pub(crate) style: RwSignal<Rc<dyn Styling>>,
 
     pub cursor: RwSignal<Cursor>,
 
@@ -150,6 +150,34 @@ impl Editor {
             .get_init_text_layout(config_id, &text_prov, line, trigger)
     }
 
+    fn preedit(&self) -> PreeditData {
+        self.doc.with_untracked(|doc| doc.preedit())
+    }
+
+    pub fn set_preedit(
+        &self,
+        text: String,
+        cursor: Option<(usize, usize)>,
+        offset: usize,
+    ) {
+        self.preedit().preedit.set(Some(Preedit {
+            text,
+            cursor,
+            offset,
+        }));
+        // TODO: clear text cache
+    }
+
+    pub fn clear_preedit(&self) {
+        let preedit = self.preedit();
+        if preedit.preedit.with_untracked(|preedit| preedit.is_some()) {
+            preedit.preedit.set(None);
+            // TODO: clear text cache
+        }
+    }
+
+    // === Information ===
+
     pub fn phantom_text(&self, line: usize) -> PhantomTextLine {
         self.doc().phantom_text(line)
     }
@@ -161,6 +189,8 @@ impl Editor {
     pub fn color(&self, color: EditorColor) -> Color {
         self.style().color(color)
     }
+
+    // === Line Information ===
 
     /// Iterate over the visual lines in the view, starting at the given line.
     pub fn iter_vlines(

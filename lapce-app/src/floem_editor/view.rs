@@ -2,13 +2,16 @@ use std::{collections::HashMap, ops::RangeInclusive, rc::Rc};
 
 use floem::{
     context::PaintCx,
+    event::{Event, EventListener},
     id::Id,
     kurbo::{BezPath, Line, Point, Rect, Size},
     peniko::Color,
-    reactive::{RwSignal, Scope},
+    reactive::{create_effect, create_memo, Memo, RwSignal, Scope},
+    style::Style,
+    taffy::node::Node,
     view::{View, ViewData},
-    views::{empty, stack},
-    Renderer,
+    views::{empty, stack, Decorators},
+    EventPropagation, Renderer,
 };
 use lapce_core::{
     buffer::rope_text::RopeText,
@@ -252,6 +255,8 @@ pub struct EditorView {
     id: Id,
     data: ViewData,
     editor: Rc<Editor>,
+    is_active: Memo<bool>,
+    inner_node: Option<Node>,
     sticky_header_info: StickyHeaderInfo,
 }
 impl EditorView {
@@ -589,25 +594,25 @@ impl EditorView {
                 }
             }
 
+            // TODO:
             // if is_active && !hide_cursor.get_untracked() {
-            //     for (_, end) in cursor.regions_iter() {
-            //         let is_block = match cursor.mode {
-            //             CursorMode::Normal(_) | CursorMode::Visual { .. } => true,
-            //             CursorMode::Insert(_) => false,
-            //         };
-            //         let LineRegion { x, width, rvline } =
-            //             cursor_caret(ed, end, is_block, cursor.affinity);
+            for (_, end) in cursor.regions_iter() {
+                let is_block = match cursor.mode {
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => true,
+                    CursorMode::Insert(_) => false,
+                };
+                let LineRegion { x, width, rvline } =
+                    cursor_caret(ed, end, is_block, cursor.affinity);
 
-            //         if let Some(info) = screen_lines.info(rvline) {
-            //             let line_height =
-            //                 ed.line_height(info.vline_info.rvline.line);
-            //             let rect = Rect::from_origin_size(
-            //                 (x, info.vline_y),
-            //                 (width, f64::from(line_height)),
-            //             );
-            //             cx.fill(&rect, caret_color, 0.0);
-            //         }
-            //     }
+                if let Some(info) = screen_lines.info(rvline) {
+                    let line_height = ed.line_height(info.vline_info.rvline.line);
+                    let rect = Rect::from_origin_size(
+                        (x, info.vline_y),
+                        (width, f64::from(line_height)),
+                    );
+                    cx.fill(&rect, caret_color, 0.0);
+                }
+            }
             // }
         });
     }
@@ -1241,10 +1246,10 @@ impl View for EditorView {
         cx: &mut floem::context::UpdateCx,
         state: Box<dyn std::any::Any>,
     ) {
-        // if let Ok(state) = state.downcast() {
-        //     self.sticky_header_info = *state;
-        //     cx.request_layout(self.id);
-        // }
+        if let Ok(state) = state.downcast() {
+            self.sticky_header_info = *state;
+            cx.request_layout(self.id);
+        }
     }
 
     fn layout(
@@ -1252,22 +1257,21 @@ impl View for EditorView {
         cx: &mut floem::context::LayoutCx,
     ) -> floem::taffy::prelude::Node {
         cx.layout_node(self.id, true, |cx| {
-            // if self.inner_node.is_none() {
-            //     self.inner_node = Some(cx.new_node());
-            // }
-            // let inner_node = self.inner_node.unwrap();
+            if self.inner_node.is_none() {
+                self.inner_node = Some(cx.new_node());
+            }
+            let inner_node = self.inner_node.unwrap();
 
-            // let config = self.editor.common.config.get_untracked();
-            // let line_height = config.editor.line_height() as f64;
+            // TODO: don't assume there's a constant line height
+            let line_height = f64::from(self.editor.line_height(0));
 
-            // let width = self.editor.view.max_line_width() + 20.0;
-            // let height = line_height * self.editor.view.last_vline().get() as f64;
+            let width = self.editor.max_line_width() + 20.0;
+            let height = line_height * self.editor.last_vline().get() as f64;
 
-            // let style = Style::new().width(width).height(height).to_taffy_style();
-            // cx.set_style(inner_node, style);
+            let style = Style::new().width(width).height(height).to_taffy_style();
+            cx.set_style(inner_node, style);
 
-            // vec![inner_node]
-            vec![]
+            vec![inner_node]
         })
     }
 
@@ -1275,10 +1279,10 @@ impl View for EditorView {
         &mut self,
         cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
-        // let viewport = cx.current_viewport();
-        // if self.viewport.with_untracked(|v| v != &viewport) {
-        //     self.viewport.set(viewport);
-        // }
+        let viewport = cx.current_viewport();
+        if self.editor.viewport.with_untracked(|v| v != &viewport) {
+            self.editor.viewport.set(viewport);
+        }
         None
     }
 
@@ -1311,22 +1315,72 @@ impl View for EditorView {
     }
 }
 
-pub fn editor_view(editor: Rc<Editor>) -> EditorView {
+pub fn editor_view(
+    editor: Rc<Editor>,
+    is_active: impl Fn(bool) -> bool + 'static + Copy,
+) -> EditorView {
     let id = Id::next();
+    let is_active = create_memo(move |_| is_active(true));
+
     let data = ViewData::new(id);
+
+    // TODO: is_active
+
+    let doc = editor.doc;
+    let style = editor.style;
+    create_effect(move |_| {
+        doc.track();
+        style.track();
+        id.request_layout();
+    });
+
+    // TODO: hide cursor tracking
 
     // TODO: sticky header tracking
 
+    // TODO: ime cursor area stuff?
+
+    let ed = editor.clone();
+    let ed2 = editor.clone();
     EditorView {
         id,
         data,
         editor,
+        is_active,
+        inner_node: None,
         sticky_header_info: StickyHeaderInfo {
             sticky_lines: Vec::new(),
             last_sticky_should_scroll: false,
             y_diff: 0.0,
         },
     }
+    .on_event(EventListener::ImePreedit, move |event| {
+        if !is_active.get_untracked() {
+            return EventPropagation::Continue;
+        }
+
+        if let Event::ImePreedit { text, cursor } = event {
+            if text.is_empty() {
+                ed.clear_preedit();
+            } else {
+                let offset = ed.cursor.with_untracked(|c| c.offset());
+                ed.set_preedit(text.clone(), *cursor, offset);
+            }
+        }
+        EventPropagation::Stop
+    })
+    .on_event(EventListener::ImeCommit, move |event| {
+        if !is_active.get_untracked() {
+            return EventPropagation::Continue;
+        }
+
+        if let Event::ImeCommit(text) = event {
+            ed2.clear_preedit();
+            // TODO:
+            // local_editor.receive_char(text);
+        }
+        EventPropagation::Stop
+    })
 }
 
 #[derive(Clone, Debug)]
