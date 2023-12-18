@@ -1,12 +1,5 @@
 use std::{borrow::Cow, fmt::Debug, rc::Rc};
 
-use crate::{
-    doc::{
-        phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
-        Preedit,
-    },
-    editor::view_data::TextLayoutLine,
-};
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, Stretch, Weight},
     peniko::Color,
@@ -19,7 +12,19 @@ use lapce_core::buffer::{
 use lapce_xi_rope::Rope;
 use smallvec::smallvec;
 
+use crate::{
+    layout::TextLayoutLine,
+    phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
+};
+
 use super::color::EditorColor;
+
+#[derive(Clone)]
+pub struct Preedit {
+    pub text: String,
+    pub cursor: Option<(usize, usize)>,
+    pub offset: usize,
+}
 
 /// IME Preedit  
 /// This is used for IME input, and must be owned by the `Document`.  
@@ -315,10 +320,7 @@ impl DocumentPhantom for PhantomTextDocument {
             text.push(preedit);
         }
 
-        return PhantomTextLine {
-            text,
-            max_severity: None,
-        };
+        return PhantomTextLine { text };
     }
 
     fn has_multiline_phantom(&self) -> bool {

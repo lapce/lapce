@@ -1,0 +1,23 @@
+[package]
+name = "floem-editor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+itertools.workspace = true
+lapce-core.workspace = true
+lapce-rpc.workspace = true
+lapce-xi-rope.workspace = true
+smallvec.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+# TODO: inherit this from workspace?
+floem = { git = "https://github.com/lapce/floem", rev = "92ba6406b2406e4223933267137229db0a619a0a" }

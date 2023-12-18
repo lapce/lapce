@@ -16,13 +16,12 @@ use lapce_core::{
 use lapce_xi_rope::Rope;
 
 use crate::{
-    doc::{phantom_text::PhantomTextLine, Preedit},
-    editor::{
-        view_data::TextLayoutLine,
-        visual_line::{
-            hit_position_aff, FontSizeCacheId, LineFontSizeProvider, Lines, RVLine,
-            ResolvedWrap, TextLayoutProvider, VLine, VLineInfo,
-        },
+    layout::TextLayoutLine,
+    phantom_text::PhantomTextLine,
+    text::Preedit,
+    visual_line::{
+        hit_position_aff, FontSizeCacheId, LineFontSizeProvider, Lines, RVLine,
+        ResolvedWrap, TextLayoutProvider, VLine, VLineInfo,
     },
 };
 

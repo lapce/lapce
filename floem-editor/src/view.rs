@@ -20,11 +20,9 @@ use lapce_core::{
 };
 
 use crate::{
-    doc::phantom_text::PhantomTextKind,
-    editor::{
-        view_data::LineExtraStyle,
-        visual_line::{RVLine, VLineInfo},
-    },
+    layout::LineExtraStyle,
+    phantom_text::PhantomTextKind,
+    visual_line::{RVLine, VLineInfo},
 };
 
 use super::{

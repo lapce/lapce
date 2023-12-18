@@ -1701,6 +1701,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "floem-editor"
+version = "0.3.1"
+dependencies = [
+ "floem",
+ "itertools",
+ "lapce-core",
+ "lapce-rpc",
+ "lapce-xi-rope",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "strum",
+ "strum_macros",
+ "tracing 0.2.0",
+]
+
+[[package]]
 name = "floem_reactive"
 version = "0.1.0"
 source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
