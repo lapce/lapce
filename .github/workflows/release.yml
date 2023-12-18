@@ -100,7 +100,7 @@ jobs:
           Start-Sleep -Seconds 10
           $compressor.close()
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: lapce-windows
           path: |
@@ -149,7 +149,7 @@ jobs:
           mv ./vendor-config.toml ./vendor/
           tar -zcf vendor.tar.gz ./vendor/
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: lapce-linux
           path: |
@@ -238,7 +238,7 @@ jobs:
         run: |
           gzip -c ./target/${{ matrix.triple }}/release/lapce-proxy > ./lapce-proxy-linux-${{ matrix.platform }}.gz
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: lapce-proxy-linux-${{ matrix.platform }}
           path: |
@@ -290,7 +290,7 @@ jobs:
         with:
           product-path: "./target/release-lto/macos/Lapce-macos.dmg"
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: lapce-macos
           path: |
