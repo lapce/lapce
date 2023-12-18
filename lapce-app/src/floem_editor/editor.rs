@@ -38,7 +38,10 @@ pub(crate) const CHAR_WIDTH: f64 = 7.5;
 #[derive(Clone)]
 pub struct Editor {
     /// Whether you can edit within this editor.
-    read_only: bool,
+    pub read_only: RwSignal<bool>,
+    /// Whether you can scroll beyond the last line of the document.
+    pub scroll_beyond_last_line: RwSignal<bool>,
+
     doc: RwSignal<Rc<dyn Document>>,
     style: RwSignal<Rc<dyn Styling>>,
 
@@ -80,7 +83,8 @@ impl Editor {
         // TODO: reset blink cursor effect
 
         Editor {
-            read_only: false,
+            read_only: cx.create_rw_signal(false),
+            scroll_beyond_last_line: cx.create_rw_signal(false),
             doc,
             style,
             cursor,
@@ -148,6 +152,10 @@ impl Editor {
 
     pub fn phantom_text(&self, line: usize) -> PhantomTextLine {
         self.doc().phantom_text(line)
+    }
+
+    pub fn line_height(&self, line: usize) -> f32 {
+        self.style().line_height(line)
     }
 
     pub fn color(&self, color: EditorColor) -> Color {

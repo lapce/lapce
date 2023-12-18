@@ -6,6 +6,10 @@ use strum_macros::{Display, EnumIter, EnumString, IntoStaticStr};
 pub enum EditorColor {
     #[strum(serialize = "editor.background")]
     Background,
+    #[strum(serialize = "editor.scroll_bar")]
+    Scrollbar,
+    #[strum(serialize = "editor.dropdown_shadow")]
+    DropdownShadow,
     #[strum(serialize = "editor.foreground")]
     Foreground,
     #[strum(serialize = "editor.dim")]

@@ -189,6 +189,8 @@ pub fn default_light_color(color: EditorColor) -> Color {
     let grey = Color::rgb8(0xE5, 0xE5, 0xE6);
     match color {
         EditorColor::Background => bg,
+        EditorColor::Scrollbar => Color::rgba8(0xB4, 0xB4, 0xB4, 0xBB),
+        EditorColor::DropdownShadow => Color::rgb8(0xB4, 0xB4, 0xB4),
         EditorColor::Foreground => fg,
         EditorColor::Dim => Color::rgb8(0xA0, 0xA1, 0xA7),
         EditorColor::Focus => Color::BLACK,
@@ -210,6 +212,8 @@ pub fn default_dark_color(color: EditorColor) -> Color {
     let grey = Color::rgb8(0x3E, 0x44, 0x51);
     match color {
         EditorColor::Background => bg,
+        EditorColor::Scrollbar => Color::rgba8(0x3E, 0x44, 0x51, 0xBB),
+        EditorColor::DropdownShadow => Color::BLACK,
         EditorColor::Foreground => fg,
         EditorColor::Dim => Color::rgb8(0x5C, 0x63, 0x70),
         EditorColor::Focus => Color::rgb8(0xCC, 0xCC, 0xCC),
