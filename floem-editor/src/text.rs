@@ -34,6 +34,13 @@ pub struct Preedit {
 pub struct PreeditData {
     pub preedit: RwSignal<Option<Preedit>>,
 }
+impl PreeditData {
+    pub fn new(cx: Scope) -> PreeditData {
+        PreeditData {
+            preedit: cx.create_rw_signal(None),
+        }
+    }
+}
 
 /// A document. This holds text.  
 pub trait Document: DocumentPhantom {

@@ -2933,6 +2933,7 @@ dependencies = [
  "dmg",
  "flate2",
  "floem",
+ "floem-editor",
  "fs_extra",
  "futures",
  "im",
