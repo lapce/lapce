@@ -103,9 +103,11 @@ impl ToString for Buffer {
 }
 
 impl Buffer {
-    pub fn new(text: &str) -> Self {
+    pub fn new(text: impl Into<Rope>) -> Self {
+        let text = text.into();
+        let len = text.len();
         Self {
-            text: Rope::from(text),
+            text,
 
             rev_counter: 1,
             pristine_rev_id: 0,
@@ -125,7 +127,7 @@ impl Buffer {
             undos: BTreeSet::new(),
             undo_group_id: 1,
             live_undos: vec![0],
-            deletes_from_union: Subset::new(text.len()),
+            deletes_from_union: Subset::new(len),
             undone_groups: BTreeSet::new(),
             tombstones: Rope::default(),
 

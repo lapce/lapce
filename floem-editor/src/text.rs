@@ -3,7 +3,7 @@ use std::{borrow::Cow, fmt::Debug, rc::Rc};
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, Stretch, Weight},
     peniko::Color,
-    reactive::{ReadSignal, RwSignal},
+    reactive::{ReadSignal, RwSignal, Scope},
 };
 use lapce_core::buffer::{
     rope_text::{RopeText, RopeTextVal},
@@ -13,8 +13,10 @@ use lapce_xi_rope::Rope;
 use smallvec::smallvec;
 
 use crate::{
+    editor::{normal_compute_screen_lines, Editor},
     layout::TextLayoutLine,
     phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
+    view::{ScreenLines, ScreenLinesBase},
 };
 
 use super::color::EditorColor;
@@ -41,6 +43,8 @@ pub trait Document: DocumentPhantom {
     fn rope_text(&self) -> RopeTextVal {
         RopeTextVal::new(self.text())
     }
+
+    fn cache_rev(&self) -> RwSignal<u64>;
 
     fn preedit(&self) -> PreeditData;
 
@@ -70,6 +74,18 @@ pub trait Document: DocumentPhantom {
             bg: None,
             under_line,
         })
+    }
+
+    /// Compute the visible screen lines.  
+    /// Note: you should typically *not* need to implement this, unless you have some custom
+    /// behavior. Unfortunately this needs an `&self` to be a trait object. So don't call `.update`
+    /// on `Self`
+    fn compute_screen_lines(
+        &self,
+        editor: &Editor,
+        base: RwSignal<ScreenLinesBase>,
+    ) -> ScreenLines {
+        normal_compute_screen_lines(editor, base)
     }
 }
 
@@ -175,7 +191,9 @@ pub trait Styling {
     ) {
     }
 
-    fn wrap(&self, _line: usize) -> WrapMethod {
+    // TODO: we could have line-specific wrapping, but that would need some extra functions for
+    // questions that visual lines' [`Lines`] uses
+    fn wrap(&self) -> WrapMethod {
         WrapMethod::EditorWidth
     }
 
@@ -240,11 +258,31 @@ pub type DocumentRef = Rc<dyn Document>;
 #[derive(Clone)]
 pub struct TextDocument {
     buffer: Buffer,
+    cache_rev: RwSignal<u64>,
     preedit: PreeditData,
+}
+impl TextDocument {
+    pub fn new(cx: Scope, text: impl Into<Rope>) -> TextDocument {
+        let text = text.into();
+        let buffer = Buffer::new(text);
+        let preedit = PreeditData {
+            preedit: cx.create_rw_signal(None),
+        };
+
+        TextDocument {
+            buffer,
+            cache_rev: cx.create_rw_signal(0),
+            preedit,
+        }
+    }
 }
 impl Document for TextDocument {
     fn text(&self) -> Rope {
         self.buffer.text().clone()
+    }
+
+    fn cache_rev(&self) -> RwSignal<u64> {
+        self.cache_rev
     }
 
     fn preedit(&self) -> PreeditData {
@@ -289,6 +327,10 @@ impl PhantomTextDocument {
 impl Document for PhantomTextDocument {
     fn text(&self) -> Rope {
         self.doc.text()
+    }
+
+    fn cache_rev(&self) -> RwSignal<u64> {
+        self.doc.cache_rev()
     }
 
     fn preedit(&self) -> PreeditData {
@@ -414,7 +456,7 @@ impl<C: Fn(EditorColor) -> Color> Styling for SimpleStyling<C> {
     ) {
     }
 
-    fn wrap(&self, _line: usize) -> WrapMethod {
+    fn wrap(&self) -> WrapMethod {
         self.wrap
     }
 

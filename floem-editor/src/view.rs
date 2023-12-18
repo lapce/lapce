@@ -6,7 +6,7 @@ use floem::{
     id::Id,
     kurbo::{BezPath, Line, Point, Rect, Size},
     peniko::Color,
-    reactive::{create_effect, create_memo, Memo, RwSignal, Scope},
+    reactive::{batch, create_effect, create_memo, Memo, RwSignal, Scope},
     style::Style,
     taffy::node::Node,
     view::{View, ViewData},
@@ -212,7 +212,76 @@ impl ScreenLines {
             .copied()
     }
 
-    // TODO: on_created_layout
+    /// Ran on [`LayoutEvent::CreatedLayout`] to update  [`ScreenLinesBase`] &
+    /// the viewport if necessary.
+    ///
+    /// Returns `true` if [`ScreenLines`] needs to be completely updated in response
+    pub(crate) fn on_created_layout(&self, ed: &Editor, line: usize) -> bool {
+        let base = self.base.get_untracked();
+        let vp = ed.viewport.get_untracked();
+
+        let is_before = self
+            .iter_vline_info()
+            .next()
+            .map(|l| line < l.rvline.line)
+            .unwrap_or(false);
+
+        // If the line is created before the current screenlines, we can simply shift the
+        // base and viewport forward by the number of extra wrapped lines,
+        // without needing to recompute the screen lines.
+        if is_before {
+            // TODO: don't assume line height is constant
+            let line_height = f64::from(ed.line_height(0));
+
+            // We could use `try_text_layout` here, but I believe this guards against a rare
+            // crash (though it is hard to verify) wherein the config id has changed and so the
+            // layouts get cleared.
+            // However, the original trigger of the layout event was when a layout was created
+            // and it expects it to still exist. So we create it just in case, though we of course
+            // don't trigger another layout event.
+            let layout = ed.text_layout_trigger(line, false);
+
+            // One line was already accounted for by treating it as an unwrapped line.
+            let new_lines = layout.line_count() - 1;
+
+            let new_y0 = base.active_viewport.y0 + new_lines as f64 * line_height;
+            let new_y1 = new_y0 + vp.height();
+            let new_viewport = Rect::new(vp.x0, new_y0, vp.x1, new_y1);
+
+            batch(|| {
+                self.base.set(ScreenLinesBase {
+                    active_viewport: new_viewport,
+                });
+                ed.viewport.set(new_viewport);
+            });
+
+            // Ensure that it is created even after the base/viewport signals have been updated.
+            // (We need the `text_layout` to still have the layout)
+            // But we have to trigger an event still if it is created because it *would* alter the
+            // screenlines.
+            // TODO: this has some risk for infinite looping if we're unlucky.
+            let _layout = ed.text_layout_trigger(line, true);
+
+            return false;
+        }
+
+        let is_after = self
+            .iter_vline_info()
+            .last()
+            .map(|l| line > l.rvline.line)
+            .unwrap_or(false);
+
+        // If the line created was after the current view, we don't need to update the screenlines
+        // at all, since the new line is not visible and has no effect on y positions
+        if is_after {
+            return false;
+        }
+
+        // If the line is created within the current screenlines, we need to update the
+        // screenlines to account for the new line.
+        // That is handled by the caller.
+        true
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

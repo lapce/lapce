@@ -1,10 +1,15 @@
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    rc::Rc,
+    sync::Arc,
+};
 
 use floem::{
     cosmic_text::{Attrs, AttrsList, LineHeightValue, TextLayout, Wrap},
     kurbo::{Point, Rect},
     peniko::Color,
-    reactive::{ReadSignal, RwSignal, Scope},
+    reactive::{batch, untrack, ReadSignal, RwSignal, Scope},
 };
 use lapce_core::{
     buffer::rope_text::{RopeText, RopeTextVal},
@@ -19,9 +24,10 @@ use crate::{
     layout::TextLayoutLine,
     phantom_text::PhantomTextLine,
     text::Preedit,
+    view::{LineInfo, ScreenLinesBase},
     visual_line::{
-        hit_position_aff, FontSizeCacheId, LineFontSizeProvider, Lines, RVLine,
-        ResolvedWrap, TextLayoutProvider, VLine, VLineInfo,
+        hit_position_aff, FontSizeCacheId, LayoutEvent, LineFontSizeProvider, Lines,
+        RVLine, ResolvedWrap, TextLayoutProvider, VLine, VLineInfo,
     },
 };
 
@@ -36,6 +42,9 @@ pub(crate) const CHAR_WIDTH: f64 = 7.5;
 /// The data for a specific editor view
 #[derive(Clone)]
 pub struct Editor {
+    cx: Cell<Scope>,
+    effects_cx: Cell<Scope>,
+
     /// Whether you can edit within this editor.
     pub read_only: RwSignal<bool>,
     /// Whether you can scroll beyond the last line of the document.
@@ -54,7 +63,11 @@ pub struct Editor {
 impl Editor {
     // TODO: shouldn't this accept an `RwSignal<Rc<dyn Document>>` so that it can listen for
     // changes in other editors?
-    pub fn new(cx: Scope, doc: Rc<dyn Document>, style: Rc<dyn Styling>) -> Editor {
+    pub fn new(
+        cx: Scope,
+        doc: Rc<dyn Document>,
+        style: Rc<dyn Styling>,
+    ) -> Rc<Editor> {
         let cx = cx.create_child();
 
         let viewport = cx.create_rw_signal(Rect::ZERO);
@@ -81,7 +94,9 @@ impl Editor {
 
         // TODO: reset blink cursor effect
 
-        Editor {
+        let ed = Editor {
+            cx: Cell::new(cx),
+            effects_cx: Cell::new(cx.create_child()),
             read_only: cx.create_rw_signal(false),
             scroll_beyond_last_line: cx.create_rw_signal(false),
             doc,
@@ -90,20 +105,17 @@ impl Editor {
             viewport,
             lines,
             screen_lines,
-        }
-    }
+        };
+        let ed = Rc::new(ed);
 
-    pub fn doc_signal(&self) -> RwSignal<Rc<dyn Document>> {
-        self.doc
+        create_view_effects(ed.effects_cx.get(), ed.clone());
+
+        ed
     }
 
     /// Get the document untracked
     pub fn doc(&self) -> Rc<dyn Document> {
         self.doc.get_untracked()
-    }
-
-    pub fn style_signal(&self) -> RwSignal<Rc<dyn Styling>> {
-        self.style
     }
 
     /// Get the styling untracked
@@ -127,7 +139,7 @@ impl Editor {
         self.text_layout_trigger(line, true)
     }
 
-    fn text_prov(&self) -> EditorTextProv {
+    pub fn text_prov(&self) -> EditorTextProv {
         let doc = self.doc.get_untracked();
         EditorTextProv {
             text: doc.text(),
@@ -173,6 +185,14 @@ impl Editor {
             preedit.preedit.set(None);
             // TODO: clear text cache
         }
+    }
+
+    fn compute_screen_lines(&self, base: RwSignal<ScreenLinesBase>) -> ScreenLines {
+        // This function *cannot* access `ScreenLines` with how it is currently implemented.
+        // This is being called from within an update to screen lines.
+
+        // TODO: should we just give the full editor?
+        self.doc().compute_screen_lines(self, base)
     }
 
     // === Information ===
@@ -611,7 +631,8 @@ impl Editor {
     }
 }
 
-struct EditorTextProv {
+#[derive(Clone)]
+pub struct EditorTextProv {
     text: Rope,
     doc: Rc<dyn Document>,
     style: Rc<dyn Styling>,
@@ -669,7 +690,7 @@ impl TextLayoutProvider for EditorTextProv {
         text_layout.set_tab_width(self.style.tab_width(line));
         text_layout.set_text(&line_content, attrs_list);
 
-        match self.style.wrap(line) {
+        match self.style.wrap() {
             WrapMethod::None => {}
             WrapMethod::EditorWidth => {
                 text_layout.set_wrap(Wrap::Word);
@@ -738,5 +759,188 @@ impl LineFontSizeProvider for EditorFontSizes {
     fn cache_id(&self) -> FontSizeCacheId {
         // TODO: we could have a cache id on the styling
         0
+    }
+}
+
+/// Minimum width that we'll allow the view to be wrapped at.
+const MIN_WRAPPED_WIDTH: f32 = 100.0;
+
+/// Create various reactive effects to update the screen lines whenever relevant parts of the view,
+/// doc, text layouts, viewport, etc. change.
+/// This tries to be smart to a degree.
+fn create_view_effects(cx: Scope, ed: Rc<Editor>) {
+    // Cloning is fun.
+    let ed2 = ed.clone();
+    let ed3 = ed.clone();
+    let ed4 = ed.clone();
+
+    let update_screen_lines = |ed: &Editor| {
+        // This function should not depend on the viewport signal directly.
+
+        // This is wrapped in an update to make any updates-while-updating very obvious
+        // which they wouldn't be if we computed and then `set`.
+        ed.screen_lines.update(|screen_lines| {
+            let new_screen_lines = ed.compute_screen_lines(screen_lines.base);
+
+            *screen_lines = new_screen_lines;
+        });
+    };
+
+    // Listen for cache revision changes (essentially edits to the file or requiring
+    // changes on text layouts, like if diagnostics load in)
+    cx.create_effect(move |_| {
+        // We can't put this with the other effects because we only want to update screen lines if
+        // the cache rev actually changed
+        let cache_rev = ed.doc.with(|doc| doc.cache_rev()).get();
+        ed.lines.check_cache_rev(cache_rev);
+    });
+
+    // Listen for layout events, currently only when a layout is created, and update screen
+    // lines based on that
+    ed3.lines.layout_event.listen_with(cx, move |val| {
+        let view = &ed2;
+        // TODO: Move this logic onto screen lines somehow, perhaps just an auxilary
+        // function, to avoid getting confused about what is relevant where.
+
+        match val {
+            LayoutEvent::CreatedLayout { line, .. } => {
+                let sl = view.screen_lines.get_untracked();
+
+                // Intelligently update screen lines, avoiding recalculation if possible
+                let should_update = sl.on_created_layout(view, line);
+
+                if should_update {
+                    untrack(|| {
+                        update_screen_lines(view);
+                    });
+                }
+            }
+        }
+    });
+
+    // TODO: should we have some debouncing for editor width? Ideally we'll be fast enough to not
+    // even need it, though we might not want to use a bunch of cpu whilst resizing anyway.
+
+    let viewport_changed_trigger = cx.create_trigger();
+
+    // Watch for changes to the viewport so that we can alter the wrapping
+    // As well as updating the screen lines base
+    cx.create_effect(move |_| {
+        let ed = &ed3;
+
+        let viewport = ed.viewport.get();
+
+        let wrap = match ed.style.get().wrap() {
+            WrapMethod::None => ResolvedWrap::None,
+            WrapMethod::EditorWidth => {
+                ResolvedWrap::Width((viewport.width() as f32).max(MIN_WRAPPED_WIDTH))
+            }
+            WrapMethod::WrapColumn { .. } => todo!(),
+            WrapMethod::WrapWidth { width } => ResolvedWrap::Width(width),
+        };
+
+        ed.lines.set_wrap(wrap);
+
+        // Update the base
+        let base = ed.screen_lines.with_untracked(|sl| sl.base);
+
+        // TODO: should this be a with or with_untracked?
+        if viewport != base.with_untracked(|base| base.active_viewport) {
+            batch(|| {
+                base.update(|base| {
+                    base.active_viewport = viewport;
+                });
+                // TODO: Can I get rid of this and just call update screen lines with an
+                // untrack around it?
+                viewport_changed_trigger.notify();
+            });
+        }
+    });
+    // Watch for when the viewport as changed in a relevant manner
+    // and for anything that `update_screen_lines` tracks.
+    cx.create_effect(move |_| {
+        viewport_changed_trigger.track();
+
+        update_screen_lines(&ed4);
+    });
+}
+
+pub fn normal_compute_screen_lines(
+    editor: &Editor,
+    base: RwSignal<ScreenLinesBase>,
+) -> ScreenLines {
+    let lines = &editor.lines;
+    let style = editor.style.get();
+    // TODO: don't assume universal line height!
+    let line_height = style.line_height(0);
+
+    let (y0, y1) = base
+        .with_untracked(|base| (base.active_viewport.y0, base.active_viewport.y1));
+    // Get the start and end (visual) lines that are visible in the viewport
+    let min_vline = VLine((y0 / line_height as f64).floor() as usize);
+    let max_vline = VLine((y1 / line_height as f64).ceil() as usize);
+
+    editor.doc.get().cache_rev().track();
+    // TODO(floem-editor): somehow let us track in here
+    // let (cache_rev, content, loaded) =
+    //     doc.with(|doc| (doc.cache_rev, doc.content, doc.loaded));
+
+    // cache_rev.track();
+    // // TODO(minor): we don't really need to depend on various subdetails that aren't affecting how
+    // // the screen lines are set up, like the title of a scratch document.
+    // content.track();
+    // loaded.track();
+
+    let min_info = editor.iter_vlines(false, min_vline).next();
+    // TODO: if you need the max vline you probably need the min vline too and so you could grab
+    // both in one iter call, which would be more efficient than two iterations
+    // let max_info = editor.iter_vlines(false, max_vline).next();
+
+    let mut rvlines = Vec::new();
+    let mut info = HashMap::new();
+
+    let Some(min_info) = min_info else {
+        return ScreenLines {
+            lines: Rc::new(rvlines),
+            info: Rc::new(info),
+            diff_sections: None,
+            base,
+        };
+    };
+
+    // TODO: the original was min_line..max_line + 1, are we iterating too little now?
+    // the iterator is from min_vline..max_vline
+    let count = max_vline.get() - min_vline.get();
+    // TODO(floem-editor): config id
+    let iter = lines
+        .iter_rvlines_init(editor.text_prov(), 0, min_info.rvline, false)
+        .take(count);
+
+    for (i, vline_info) in iter.enumerate() {
+        rvlines.push(vline_info.rvline);
+
+        let line_height = f64::from(style.line_height(vline_info.rvline.line));
+
+        let y_idx = min_vline.get() + i;
+        let vline_y = y_idx as f64 * line_height;
+        let line_y = vline_y - vline_info.rvline.line_index as f64 * line_height;
+
+        // Add the information to make it cheap to get in the future.
+        // This y positions are shifted by the baseline y0
+        info.insert(
+            vline_info.rvline,
+            LineInfo {
+                y: line_y - y0,
+                vline_y: vline_y - y0,
+                vline_info,
+            },
+        );
+    }
+
+    ScreenLines {
+        lines: Rc::new(rvlines),
+        info: Rc::new(info),
+        diff_sections: None,
+        base,
     }
 }

@@ -21,3 +21,7 @@ serde_json.workspace = true
 tracing.workspace = true
 # TODO: inherit this from workspace?
 floem = { git = "https://github.com/lapce/floem", rev = "92ba6406b2406e4223933267137229db0a619a0a" }
+
+[[example]]
+name = "editor"
+path = "examples/editor.rs"
