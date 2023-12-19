@@ -3,17 +3,26 @@ use std::{borrow::Cow, fmt::Debug, rc::Rc};
 use downcast_rs::{impl_downcast, Downcast};
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, Stretch, Weight},
+    keyboard::ModifiersState,
     peniko::Color,
     reactive::{ReadSignal, RwSignal, Scope},
 };
-use lapce_core::buffer::{
-    rope_text::{RopeText, RopeTextVal},
-    Buffer,
+use lapce_core::{
+    buffer::{
+        rope_text::{RopeText, RopeTextVal},
+        Buffer,
+    },
+    cursor::Cursor,
+    editor::Action,
+    mode::MotionMode,
+    register::Register,
+    word::WordCursor,
 };
 use lapce_xi_rope::Rope;
 use smallvec::smallvec;
 
 use crate::{
+    command::{Command, CommandExecuted},
     editor::{normal_compute_screen_lines, Editor},
     layout::TextLayoutLine,
     phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
@@ -53,6 +62,29 @@ pub trait Document: DocumentPhantom + Downcast {
     }
 
     fn cache_rev(&self) -> RwSignal<u64>;
+
+    /// Find the next/previous offset of the match of the given character.  
+    /// This is intended for use by the [`Movement::NextUnmatched`] and
+    /// [`Movement::PreviousUnmatched`] commands.
+    fn find_unmatched(&self, offset: usize, previous: bool, ch: char) -> usize {
+        let text = self.text();
+        let mut cursor = WordCursor::new(&text, offset);
+        let new_offset = if previous {
+            cursor.previous_unmatched(ch)
+        } else {
+            cursor.next_unmatched(ch)
+        };
+
+        new_offset.unwrap_or(offset)
+    }
+
+    /// Find the offset of the matching pair character.  
+    /// This is intended for use by the [`Movement::MatchPairs`] command.
+    fn find_matching_pair(&self, offset: usize) -> usize {
+        WordCursor::new(&self.text(), offset)
+            .match_pairs()
+            .unwrap_or(offset)
+    }
 
     fn preedit(&self) -> PreeditData;
 
@@ -95,6 +127,30 @@ pub trait Document: DocumentPhantom + Downcast {
     ) -> ScreenLines {
         normal_compute_screen_lines(editor, base)
     }
+
+    // TODO: pass in the editorid this is from?
+    fn run_command(
+        &self,
+        cmd: &Command,
+        count: Option<usize>,
+        modifiers: ModifiersState,
+    );
+
+    // TODO: We only require this because the standard movement logic wants to call it
+    // It would be nice to not require this if you're not using the baseline movement
+    // but it would require passing not `&Editor` to movement but either being called with `&Self`
+    // or some trait object - but we need some of the editor features for movement. So possibly
+    // boxed trait object, or we pass the `&Editor` containing the document to a `Document` callback
+    // For now we'll leave it, as it is easy to stub if you aren't using it.
+    fn exec_motion_mode(
+        &self,
+        cursor: &mut Cursor,
+        motion_mode: MotionMode,
+        start: usize,
+        end: usize,
+        is_vertical: bool,
+        register: &mut Register,
+    );
 }
 impl_downcast!(Document);
 
@@ -266,7 +322,7 @@ pub type DocumentRef = Rc<dyn Document>;
 /// This can be used as a base structure for common operations.
 #[derive(Clone)]
 pub struct TextDocument {
-    buffer: Buffer,
+    buffer: RwSignal<Buffer>,
     cache_rev: RwSignal<u64>,
     preedit: PreeditData,
 }
@@ -279,7 +335,7 @@ impl TextDocument {
         };
 
         TextDocument {
-            buffer,
+            buffer: cx.create_rw_signal(buffer),
             cache_rev: cx.create_rw_signal(0),
             preedit,
         }
@@ -287,7 +343,7 @@ impl TextDocument {
 }
 impl Document for TextDocument {
     fn text(&self) -> Rope {
-        self.buffer.text().clone()
+        self.buffer.with_untracked(|buffer| buffer.text().clone())
     }
 
     fn cache_rev(&self) -> RwSignal<u64> {
@@ -296,6 +352,39 @@ impl Document for TextDocument {
 
     fn preedit(&self) -> PreeditData {
         self.preedit.clone()
+    }
+
+    fn run_command(
+        &self,
+        cmd: &Command,
+        count: Option<usize>,
+        modifiers: ModifiersState,
+    ) {
+        todo!()
+    }
+
+    fn exec_motion_mode(
+        &self,
+        cursor: &mut Cursor,
+        motion_mode: MotionMode,
+        start: usize,
+        end: usize,
+        is_vertical: bool,
+        register: &mut Register,
+    ) {
+        // TODO(floem-editor): Action::execute_motion_mode returns with the buffer's syntax edits
+        // but we don't want treesitter to be included in base floem-editor
+        self.buffer.try_update(move |buffer| {
+            Action::execute_motion_mode(
+                cursor,
+                buffer,
+                motion_mode,
+                start,
+                end,
+                is_vertical,
+                register,
+            )
+        });
     }
 }
 impl DocumentPhantom for TextDocument {
@@ -311,7 +400,7 @@ impl DocumentPhantom for TextDocument {
 impl Debug for TextDocument {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut s = f.debug_struct("TextDocument");
-        s.field("text", self.buffer.text());
+        s.field("text", &self.text());
         s.finish()
     }
 }
@@ -345,6 +434,34 @@ impl Document for PhantomTextDocument {
     fn preedit(&self) -> PreeditData {
         self.doc.preedit()
     }
+
+    fn run_command(
+        &self,
+        cmd: &Command,
+        count: Option<usize>,
+        modifiers: ModifiersState,
+    ) {
+        self.doc.run_command(cmd, count, modifiers)
+    }
+
+    fn exec_motion_mode(
+        &self,
+        cursor: &mut Cursor,
+        motion_mode: MotionMode,
+        start: usize,
+        end: usize,
+        is_vertical: bool,
+        register: &mut Register,
+    ) {
+        self.doc.exec_motion_mode(
+            cursor,
+            motion_mode,
+            start,
+            end,
+            is_vertical,
+            register,
+        )
+    }
 }
 impl DocumentPhantom for PhantomTextDocument {
     fn phantom_text(&self, line: usize) -> PhantomTextLine {
@@ -376,6 +493,120 @@ impl DocumentPhantom for PhantomTextDocument {
 
     fn has_multiline_phantom(&self) -> bool {
         false
+    }
+}
+
+/// A document-wrapper for handling commands.  
+pub struct ExtCmdDocument<D, F> {
+    pub doc: D,
+    /// Called whenever [`Document::run_command`] is called.  
+    /// If `handler` returns [`CommandExecuted::Yes`] then the default handler on `doc: D` will not
+    /// be called.
+    pub handler: F,
+}
+impl<
+        D: Document,
+        F: Fn(&Command, Option<usize>, ModifiersState) -> CommandExecuted + 'static,
+    > ExtCmdDocument<D, F>
+{
+    pub fn new(doc: D, handler: F) -> ExtCmdDocument<D, F> {
+        ExtCmdDocument { doc, handler }
+    }
+}
+// TODO: it'd be nice if there was some macro to wrap all of the `Document` methods
+// but replace specific ones
+impl<D, F> Document for ExtCmdDocument<D, F>
+where
+    D: Document,
+    F: Fn(&Command, Option<usize>, ModifiersState) -> CommandExecuted + 'static,
+{
+    fn text(&self) -> Rope {
+        self.doc.text()
+    }
+
+    fn rope_text(&self) -> RopeTextVal {
+        self.doc.rope_text()
+    }
+
+    fn cache_rev(&self) -> RwSignal<u64> {
+        self.doc.cache_rev()
+    }
+
+    fn find_unmatched(&self, offset: usize, previous: bool, ch: char) -> usize {
+        self.doc.find_unmatched(offset, previous, ch)
+    }
+
+    fn find_matching_pair(&self, offset: usize) -> usize {
+        self.doc.find_matching_pair(offset)
+    }
+
+    fn preedit(&self) -> PreeditData {
+        self.doc.preedit()
+    }
+
+    fn preedit_phantom(
+        &self,
+        under_line: Option<Color>,
+        line: usize,
+    ) -> Option<PhantomText> {
+        self.doc.preedit_phantom(under_line, line)
+    }
+
+    fn compute_screen_lines(
+        &self,
+        editor: &Editor,
+        base: RwSignal<ScreenLinesBase>,
+    ) -> ScreenLines {
+        self.doc.compute_screen_lines(editor, base)
+    }
+
+    fn run_command(
+        &self,
+        cmd: &Command,
+        count: Option<usize>,
+        modifiers: ModifiersState,
+    ) {
+        if (self.handler)(cmd, count, modifiers) == CommandExecuted::Yes {
+            return;
+        }
+
+        self.doc.run_command(cmd, count, modifiers)
+    }
+
+    fn exec_motion_mode(
+        &self,
+        cursor: &mut Cursor,
+        motion_mode: MotionMode,
+        start: usize,
+        end: usize,
+        is_vertical: bool,
+        register: &mut Register,
+    ) {
+        self.doc.exec_motion_mode(
+            cursor,
+            motion_mode,
+            start,
+            end,
+            is_vertical,
+            register,
+        )
+    }
+}
+impl<D, F> DocumentPhantom for ExtCmdDocument<D, F>
+where
+    D: Document,
+    F: Fn(&Command, Option<usize>, ModifiersState) -> CommandExecuted,
+{
+    fn phantom_text(&self, line: usize) -> PhantomTextLine {
+        self.doc.phantom_text(line)
+    }
+
+    fn has_multiline_phantom(&self) -> bool {
+        self.doc.has_multiline_phantom()
+    }
+
+    fn before_phantom_col(&self, line: usize, col: usize) -> usize {
+        self.doc.before_phantom_col(line, col)
     }
 }
 

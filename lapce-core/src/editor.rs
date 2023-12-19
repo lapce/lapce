@@ -77,6 +77,10 @@ impl EditType {
 }
 
 pub struct Editor {}
+// TODO(floem-editor): rename this file's `Editor`, or rename `floem-editor`'s `Editor`
+// we could also just have these functions be exported rather than be associated with a type
+// we never construct
+pub type Action = Editor;
 
 impl Editor {
     pub fn insert(

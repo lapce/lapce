@@ -12,11 +12,13 @@ use floem::{
     action::exec_after,
     cosmic_text::FamilyOwned,
     ext_event::create_ext_action,
+    keyboard::ModifiersState,
     peniko::Color,
     reactive::{batch, ReadSignal, RwSignal, Scope},
 };
 use floem_editor::{
     color::EditorColor,
+    command::Command,
     phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
     text::{Document, DocumentPhantom, PreeditData, Styling, WrapMethod},
 };
@@ -27,10 +29,12 @@ use lapce_core::{
         rope_text::RopeText,
         Buffer, InvalLines,
     },
+    char_buffer::CharBuffer,
     command::EditCommand,
     cursor::Cursor,
-    editor::{EditType, Editor},
+    editor::{Action, EditType, Editor},
     language::LapceLanguage,
+    mode::MotionMode,
     register::Register,
     selection::{InsertDrift, Selection},
     style::line_styles,
@@ -222,6 +226,10 @@ impl Doc {
     }
 }
 impl Doc {
+    pub fn syntax(&self) -> ReadSignal<Syntax> {
+        self.syntax.read_only()
+    }
+
     pub fn set_syntax(&self, syntax: Syntax) {
         batch(|| {
             self.syntax.set(syntax);
@@ -1024,6 +1032,39 @@ impl Document for Doc {
         self.cache_rev
     }
 
+    fn find_unmatched(&self, offset: usize, previous: bool, ch: char) -> usize {
+        self.syntax().with_untracked(|syntax| {
+            if syntax.layers.is_some() {
+                syntax
+                    .find_tag(offset, previous, &CharBuffer::from(ch))
+                    .unwrap_or(offset)
+            } else {
+                let text = self.text();
+                let mut cursor = WordCursor::new(&text, offset);
+                let new_offset = if previous {
+                    cursor.previous_unmatched(ch)
+                } else {
+                    cursor.next_unmatched(ch)
+                };
+
+                new_offset.unwrap_or(offset)
+            }
+        })
+    }
+
+    fn find_matching_pair(&self, offset: usize) -> usize {
+        self.syntax().with_untracked(|syntax| {
+            if syntax.layers.is_some() {
+                syntax.find_matching_pair(offset).unwrap_or(offset)
+            } else {
+                let text = self.text();
+                WordCursor::new(&text, offset)
+                    .match_pairs()
+                    .unwrap_or(offset)
+            }
+        })
+    }
+
     fn preedit(&self) -> PreeditData {
         self.preedit.clone()
     }
@@ -1033,7 +1074,96 @@ impl Document for Doc {
         editor: &floem_editor::editor::Editor,
         base: RwSignal<floem_editor::view::ScreenLinesBase>,
     ) -> floem_editor::view::ScreenLines {
-        todo!()
+        todo!("handle diff editors somehow")
+    }
+
+    fn run_command(
+        &self,
+        cmd: &Command,
+        count: Option<usize>,
+        modifiers: ModifiersState,
+    ) {
+        // if self.common.find.visual.get_untracked() && self.find_focus.get_untracked()
+        // {
+        //     match &command.kind {
+        //         CommandKind::Edit(_)
+        //         | CommandKind::Move(_)
+        //         | CommandKind::MultiSelection(_) => {
+        //             if self.common.find.replace_focus.get_untracked() {
+        //                 self.common.internal_command.send(
+        //                     InternalCommand::ReplaceEditorCommand {
+        //                         command: command.clone(),
+        //                         count,
+        //                         mods,
+        //                     },
+        //                 );
+        //             } else {
+        //                 self.common.internal_command.send(
+        //                     InternalCommand::FindEditorCommand {
+        //                         command: command.clone(),
+        //                         count,
+        //                         mods,
+        //                     },
+        //                 );
+        //             }
+        //             return CommandExecuted::Yes;
+        //         }
+        //         _ => {}
+        //     }
+        // }
+
+        // match &command.kind {
+        //     crate::command::CommandKind::Workbench(_) => CommandExecuted::No,
+        //     crate::command::CommandKind::Edit(cmd) => self.run_edit_command(cmd),
+        //     crate::command::CommandKind::Move(cmd) => {
+        //         let movement = cmd.to_movement(count);
+        //         self.run_move_command(&movement, count, mods)
+        //     }
+        //     crate::command::CommandKind::Focus(cmd) => {
+        //         if self
+        //             .view
+        //             .doc
+        //             .get_untracked()
+        //             .content
+        //             .with_untracked(|content| content.is_local())
+        //         {
+        //             return CommandExecuted::No;
+        //         }
+        //         self.run_focus_command(cmd, count, mods)
+        //     }
+        //     crate::command::CommandKind::MotionMode(cmd) => {
+        //         self.run_motion_mode_command(cmd, count)
+        //     }
+        //     crate::command::CommandKind::MultiSelection(cmd) => {
+        //         self.run_multi_selection_command(cmd)
+        //     }
+        // }
+    }
+
+    fn exec_motion_mode(
+        &self,
+        cursor: &mut Cursor,
+        motion_mode: MotionMode,
+        start: usize,
+        end: usize,
+        is_vertical: bool,
+        register: &mut Register,
+    ) {
+        let deltas = self
+            .buffer
+            .try_update(move |buffer| {
+                Action::execute_motion_mode(
+                    cursor,
+                    buffer,
+                    motion_mode,
+                    start,
+                    end,
+                    is_vertical,
+                    register,
+                )
+            })
+            .unwrap();
+        self.apply_deltas(&deltas);
     }
 }
 impl DocumentPhantom for Doc {
