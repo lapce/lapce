@@ -21,6 +21,7 @@ use lapce_core::{
 use lapce_xi_rope::Rope;
 
 use crate::{
+    id::EditorId,
     layout::TextLayoutLine,
     phantom_text::PhantomTextLine,
     text::Preedit,
@@ -45,6 +46,8 @@ pub struct Editor {
     cx: Cell<Scope>,
     effects_cx: Cell<Scope>,
 
+    id: EditorId,
+
     /// Whether you can edit within this editor.
     pub read_only: RwSignal<bool>,
     /// Whether you can scroll beyond the last line of the document.
@@ -63,8 +66,12 @@ pub struct Editor {
 impl Editor {
     // TODO: shouldn't this accept an `RwSignal<Rc<dyn Document>>` so that it can listen for
     // changes in other editors?
+    // TODO: should we really allow callers to arbitrarily specify the Id? That could open up
+    // confusing behavior.
+    /// `id` should typically be constructed by [`EditorId::next`]
     pub fn new(
         cx: Scope,
+        id: EditorId,
         doc: Rc<dyn Document>,
         style: Rc<dyn Styling>,
     ) -> Rc<Editor> {
@@ -97,6 +104,7 @@ impl Editor {
         let ed = Editor {
             cx: Cell::new(cx),
             effects_cx: Cell::new(cx.create_child()),
+            id,
             read_only: cx.create_rw_signal(false),
             scroll_beyond_last_line: cx.create_rw_signal(false),
             doc,
@@ -111,6 +119,10 @@ impl Editor {
         create_view_effects(ed.effects_cx.get(), ed.clone());
 
         ed
+    }
+
+    pub fn id(&self) -> EditorId {
+        self.id
     }
 
     /// Get the document untracked

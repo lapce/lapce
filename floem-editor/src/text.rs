@@ -1,5 +1,6 @@
 use std::{borrow::Cow, fmt::Debug, rc::Rc};
 
+use downcast_rs::{impl_downcast, Downcast};
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, Stretch, Weight},
     peniko::Color,
@@ -43,7 +44,7 @@ impl PreeditData {
 }
 
 /// A document. This holds text.  
-pub trait Document: DocumentPhantom {
+pub trait Document: DocumentPhantom + Downcast {
     /// Get the text of the document
     fn text(&self) -> Rope;
 
@@ -95,6 +96,7 @@ pub trait Document: DocumentPhantom {
         normal_compute_screen_lines(editor, base)
     }
 }
+impl_downcast!(Document);
 
 pub trait DocumentPhantom {
     fn phantom_text(&self, line: usize) -> PhantomTextLine;

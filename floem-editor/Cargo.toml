@@ -21,6 +21,8 @@ serde_json.workspace = true
 tracing.workspace = true
 # TODO: inherit this from workspace?
 floem = { git = "https://github.com/lapce/floem", rev = "92ba6406b2406e4223933267137229db0a619a0a" }
+# TODO: once https://github.com/rust-lang/rust/issues/65991 is stabilized we don't need this
+downcast-rs = "1.2.0"
 
 [[example]]
 name = "editor"

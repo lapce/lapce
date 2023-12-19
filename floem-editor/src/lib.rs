@@ -2,6 +2,7 @@
 pub mod actions;
 pub mod color;
 pub mod editor;
+pub mod id;
 pub mod layout;
 pub mod listener;
 pub mod phantom_text;

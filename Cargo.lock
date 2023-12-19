@@ -1704,6 +1704,7 @@ dependencies = [
 name = "floem-editor"
 version = "0.3.1"
 dependencies = [
+ "downcast-rs",
  "floem",
  "itertools",
  "lapce-core",
