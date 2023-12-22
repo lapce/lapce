@@ -111,7 +111,7 @@ jobs:
 
   linux:
     runs-on: ubuntu-latest
-    container: ubuntu:18.04
+    container: ubuntu:20.04
     needs: tagname
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
@@ -185,7 +185,7 @@ jobs:
         uses: jirutka/setup-alpine@v1
         with:
           arch: ${{ matrix.platform }}
-          branch: v3.18
+          branch: v3.19
           packages: ${{ env.PACKAGES }}
           shell-name: alpine-target.sh
 
