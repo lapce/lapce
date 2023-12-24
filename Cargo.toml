@@ -63,7 +63,7 @@ toml = { version = "*" }
 toml_edit = { version = "0.19.14", features = ["serde"] }
 url = { version = "2.3.1" }
 
-lsp-types = { version = "0.94", features = ["proposed"] }
+lsp-types = { version = "0.94.1", features = ["proposed"] } # not following semver, so should be locked to patch version updates only
 psp-types = { git = "https://github.com/lapce/psp-types", rev = "f7fea28f59e7b2d6faa1034a21679ad49b3524ad" }
 
 lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
