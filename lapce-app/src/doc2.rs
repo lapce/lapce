@@ -17,10 +17,14 @@ use floem::{
     reactive::{batch, ReadSignal, RwSignal, Scope},
 };
 use floem_editor::{
+    actions::CommonAction,
     color::EditorColor,
     command::Command,
+    editor::Editor,
     phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
-    text::{Document, DocumentPhantom, PreeditData, Styling, WrapMethod},
+    text::{
+        Document, DocumentPhantom, PreeditData, Styling, SystemClipboard, WrapMethod,
+    },
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -32,7 +36,7 @@ use lapce_core::{
     char_buffer::CharBuffer,
     command::EditCommand,
     cursor::Cursor,
-    editor::{Action, EditType, Editor},
+    editor::{Action, EditType},
     language::LapceLanguage,
     mode::MotionMode,
     register::Register,
@@ -56,7 +60,7 @@ use smallvec::SmallVec;
 
 use crate::{
     config::{color::LapceColor, editor::WrapStyle, LapceConfig},
-    doc::{DiagnosticData, DocContent, SystemClipboard},
+    doc::{DiagnosticData, DocContent},
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     window_tab::CommonData,
@@ -302,7 +306,7 @@ impl Doc {
         let deltas = self.syntax.with_untracked(|syntax| {
             self.buffer
                 .try_update(|buffer| {
-                    Editor::insert(
+                    Action::insert(
                         cursor,
                         buffer,
                         s,
@@ -359,7 +363,7 @@ impl Doc {
         let deltas = self.syntax.with_untracked(|syntax| {
             self.buffer
                 .try_update(|buffer| {
-                    Editor::do_edit(
+                    Action::do_edit(
                         cursor,
                         buffer,
                         cmd,
@@ -1079,6 +1083,7 @@ impl Document for Doc {
 
     fn run_command(
         &self,
+        ed: &Editor,
         cmd: &Command,
         count: Option<usize>,
         modifiers: ModifiersState,
@@ -1138,32 +1143,6 @@ impl Document for Doc {
         //         self.run_multi_selection_command(cmd)
         //     }
         // }
-    }
-
-    fn exec_motion_mode(
-        &self,
-        cursor: &mut Cursor,
-        motion_mode: MotionMode,
-        start: usize,
-        end: usize,
-        is_vertical: bool,
-        register: &mut Register,
-    ) {
-        let deltas = self
-            .buffer
-            .try_update(move |buffer| {
-                Action::execute_motion_mode(
-                    cursor,
-                    buffer,
-                    motion_mode,
-                    start,
-                    end,
-                    is_vertical,
-                    register,
-                )
-            })
-            .unwrap();
-        self.apply_deltas(&deltas);
     }
 }
 impl DocumentPhantom for Doc {
@@ -1341,6 +1320,84 @@ impl DocumentPhantom for Doc {
     fn has_multiline_phantom(&self) -> bool {
         // TODO: actually check
         true
+    }
+}
+impl CommonAction for Doc {
+    fn exec_motion_mode(
+        &self,
+        cursor: &mut Cursor,
+        motion_mode: MotionMode,
+        start: usize,
+        end: usize,
+        is_vertical: bool,
+        register: &mut Register,
+    ) {
+        let deltas = self
+            .buffer
+            .try_update(move |buffer| {
+                Action::execute_motion_mode(
+                    cursor,
+                    buffer,
+                    motion_mode,
+                    start,
+                    end,
+                    is_vertical,
+                    register,
+                )
+            })
+            .unwrap();
+        self.apply_deltas(&deltas);
+    }
+
+    fn do_edit(
+        &self,
+        cursor: &mut Cursor,
+        cmd: &EditCommand,
+        modal: bool,
+        register: &mut Register,
+        smart_tab: bool,
+    ) -> bool {
+        // TODO(floem-editor): should this be how read only is handled??
+        if self.content.with_untracked(|c| c.read_only())
+            && !cmd.not_changing_buffer()
+        {
+            return false;
+        }
+
+        // TODO: a good bit of this logic is shared with TextDocument, should we make a general
+        // function?
+        let mut clipboard = SystemClipboard::new();
+        let old_cursor = cursor.mode.clone();
+        let comment_token = self
+            .syntax
+            .with_untracked(|syntax| syntax.language)
+            .comment_token();
+        let deltas = self
+            .buffer
+            .try_update(|buffer| {
+                Action::do_edit(
+                    cursor,
+                    buffer,
+                    cmd,
+                    comment_token,
+                    &mut clipboard,
+                    modal,
+                    register,
+                    smart_tab,
+                )
+            })
+            .unwrap();
+
+        if !deltas.is_empty() {
+            self.buffer.update(|buffer| {
+                buffer.set_cursor_before(old_cursor);
+                buffer.set_cursor_after(cursor.mode.clone());
+            });
+        }
+
+        self.apply_deltas(&deltas);
+
+        !deltas.is_empty()
     }
 }
 

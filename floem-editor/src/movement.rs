@@ -12,8 +12,8 @@ use lapce_core::{
 };
 
 use crate::{
+    actions::CommonAction,
     editor::Editor,
-    text::Document,
     visual_line::{RVLine, VLineInfo},
 };
 
@@ -562,6 +562,7 @@ fn to_line(
 /// This will signal-update the document for some motion modes.
 pub fn move_cursor(
     view: &Editor,
+    action: &dyn CommonAction,
     cursor: &mut Cursor,
     movement: &Movement,
     count: usize,
@@ -607,7 +608,7 @@ pub fn move_cursor(
                     }
                     _ => (offset, new_offset),
                 };
-                view.doc().exec_motion_mode(
+                action.exec_motion_mode(
                     cursor,
                     motion_mode,
                     start,
@@ -874,7 +875,7 @@ pub fn do_multi_selection(
 }
 
 pub fn do_motion_mode(
-    doc: &dyn Document,
+    action: &dyn CommonAction,
     cursor: &mut Cursor,
     motion_mode: MotionMode,
     register: &mut Register,
@@ -885,7 +886,7 @@ pub fn do_motion_mode(
             == core::mem::discriminant(&motion_mode)
         {
             let offset = cursor.offset();
-            doc.exec_motion_mode(
+            action.exec_motion_mode(
                 cursor,
                 cached_motion_mode,
                 offset,

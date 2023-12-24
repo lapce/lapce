@@ -15,6 +15,7 @@ use lapce_core::{
     buffer::rope_text::{RopeText, RopeTextVal},
     cursor::{ColPosition, Cursor, CursorAffinity, CursorMode},
     mode::Mode,
+    register::Register,
     selection::Selection,
     soft_tab::{snap_to_soft_tab_line_col, SnapDirection},
 };
@@ -62,18 +63,27 @@ pub struct Editor {
     /// Holds the cache of the lines and provides many utility functions for them.
     lines: Rc<Lines>,
     pub screen_lines: RwSignal<ScreenLines>,
+
+    /// Modal mode register
+    pub register: RwSignal<Register>,
+    // TODO: this could have the Lapce snippet support built-in
 }
 impl Editor {
     // TODO: shouldn't this accept an `RwSignal<Rc<dyn Document>>` so that it can listen for
     // changes in other editors?
     // TODO: should we really allow callers to arbitrarily specify the Id? That could open up
     // confusing behavior.
-    /// `id` should typically be constructed by [`EditorId::next`]
+    /// `id` should typically be constructed by [`EditorId::next`]  
+    /// `doc`: The backing [`Document`], such as [`TextDocument`]  
+    /// `style`: How the editor should be styled, such as [`SimpleStyling`]  
+    /// `register` is the modal mode register, which will be created if `None`. You can pass in an
+    /// existing signal for it if you wish to share the state between editors.
     pub fn new(
         cx: Scope,
         id: EditorId,
         doc: Rc<dyn Document>,
         style: Rc<dyn Styling>,
+        register: Option<RwSignal<Register>>,
     ) -> Rc<Editor> {
         let cx = cx.create_child();
 
@@ -113,6 +123,8 @@ impl Editor {
             viewport,
             lines,
             screen_lines,
+            register: register
+                .unwrap_or_else(|| cx.create_rw_signal(Register::default())),
         };
         let ed = Rc::new(ed);
 

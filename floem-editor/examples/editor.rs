@@ -9,6 +9,7 @@ use floem::{
 use floem_editor::{
     color::EditorColor,
     editor::Editor,
+    id::EditorId,
     text::{default_dark_color, SimpleStyling, TextDocument},
     view::editor_view,
 };
@@ -21,7 +22,8 @@ fn main() {
     let style = SimpleStyling::new(default_dark_color);
     let style = Rc::new(style);
 
-    let editor = Editor::new(cx, doc, style);
+    let id = EditorId::next();
+    let editor = Editor::new(cx, id, doc, style, None);
 
     floem::launch(move || app_view(editor.clone()));
 }

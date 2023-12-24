@@ -216,6 +216,36 @@ impl MoveCommand {
     }
 }
 
+// TODO(floem-editor): The idea is that Lapce has its own specific extensions to focus command
+// but we should just split those out as a separate enum within Lapce itself.
+#[derive(
+    Display,
+    EnumString,
+    EnumIter,
+    Clone,
+    PartialEq,
+    Eq,
+    Debug,
+    EnumMessage,
+    IntoStaticStr,
+)]
+pub enum FocusCommand2 {
+    #[strum(serialize = "page_up")]
+    PageUp,
+    #[strum(serialize = "page_down")]
+    PageDown,
+    #[strum(serialize = "scroll_up")]
+    ScrollUp,
+    #[strum(serialize = "scroll_down")]
+    ScrollDown,
+    #[strum(serialize = "center_of_window")]
+    CenterOfWindow,
+    #[strum(serialize = "top_of_window")]
+    TopOfWindow,
+    #[strum(serialize = "bottom_of_window")]
+    BottomOfWindow,
+}
+
 #[derive(
     Display,
     EnumString,

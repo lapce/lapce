@@ -1,5 +1,6 @@
 use lapce_core::command::{
-    EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
+    EditCommand, FocusCommand, FocusCommand2, MotionModeCommand, MoveCommand,
+    MultiSelectionCommand,
 };
 use strum::EnumMessage;
 
@@ -7,7 +8,7 @@ use strum::EnumMessage;
 pub enum Command {
     Edit(EditCommand),
     Move(MoveCommand),
-    Focus(FocusCommand),
+    Focus(FocusCommand2),
     MotionMode(MotionModeCommand),
     MultiSelection(MultiSelectionCommand),
 }

@@ -12,16 +12,18 @@ use lapce_core::{
         rope_text::{RopeText, RopeTextVal},
         Buffer,
     },
+    command::EditCommand,
     cursor::Cursor,
     editor::Action,
     mode::MotionMode,
-    register::Register,
+    register::{Clipboard, Register},
     word::WordCursor,
 };
 use lapce_xi_rope::Rope;
 use smallvec::smallvec;
 
 use crate::{
+    actions::{handle_command_default, CommonAction},
     command::{Command, CommandExecuted},
     editor::{normal_compute_screen_lines, Editor},
     layout::TextLayoutLine,
@@ -30,6 +32,30 @@ use crate::{
 };
 
 use super::color::EditorColor;
+
+pub struct SystemClipboard;
+
+impl Default for SystemClipboard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SystemClipboard {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Clipboard for SystemClipboard {
+    fn get_string(&mut self) -> Option<String> {
+        floem::Clipboard::get_contents().ok()
+    }
+
+    fn put_string(&mut self, s: impl AsRef<str>) {
+        let _ = floem::Clipboard::set_contents(s.as_ref().to_string());
+    }
+}
 
 #[derive(Clone)]
 pub struct Preedit {
@@ -128,28 +154,15 @@ pub trait Document: DocumentPhantom + Downcast {
         normal_compute_screen_lines(editor, base)
     }
 
-    // TODO: pass in the editorid this is from?
+    /// Run a command on the document.  
+    /// The `ed` will contain this document (at some level, if it was wrapped then it may not be
+    /// directly `Rc<Self>`)
     fn run_command(
         &self,
+        ed: &Editor,
         cmd: &Command,
         count: Option<usize>,
         modifiers: ModifiersState,
-    );
-
-    // TODO: We only require this because the standard movement logic wants to call it
-    // It would be nice to not require this if you're not using the baseline movement
-    // but it would require passing not `&Editor` to movement but either being called with `&Self`
-    // or some trait object - but we need some of the editor features for movement. So possibly
-    // boxed trait object, or we pass the `&Editor` containing the document to a `Document` callback
-    // For now we'll leave it, as it is easy to stub if you aren't using it.
-    fn exec_motion_mode(
-        &self,
-        cursor: &mut Cursor,
-        motion_mode: MotionMode,
-        start: usize,
-        end: usize,
-        is_vertical: bool,
-        register: &mut Register,
     );
 }
 impl_downcast!(Document);
@@ -356,13 +369,24 @@ impl Document for TextDocument {
 
     fn run_command(
         &self,
+        ed: &Editor,
         cmd: &Command,
         count: Option<usize>,
         modifiers: ModifiersState,
     ) {
-        todo!()
+        handle_command_default(ed, self, self.buffer, cmd, count, modifiers);
+    }
+}
+impl DocumentPhantom for TextDocument {
+    fn phantom_text(&self, _line: usize) -> PhantomTextLine {
+        PhantomTextLine::default()
     }
 
+    fn has_multiline_phantom(&self) -> bool {
+        false
+    }
+}
+impl CommonAction for TextDocument {
     fn exec_motion_mode(
         &self,
         cursor: &mut Cursor,
@@ -386,14 +410,45 @@ impl Document for TextDocument {
             )
         });
     }
-}
-impl DocumentPhantom for TextDocument {
-    fn phantom_text(&self, _line: usize) -> PhantomTextLine {
-        PhantomTextLine::default()
-    }
 
-    fn has_multiline_phantom(&self) -> bool {
-        false
+    fn do_edit(
+        &self,
+        cursor: &mut Cursor,
+        cmd: &EditCommand,
+        modal: bool,
+        register: &mut Register,
+        smart_tab: bool,
+    ) -> bool {
+        let mut clipboard = SystemClipboard::new();
+        let old_cursor = cursor.mode.clone();
+        // TODO(floem-editor): should this just be `//` by default
+        // or should it be configurable on text document
+        // or just removed here?
+        let comment_token = "";
+        let deltas = self
+            .buffer
+            .try_update(|buffer| {
+                Action::do_edit(
+                    cursor,
+                    buffer,
+                    cmd,
+                    comment_token,
+                    &mut clipboard,
+                    modal,
+                    register,
+                    smart_tab,
+                )
+            })
+            .unwrap();
+
+        if !deltas.is_empty() {
+            self.buffer.update(|buffer| {
+                buffer.set_cursor_before(old_cursor);
+                buffer.set_cursor_after(cursor.mode.clone());
+            });
+        }
+
+        !deltas.is_empty()
     }
 }
 
@@ -437,30 +492,12 @@ impl Document for PhantomTextDocument {
 
     fn run_command(
         &self,
+        ed: &Editor,
         cmd: &Command,
         count: Option<usize>,
         modifiers: ModifiersState,
     ) {
-        self.doc.run_command(cmd, count, modifiers)
-    }
-
-    fn exec_motion_mode(
-        &self,
-        cursor: &mut Cursor,
-        motion_mode: MotionMode,
-        start: usize,
-        end: usize,
-        is_vertical: bool,
-        register: &mut Register,
-    ) {
-        self.doc.exec_motion_mode(
-            cursor,
-            motion_mode,
-            start,
-            end,
-            is_vertical,
-            register,
-        )
+        self.doc.run_command(ed, cmd, count, modifiers)
     }
 }
 impl DocumentPhantom for PhantomTextDocument {
@@ -495,6 +532,37 @@ impl DocumentPhantom for PhantomTextDocument {
         false
     }
 }
+impl CommonAction for PhantomTextDocument {
+    fn exec_motion_mode(
+        &self,
+        cursor: &mut Cursor,
+        motion_mode: MotionMode,
+        start: usize,
+        end: usize,
+        is_vertical: bool,
+        register: &mut Register,
+    ) {
+        self.doc.exec_motion_mode(
+            cursor,
+            motion_mode,
+            start,
+            end,
+            is_vertical,
+            register,
+        )
+    }
+
+    fn do_edit(
+        &self,
+        cursor: &mut Cursor,
+        cmd: &EditCommand,
+        modal: bool,
+        register: &mut Register,
+        smart_tab: bool,
+    ) -> bool {
+        self.doc.do_edit(cursor, cmd, modal, register, smart_tab)
+    }
+}
 
 /// A document-wrapper for handling commands.  
 pub struct ExtCmdDocument<D, F> {
@@ -506,7 +574,8 @@ pub struct ExtCmdDocument<D, F> {
 }
 impl<
         D: Document,
-        F: Fn(&Command, Option<usize>, ModifiersState) -> CommandExecuted + 'static,
+        F: Fn(&Editor, &Command, Option<usize>, ModifiersState) -> CommandExecuted
+            + 'static,
     > ExtCmdDocument<D, F>
 {
     pub fn new(doc: D, handler: F) -> ExtCmdDocument<D, F> {
@@ -518,7 +587,8 @@ impl<
 impl<D, F> Document for ExtCmdDocument<D, F>
 where
     D: Document,
-    F: Fn(&Command, Option<usize>, ModifiersState) -> CommandExecuted + 'static,
+    F: Fn(&Editor, &Command, Option<usize>, ModifiersState) -> CommandExecuted
+        + 'static,
 {
     fn text(&self) -> Rope {
         self.doc.text()
@@ -562,17 +632,40 @@ where
 
     fn run_command(
         &self,
+        ed: &Editor,
         cmd: &Command,
         count: Option<usize>,
         modifiers: ModifiersState,
     ) {
-        if (self.handler)(cmd, count, modifiers) == CommandExecuted::Yes {
+        if (self.handler)(ed, cmd, count, modifiers) == CommandExecuted::Yes {
             return;
         }
 
-        self.doc.run_command(cmd, count, modifiers)
+        self.doc.run_command(ed, cmd, count, modifiers)
+    }
+}
+impl<D, F> DocumentPhantom for ExtCmdDocument<D, F>
+where
+    D: Document,
+    F: Fn(&Editor, &Command, Option<usize>, ModifiersState) -> CommandExecuted,
+{
+    fn phantom_text(&self, line: usize) -> PhantomTextLine {
+        self.doc.phantom_text(line)
     }
 
+    fn has_multiline_phantom(&self) -> bool {
+        self.doc.has_multiline_phantom()
+    }
+
+    fn before_phantom_col(&self, line: usize, col: usize) -> usize {
+        self.doc.before_phantom_col(line, col)
+    }
+}
+impl<D, F> CommonAction for ExtCmdDocument<D, F>
+where
+    D: Document + CommonAction,
+    F: Fn(&Editor, &Command, Option<usize>, ModifiersState) -> CommandExecuted,
+{
     fn exec_motion_mode(
         &self,
         cursor: &mut Cursor,
@@ -591,22 +684,16 @@ where
             register,
         )
     }
-}
-impl<D, F> DocumentPhantom for ExtCmdDocument<D, F>
-where
-    D: Document,
-    F: Fn(&Command, Option<usize>, ModifiersState) -> CommandExecuted,
-{
-    fn phantom_text(&self, line: usize) -> PhantomTextLine {
-        self.doc.phantom_text(line)
-    }
 
-    fn has_multiline_phantom(&self) -> bool {
-        self.doc.has_multiline_phantom()
-    }
-
-    fn before_phantom_col(&self, line: usize, col: usize) -> usize {
-        self.doc.before_phantom_col(line, col)
+    fn do_edit(
+        &self,
+        cursor: &mut Cursor,
+        cmd: &EditCommand,
+        modal: bool,
+        register: &mut Register,
+        smart_tab: bool,
+    ) -> bool {
+        self.doc.do_edit(cursor, cmd, modal, register, smart_tab)
     }
 }
 
