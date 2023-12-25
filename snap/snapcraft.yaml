@@ -1,0 +1,78 @@
+name: lapce
+adopt-info: lapce
+summary: Lightning-fast And Powerful Code Editor
+description: |
+    Lapce (IPA: /læps/) is written in pure Rust with a UI in Floem. It is designed with Rope Science
+    from the Xi-Editor which makes for lightning-fast computation, and leverages Wgpu for rendering. 
+    More information about the features of Lapce can be found on the main website and user
+    documentation can be found on GitBook.
+
+base: core20
+grade: stable
+confinement: strict
+compression: lzo
+license: Apache-2.0
+
+website: https://github.com/lapce/lapce
+contact: https://github.com/lapce/lapce/issues
+issues: https://github.com/lapce/lapceissues
+source-code: https://github.com/lapce/lapce
+icon: snap/gui/lapce.png
+
+apps:
+  lapce:
+    command: bin/lapce
+    extensions:
+      - gnome-3-38    
+    environment:
+      PATH: $SNAP/bin/:$PATH       
+    plugs:
+      - network
+      - home
+      - browser-support      
+  
+parts:
+  lapce:
+    source: https://github.com/lapce/lapce
+    source-type: git
+    plugin: rust
+    after: [cargo]
+
+    override-pull: |
+      snapcraftctl pull
+      snapcraftctl set-version "$(git describe --tags | sed 's/^v//' | cut -d "-" -f3)"
+    
+    build-packages:
+      - clang 
+      - libxkbcommon-x11-dev 
+      - pkg-config 
+      - libvulkan-dev 
+      - libwayland-dev 
+      - xorg-dev 
+      - libxcb-shape0-dev 
+      - libxcb-xfixes0-dev
+
+    stage-packages:
+      - clang 
+      - libxkbcommon-x11-dev 
+      - pkg-config 
+      - libvulkan-dev 
+      - libwayland-dev 
+      - xorg-dev 
+      - libxcb-shape0-dev 
+      - libxcb-xfixes0-dev
+      
+  cargo:
+    source: https://github.com/rust-lang/cargo
+    source-type: git
+    plugin: rust
+    
+    override-pull: |
+      snapcraftctl pull
+      snapcraftctl set-version "$(git describe --tags | sed 's/^v//' | cut -d "-" -f2)"
+
+    build-packages:
+      - cargo
+      - rustc
+      - pkg-config
+      - librust-openssl-sys-dev      

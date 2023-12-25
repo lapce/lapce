@@ -1,0 +1,12 @@
+[Desktop Entry]
+Encoding=UTF-8
+Name=Lapce
+GenericName=Lapce
+Comment=Lightning-fast And Powerful Code Editor
+Exec=lapce
+Icon=${SNAP}/meta/gui/lapce.png
+Terminal=false
+Type=Application
+StartupNotify=false
+Categories=Application;
+Keywords=lapce;
