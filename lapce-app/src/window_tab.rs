@@ -27,10 +27,11 @@ use lapce_core::{
 use lapce_rpc::{
     core::CoreNotification,
     dap_types::RunDebugConfig,
-    file::PathObject,
-    proxy::{ProxyRpcHandler, ProxyStatus},
+    file::{PathObject, RenameState},
+    proxy::{ProxyResponse, ProxyRpcHandler, ProxyStatus},
     source_control::FileDiff,
     terminal::TermId,
+    RpcError,
 };
 use lsp_types::{ProgressParams, ProgressToken, ShowMessageParams};
 use serde_json::Value;
@@ -1296,18 +1297,114 @@ impl WindowTabData {
             InternalCommand::OpenFileChanges { path } => {
                 self.main_split.open_file_changes(path);
             }
-            InternalCommand::StartRenameFile { path } => {
-                self.file_explorer.rename_path.set(Some(path));
-                self.file_explorer.root.update(|_| {});
+            InternalCommand::StartRenamePath { path } => {
+                self.file_explorer.rename_state.set(RenameState::Renaming {
+                    path,
+                    editor_needs_reset: true,
+                });
             }
-            InternalCommand::FinishRenameFile {
+            InternalCommand::TestRenamePath { new_path } => {
+                let rename_state = self.file_explorer.rename_state;
+
+                let send = create_ext_action(
+                    self.scope,
+                    move |response: Result<ProxyResponse, RpcError>| match response {
+                        Ok(_) => {
+                            rename_state.update(RenameState::set_ok);
+                        }
+                        Err(err) => {
+                            rename_state.update(|rename_state| {
+                                rename_state.set_err(err.message)
+                            });
+                        }
+                    },
+                );
+
+                self.common.proxy.test_create_at_path(new_path, send);
+            }
+            InternalCommand::FinishRenamePath {
                 current_path,
                 new_path,
             } => {
-                self.file_explorer.rename_path.set(None);
+                let send_current_path = current_path.clone();
+                let send_new_path = new_path.clone();
+                let file_explorer = self.file_explorer.clone();
+                let editors = self.main_split.editors;
+
+                let send = create_ext_action(
+                    self.scope,
+                    move |response: Result<ProxyResponse, RpcError>| match response {
+                        Ok(response) => {
+                            // Get the canonicalized new path from the proxy.
+                            let new_path =
+                                if let ProxyResponse::CreatePathResponse { path } =
+                                    response
+                                {
+                                    path
+                                } else {
+                                    send_new_path
+                                };
+
+                            // If the renamed item is a file, update any editors the file is open
+                            // in to use the new path.
+                            // If the renamed item is a directory, update any editors in which a
+                            // file the renamed directory is an ancestor of is open to use the
+                            // file's new path.
+                            let renamed_editors_content: Vec<_> = editors
+                                .with_untracked(|editors| {
+                                    editors
+                                        .values()
+                                        .map(|editor| {
+                                            editor
+                                                .view
+                                                .doc
+                                                .with_untracked(|doc| doc.content)
+                                        })
+                                        .filter(|content| {
+                                            content.with_untracked(|content| {
+                                                match content {
+                                                    DocContent::File {
+                                                        path,
+                                                        ..
+                                                    } => path.starts_with(
+                                                        &send_current_path,
+                                                    ),
+                                                    _ => false,
+                                                }
+                                            })
+                                        })
+                                        .collect()
+                                });
+
+                            for content in renamed_editors_content {
+                                content.update(|content| {
+                                    if let DocContent::File { path, .. } = content {
+                                        if let Ok(suffix) =
+                                            path.strip_prefix(&send_current_path)
+                                        {
+                                            *path = new_path.join(suffix);
+                                        }
+                                    }
+                                });
+                            }
+
+                            file_explorer.reload();
+                            file_explorer.rename_state.set(RenameState::NotRenaming);
+                        }
+                        Err(err) => {
+                            file_explorer.rename_state.update(|rename_state| {
+                                rename_state.set_err(err.message)
+                            });
+                        }
+                    },
+                );
+
+                self.file_explorer
+                    .rename_state
+                    .update(RenameState::set_pending);
                 self.common
                     .proxy
-                    .rename_path(current_path, new_path, |_| {})
+                    .rename_path(current_path.clone(), new_path, send);
             }
             InternalCommand::GoToLocation { location } => {
                 self.main_split.go_to_location(location, None);

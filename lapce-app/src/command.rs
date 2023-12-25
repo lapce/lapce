@@ -524,10 +524,13 @@ pub enum InternalCommand {
     OpenFileChanges {
         path: PathBuf,
     },
-    StartRenameFile {
+    StartRenamePath {
         path: PathBuf,
     },
-    FinishRenameFile {
+    TestRenamePath {
+        new_path: PathBuf,
+    },
+    FinishRenamePath {
         current_path: PathBuf,
         new_path: PathBuf,
     },

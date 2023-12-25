@@ -1,5 +1,7 @@
 use std::{
+    borrow::Cow,
     collections::HashMap,
+    ffi::OsStr,
     path::{Path, PathBuf},
     rc::Rc,
 };
@@ -16,7 +18,10 @@ use lapce_core::{
     command::{EditCommand, FocusCommand},
     mode::Mode,
 };
-use lapce_rpc::{file::FileNodeItem, proxy::ProxyResponse};
+use lapce_rpc::{
+    file::{FileNodeItem, RenameState},
+    proxy::ProxyResponse,
+};
 
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand, LapceCommand},
@@ -26,11 +31,20 @@ use crate::{
     window_tab::CommonData,
 };
 
+enum RenamedPath {
+    NotRenaming,
+    NameUnchanged,
+    Renamed {
+        current_path: PathBuf,
+        new_path: PathBuf,
+    },
+}
+
 #[derive(Clone)]
 pub struct FileExplorerData {
     pub id: RwSignal<usize>,
     pub root: RwSignal<FileNodeItem>,
-    pub rename_path: RwSignal<Option<PathBuf>>,
+    pub rename_state: RwSignal<RenameState>,
     pub rename_editor_data: EditorData,
     pub common: Rc<CommonData>,
 }
@@ -41,8 +55,8 @@ impl KeyPressFocus for FileExplorerData {
     }
 
     fn check_condition(&self, condition: Condition) -> bool {
-        self.rename_path
-            .with_untracked(|rename_path| rename_path.is_some())
+        self.rename_state
+            .with_untracked(RenameState::is_accepting_input)
             && condition == Condition::ModalFocus
     }
 
@@ -53,8 +67,8 @@ impl KeyPressFocus for FileExplorerData {
         mods: ModifiersState,
     ) -> CommandExecuted {
         if self
-            .rename_path
-            .with_untracked(|rename_path| rename_path.is_some())
+            .rename_state
+            .with_untracked(RenameState::is_accepting_input)
         {
             match command.kind {
                 CommandKind::Focus(FocusCommand::ModalClose) => {
@@ -62,10 +76,22 @@ impl KeyPressFocus for FileExplorerData {
                     CommandExecuted::Yes
                 }
                 CommandKind::Edit(EditCommand::InsertNewLine) => {
-                    let new_relative_path: String =
-                        self.rename_editor_data.view.text().into();
-                    self.finish_rename(new_relative_path.as_ref());
+                    self.finish_rename();
                     CommandExecuted::Yes
+                }
+                CommandKind::Edit(_) => {
+                    let command_executed =
+                        self.rename_editor_data.run_command(command, count, mods);
+
+                    if let RenamedPath::Renamed { new_path, .. } =
+                        self.renamed_path()
+                    {
+                        self.common
+                            .internal_command
+                            .send(InternalCommand::TestRenamePath { new_path });
+                    }
+
+                    command_executed
                 }
                 _ => self.rename_editor_data.run_command(command, count, mods),
             }
@@ -76,10 +102,16 @@ impl KeyPressFocus for FileExplorerData {
 
     fn receive_char(&self, c: &str) {
         if self
-            .rename_path
-            .with_untracked(|rename_path| rename_path.is_some())
+            .rename_state
+            .with_untracked(RenameState::is_accepting_input)
         {
             self.rename_editor_data.receive_char(c);
+
+            if let RenamedPath::Renamed { new_path, .. } = self.renamed_path() {
+                self.common
+                    .internal_command
+                    .send(InternalCommand::TestRenamePath { new_path });
+            }
         }
     }
 }
@@ -95,13 +127,13 @@ impl FileExplorerData {
             children: HashMap::new(),
             children_open_count: 0,
         });
-        let rename_path = cx.create_rw_signal(None);
+        let rename_state = cx.create_rw_signal(RenameState::NotRenaming);
         let rename_editor_data =
             EditorData::new_local(cx, EditorId::next(), common.clone());
         let data = Self {
             id: cx.create_rw_signal(0),
             root,
-            rename_path,
+            rename_state,
             rename_editor_data,
             common,
         };
@@ -201,30 +233,62 @@ impl FileExplorerData {
         })
     }
 
-    /// Closes the rename text box and sends a request to perform the rename.
-    ///
-    /// `new_relative_path` is the path the item is to be moved to relative to the item's current
-    /// parent directory.
-    ///
-    /// Currently the text box is closed unconditionally, and if the rename fails no error will be
-    /// reported. The name of the item in the file explorer is only updated if the rename succeeds.
-    pub fn finish_rename(&self, new_relative_path: &Path) {
-        if let Some(current_path) = self.rename_path.get() {
-            let parent = current_path.parent().unwrap_or("".as_ref());
-            let new_path = parent.join(new_relative_path);
+    /// If there is an in progress rename and the user has entered a path that differs from the
+    /// current path, gets the current and new paths of the renamed node.
+    fn renamed_path(&self) -> RenamedPath {
+        self.rename_state.with_untracked(|rename_state| {
+            if let Some(current_path) = rename_state.path() {
+                let current_file_name = current_path.file_name().unwrap_or_default();
+                // `new_relative_path` is the new path relative to the parent directory, unless the
+                // user has entered an absolute path.
+                let new_relative_path = self.rename_editor_data.view.text();
 
-            self.common
-                .internal_command
-                .send(InternalCommand::FinishRenameFile {
+                let new_relative_path: Cow<OsStr> =
+                    match new_relative_path.slice_to_cow(..) {
+                        Cow::Borrowed(path) => Cow::Borrowed(path.as_ref()),
+                        Cow::Owned(path) => Cow::Owned(path.into()),
+                    };
+
+                if new_relative_path == current_file_name {
+                    RenamedPath::NameUnchanged
+                } else {
+                    let new_path = current_path
+                        .parent()
+                        .unwrap_or("".as_ref())
+                        .join(new_relative_path);
+
+                    RenamedPath::Renamed {
+                        current_path: current_path.to_owned(),
+                        new_path,
+                    }
+                }
+            } else {
+                RenamedPath::NotRenaming
+            }
+        })
+    }
+
+    /// If a rename is in progress and the user has entered a path that differs from the current
+    /// path, sends a request to perform the rename.
+    pub fn finish_rename(&self) {
+        match self.renamed_path() {
+            RenamedPath::NotRenaming => (),
+            RenamedPath::NameUnchanged => self.cancel_rename(),
+            RenamedPath::Renamed {
+                current_path,
+                new_path,
+            } => self.common.internal_command.send(
+                InternalCommand::FinishRenamePath {
                     current_path,
                     new_path,
-                })
+                },
+            ),
         }
     }
 
     /// Closes the rename text box without renaming the item.
     pub fn cancel_rename(&self) {
-        self.rename_path.set(None);
+        self.rename_state.set(RenameState::NotRenaming);
     }
 
     pub fn click(&self, path: &Path) {
@@ -258,7 +322,7 @@ impl FileExplorerData {
             Menu::new("").entry(MenuItem::new("Rename...").action(move || {
                 common
                     .internal_command
-                    .send(InternalCommand::StartRenameFile { path: path.clone() });
+                    .send(InternalCommand::StartRenamePath { path: path.clone() });
             }));
 
         show_context_menu(menu, None);
