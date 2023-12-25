@@ -5,7 +5,7 @@
 ### Features/Changes
 - [#2723](https://github.com/lapce/lapce/pull/2723): Line wrapping based on width (no column-based yet)
 
-- [#](https://github.com/lapce/lapce/pull/): Created working snap. 
+- [#2862](https://github.com/lapce/lapce/pull/2862): Created working snap. 
 
 ### Bug Fixes
 
