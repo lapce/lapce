@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs,
+    fs, io,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -857,18 +857,111 @@ impl ProxyHandler for Dispatcher {
                 // We first check if the destination already exists, because rename can overwrite it
                 // and that's not the default behavior we want for when a user renames a document.
                 let result = if to.exists() {
-                    Err(RpcError {
-                        code: 0,
-                        message: format!("{to:?} already exists"),
-                    })
+                    Err(format!("{} already exists", to.display()))
                 } else {
-                    std::fs::rename(from, to)
-                        .map(|_| ProxyResponse::Success {})
-                        .map_err(|e| RpcError {
-                            code: 0,
-                            message: e.to_string(),
-                        })
+                    Ok(())
                 };
+
+                let result = result.and_then(|_| {
+                    if let Some(parent) = to.parent() {
+                        fs::create_dir_all(parent).map_err(|e| {
+                            if let io::ErrorKind::AlreadyExists = e.kind() {
+                                format!(
+                                    "{} has a parent that is not a directory",
+                                    to.display()
+                                )
+                            } else {
+                                e.to_string()
+                            }
+                        })
+                    } else {
+                        Ok(())
+                    }
+                });
+
+                let result = result
+                    .and_then(|_| fs::rename(&from, &to).map_err(|e| e.to_string()));
+
+                let result = result
+                    .map(|_| {
+                        let to = to.canonicalize().unwrap_or(to);
+
+                        let (is_dir, is_file) = to
+                            .metadata()
+                            .map(|metadata| (metadata.is_dir(), metadata.is_file()))
+                            .unwrap_or((false, false));
+
+                        if is_dir {
+                            // Update all buffers in which a file the renamed directory is an
+                            // ancestor of is open to use the file's new path.
+                            // This could be written more nicely if `HashMap::extract_if` were
+                            // stable.
+                            let child_buffers: Vec<_> = self
+                                .buffers
+                                .keys()
+                                .filter_map(|path| {
+                                    path.strip_prefix(&from).ok().map(|suffix| {
+                                        (path.clone(), suffix.to_owned())
+                                    })
+                                })
+                                .collect();
+
+                            for (path, suffix) in child_buffers {
+                                if let Some(mut buffer) = self.buffers.remove(&path)
+                                {
+                                    let new_path = to.join(suffix);
+                                    buffer.path = new_path;
+
+                                    self.buffers.insert(buffer.path.clone(), buffer);
+                                }
+                            }
+                        } else if is_file {
+                            // If the renamed file is open in a buffer, update it to use the new
+                            // path.
+                            let buffer = self.buffers.remove(&from);
+
+                            if let Some(mut buffer) = buffer {
+                                buffer.path = to.clone();
+                                self.buffers.insert(to.clone(), buffer);
+                            }
+                        }
+
+                        ProxyResponse::CreatePathResponse { path: to }
+                    })
+                    .map_err(|message| RpcError { code: 0, message });
+
+                self.respond_rpc(id, result);
+            }
+            TestCreateAtPath { path } => {
+                // This performs a best effort test to see if an attempt to create an item at
+                // `path` or rename an item to `path` will succeed.
+                // Currently the only conditions that are tested are that `path` doesn't already
+                // exist and that `path` doesn't have a parent that exists and is not a directory.
+                let result = if path.exists() {
+                    Err(format!("{} already exists", path.display()))
+                } else {
+                    Ok(path)
+                };
+
+                let result = result
+                    .and_then(|path| {
+                        let parent_is_dir = path
+                            .ancestors()
+                            .skip(1)
+                            .find(|parent| parent.exists())
+                            .map_or(true, |parent| parent.is_dir());
+
+                        if parent_is_dir {
+                            Ok(ProxyResponse::Success {})
+                        } else {
+                            Err(format!(
+                                "{} has a parent that is not a directory",
+                                path.display()
+                            ))
+                        }
+                    })
+                    .map_err(|message| RpcError { code: 0, message });
+
                 self.respond_rpc(id, result);
             }
             GetSelectionRange { positions, path } => {

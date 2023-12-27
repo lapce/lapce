@@ -182,6 +182,9 @@ pub enum ProxyRequest {
         from: PathBuf,
         to: PathBuf,
     },
+    TestCreateAtPath {
+        path: PathBuf,
+    },
     DapVariable {
         dap_id: DapId,
         reference: usize,
@@ -402,6 +405,9 @@ pub enum ProxyResponse {
     },
     DapGetScopesResponse {
         scopes: Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
+    },
+    CreatePathResponse {
+        path: PathBuf,
     },
     Success {},
     SaveResponse {},
@@ -673,6 +679,14 @@ impl ProxyRpcHandler {
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::RenamePath { from, to }, f);
+    }
+
+    pub fn test_create_at_path(
+        &self,
+        path: PathBuf,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::TestCreateAtPath { path }, f);
     }
 
     pub fn save_buffer_as(
