@@ -354,7 +354,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Cmake,
 
         indent: "  ",
-        files: &[],
+        files: &["cmakelists"],
         extensions: &["cmake"],
 
         comment: comment_properties!("#"),
