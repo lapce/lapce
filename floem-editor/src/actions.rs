@@ -55,10 +55,8 @@ fn handle_edit_command_default(
     buffer: RwSignal<Buffer>,
     cmd: &EditCommand,
 ) -> CommandExecuted {
-    // TODO(floem-editor): ask document for whether it is modal? or should this be view specific?
-    let modal = false;
-    // TODO(floem-editor):
-    let smart_tab = false;
+    let modal = ed.modal.get_untracked();
+    let smart_tab = ed.smart_tab.get_untracked();
     let mut cursor = ed.cursor.get_untracked();
     let mut register = ed.register.get_untracked();
 

@@ -60,6 +60,10 @@ pub struct Editor {
     /// Whether line numbers are relative in modal mode
     pub modal_relative_line_numbers: RwSignal<bool>,
 
+    /// Whether to insert the indent that is detected for the file when a tab character
+    /// is inputted.
+    pub smart_tab: RwSignal<bool>,
+
     pub(crate) doc: RwSignal<Rc<dyn Document>>,
     pub(crate) style: RwSignal<Rc<dyn Styling>>,
 
@@ -131,6 +135,7 @@ impl Editor {
             cursor_surrounding_lines: cx.create_rw_signal(1),
             modal: cx.create_rw_signal(modal),
             modal_relative_line_numbers: cx.create_rw_signal(true),
+            smart_tab: cx.create_rw_signal(true),
             doc,
             style,
             cursor,
