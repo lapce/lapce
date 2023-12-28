@@ -3,6 +3,7 @@ pub mod actions;
 pub mod color;
 pub mod command;
 pub mod editor;
+pub mod gutter;
 pub mod id;
 pub mod layout;
 pub mod listener;

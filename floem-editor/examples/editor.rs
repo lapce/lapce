@@ -1,17 +1,14 @@
 use std::rc::Rc;
 
 use floem::{
-    reactive::Scope,
-    style::CursorStyle,
+    reactive::{create_rw_signal, RwSignal, Scope},
     view::View,
-    views::{scroll, Decorators},
 };
 use floem_editor::{
-    color::EditorColor,
     editor::Editor,
     id::EditorId,
     text::{default_dark_color, SimpleStyling, TextDocument},
-    view::editor_view,
+    view::editor_container_view,
 };
 
 fn main() {
@@ -24,18 +21,11 @@ fn main() {
 
     let id = EditorId::next();
     let editor = Editor::new(cx, id, doc, style, None);
+    let editor = create_rw_signal(editor);
 
-    floem::launch(move || app_view(editor.clone()));
+    floem::launch(move || app_view(editor));
 }
 
-fn app_view(editor: Rc<Editor>) -> impl View {
-    let background = editor.color(EditorColor::Background);
-    // TODO: this should use editor_content
-    scroll(editor_view(editor, |_| true).style(move |s| {
-        s.absolute()
-            .padding_bottom(0.0)
-            .cursor(CursorStyle::Text)
-            .min_size_pct(100.0, 100.0)
-    }))
-    .style(move |s| s.absolute().size_pct(100.0, 100.0).background(background))
+fn app_view(editor: RwSignal<Rc<Editor>>) -> impl View {
+    editor_container_view(editor, |_| true)
 }

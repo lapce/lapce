@@ -4,13 +4,15 @@ use floem::{
     context::PaintCx,
     event::{Event, EventListener},
     id::Id,
-    kurbo::{BezPath, Line, Point, Rect, Size},
+    kurbo::{BezPath, Line, Point, Rect, Size, Vec2},
     peniko::Color,
-    reactive::{batch, create_effect, create_memo, Memo, RwSignal, Scope},
-    style::Style,
+    reactive::{
+        batch, create_effect, create_memo, create_rw_signal, Memo, RwSignal, Scope,
+    },
+    style::{CursorStyle, Style},
     taffy::node::Node,
     view::{View, ViewData},
-    views::{empty, stack, Decorators},
+    views::{clip, container, empty, label, list, scroll, stack, Decorators},
     EventPropagation, Renderer,
 };
 use lapce_core::{
@@ -20,6 +22,7 @@ use lapce_core::{
 };
 
 use crate::{
+    gutter::editor_gutter_view,
     layout::LineExtraStyle,
     phantom_text::PhantomTextKind,
     visual_line::{RVLine, VLineInfo},
@@ -1538,7 +1541,241 @@ pub fn cursor_caret(
     }
 }
 
-fn editor_gutter() -> impl View {
-    let padding_left = 0.0;
-    stack((empty(),))
+pub fn editor_container_view(
+    editor: RwSignal<Rc<Editor>>,
+    is_active: impl Fn(bool) -> bool + 'static + Copy,
+) -> impl View {
+    let editor_rect = create_rw_signal(Rect::ZERO);
+
+    stack((
+        // editor_breadcrumbs(workspace, editor.get_untracked(), config),
+        container(
+            stack((
+                editor_gutter(editor, is_active),
+                container(editor_content(editor, is_active))
+                    .style(move |s| s.size_pct(100.0, 100.0)),
+                empty().style(move |s| {
+                    s.absolute().width_pct(100.0)
+                    // TODO:
+                    // .height(sticky_header_height.get() as f32)
+                    // .apply_if(
+                    //     !config.editor.sticky_header
+                    //         || sticky_header_height.get() == 0.0
+                    //         || !editor_view.get().is_normal(),
+                    //     |s| s.hide(),
+                    // )
+                }),
+                // find_view(
+                //     editor,
+                //     find_editor,
+                //     find_focus,
+                //     replace_editor,
+                //     replace_active,
+                //     replace_focus,
+                //     is_active,
+                // ),
+            ))
+            .on_resize(move |rect| {
+                editor_rect.set(rect);
+            })
+            .style(|s| s.absolute().size_pct(100.0, 100.0)),
+        )
+        .style(|s| s.size_pct(100.0, 100.0)),
+    ))
+    .on_cleanup(move || {
+        // TODO(floem-editor): We should do cleanup of the scope at least, but we also need it
+        // conditional such that it doesn't always run.
+        // if editors.with_untracked(|editors| editors.contains_key(&editor_id)) {
+        //     // editor still exist, so it might be moved to a different editor tab
+        //     return;
+        // }
+        // let editor = editor.get_untracked();
+        // let doc = editor.view.doc.get_untracked();
+        // editor.scope.dispose();
+
+        // let scratch_doc_name =
+        //     if let DocContent::Scratch { name, .. } = doc.content.get_untracked() {
+        //         Some(name.to_string())
+        //     } else {
+        //         None
+        //     };
+        // if let Some(name) = scratch_doc_name {
+        //     if !scratch_docs
+        //         .with_untracked(|scratch_docs| scratch_docs.contains_key(&name))
+        //     {
+        //         doc.scope.dispose();
+        //     }
+        // }
+    })
+    // TODO(minor): only depend on style
+    .style(move |s| {
+        s.flex_col()
+            .size_pct(100.0, 100.0)
+            .background(editor.get().color(EditorColor::Background))
+    })
+}
+
+/// Default editor gutter
+/// Simply shows line numbers
+pub fn editor_gutter(
+    editor: RwSignal<Rc<Editor>>,
+    _is_active: impl Fn(bool) -> bool + 'static + Copy,
+) -> impl View {
+    // TODO(floem-editor): these are probably tuned for lapce?
+    let padding_left = 25.0;
+    let padding_right = 30.0;
+
+    let ed = editor.get_untracked();
+
+    let scroll_delta = ed.scroll_delta;
+
+    let gutter_rect = create_rw_signal(Rect::ZERO);
+
+    stack((
+        stack((
+            empty().style(move |s| s.width(padding_left)),
+            // TODO(minor): this could just track purely Doc
+            label(move || (editor.get().last_line() + 1).to_string()),
+            empty().style(move |s| s.width(padding_right)),
+        ))
+        .style(|s| s.height_pct(100.0)),
+        clip(
+            stack((editor_gutter_view(editor.get_untracked())
+                .on_resize(move |rect| {
+                    gutter_rect.set(rect);
+                })
+                .on_event_stop(EventListener::PointerWheel, move |event| {
+                    if let Event::PointerWheel(pointer_event) = event {
+                        scroll_delta.set(pointer_event.delta);
+                    }
+                })
+                .style(|s| s.size_pct(100.0, 100.0)),))
+            .style(|s| s.size_pct(100.0, 100.0)),
+        )
+        .style(move |s| {
+            s.absolute()
+                .size_pct(100.0, 100.0)
+                .padding_left(padding_left)
+                .padding_right(padding_right)
+        }),
+    ))
+    .style(|s| s.height_pct(100.0))
+}
+
+fn editor_content(
+    editor: RwSignal<Rc<Editor>>,
+    is_active: impl Fn(bool) -> bool + 'static + Copy,
+) -> impl View {
+    let ed = editor.get_untracked();
+    let cursor = ed.cursor;
+    let scroll_delta = ed.scroll_delta;
+    let scroll_to = ed.scroll_to;
+    // let window_origin = todo!();
+    let viewport = ed.viewport;
+    // let sticky_header_height = ed.sticky_header_height;
+    let scroll_beyond_last_line = ed.scroll_beyond_last_line;
+
+    scroll({
+        let editor_content_view = editor_view(ed, is_active).style(move |s| {
+            let padding_bottom = if scroll_beyond_last_line.get() {
+                // TODO: don't assume line height is constant?
+                // just use the last line's line height maybe, or just make
+                // scroll beyond last line a f32
+                // TODO: we shouldn't be using `get` on editor here, isn't this more of a 'has the
+                // style cache changed'?
+                let line_height = editor.get().line_height(0) as f32;
+                viewport.get().height() as f32 - line_height
+            } else {
+                0.0
+            };
+
+            s.absolute()
+                .padding_bottom(padding_bottom)
+                .cursor(CursorStyle::Text)
+                .min_size_pct(100.0, 100.0)
+        });
+
+        let id = editor_content_view.id();
+
+        editor_content_view
+            .on_event_cont(EventListener::PointerDown, move |event| {
+                // TODO:
+                if let Event::PointerDown(pointer_event) = event {
+                    id.request_active();
+                    // editor.get_untracked().pointer_down(pointer_event);
+                }
+            })
+            .on_event_stop(EventListener::PointerMove, move |event| {
+                if let Event::PointerMove(pointer_event) = event {
+                    // editor.get_untracked().pointer_move(pointer_event);
+                }
+            })
+            .on_event_stop(EventListener::PointerUp, move |event| {
+                if let Event::PointerUp(pointer_event) = event {
+                    // editor.get_untracked().pointer_up(pointer_event);
+                }
+            })
+            .on_event_stop(EventListener::PointerLeave, move |event| {
+                if let Event::PointerLeave = event {
+                    // editor.get_untracked().pointer_leave();
+                }
+            })
+    })
+    // TODO(floem-editor): do we even need the window origin outside of lapce? Can we just have
+    // whoever is using this library track it themselves?
+    .on_move(|point| {
+        // window_origin.set(point);
+    })
+    .on_scroll_to(move || scroll_to.get().map(Vec2::to_point))
+    .on_scroll_delta(move || scroll_delta.get())
+    .on_ensure_visible(move || {
+        let editor = editor.get_untracked();
+        let cursor = cursor.get();
+        let offset = cursor.offset();
+        editor.doc.track();
+        // TODO:?
+        // editor.kind.track();
+
+        let LineRegion { x, width, rvline } =
+            cursor_caret(&editor, offset, !cursor.is_insert(), cursor.affinity);
+
+        // TODO: don't assume line-height is constant
+        let line_height = f64::from(editor.line_height(0));
+
+        // TODO: is there a good way to avoid the calculation of the vline here?
+        let vline = editor.vline_of_rvline(rvline);
+        let rect = Rect::from_origin_size(
+            (x, vline.get() as f64 * line_height),
+            (width, line_height as f64),
+        )
+        .inflate(10.0, 0.0);
+
+        let viewport = viewport.get_untracked();
+        let smallest_distance = (viewport.y0 - rect.y0)
+            .abs()
+            .min((viewport.y1 - rect.y0).abs())
+            .min((viewport.y0 - rect.y1).abs())
+            .min((viewport.y1 - rect.y1).abs());
+        let biggest_distance = (viewport.y0 - rect.y0)
+            .abs()
+            .max((viewport.y1 - rect.y0).abs())
+            .max((viewport.y0 - rect.y1).abs())
+            .max((viewport.y1 - rect.y1).abs());
+        let jump_to_middle = biggest_distance > viewport.height()
+            && smallest_distance > viewport.height() / 2.0;
+
+        if jump_to_middle {
+            rect.inflate(0.0, viewport.height() / 2.0)
+        } else {
+            let mut rect = rect;
+            let cursor_surrounding_lines =
+                editor.cursor_surrounding_lines.get_untracked() as f64;
+            rect.y0 -= cursor_surrounding_lines * line_height;
+            // TODO:
+            // + sticky_header_height.get_untracked();
+            rect.y1 += cursor_surrounding_lines * line_height;
+            rect
+        }
+    })
+    .style(|s| s.absolute().size_pct(100.0, 100.0))
 }

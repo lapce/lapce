@@ -7,7 +7,7 @@ use std::{
 
 use floem::{
     cosmic_text::{Attrs, AttrsList, LineHeightValue, TextLayout, Wrap},
-    kurbo::{Point, Rect},
+    kurbo::{Point, Rect, Vec2},
     peniko::Color,
     reactive::{batch, untrack, ReadSignal, RwSignal, Scope},
 };
@@ -53,6 +53,12 @@ pub struct Editor {
     pub read_only: RwSignal<bool>,
     /// Whether you can scroll beyond the last line of the document.
     pub scroll_beyond_last_line: RwSignal<bool>,
+    pub cursor_surrounding_lines: RwSignal<usize>,
+
+    /// Whether modal mode is enabled
+    pub modal: RwSignal<bool>,
+    /// Whether line numbers are relative in modal mode
+    pub modal_relative_line_numbers: RwSignal<bool>,
 
     pub(crate) doc: RwSignal<Rc<dyn Document>>,
     pub(crate) style: RwSignal<Rc<dyn Styling>>,
@@ -60,6 +66,11 @@ pub struct Editor {
     pub cursor: RwSignal<Cursor>,
 
     pub viewport: RwSignal<Rect>,
+
+    /// The current scroll position.
+    pub scroll_delta: RwSignal<Vec2>,
+    pub scroll_to: RwSignal<Option<Vec2>>,
+
     /// Holds the cache of the lines and provides many utility functions for them.
     lines: Rc<Lines>,
     pub screen_lines: RwSignal<ScreenLines>,
@@ -88,7 +99,7 @@ impl Editor {
         let cx = cx.create_child();
 
         let viewport = cx.create_rw_signal(Rect::ZERO);
-        let modal = false; // TODO
+        let modal = false;
         let cursor_mode = if modal
         /* && !is_local */
         {
@@ -117,10 +128,15 @@ impl Editor {
             id,
             read_only: cx.create_rw_signal(false),
             scroll_beyond_last_line: cx.create_rw_signal(false),
+            cursor_surrounding_lines: cx.create_rw_signal(1),
+            modal: cx.create_rw_signal(modal),
+            modal_relative_line_numbers: cx.create_rw_signal(true),
             doc,
             style,
             cursor,
             viewport,
+            scroll_delta: cx.create_rw_signal(Vec2::ZERO),
+            scroll_to: cx.create_rw_signal(None),
             lines,
             screen_lines,
             register: register
