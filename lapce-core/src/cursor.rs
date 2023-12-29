@@ -445,7 +445,7 @@ impl Cursor {
                     return None;
                 }
 
-                let x = selection.regions().get(0).unwrap();
+                let x = selection.regions().first().unwrap();
                 let v = buffer.offset_to_line_col(x.start);
 
                 Some((v.0, v.1, x.start))

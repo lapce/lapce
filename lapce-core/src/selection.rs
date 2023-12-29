@@ -226,7 +226,7 @@ impl Selection {
 
     /// Get the leftmost [`SelRegion`] in this selection if present.
     pub fn first(&self) -> Option<&SelRegion> {
-        self.regions.get(0)
+        self.regions.first()
     }
 
     /// Get the rightmost [`SelRegion`] in this selection if present.
