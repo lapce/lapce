@@ -6,6 +6,7 @@
 - [#2723](https://github.com/lapce/lapce/pull/2723): Line wrapping based on width (no column-based yet)
 
 ### Bug Fixes
+- [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository
 
 ## 0.3.1
 
@@ -13,7 +14,7 @@
 
 ### Bug Fixes
 - [#2754](https://github.com/lapce/lapce/pull/2754): Don't mark nonexistent files as read only (fix saving new files)
-- [#2819](https://github.com/lapce/lapce/issues/2819): `Save Witohut Formatting` doesn't save the file
+- [#2819](https://github.com/lapce/lapce/issues/2819): `Save Without Formatting` doesn't save the file
 
 ## 0.3.0
 
