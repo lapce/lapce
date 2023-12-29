@@ -1573,7 +1573,7 @@ impl MainSplitData {
         let split = splits.get(&split_id).copied()?;
 
         let split_chilren = split.with_untracked(|split| split.children.clone());
-        let content = split_chilren.get(0)?;
+        let content = split_chilren.first()?;
         self.split_content_focus(&content.1);
 
         Some(())
@@ -2027,7 +2027,7 @@ impl MainSplitData {
                         None
                     } else {
                         edits
-                            .get(0)
+                            .first()
                             .map(|edit| EditorPosition::Position(edit.range.start))
                     };
                     let location = EditorLocation {

@@ -376,7 +376,7 @@ impl PluginCatalog {
                     match result {
                         Ok(resp) => {
                             let scopes = resp.scopes.clone();
-                            if let Some(scope) = resp.scopes.get(0) {
+                            if let Some(scope) = resp.scopes.first() {
                                 let scope = scope.to_owned();
                                 thread::spawn(move || {
                                     local_dap.variables_async(
