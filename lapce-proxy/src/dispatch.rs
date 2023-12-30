@@ -13,7 +13,7 @@ use std::{
 use alacritty_terminal::{event::WindowSize, event_loop::Msg};
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
-use git2::{build::CheckoutBuilder, DiffOptions, Repository};
+use git2::{build::CheckoutBuilder, DiffOptions, Oid, Repository};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{sinks::UTF8, SearcherBuilder};
@@ -1293,8 +1293,10 @@ fn git_delta_format(
 
 fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     let repo = Repository::discover(workspace_path).ok()?;
-    let head = repo.head().ok()?;
-    let name = head.shorthand()?.to_string();
+    let name = match repo.head() {
+        Ok(head) => head.shorthand()?.to_string(),
+        _ => "(No branch)".to_owned(),
+    };
 
     let mut branches = Vec::new();
     for branch in repo.branches(None).ok()? {
@@ -1325,18 +1327,21 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
             deltas.push(delta);
         }
     }
+
+    let oid = match repo.revparse_single("HEAD^{tree}") {
+        Ok(obj) => obj.id(),
+        _ => Oid::zero(),
+    };
+
     let cached_diff = repo
-        .diff_tree_to_index(
-            repo.find_tree(repo.revparse_single("HEAD^{tree}").ok()?.id())
-                .ok()
-                .as_ref(),
-            None,
-            None,
-        )
-        .ok()?;
-    for delta in cached_diff.deltas() {
-        if let Some(delta) = git_delta_format(workspace_path, &delta) {
-            deltas.push(delta);
+        .diff_tree_to_index(repo.find_tree(oid).ok().as_ref(), None, None)
+        .ok();
+
+    if let Some(cached_diff) = cached_diff {
+        for delta in cached_diff.deltas() {
+            if let Some(delta) = git_delta_format(workspace_path, &delta) {
+                deltas.push(delta);
+            }
         }
     }
     let mut renames = Vec::new();

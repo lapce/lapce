@@ -2350,7 +2350,7 @@ fn palette_content(
 
                         cmd_kind
                             .and_then(|kind| keymaps.get(kind.str()))
-                            .and_then(|maps| maps.get(0))
+                            .and_then(|maps| maps.first())
                     };
                     container(palette_item(
                         workspace,

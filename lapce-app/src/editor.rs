@@ -2656,12 +2656,12 @@ fn show_completion(
         | EditCommand::DeleteWordBackward
         | EditCommand::DeleteWordForward
         | EditCommand::DeleteForwardAndInsert => {
-            let start = match deltas.get(0).and_then(|delta| delta.0.els.get(0)) {
+            let start = match deltas.first().and_then(|delta| delta.0.els.first()) {
                 Some(lapce_xi_rope::DeltaElement::Copy(_, start)) => *start,
                 _ => 0,
             };
 
-            let end = match deltas.get(0).and_then(|delta| delta.0.els.get(1)) {
+            let end = match deltas.first().and_then(|delta| delta.0.els.get(1)) {
                 Some(lapce_xi_rope::DeltaElement::Copy(end, _)) => *end,
                 _ => 0,
             };
