@@ -970,7 +970,7 @@ impl FromStr for KeyInput {
         };
 
         KeyInput::keyboard_from_str(&s)
-            .map(|key| KeyInput::Keyboard(key))
+            .map(KeyInput::Keyboard)
             .or_else(|| KeyInput::mouse_from_str(&s).map(KeyInput::Pointer))
             .ok_or(())
     }

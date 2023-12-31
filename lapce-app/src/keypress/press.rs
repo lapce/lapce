@@ -17,11 +17,9 @@ impl KeyPress {
     /// So instead, if we have a key modified by shift, we remove the shift modifier
     pub fn remove_shift_modifier_if_symbol(&self) -> Self {
         let mut mods = self.mods;
-        match self.key {
-            KeyInput::Keyboard(Key::Character(_)) => {
-                mods.set(ModifiersState::SHIFT, false);
-            }
-            _ => {}
+
+        if let KeyInput::Keyboard(Key::Character(_)) = self.key {
+            mods.set(ModifiersState::SHIFT, false);
         };
 
         Self {
@@ -45,19 +43,18 @@ impl KeyPress {
         let mut mods = self.mods;
         let is_letter = match &self.key {
             KeyInput::Keyboard(Key::Character(c)) => {
-                let is_letter = c.to_lowercase() != c.to_uppercase();
-                is_letter
+                c.to_lowercase() != c.to_uppercase()
             }
             _ => false,
         };
         if is_letter {
             mods.set(ModifiersState::SHIFT, false);
-            return Self {
+            Self {
                 key: self.key.clone(),
                 mods,
-            };
+            }
         } else {
-            return self.clone();
+            self.clone()
         }
     }
 
