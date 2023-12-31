@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use floem::keyboard::{Key, KeyCode, ModifiersState, PhysicalKey};
+use floem::keyboard::{Key, ModifiersState, NamedKey};
 use tracing::warn;
 
 use super::key::KeyInput;
@@ -14,9 +14,8 @@ pub struct KeyPress {
 impl KeyPress {
     pub fn to_lowercase(&self) -> Self {
         let key = match &self.key {
-            KeyInput::Keyboard(Key::Character(c), key_code) => KeyInput::Keyboard(
+            KeyInput::Keyboard(Key::Character(c)) => KeyInput::Keyboard(
                 Key::Character(c.to_lowercase().into()),
-                *key_code,
             ),
             _ => self.key.clone(),
         };
@@ -30,7 +29,7 @@ impl KeyPress {
         let mut mods = self.mods;
         mods.set(ModifiersState::SHIFT, false);
         if mods.is_empty() {
-            if let KeyInput::Keyboard(Key::Character(_c), _) = &self.key {
+            if let KeyInput::Keyboard(Key::Character(_c)) = &self.key {
                 return true;
             }
         }
@@ -38,18 +37,14 @@ impl KeyPress {
     }
 
     pub fn is_modifiers(&self) -> bool {
-        if let KeyInput::Keyboard(_, scancode) = &self.key {
+        if let KeyInput::Keyboard(key) = &self.key {
             matches!(
-                scancode,
-                PhysicalKey::Code(KeyCode::Meta)
-                    | PhysicalKey::Code(KeyCode::SuperLeft)
-                    | PhysicalKey::Code(KeyCode::SuperRight)
-                    | PhysicalKey::Code(KeyCode::ShiftLeft)
-                    | PhysicalKey::Code(KeyCode::ShiftRight)
-                    | PhysicalKey::Code(KeyCode::ControlLeft)
-                    | PhysicalKey::Code(KeyCode::ControlRight)
-                    | PhysicalKey::Code(KeyCode::AltLeft)
-                    | PhysicalKey::Code(KeyCode::AltRight)
+                key,
+                Key::Named(NamedKey::Meta)
+                    | Key::Named(NamedKey::Super)
+                    | Key::Named(NamedKey::Shift)
+                    | Key::Named(NamedKey::Control)
+                    | Key::Named(NamedKey::Alt)
             )
         } else {
             false
@@ -87,7 +82,8 @@ impl KeyPress {
                     None => ("", k),
                 };
 
-                let key = match key.parse().ok() {
+                println!("{}", key);
+                let key : KeyInput = match key.parse().ok() {
                     Some(key) => key,
                     None => {
                         // Skip past unrecognized key definitions
@@ -95,6 +91,7 @@ impl KeyPress {
                         return None;
                     }
                 };
+                println!("{}", key);
 
                 let mut mods = ModifiersState::empty();
                 for part in modifiers.to_lowercase().split('+') {

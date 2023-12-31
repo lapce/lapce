@@ -151,7 +151,7 @@ impl KeyPressData {
             return false;
         }
 
-        if let KeyInput::Keyboard(Key::Character(c), _key_code) = &keypress.key {
+        if let KeyInput::Keyboard(Key::Character(c)) = &keypress.key {
             if let Ok(n) = c.parse::<usize>() {
                 if self.count.with_untracked(|count| count.is_some()) || n > 0 {
                     self.count
@@ -184,10 +184,7 @@ impl KeyPressData {
 
         let keypress = match event {
             EventRef::Keyboard(ev) => KeyPress {
-                key: KeyInput::Keyboard(
-                    ev.key.logical_key.clone(),
-                    ev.key.physical_key,
-                ),
+                key: KeyInput::Keyboard(ev.key.logical_key.clone()),
                 mods: Self::get_key_modifiers(ev),
             },
             EventRef::Pointer(ev) => KeyPress {
@@ -282,11 +279,11 @@ impl KeyPressData {
             mods.set(ModifiersState::SHIFT, false);
         }
         if mods.is_empty() {
-            if let KeyInput::Keyboard(Key::Character(c), _key_code) = &keypress.key {
+            if let KeyInput::Keyboard(Key::Character(c)) = &keypress.key {
                 focus.receive_char(c);
                 self.count.set(None);
                 return true;
-            } else if let KeyInput::Keyboard(Key::Named(NamedKey::Space), _) =
+            } else if let KeyInput::Keyboard(Key::Named(NamedKey::Space)) =
                 &keypress.key
             {
                 focus.receive_char(" ");
