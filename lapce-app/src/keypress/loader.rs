@@ -160,7 +160,7 @@ command = "line_end"
 when = "n"
 
 [[keymaps]]
-key = "shift+i"
+key = "I"
 command = "insert_first_non_blank"
 when = "n"
         
@@ -214,7 +214,7 @@ command = "goto_definition"
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
         // No modifier
-        let keypress = KeyPress::parse("shift+i");
+        let keypress = KeyPress::parse("I");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
         // Mouse keys

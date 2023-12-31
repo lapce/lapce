@@ -64,7 +64,7 @@ command = "scroll_down"
 # ------------------------------------ Multi cursor -------------------------------------
 
 [[keymaps]]
-key = "alt+shift+i"
+key = "alt+I"
 command = "insert_cursor_end_of_line"
 mode = "i"
 
@@ -109,7 +109,7 @@ command = "jump_location_backward"
 mode = "i"
 
 [[keymaps]]
-key = "ctrl+shift+-"
+key = "ctrl+_"
 command = "jump_location_forward"
 mode = "i"
 
@@ -369,12 +369,12 @@ mode = "niv"
 when = "!search_focus && !search_active"
 
 [[keymaps]]
-key = "shift+;"
+key = ":"
 command = "palette.command"
 mode = "n"
 
 [[keymaps]]
-key = "shift+g"
+key = "G"
 command = "go_to_line_default_last"
 mode = "nv"
 
@@ -409,7 +409,7 @@ command = "append"
 mode = "n"
 
 [[keymaps]]
-key = "shift+a"
+key = "A"
 command = "append_end_of_line"
 mode = "n"
 
@@ -459,12 +459,12 @@ command = "paste"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+p"
+key = "P"
 command = "paste_before"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+j"
+key = "J"
 command = "join_lines"
 mode = "n"
 
@@ -494,7 +494,7 @@ command = "delete_forward_and_insert"
 mode = "v"
 
 [[keymaps]]
-key = "shift+s"
+key = "S"
 command = "delete_line_and_insert"
 mode = "n"
 
@@ -514,7 +514,7 @@ command = "delete_word_and_insert"
 mode = "n"
 
 [[keymaps]]
-key = "shift+i"
+key = "I"
 command = "insert_first_non_blank"
 mode = "nv"
 
@@ -529,12 +529,12 @@ command = "line_start"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+6"
+key = "^"
 command = "line_start_non_blank"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+4"
+key = "$"
 command = "line_end"
 mode = "nv"
 
@@ -554,7 +554,7 @@ command = "word_backward"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+o"
+key = "O"
 command = "new_line_above"
 mode = "nv"
 
@@ -614,7 +614,7 @@ command = "inline_find_right"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+f"
+key = "F"
 command = "inline_find_left"
 mode = "nv"
 
@@ -629,12 +629,12 @@ command = "motion_mode_delete"
 mode = "n"
 
 [[keymaps]]
-key = "shift+."
+key = ">"
 command = "motion_mode_indent"
 mode = "n"
 
 [[keymaps]]
-key = "shift+,"
+key = "<"
 command = "motion_mode_outdent"
 mode = "n"
 
@@ -644,7 +644,7 @@ command = "motion_mode_yank"
 mode = "n"
 
 [[keymaps]]
-key = "shift+8"
+key = "*"
 command = "search_whole_word_forward"
 mode = "nv"
 
@@ -654,32 +654,32 @@ command = "search_forward"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+n"
+key = "N"
 command = "search_backward"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+5"
+key = "%"
 command = "match_pairs"
 mode = "nv"
 
 [[keymaps]]
-key = "] shift+0"
+key = "] )"
 command = "next_unmatched_right_bracket"
 mode = "nv"
 
 [[keymaps]]
-key = "[ shift+9"
+key = "[ ("
 command = "previous_unmatched_left_bracket"
 mode = "nv"
 
 [[keymaps]]
-key = "] shift+]"
+key = "] }"
 command = "next_unmatched_right_curly_bracket"
 mode = "nv"
 
 [[keymaps]]
-key = "[ shift+["
+key = "[ {"
 command = "previous_unmatched_left_curly_bracket"
 mode = "nv"
 
@@ -689,7 +689,7 @@ command = "toggle_visual_mode"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+v"
+key = "V"
 command = "toggle_linewise_visual_mode"
 mode = "nv"
 
@@ -744,16 +744,16 @@ command = "toggle_code_lens"
 mode = "nv"
 
 [[keymaps]]
-key = "shift+."
+key = ">"
 command = "indent_line"
 mode = "v"
 
 [[keymaps]]
-key = "shift+,"
+key = "<"
 command = "outdent_line"
 mode = "v"
 
 [[keymaps]]
-key = "shift+c"
+key = "C"
 command = "delete_to_end_and_insert"
 mode = "n"

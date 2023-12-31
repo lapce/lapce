@@ -12,16 +12,21 @@ pub struct KeyPress {
 }
 
 impl KeyPress {
-    pub fn to_lowercase(&self) -> Self {
-        let key = match &self.key {
-            KeyInput::Keyboard(Key::Character(c)) => KeyInput::Keyboard(
-                Key::Character(c.to_lowercase().into()),
-            ),
-            _ => self.key.clone(),
+    /// By using floem::keyboard::Key the shift modifier is already applied on characters
+    /// There are layouts where $, for example, is not shift+4, therefore we shouldn't rely on phyisical keys
+    /// So instead, if we have a key modified by shift, we remove the shift modifier
+    pub fn remove_shift_modifier_if_symbol(&self) -> Self {
+        let mut mods = self.mods;
+        match self.key {
+            KeyInput::Keyboard(Key::Character(_)) => {
+                mods.set(ModifiersState::SHIFT, false);
+            }
+            _ => {}
         };
+
         Self {
-            key,
-            mods: self.mods,
+            key: self.key.clone(),
+            mods,
         }
     }
 
@@ -82,8 +87,8 @@ impl KeyPress {
                     None => ("", k),
                 };
 
-                println!("{}", key);
-                let key : KeyInput = match key.parse().ok() {
+                println!("parse stuff  : {}", key);
+                let key: KeyInput = match key.parse().ok() {
                     Some(key) => key,
                     None => {
                         // Skip past unrecognized key definitions
@@ -91,7 +96,7 @@ impl KeyPress {
                         return None;
                     }
                 };
-                println!("{}", key);
+                println!("parse stuff 2: {}\n", key);
 
                 let mut mods = ModifiersState::empty();
                 for part in modifiers.to_lowercase().split('+') {

@@ -11,7 +11,7 @@ key = "ctrl+p"
 command = "palette"
 
 [[keymaps]]
-key = "ctrl+shift+p"
+key = "ctrl+P"
 command = "palette.command"
 
 [[keymaps]]
@@ -43,12 +43,12 @@ when = "source_control_focus"
 # --------------------------------- Terminal copy/paste ---------------------------------
 
 [[keymaps]]
-key = "ctrl+shift+c"
+key = "ctrl+C"
 command = "clipboard_copy"
 mode = "t"
 
 [[keymaps]]
-key = "ctrl+shift+v"
+key = "ctrl+V"
 command = "clipboard_paste"
 mode = "t"
 
@@ -60,7 +60,7 @@ command = "undo"
 mode = "i"
 
 [[keymaps]]
-key = "ctrl+shift+z"
+key = "ctrl+Z"
 command = "redo"
 mode = "i"
 
@@ -125,7 +125,7 @@ command = "delete_word_forward"
 mode = "i"
 
 [[keymaps]]
-key = "ctrl+shift+\\"
+key = "ctrl+|"
 command = "match_pairs"
 mode = "i"
 
@@ -174,7 +174,7 @@ command = "select_current_line"
 mode = "i"
 
 [[keymaps]]
-key = "ctrl+shift+l"
+key = "ctrl+L"
 command = "select_all_current"
 mode = "i"
 
@@ -250,19 +250,19 @@ command = "show_code_actions"
 # --------------------------------- Display -------------------------------------------
 
 [[keymaps]]
-key = "ctrl+shift+e"
+key = "ctrl+E"
 command = "toggle_file_explorer_focus"
 
 [[keymaps]]
-key = "ctrl+shift+f"
+key = "ctrl+F"
 command = "toggle_search_focus"
 
 [[keymaps]]
-key = "ctrl+shift+x"
+key = "ctrl+X"
 command = "toggle_plugin_focus"
 
 [[keymaps]]
-key = "ctrl+shift+m"
+key = "ctrl+M"
 command = "toggle_problem_focus"
 
 # ------------------------------------ Navigation -------------------------------------
@@ -276,7 +276,7 @@ key = "Ctrl+End"
 command = "document_end"
 
 [[keymaps]]
-key = "ctrl+shift+o"
+key = "ctrl+O"
 command = "palette.symbol"
 
 [[keymaps]]
