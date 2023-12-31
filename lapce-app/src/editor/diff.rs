@@ -128,6 +128,7 @@ pub struct DiffEditorData {
     pub scope: Scope,
     pub left: Rc<EditorData>,
     pub right: Rc<EditorData>,
+    pub confirmed: RwSignal<bool>,
     pub focus_right: RwSignal<bool>,
 }
 
@@ -141,24 +142,21 @@ impl DiffEditorData {
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
-        let left = EditorData::new(
-            cx,
-            None,
-            Some((editor_tab_id, id)),
-            EditorId::next(),
-            left_doc,
-            common.clone(),
-        );
-        let left = Rc::new(left);
-        let right = EditorData::new(
-            cx,
-            None,
-            Some((editor_tab_id, id)),
-            EditorId::next(),
-            right_doc,
-            common,
-        );
-        let right = Rc::new(right);
+        let confirmed = cx.create_rw_signal(false);
+
+        let [left, right] = [left_doc, right_doc].map(|doc| {
+            let editor_data = EditorData::new(
+                cx,
+                None,
+                Some((editor_tab_id, id)),
+                EditorId::next(),
+                doc,
+                Some(confirmed),
+                common.clone(),
+            );
+
+            Rc::new(editor_data)
+        });
 
         let data = Self {
             id,
@@ -166,6 +164,7 @@ impl DiffEditorData {
             scope: cx,
             left,
             right,
+            confirmed,
             focus_right: cx.create_rw_signal(true),
         };
 
@@ -194,24 +193,28 @@ impl DiffEditorData {
         diff_editor_id: EditorId,
     ) -> Self {
         let cx = cx.create_child();
+        let confirmed = cx.create_rw_signal(true);
+
+        let [left, right] = [&self.left, &self.right].map(|editor_data| {
+            let editor_data = editor_data.copy(
+                cx,
+                None,
+                Some((editor_tab_id, diff_editor_id)),
+                EditorId::next(),
+                Some(confirmed),
+            );
+
+            Rc::new(editor_data)
+        });
 
         let diff_editor = DiffEditorData {
             scope: cx,
             id: diff_editor_id,
             editor_tab_id: cx.create_rw_signal(editor_tab_id),
             focus_right: cx.create_rw_signal(true),
-            left: Rc::new(self.left.copy(
-                cx,
-                None,
-                Some((editor_tab_id, diff_editor_id)),
-                EditorId::next(),
-            )),
-            right: Rc::new(self.right.copy(
-                cx,
-                None,
-                Some((editor_tab_id, diff_editor_id)),
-                EditorId::next(),
-            )),
+            left,
+            right,
+            confirmed,
         };
 
         diff_editor.listen_diff_changes();

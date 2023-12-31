@@ -21,6 +21,7 @@ pub enum PaletteKind {
     Language,
     SCMReferences,
     TerminalProfile,
+    DiffFiles,
 }
 
 impl PaletteKind {
@@ -42,7 +43,8 @@ impl PaletteKind {
             | PaletteKind::ColorTheme
             | PaletteKind::IconTheme
             | PaletteKind::Language
-            | PaletteKind::SCMReferences => "",
+            | PaletteKind::SCMReferences
+            | PaletteKind::DiffFiles => "",
             #[cfg(windows)]
             PaletteKind::WslHost => "",
         }
@@ -90,6 +92,7 @@ impl PaletteKind {
                 Some(LapceWorkbenchCommand::PaletteSCMReferences)
             }
             PaletteKind::TerminalProfile => None, // InternalCommand::NewTerminal
+            PaletteKind::DiffFiles => Some(LapceWorkbenchCommand::DiffFiles),
         }
     }
 
@@ -115,7 +118,8 @@ impl PaletteKind {
             | PaletteKind::ColorTheme
             | PaletteKind::IconTheme
             | PaletteKind::Language
-            | PaletteKind::SCMReferences => input,
+            | PaletteKind::SCMReferences
+            | PaletteKind::DiffFiles => input,
             PaletteKind::PaletteHelp
             | PaletteKind::Command
             | PaletteKind::Workspace

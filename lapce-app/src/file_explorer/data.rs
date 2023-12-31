@@ -47,6 +47,7 @@ pub struct FileExplorerData {
     pub rename_state: RwSignal<RenameState>,
     pub rename_editor_data: EditorData,
     pub common: Rc<CommonData>,
+    left_diff_path: RwSignal<Option<PathBuf>>,
 }
 
 impl KeyPressFocus for FileExplorerData {
@@ -136,6 +137,7 @@ impl FileExplorerData {
             rename_state,
             rename_editor_data,
             common,
+            left_diff_path: cx.create_rw_signal(None),
         };
         if data.common.workspace.path.is_some() {
             // only fill in the child files if there is open folder
@@ -315,15 +317,41 @@ impl FileExplorerData {
     }
 
     pub fn secondary_click(&self, path: &Path) {
-        let path = path.to_owned();
-        let common = self.common.clone();
+        let menu = {
+            let common = self.common.clone();
+            let path = path.to_owned();
+            let left_path = path.clone();
+            let left_diff_path = self.left_diff_path;
 
-        let menu =
-            Menu::new("").entry(MenuItem::new("Rename...").action(move || {
+            Menu::new("")
+                .entry(MenuItem::new("Rename...").action(move || {
+                    common
+                        .internal_command
+                        .send(InternalCommand::StartRenamePath {
+                            path: path.clone(),
+                        });
+                }))
+                .entry(
+                    MenuItem::new("Select for Compare")
+                        .action(move || left_diff_path.set(Some(left_path.clone()))),
+                )
+        };
+
+        let menu = if let Some(left_path) = self.left_diff_path.get_untracked() {
+            let common = self.common.clone();
+            let right_path = path.to_owned();
+
+            menu.entry(MenuItem::new("Compare with Selected").action(move || {
                 common
                     .internal_command
-                    .send(InternalCommand::StartRenamePath { path: path.clone() });
-            }));
+                    .send(InternalCommand::OpenDiffFiles {
+                        left_path: left_path.clone(),
+                        right_path: right_path.clone(),
+                    })
+            }))
+        } else {
+            menu
+        };
 
         show_context_menu(menu, None);
     }

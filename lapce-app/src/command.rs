@@ -507,6 +507,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "previous_error")]
     PreviousError,
 
+    #[strum(message = "Diff Files")]
+    #[strum(serialize = "diff_files")]
+    DiffFiles,
+
     #[strum(serialize = "quit")]
     #[strum(message = "Quit Editor")]
     Quit,
@@ -666,6 +670,10 @@ pub enum InternalCommand {
         volt_id: VoltID,
     },
     ResetBlinkCursor,
+    OpenDiffFiles {
+        left_path: PathBuf,
+        right_path: PathBuf,
+    },
 }
 
 #[derive(Clone)]
