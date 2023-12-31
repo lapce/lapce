@@ -41,6 +41,27 @@ impl KeyPress {
         false
     }
 
+    pub fn if_is_letter_remove_shift( &self) -> Self{
+        let mut mods = self.mods;
+        let is_letter = match &self.key {
+            KeyInput::Keyboard(Key::Character(c) ) => {
+                let is_letter = c.to_lowercase() != c.to_uppercase();
+                is_letter
+            },
+            _ => false,
+        };
+        if is_letter {
+            mods.set(ModifiersState::SHIFT, false);
+            return Self {
+                key: self.key.clone(),
+                mods,
+            };
+        }
+        else{
+           return self.clone();
+        }
+    }
+
     pub fn is_modifiers(&self) -> bool {
         if let KeyInput::Keyboard(key) = &self.key {
             matches!(
@@ -87,7 +108,6 @@ impl KeyPress {
                     None => ("", k),
                 };
 
-                println!("parse stuff  : {}", key);
                 let key: KeyInput = match key.parse().ok() {
                     Some(key) => key,
                     None => {
@@ -96,7 +116,6 @@ impl KeyPress {
                         return None;
                     }
                 };
-                println!("parse stuff 2: {}\n", key);
 
                 let mut mods = ModifiersState::empty();
                 for part in modifiers.to_lowercase().split('+') {

@@ -316,9 +316,11 @@ impl KeyPressData {
         keypresses: &[KeyPress],
         check: &T,
     ) -> KeymapMatch {
-        let keypresses: Vec<KeyPress> =
-            keypresses.iter().map(KeyPress::remove_shift_modifier_if_symbol).collect();
-        
+        let keypresses: Vec<KeyPress> = keypresses
+            .iter()
+            .map(KeyPress::remove_shift_modifier_if_symbol)
+            .collect();
+
         let matches: Vec<_> = self
             .keymaps
             .get(&keypresses)
@@ -348,9 +350,6 @@ impl KeyPressData {
             })
             .unwrap_or_default();
 
-            for (i, element ) in keypresses.iter().enumerate() {
-            println!("{}: {} \nmatches:{}", i, element.key, matches.len());
-        }
         if matches.is_empty() {
             KeymapMatch::None
         } else if matches.len() == 1 && matches[0].key == keypresses {
