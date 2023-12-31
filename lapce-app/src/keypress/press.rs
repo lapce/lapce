@@ -41,13 +41,13 @@ impl KeyPress {
         false
     }
 
-    pub fn if_is_letter_remove_shift( &self) -> Self{
+    pub fn if_is_letter_remove_shift(&self) -> Self {
         let mut mods = self.mods;
         let is_letter = match &self.key {
-            KeyInput::Keyboard(Key::Character(c) ) => {
+            KeyInput::Keyboard(Key::Character(c)) => {
                 let is_letter = c.to_lowercase() != c.to_uppercase();
                 is_letter
-            },
+            }
             _ => false,
         };
         if is_letter {
@@ -56,9 +56,8 @@ impl KeyPress {
                 key: self.key.clone(),
                 mods,
             };
-        }
-        else{
-           return self.clone();
+        } else {
+            return self.clone();
         }
     }
 

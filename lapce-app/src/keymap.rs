@@ -507,8 +507,8 @@ fn keyboard_picker_view(
                     if keys.len() == 2 {
                         keys.clear();
                     }
-                    
-                    let keypress =keypress.if_is_letter_remove_shift();
+
+                    let keypress = keypress.if_is_letter_remove_shift();
 
                     keys.push((keypress, false));
                 })
