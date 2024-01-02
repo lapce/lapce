@@ -13,6 +13,7 @@ use std::{
 use alacritty_terminal::{event::WindowSize, event_loop::Msg};
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
+use git2::ErrorCode::NotFound;
 use git2::{build::CheckoutBuilder, DiffOptions, Oid, Repository};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
@@ -31,7 +32,9 @@ use lapce_rpc::{
     RequestId, RpcError,
 };
 use lapce_xi_rope::Rope;
-use lsp_types::{Position, Range, TextDocumentItem, Url};
+use lsp_types::{
+    MessageType, Position, Range, ShowMessageParams, TextDocumentItem, Url,
+};
 use parking_lot::Mutex;
 
 use crate::{
@@ -284,7 +287,15 @@ impl ProxyHandler for Dispatcher {
                 if let Some(workspace) = self.workspace.as_ref() {
                     match git_commit(workspace, &message, diffs) {
                         Ok(()) => (),
-                        Err(e) => eprintln!("{e:?}"),
+                        Err(e) => {
+                            self.core_rpc.show_message(
+                                "Git Commit failure".to_owned(),
+                                ShowMessageParams {
+                                    typ: MessageType::ERROR,
+                                    message: e.to_string(),
+                                },
+                            );
+                        }
                     }
                 }
             }
@@ -1205,18 +1216,35 @@ fn git_commit(
     index.write()?;
     let tree = index.write_tree()?;
     let tree = repo.find_tree(tree)?;
-    let signature = repo.signature()?;
-    let parent = repo.head()?.peel_to_commit()?;
 
-    repo.commit(
-        Some("HEAD"),
-        &signature,
-        &signature,
-        message,
-        &tree,
-        &[&parent],
-    )?;
-    Ok(())
+    match repo.signature() {
+        Ok(signature) => {
+            let parents = repo
+                .head()
+                .and_then(|head| Ok(vec![head.peel_to_commit()?]))
+                .unwrap_or(vec![]);
+            let parents_refs = parents.iter().collect::<Vec<_>>();
+
+            repo.commit(
+                Some("HEAD"),
+                &signature,
+                &signature,
+                message,
+                &tree,
+                &parents_refs,
+            )?;
+            Ok(())
+        }
+        Err(e) => match e.code() {
+            NotFound => Err(anyhow!(
+                "No user.name and/or user.email configured for this git repository."
+            )),
+            _ => Err(anyhow!(
+                "Error while creating commit's signature: {}",
+                e.message()
+            )),
+        },
+    }
 }
 
 fn git_checkout(workspace_path: &Path, reference: &str) -> Result<()> {
