@@ -4,6 +4,7 @@
 
 ### Features/Changes
 - [#2723](https://github.com/lapce/lapce/pull/2723): Line wrapping based on width (no column-based yet)
+- [#1277](https://github.com/lapce/lapce/pull/1277): Error message prompted on missing git user.email and/or user.name
 
 ### Bug Fixes
 - [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository
