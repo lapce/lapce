@@ -950,8 +950,9 @@ impl WindowTabData {
             ConnectSshHost => {
                 self.palette.run(PaletteKind::SshHost);
             }
-            ConnectWsl => {
-                // TODO:
+            #[cfg(windows)]
+            ConnectWslHost => {
+                self.palette.run(PaletteKind::WslHost);
             }
             DisconnectRemote => {
                 self.common.window_common.window_command.send(
