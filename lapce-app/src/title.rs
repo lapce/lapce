@@ -80,10 +80,12 @@ fn left(
             );
             #[cfg(windows)]
             {
-                menu =
-                    menu.entry(MenuItem::new("Connect to WSL").action(move || {
-                        workbench_command.send(LapceWorkbenchCommand::ConnectWsl);
-                    }));
+                menu = menu.entry(MenuItem::new("Connect to WSL Host").action(
+                    move || {
+                        workbench_command
+                            .send(LapceWorkbenchCommand::ConnectWslHost);
+                    },
+                ));
             }
             menu
         })
