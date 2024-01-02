@@ -1206,7 +1206,11 @@ fn git_commit(
     let tree = index.write_tree()?;
     let tree = repo.find_tree(tree)?;
     let signature = repo.signature()?;
-    let parent = repo.head()?.peel_to_commit()?;
+    let parents = repo
+        .head()
+        .and_then(|head| Ok(vec![head.peel_to_commit()?]))
+        .unwrap_or(vec![]);
+    let parents_refs = parents.iter().collect::<Vec<_>>();
 
     repo.commit(
         Some("HEAD"),
@@ -1214,7 +1218,7 @@ fn git_commit(
         &signature,
         message,
         &tree,
-        &[&parent],
+        &parents_refs,
     )?;
     Ok(())
 }
