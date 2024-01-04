@@ -15,7 +15,7 @@ use lapce_core::{
     command::EditCommand,
     cursor::Cursor,
     editor::Action,
-    mode::MotionMode,
+    mode::{Mode, MotionMode},
     register::{Clipboard, Register},
     word::WordCursor,
 };
@@ -163,7 +163,9 @@ pub trait Document: DocumentPhantom + Downcast {
         cmd: &Command,
         count: Option<usize>,
         modifiers: ModifiersState,
-    );
+    ) -> CommandExecuted;
+
+    fn receive_char(&self, ed: &Editor, c: &str);
 }
 impl_downcast!(Document);
 
@@ -353,6 +355,12 @@ impl TextDocument {
             preedit,
         }
     }
+
+    fn update_cache_rev(&self) {
+        self.cache_rev.try_update(|cache_rev| {
+            *cache_rev += 1;
+        });
+    }
 }
 impl Document for TextDocument {
     fn text(&self) -> Rope {
@@ -373,8 +381,41 @@ impl Document for TextDocument {
         cmd: &Command,
         count: Option<usize>,
         modifiers: ModifiersState,
-    ) {
-        handle_command_default(ed, self, self.buffer, cmd, count, modifiers);
+    ) -> CommandExecuted {
+        handle_command_default(ed, self, self.buffer, cmd, count, modifiers)
+    }
+
+    fn receive_char(&self, ed: &Editor, c: &str) {
+        let mode = ed.cursor.with_untracked(|c| c.get_mode());
+        if mode == Mode::Insert {
+            let mut cursor = ed.cursor.get_untracked();
+            {
+                let old_cursor_mode = cursor.mode.clone();
+                self.buffer
+                    .try_update(|buffer| {
+                        Action::insert(
+                            &mut cursor,
+                            buffer,
+                            c,
+                            &|_, c, offset| {
+                                WordCursor::new(&self.text(), offset)
+                                    .previous_unmatched(c)
+                            },
+                            // TODO: ?
+                            false,
+                            false,
+                        )
+                    })
+                    .unwrap();
+                self.buffer.update(|buffer| {
+                    buffer.set_cursor_before(old_cursor_mode);
+                    buffer.set_cursor_after(cursor.mode.clone());
+                });
+                // TODO: line specific invalidation
+                self.update_cache_rev();
+            }
+            ed.cursor.set(cursor);
+        }
     }
 }
 impl DocumentPhantom for TextDocument {
@@ -448,6 +489,8 @@ impl CommonAction for TextDocument {
             });
         }
 
+        self.update_cache_rev();
+
         !deltas.is_empty()
     }
 }
@@ -496,8 +539,12 @@ impl Document for PhantomTextDocument {
         cmd: &Command,
         count: Option<usize>,
         modifiers: ModifiersState,
-    ) {
+    ) -> CommandExecuted {
         self.doc.run_command(ed, cmd, count, modifiers)
+    }
+
+    fn receive_char(&self, ed: &Editor, c: &str) {
+        self.doc.receive_char(ed, c)
     }
 }
 impl DocumentPhantom for PhantomTextDocument {
@@ -636,12 +683,16 @@ where
         cmd: &Command,
         count: Option<usize>,
         modifiers: ModifiersState,
-    ) {
+    ) -> CommandExecuted {
         if (self.handler)(ed, cmd, count, modifiers) == CommandExecuted::Yes {
-            return;
+            return CommandExecuted::Yes;
         }
 
         self.doc.run_command(ed, cmd, count, modifiers)
+    }
+
+    fn receive_char(&self, ed: &Editor, c: &str) {
+        self.doc.receive_char(ed, c)
     }
 }
 impl<D, F> DocumentPhantom for ExtCmdDocument<D, F>

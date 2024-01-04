@@ -4,6 +4,7 @@ use floem::{
     context::PaintCx,
     event::{Event, EventListener},
     id::Id,
+    keyboard::{Key, KeyEvent, ModifiersState, NamedKey},
     kurbo::{BezPath, Line, Point, Rect, Size, Vec2},
     peniko::Color,
     reactive::{
@@ -22,7 +23,9 @@ use lapce_core::{
 };
 
 use crate::{
+    command::CommandExecuted,
     gutter::editor_gutter_view,
+    keypress::{key::KeyInput, press::KeyPress},
     layout::LineExtraStyle,
     phantom_text::PhantomTextKind,
     visual_line::{RVLine, VLineInfo},
@@ -1544,6 +1547,7 @@ pub fn cursor_caret(
 pub fn editor_container_view(
     editor: RwSignal<Rc<Editor>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
+    handle_key_event: impl Fn(&KeyPress, ModifiersState) -> CommandExecuted + 'static,
 ) -> impl View {
     let editor_rect = create_rw_signal(Rect::ZERO);
 
@@ -1552,7 +1556,7 @@ pub fn editor_container_view(
         container(
             stack((
                 editor_gutter(editor, is_active),
-                container(editor_content(editor, is_active))
+                container(editor_content(editor, is_active, handle_key_event))
                     .style(move |s| s.size_pct(100.0, 100.0)),
                 empty().style(move |s| {
                     s.absolute().width_pct(100.0)
@@ -1665,6 +1669,7 @@ pub fn editor_gutter(
 fn editor_content(
     editor: RwSignal<Rc<Editor>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
+    handle_key_event: impl Fn(&KeyPress, ModifiersState) -> CommandExecuted + 'static,
 ) -> impl View {
     let ed = editor.get_untracked();
     let cursor = ed.cursor;
@@ -1702,6 +1707,7 @@ fn editor_content(
                 // TODO:
                 if let Event::PointerDown(pointer_event) = event {
                     id.request_active();
+                    id.request_focus();
                     // editor.get_untracked().pointer_down(pointer_event);
                 }
             })
@@ -1718,6 +1724,34 @@ fn editor_content(
             .on_event_stop(EventListener::PointerLeave, move |event| {
                 if let Event::PointerLeave = event {
                     // editor.get_untracked().pointer_leave();
+                }
+            })
+            .on_event_stop(EventListener::KeyDown, move |event| {
+                let Event::KeyDown(key_event) = event else {
+                    return;
+                };
+
+                let Ok(keypress) = KeyPress::try_from(key_event) else {
+                    return;
+                };
+
+                handle_key_event(&keypress, key_event.modifiers);
+
+                let mut mods = key_event.modifiers;
+                mods.set(ModifiersState::SHIFT, false);
+                #[cfg(target_os = "macos")]
+                mods.set(ModifiersState::ALT, false);
+
+                if mods.is_empty() {
+                    if let KeyInput::Keyboard(Key::Character(c), _) = keypress.key {
+                        editor.get_untracked().receive_char(&c);
+                    } else if let KeyInput::Keyboard(
+                        Key::Named(NamedKey::Space),
+                        _,
+                    ) = keypress.key
+                    {
+                        editor.get_untracked().receive_char(" ");
+                    }
                 }
             })
     })

@@ -19,7 +19,7 @@ use floem::{
 use floem_editor::{
     actions::CommonAction,
     color::EditorColor,
-    command::Command,
+    command::{Command, CommandExecuted},
     editor::Editor,
     phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
     text::{
@@ -1087,7 +1087,8 @@ impl Document for Doc {
         cmd: &Command,
         count: Option<usize>,
         modifiers: ModifiersState,
-    ) {
+    ) -> CommandExecuted {
+        CommandExecuted::No
         // if self.common.find.visual.get_untracked() && self.find_focus.get_untracked()
         // {
         //     match &command.kind {
@@ -1143,6 +1144,10 @@ impl Document for Doc {
         //         self.run_multi_selection_command(cmd)
         //     }
         // }
+    }
+
+    fn receive_char(&self, ed: &Editor, c: &str) {
+        todo!()
     }
 }
 impl DocumentPhantom for Doc {

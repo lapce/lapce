@@ -1,12 +1,15 @@
 use std::rc::Rc;
 
 use floem::{
+    event::EventListener,
     reactive::{create_rw_signal, RwSignal, Scope},
     view::View,
+    views::{label, Decorators},
 };
 use floem_editor::{
     editor::Editor,
     id::EditorId,
+    keypress::default_key_handler,
     text::{default_dark_color, SimpleStyling, TextDocument},
     view::editor_container_view,
 };
@@ -27,5 +30,5 @@ fn main() {
 }
 
 fn app_view(editor: RwSignal<Rc<Editor>>) -> impl View {
-    editor_container_view(editor, |_| true)
+    editor_container_view(editor, |_| true, default_key_handler(editor))
 }

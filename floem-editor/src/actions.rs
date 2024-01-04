@@ -1,15 +1,10 @@
-use floem::{
-    keyboard::ModifiersState,
-    reactive::{batch, RwSignal},
-};
+use floem::{keyboard::ModifiersState, reactive::RwSignal};
 use lapce_core::{
     buffer::Buffer,
     command::{
-        EditCommand, FocusCommand, FocusCommand2, MotionModeCommand,
-        MultiSelectionCommand,
+        EditCommand, FocusCommand2, MotionModeCommand, MultiSelectionCommand,
     },
     cursor::Cursor,
-    editor::Action,
     mode::MotionMode,
     movement::Movement,
     register::Register,
@@ -19,7 +14,6 @@ use crate::{
     command::{Command, CommandExecuted},
     editor::Editor,
     movement,
-    text::SystemClipboard,
 };
 
 pub fn handle_command_default(

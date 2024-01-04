@@ -232,6 +232,10 @@ impl Editor {
         }
     }
 
+    pub fn receive_char(&self, c: &str) {
+        self.doc().receive_char(self, c)
+    }
+
     fn compute_screen_lines(&self, base: RwSignal<ScreenLinesBase>) -> ScreenLines {
         // This function *cannot* access `ScreenLines` with how it is currently implemented.
         // This is being called from within an update to screen lines.

@@ -5,6 +5,7 @@ pub mod command;
 pub mod editor;
 pub mod gutter;
 pub mod id;
+pub mod keypress;
 pub mod layout;
 pub mod listener;
 pub mod movement;
