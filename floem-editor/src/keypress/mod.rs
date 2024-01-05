@@ -3,10 +3,7 @@ pub mod press;
 
 use std::{collections::HashMap, rc::Rc, str::FromStr};
 
-use floem::{
-    keyboard::{KeyEvent, ModifiersState},
-    reactive::RwSignal,
-};
+use floem::{keyboard::ModifiersState, reactive::RwSignal};
 use lapce_core::command::{
     EditCommand, FocusCommand2, MoveCommand, MultiSelectionCommand,
 };
@@ -368,6 +365,16 @@ fn add_default_nonmacos(c: &mut HashMap<KeyPress, Command>) {
     c.insert(
         key("u", ModifiersState::CONTROL),
         Command::MultiSelection(MultiSelectionCommand::SelectUndo),
+    );
+
+    // --- Navigation ---
+    c.insert(
+        key("home", ModifiersState::CONTROL),
+        Command::Move(MoveCommand::DocumentStart),
+    );
+    c.insert(
+        key("end", ModifiersState::CONTROL),
+        Command::Move(MoveCommand::DocumentEnd),
     );
 }
 
