@@ -1673,7 +1673,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=92ba6406b2406e4223933267137229db0a619a0a#92ba6406b2406e4223933267137229db0a619a0a"
+source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
 dependencies = [
  "bitflags 2.4.0",
  "copypasta",
@@ -1703,7 +1703,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=92ba6406b2406e4223933267137229db0a619a0a#92ba6406b2406e4223933267137229db0a619a0a"
+source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
 dependencies = [
  "smallvec",
 ]
@@ -1711,7 +1711,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=92ba6406b2406e4223933267137229db0a619a0a#92ba6406b2406e4223933267137229db0a619a0a"
+source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
 dependencies = [
  "cosmic-text",
  "image",
@@ -1722,7 +1722,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=92ba6406b2406e4223933267137229db0a619a0a#92ba6406b2406e4223933267137229db0a619a0a"
+source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1739,7 +1739,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=92ba6406b2406e4223933267137229db0a619a0a#92ba6406b2406e4223933267137229db0a619a0a"
+source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -6080,7 +6080,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.7"
-source = "git+https://github.com/lapce/vger-rs?rev=ba0df7cd8e23b9fa692c827b56491d2034f3a810#ba0df7cd8e23b9fa692c827b56491d2034f3a810"
+source = "git+https://github.com/lapce/vger-rs?rev=1820c59e09fa731d0867a908d0ef094d27e1b3fb#1820c59e09fa731d0867a908d0ef094d27e1b3fb"
 dependencies = [
  "cosmic-text",
  "euclid",

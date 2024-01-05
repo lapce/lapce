@@ -8,8 +8,8 @@ use floem::{
     style::{AlignItems, CursorStyle, Position, Style},
     view::View,
     views::{
-        container, container_box, label, list, scroll, stack, svg, virtual_list,
-        Decorators, VirtualListDirection, VirtualListItemSize,
+        container, container_box, dyn_stack, label, scroll, stack, svg,
+        virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
     },
     EventPropagation,
 };
@@ -221,9 +221,9 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
     let root = data.root;
     let ui_line_height = data.common.ui_line_height;
     let config = data.common.config;
-    virtual_list(
-        VirtualListDirection::Vertical,
-        VirtualListItemSize::Fixed(Box::new(move || ui_line_height.get())),
+    virtual_stack(
+        VirtualDirection::Vertical,
+        VirtualItemSize::Fixed(Box::new(move || ui_line_height.get())),
         move || FileNodeVirtualList::new(root.get(), data.rename_state.get()),
         move |node| {
             (
@@ -441,7 +441,7 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
     };
 
     scroll(
-        list(
+        dyn_stack(
             move || editor_tabs.get().into_iter().enumerate(),
             move |(index, (editor_tab_id, _))| (*index, *editor_tab_id),
             move |(index, (_, editor_tab))| {
@@ -449,7 +449,7 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                 stack((
                     label(move || format!("Group {}", index + 1))
                         .style(|s| s.margin_left(10.0)),
-                    list(
+                    dyn_stack(
                         move || editor_tab.get().children,
                         move |(_, _, child)| child.id(),
                         move |(child_index, _, child)| {

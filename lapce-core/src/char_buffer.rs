@@ -930,10 +930,7 @@ fn test_char_buffer() {
         Q: std::hash::Hash + ?Sized,
         S: core::hash::BuildHasher,
     {
-        use core::hash::Hasher;
-        let mut state = hash_builder.build_hasher();
-        val.hash(&mut state);
-        state.finish()
+        hash_builder.hash_one(val)
     }
 
     for mut char in string.chars() {

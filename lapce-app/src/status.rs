@@ -7,7 +7,7 @@ use floem::{
     reactive::{create_memo, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Display},
     view::View,
-    views::{label, list, stack, svg, Decorators},
+    views::{dyn_stack, label, stack, svg, Decorators},
 };
 use indexmap::IndexMap;
 use lapce_core::mode::{Mode, VisualMode};
@@ -418,7 +418,7 @@ fn progress_view(
     progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
 ) -> impl View {
     let id = AtomicU64::new(0);
-    list(
+    dyn_stack(
         move || progresses.get(),
         move |_| id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         move |(_, p)| {

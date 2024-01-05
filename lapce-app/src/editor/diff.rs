@@ -6,7 +6,7 @@ use floem::{
     reactive::{RwSignal, Scope},
     style::CursorStyle,
     view::View,
-    views::{clip, empty, label, list, stack, svg, Decorators},
+    views::{clip, dyn_stack, empty, label, stack, svg, Decorators},
 };
 use lapce_core::buffer::{
     diff::{expand_diff_lines, rope_diff, DiffExpand, DiffLines},
@@ -529,7 +529,7 @@ pub fn diff_show_more_section_view(
             s.height(config.get().editor.line_height() as f32 + 1.0)
         }),
         clip(
-            list(each_fn, key_fn, view_fn)
+            dyn_stack(each_fn, key_fn, view_fn)
                 .style(|s| s.flex_col().size_pct(100.0, 100.0)),
         )
         .style(|s| s.size_pct(100.0, 100.0)),

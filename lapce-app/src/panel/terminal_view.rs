@@ -6,7 +6,7 @@ use floem::{
     reactive::create_rw_signal,
     view::View,
     views::{
-        container, empty, label, list,
+        container, dyn_stack, empty, label,
         scroll::{scroll, Thickness},
         stack, svg, tab, Decorators,
     },
@@ -52,7 +52,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
     let workbench_command = window_tab_data.common.workbench_command;
 
     stack((
-        scroll(list(
+        scroll(dyn_stack(
             move || {
                 let tabs = terminal.tab_info.with(|info| info.tabs.clone());
                 for (i, (index, _)) in tabs.iter().enumerate() {
@@ -253,7 +253,7 @@ fn terminal_tab_split(
     let config = terminal_panel_data.common.config;
     let active = terminal_tab_data.active;
     let terminal_tab_scope = terminal_tab_data.scope;
-    list(
+    dyn_stack(
         move || {
             let terminals = terminal_tab_data.terminals.get();
             for (i, (index, _)) in terminals.iter().enumerate() {

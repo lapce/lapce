@@ -17,7 +17,7 @@ pub fn web_link(
         .on_click_stop(move |_| {
             internal_command.send(InternalCommand::OpenWebUri { uri: uri() });
         })
-        .base_style(move |s| {
+        .style(move |s| {
             s.color(color())
                 .hover(move |s| s.cursor(CursorStyle::Pointer))
         })

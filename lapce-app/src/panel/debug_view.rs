@@ -8,8 +8,8 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, container_box, label, list, scroll, stack, svg, text,
-        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
+        container, container_box, dyn_stack, label, scroll, stack, svg, text,
+        virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
     },
 };
 use lapce_rpc::{
@@ -242,7 +242,7 @@ fn debug_processes(
     scroll({
         let terminal = terminal.clone();
         let local_terminal = terminal.clone();
-        list(
+        dyn_stack(
             move || local_terminal.run_debug_process(true),
             |(term_id, p)| (*term_id, p.stopped),
             move |(term_id, p)| {
@@ -328,9 +328,9 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
     let config = window_tab_data.common.config;
     container(
         scroll(
-            virtual_list(
-                VirtualListDirection::Vertical,
-                VirtualListItemSize::Fixed(Box::new(move || ui_line_height.get())),
+            virtual_stack(
+                VirtualDirection::Vertical,
+                VirtualItemSize::Fixed(Box::new(move || ui_line_height.get())),
                 move || {
                     let dap = terminal.get_active_dap(true);
                     dap.map(|dap| {
@@ -466,7 +466,7 @@ fn debug_stack_frames(
                     )
                 })
             }),
-        list(
+        dyn_stack(
             move || {
                 let expanded = stack_trace.expanded.get() && stopped.get();
                 if expanded {
@@ -561,7 +561,7 @@ fn debug_stack_traces(
     container(
         scroll({
             let local_terminal = terminal.clone();
-            list(
+            dyn_stack(
                 move || {
                     let dap = local_terminal.get_active_dap(true);
                     if let Some(dap) = dap {
@@ -622,7 +622,7 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
     let internal_command = window_tab_data.common.internal_command;
     container(
         scroll(
-            list(
+            dyn_stack(
                 move || {
                     breakpoints
                         .get()

@@ -9,7 +9,7 @@ use floem::{
     reactive::{ReadSignal, RwSignal, Scope},
     style::CursorStyle,
     view::View,
-    views::{container, label, list, stack, svg, Decorators},
+    views::{container, dyn_stack, label, stack, svg, Decorators},
 };
 
 use crate::{
@@ -77,7 +77,7 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                 }),
                 label(move || msg.get())
                     .style(move |s| s.width_pct(100.0).margin_top(10.0)),
-                list(
+                dyn_stack(
                     move || buttons.get(),
                     move |_button| {
                         button_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)

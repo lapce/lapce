@@ -149,7 +149,7 @@ pub fn text_input(
         hide_cursor: editor.common.window_common.hide_cursor,
         style: Default::default(),
     }
-    .base_style(|s| {
+    .style(|s| {
         s.cursor(CursorStyle::Text)
             .padding_horiz(10.0)
             .padding_vert(6.0)
@@ -194,7 +194,7 @@ pub fn text_input(
                 doc.clear_preedit();
             } else {
                 let offset = cursor.with_untracked(|c| c.offset());
-                doc.set_preedit(text.clone(), *ime_cursor, offset);
+                doc.set_preedit(text.clone(), ime_cursor.to_owned(), offset);
             }
         }
         EventPropagation::Stop
@@ -207,7 +207,7 @@ pub fn text_input(
         if let Event::ImeCommit(text) = event {
             let doc = local_editor.view.doc.get_untracked();
             doc.clear_preedit();
-            local_editor.receive_char(text);
+            local_editor.receive_char(text.as_str());
         }
         EventPropagation::Stop
     })

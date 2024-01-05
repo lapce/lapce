@@ -17,8 +17,8 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container_box, dyn_container, empty, img, label, list, rich_text, scroll,
-        stack, svg, text, Decorators,
+        container_box, dyn_container, dyn_stack, empty, img, label, rich_text,
+        scroll, stack, svg, text, Decorators,
     },
 };
 use indexmap::IndexMap;
@@ -931,7 +931,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                             });
                             {
                                 let id = AtomicU64::new(0);
-                                list(
+                                dyn_stack(
                                     move || {
                                         readme.get().unwrap_or_else(|| {
                                             parse_markdown(

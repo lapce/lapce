@@ -109,7 +109,7 @@ pub fn text_area(
         )
         .style(|s| s.absolute().size_pct(100.0, 100.0)),
     )
-    .base_style(move |s| {
+    .style(move |s| {
         let config = config.get();
         s.border(1.0)
             .border_radius(6.0)

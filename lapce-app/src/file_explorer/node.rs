@@ -1,5 +1,4 @@
-use floem::views::VirtualListVector;
-
+use floem::views::VirtualVector;
 use lapce_rpc::file::{FileNodeItem, FileNodeViewData};
 
 use lapce_rpc::file::RenameState;
@@ -18,14 +17,15 @@ impl FileNodeVirtualList {
     }
 }
 
-impl VirtualListVector<FileNodeViewData> for FileNodeVirtualList {
-    type ItemIterator = Box<dyn Iterator<Item = FileNodeViewData>>;
-
+impl VirtualVector<FileNodeViewData> for FileNodeVirtualList {
     fn total_len(&self) -> usize {
         self.file_node_item.children_open_count
     }
 
-    fn slice(&mut self, range: std::ops::Range<usize>) -> Self::ItemIterator {
+    fn slice(
+        &mut self,
+        range: std::ops::Range<usize>,
+    ) -> impl Iterator<Item = FileNodeViewData> {
         let min = range.start;
         let max = range.end;
         let mut i = 0;
@@ -40,10 +40,10 @@ impl VirtualListVector<FileNodeViewData> for FileNodeVirtualList {
                 0,
             );
             if i > max {
-                return Box::new(view_items.into_iter());
+                return view_items.into_iter();
             }
         }
 
-        Box::new(view_items.into_iter())
+        view_items.into_iter()
     }
 }

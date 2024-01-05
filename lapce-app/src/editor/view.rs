@@ -20,7 +20,9 @@ use floem::{
     style::{CursorStyle, Style},
     taffy::prelude::Node,
     view::{View, ViewData},
-    views::{clip, container, empty, label, list, scroll, stack, svg, Decorators},
+    views::{
+        clip, container, dyn_stack, empty, label, scroll, stack, svg, Decorators,
+    },
     EventPropagation, Renderer,
 };
 use itertools::Itertools;
@@ -2168,7 +2170,7 @@ fn editor_gutter(
         .style(|s| s.height_pct(100.0)),
         clip(
             stack((
-                list(
+                dyn_stack(
                     move || {
                         let num = num_display_lines.get();
                         0..num
@@ -2183,7 +2185,7 @@ fn editor_gutter(
                             as f32,
                     )
                 }),
-                list(
+                dyn_stack(
                     move || {
                         let editor = editor.get();
                         let doc = editor.view.doc.get();
@@ -2333,7 +2335,7 @@ fn editor_breadcrumbs(
             stack((
                 {
                     let workspace = workspace.clone();
-                    list(
+                    dyn_stack(
                         move || {
                             let full_path = doc_path.get().unwrap_or_default();
                             let mut path = full_path;

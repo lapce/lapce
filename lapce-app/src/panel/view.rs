@@ -6,7 +6,9 @@ use floem::{
     reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::CursorStyle,
     view::View,
-    views::{container, container_box, empty, label, list, stack, tab, Decorators},
+    views::{
+        container, container_box, dyn_stack, empty, label, stack, tab, Decorators,
+    },
     EventPropagation,
 };
 
@@ -347,7 +349,7 @@ fn panel_picker(
     let dragging = window_tab_data.common.dragging;
     let is_bottom = position.is_bottom();
     let is_first = position.is_first();
-    list(
+    dyn_stack(
         move || {
             panel
                 .panels

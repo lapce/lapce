@@ -6,8 +6,8 @@ use floem::{
     style::{CursorStyle, Style},
     view::View,
     views::{
-        container, label, scroll, stack, svg, virtual_list, Decorators,
-        VirtualListDirection, VirtualListItemSize,
+        container, label, scroll, stack, svg, virtual_stack, Decorators,
+        VirtualDirection, VirtualItemSize,
     },
 };
 use lapce_xi_rope::find::CaseMatching;
@@ -112,9 +112,9 @@ fn search_result(
     let ui_line_height = global_search_data.common.ui_line_height;
     container({
         scroll({
-            virtual_list(
-                VirtualListDirection::Vertical,
-                VirtualListItemSize::Fn(Box::new(
+            virtual_stack(
+                VirtualDirection::Vertical,
+                VirtualItemSize::Fn(Box::new(
                     |(_, match_data): &(PathBuf, SearchMatchData)| {
                         match_data.height()
                     },
@@ -209,9 +209,9 @@ fn search_result(
                                     )
                                 })
                         }),
-                        virtual_list(
-                            VirtualListDirection::Vertical,
-                            VirtualListItemSize::Fixed(Box::new(move || {
+                        virtual_stack(
+                            VirtualDirection::Vertical,
+                            VirtualItemSize::Fixed(Box::new(move || {
                                 ui_line_height.get()
                             })),
                             move || {

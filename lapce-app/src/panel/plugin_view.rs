@@ -7,8 +7,8 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, dyn_container, img, label, scroll, stack, svg, virtual_list,
-        Decorators, VirtualListDirection, VirtualListItemSize, VirtualListVector,
+        container, dyn_container, img, label, scroll, stack, svg, virtual_stack,
+        Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
 };
 use indexmap::IndexMap;
@@ -40,16 +40,14 @@ impl<K: Clone, V: Clone> IndexMapItems<K, V> {
     }
 }
 
-impl<K: Clone + 'static, V: Clone + 'static> VirtualListVector<(usize, K, V)>
+impl<K: Clone + 'static, V: Clone + 'static> VirtualVector<(usize, K, V)>
     for IndexMapItems<K, V>
 {
-    type ItemIterator = Box<dyn Iterator<Item = (usize, K, V)>>;
-
     fn total_len(&self) -> usize {
         self.0.len()
     }
 
-    fn slice(&mut self, range: Range<usize>) -> Self::ItemIterator {
+    fn slice(&mut self, range: Range<usize>) -> impl Iterator<Item = (usize, K, V)> {
         let start = range.start;
         Box::new(
             self.items(range)
@@ -186,9 +184,9 @@ fn installed_view(plugin: PluginData) -> impl View {
 
     container(
         scroll(
-            virtual_list(
-                VirtualListDirection::Vertical,
-                VirtualListItemSize::Fixed(Box::new(move || {
+            virtual_stack(
+                VirtualDirection::Vertical,
+                VirtualItemSize::Fixed(Box::new(move || {
                     ui_line_height.get() * 3.0 + 10.0
                 })),
                 move || IndexMapItems(volts.get()),
@@ -364,9 +362,9 @@ fn available_view(plugin: PluginData) -> impl View {
         .style(|s| s.padding(10.0).width_pct(100.0)),
         container({
             scroll({
-                virtual_list(
-                    VirtualListDirection::Vertical,
-                    VirtualListItemSize::Fixed(Box::new(move || {
+                virtual_stack(
+                    VirtualDirection::Vertical,
+                    VirtualItemSize::Fixed(Box::new(move || {
                         ui_line_height.get() * 3.0 + 10.0
                     })),
                     move || IndexMapItems(volts.get()),

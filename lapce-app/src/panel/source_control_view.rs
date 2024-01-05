@@ -8,7 +8,7 @@ use floem::{
     reactive::{create_memo, create_rw_signal},
     style::{CursorStyle, Style},
     view::View,
-    views::{container, label, list, scroll, stack, svg, Decorators},
+    views::{container, dyn_stack, label, scroll, stack, svg, Decorators},
 };
 use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;
@@ -332,7 +332,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
 
     container({
         scroll({
-            list(
+            dyn_stack(
                 move || file_diffs.get(),
                 |(path, (diff, checked))| {
                     (path.to_path_buf(), diff.clone(), *checked)

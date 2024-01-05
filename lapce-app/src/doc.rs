@@ -2333,8 +2333,9 @@ fn extra_styles_for_range(
                 return None;
             }
 
-            let y = (run.line_y - run.line_height + run.glyph_descent) as f64;
-            let height = run.line_height as f64;
+            let y = (run.line_height - run.glyph_ascent - run.glyph_descent) as f64
+                / 2.0;
+            let height = (run.glyph_ascent + run.glyph_descent) as f64;
 
             Some(LineExtraStyle {
                 x,

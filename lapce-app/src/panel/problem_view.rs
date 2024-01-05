@@ -5,7 +5,7 @@ use floem::{
     reactive::{create_memo, create_rw_signal, ReadSignal},
     style::{CursorStyle, Style},
     view::View,
-    views::{container, label, list, scroll, stack, svg, Decorators},
+    views::{container, dyn_stack, label, scroll, stack, svg, Decorators},
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 
@@ -62,7 +62,7 @@ fn problem_section(
     let internal_command = window_tab_data.common.internal_command;
     container({
         scroll(
-            list(
+            dyn_stack(
                 move || main_split.diagnostics.get(),
                 |(p, _)| p.clone(),
                 move |(path, diagnostic_data)| {
@@ -200,7 +200,7 @@ fn file_view(
             .style(|s| s.absolute().items_center().margin_left(10.0)),
         ))
         .style(move |s| s.width_pct(100.0).min_width(0.0)),
-        list(
+        dyn_stack(
             move || {
                 if collpased.get() {
                     im::Vector::new()
@@ -297,7 +297,7 @@ fn related_view(
 ) -> impl View {
     let is_empty = related.is_empty();
     stack((
-        list(
+        dyn_stack(
             move || related.clone(),
             |_| 0,
             move |related| {

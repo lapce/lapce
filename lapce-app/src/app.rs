@@ -32,9 +32,8 @@ use floem::{
     view::View,
     views::{
         clip, container, container_box, drag_resize_window_area, drag_window_area,
-        empty, label, list, rich_text, scroll::scroll, stack, svg, tab, text,
-        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
-        VirtualListVector,
+        dyn_stack, empty, label, rich_text, scroll::scroll, stack, svg, tab, text,
+        virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
     window::{ResizeDirection, WindowConfig, WindowId},
     EventPropagation,
@@ -894,7 +893,7 @@ fn editor_tab_header(
         }),
         container({
             scroll({
-                list(items, key, view_fn)
+                dyn_stack(items, key, view_fn)
                     .on_resize(move |rect| {
                         let size = rect.size();
                         if content_size.get_untracked() != size {
@@ -1451,7 +1450,7 @@ fn split_resize_border(
             split.with_untracked(|split| split.direction)
         }
     };
-    list(
+    dyn_stack(
         move || {
             let data = split.get();
             data.children.into_iter().enumerate().skip(1)
@@ -1582,7 +1581,7 @@ fn split_border(
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let direction = move || split.with(|split| split.direction);
-    list(
+    dyn_stack(
         move || split.get().children.into_iter().skip(1),
         |(_, content)| content.id(),
         move |(_, content)| {
@@ -1747,7 +1746,7 @@ fn split_list(
     };
     container_box(
         stack((
-            list(items, key, view_fn).style(move |s| {
+            dyn_stack(items, key, view_fn).style(move |s| {
                 s.flex_direction(match direction() {
                     SplitDirection::Vertical => FlexDirection::Row,
                     SplitDirection::Horizontal => FlexDirection::Column,
@@ -2216,7 +2215,7 @@ fn palette_item(
                             .flex_grow(1.0)
                             .align_items(Some(AlignItems::Center))
                     }),
-                    stack((list(
+                    stack((dyn_stack(
                         move || keys.clone(),
                         |k| k.clone(),
                         move |key| {
@@ -2304,14 +2303,15 @@ fn palette_input(window_tab_data: Rc<WindowTabData>) -> impl View {
 
 struct PaletteItems(im::Vector<PaletteItem>);
 
-impl VirtualListVector<(usize, PaletteItem)> for PaletteItems {
-    type ItemIterator = Box<dyn Iterator<Item = (usize, PaletteItem)>>;
-
+impl VirtualVector<(usize, PaletteItem)> for PaletteItems {
     fn total_len(&self) -> usize {
         self.0.len()
     }
 
-    fn slice(&mut self, range: Range<usize>) -> Self::ItemIterator {
+    fn slice(
+        &mut self,
+        range: Range<usize>,
+    ) -> impl Iterator<Item = (usize, PaletteItem)> {
         let start = range.start;
         Box::new(
             self.0
@@ -2343,9 +2343,9 @@ fn palette_content(
     stack((
         scroll({
             let workspace = workspace.clone();
-            virtual_list(
-                VirtualListDirection::Vertical,
-                VirtualListItemSize::Fixed(Box::new(move || palette_item_height)),
+            virtual_stack(
+                VirtualDirection::Vertical,
+                VirtualItemSize::Fixed(Box::new(move || palette_item_height)),
                 move || PaletteItems(items.get()),
                 move |(i, _item)| {
                     (run_id.get_untracked(), *i, input.get_untracked().input)
@@ -2573,7 +2573,7 @@ fn window_message_view(
         container(
             container(
                 scroll(
-                    list(
+                    dyn_stack(
                         move || messages.get().into_iter().enumerate(),
                         move |_| {
                             id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
@@ -2600,22 +2600,18 @@ fn window_message_view(
 
 struct VectorItems<V>(im::Vector<V>);
 
-impl<V: Clone + 'static> VirtualListVector<(usize, V)> for VectorItems<V> {
-    type ItemIterator = Box<dyn Iterator<Item = (usize, V)>>;
-
+impl<V: Clone + 'static> VirtualVector<(usize, V)> for VectorItems<V> {
     fn total_len(&self) -> usize {
         self.0.len()
     }
 
-    fn slice(&mut self, range: Range<usize>) -> Self::ItemIterator {
+    fn slice(&mut self, range: Range<usize>) -> impl Iterator<Item = (usize, V)> {
         let start = range.start;
-        Box::new(
-            self.0
-                .slice(range)
-                .into_iter()
-                .enumerate()
-                .map(move |(i, item)| (i + start, item)),
-        )
+        self.0
+            .slice(range)
+            .into_iter()
+            .enumerate()
+            .map(move |(i, item)| (i + start, item))
     }
 }
 
@@ -2646,7 +2642,7 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
     let layout_rect = window_tab_data.common.hover.layout_rect;
 
     scroll(
-        list(
+        dyn_stack(
             move || hover_data.content.get(),
             move |_| id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             move |content| match content {
@@ -2701,9 +2697,9 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
     let request_id =
         move || completion_data.with_untracked(|c| (c.request_id, c.input_id));
     scroll(
-        virtual_list(
-            VirtualListDirection::Vertical,
-            VirtualListItemSize::Fixed(Box::new(move || {
+        virtual_stack(
+            VirtualDirection::Vertical,
+            VirtualItemSize::Fixed(Box::new(move || {
                 config.get().editor.line_height() as f64
             })),
             move || completion_data.with(|c| VectorItems(c.filtered_items.clone())),
@@ -2805,7 +2801,7 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
         move || code_action.with_untracked(|code_action| code_action.request_id);
     scroll(
         container(
-            list(
+            dyn_stack(
                 move || {
                     code_action.with(|code_action| {
                         code_action.filtered_items.clone().into_iter().enumerate()
@@ -3178,7 +3174,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                 .width(75.0)
                 .apply_if(!is_macos, |s| s.hide())
         }),
-        list(
+        dyn_stack(
             move || {
                 let tabs = tabs.get();
                 for (i, (index, _)) in tabs.iter().enumerate() {
