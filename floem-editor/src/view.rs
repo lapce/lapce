@@ -1708,22 +1708,17 @@ fn editor_content(
                 if let Event::PointerDown(pointer_event) = event {
                     id.request_active();
                     id.request_focus();
-                    // editor.get_untracked().pointer_down(pointer_event);
+                    editor.get_untracked().pointer_down(pointer_event);
                 }
             })
             .on_event_stop(EventListener::PointerMove, move |event| {
                 if let Event::PointerMove(pointer_event) = event {
-                    // editor.get_untracked().pointer_move(pointer_event);
+                    editor.get_untracked().pointer_move(pointer_event);
                 }
             })
             .on_event_stop(EventListener::PointerUp, move |event| {
                 if let Event::PointerUp(pointer_event) = event {
-                    // editor.get_untracked().pointer_up(pointer_event);
-                }
-            })
-            .on_event_stop(EventListener::PointerLeave, move |event| {
-                if let Event::PointerLeave = event {
-                    // editor.get_untracked().pointer_leave();
+                    editor.get_untracked().pointer_up(pointer_event);
                 }
             })
             .on_event_stop(EventListener::KeyDown, move |event| {

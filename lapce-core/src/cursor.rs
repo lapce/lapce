@@ -237,35 +237,35 @@ impl Cursor {
         }
     }
 
-    pub fn edit_selection(&self, buffer: &Buffer) -> Selection {
+    pub fn edit_selection(&self, text: &impl RopeText) -> Selection {
         match &self.mode {
             CursorMode::Insert(selection) => selection.clone(),
             CursorMode::Normal(offset) => Selection::region(
                 *offset,
-                buffer.next_grapheme_offset(*offset, 1, buffer.len()),
+                text.next_grapheme_offset(*offset, 1, text.len()),
             ),
             CursorMode::Visual { start, end, mode } => match mode {
                 VisualMode::Normal => Selection::region(
                     *start.min(end),
-                    buffer.next_grapheme_offset(*start.max(end), 1, buffer.len()),
+                    text.next_grapheme_offset(*start.max(end), 1, text.len()),
                 ),
                 VisualMode::Linewise => {
-                    let start_offset = buffer
-                        .offset_of_line(buffer.line_of_offset(*start.min(end)));
-                    let end_offset = buffer
-                        .offset_of_line(buffer.line_of_offset(*start.max(end)) + 1);
+                    let start_offset =
+                        text.offset_of_line(text.line_of_offset(*start.min(end)));
+                    let end_offset = text
+                        .offset_of_line(text.line_of_offset(*start.max(end)) + 1);
                     Selection::region(start_offset, end_offset)
                 }
                 VisualMode::Blockwise => {
                     let mut selection = Selection::new();
                     let (start_line, start_col) =
-                        buffer.offset_to_line_col(*start.min(end));
+                        text.offset_to_line_col(*start.min(end));
                     let (end_line, end_col) =
-                        buffer.offset_to_line_col(*start.max(end));
+                        text.offset_to_line_col(*start.max(end));
                     let left = start_col.min(end_col);
                     let right = start_col.max(end_col) + 1;
                     for line in start_line..end_line + 1 {
-                        let max_col = buffer.line_end_col(line, true);
+                        let max_col = text.line_end_col(line, true);
                         if left > max_col {
                             continue;
                         }
@@ -279,8 +279,8 @@ impl Cursor {
                                 }
                             }
                         };
-                        let left = buffer.offset_of_line_col(line, left);
-                        let right = buffer.offset_of_line_col(line, right);
+                        let left = text.offset_of_line_col(line, left);
+                        let right = text.offset_of_line_col(line, right);
                         selection.add_region(SelRegion::new(left, right, None));
                     }
                     selection

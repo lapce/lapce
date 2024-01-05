@@ -9,6 +9,7 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, LineHeightValue, TextLayout, Wrap},
     kurbo::{Point, Rect, Vec2},
     peniko::Color,
+    pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
     reactive::{batch, untrack, ReadSignal, RwSignal, Scope},
 };
 use lapce_core::{
@@ -48,6 +49,8 @@ pub struct Editor {
     effects_cx: Cell<Scope>,
 
     id: EditorId,
+
+    pub active: RwSignal<bool>,
 
     /// Whether you can edit within this editor.
     pub read_only: RwSignal<bool>,
@@ -130,6 +133,7 @@ impl Editor {
             cx: Cell::new(cx),
             effects_cx: Cell::new(cx.create_child()),
             id,
+            active: cx.create_rw_signal(false),
             read_only: cx.create_rw_signal(false),
             scroll_beyond_last_line: cx.create_rw_signal(false),
             cursor_surrounding_lines: cx.create_rw_signal(1),
@@ -240,8 +244,157 @@ impl Editor {
         // This function *cannot* access `ScreenLines` with how it is currently implemented.
         // This is being called from within an update to screen lines.
 
-        // TODO: should we just give the full editor?
         self.doc().compute_screen_lines(self, base)
+    }
+
+    /// Default handler for `PointerDown` event
+    pub fn pointer_down(&self, pointer_event: &PointerInputEvent) {
+        match pointer_event.button {
+            PointerButton::Primary => {
+                self.active.set(true);
+                self.left_click(pointer_event);
+            }
+            PointerButton::Secondary => {
+                self.right_click(pointer_event);
+            }
+            _ => {}
+        }
+    }
+
+    fn left_click(&self, pointer_event: &PointerInputEvent) {
+        match pointer_event.count {
+            1 => {
+                self.single_click(pointer_event);
+            }
+            2 => {
+                self.double_click(pointer_event);
+            }
+            3 => {
+                self.triple_click(pointer_event);
+            }
+            _ => {}
+        }
+    }
+
+    fn single_click(&self, pointer_event: &PointerInputEvent) {
+        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let (new_offset, _) = self.offset_of_point(mode, pointer_event.pos);
+        self.cursor.update(|cursor| {
+            cursor.set_offset(
+                new_offset,
+                pointer_event.modifiers.shift_key(),
+                pointer_event.modifiers.alt_key(),
+            )
+        });
+    }
+
+    fn double_click(&self, pointer_event: &PointerInputEvent) {
+        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let (mouse_offset, _) = self.offset_of_point(mode, pointer_event.pos);
+        let (start, end) = self.select_word(mouse_offset);
+
+        self.cursor.update(|cursor| {
+            cursor.add_region(
+                start,
+                end,
+                pointer_event.modifiers.shift_key(),
+                pointer_event.modifiers.alt_key(),
+            )
+        });
+    }
+
+    fn triple_click(&self, pointer_event: &PointerInputEvent) {
+        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let (mouse_offset, _) = self.offset_of_point(mode, pointer_event.pos);
+        let line = self.line_of_offset(mouse_offset);
+        let start = self.offset_of_line(line);
+        let end = self.offset_of_line(line + 1);
+
+        self.cursor.update(|cursor| {
+            cursor.add_region(
+                start,
+                end,
+                pointer_event.modifiers.shift_key(),
+                pointer_event.modifiers.alt_key(),
+            )
+        });
+    }
+
+    pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
+        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let (offset, is_inside) = self.offset_of_point(mode, pointer_event.pos);
+        if self.active.get_untracked()
+            && self.cursor.with_untracked(|c| c.offset()) != offset
+        {
+            self.cursor.update(|cursor| {
+                cursor.set_offset(offset, true, pointer_event.modifiers.alt_key())
+            });
+        }
+    }
+
+    pub fn pointer_up(&self, _pointer_event: &PointerInputEvent) {
+        self.active.set(false);
+    }
+
+    fn right_click(&self, pointer_event: &PointerInputEvent) {
+        let mode = self.cursor.with_untracked(|c| c.get_mode());
+        let (offset, _) = self.offset_of_point(mode, pointer_event.pos);
+        let doc = self.doc();
+        let pointer_inside_selection = self
+            .cursor
+            .with_untracked(|c| c.edit_selection(&doc.rope_text()).contains(offset));
+        if !pointer_inside_selection {
+            // move cursor to pointer position if outside current selection
+            self.single_click(pointer_event);
+        }
+
+        // TODO(floem-editor): should we have a default right click context menu?
+        // let is_file = doc.content.with_untracked(|content| content.is_file());
+        // let mut menu = Menu::new("");
+        // let cmds = if is_file {
+        //     vec![
+        //         Some(CommandKind::Focus(FocusCommand::GotoDefinition)),
+        //         Some(CommandKind::Focus(FocusCommand::GotoTypeDefinition)),
+        //         None,
+        //         Some(CommandKind::Focus(FocusCommand::Rename)),
+        //         None,
+        //         Some(CommandKind::Edit(EditCommand::ClipboardCut)),
+        //         Some(CommandKind::Edit(EditCommand::ClipboardCopy)),
+        //         Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
+        //         None,
+        //         Some(CommandKind::Workbench(
+        //             LapceWorkbenchCommand::PaletteCommand,
+        //         )),
+        //     ]
+        // } else {
+        //     vec![
+        //         Some(CommandKind::Edit(EditCommand::ClipboardCut)),
+        //         Some(CommandKind::Edit(EditCommand::ClipboardCopy)),
+        //         Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
+        //         None,
+        //         Some(CommandKind::Workbench(
+        //             LapceWorkbenchCommand::PaletteCommand,
+        //         )),
+        //     ]
+        // };
+        // let lapce_command = self.common.lapce_command;
+        // for cmd in cmds {
+        //     if let Some(cmd) = cmd {
+        //         menu = menu.entry(
+        //             MenuItem::new(cmd.desc().unwrap_or_else(|| cmd.str())).action(
+        //                 move || {
+        //                     lapce_command.send(LapceCommand {
+        //                         kind: cmd.clone(),
+        //                         data: None,
+        //                     })
+        //                 },
+        //             ),
+        //         );
+        //     } else {
+        //         menu = menu.separator();
+        //     }
+        // }
+        // show_context_menu(menu, None);
     }
 
     // === Information ===
@@ -930,15 +1083,7 @@ pub fn normal_compute_screen_lines(
     let max_vline = VLine((y1 / line_height as f64).ceil() as usize);
 
     editor.doc.get().cache_rev().track();
-    // TODO(floem-editor): somehow let us track in here
-    // let (cache_rev, content, loaded) =
-    //     doc.with(|doc| (doc.cache_rev, doc.content, doc.loaded));
-
-    // cache_rev.track();
-    // // TODO(minor): we don't really need to depend on various subdetails that aren't affecting how
-    // // the screen lines are set up, like the title of a scratch document.
-    // content.track();
-    // loaded.track();
+    // TODO(floem-editor): somehow let us track some relevant information like 'loaded' or 'content'?
 
     let min_info = editor.iter_vlines(false, min_vline).next();
     // TODO: if you need the max vline you probably need the min vline too and so you could grab
