@@ -1545,3 +1545,9 @@ impl Styling for DocStyling {
         self.config.with_untracked(|config| config.color(name))
     }
 }
+
+impl std::fmt::Debug for Doc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("Document {:?}", self.buffer_id))
+    }
+}

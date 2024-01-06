@@ -21,6 +21,7 @@ use crate::{
     alert::AlertButton,
     debug::RunDebugMode,
     doc::Document,
+    doc2::Doc,
     editor::location::EditorLocation,
     editor_tab::EditorTabChild,
     id::EditorTabId,
@@ -53,6 +54,7 @@ impl CommandKind {
             CommandKind::Workbench(cmd) => cmd.get_message(),
             CommandKind::Edit(cmd) => cmd.get_message(),
             CommandKind::Move(cmd) => cmd.get_message(),
+            CommandKind::Scroll(cmd) => cmd.get_message(),
             CommandKind::Focus(cmd) => cmd.get_message(),
             CommandKind::MotionMode(cmd) => cmd.get_message(),
             CommandKind::MultiSelection(cmd) => cmd.get_message(),
@@ -64,6 +66,7 @@ impl CommandKind {
             CommandKind::Workbench(cmd) => cmd.into(),
             CommandKind::Edit(cmd) => cmd.into(),
             CommandKind::Move(cmd) => cmd.into(),
+            CommandKind::Scroll(cmd) => cmd.into(),
             CommandKind::Focus(cmd) => cmd.into(),
             CommandKind::MotionMode(cmd) => cmd.into(),
             CommandKind::MultiSelection(cmd) => cmd.into(),
@@ -670,6 +673,9 @@ pub enum InternalCommand {
     HideAlert,
     SaveScratchDoc {
         doc: Rc<Document>,
+    },
+    SaveScratchDoc2 {
+        doc: Rc<Doc>,
     },
     UpdateProxyStatus {
         status: ProxyStatus,

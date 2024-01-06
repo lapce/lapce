@@ -71,6 +71,7 @@ impl KeyPressFocus for CodeActionData {
             CommandKind::Workbench(_) => {}
             CommandKind::Edit(_) => {}
             CommandKind::Move(_) => {}
+            CommandKind::Scroll(_) => {}
             CommandKind::Focus(cmd) => {
                 self.run_focus_command(cmd);
             }

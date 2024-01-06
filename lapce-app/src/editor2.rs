@@ -63,9 +63,8 @@ pub struct EditorData2 {
     pub scope: Scope,
     pub editor_tab_id: RwSignal<Option<EditorTabId>>,
     pub diff_editor_id: RwSignal<Option<(EditorTabId, DiffEditorId)>>,
-    // TODO(floem-editor): confirmed?
+    pub confirmed: RwSignal<bool>,
     // TODO(floem-editor): window origin? maybe on editor..?
-    // TODO(floem-editor): scroll_delta/scroll_to? maybe on editor?
     pub snippet: RwSignal<Option<SnippetIndex>>,
     // TODO(floem-editor): should this be on the editor?
     pub last_movement: RwSignal<Movement>,
@@ -74,6 +73,8 @@ pub struct EditorData2 {
     pub find_focus: RwSignal<bool>,
     pub editor: Rc<Editor>,
     pub kind: RwSignal<EditorViewKind>,
+    // TODO(floem-editor): there is a create effect for calculating the sticky header's height in editor_view
+    pub sticky_header_height: RwSignal<f64>,
     pub common: Rc<CommonData>,
 }
 impl PartialEq for EditorData2 {
@@ -96,6 +97,7 @@ impl EditorData2 {
             scope: cx,
             editor_tab_id: cx.create_rw_signal(editor_tab_id),
             diff_editor_id: cx.create_rw_signal(diff_editor_id),
+            confirmed: cx.create_rw_signal(false),
             snippet: cx.create_rw_signal(None),
             last_movement: cx.create_rw_signal(Movement::Left),
             inline_find: cx.create_rw_signal(None),
@@ -103,6 +105,7 @@ impl EditorData2 {
             find_focus: cx.create_rw_signal(false),
             editor,
             kind: cx.create_rw_signal(kind),
+            sticky_header_height: cx.create_rw_signal(0.0),
             common,
         }
     }
@@ -1661,7 +1664,7 @@ impl EditorData2 {
         if let DocContent::Scratch { .. } = &content {
             self.common
                 .internal_command
-                .send(InternalCommand::SaveScratchDoc { doc });
+                .send(InternalCommand::SaveScratchDoc2 { doc });
             return;
         }
 

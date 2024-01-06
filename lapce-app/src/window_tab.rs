@@ -1587,6 +1587,9 @@ impl WindowTabData {
             InternalCommand::SaveScratchDoc { doc } => {
                 self.main_split.save_scratch_doc(doc);
             }
+            InternalCommand::SaveScratchDoc2 { doc } => {
+                self.main_split.save_scratch_doc2(doc);
+            }
             InternalCommand::UpdateProxyStatus { status } => {
                 self.common.proxy_status.set(Some(status));
             }

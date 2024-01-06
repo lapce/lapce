@@ -64,6 +64,7 @@ impl KeyPressFocus for GlobalSearchData {
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}
+            CommandKind::Scroll(_) => {}
             CommandKind::Focus(_) => {}
             CommandKind::Edit(_)
             | CommandKind::Move(_)
