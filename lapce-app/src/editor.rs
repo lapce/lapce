@@ -1383,9 +1383,6 @@ impl EditorData {
             self.common.completion.update(|completion| {
                 completion.update_input(input.clone());
 
-                let cursor_offset = self.cursor.with_untracked(|c| c.offset());
-                completion.update_document_completion(&self.view, cursor_offset);
-
                 if !completion.input_items.contains_key("") {
                     let start_pos = doc.buffer.with_untracked(|buffer| {
                         buffer.offset_to_position(start_offset)
@@ -1412,6 +1409,12 @@ impl EditorData {
                     );
                 }
             });
+            let cursor_offset = self.cursor.with_untracked(|c| c.offset());
+            self.common
+                .completion
+                .get_untracked()
+                .update_document_completion(&self.view, cursor_offset);
+
             return;
         }
 
