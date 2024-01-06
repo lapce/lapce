@@ -1,6 +1,5 @@
-use floem::{keyboard::ModifiersState, reactive::RwSignal};
+use floem::keyboard::ModifiersState;
 use lapce_core::{
-    buffer::Buffer,
     command::{
         EditCommand, FocusCommand2, MotionModeCommand, MultiSelectionCommand,
     },
@@ -19,13 +18,12 @@ use crate::{
 pub fn handle_command_default(
     ed: &Editor,
     action: &dyn CommonAction,
-    buffer: RwSignal<Buffer>,
     cmd: &Command,
     count: Option<usize>,
     modifiers: ModifiersState,
 ) -> CommandExecuted {
     match cmd {
-        Command::Edit(cmd) => handle_edit_command_default(ed, action, buffer, cmd),
+        Command::Edit(cmd) => handle_edit_command_default(ed, action, cmd),
         Command::Move(cmd) => {
             let movement = cmd.to_movement(count);
             handle_move_command_default(ed, action, movement, count, modifiers)
@@ -46,7 +44,6 @@ pub fn handle_command_default(
 fn handle_edit_command_default(
     ed: &Editor,
     action: &dyn CommonAction,
-    buffer: RwSignal<Buffer>,
     cmd: &EditCommand,
 ) -> CommandExecuted {
     let modal = ed.modal.get_untracked();
@@ -54,9 +51,11 @@ fn handle_edit_command_default(
     let mut cursor = ed.cursor.get_untracked();
     let mut register = ed.register.get_untracked();
 
+    let text = ed.rope_text();
+
     let yank_data =
         if let lapce_core::cursor::CursorMode::Visual { .. } = &cursor.mode {
-            Some(buffer.with_untracked(|buffer| cursor.yank(buffer)))
+            Some(cursor.yank(&text))
         } else {
             None
         };

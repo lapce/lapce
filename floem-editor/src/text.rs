@@ -382,7 +382,7 @@ impl Document for TextDocument {
         count: Option<usize>,
         modifiers: ModifiersState,
     ) -> CommandExecuted {
-        handle_command_default(ed, self, self.buffer, cmd, count, modifiers)
+        handle_command_default(ed, self, cmd, count, modifiers)
     }
 
     fn receive_char(&self, ed: &Editor, c: &str) {
