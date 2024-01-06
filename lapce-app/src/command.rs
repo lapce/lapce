@@ -27,6 +27,8 @@ use crate::{
     workspace::LapceWorkspace,
 };
 
+pub use floem_editor::command::CommandExecuted;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LapceCommand {
     pub kind: CommandKind,
@@ -65,12 +67,6 @@ impl CommandKind {
             CommandKind::MultiSelection(cmd) => cmd.into(),
         }
     }
-}
-
-#[derive(PartialEq, Eq)]
-pub enum CommandExecuted {
-    Yes,
-    No,
 }
 
 pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {

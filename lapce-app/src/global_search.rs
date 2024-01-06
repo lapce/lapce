@@ -6,6 +6,7 @@ use floem::{
     reactive::{Memo, RwSignal, Scope},
     views::VirtualVector,
 };
+use floem_editor::id::EditorId;
 use indexmap::IndexMap;
 use lapce_core::{mode::Mode, selection::Selection};
 use lapce_rpc::proxy::{ProxyResponse, SearchMatch};
@@ -14,7 +15,6 @@ use lapce_xi_rope::Rope;
 use crate::{
     command::{CommandExecuted, CommandKind},
     editor::EditorData,
-    id::EditorId,
     keypress::{condition::Condition, KeyPressFocus},
     main_split::MainSplitData,
     window_tab::CommonData,

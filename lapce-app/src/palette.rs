@@ -17,6 +17,7 @@ use floem::{
     keyboard::ModifiersState,
     reactive::{use_context, ReadSignal, RwSignal, Scope},
 };
+use floem_editor::id::EditorId;
 use itertools::Itertools;
 use lapce_core::{
     buffer::rope_text::RopeText, command::FocusCommand, language::LapceLanguage,
@@ -44,7 +45,6 @@ use crate::{
         location::{EditorLocation, EditorPosition},
         EditorData,
     },
-    id::EditorId,
     keypress::{condition::Condition, KeyPressData, KeyPressFocus},
     main_split::MainSplitData,
     proxy::path_from_url,

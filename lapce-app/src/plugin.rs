@@ -21,6 +21,7 @@ use floem::{
         scroll, stack, svg, text, Decorators,
     },
 };
+use floem_editor::id::EditorId;
 use indexmap::IndexMap;
 use lapce_core::{directory::Directory, mode::Mode};
 use lapce_proxy::plugin::{download_volt, volt_icon, wasi::find_all_volts};
@@ -33,7 +34,6 @@ use crate::{
     config::{color::LapceColor, LapceConfig},
     db::LapceDb,
     editor::EditorData,
-    id::EditorId,
     keypress::{condition::Condition, KeyPressFocus},
     markdown::{parse_markdown, MarkdownContent},
     panel::plugin_view::VOLT_DEFAULT_PNG,

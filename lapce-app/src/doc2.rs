@@ -662,6 +662,10 @@ impl Doc {
         });
     }
 
+    pub fn diagnostics(&self) -> &DiagnosticData {
+        &self.diagnostics
+    }
+
     /// Update the diagnostics' positions after an edit so that they appear in the correct place.
     fn update_diagnostics(&self, delta: &RopeDelta) {
         if self
@@ -738,12 +742,6 @@ impl Doc {
         }
     }
 
-    fn update_find_result(&self, delta: &RopeDelta) {
-        self.find_result.occurrences.update(|s| {
-            *s = s.apply_delta(delta, true, InsertDrift::Default);
-        })
-    }
-
     fn update_breakpoints(&self, delta: &RopeDelta, path: &Path, old_text: &Rope) {
         if self
             .common
@@ -813,6 +811,12 @@ impl Doc {
             .with_untracked(|b| b.offset_to_line_col(new_offset));
 
         self.completion_pos.set(new_pos);
+    }
+
+    fn update_find_result(&self, delta: &RopeDelta) {
+        self.find_result.occurrences.update(|s| {
+            *s = s.apply_delta(delta, true, InsertDrift::Default);
+        })
     }
 
     pub fn update_find(&self) {
@@ -904,6 +908,10 @@ impl Doc {
         });
         self.sticky_headers.borrow_mut().insert(line, lines.clone());
         lines
+    }
+
+    fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>> {
+        self.head_changes
     }
 
     /// Retrieve the `head` version of the buffer
@@ -1007,6 +1015,72 @@ impl Doc {
                 send(result);
             })
         }
+    }
+
+    fn set_inline_completion(
+        &self,
+        inline_completion: String,
+        line: usize,
+        col: usize,
+    ) {
+        // TODO: more granular invalidation
+        batch(|| {
+            self.clear_text_cache();
+            self.inline_completion.set(Some(inline_completion));
+            self.inline_completion_pos.set((line, col));
+        });
+    }
+
+    pub fn clear_inline_completion(&self) {
+        if self.inline_completion.with_untracked(Option::is_some) {
+            self.inline_completion.set(None);
+            self.clear_text_cache();
+        }
+    }
+
+    fn update_inline_completion(&self, delta: &RopeDelta) {
+        let Some(completion) = self.inline_completion.get_untracked() else {
+            return;
+        };
+
+        let (line, col) = self.completion_pos.get_untracked();
+        let offset = self
+            .buffer
+            .with_untracked(|b| b.offset_of_line_col(line, col));
+
+        // If the edit is easily checkable + updateable from, then we alter the text.
+        // In normal typing, if we didn't do this, then the text would jitter forward and then
+        // backwards as the completion is updated.
+        // TODO: this could also handle simple deletion, but we don't currently keep track of
+        // the past completion string content in the field.
+        if delta.as_simple_insert().is_some() {
+            let (iv, new_len) = delta.summary();
+            if iv.start() == iv.end()
+                && iv.start() == offset
+                && new_len <= completion.len()
+            {
+                // Remove the # of newly inserted characters
+                // These aren't necessarily the same as the characters literally in the
+                // text, but the completion will be updated when the completion widget
+                // receives the update event, and it will fix this if needed.
+                self.inline_completion
+                    .set(Some(completion[new_len..].to_string()));
+            }
+        }
+
+        // Shift the position by the rope delta
+        let mut transformer = Transformer::new(delta);
+
+        let new_offset = transformer.transform(offset, true);
+        let new_pos = self
+            .buffer
+            .with_untracked(|b| b.offset_to_line_col(new_offset));
+
+        self.inline_completion_pos.set(new_pos);
+    }
+
+    pub fn code_actions(&self) -> RwSignal<CodeActions> {
+        self.code_actions
     }
 
     /// Returns the offsets of the brackets enclosing the given offset.

@@ -14,6 +14,7 @@ use floem::{
     reactive::{RwSignal, Scope},
     EventPropagation,
 };
+use floem_editor::id::EditorId;
 use lapce_core::{
     command::{EditCommand, FocusCommand},
     mode::Mode,
@@ -26,7 +27,6 @@ use lapce_rpc::{
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand, LapceCommand},
     editor::EditorData,
-    id::EditorId,
     keypress::{condition::Condition, KeyPressFocus},
     window_tab::CommonData,
 };

@@ -12,6 +12,7 @@ use floem::{
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{Memo, RwSignal, Scope},
 };
+use floem_editor::id::EditorId;
 use itertools::Itertools;
 use lapce_core::{
     buffer::rope_text::RopeText, command::FocusCommand, cursor::Cursor,
@@ -46,7 +47,7 @@ use crate::{
         EditorTabChild, EditorTabChildSource, EditorTabData, EditorTabInfo,
     },
     id::{
-        DiffEditorId, EditorId, EditorTabId, KeymapId, SettingsId, SplitId,
+        DiffEditorId, EditorTabId, KeymapId, SettingsId, SplitId,
         ThemeColorSettingsId, VoltViewId,
     },
     keypress::{EventRef, KeyPressData},

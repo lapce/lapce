@@ -11,6 +11,7 @@ use floem::{
     },
     reactive::{create_memo, create_rw_signal, Memo, ReadSignal, RwSignal, Scope},
 };
+use floem_editor::id::EditorId;
 use lapce_rpc::plugin::VoltID;
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +24,7 @@ use crate::{
         EditorData, EditorInfo,
     },
     id::{
-        DiffEditorId, EditorId, EditorTabId, KeymapId, SettingsId, SplitId,
+        DiffEditorId, EditorTabId, KeymapId, SettingsId, SplitId,
         ThemeColorSettingsId, VoltViewId,
     },
     main_split::MainSplitData,

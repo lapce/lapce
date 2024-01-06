@@ -6,6 +6,7 @@ use floem::{
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope},
 };
+use floem_editor::id::EditorId;
 use lapce_core::{command::FocusCommand, mode::Mode, selection::Selection};
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
@@ -14,7 +15,6 @@ use lsp_types::Position;
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand, LapceCommand},
     editor::EditorData,
-    id::EditorId,
     keypress::{condition::Condition, KeyPressFocus},
     window_tab::{CommonData, Focus},
 };

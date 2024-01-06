@@ -261,7 +261,7 @@ impl Editor {
         }
     }
 
-    fn left_click(&self, pointer_event: &PointerInputEvent) {
+    pub fn left_click(&self, pointer_event: &PointerInputEvent) {
         match pointer_event.count {
             1 => {
                 self.single_click(pointer_event);
@@ -276,7 +276,7 @@ impl Editor {
         }
     }
 
-    fn single_click(&self, pointer_event: &PointerInputEvent) {
+    pub fn single_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (new_offset, _) = self.offset_of_point(mode, pointer_event.pos);
         self.cursor.update(|cursor| {
@@ -288,7 +288,7 @@ impl Editor {
         });
     }
 
-    fn double_click(&self, pointer_event: &PointerInputEvent) {
+    pub fn double_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (mouse_offset, _) = self.offset_of_point(mode, pointer_event.pos);
         let (start, end) = self.select_word(mouse_offset);
@@ -303,7 +303,7 @@ impl Editor {
         });
     }
 
-    fn triple_click(&self, pointer_event: &PointerInputEvent) {
+    pub fn triple_click(&self, pointer_event: &PointerInputEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
         let (mouse_offset, _) = self.offset_of_point(mode, pointer_event.pos);
         let line = self.line_of_offset(mouse_offset);

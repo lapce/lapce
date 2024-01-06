@@ -13,6 +13,7 @@ use floem::{
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
     reactive::{batch, use_context, ReadSignal, RwSignal, Scope},
 };
+use floem_editor::id::EditorId;
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, InvalLines},
     command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
@@ -45,7 +46,7 @@ use crate::{
         visual_line::Lines,
     },
     editor_tab::EditorTabChild,
-    id::{DiffEditorId, EditorId, EditorTabId},
+    id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
     keypress::{condition::Condition, KeyPressFocus},
     main_split::{MainSplitData, SplitDirection, SplitMoveDirection},

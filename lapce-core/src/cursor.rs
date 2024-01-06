@@ -315,7 +315,7 @@ impl Cursor {
         self.horiz = None;
     }
 
-    pub fn yank(&self, buffer: &Buffer) -> RegisterData {
+    pub fn yank(&self, text: &impl RopeText) -> RegisterData {
         let (content, mode) = match &self.mode {
             CursorMode::Insert(selection) => {
                 let mut mode = VisualMode::Normal;
@@ -323,10 +323,10 @@ impl Cursor {
                 for region in selection.regions() {
                     let region_content = if region.is_caret() {
                         mode = VisualMode::Linewise;
-                        let line = buffer.line_of_offset(region.start);
-                        buffer.line_content(line)
+                        let line = text.line_of_offset(region.start);
+                        text.line_content(line)
                     } else {
-                        buffer.slice_to_cow(region.min()..region.max())
+                        text.slice_to_cow(region.min()..region.max())
                     };
                     if content.is_empty() {
                         content = region_content.to_string();
@@ -340,47 +340,45 @@ impl Cursor {
                 (content, mode)
             }
             CursorMode::Normal(offset) => {
-                let new_offset =
-                    buffer.next_grapheme_offset(*offset, 1, buffer.len());
+                let new_offset = text.next_grapheme_offset(*offset, 1, text.len());
                 (
-                    buffer.slice_to_cow(*offset..new_offset).to_string(),
+                    text.slice_to_cow(*offset..new_offset).to_string(),
                     VisualMode::Normal,
                 )
             }
             CursorMode::Visual { start, end, mode } => match mode {
                 VisualMode::Normal => (
-                    buffer
-                        .slice_to_cow(
-                            *start.min(end)
-                                ..buffer.next_grapheme_offset(
-                                    *start.max(end),
-                                    1,
-                                    buffer.len(),
-                                ),
-                        )
-                        .to_string(),
+                    text.slice_to_cow(
+                        *start.min(end)
+                            ..text.next_grapheme_offset(
+                                *start.max(end),
+                                1,
+                                text.len(),
+                            ),
+                    )
+                    .to_string(),
                     VisualMode::Normal,
                 ),
                 VisualMode::Linewise => {
-                    let start_offset = buffer
-                        .offset_of_line(buffer.line_of_offset(*start.min(end)));
-                    let end_offset = buffer
-                        .offset_of_line(buffer.line_of_offset(*start.max(end)) + 1);
+                    let start_offset =
+                        text.offset_of_line(text.line_of_offset(*start.min(end)));
+                    let end_offset = text
+                        .offset_of_line(text.line_of_offset(*start.max(end)) + 1);
                     (
-                        buffer.slice_to_cow(start_offset..end_offset).to_string(),
+                        text.slice_to_cow(start_offset..end_offset).to_string(),
                         VisualMode::Linewise,
                     )
                 }
                 VisualMode::Blockwise => {
                     let mut lines = Vec::new();
                     let (start_line, start_col) =
-                        buffer.offset_to_line_col(*start.min(end));
+                        text.offset_to_line_col(*start.min(end));
                     let (end_line, end_col) =
-                        buffer.offset_to_line_col(*start.max(end));
+                        text.offset_to_line_col(*start.max(end));
                     let left = start_col.min(end_col);
                     let right = start_col.max(end_col) + 1;
                     for line in start_line..end_line + 1 {
-                        let max_col = buffer.line_end_col(line, true);
+                        let max_col = text.line_end_col(line, true);
                         if left > max_col {
                             lines.push("".to_string());
                         } else {
@@ -394,9 +392,9 @@ impl Cursor {
                                     }
                                 }
                             };
-                            let left = buffer.offset_of_line_col(line, left);
-                            let right = buffer.offset_of_line_col(line, right);
-                            lines.push(buffer.slice_to_cow(left..right).to_string());
+                            let left = text.offset_of_line_col(line, left);
+                            let right = text.offset_of_line_col(line, right);
+                            lines.push(text.slice_to_cow(left..right).to_string());
                         }
                     }
                     (lines.join("\n") + "\n", VisualMode::Blockwise)

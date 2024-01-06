@@ -13,13 +13,13 @@ use floem::{
         VirtualDirection, VirtualItemSize,
     },
 };
+use floem_editor::id::EditorId;
 use lapce_core::mode::Modes;
 
 use crate::{
     command::LapceCommand,
     config::{color::LapceColor, LapceConfig},
     editor::EditorData,
-    id::EditorId,
     keypress::{keymap::KeyMap, KeyPress, KeyPressData},
     text_input::text_input,
     window_tab::CommonData,

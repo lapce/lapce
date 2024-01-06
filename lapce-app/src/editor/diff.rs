@@ -8,6 +8,7 @@ use floem::{
     view::View,
     views::{clip, dyn_stack, empty, label, stack, svg, Decorators},
 };
+use floem_editor::id::EditorId;
 use lapce_core::buffer::{
     diff::{expand_diff_lines, rope_diff, DiffExpand, DiffLines},
     rope_text::RopeText,
@@ -19,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     config::{color::LapceColor, icon::LapceIcons},
     doc::{DocContent, Document},
-    id::{DiffEditorId, EditorId, EditorTabId},
+    id::{DiffEditorId, EditorTabId},
     main_split::MainSplitData,
     wave::wave_box,
     window_tab::CommonData,

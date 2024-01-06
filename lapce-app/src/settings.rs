@@ -20,6 +20,7 @@ use floem::{
         virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
 };
+use floem_editor::id::EditorId;
 use indexmap::IndexMap;
 use inflector::Inflector;
 use lapce_core::mode::Mode;
@@ -34,7 +35,6 @@ use crate::{
         terminal::TerminalConfig, ui::UIConfig, DropdownInfo, LapceConfig,
     },
     editor::EditorData,
-    id::EditorId,
     keypress::KeyPressFocus,
     plugin::InstalledVoltData,
     text_input::text_input,

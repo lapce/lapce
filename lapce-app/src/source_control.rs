@@ -4,6 +4,7 @@ use floem::{
     keyboard::ModifiersState,
     reactive::{RwSignal, Scope},
 };
+use floem_editor::id::EditorId;
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
 use lapce_rpc::source_control::FileDiff;
@@ -11,7 +12,6 @@ use lapce_rpc::source_control::FileDiff;
 use crate::{
     command::{CommandExecuted, CommandKind},
     editor::EditorData,
-    id::EditorId,
     keypress::{condition::Condition, KeyPressFocus},
     window_tab::CommonData,
 };

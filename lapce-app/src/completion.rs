@@ -4,6 +4,7 @@ use floem::{
     peniko::kurbo::Rect,
     reactive::{ReadSignal, RwSignal, Scope},
 };
+use floem_editor::id::EditorId;
 use lapce_core::{buffer::rope_text::RopeText, movement::Movement};
 use lapce_rpc::{plugin::PluginId, proxy::ProxyRpcHandler};
 use lsp_types::{
@@ -14,7 +15,7 @@ use nucleo::Utf32Str;
 
 use crate::{
     config::LapceConfig, doc::DocumentExt, editor::view_data::EditorViewData,
-    id::EditorId, snippet::Snippet,
+    snippet::Snippet,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
