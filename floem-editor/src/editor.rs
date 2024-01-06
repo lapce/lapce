@@ -1,5 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
+    cmp::Ordering,
     collections::HashMap,
     rc::Rc,
     sync::Arc,
@@ -7,6 +8,7 @@ use std::{
 
 use floem::{
     cosmic_text::{Attrs, AttrsList, LineHeightValue, TextLayout, Wrap},
+    keyboard::ModifiersState,
     kurbo::{Point, Rect, Vec2},
     peniko::Color,
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
@@ -14,6 +16,7 @@ use floem::{
 };
 use lapce_core::{
     buffer::rope_text::{RopeText, RopeTextVal},
+    command::MoveCommand,
     cursor::{ColPosition, Cursor, CursorAffinity, CursorMode},
     mode::Mode,
     register::Register,
@@ -23,6 +26,7 @@ use lapce_core::{
 use lapce_xi_rope::Rope;
 
 use crate::{
+    command::Command,
     id::EditorId,
     layout::TextLayoutLine,
     phantom_text::PhantomTextLine,
@@ -322,7 +326,7 @@ impl Editor {
 
     pub fn pointer_move(&self, pointer_event: &PointerMoveEvent) {
         let mode = self.cursor.with_untracked(|c| c.get_mode());
-        let (offset, is_inside) = self.offset_of_point(mode, pointer_event.pos);
+        let (offset, _is_inside) = self.offset_of_point(mode, pointer_event.pos);
         if self.active.get_untracked()
             && self.cursor.with_untracked(|c| c.offset()) != offset
         {
@@ -395,6 +399,70 @@ impl Editor {
         //     }
         // }
         // show_context_menu(menu, None);
+    }
+
+    // TODO: should this have modifiers state in its api
+    pub fn page_move(&self, down: bool, mods: ModifiersState) {
+        let viewport = self.viewport.get_untracked();
+        // TODO: don't assume line height is constant
+        let line_height = f64::from(self.line_height(0));
+        let lines = (viewport.height() / line_height / 2.0).round() as usize;
+        let distance = (lines as f64) * line_height;
+        self.scroll_delta
+            .set(Vec2::new(0.0, if down { distance } else { -distance }));
+        let cmd = if down {
+            MoveCommand::Down
+        } else {
+            MoveCommand::Up
+        };
+        let cmd = Command::Move(cmd);
+        self.doc().run_command(self, &cmd, Some(lines), mods);
+    }
+
+    pub fn scroll(
+        &self,
+        top_shift: f64,
+        down: bool,
+        count: usize,
+        mods: ModifiersState,
+    ) {
+        let viewport = self.viewport.get_untracked();
+        // TODO: don't assume line height is constant
+        let line_height = f64::from(self.line_height(0));
+        let diff = line_height * count as f64;
+        let diff = if down { diff } else { -diff };
+
+        let offset = self.cursor.with_untracked(|cursor| cursor.offset());
+        let (line, _col) = self.offset_to_line_col(offset);
+        let top = viewport.y0 + diff + top_shift;
+        let bottom = viewport.y0 + diff + viewport.height();
+
+        let new_line = if (line + 1) as f64 * line_height + line_height > bottom {
+            let line = (bottom / line_height).floor() as usize;
+            if line > 2 {
+                line - 2
+            } else {
+                0
+            }
+        } else if line as f64 * line_height - line_height < top {
+            let line = (top / line_height).ceil() as usize;
+            line + 1
+        } else {
+            line
+        };
+
+        self.scroll_delta.set(Vec2::new(0.0, diff));
+
+        let res = match new_line.cmp(&line) {
+            Ordering::Greater => Some((MoveCommand::Down, new_line - line)),
+            Ordering::Less => Some((MoveCommand::Up, line - new_line)),
+            _ => None,
+        };
+
+        if let Some((cmd, count)) = res {
+            let cmd = Command::Move(cmd);
+            self.doc().run_command(self, &cmd, Some(count), mods);
+        }
     }
 
     // === Information ===

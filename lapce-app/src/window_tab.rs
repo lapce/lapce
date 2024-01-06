@@ -582,7 +582,10 @@ impl WindowTabData {
             CommandKind::Workbench(command) => {
                 self.run_workbench_command(command, cmd.data);
             }
-            CommandKind::Focus(_) | CommandKind::Edit(_) | CommandKind::Move(_) => {
+            CommandKind::Scroll(_)
+            | CommandKind::Focus(_)
+            | CommandKind::Edit(_)
+            | CommandKind::Move(_) => {
                 if self.palette.status.get_untracked() != PaletteStatus::Inactive {
                     self.palette
                         .run_command(&cmd, None, ModifiersState::empty());

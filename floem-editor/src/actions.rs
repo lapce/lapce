@@ -1,7 +1,7 @@
 use floem::keyboard::ModifiersState;
 use lapce_core::{
     command::{
-        EditCommand, FocusCommand2, MotionModeCommand, MultiSelectionCommand,
+        EditCommand, MotionModeCommand, MultiSelectionCommand, ScrollCommand,
     },
     cursor::Cursor,
     mode::MotionMode,
@@ -28,7 +28,7 @@ pub fn handle_command_default(
             let movement = cmd.to_movement(count);
             handle_move_command_default(ed, action, movement, count, modifiers)
         }
-        Command::Focus(cmd) => {
+        Command::Scroll(cmd) => {
             // TODO(floem-editor): lapce checks if the content is local??
 
             handle_focus_command_default(ed, action, cmd, count, modifiers)
@@ -114,7 +114,7 @@ fn handle_move_command_default(
 fn handle_focus_command_default(
     ed: &Editor,
     action: &dyn CommonAction,
-    cmd: &FocusCommand2,
+    cmd: &ScrollCommand,
     count: Option<usize>,
     mods: ModifiersState,
 ) -> CommandExecuted {
@@ -123,21 +123,21 @@ fn handle_focus_command_default(
     // TODO(floem-editor): The above becomes relevant.
     // We also need a good way for lapce to have its own specific commands..
     match cmd {
-        FocusCommand2::PageUp => {
+        ScrollCommand::PageUp => {
             todo!()
         }
-        FocusCommand2::PageDown => {
+        ScrollCommand::PageDown => {
             todo!()
         }
-        FocusCommand2::ScrollUp => {
+        ScrollCommand::ScrollUp => {
             todo!()
         }
-        FocusCommand2::ScrollDown => {
+        ScrollCommand::ScrollDown => {
             todo!()
         }
-        FocusCommand2::CenterOfWindow => todo!(),
-        FocusCommand2::TopOfWindow => todo!(),
-        FocusCommand2::BottomOfWindow => todo!(),
+        ScrollCommand::CenterOfWindow => todo!(),
+        ScrollCommand::TopOfWindow => todo!(),
+        ScrollCommand::BottomOfWindow => todo!(),
     }
 
     CommandExecuted::Yes

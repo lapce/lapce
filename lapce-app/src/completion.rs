@@ -4,7 +4,7 @@ use floem::{
     peniko::kurbo::Rect,
     reactive::{ReadSignal, RwSignal, Scope},
 };
-use floem_editor::id::EditorId;
+use floem_editor::{id::EditorId, text::Document};
 use lapce_core::{buffer::rope_text::RopeText, movement::Movement};
 use lapce_rpc::{plugin::PluginId, proxy::ProxyRpcHandler};
 use lsp_types::{
@@ -15,7 +15,7 @@ use nucleo::Utf32Str;
 
 use crate::{
     config::LapceConfig, doc::DocumentExt, editor::view_data::EditorViewData,
-    snippet::Snippet,
+    editor2::EditorData2, snippet::Snippet,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -327,6 +327,48 @@ impl CompletionData {
                 // TODO: will need to be adjusted to use visual line.
                 //   Could just store the offset in doc.
                 let (line, col) = view.offset_to_line_col(offset);
+
+                doc.set_completion_lens(lens, line, col);
+            }
+            // Unchanged
+            Some(None) => {}
+            None => {
+                doc.clear_completion_lens();
+            }
+        }
+    }
+
+    /// Update the completion lens of the document with the active completion item.  
+    pub fn update_document_completion2(
+        &self,
+        editor_data: &EditorData2,
+        cursor_offset: usize,
+    ) {
+        let doc = editor_data.doc();
+
+        if !doc.content.with_untracked(|content| content.is_file()) {
+            return;
+        }
+
+        let config = self.config.get_untracked();
+
+        if !config.editor.enable_completion_lens {
+            doc.clear_completion_lens();
+            return;
+        }
+
+        let completion_lens = completion_lens_text(
+            doc.rope_text(),
+            cursor_offset,
+            self,
+            doc.completion_lens().as_deref(),
+        );
+        match completion_lens {
+            Some(Some(lens)) => {
+                let offset = self.offset + self.input.len();
+                // TODO: will need to be adjusted to use visual line.
+                //   Could just store the offset in doc.
+                let (line, col) = editor_data.editor.offset_to_line_col(offset);
 
                 doc.set_completion_lens(lens, line, col);
             }

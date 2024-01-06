@@ -3,7 +3,8 @@ use std::{path::PathBuf, rc::Rc, sync::Arc};
 use floem::{keyboard::ModifiersState, peniko::kurbo::Vec2};
 use indexmap::IndexMap;
 use lapce_core::command::{
-    EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
+    EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
+    MultiSelectionCommand, ScrollCommand,
 };
 use lapce_rpc::{
     dap_types::{DapId, RunDebugConfig},
@@ -40,6 +41,7 @@ pub enum CommandKind {
     Workbench(LapceWorkbenchCommand),
     Edit(EditCommand),
     Move(MoveCommand),
+    Scroll(ScrollCommand),
     Focus(FocusCommand),
     MotionMode(MotionModeCommand),
     MultiSelection(MultiSelectionCommand),
@@ -65,6 +67,20 @@ impl CommandKind {
             CommandKind::Focus(cmd) => cmd.into(),
             CommandKind::MotionMode(cmd) => cmd.into(),
             CommandKind::MultiSelection(cmd) => cmd.into(),
+        }
+    }
+}
+impl From<floem_editor::command::Command> for CommandKind {
+    fn from(cmd: floem_editor::command::Command) -> Self {
+        use floem_editor::command::Command::*;
+        match cmd {
+            Edit(edit) => CommandKind::Edit(edit),
+            Move(movement) => CommandKind::Move(movement),
+            Scroll(scroll) => CommandKind::Scroll(scroll),
+            MotionMode(motion_mode) => CommandKind::MotionMode(motion_mode),
+            MultiSelection(multi_selection) => {
+                CommandKind::MultiSelection(multi_selection)
+            }
         }
     }
 }

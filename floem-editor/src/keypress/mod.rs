@@ -5,7 +5,7 @@ use std::{collections::HashMap, rc::Rc, str::FromStr};
 
 use floem::{keyboard::ModifiersState, reactive::RwSignal};
 use lapce_core::command::{
-    EditCommand, FocusCommand2, MoveCommand, MultiSelectionCommand,
+    EditCommand, MoveCommand, MultiSelectionCommand, ScrollCommand,
 };
 
 use crate::{
@@ -89,15 +89,15 @@ fn add_default_common(c: &mut HashMap<KeyPress, Command>) {
     c.insert(key_d("home"), Command::Move(MoveCommand::LineStartNonBlank));
     c.insert(key_d("end"), Command::Move(MoveCommand::LineEnd));
 
-    c.insert(key_d("pageup"), Command::Focus(FocusCommand2::PageUp));
-    c.insert(key_d("pagedown"), Command::Focus(FocusCommand2::PageDown));
+    c.insert(key_d("pageup"), Command::Scroll(ScrollCommand::PageUp));
+    c.insert(key_d("pagedown"), Command::Scroll(ScrollCommand::PageDown));
     c.insert(
         key("pageup", ModifiersState::CONTROL),
-        Command::Focus(FocusCommand2::ScrollUp),
+        Command::Scroll(ScrollCommand::ScrollUp),
     );
     c.insert(
         key("pagedown", ModifiersState::CONTROL),
-        Command::Focus(FocusCommand2::ScrollDown),
+        Command::Scroll(ScrollCommand::ScrollDown),
     );
 
     // --- Multi cursor ---

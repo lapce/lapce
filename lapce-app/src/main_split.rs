@@ -43,6 +43,7 @@ use crate::{
         location::{EditorLocation, EditorPosition},
         EditorData,
     },
+    editor2::EditorData2,
     editor_tab::{
         EditorTabChild, EditorTabChildSource, EditorTabData, EditorTabInfo,
     },
@@ -236,6 +237,7 @@ pub struct MainSplitData {
     pub splits: RwSignal<im::HashMap<SplitId, RwSignal<SplitData>>>,
     pub editor_tabs: RwSignal<im::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
     pub editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    pub editors2: RwSignal<im::HashMap<EditorId, Rc<EditorData2>>>,
     pub diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
     pub docs: RwSignal<im::HashMap<PathBuf, Rc<Document>>>,
     pub scratch_docs: RwSignal<im::HashMap<String, Rc<Document>>>,
@@ -257,6 +259,7 @@ impl MainSplitData {
             im::HashMap<EditorTabId, RwSignal<EditorTabData>>,
         > = cx.create_rw_signal(im::HashMap::new());
         let editors = cx.create_rw_signal(im::HashMap::new());
+        let editors2 = cx.create_rw_signal(im::HashMap::new());
         let diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>> =
             cx.create_rw_signal(im::HashMap::new());
         let docs: RwSignal<im::HashMap<PathBuf, Rc<Document>>> =
@@ -314,6 +317,7 @@ impl MainSplitData {
             active_editor_tab,
             editor_tabs,
             editors,
+            editors2,
             diff_editors,
             docs,
             scratch_docs,

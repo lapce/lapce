@@ -16,7 +16,10 @@ use floem::{
 use floem_editor::id::EditorId;
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, InvalLines},
-    command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
+    command::{
+        EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
+        ScrollCommand,
+    },
     cursor::{Cursor, CursorMode},
     editor::EditType,
     mode::{Mode, MotionMode},
@@ -500,6 +503,48 @@ impl EditorData {
         CommandExecuted::Yes
     }
 
+    pub fn run_scroll_command(
+        &self,
+        cmd: &ScrollCommand,
+        count: Option<usize>,
+        mods: ModifiersState,
+    ) -> CommandExecuted {
+        let prev_completion_index = self
+            .common
+            .completion
+            .with_untracked(|c| c.active.get_untracked());
+
+        match cmd {
+            ScrollCommand::PageUp => {
+                self.page_move(false, mods);
+            }
+            ScrollCommand::PageDown => {
+                self.page_move(true, mods);
+            }
+            ScrollCommand::ScrollUp => {
+                self.scroll(false, count.unwrap_or(1), mods);
+            }
+            ScrollCommand::ScrollDown => {
+                self.scroll(true, count.unwrap_or(1), mods);
+            }
+            _ => {}
+        }
+
+        let current_completion_index = self
+            .common
+            .completion
+            .with_untracked(|c| c.active.get_untracked());
+
+        if prev_completion_index != current_completion_index {
+            self.common.completion.with_untracked(|c| {
+                let cursor_offset = self.cursor.with_untracked(|c| c.offset());
+                c.update_document_completion(&self.view, cursor_offset);
+            });
+        }
+
+        CommandExecuted::Yes
+    }
+
     pub fn run_focus_command(
         &self,
         cmd: &FocusCommand,
@@ -670,18 +715,6 @@ impl EditorData {
                 } else {
                     return CommandExecuted::No;
                 }
-            }
-            FocusCommand::PageUp => {
-                self.page_move(false, mods);
-            }
-            FocusCommand::PageDown => {
-                self.page_move(true, mods);
-            }
-            FocusCommand::ScrollUp => {
-                self.scroll(false, count.unwrap_or(1), mods);
-            }
-            FocusCommand::ScrollDown => {
-                self.scroll(true, count.unwrap_or(1), mods);
             }
             FocusCommand::ListNext => {
                 self.common.completion.update(|c| {
@@ -2579,6 +2612,18 @@ impl KeyPressFocus for EditorData {
             crate::command::CommandKind::Move(cmd) => {
                 let movement = cmd.to_movement(count);
                 self.run_move_command(&movement, count, mods)
+            }
+            crate::command::CommandKind::Scroll(cmd) => {
+                if self
+                    .view
+                    .doc
+                    .get_untracked()
+                    .content
+                    .with_untracked(|content| content.is_local())
+                {
+                    return CommandExecuted::No;
+                }
+                self.run_scroll_command(cmd, count, mods)
             }
             crate::command::CommandKind::Focus(cmd) => {
                 if self

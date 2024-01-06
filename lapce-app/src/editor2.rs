@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, rc::Rc, str::FromStr, sync::Arc, time::Duration};
+use std::{rc::Rc, str::FromStr, sync::Arc, time::Duration};
 
 use floem::{
     action::{exec_after, show_context_menu, TimerToken},
@@ -15,7 +15,10 @@ use floem_editor::{
 };
 use lapce_core::{
     buffer::{rope_text::RopeText, InvalLines},
-    command::{EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand},
+    command::{
+        EditCommand, FocusCommand, MotionModeCommand, MultiSelectionCommand,
+        ScrollCommand,
+    },
     cursor::{Cursor, CursorMode},
     editor::EditType,
     mode::{Mode, MotionMode},
@@ -42,9 +45,11 @@ use crate::{
         view_data::EditorViewKind,
         EditorInfo, InlineFindDirection, SnippetIndex,
     },
+    editor_tab::EditorTabChild,
     id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
     keypress::{condition::Condition, KeyPressFocus},
+    main_split::{SplitDirection, SplitMoveDirection},
     markdown::{
         from_marked_string, from_plaintext, parse_markdown, MarkdownContent,
     },
@@ -222,7 +227,7 @@ impl EditorData2 {
         let mut register = self.common.register.get_untracked();
 
         movement::do_motion_mode(
-            &self.doc(),
+            &*self.doc(),
             &mut cursor,
             motion_mode,
             &mut register,
@@ -277,7 +282,7 @@ impl EditorData2 {
         self.common.register.update(|register| {
             movement::move_cursor(
                 &self.editor,
-                &self.doc(),
+                &*self.doc(),
                 &mut cursor,
                 movement,
                 count.unwrap_or(1),
@@ -307,8 +312,398 @@ impl EditorData2 {
         CommandExecuted::Yes
     }
 
-    // TODO(floem-editor): run focus command, but we can possibly just use the default handler
-    // and have a separate one for our custom focus commands
+    pub fn run_scroll_command(
+        &self,
+        cmd: &ScrollCommand,
+        count: Option<usize>,
+        mods: ModifiersState,
+    ) -> CommandExecuted {
+        let prev_completion_index = self
+            .common
+            .completion
+            .with_untracked(|c| c.active.get_untracked());
+
+        match cmd {
+            ScrollCommand::PageUp => {
+                self.editor.page_move(false, mods);
+            }
+            ScrollCommand::PageDown => {
+                self.editor.page_move(true, mods);
+            }
+            ScrollCommand::ScrollUp => {
+                self.scroll(false, count.unwrap_or(1), mods);
+            }
+            ScrollCommand::ScrollDown => {
+                self.scroll(true, count.unwrap_or(1), mods);
+            }
+            _ => {}
+        }
+
+        let current_completion_index = self
+            .common
+            .completion
+            .with_untracked(|c| c.active.get_untracked());
+
+        if prev_completion_index != current_completion_index {
+            self.common.completion.with_untracked(|c| {
+                let cursor_offset = self.cursor().with_untracked(|c| c.offset());
+                c.update_document_completion2(self, cursor_offset);
+            });
+        }
+
+        CommandExecuted::Yes
+    }
+
+    pub fn run_focus_command(
+        &self,
+        cmd: &FocusCommand,
+        count: Option<usize>,
+        mods: ModifiersState,
+    ) -> CommandExecuted {
+        // TODO(minor): Evaluate whether we should split this into subenums,
+        // such as actions specific to the actual editor pane, movement, and list movement.
+        let prev_completion_index = self
+            .common
+            .completion
+            .with_untracked(|c| c.active.get_untracked());
+
+        match cmd {
+            FocusCommand::ModalClose => {
+                self.cancel_completion();
+            }
+            FocusCommand::SplitVertical => {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
+                    self.common.internal_command.send(InternalCommand::Split {
+                        direction: SplitDirection::Vertical,
+                        editor_tab_id,
+                    });
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
+                    self.common.internal_command.send(InternalCommand::Split {
+                        direction: SplitDirection::Vertical,
+                        editor_tab_id,
+                    });
+                } else {
+                    return CommandExecuted::No;
+                }
+            }
+            FocusCommand::SplitHorizontal => {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
+                    self.common.internal_command.send(InternalCommand::Split {
+                        direction: SplitDirection::Horizontal,
+                        editor_tab_id,
+                    });
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
+                    self.common.internal_command.send(InternalCommand::Split {
+                        direction: SplitDirection::Horizontal,
+                        editor_tab_id,
+                    });
+                } else {
+                    return CommandExecuted::No;
+                }
+            }
+            FocusCommand::SplitRight => {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
+                            direction: SplitMoveDirection::Right,
+                            editor_tab_id,
+                        });
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
+                            direction: SplitMoveDirection::Right,
+                            editor_tab_id,
+                        });
+                } else {
+                    return CommandExecuted::No;
+                }
+            }
+            FocusCommand::SplitLeft => {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
+                            direction: SplitMoveDirection::Left,
+                            editor_tab_id,
+                        });
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
+                            direction: SplitMoveDirection::Left,
+                            editor_tab_id,
+                        });
+                } else {
+                    return CommandExecuted::No;
+                }
+            }
+            FocusCommand::SplitUp => {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
+                            direction: SplitMoveDirection::Up,
+                            editor_tab_id,
+                        });
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
+                            direction: SplitMoveDirection::Up,
+                            editor_tab_id,
+                        });
+                } else {
+                    return CommandExecuted::No;
+                }
+            }
+            FocusCommand::SplitDown => {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
+                            direction: SplitMoveDirection::Down,
+                            editor_tab_id,
+                        });
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitMove {
+                            direction: SplitMoveDirection::Down,
+                            editor_tab_id,
+                        });
+                } else {
+                    return CommandExecuted::No;
+                }
+            }
+            FocusCommand::SplitExchange => {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitExchange { editor_tab_id });
+                } else if let Some((editor_tab_id, _)) =
+                    self.diff_editor_id.get_untracked()
+                {
+                    self.common
+                        .internal_command
+                        .send(InternalCommand::SplitExchange { editor_tab_id });
+                } else {
+                    return CommandExecuted::No;
+                }
+            }
+            FocusCommand::SplitClose => {
+                if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
+                    self.common.internal_command.send(
+                        InternalCommand::EditorTabChildClose {
+                            editor_tab_id,
+                            child: EditorTabChild::Editor(self.id()),
+                        },
+                    );
+                } else if let Some((editor_tab_id, diff_editor_id)) =
+                    self.diff_editor_id.get_untracked()
+                {
+                    self.common.internal_command.send(
+                        InternalCommand::EditorTabChildClose {
+                            editor_tab_id,
+                            child: EditorTabChild::DiffEditor(diff_editor_id),
+                        },
+                    );
+                } else {
+                    return CommandExecuted::No;
+                }
+            }
+            FocusCommand::ListNext => {
+                self.common.completion.update(|c| {
+                    c.next();
+                });
+            }
+            FocusCommand::ListPrevious => {
+                self.common.completion.update(|c| {
+                    c.previous();
+                });
+            }
+            FocusCommand::ListNextPage => {
+                self.common.completion.update(|c| {
+                    c.next_page();
+                });
+            }
+            FocusCommand::ListPreviousPage => {
+                self.common.completion.update(|c| {
+                    c.previous_page();
+                });
+            }
+            FocusCommand::ListSelect => {
+                self.select_completion();
+                self.cancel_inline_completion();
+            }
+            FocusCommand::JumpToNextSnippetPlaceholder => {
+                self.snippet.update(|snippet| {
+                    if let Some(snippet_mut) = snippet.as_mut() {
+                        let mut current = 0;
+                        let offset = self.cursor().get_untracked().offset();
+                        for (i, (_, (start, end))) in snippet_mut.iter().enumerate()
+                        {
+                            if *start <= offset && offset <= *end {
+                                current = i;
+                                break;
+                            }
+                        }
+
+                        let last_placeholder = current + 1 >= snippet_mut.len() - 1;
+
+                        if let Some((_, (start, end))) = snippet_mut.get(current + 1)
+                        {
+                            let mut selection =
+                                lapce_core::selection::Selection::new();
+                            let region = lapce_core::selection::SelRegion::new(
+                                *start, *end, None,
+                            );
+                            selection.add_region(region);
+                            self.cursor().update(|cursor| {
+                                cursor.set_insert(selection);
+                            });
+                        }
+
+                        if last_placeholder {
+                            *snippet = None;
+                        }
+                        // self.update_signature();
+                        self.cancel_completion();
+                        self.cancel_inline_completion();
+                    }
+                });
+            }
+            FocusCommand::JumpToPrevSnippetPlaceholder => {
+                self.snippet.update(|snippet| {
+                    if let Some(snippet_mut) = snippet.as_mut() {
+                        let mut current = 0;
+                        let offset = self.cursor().get_untracked().offset();
+                        for (i, (_, (start, end))) in snippet_mut.iter().enumerate()
+                        {
+                            if *start <= offset && offset <= *end {
+                                current = i;
+                                break;
+                            }
+                        }
+
+                        if current > 0 {
+                            if let Some((_, (start, end))) =
+                                snippet_mut.get(current - 1)
+                            {
+                                let mut selection =
+                                    lapce_core::selection::Selection::new();
+                                let region = lapce_core::selection::SelRegion::new(
+                                    *start, *end, None,
+                                );
+                                selection.add_region(region);
+                                self.cursor().update(|cursor| {
+                                    cursor.set_insert(selection);
+                                });
+                            }
+                            // self.update_signature();
+                            self.cancel_completion();
+                            self.cancel_inline_completion();
+                        }
+                    }
+                });
+            }
+            FocusCommand::GotoDefinition => {
+                self.go_to_definition();
+            }
+            FocusCommand::ShowCodeActions => {
+                self.show_code_actions(false);
+            }
+            FocusCommand::SearchWholeWordForward => {
+                self.search_whole_word_forward(mods);
+            }
+            FocusCommand::SearchForward => {
+                self.search_forward(mods);
+            }
+            FocusCommand::SearchBackward => {
+                self.search_backward(mods);
+            }
+            FocusCommand::Save => {
+                self.save(true, || {});
+            }
+            FocusCommand::SaveWithoutFormatting => {
+                self.save(false, || {});
+            }
+            FocusCommand::FormatDocument => {
+                self.format();
+            }
+            FocusCommand::InlineFindLeft => {
+                self.inline_find.set(Some(InlineFindDirection::Left));
+            }
+            FocusCommand::InlineFindRight => {
+                self.inline_find.set(Some(InlineFindDirection::Right));
+            }
+            FocusCommand::RepeatLastInlineFind => {
+                if let Some((direction, c)) = self.last_inline_find.get_untracked() {
+                    self.inline_find(direction, &c);
+                }
+            }
+            FocusCommand::Rename => {
+                self.rename();
+            }
+            FocusCommand::ClearSearch => {
+                self.clear_search();
+            }
+            FocusCommand::Search => {
+                self.search();
+            }
+            FocusCommand::FocusFindEditor => {
+                self.common.find.replace_focus.set(false);
+            }
+            FocusCommand::FocusReplaceEditor => {
+                if self.common.find.replace_active.get_untracked() {
+                    self.common.find.replace_focus.set(true);
+                }
+            }
+            FocusCommand::InlineCompletionSelect => {
+                self.select_inline_completion();
+            }
+            FocusCommand::InlineCompletionNext => {
+                self.next_inline_completion();
+            }
+            FocusCommand::InlineCompletionPrevious => {
+                self.previous_inline_completion();
+            }
+            FocusCommand::InlineCompletionCancel => {
+                self.cancel_inline_completion();
+            }
+            FocusCommand::InlineCompletionInvoke => {
+                self.update_inline_completion(InlineCompletionTriggerKind::Invoked);
+            }
+            _ => {}
+        }
+
+        let current_completion_index = self
+            .common
+            .completion
+            .with_untracked(|c| c.active.get_untracked());
+
+        if prev_completion_index != current_completion_index {
+            self.common.completion.with_untracked(|c| {
+                let cursor_offset = self.cursor().with_untracked(|c| c.offset());
+                c.update_document_completion2(self, cursor_offset);
+            });
+        }
+
+        CommandExecuted::Yes
+    }
 
     /// Jump to the next/previous column on the line which matches the given text
     fn inline_find(&self, direction: InlineFindDirection, c: &str) {
@@ -490,73 +885,13 @@ impl EditorData2 {
         );
     }
 
-    fn page_move(&self, down: bool, mods: ModifiersState) {
-        let config = self.common.config.get_untracked();
-        let viewport = self.viewport().get_untracked();
-        let line_height = config.editor.line_height() as f64;
-        let lines = (viewport.height() / line_height / 2.0).round() as usize;
-        let distance = (lines as f64) * line_height;
-        self.scroll_delta
-            .set(Vec2::new(0.0, if down { distance } else { -distance }));
-        self.run_move_command(
-            if down {
-                &lapce_core::movement::Movement::Down
-            } else {
-                &lapce_core::movement::Movement::Up
-            },
-            Some(lines),
-            mods,
-        );
-    }
-
     fn scroll(&self, down: bool, count: usize, mods: ModifiersState) {
-        let config = self.common.config.get_untracked();
-        let viewport = self.viewport().get_untracked();
-        let line_height = config.editor.line_height() as f64;
-        let diff = line_height * count as f64;
-        let diff = if down { diff } else { -diff };
-
-        let offset = self.cursor().with_untracked(|cursor| cursor.offset());
-        let (line, _col) = self
-            .doc()
-            .buffer
-            .with_untracked(|buffer| buffer.offset_to_line_col(offset));
-        let top = viewport.y0 + diff + self.sticky_header_height.get_untracked();
-        let bottom = viewport.y0 + diff + viewport.height();
-
-        let new_line = if (line + 1) as f64 * line_height + line_height > bottom {
-            let line = (bottom / line_height).floor() as usize;
-            if line > 2 {
-                line - 2
-            } else {
-                0
-            }
-        } else if line as f64 * line_height - line_height < top {
-            let line = (top / line_height).ceil() as usize;
-            line + 1
-        } else {
-            line
-        };
-
-        self.scroll_delta.set(Vec2::new(0.0, diff));
-
-        match new_line.cmp(&line) {
-            Ordering::Greater => {
-                self.run_move_command(
-                    &lapce_core::movement::Movement::Down,
-                    Some(new_line - line),
-                    mods,
-                );
-            }
-            Ordering::Less => {
-                self.run_move_command(
-                    &lapce_core::movement::Movement::Up,
-                    Some(line - new_line),
-                    mods,
-                );
-            }
-            _ => (),
-        };
+        self.editor.scroll(
+            self.sticky_header_height.get_untracked(),
+            down,
+            count,
+            mods,
+        )
     }
 
     fn select_inline_completion(&self) {
@@ -578,7 +913,7 @@ impl EditorData2 {
             return;
         };
 
-        let _ = item.apply(self, start_offset);
+        let _ = item.apply2(self, start_offset);
     }
 
     fn next_inline_completion(&self) {
@@ -665,7 +1000,7 @@ impl EditorData2 {
         if has_relevant {
             let config = self.common.config.get_untracked();
             inline_completion.update(|completion| {
-                completion.update_inline_completion(&config, &doc, offset);
+                completion.update_inline_completion2(&config, &doc, offset);
             });
         }
 
@@ -681,7 +1016,7 @@ impl EditorData2 {
                 });
                 inline_completion.update(|c| {
                     c.set_items(items, offset, path2);
-                    c.update_doc(&doc, offset);
+                    c.update_doc2(&doc, offset);
                 });
             },
         );
@@ -828,7 +1163,7 @@ impl EditorData2 {
                 completion.update_input(input.clone());
 
                 let cursor_offset = self.cursor().with_untracked(|c| c.offset());
-                completion.update_document_completion(&self.view, cursor_offset);
+                completion.update_document_completion2(self, cursor_offset);
 
                 if !completion.input_items.contains_key("") {
                     let start_pos = doc.buffer.with_untracked(|buffer| {
@@ -1212,7 +1547,7 @@ impl EditorData2 {
             Cursor::new(CursorMode::Insert(Selection::caret(offset)), None, None)
         });
         if let Some(scroll_offset) = scroll_offset {
-            self.scroll_to.set(Some(scroll_offset));
+            self.editor.scroll_to.set(Some(scroll_offset));
         }
         if let Some(edits) = edits.as_ref() {
             self.do_text_edit(edits);
@@ -1939,6 +2274,16 @@ impl KeyPressFocus for EditorData2 {
             crate::command::CommandKind::Move(cmd) => {
                 let movement = cmd.to_movement(count);
                 self.run_move_command(&movement, count, mods)
+            }
+            crate::command::CommandKind::Scroll(cmd) => {
+                if self
+                    .doc()
+                    .content
+                    .with_untracked(|content| content.is_local())
+                {
+                    return CommandExecuted::No;
+                }
+                self.run_scroll_command(cmd, count, mods)
             }
             crate::command::CommandKind::Focus(cmd) => {
                 if self

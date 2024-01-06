@@ -14,7 +14,9 @@ use lsp_types::InsertTextFormat;
 use crate::{
     config::LapceConfig,
     doc::{Document, DocumentExt},
+    doc2::Doc,
     editor::EditorData,
+    editor2::EditorData2,
     snippet::Snippet,
 };
 
@@ -51,6 +53,42 @@ impl InlineCompletionItem {
     pub fn apply(
         &self,
         editor: &EditorData,
+        start_offset: usize,
+    ) -> anyhow::Result<()> {
+        let text_format = self
+            .insert_text_format
+            .unwrap_or(InsertTextFormat::PLAIN_TEXT);
+
+        let selection = if let Some(range) = &self.range {
+            Selection::region(range.start, range.end)
+        } else {
+            Selection::caret(start_offset)
+        };
+
+        match text_format {
+            InsertTextFormat::PLAIN_TEXT => editor.do_edit(
+                &selection,
+                &[(selection.clone(), self.insert_text.as_str())],
+            ),
+            InsertTextFormat::SNIPPET => {
+                editor.completion_apply_snippet(
+                    &self.insert_text,
+                    &selection,
+                    Vec::new(),
+                    start_offset,
+                )?;
+            }
+            _ => {
+                // We don't know how to support this text format
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn apply2(
+        &self,
+        editor: &EditorData2,
         start_offset: usize,
     ) -> anyhow::Result<()> {
         let text_format = self
@@ -194,6 +232,36 @@ impl InlineCompletionData {
         doc.set_inline_completion(text, line, col);
     }
 
+    pub fn update_doc2(&self, doc: &Doc, offset: usize) {
+        if self.status != InlineCompletionStatus::Active {
+            doc.clear_inline_completion();
+            return;
+        }
+
+        if self.items.is_empty() {
+            doc.clear_inline_completion();
+            return;
+        }
+
+        let active = self.active.get_untracked();
+        let active = if active >= self.items.len() {
+            self.active.set(0);
+            0
+        } else {
+            active
+        };
+
+        let item = &self.items[active];
+        let text = item.insert_text.clone();
+
+        // TODO: is range really meant to be used for this?
+        let offset = item.range.as_ref().map(|r| r.start).unwrap_or(offset);
+        let (line, col) = doc
+            .buffer
+            .with_untracked(|buffer| buffer.offset_to_line_col(offset));
+        doc.set_inline_completion(text, line, col);
+    }
+
     pub fn update_inline_completion(
         &self,
         config: &LapceConfig,
@@ -213,6 +281,42 @@ impl InlineCompletionData {
         };
 
         let completion = doc.backend.inline_completion.with_untracked(|cur| {
+            let cur = cur.as_deref();
+            inline_completion_text(text, self.start_offset, cursor_offset, item, cur)
+        });
+
+        match completion {
+            ICompletionRes::Hide => {
+                doc.clear_inline_completion();
+            }
+            ICompletionRes::Unchanged => {}
+            ICompletionRes::Set(new, shift) => {
+                let offset = self.start_offset + shift;
+                let (line, col) = text.offset_to_line_col(offset);
+                doc.set_inline_completion(new, line, col);
+            }
+        }
+    }
+
+    pub fn update_inline_completion2(
+        &self,
+        config: &LapceConfig,
+        doc: &Doc,
+        cursor_offset: usize,
+    ) {
+        if !config.editor.enable_inline_completion {
+            doc.clear_inline_completion();
+            return;
+        }
+
+        let text = doc.buffer.with_untracked(|buffer| buffer.text().clone());
+        let text = RopeTextRef::new(&text);
+        let Some(item) = self.current_item() else {
+            // TODO(minor): should we cancel completion
+            return;
+        };
+
+        let completion = doc.inline_completion.with_untracked(|cur| {
             let cur = cur.as_deref();
             inline_completion_text(text, self.start_offset, cursor_offset, item, cur)
         });

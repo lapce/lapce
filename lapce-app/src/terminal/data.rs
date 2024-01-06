@@ -12,7 +12,7 @@ use floem::{
     reactive::{RwSignal, Scope},
 };
 use lapce_core::{
-    command::{EditCommand, FocusCommand},
+    command::{EditCommand, FocusCommand, ScrollCommand},
     mode::{Mode, VisualMode},
     movement::{LinePosition, Movement},
     register::Clipboard,
@@ -195,8 +195,8 @@ impl KeyPressFocus for TerminalData {
                 }
                 _ => return CommandExecuted::No,
             },
-            CommandKind::Focus(cmd) => match cmd {
-                FocusCommand::PageUp => {
+            CommandKind::Scroll(cmd) => match cmd {
+                ScrollCommand::PageUp => {
                     let raw = self.raw.get_untracked();
                     let mut raw = raw.write();
                     let term = &mut raw.term;
@@ -208,7 +208,7 @@ impl KeyPressFocus for TerminalData {
                         scroll_lines,
                     ));
                 }
-                FocusCommand::PageDown => {
+                ScrollCommand::PageDown => {
                     let raw = self.raw.get_untracked();
                     let mut raw = raw.write();
                     let term = &mut raw.term;
@@ -220,6 +220,9 @@ impl KeyPressFocus for TerminalData {
                         scroll_lines,
                     ));
                 }
+                _ => return CommandExecuted::No,
+            },
+            CommandKind::Focus(cmd) => match cmd {
                 FocusCommand::SplitVertical => {
                     self.common.internal_command.send(
                         InternalCommand::SplitTerminal {

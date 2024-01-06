@@ -21,6 +21,7 @@ use floem_editor::{
     color::EditorColor,
     command::{Command, CommandExecuted},
     editor::Editor,
+    id::EditorId,
     phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
     text::{
         Document, DocumentPhantom, PreeditData, Styling, SystemClipboard, WrapMethod,
@@ -59,10 +60,13 @@ use lsp_types::{CodeActionResponse, DiagnosticSeverity, InlayHint, InlayHintLabe
 use smallvec::SmallVec;
 
 use crate::{
+    command::{CommandKind, LapceCommand},
     config::{color::LapceColor, editor::WrapStyle, LapceConfig},
     doc::{DiagnosticData, DocContent},
+    editor2::EditorData2,
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
+    keypress::KeyPressFocus,
     window_tab::CommonData,
 };
 
@@ -112,6 +116,7 @@ pub struct Doc {
     /// The diagnostics for the document
     pub diagnostics: DiagnosticData,
 
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData2>>>,
     pub common: Rc<CommonData>,
 }
 impl Doc {
@@ -119,6 +124,7 @@ impl Doc {
         cx: Scope,
         path: PathBuf,
         diagnostics: DiagnosticData,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData2>>>,
         common: Rc<CommonData>,
     ) -> Doc {
         let syntax = Syntax::init(&path);
@@ -147,17 +153,23 @@ impl Doc {
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
             preedit: PreeditData::new(cx),
+            editors,
             common,
         }
     }
 
-    pub fn new_local(cx: Scope, common: Rc<CommonData>) -> Doc {
-        Self::new_content(cx, DocContent::Local, common)
+    pub fn new_local(
+        cx: Scope,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData2>>>,
+        common: Rc<CommonData>,
+    ) -> Doc {
+        Self::new_content(cx, DocContent::Local, editors, common)
     }
 
     pub fn new_content(
         cx: Scope,
         content: DocContent,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData2>>>,
         common: Rc<CommonData>,
     ) -> Doc {
         let cx = cx.create_child();
@@ -186,6 +198,7 @@ impl Doc {
             find_result: FindResult::new(cx),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             preedit: PreeditData::new(cx),
+            editors,
             common,
         }
     }
@@ -193,6 +206,7 @@ impl Doc {
     pub fn new_history(
         cx: Scope,
         content: DocContent,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData2>>>,
         common: Rc<CommonData>,
     ) -> Doc {
         let syntax = if let DocContent::History(history) = &content {
@@ -225,11 +239,17 @@ impl Doc {
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
             preedit: PreeditData::new(cx),
+            editors,
             common,
         }
     }
 }
 impl Doc {
+    fn editor_data(&self, id: EditorId) -> Option<Rc<EditorData2>> {
+        self.editors
+            .with_untracked(|editors| editors.get(&id).cloned())
+    }
+
     pub fn syntax(&self) -> ReadSignal<Syntax> {
         self.syntax.read_only()
     }
@@ -1017,7 +1037,7 @@ impl Doc {
         }
     }
 
-    fn set_inline_completion(
+    pub fn set_inline_completion(
         &self,
         inline_completion: String,
         line: usize,
@@ -1162,62 +1182,16 @@ impl Document for Doc {
         count: Option<usize>,
         modifiers: ModifiersState,
     ) -> CommandExecuted {
-        CommandExecuted::No
-        // if self.common.find.visual.get_untracked() && self.find_focus.get_untracked()
-        // {
-        //     match &command.kind {
-        //         CommandKind::Edit(_)
-        //         | CommandKind::Move(_)
-        //         | CommandKind::MultiSelection(_) => {
-        //             if self.common.find.replace_focus.get_untracked() {
-        //                 self.common.internal_command.send(
-        //                     InternalCommand::ReplaceEditorCommand {
-        //                         command: command.clone(),
-        //                         count,
-        //                         mods,
-        //                     },
-        //                 );
-        //             } else {
-        //                 self.common.internal_command.send(
-        //                     InternalCommand::FindEditorCommand {
-        //                         command: command.clone(),
-        //                         count,
-        //                         mods,
-        //                     },
-        //                 );
-        //             }
-        //             return CommandExecuted::Yes;
-        //         }
-        //         _ => {}
-        //     }
-        // }
+        let Some(editor_data) = self.editor_data(ed.id()) else {
+            return CommandExecuted::No;
+        };
 
-        // match &command.kind {
-        //     crate::command::CommandKind::Workbench(_) => CommandExecuted::No,
-        //     crate::command::CommandKind::Edit(cmd) => self.run_edit_command(cmd),
-        //     crate::command::CommandKind::Move(cmd) => {
-        //         let movement = cmd.to_movement(count);
-        //         self.run_move_command(&movement, count, mods)
-        //     }
-        //     crate::command::CommandKind::Focus(cmd) => {
-        //         if self
-        //             .view
-        //             .doc
-        //             .get_untracked()
-        //             .content
-        //             .with_untracked(|content| content.is_local())
-        //         {
-        //             return CommandExecuted::No;
-        //         }
-        //         self.run_focus_command(cmd, count, mods)
-        //     }
-        //     crate::command::CommandKind::MotionMode(cmd) => {
-        //         self.run_motion_mode_command(cmd, count)
-        //     }
-        //     crate::command::CommandKind::MultiSelection(cmd) => {
-        //         self.run_multi_selection_command(cmd)
-        //     }
-        // }
+        let cmd = CommandKind::from(cmd.clone());
+        let cmd = LapceCommand {
+            kind: cmd,
+            data: None,
+        };
+        editor_data.run_command(&cmd, count, modifiers)
     }
 
     fn receive_char(&self, ed: &Editor, c: &str) {
