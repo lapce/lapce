@@ -103,6 +103,7 @@ pub struct PaletteData {
     pub references: RwSignal<Vec<EditorLocation>>,
     pub source_control: SourceControlData,
     pub common: Rc<CommonData>,
+    left_diff_path: RwSignal<Option<PathBuf>>,
 }
 
 impl PaletteData {
@@ -197,6 +198,7 @@ impl PaletteData {
         }
 
         let clicked_index = cx.create_rw_signal(Option::<usize>::None);
+        let left_diff_path = cx.create_rw_signal(None);
 
         let palette = Self {
             run_id_counter,
@@ -220,6 +222,7 @@ impl PaletteData {
             references,
             source_control,
             common,
+            left_diff_path,
         };
 
         {
@@ -327,6 +330,19 @@ impl PaletteData {
             .update(|cursor| cursor.set_insert(Selection::caret(symbol.len())));
     }
 
+    /// Get the placeholder text to use in the palette input field.
+    pub fn placeholder_text(&self) -> &'static str {
+        if self.kind.get() == PaletteKind::DiffFiles {
+            if self.left_diff_path.with(Option::is_some) {
+                "Select right file"
+            } else {
+                "Seleft left file"
+            }
+        } else {
+            ""
+        }
+    }
+
     /// Execute the internal behavior of the palette for the given kind. This ignores updating and
     /// focusing the palette input.
     fn run_inner(&self, kind: PaletteKind) {
@@ -337,7 +353,7 @@ impl PaletteData {
 
         match kind {
             PaletteKind::PaletteHelp => self.get_palette_help(),
-            PaletteKind::File => {
+            PaletteKind::File | PaletteKind::DiffFiles => {
                 self.get_files();
             }
             PaletteKind::Line => {
@@ -426,18 +442,18 @@ impl PaletteData {
             create_ext_action(self.common.scope, move |items: Vec<PathBuf>| {
                 let items = items
                     .into_iter()
-                    .map(|path| {
-                        let full_path = path.clone();
+                    .map(|full_path| {
                         // Strip the workspace prefix off the path, to avoid clutter
                         let path =
                             if let Some(workspace_path) = workspace.path.as_ref() {
-                                path.strip_prefix(workspace_path)
+                                full_path
+                                    .strip_prefix(workspace_path)
                                     .unwrap_or(&full_path)
                                     .to_path_buf()
                             } else {
-                                path
+                                full_path.clone()
                             };
-                        let filter_text = path.to_str().unwrap_or("").to_string();
+                        let filter_text = path.to_string_lossy().into_owned();
                         PaletteItem {
                             content: PaletteItemContent::File { path, full_path },
                             filter_text,
@@ -1042,11 +1058,27 @@ impl PaletteData {
                     self.common.lapce_command.send(cmd);
                 }
                 PaletteItemContent::File { full_path, .. } => {
-                    self.common
-                        .internal_command
-                        .send(InternalCommand::OpenFile {
-                            path: full_path.to_owned(),
-                        });
+                    if self.kind.get_untracked() == PaletteKind::DiffFiles {
+                        if let Some(left_path) =
+                            self.left_diff_path.try_update(Option::take).flatten()
+                        {
+                            self.common.internal_command.send(
+                                InternalCommand::OpenDiffFiles {
+                                    left_path,
+                                    right_path: full_path.clone(),
+                                },
+                            );
+                        } else {
+                            self.left_diff_path.set(Some(full_path.clone()));
+                            self.run(PaletteKind::DiffFiles);
+                        }
+                    } else {
+                        self.common.internal_command.send(
+                            InternalCommand::OpenFile {
+                                path: full_path.clone(),
+                            },
+                        );
+                    }
                 }
                 PaletteItemContent::Line { line, .. } => {
                     let editor = self.main_split.active_editor.get_untracked();
@@ -1356,6 +1388,7 @@ impl PaletteData {
                 .send(InternalCommand::ReloadConfig);
         }
 
+        self.left_diff_path.set(None);
         self.close();
     }
 

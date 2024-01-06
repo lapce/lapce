@@ -999,6 +999,7 @@ impl WindowTabData {
             ChangeFileLanguage => {
                 self.palette.run(PaletteKind::Language);
             }
+            DiffFiles => self.palette.run(PaletteKind::DiffFiles),
 
             // ==== Running / Debugging ====
             RunAndDebugRestart => {
@@ -1630,6 +1631,10 @@ impl WindowTabData {
                     self.common.config,
                 );
             }
+            InternalCommand::OpenDiffFiles {
+                left_path,
+                right_path,
+            } => self.main_split.open_diff_files(left_path, right_path),
         }
     }
 

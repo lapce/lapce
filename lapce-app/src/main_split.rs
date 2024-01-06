@@ -550,6 +550,16 @@ impl MainSplitData {
         );
     }
 
+    pub fn open_diff_files(&self, left_path: PathBuf, right_path: PathBuf) {
+        let [left, right] = [left_path, right_path].map(|path| self.get_doc(path).0);
+
+        self.get_editor_tab_child(
+            EditorTabChildSource::DiffEditor { left, right },
+            false,
+            false,
+        );
+    }
+
     fn new_editor_tab(
         &self,
         editor_tab_id: EditorTabId,
@@ -884,6 +894,7 @@ impl MainSplitData {
                         None,
                         editor_id,
                         doc.clone(),
+                        None,
                         self.common.clone(),
                     );
                     let editor = Rc::new(editor);
@@ -914,6 +925,7 @@ impl MainSplitData {
                         None,
                         editor_id,
                         doc,
+                        None,
                         self.common.clone(),
                     );
                     let editor = Rc::new(editor);
@@ -1394,6 +1406,7 @@ impl MainSplitData {
                     Some(editor_tab_id),
                     None,
                     new_editor_id,
+                    None,
                 );
                 let editor = Rc::new(editor);
                 self.editors.update(|editors| {

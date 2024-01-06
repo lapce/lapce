@@ -1,3 +1,4 @@
+use ::core::slice;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -556,11 +557,12 @@ impl LapceConfig {
         })
     }
 
-    pub fn file_svg(&self, path: &Path) -> (String, Option<Color>) {
+    pub fn files_svg(&self, paths: &[&Path]) -> (String, Option<Color>) {
         let svg = self
             .icon_theme
-            .resolve_path_to_icon(path)
+            .resolve_path_to_icon(paths)
             .and_then(|p| self.svg_store.write().get_svg_on_disk(&p));
+
         if let Some(svg) = svg {
             let color = if self.icon_theme.use_editor_color.unwrap_or(false) {
                 Some(self.color(LapceColor::LAPCE_ICON_ACTIVE))
@@ -574,6 +576,10 @@ impl LapceConfig {
                 Some(self.color(LapceColor::LAPCE_ICON_ACTIVE)),
             )
         }
+    }
+
+    pub fn file_svg(&self, path: &Path) -> (String, Option<Color>) {
+        self.files_svg(slice::from_ref(&path))
     }
 
     pub fn symbol_svg(&self, kind: &SymbolKind) -> Option<String> {

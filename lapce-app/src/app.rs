@@ -690,11 +690,17 @@ fn editor_tab_header(
         };
 
         let confirmed = match local_child {
-            EditorTabChild::Editor(editor_id) => {
-                let editor_data = editors
-                    .with_untracked(|editors| editors.get(&editor_id).cloned());
-                editor_data.map(|editor_data| editor_data.confirmed)
-            }
+            EditorTabChild::Editor(editor_id) => editors.with_untracked(|editors| {
+                editors
+                    .get(&editor_id)
+                    .map(|editor_data| editor_data.confirmed)
+            }),
+            EditorTabChild::DiffEditor(diff_editor_id) => diff_editors
+                .with_untracked(|diff_editors| {
+                    diff_editors
+                        .get(&diff_editor_id)
+                        .map(|diff_editor_data| diff_editor_data.confirmed)
+                }),
             _ => None,
         };
 
@@ -1898,15 +1904,15 @@ fn palette_item(
         | PaletteItemContent::Reference { path, .. } => {
             let file_name = path
                 .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
             // let (file_name, _) = create_signal(cx.scope, file_name);
             let folder = path
                 .parent()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
+                .unwrap_or("".as_ref())
+                .to_string_lossy()
+                .into_owned();
             // let (folder, _) = create_signal(cx.scope, folder);
             let folder_len = folder.len();
 
@@ -2285,19 +2291,20 @@ fn palette_input(window_tab_data: Rc<WindowTabData>) -> impl View {
     let config = window_tab_data.common.config;
     let focus = window_tab_data.common.focus;
     let is_focused = move || focus.get() == Focus::Palette;
-    container(
-        container(text_input(editor, is_focused).style(|s| s.width_full())).style(
-            move |s| {
-                let config = config.get();
-                s.width_full()
-                    .height(25.0)
-                    .items_center()
-                    .border_bottom(1.0)
-                    .border_color(config.color(LapceColor::LAPCE_BORDER))
-                    .background(config.color(LapceColor::EDITOR_BACKGROUND))
-            },
-        ),
-    )
+
+    let input = text_input(editor, is_focused)
+        .placeholder(move || window_tab_data.palette.placeholder_text().to_owned())
+        .style(|s| s.width_full());
+
+    container(container(input).style(move |s| {
+        let config = config.get();
+        s.width_full()
+            .height(25.0)
+            .items_center()
+            .border_bottom(1.0)
+            .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .background(config.color(LapceColor::EDITOR_BACKGROUND))
+    }))
     .style(|s| s.padding_bottom(5.0))
 }
 
