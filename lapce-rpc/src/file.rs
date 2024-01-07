@@ -250,10 +250,11 @@ impl Ord for FileNodeItem {
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
             _ => {
-                let self_file_name = self.path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
-                let other_file_name = other.path.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
-
-                self_file_name.cmp(&other_file_name)
+                let [self_file_name, other_file_name] = [&self.path, &other.path]
+                    .map(|path| {
+                        path.file_name().unwrap_or_default().to_string_lossy().to_lowercase()
+                    });
+                human_sort::compare(&self_file_name, &other_file_name)
             }
         }
     }
