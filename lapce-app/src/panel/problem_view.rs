@@ -5,7 +5,7 @@ use floem::{
     reactive::{create_memo, create_rw_signal, ReadSignal},
     style::{CursorStyle, Style},
     view::View,
-    views::{container, label, list, scroll, stack, svg, Decorators},
+    views::{container, dyn_stack, label, scroll, stack, svg, Decorators},
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 
@@ -37,7 +37,7 @@ pub fn problem_panel(
             s.flex_col()
                 .flex_basis(0.0)
                 .flex_grow(1.0)
-                .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                .border_color(config.color(LapceColor::LAPCE_BORDER))
                 .apply_if(is_bottom, |s| s.border_right(1.0))
                 .apply_if(!is_bottom, |s| s.border_bottom(1.0))
         }),
@@ -62,7 +62,7 @@ fn problem_section(
     let internal_command = window_tab_data.common.internal_command;
     container({
         scroll(
-            list(
+            dyn_stack(
                 move || main_split.diagnostics.get(),
                 |(p, _)| p.clone(),
                 move |(path, diagnostic_data)| {
@@ -125,8 +125,8 @@ fn file_view(
     let icon_color = move || {
         let config = config.get();
         match severity {
-            DiagnosticSeverity::ERROR => *config.get_color(LapceColor::LAPCE_ERROR),
-            _ => *config.get_color(LapceColor::LAPCE_WARN),
+            DiagnosticSeverity::ERROR => config.color(LapceColor::LAPCE_ERROR),
+            _ => config.color(LapceColor::LAPCE_WARN),
         }
     };
 
@@ -150,7 +150,7 @@ fn file_view(
                         s.margin_right(6.0).max_width_pct(100.0).text_ellipsis()
                     }),
                     label(move || folder.clone()).style(move |s| {
-                        s.color(*config.get().get_color(LapceColor::EDITOR_DIM))
+                        s.color(config.get().color(LapceColor::EDITOR_DIM))
                             .min_width(0.0)
                             .text_ellipsis()
                     }),
@@ -168,7 +168,7 @@ fn file_view(
                     .padding_right(10.0)
                     .hover(|s| {
                         s.cursor(CursorStyle::Pointer).background(
-                            *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
                         )
                     })
             }),
@@ -185,12 +185,12 @@ fn file_view(
                     let size = config.ui.icon_size() as f32;
                     s.margin_right(6.0)
                         .size(size, size)
-                        .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+                        .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
                 }),
                 svg(move || config.get().file_svg(&path).0).style(move |s| {
                     let config = config.get();
                     let size = config.ui.icon_size() as f32;
-                    let color = config.file_svg(&style_path).1.copied();
+                    let color = config.file_svg(&style_path).1;
                     s.min_width(size)
                         .size(size, size)
                         .apply_opt(color, Style::color)
@@ -200,7 +200,7 @@ fn file_view(
             .style(|s| s.absolute().items_center().margin_left(10.0)),
         ))
         .style(move |s| s.width_pct(100.0).min_width(0.0)),
-        list(
+        dyn_stack(
             move || {
                 if collpased.get() {
                     im::Vector::new()
@@ -274,9 +274,7 @@ fn item_view(
             .style(move |s| {
                 s.width_pct(100.0).min_width(0.0).hover(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
             })
@@ -299,7 +297,7 @@ fn related_view(
 ) -> impl View {
     let is_empty = related.is_empty();
     stack((
-        list(
+        dyn_stack(
             move || related.clone(),
             |_| 0,
             move |related| {
@@ -342,8 +340,7 @@ fn related_view(
                         .min_width(0.0)
                         .hover(|s| {
                             s.cursor(CursorStyle::Pointer).background(
-                                *config
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
                         })
                 })
@@ -355,7 +352,7 @@ fn related_view(
                 let config = config.get();
                 let size = config.ui.icon_size() as f32;
                 s.size(size, size)
-                    .color(*config.get_color(LapceColor::EDITOR_DIM))
+                    .color(config.color(LapceColor::EDITOR_DIM))
             }),
             label(|| " ".to_string()),
         ))
@@ -369,7 +366,7 @@ fn related_view(
         s.width_pct(100.0)
             .min_width(0.0)
             .items_start()
-            .color(*config.get().get_color(LapceColor::EDITOR_DIM))
+            .color(config.get().color(LapceColor::EDITOR_DIM))
             .apply_if(is_empty, |s| s.hide())
     })
 }

@@ -24,9 +24,9 @@ pub fn text_area(
         let config = config.get();
         let font_size = config.ui.font_size();
         let font_family = config.ui.font_family();
-        let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
+        let color = config.color(LapceColor::EDITOR_FOREGROUND);
         let attrs = Attrs::new()
-            .color(*color)
+            .color(color)
             .family(&font_family)
             .font_size(font_size as f32)
             .line_height(LineHeightValue::Normal(line_height));
@@ -47,9 +47,9 @@ pub fn text_area(
         let config = config.get_untracked();
         let font_size = config.ui.font_size();
         let font_family = config.ui.font_family();
-        let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
+        let color = config.color(LapceColor::EDITOR_FOREGROUND);
         let attrs = Attrs::new()
-            .color(*color)
+            .color(color)
             .family(&font_family)
             .font_size(font_size as f32)
             .line_height(LineHeightValue::Normal(1.2));
@@ -101,9 +101,7 @@ pub fn text_area(
                         .margin_left(cursor_pos.x as f32 - 1.0)
                         .margin_top(cursor_pos.y as f32)
                         .border_left(2.0)
-                        .border_color(
-                            *config.get().get_color(LapceColor::EDITOR_CARET),
-                        )
+                        .border_color(config.get().color(LapceColor::EDITOR_CARET))
                         .apply_if(!is_active(), |s| s.hide())
                 }),
             ))
@@ -111,11 +109,11 @@ pub fn text_area(
         )
         .style(|s| s.absolute().size_pct(100.0, 100.0)),
     )
-    .base_style(move |s| {
+    .style(move |s| {
         let config = config.get();
         s.border(1.0)
             .border_radius(6.0)
-            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-            .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+            .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .background(config.color(LapceColor::EDITOR_BACKGROUND))
     })
 }

@@ -4,7 +4,7 @@ use floem::{
     ext_event::create_ext_action,
     keyboard::ModifiersState,
     reactive::{Memo, RwSignal, Scope},
-    views::VirtualListVector,
+    views::VirtualVector,
 };
 use indexmap::IndexMap;
 use lapce_core::{mode::Mode, selection::Selection};
@@ -80,16 +80,9 @@ impl KeyPressFocus for GlobalSearchData {
     }
 }
 
-impl VirtualListVector<(PathBuf, SearchMatchData)> for GlobalSearchData {
-    type ItemIterator = Box<dyn Iterator<Item = (PathBuf, SearchMatchData)>>;
-
+impl VirtualVector<(PathBuf, SearchMatchData)> for GlobalSearchData {
     fn total_len(&self) -> usize {
-        0
-    }
-
-    fn total_size(&self) -> Option<f64> {
-        let line_height = self.common.ui_line_height.get();
-        let count: usize = self.search_result.with(|result| {
+        self.search_result.with(|result| {
             result
                 .iter()
                 .map(|(_, data)| {
@@ -100,12 +93,14 @@ impl VirtualListVector<(PathBuf, SearchMatchData)> for GlobalSearchData {
                     }
                 })
                 .sum()
-        });
-        Some(line_height * count as f64)
+        })
     }
 
-    fn slice(&mut self, _range: Range<usize>) -> Self::ItemIterator {
-        Box::new(self.search_result.get().into_iter())
+    fn slice(
+        &mut self,
+        _range: Range<usize>,
+    ) -> impl Iterator<Item = (PathBuf, SearchMatchData)> {
+        self.search_result.get().into_iter()
     }
 }
 

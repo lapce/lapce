@@ -9,7 +9,7 @@ use std::{
 use floem::{
     ext_event::create_ext_action,
     reactive::{Memo, RwSignal, Scope},
-    views::VirtualListVector,
+    views::VirtualVector,
 };
 use lapce_rpc::{
     dap_types::{
@@ -401,14 +401,15 @@ pub struct DapVariableViewdata {
     pub level: usize,
 }
 
-impl VirtualListVector<DapVariableViewdata> for DapVariable {
-    type ItemIterator = Box<dyn Iterator<Item = DapVariableViewdata>>;
-
+impl VirtualVector<DapVariableViewdata> for DapVariable {
     fn total_len(&self) -> usize {
         self.children_expanded_count
     }
 
-    fn slice(&mut self, range: std::ops::Range<usize>) -> Self::ItemIterator {
+    fn slice(
+        &mut self,
+        range: std::ops::Range<usize>,
+    ) -> impl Iterator<Item = DapVariableViewdata> {
         let min = range.start;
         let max = range.end;
         let mut i = 0;
@@ -416,11 +417,11 @@ impl VirtualListVector<DapVariableViewdata> for DapVariable {
         for item in self.children.iter() {
             i = item.append_view_slice(&mut view_items, min, max, i + 1, 0);
             if i > max {
-                return Box::new(view_items.into_iter());
+                return view_items.into_iter();
             }
         }
 
-        Box::new(view_items.into_iter())
+        view_items.into_iter()
     }
 }
 

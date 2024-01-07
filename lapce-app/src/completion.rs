@@ -1,4 +1,4 @@
-use std::{borrow::Cow, path::PathBuf, rc::Rc, str::FromStr, sync::Arc};
+use std::{borrow::Cow, path::PathBuf, str::FromStr, sync::Arc};
 
 use floem::{
     peniko::kurbo::Rect,
@@ -13,7 +13,7 @@ use lsp_types::{
 use nucleo::Utf32Str;
 
 use crate::{
-    config::LapceConfig, doc::Document, editor::view_data::EditorViewData,
+    config::LapceConfig, doc::DocumentExt, editor::view_data::EditorViewData,
     id::EditorId, snippet::Snippet,
 };
 
@@ -310,7 +310,7 @@ impl CompletionData {
         let config = self.config.get_untracked();
 
         if !config.editor.enable_completion_lens {
-            clear_completion_lens(doc);
+            doc.clear_completion_lens();
             return;
         }
 
@@ -332,17 +332,9 @@ impl CompletionData {
             // Unchanged
             Some(None) => {}
             None => {
-                clear_completion_lens(doc);
+                doc.clear_completion_lens();
             }
         }
-    }
-}
-
-/// Clear the current completion lens. Only `update`s if there is a completion lens.
-pub fn clear_completion_lens(doc: Rc<Document>) {
-    let has_completion = doc.completion_lens.with_untracked(|lens| lens.is_some());
-    if has_completion {
-        doc.clear_completion_lens();
     }
 }
 

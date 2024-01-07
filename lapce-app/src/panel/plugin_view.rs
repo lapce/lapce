@@ -7,8 +7,8 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, dyn_container, img, label, scroll, stack, svg, virtual_list,
-        Decorators, VirtualListDirection, VirtualListItemSize, VirtualListVector,
+        container, dyn_container, img, label, scroll, stack, svg, virtual_stack,
+        Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
 };
 use indexmap::IndexMap;
@@ -40,16 +40,14 @@ impl<K: Clone, V: Clone> IndexMapItems<K, V> {
     }
 }
 
-impl<K: Clone + 'static, V: Clone + 'static> VirtualListVector<(usize, K, V)>
+impl<K: Clone + 'static, V: Clone + 'static> VirtualVector<(usize, K, V)>
     for IndexMapItems<K, V>
 {
-    type ItemIterator = Box<dyn Iterator<Item = (usize, K, V)>>;
-
     fn total_len(&self) -> usize {
         self.0.len()
     }
 
-    fn slice(&mut self, range: Range<usize>) -> Self::ItemIterator {
+    fn slice(&mut self, range: Range<usize>) -> impl Iterator<Item = (usize, K, V)> {
         let start = range.start;
         Box::new(
             self.items(range)
@@ -178,9 +176,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                 .padding_vert(5.0)
                 .hover(|s| {
                     s.background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
         })
@@ -188,9 +184,9 @@ fn installed_view(plugin: PluginData) -> impl View {
 
     container(
         scroll(
-            virtual_list(
-                VirtualListDirection::Vertical,
-                VirtualListItemSize::Fixed(Box::new(move || {
+            virtual_stack(
+                VirtualDirection::Vertical,
+                VirtualItemSize::Fixed(Box::new(move || {
                     ui_line_height.get() * 3.0 + 10.0
                 })),
                 move || IndexMapItems(volts.get()),
@@ -217,54 +213,51 @@ fn available_view(plugin: PluginData) -> impl View {
     let internal_command = plugin.common.internal_command;
 
     let local_plugin = plugin.clone();
-    let install_button = move |id: VoltID,
-                               info: RwSignal<VoltInfo>,
-                               installing: RwSignal<bool>| {
-        let plugin = local_plugin.clone();
-        let installed = create_memo(move |_| {
-            installed.with(|installed| installed.contains_key(&id))
-        });
-        label(move || {
-            if installed.get() {
-                "Installed".to_string()
-            } else if installing.get() {
-                "Installing".to_string()
-            } else {
-                "Install".to_string()
-            }
-        })
-        .disabled(move || installed.get() || installing.get())
-        .on_click_stop(move |_| {
-            plugin.install_volt(info.get_untracked());
-        })
-        .style(move |s| {
-            let config = config.get();
-            s.color(*config.get_color(LapceColor::LAPCE_BUTTON_PRIMARY_FOREGROUND))
-                .background(
-                    *config.get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND),
-                )
-                .margin_left(6.0)
-                .padding_horiz(6.0)
-                .border_radius(6.0)
-                .hover(|s| {
-                    s.cursor(CursorStyle::Pointer).background(
-                        config
-                            .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
-                            .with_alpha_factor(0.8),
+    let install_button =
+        move |id: VoltID, info: RwSignal<VoltInfo>, installing: RwSignal<bool>| {
+            let plugin = local_plugin.clone();
+            let installed = create_memo(move |_| {
+                installed.with(|installed| installed.contains_key(&id))
+            });
+            label(move || {
+                if installed.get() {
+                    "Installed".to_string()
+                } else if installing.get() {
+                    "Installing".to_string()
+                } else {
+                    "Install".to_string()
+                }
+            })
+            .disabled(move || installed.get() || installing.get())
+            .on_click_stop(move |_| {
+                plugin.install_volt(info.get_untracked());
+            })
+            .style(move |s| {
+                let config = config.get();
+                s.color(config.color(LapceColor::LAPCE_BUTTON_PRIMARY_FOREGROUND))
+                    .background(
+                        config.color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND),
                     )
-                })
-                .active(|s| {
-                    s.background(
-                        config
-                            .get_color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
-                            .with_alpha_factor(0.6),
-                    )
-                })
-                .disabled(|s| {
-                    s.background(*config.get_color(LapceColor::EDITOR_DIM))
-                })
-        })
-    };
+                    .margin_left(6.0)
+                    .padding_horiz(6.0)
+                    .border_radius(6.0)
+                    .hover(|s| {
+                        s.cursor(CursorStyle::Pointer).background(
+                            config
+                                .color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
+                                .with_alpha_factor(0.8),
+                        )
+                    })
+                    .active(|s| {
+                        s.background(
+                            config
+                                .color(LapceColor::LAPCE_BUTTON_PRIMARY_BACKGROUND)
+                                .with_alpha_factor(0.6),
+                        )
+                    })
+                    .disabled(|s| s.background(config.color(LapceColor::EDITOR_DIM)))
+            })
+        };
 
     let view_fn = move |(_, id, volt): (usize, VoltID, AvailableVoltData)| {
         let info = volt.info.get_untracked();
@@ -322,9 +315,7 @@ fn available_view(plugin: PluginData) -> impl View {
                 .padding_vert(5.0)
                 .hover(|s| {
                     s.background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
         })
@@ -362,18 +353,18 @@ fn available_view(plugin: PluginData) -> impl View {
                 s.width_pct(100.0)
                     .cursor(CursorStyle::Text)
                     .items_center()
-                    .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+                    .background(config.color(LapceColor::EDITOR_BACKGROUND))
                     .border(1.0)
                     .border_radius(6.0)
-                    .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                    .border_color(config.color(LapceColor::LAPCE_BORDER))
             })
         })
         .style(|s| s.padding(10.0).width_pct(100.0)),
         container({
             scroll({
-                virtual_list(
-                    VirtualListDirection::Vertical,
-                    VirtualListItemSize::Fixed(Box::new(move || {
+                virtual_stack(
+                    VirtualDirection::Vertical,
+                    VirtualItemSize::Fixed(Box::new(move || {
                         ui_line_height.get() * 3.0 + 10.0
                     })),
                     move || IndexMapItems(volts.get()),

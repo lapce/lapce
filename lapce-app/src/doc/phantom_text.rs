@@ -1,9 +1,9 @@
 use floem::peniko::Color;
-use lsp_types::DiagnosticSeverity;
 use smallvec::SmallVec;
 
 /// `PhantomText` is for text that is not in the actual document, but should be rendered with it.  
 /// Ex: Inlay hints, IME text, error lens' diagnostics, etc
+#[derive(Debug, Clone)]
 pub struct PhantomText {
     /// The kind is currently used for sorting the phantom text on a line
     pub kind: PhantomTextKind,
@@ -17,11 +17,11 @@ pub struct PhantomText {
     pub under_line: Option<Color>,
 }
 
-#[derive(Ord, Eq, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, Ord, Eq, PartialEq, PartialOrd)]
 pub enum PhantomTextKind {
     /// Input methods
     Ime,
-    /// Completion lens
+    /// Completion lens / Inline completion
     Completion,
     /// Inlay hints supplied by an LSP/PSP (like type annotations)
     InlayHint,
@@ -32,13 +32,10 @@ pub enum PhantomTextKind {
 /// Information about the phantom text on a specific line.  
 /// This has various utility functions for transforming a coordinate (typically a column) into the
 /// resulting coordinate after the phantom text is combined with the line's real content.
-#[derive(Default)]
+#[derive(Debug, Default, Clone)]
 pub struct PhantomTextLine {
     /// This uses a smallvec because most lines rarely have more than a couple phantom texts
     pub text: SmallVec<[PhantomText; 6]>,
-    /// Maximum diagnostic severity, so that we can color the background as an error if there is a
-    /// warning and error on the line. (For error lens)
-    pub max_severity: Option<DiagnosticSeverity>,
 }
 
 impl PhantomTextLine {
@@ -54,11 +51,37 @@ impl PhantomTextLine {
         last
     }
 
-    /// Translate a column position into the text into what it would be after combining
-    /// If before_cursor is false and the cursor is right at the start then it will stay there
+    /// Translate a column position into the text into what it would be after combining  
+    /// If `before_cursor` is false and the cursor is right at the start then it will stay there  
+    /// (Think 'is the phantom text before the cursor')
     pub fn col_after(&self, pre_col: usize, before_cursor: bool) -> usize {
         let mut last = pre_col;
         for (col_shift, size, col, _) in self.offset_size_iter() {
+            if pre_col > col || (pre_col == col && before_cursor) {
+                last = pre_col + col_shift + size;
+            }
+        }
+
+        last
+    }
+
+    /// Translate a column position into the text into what it would be after combining  
+    /// If `before_cursor` is false and the cursor is right at the start then it will stay there  
+    /// (Think 'is the phantom text before the cursor')  
+    /// This accepts a `PhantomTextKind` to ignore. Primarily for IME due to it needing to put the
+    /// cursor in the middle.
+    pub fn col_after_ignore(
+        &self,
+        pre_col: usize,
+        before_cursor: bool,
+        skip: impl Fn(&PhantomText) -> bool,
+    ) -> usize {
+        let mut last = pre_col;
+        for (col_shift, size, col, phantom) in self.offset_size_iter() {
+            if skip(phantom) {
+                continue;
+            }
+
             if pre_col > col || (pre_col == col && before_cursor) {
                 last = pre_col + col_shift + size;
             }

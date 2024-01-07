@@ -149,7 +149,7 @@ pub fn text_input(
         hide_cursor: editor.common.window_common.hide_cursor,
         style: Default::default(),
     }
-    .base_style(|s| {
+    .style(|s| {
         s.cursor(CursorStyle::Text)
             .padding_horiz(10.0)
             .padding_vert(6.0)
@@ -194,7 +194,7 @@ pub fn text_input(
                 doc.clear_preedit();
             } else {
                 let offset = cursor.with_untracked(|c| c.offset());
-                doc.set_preedit(text.clone(), *ime_cursor, offset);
+                doc.set_preedit(text.clone(), ime_cursor.to_owned(), offset);
             }
         }
         EventPropagation::Stop
@@ -207,7 +207,7 @@ pub fn text_input(
         if let Event::ImeCommit(text) = event {
             let doc = local_editor.view.doc.get_untracked();
             doc.clear_preedit();
-            local_editor.receive_char(text);
+            local_editor.receive_char(text.as_str());
         }
         EventPropagation::Stop
     })
@@ -632,7 +632,7 @@ impl View for TextInput {
                             &Rect::ZERO
                                 .with_size(Size::new(max - min, height))
                                 .with_origin(Point::new(min + point.x, point.y)),
-                            *config.get_color(LapceColor::EDITOR_SELECTION),
+                            config.color(LapceColor::EDITOR_SELECTION),
                             0.0,
                         );
                     }
@@ -665,11 +665,7 @@ impl View for TextInput {
                         end_point.y + end_position.glyph_descent,
                     ),
                 );
-                cx.stroke(
-                    &line,
-                    *config.get_color(LapceColor::EDITOR_FOREGROUND),
-                    1.0,
-                );
+                cx.stroke(&line, config.color(LapceColor::EDITOR_FOREGROUND), 1.0);
             }
 
             if !self.hide_cursor.get_untracked()
@@ -695,10 +691,7 @@ impl View for TextInput {
 
                 cx.stroke(
                     &line,
-                    *self
-                        .config
-                        .get_untracked()
-                        .get_color(LapceColor::EDITOR_CARET),
+                    self.config.get_untracked().color(LapceColor::EDITOR_CARET),
                     2.0,
                 );
             }

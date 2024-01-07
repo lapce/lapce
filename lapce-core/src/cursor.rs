@@ -22,6 +22,7 @@ pub struct Cursor {
     pub horiz: Option<ColPosition>,
     pub motion_mode: Option<MotionMode>,
     pub history_selections: Vec<Selection>,
+    pub affinity: CursorAffinity,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -110,6 +111,46 @@ impl CursorMode {
     }
 }
 
+/// Decides how the cursor should be placed around special areas of text.  
+/// Ex:
+/// ```rust,ignore
+/// let j =            // soft linewrap
+/// 1 + 2 + 3;
+/// ```
+/// where `let j = ` has the issue that there's two positions you might want your cursor to be:  
+/// `let j = |` or `|1 + 2 + 3;`  
+/// These are the same offset in the text, but it feels more natural to have it move in a certain
+/// way.  
+/// If you're at `let j =| ` and you press the right-arrow key, then it uses your backwards
+/// affinity to keep you on the line at `let j = |`.  
+/// If you're at `1| + 2 + 3;` and you press the left-arrow key, then it uses your forwards affinity
+/// to keep you on the line at `|1 + 2 + 3;`.  
+///
+/// For other special text, like inlay hints, this can also apply.  
+/// ```rust,ignore
+/// let j<: String> = ...
+/// ```
+/// where `<: String>` is our inlay hint, then  
+/// `let |j<: String> =` and you press the right-arrow key, then it uses your backwards affinity to
+/// keep you on the same side of the hint, `let j|<: String>`.  
+/// `let j<: String> |=` and you press the right-arrow key, then it uses your forwards affinity to
+/// keep you on the same side of the hint, `let j<: String>| =`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CursorAffinity {
+    /// `<: String>|`
+    Forward,
+    /// `|<: String>`
+    Backward,
+}
+impl CursorAffinity {
+    pub fn invert(&self) -> Self {
+        match self {
+            CursorAffinity::Forward => CursorAffinity::Backward,
+            CursorAffinity::Backward => CursorAffinity::Forward,
+        }
+    }
+}
+
 impl Cursor {
     pub fn new(
         mode: CursorMode,
@@ -121,6 +162,8 @@ impl Cursor {
             horiz,
             motion_mode,
             history_selections: Vec::new(),
+            // It should appear before any inlay hints at the very first position
+            affinity: CursorAffinity::Backward,
         }
     }
 
@@ -402,7 +445,7 @@ impl Cursor {
                     return None;
                 }
 
-                let x = selection.regions().get(0).unwrap();
+                let x = selection.regions().first().unwrap();
                 let v = buffer.offset_to_line_col(x.start);
 
                 Some((v.0, v.1, x.start))

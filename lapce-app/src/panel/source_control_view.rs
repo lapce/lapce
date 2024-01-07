@@ -8,7 +8,7 @@ use floem::{
     reactive::{create_memo, create_rw_signal},
     style::{CursorStyle, Style},
     view::View,
-    views::{container, label, list, scroll, stack, svg, Decorators},
+    views::{container, dyn_stack, label, scroll, stack, svg, Decorators},
 };
 use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;
@@ -66,12 +66,13 @@ pub fn source_control_panel(
                             s.absolute()
                                 .items_center()
                                 .height(config.editor.line_height() as f32)
-                                .color(*config.get_color(LapceColor::EDITOR_DIM))
+                                .color(config.color(LapceColor::EDITOR_DIM))
                                 .apply_if(!is_empty.get(), |s| s.hide())
                         }),
                     ))
                     .style(|s| {
-                        s.min_size_pct(100.0, 100.0)
+                        s.absolute()
+                            .min_size_pct(100.0, 100.0)
                             .padding_left(10.0)
                             .padding_vert(6.0)
                             .hover(|s| s.cursor(CursorStyle::Text))
@@ -113,13 +114,18 @@ pub fn source_control_panel(
                     let editor_view = editor.view.clone();
                     editor_view.doc.track();
                     editor_view.kind.track();
-                    let LineRegion { x, width, line } =
-                        cursor_caret(&editor_view, offset, !cursor.is_insert());
+                    let LineRegion { x, width, rvline } = cursor_caret(
+                        &editor_view,
+                        offset,
+                        !cursor.is_insert(),
+                        cursor.affinity,
+                    );
                     let config = config.get_untracked();
                     let line_height = config.editor.line_height();
-
+                    // TODO: is there a way to avoid the calculation of the vline here?
+                    let vline = editor.view.vline_of_rvline(rvline);
                     Rect::from_origin_size(
-                        (x, (line * line_height) as f64),
+                        (x, (vline.get() * line_height) as f64),
                         (width, line_height as f64),
                     )
                     .inflate(30.0, 10.0)
@@ -133,8 +139,8 @@ pub fn source_control_panel(
                     .border(1.0)
                     .padding(-1.0)
                     .border_radius(6.0)
-                    .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-                    .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+                    .border_color(config.color(LapceColor::LAPCE_BORDER))
+                    .background(config.color(LapceColor::EDITOR_BACKGROUND))
             }),
             {
                 let source_control = source_control.clone();
@@ -150,18 +156,15 @@ pub fn source_control_panel(
                             .justify_center()
                             .border(1.0)
                             .border_radius(6.0)
-                            .border_color(
-                                *config.get_color(LapceColor::LAPCE_BORDER),
-                            )
+                            .border_color(config.color(LapceColor::LAPCE_BORDER))
                             .hover(|s| {
                                 s.cursor(CursorStyle::Pointer).background(
-                                    *config.get_color(
-                                        LapceColor::PANEL_HOVERED_BACKGROUND,
-                                    ),
+                                    config
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
                                 )
                             })
                             .active(|s| {
-                                s.background(*config.get_color(
+                                s.background(config.color(
                                     LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
                             })
@@ -229,7 +232,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
             svg(move || config.get().file_svg(&path).0).style(move |s| {
                 let config = config.get();
                 let size = config.ui.icon_size() as f32;
-                let color = config.file_svg(&style_path).1.copied();
+                let color = config.file_svg(&style_path).1;
                 s.min_width(size)
                     .size(size, size)
                     .margin(6.0)
@@ -253,7 +256,7 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                 s.text_ellipsis()
                     .flex_grow(1.0)
                     .flex_basis(0.0)
-                    .color(*config.get().get_color(LapceColor::EDITOR_DIM))
+                    .color(config.get().color(LapceColor::EDITOR_DIM))
                     .min_width(0.0)
             }),
             container({
@@ -277,8 +280,8 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                             LapceColor::SOURCE_CONTROL_MODIFIED
                         }
                     };
-                    let color = config.get_color(color);
-                    s.min_width(size).size(size, size).color(*color)
+                    let color = config.color(color);
+                    s.min_width(size).size(size, size).color(color)
                 })
             })
             .style(|s| {
@@ -322,16 +325,14 @@ fn file_diffs_view(source_control: SourceControlData) -> impl View {
                 .width_pct(100.0)
                 .items_center()
                 .hover(|s| {
-                    s.background(
-                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
+                    s.background(config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
                 })
         })
     };
 
     container({
         scroll({
-            list(
+            dyn_stack(
                 move || file_diffs.get(),
                 |(path, (diff, checked))| {
                     (path.to_path_buf(), diff.clone(), *checked)

@@ -46,7 +46,7 @@ fn left(
             move |s| {
                 let config = config.get();
                 s.size(16.0, 16.0)
-                    .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+                    .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
             },
         ))
         .style(move |s| s.margin_horiz(10.0).apply_if(is_macos, |s| s.hide())),
@@ -62,11 +62,11 @@ fn left(
                 let config = config.get();
                 let size = (config.ui.icon_size() as f32 + 2.0).min(30.0);
                 s.size(size, size).color(if is_local {
-                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE)
+                    config.color(LapceColor::LAPCE_ICON_ACTIVE)
                 } else {
                     match proxy_status.get() {
                         Some(_) => Color::WHITE,
-                        None => *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
+                        None => config.color(LapceColor::LAPCE_ICON_ACTIVE),
                     }
                 })
             },
@@ -80,10 +80,12 @@ fn left(
             );
             #[cfg(windows)]
             {
-                menu =
-                    menu.entry(MenuItem::new("Connect to WSL").action(move || {
-                        workbench_command.send(LapceWorkbenchCommand::ConnectWsl);
-                    }));
+                menu = menu.entry(MenuItem::new("Connect to WSL Host").action(
+                    move || {
+                        workbench_command
+                            .send(LapceWorkbenchCommand::ConnectWslHost);
+                    },
+                ));
             }
             menu
         })
@@ -94,13 +96,13 @@ fn left(
             } else {
                 match proxy_status.get() {
                     Some(ProxyStatus::Connected) => {
-                        *config.get_color(LapceColor::LAPCE_REMOTE_CONNECTED)
+                        config.color(LapceColor::LAPCE_REMOTE_CONNECTED)
                     }
                     Some(ProxyStatus::Connecting) => {
-                        *config.get_color(LapceColor::LAPCE_REMOTE_CONNECTING)
+                        config.color(LapceColor::LAPCE_REMOTE_CONNECTING)
                     }
                     Some(ProxyStatus::Disconnected) => {
-                        *config.get_color(LapceColor::LAPCE_REMOTE_DISCONNECTED)
+                        config.color(LapceColor::LAPCE_REMOTE_DISCONNECTED)
                     }
                     None => Color::TRANSPARENT,
                 }
@@ -111,13 +113,12 @@ fn left(
                 .background(color)
                 .hover(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
                 .active(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        *config
-                            .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                        config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
                     )
                 })
         }),
@@ -209,7 +210,7 @@ fn middle(
                         let config = config.get();
                         let icon_size = config.ui.icon_size() as f32;
                         s.size(icon_size, icon_size)
-                            .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+                            .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
                     },
                 ),
                 label(move || {
@@ -242,9 +243,9 @@ fn middle(
                 .justify_content(Some(JustifyContent::Center))
                 .align_items(Some(AlignItems::Center))
                 .border(1.0)
-                .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                .border_color(config.color(LapceColor::LAPCE_BORDER))
                 .border_radius(6.0)
-                .background(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+                .background(config.color(LapceColor::EDITOR_BACKGROUND))
         }),
         stack((
             clickable_icon(
@@ -354,11 +355,11 @@ fn right(
             container(label(|| "1".to_string()).style(move |s| {
                 let config = config.get();
                 s.font_size(10.0)
-                    .color(*config.get_color(LapceColor::EDITOR_BACKGROUND))
+                    .color(config.color(LapceColor::EDITOR_BACKGROUND))
                     .border_radius(100.0)
                     .margin_left(5.0)
                     .margin_top(10.0)
-                    .background(*config.get_color(LapceColor::EDITOR_CARET))
+                    .background(config.color(LapceColor::EDITOR_CARET))
             }))
             .style(move |s| {
                 let has_update = has_update();
@@ -433,9 +434,9 @@ pub fn title(window_tab_data: Rc<WindowTabData>) -> impl View {
         s.width_pct(100.0)
             .height(37.0)
             .items_center()
-            .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+            .background(config.color(LapceColor::PANEL_BACKGROUND))
             .border_bottom(1.0)
-            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+            .border_color(config.color(LapceColor::LAPCE_BORDER))
     })
 }
 

@@ -48,12 +48,26 @@ impl Display for SshHost {
     }
 }
 
+#[cfg(windows)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct WslHost {
+    pub host: String,
+}
+
+#[cfg(windows)]
+impl Display for WslHost {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.host)?;
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(SshHost),
     #[cfg(windows)]
-    RemoteWSL,
+    RemoteWSL(WslHost),
 }
 
 impl LapceWorkspaceType {
@@ -61,17 +75,14 @@ impl LapceWorkspaceType {
         matches!(self, LapceWorkspaceType::Local)
     }
 
-    #[cfg(windows)]
     pub fn is_remote(&self) -> bool {
-        matches!(
-            self,
-            LapceWorkspaceType::RemoteSSH(_) | LapceWorkspaceType::RemoteWSL
-        )
-    }
+        use LapceWorkspaceType::*;
 
-    #[cfg(not(windows))]
-    pub fn is_remote(&self) -> bool {
-        matches!(self, LapceWorkspaceType::RemoteSSH(_))
+        #[cfg(not(windows))]
+        return matches!(self, RemoteSSH(_));
+
+        #[cfg(windows)]
+        return matches!(self, RemoteSSH(_) | RemoteWSL(_));
     }
 }
 
@@ -79,11 +90,13 @@ impl std::fmt::Display for LapceWorkspaceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LapceWorkspaceType::Local => f.write_str("Local"),
-            LapceWorkspaceType::RemoteSSH(ssh) => {
-                write!(f, "ssh://{ssh}")
+            LapceWorkspaceType::RemoteSSH(remote) => {
+                write!(f, "ssh://{remote}")
             }
             #[cfg(windows)]
-            LapceWorkspaceType::RemoteWSL => f.write_str("WSL"),
+            LapceWorkspaceType::RemoteWSL(remote) => {
+                write!(f, "{remote} (WSL)")
+            }
         }
     }
 }
@@ -104,12 +117,14 @@ impl LapceWorkspace {
             .to_string_lossy()
             .to_string();
         let remote = match &self.kind {
-            LapceWorkspaceType::Local => "".to_string(),
-            LapceWorkspaceType::RemoteSSH(ssh) => {
-                format!(" [SSH: {}]", ssh.host)
+            LapceWorkspaceType::Local => String::new(),
+            LapceWorkspaceType::RemoteSSH(remote) => {
+                format!(" [SSH: {}]", remote.host)
             }
             #[cfg(windows)]
-            LapceWorkspaceType::RemoteWSL => " [WSL]".to_string(),
+            LapceWorkspaceType::RemoteWSL(remote) => {
+                format!(" [WSL: {}]", remote.host)
+            }
         };
         Some(format!("{path}{remote}"))
     }

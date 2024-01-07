@@ -8,8 +8,8 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, container_box, label, list, scroll, stack, svg, text,
-        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
+        container, container_box, dyn_stack, label, scroll, stack, svg, text,
+        virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
     },
 };
 use lapce_rpc::{
@@ -242,7 +242,7 @@ fn debug_processes(
     scroll({
         let terminal = terminal.clone();
         let local_terminal = terminal.clone();
-        list(
+        dyn_stack(
             move || local_terminal.run_debug_process(true),
             |(term_id, p)| (*term_id, p.stopped),
             move |(term_id, p)| {
@@ -267,9 +267,7 @@ fn debug_processes(
                             s.size(size, size)
                                 .margin_vert(5.0)
                                 .margin_horiz(10.0)
-                                .color(
-                                    *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                                )
+                                .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
                         })
                     },
                     label(move || p.config.name.clone()).style(|s| {
@@ -307,16 +305,13 @@ fn debug_processes(
                         .items_center()
                         .apply_if(is_active(), |s| {
                             s.background(
-                                *config
-                                    .get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
+                                config.color(LapceColor::PANEL_CURRENT_BACKGROUND),
                             )
                         })
                         .hover(|s| {
                             s.cursor(CursorStyle::Pointer).background(
-                                (*config.get_color(
-                                    LapceColor::PANEL_HOVERED_BACKGROUND,
-                                ))
-                                .with_alpha_factor(0.3),
+                                (config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
+                                    .with_alpha_factor(0.3),
                             )
                         })
                 })
@@ -333,9 +328,9 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
     let config = window_tab_data.common.config;
     container(
         scroll(
-            virtual_list(
-                VirtualListDirection::Vertical,
-                VirtualListItemSize::Fixed(Box::new(move || ui_line_height.get())),
+            virtual_stack(
+                VirtualDirection::Vertical,
+                VirtualItemSize::Fixed(Box::new(move || ui_line_height.get())),
                 move || {
                     let dap = terminal.get_active_dap(true);
                     dap.map(|dap| {
@@ -385,7 +380,7 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             let size = config.ui.icon_size() as f32;
 
                             let color = if reference > 0 {
-                                *config.get_color(LapceColor::LAPCE_ICON_ACTIVE)
+                                config.color(LapceColor::LAPCE_ICON_ACTIVE)
                             } else {
                                 Color::TRANSPARENT
                             };
@@ -396,7 +391,7 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             s.apply_if(!type_exists || reference == 0, |s| s.hide())
                         }),
                         text(node.item.ty().unwrap_or("")).style(move |s| {
-                            s.color(*config.get().get_style_color("type").unwrap())
+                            s.color(config.get().style_color("type").unwrap())
                                 .apply_if(!type_exists || reference == 0, |s| {
                                     s.hide()
                                 })
@@ -431,9 +426,11 @@ fn variables_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             .min_width_pct(100.0)
                             .hover(|s| {
                                 s.apply_if(reference > 0, |s| {
-                                    s.background(*config.get().get_color(
-                                        LapceColor::PANEL_HOVERED_BACKGROUND,
-                                    ))
+                                    s.background(
+                                        config.get().color(
+                                            LapceColor::PANEL_HOVERED_BACKGROUND,
+                                        ),
+                                    )
                                 })
                             })
                     })
@@ -465,13 +462,11 @@ fn debug_stack_frames(
             .style(move |s| {
                 s.padding_horiz(10.0).min_width_pct(100.0).hover(move |s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
             }),
-        list(
+        dyn_stack(
             move || {
                 let expanded = stack_trace.expanded.get() && stopped.get();
                 if expanded {
@@ -501,15 +496,15 @@ fn debug_stack_frames(
                     label(move || frame.name.clone()).style(move |s| {
                         s.hover(|s| {
                             s.background(
-                                *config
+                                config
                                     .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                    .color(LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
                         })
                     }),
                     label(move || source_path.clone()).style(move |s| {
                         s.margin_left(10.0)
-                            .color(*config.get().get_color(LapceColor::EDITOR_DIM))
+                            .color(config.get().color(LapceColor::EDITOR_DIM))
                             .font_style(FontStyle::Italic)
                             .apply_if(!has_source, |s| s.hide())
                     }),
@@ -542,12 +537,11 @@ fn debug_stack_frames(
                         .padding_right(10.0)
                         .min_width_pct(100.0)
                         .apply_if(!has_source, |s| {
-                            s.color(*config.get_color(LapceColor::EDITOR_DIM))
+                            s.color(config.color(LapceColor::EDITOR_DIM))
                         })
                         .hover(|s| {
                             s.background(
-                                *config
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
                             .apply_if(has_source, |s| s.cursor(CursorStyle::Pointer))
                         })
@@ -567,7 +561,7 @@ fn debug_stack_traces(
     container(
         scroll({
             let local_terminal = terminal.clone();
-            list(
+            dyn_stack(
                 move || {
                     let dap = local_terminal.get_active_dap(true);
                     if let Some(dap) = dap {
@@ -628,7 +622,7 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
     let internal_command = window_tab_data.common.internal_command;
     container(
         scroll(
-            list(
+            dyn_stack(
                 move || {
                     breakpoints
                         .get()
@@ -711,9 +705,7 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             s.text_ellipsis()
                                 .flex_grow(1.0)
                                 .flex_basis(0.0)
-                                .color(
-                                    *config.get().get_color(LapceColor::EDITOR_DIM),
-                                )
+                                .color(config.get().color(LapceColor::EDITOR_DIM))
                                 .min_width(0.0)
                                 .margin_left(6.0)
                                 .apply_if(folder_empty, |s| s.hide())
@@ -723,9 +715,9 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                         s.items_center().padding_horiz(10.0).width_pct(100.0).hover(
                             |s| {
                                 s.background(
-                                    *config.get().get_color(
-                                        LapceColor::PANEL_HOVERED_BACKGROUND,
-                                    ),
+                                    config
+                                        .get()
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
                                 )
                             },
                         )

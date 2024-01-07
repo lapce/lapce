@@ -361,6 +361,21 @@ pub enum FocusCommand {
     SelectPreviousSyntaxItem,
     #[strum(serialize = "open_source_file")]
     OpenSourceFile,
+    #[strum(serialize = "inline_completion.select")]
+    #[strum(message = "Inline Completion Select")]
+    InlineCompletionSelect,
+    #[strum(serialize = "inline_completion.next")]
+    #[strum(message = "Inline Completion Next")]
+    InlineCompletionNext,
+    #[strum(serialize = "inline_completion.previous")]
+    #[strum(message = "Inline Completion Previous")]
+    InlineCompletionPrevious,
+    #[strum(serialize = "inline_completion.cancel")]
+    #[strum(message = "Inline Completion Cancel")]
+    InlineCompletionCancel,
+    #[strum(serialize = "inline_completion.invoke")]
+    #[strum(message = "Inline Completion Invoke")]
+    InlineCompletionInvoke,
 }
 
 #[derive(

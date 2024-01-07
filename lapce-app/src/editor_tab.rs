@@ -238,7 +238,7 @@ impl EditorTabChild {
                         let (svg, color) = config.file_svg(&path);
                         (
                             svg,
-                            color.cloned(),
+                            color,
                             path.file_name()
                                 .unwrap_or_default()
                                 .to_string_lossy()
@@ -249,7 +249,7 @@ impl EditorTabChild {
                     }
                     None => (
                         config.ui_svg(LapceIcons::FILE),
-                        Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                        Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
                         "local".to_string(),
                         create_rw_signal(true),
                         true,
@@ -267,41 +267,67 @@ impl EditorTabChild {
                 let config = config.get();
                 let diff_editor_data = diff_editors
                     .with(|diff_editors| diff_editors.get(&diff_editor_id).cloned());
-                let confirmed = diff_editor_data.as_ref().map(|d| d.right.confirmed);
-                let path = if let Some(diff_editor_data) = diff_editor_data {
-                    let (content, is_pristine) =
-                        diff_editor_data.right.view.doc.with(|doc| {
-                            (doc.content.get(), doc.buffer.with(|b| b.is_pristine()))
-                        });
-                    match content {
-                        DocContent::File { path, .. } => Some((path, is_pristine)),
-                        DocContent::Local => None,
-                        DocContent::History(_) => None,
-                        DocContent::Scratch { name, .. } => {
-                            Some((PathBuf::from(name), is_pristine))
-                        }
-                    }
-                } else {
-                    None
-                };
-                let (icon, color, path, is_pristine) = match path {
-                    Some((path, is_pritine)) => {
+                let confirmed = diff_editor_data.as_ref().map(|d| d.confirmed);
+
+                let info = diff_editor_data
+                    .map(|diff_editor_data| {
+                        [diff_editor_data.left, diff_editor_data.right].map(|data| {
+                            let (content, is_pristine) = data.view.doc.with(|doc| {
+                                (
+                                    doc.content.get(),
+                                    doc.buffer.with(|b| b.is_pristine()),
+                                )
+                            });
+                            match content {
+                                DocContent::File { path, .. } => {
+                                    Some((path, is_pristine))
+                                }
+                                DocContent::Local => None,
+                                DocContent::History(_) => None,
+                                DocContent::Scratch { name, .. } => {
+                                    Some((PathBuf::from(name), is_pristine))
+                                }
+                            }
+                        })
+                    })
+                    .unwrap_or([None, None]);
+
+                let (icon, color, path, is_pristine) = match info {
+                    [Some((path, is_pristine)), None]
+                    | [None, Some((path, is_pristine))] => {
                         let (svg, color) = config.file_svg(&path);
                         (
                             svg,
-                            color.cloned(),
+                            color,
                             format!(
                                 "{} (Diff)",
                                 path.file_name()
                                     .unwrap_or_default()
                                     .to_string_lossy()
                             ),
-                            is_pritine,
+                            is_pristine,
                         )
                     }
-                    None => (
+                    [Some((left_path, left_is_pristine)), Some((right_path, right_is_pristine))] =>
+                    {
+                        let (svg, color) =
+                            config.files_svg(&[&left_path, &right_path]);
+                        let [left_file_name, right_file_name] =
+                            [&left_path, &right_path].map(|path| {
+                                path.file_name()
+                                    .unwrap_or_default()
+                                    .to_string_lossy()
+                            });
+                        (
+                            svg,
+                            color,
+                            format!("{left_file_name} - {right_file_name} (Diff)"),
+                            left_is_pristine && right_is_pristine,
+                        )
+                    }
+                    [None, None] => (
                         config.ui_svg(LapceIcons::FILE),
-                        Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                        Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
                         "local".to_string(),
                         true,
                     ),
@@ -318,7 +344,7 @@ impl EditorTabChild {
                 let config = config.get();
                 EditorTabChildViewInfo {
                     icon: config.ui_svg(LapceIcons::SETTINGS),
-                    color: Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                    color: Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
                     path: "Settings".to_string(),
                     confirmed: None,
                     is_pristine: true,
@@ -328,7 +354,7 @@ impl EditorTabChild {
                 let config = config.get();
                 EditorTabChildViewInfo {
                     icon: config.ui_svg(LapceIcons::SYMBOL_COLOR),
-                    color: Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                    color: Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
                     path: "Theme Colors".to_string(),
                     confirmed: None,
                     is_pristine: true,
@@ -338,7 +364,7 @@ impl EditorTabChild {
                 let config = config.get();
                 EditorTabChildViewInfo {
                     icon: config.ui_svg(LapceIcons::KEYBOARD),
-                    color: Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                    color: Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
                     path: "Keyboard Shortcuts".to_string(),
                     confirmed: None,
                     is_pristine: true,
@@ -361,7 +387,7 @@ impl EditorTabChild {
                     .unwrap_or_else(|| id.name.clone());
                 EditorTabChildViewInfo {
                     icon: config.ui_svg(LapceIcons::EXTENSIONS),
-                    color: Some(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                    color: Some(config.color(LapceColor::LAPCE_ICON_ACTIVE)),
                     path: display_name,
                     confirmed: None,
                     is_pristine: true,
@@ -429,34 +455,13 @@ impl EditorTabData {
                 }
                 EditorTabChild::DiffEditor(diff_editor_id) => {
                     if let Some(diff_editor) = diff_editors.get(diff_editor_id) {
-                        let left_confirmed =
-                            diff_editor.left.confirmed.get_untracked();
-                        let right_confirmed =
-                            diff_editor.right.confirmed.get_untracked();
-                        if !left_confirmed && !right_confirmed {
+                        let confirmed = diff_editor.confirmed.get_untracked();
+                        if !confirmed {
                             return Some((i, child.clone()));
                         }
                     }
                 }
                 _ => (),
-            }
-        }
-        None
-    }
-
-    pub fn get_unconfirmed_editor(
-        &self,
-        editors: &im::HashMap<EditorId, RwSignal<EditorData>>,
-    ) -> Option<(usize, RwSignal<EditorData>)> {
-        for (i, child) in self.children.iter().enumerate() {
-            if let (_, _, EditorTabChild::Editor(editor_id)) = child {
-                if let Some(editor) = editors.get(editor_id) {
-                    let e = editor.get_untracked();
-                    let confirmed = e.confirmed.get_untracked();
-                    if !confirmed {
-                        return Some((i, *editor));
-                    }
-                }
             }
         }
         None

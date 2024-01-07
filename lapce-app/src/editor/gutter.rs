@@ -12,10 +12,10 @@ use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 
 use crate::{
     config::{color::LapceColor, LapceConfig},
-    doc::Document,
+    doc::DocumentExt,
 };
 
-use super::{view::changes_colors, EditorData};
+use super::{view::changes_colors_screen, view_data::EditorViewData, EditorData};
 
 pub struct EditorGutterView {
     id: Id,
@@ -39,7 +39,7 @@ impl EditorGutterView {
     fn paint_head_changes(
         &self,
         cx: &mut PaintCx,
-        doc: Rc<Document>,
+        view: &EditorViewData,
         viewport: Rect,
         is_normal: bool,
         config: &LapceConfig,
@@ -48,20 +48,19 @@ impl EditorGutterView {
             return;
         }
 
-        let changes = doc.head_changes.get_untracked();
+        let changes = view
+            .doc
+            .with_untracked(|doc| doc.head_changes().get_untracked());
         let line_height = config.editor.line_height() as f64;
 
-        let min_line = (viewport.y0 / line_height).floor() as usize;
-        let max_line = (viewport.y1 / line_height).ceil() as usize;
-
-        let changes = changes_colors(changes, min_line, max_line, config);
+        let changes = changes_colors_screen(view, changes);
         for (y, height, removed, color) in changes {
             let height = if removed {
                 10.0
             } else {
                 height as f64 * line_height
             };
-            let mut y = y as f64 * line_height - viewport.y0;
+            let mut y = y - viewport.y0;
             if removed {
                 y -= 5.0;
             }
@@ -101,12 +100,12 @@ impl EditorGutterView {
                 .inflate(25.0, 0.0);
         cx.fill(
             &sticky_area_rect,
-            config.get_color(LapceColor::LAPCE_DROPDOWN_SHADOW),
+            config.color(LapceColor::LAPCE_DROPDOWN_SHADOW),
             3.0,
         );
         cx.fill(
             &sticky_area_rect,
-            config.get_color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
+            config.color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
             0.0,
         );
     }
@@ -162,57 +161,56 @@ impl View for EditorGutterView {
             FamilyOwned::parse_list(&config.editor.font_family).collect();
         let attrs = Attrs::new()
             .family(&family)
-            .color(*config.get_color(LapceColor::EDITOR_DIM))
+            .color(config.color(LapceColor::EDITOR_DIM))
             .font_size(config.editor.font_size() as f32);
         let attrs_list = AttrsList::new(attrs);
-        let current_line_attrs_list = AttrsList::new(
-            attrs.color(*config.get_color(LapceColor::EDITOR_FOREGROUND)),
-        );
+        let current_line_attrs_list =
+            AttrsList::new(attrs.color(config.color(LapceColor::EDITOR_FOREGROUND)));
         let show_relative = config.core.modal
             && config.editor.modal_mode_relative_line_numbers
             && mode != Mode::Insert
             && kind_is_normal;
 
-        for line in &screen_lines.lines {
-            let line = *line;
-            if line > last_line {
-                break;
-            }
-
-            let text = if show_relative {
-                if line == current_line {
-                    line + 1
-                } else {
-                    line.abs_diff(current_line)
+        screen_lines.with_untracked(|screen_lines| {
+            for (line, y) in screen_lines.iter_lines_y() {
+                // If it ends up outside the bounds of the file, stop trying to display line numbers
+                if line > last_line {
+                    break;
                 }
-            } else {
-                line + 1
-            }
-            .to_string();
 
-            let info = screen_lines.info.get(&line).unwrap();
-            let mut text_layout = TextLayout::new();
-            if line == current_line {
-                text_layout.set_text(&text, current_line_attrs_list.clone());
-            } else {
-                text_layout.set_text(&text, attrs_list.clone());
-            }
-            let size = text_layout.size();
-            let height = size.height;
-            let y = info.y;
+                let text = if show_relative {
+                    if line == current_line {
+                        line + 1
+                    } else {
+                        line.abs_diff(current_line)
+                    }
+                } else {
+                    line + 1
+                }
+                .to_string();
 
-            cx.draw_text(
-                &text_layout,
-                Point::new(
-                    (self.width - (size.width)).max(0.0),
-                    y as f64 + (line_height - height) / 2.0 - viewport.y0,
-                ),
-            );
-        }
+                let mut text_layout = TextLayout::new();
+                if line == current_line {
+                    text_layout.set_text(&text, current_line_attrs_list.clone());
+                } else {
+                    text_layout.set_text(&text, attrs_list.clone());
+                }
+                let size = text_layout.size();
+                let height = size.height;
+
+                cx.draw_text(
+                    &text_layout,
+                    Point::new(
+                        (self.width - (size.width)).max(0.0),
+                        y + (line_height - height) / 2.0 - viewport.y0,
+                    ),
+                );
+            }
+        });
 
         self.paint_head_changes(
             cx,
-            self.editor.view.doc.get_untracked(),
+            &self.editor.view,
             viewport,
             kind_is_normal,
             &config,

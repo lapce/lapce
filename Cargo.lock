@@ -180,6 +180,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anes"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
+
+[[package]]
 name = "anyhow"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -691,6 +697,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cast"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
+
+[[package]]
 name = "cc"
 version = "1.0.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -734,6 +746,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "ciborium"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "effd91f6c78e5a4ace8a5d3c0b6bfaec9e2baaef55f3efc00e45fb2e477ee926"
+dependencies = [
+ "ciborium-io",
+ "ciborium-ll",
+ "serde",
+]
+
+[[package]]
+name = "ciborium-io"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdf919175532b369853f5d5e20b26b43112613fd6fe7aee757e35f7a44642656"
+
+[[package]]
+name = "ciborium-ll"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "defaa24ecc093c77630e6c15e17c51f5e187bf35ee514f4e2d67baaa96dae22b"
+dependencies = [
+ "ciborium-io",
+ "half 1.8.2",
+]
+
+[[package]]
 name = "clap"
 version = "3.2.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -773,24 +812,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "clipboard"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25a904646c0340239dcf7c51677b33928bf24fdf424b79a57909c0109075b2e7"
-dependencies = [
- "clipboard-win",
- "objc",
- "objc-foundation",
- "objc_id",
- "x11-clipboard",
-]
-
-[[package]]
 name = "clipboard-win"
-version = "2.2.0"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3a093d6fed558e5fe24c3dfc85a68bb68f1c824f440d3ba5aca189e2998786b"
+checksum = "9fdf5e01086b6be750428ba4a40619f847eb2e95756eee84b18e06e5f0b50342"
 dependencies = [
+ "lazy-bytes-cast",
  "winapi",
 ]
 
@@ -890,6 +917,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "copypasta"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d35364349bf9e9e1c3a035ddcb00d188d23a3c40c50244c03c27a99fc6a65ae"
+dependencies = [
+ "clipboard-win",
+ "objc",
+ "objc-foundation",
+ "objc_id",
+ "smithay-clipboard",
+ "x11-clipboard",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -933,7 +974,7 @@ dependencies = [
 [[package]]
 name = "cosmic-text"
 version = "0.7.0"
-source = "git+https://github.com/lapce/cosmic-text?rev=f7a20704d6ebbe8fb82d0bb579c37c53e7ae9747#f7a20704d6ebbe8fb82d0bb579c37c53e7ae9747"
+source = "git+https://github.com/lapce/cosmic-text?rev=fdc5165f79bb24c76bfeb335dbfa133094636e25#fdc5165f79bb24c76bfeb335dbfa133094636e25"
 dependencies = [
  "fontdb 0.16.0",
  "libm",
@@ -1097,6 +1138,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "criterion"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7c76e09c1aae2bc52b3d2f29e13c6572553b30c4aa1b8a49fd70de6412654cb"
+dependencies = [
+ "anes",
+ "atty",
+ "cast",
+ "ciborium",
+ "clap",
+ "criterion-plot",
+ "itertools",
+ "lazy_static",
+ "num-traits",
+ "oorandom",
+ "plotters",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tinytemplate",
+ "walkdir",
+]
+
+[[package]]
+name = "criterion-plot"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
+dependencies = [
+ "cast",
+ "itertools",
+]
+
+[[package]]
 name = "crossbeam-channel"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1179,9 +1256,9 @@ dependencies = [
 
 [[package]]
 name = "cursor-icon"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "740bb192a8e2d1350119916954f4409ee7f62f149b536911eeb78ba5a20526bf"
+checksum = "96a6ac251f4a2aca6b3f91340350eab87ae57c3f127ffeb585e92bd336717991"
 
 [[package]]
 name = "d3d12"
@@ -1510,7 +1587,7 @@ checksum = "832a761f35ab3e6664babfbdc6cef35a4860e816ec3916dcfd0882954e98a8a8"
 dependencies = [
  "bit_field",
  "flume",
- "half",
+ "half 2.2.1",
  "lebe",
  "miniz_oxide 0.7.1",
  "rayon-core",
@@ -1596,10 +1673,10 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4621c89a5f3d43ec7d8d0f51c0a0b7214eb03a56#4621c89a5f3d43ec7d8d0f51c0a0b7214eb03a56"
+source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
 dependencies = [
  "bitflags 2.4.0",
- "clipboard",
+ "copypasta",
  "crossbeam-channel",
  "educe",
  "floem_reactive",
@@ -1626,7 +1703,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4621c89a5f3d43ec7d8d0f51c0a0b7214eb03a56#4621c89a5f3d43ec7d8d0f51c0a0b7214eb03a56"
+source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
 dependencies = [
  "smallvec",
 ]
@@ -1634,7 +1711,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4621c89a5f3d43ec7d8d0f51c0a0b7214eb03a56#4621c89a5f3d43ec7d8d0f51c0a0b7214eb03a56"
+source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
 dependencies = [
  "cosmic-text",
  "image",
@@ -1645,7 +1722,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4621c89a5f3d43ec7d8d0f51c0a0b7214eb03a56#4621c89a5f3d43ec7d8d0f51c0a0b7214eb03a56"
+source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1662,7 +1739,7 @@ dependencies = [
 [[package]]
 name = "floem_vger"
 version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=4621c89a5f3d43ec7d8d0f51c0a0b7214eb03a56#4621c89a5f3d43ec7d8d0f51c0a0b7214eb03a56"
+source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
 dependencies = [
  "anyhow",
  "floem_renderer",
@@ -1975,6 +2052,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "gethostname"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0176e0459c2e4a1fe232f984bca6890e681076abb9934f6cea7c326f3fc47818"
+dependencies = [
+ "libc",
+ "windows-targets 0.48.5",
+]
+
+[[package]]
 name = "getopts"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2211,6 +2298,12 @@ dependencies = [
  "tokio-util",
  "tracing 0.1.37",
 ]
+
+[[package]]
+name = "half"
+version = "1.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eabb4a44450da02c90444cf74558da904edde8fb4e9035a9a6a4e15445af0bd7"
 
 [[package]]
 name = "half"
@@ -2799,7 +2892,7 @@ dependencies = [
 
 [[package]]
 name = "lapce"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "lapce-app",
  "lapce-proxy",
@@ -2807,7 +2900,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-app"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "Inflector",
  "alacritty_terminal",
@@ -2816,8 +2909,8 @@ dependencies = [
  "bytemuck",
  "chrono",
  "clap",
- "clipboard",
  "config",
+ "criterion",
  "crossbeam-channel",
  "directories",
  "dmg",
@@ -2867,7 +2960,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2901,7 +2994,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-proxy"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "alacritty_terminal",
  "anyhow",
@@ -2954,7 +3047,7 @@ dependencies = [
 
 [[package]]
 name = "lapce-rpc"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -2981,6 +3074,12 @@ dependencies = [
  "serde",
  "unicode-segmentation",
 ]
+
+[[package]]
+name = "lazy-bytes-cast"
+version = "5.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10257499f089cd156ad82d0a9cd57d9501fa2c989068992a97eb3c27836f206b"
 
 [[package]]
 name = "lazy_static"
@@ -3129,9 +3228,8 @@ dependencies = [
 
 [[package]]
 name = "lsp-types"
-version = "0.93.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3bcfee315dde785ba887edb540b08765fd7df75a7d948844be6bf5712246734"
+version = "0.94.1"
+source = "git+https://github.com/lapce/lsp-types?rev=3031a76c4452f46ed265eb0154d6bb1d10ddb9f6#3031a76c4452f46ed265eb0154d6bb1d10ddb9f6"
 dependencies = [
  "bitflags 1.3.2",
  "serde",
@@ -3634,6 +3732,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd8b5dd2ae5ed71462c540258bedcb51965123ad7e7ccf4b9a8cafaa4a63576d"
 
 [[package]]
+name = "oorandom"
+version = "11.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
+
+[[package]]
 name = "open"
 version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3902,6 +4006,34 @@ dependencies = [
  "line-wrap",
  "quick-xml 0.28.2",
  "time 0.3.14",
+]
+
+[[package]]
+name = "plotters"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2c224ba00d7cadd4d5c660deaf2098e5e80e07846537c51f9cfa4be50c1fd45"
+dependencies = [
+ "num-traits",
+ "plotters-backend",
+ "plotters-svg",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "plotters-backend"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e76628b4d3a7581389a35d5b6e2139607ad7c75b17aed325f210aa91f4a9609"
+
+[[package]]
+name = "plotters-svg"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38f6d39893cca0701371e3c27294f09797214b86f1fb951b89ade8ec04e2abab"
+dependencies = [
+ "plotters-backend",
 ]
 
 [[package]]
@@ -4837,6 +4969,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "smithay-clipboard"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bb62b280ce5a5cba847669933a0948d00904cf83845c944eae96a4738cea1a6"
+dependencies = [
+ "libc",
+ "smithay-client-toolkit",
+ "wayland-backend 0.3.2",
+]
+
+[[package]]
 name = "smol_str"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4894,7 +5037,7 @@ dependencies = [
  "wayland-sys 0.30.1",
  "web-sys",
  "windows-sys 0.48.0",
- "x11rb",
+ "x11rb 0.12.0",
 ]
 
 [[package]]
@@ -5298,6 +5441,16 @@ dependencies = [
  "ctor 0.2.5",
  "libloading 0.8.1",
  "tracing 0.1.37",
+]
+
+[[package]]
+name = "tinytemplate"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be4d6b5f19ff7664e8c98d03e2139cb510db9b0a60b55f8e8709b689d939b6bc"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -5927,7 +6080,7 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "vger"
 version = "0.2.7"
-source = "git+https://github.com/lapce/vger-rs?rev=ed10537c72a732a03f782225a39da80e6f9acbbe#ed10537c72a732a03f782225a39da80e6f9acbbe"
+source = "git+https://github.com/lapce/vger-rs?rev=1820c59e09fa731d0867a908d0ef094d27e1b3fb#1820c59e09fa731d0867a908d0ef094d27e1b3fb"
 dependencies = [
  "cosmic-text",
  "euclid",
@@ -7136,8 +7289,8 @@ checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
 
 [[package]]
 name = "winit"
-version = "0.29.3"
-source = "git+https://github.com/lapce/winit?rev=7608048ad91efceb6d97d03dcd74b33c60cc2072#7608048ad91efceb6d97d03dcd74b33c60cc2072"
+version = "0.29.4"
+source = "git+https://github.com/lapce/winit?rev=a75f4124c5f26990d061a49ae7451f4bbad8bc0e#a75f4124c5f26990d061a49ae7451f4bbad8bc0e"
 dependencies = [
  "ahash 0.8.3",
  "android-activity",
@@ -7178,7 +7331,7 @@ dependencies = [
  "web-time",
  "windows-sys 0.48.0",
  "x11-dl",
- "x11rb",
+ "x11rb 0.13.0",
  "xkbcommon-dl",
 ]
 
@@ -7242,11 +7395,11 @@ dependencies = [
 
 [[package]]
 name = "x11-clipboard"
-version = "0.3.3"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89bd49c06c9eb5d98e6ba6536cf64ac9f7ee3a009b2f53996d405b3944f6bcea"
+checksum = "b41aca1115b1f195f21c541c5efb423470848d48143127d0f07f8b90c27440df"
 dependencies = [
- "xcb",
+ "x11rb 0.12.0",
 ]
 
 [[package]]
@@ -7267,14 +7420,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1641b26d4dec61337c35a1b1aaf9e3cba8f46f0b43636c609ab0291a648040a"
 dependencies = [
  "as-raw-xcb-connection",
- "gethostname",
+ "gethostname 0.3.0",
  "libc",
  "libloading 0.7.3",
  "nix 0.26.4",
  "once_cell",
  "winapi",
  "winapi-wsapoll",
- "x11rb-protocol",
+ "x11rb-protocol 0.12.0",
+]
+
+[[package]]
+name = "x11rb"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8f25ead8c7e4cba123243a6367da5d3990e0d3affa708ea19dce96356bd9f1a"
+dependencies = [
+ "as-raw-xcb-connection",
+ "gethostname 0.4.3",
+ "libc",
+ "libloading 0.8.1",
+ "once_cell",
+ "rustix 0.38.20",
+ "x11rb-protocol 0.13.0",
 ]
 
 [[package]]
@@ -7287,22 +7455,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "x11rb-protocol"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e63e71c4b8bd9ffec2c963173a4dc4cbde9ee96961d4fcb4429db9929b606c34"
+
+[[package]]
 name = "xattr"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d1526bbe5aaeb5eb06885f4d987bcdfa5e23187055de9b83fe00156a821fabc"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "xcb"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e917a3f24142e9ff8be2414e36c649d47d6cc2ba81f16201cdef96e533e02de"
-dependencies = [
- "libc",
- "log",
 ]
 
 [[package]]

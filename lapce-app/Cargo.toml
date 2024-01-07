@@ -51,8 +51,7 @@ sled = "0.34.7"
 bytemuck = "1.14.0"
 tokio = { version = "1.21", features = ["full"] }
 futures = "0.3.26"
-clipboard = "0.5.0"
-floem = { git = "https://github.com/lapce/floem", rev = "4621c89a5f3d43ec7d8d0f51c0a0b7214eb03a56" }
+floem = { git = "https://github.com/lapce/floem", rev = "6ae536237716d606e5546edb9f72867f2bc23946" }
 # floem = { path = "../../workspaces/floem" }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
@@ -86,3 +85,10 @@ all-languages = [
     "lapce-core/lang-toml",
     "lapce-core/lang-yaml",
 ]
+
+[dev-dependencies]
+criterion = "0.4"
+
+[[bench]]
+name = "visual_line"
+harness = false

@@ -11,7 +11,7 @@ use floem::{
     menu::{Menu, MenuItem},
     peniko::kurbo::{Point, Rect, Vec2},
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
-    reactive::{use_context, RwSignal, Scope},
+    reactive::{batch, use_context, ReadSignal, RwSignal, Scope},
 };
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, InvalLines},
@@ -27,7 +27,7 @@ use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
 use lsp_types::{
     CompletionItem, CompletionTextEdit, GotoDefinitionResponse, HoverContents,
-    Location, MarkedString, MarkupKind, TextEdit,
+    InlineCompletionTriggerKind, Location, MarkedString, MarkupKind, TextEdit,
 };
 use serde::{Deserialize, Serialize};
 
@@ -36,13 +36,17 @@ use crate::{
         CommandExecuted, CommandKind, InternalCommand, LapceCommand,
         LapceWorkbenchCommand,
     },
-    completion::{clear_completion_lens, CompletionStatus},
+    completion::CompletionStatus,
     config::LapceConfig,
     db::LapceDb,
-    doc::{DocContent, Document},
-    editor::location::{EditorLocation, EditorPosition},
+    doc::{DocContent, Document, DocumentExt},
+    editor::{
+        location::{EditorLocation, EditorPosition},
+        visual_line::Lines,
+    },
     editor_tab::EditorTabChild,
     id::{DiffEditorId, EditorId, EditorTabId},
+    inline_completion::{InlineCompletionItem, InlineCompletionStatus},
     keypress::{condition::Condition, KeyPressFocus},
     main_split::{MainSplitData, SplitDirection, SplitMoveDirection},
     markdown::{
@@ -54,8 +58,9 @@ use crate::{
 };
 
 use self::{
-    view::{DiffSection, DiffSectionKind, LineInfo, ScreenLines},
+    view::{DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase},
     view_data::{EditorViewData, EditorViewKind},
+    visual_line::{TextLayoutProvider, VLine, VLineInfo},
 };
 
 pub mod diff;
@@ -64,9 +69,9 @@ pub mod location;
 pub mod movement;
 pub mod view;
 pub mod view_data;
+pub mod visual_line;
 
 const CHAR_WIDTH: f64 = 7.5;
-const FONT_SIZE: usize = 12;
 
 #[derive(Clone, Debug)]
 pub enum InlineFindDirection {
@@ -98,6 +103,7 @@ impl EditorInfo {
                     None,
                     editor_id,
                     doc,
+                    None,
                     data.common,
                 );
                 editor_data.go_to_location(
@@ -150,6 +156,7 @@ impl EditorInfo {
                     None,
                     editor_id,
                     doc,
+                    None,
                     data.common,
                 )
             }
@@ -200,10 +207,13 @@ impl EditorData {
         diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
         editor_id: EditorId,
         doc: Rc<Document>,
+        confirmed: Option<RwSignal<bool>>,
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
+
         let is_local = doc.content.with_untracked(|content| content.is_local());
+        let viewport = cx.create_rw_signal(Rect::ZERO);
         let modal = common.config.with_untracked(|c| c.core.modal);
         let cursor = Cursor::new(
             if modal && !is_local {
@@ -215,8 +225,13 @@ impl EditorData {
             None,
         );
         let cursor = cx.create_rw_signal(cursor);
-        let view =
-            EditorViewData::new(cx, doc, EditorViewKind::Normal, common.config);
+        let view = EditorViewData::new(
+            cx,
+            doc,
+            EditorViewKind::Normal,
+            viewport,
+            common.config,
+        );
         {
             let internal_comamnd = common.internal_command;
             cx.create_effect(move |_| {
@@ -224,6 +239,7 @@ impl EditorData {
                 internal_comamnd.send(InternalCommand::ResetBlinkCursor);
             });
         }
+        let confirmed = confirmed.unwrap_or_else(|| cx.create_rw_signal(false));
         Self {
             scope: cx,
             editor_tab_id: cx.create_rw_signal(editor_tab_id),
@@ -231,10 +247,10 @@ impl EditorData {
             editor_id,
             view,
             cursor,
-            confirmed: cx.create_rw_signal(false),
+            confirmed,
             snippet: cx.create_rw_signal(None),
             window_origin: cx.create_rw_signal(Point::ZERO),
-            viewport: cx.create_rw_signal(Rect::ZERO),
+            viewport,
             scroll_delta: cx.create_rw_signal(Vec2::ZERO),
             scroll_to: cx.create_rw_signal(None),
             last_movement: cx.create_rw_signal(Movement::Left),
@@ -254,7 +270,7 @@ impl EditorData {
     ) -> Self {
         let cx = cx.create_child();
         let doc = Rc::new(Document::new_local(cx, common.clone()));
-        Self::new(cx, None, None, editor_id, doc, common)
+        Self::new(cx, None, None, editor_id, doc, None, common)
     }
 
     pub fn editor_info(&self, _data: &WindowTabData) -> EditorInfo {
@@ -278,6 +294,7 @@ impl EditorData {
         editor_tab_id: Option<EditorTabId>,
         diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
         editor_id: EditorId,
+        confirmed: Option<RwSignal<bool>>,
     ) -> Self {
         let cx = cx.create_child();
         let cursor = cx.create_rw_signal(self.cursor.get_untracked());
@@ -288,20 +305,23 @@ impl EditorData {
                 internal_comamnd.send(InternalCommand::ResetBlinkCursor);
             });
         }
+        let viewport = cx.create_rw_signal(self.viewport.get_untracked());
+        let confirmed = confirmed.unwrap_or_else(|| cx.create_rw_signal(true));
+
         EditorData {
             scope: cx,
             editor_id,
             editor_tab_id: cx.create_rw_signal(editor_tab_id),
             diff_editor_id: cx.create_rw_signal(diff_editor_id),
-            view: self.view.duplicate(cx),
+            view: self.view.duplicate(cx, viewport),
             cursor,
-            viewport: cx.create_rw_signal(self.viewport.get_untracked()),
+            viewport,
             scroll_delta: cx.create_rw_signal(Vec2::ZERO),
             scroll_to: cx.create_rw_signal(Some(
                 self.viewport.get_untracked().origin().to_vec2(),
             )),
             window_origin: cx.create_rw_signal(Point::ZERO),
-            confirmed: cx.create_rw_signal(true),
+            confirmed,
             snippet: cx.create_rw_signal(None),
             last_movement: cx.create_rw_signal(self.last_movement.get_untracked()),
             inline_find: cx.create_rw_signal(None),
@@ -342,7 +362,8 @@ impl EditorData {
                 None
             };
 
-        let deltas = doc.do_edit(&mut cursor, cmd, modal, &mut register, smart_tab);
+        let deltas =
+            batch(|| doc.do_edit(&mut cursor, cmd, modal, &mut register, smart_tab));
 
         if !deltas.is_empty() {
             if let Some(data) = yank_data {
@@ -358,6 +379,17 @@ impl EditorData {
         } else {
             self.cancel_completion();
         }
+
+        if *cmd == EditCommand::InsertNewLine {
+            // Cancel so that there's no flickering
+            self.cancel_inline_completion();
+            self.update_inline_completion(InlineCompletionTriggerKind::Automatic);
+        } else if show_inline_completion(cmd) {
+            self.update_inline_completion(InlineCompletionTriggerKind::Automatic);
+        } else {
+            self.cancel_inline_completion();
+        }
+
         self.apply_deltas(&deltas);
         if let EditCommand::NormalMode = cmd {
             self.snippet.set(None);
@@ -403,6 +435,7 @@ impl EditorData {
         self.cursor.set(cursor);
         // self.cancel_signature();
         self.cancel_completion();
+        self.cancel_inline_completion();
         CommandExecuted::Yes
     }
 
@@ -480,6 +513,9 @@ impl EditorData {
             .with_untracked(|c| c.active.get_untracked());
 
         match cmd {
+            FocusCommand::ModalClose => {
+                self.cancel_completion();
+            }
             FocusCommand::SplitVertical => {
                 if let Some(editor_tab_id) = self.editor_tab_id.get_untracked() {
                     self.common.internal_command.send(InternalCommand::Split {
@@ -668,6 +704,7 @@ impl EditorData {
             }
             FocusCommand::ListSelect => {
                 self.select_completion();
+                self.cancel_inline_completion();
             }
             FocusCommand::JumpToNextSnippetPlaceholder => {
                 self.snippet.update(|snippet| {
@@ -702,6 +739,7 @@ impl EditorData {
                         }
                         // self.update_signature();
                         self.cancel_completion();
+                        self.cancel_inline_completion();
                     }
                 });
             }
@@ -734,6 +772,7 @@ impl EditorData {
                             }
                             // self.update_signature();
                             self.cancel_completion();
+                            self.cancel_inline_completion();
                         }
                     }
                 });
@@ -789,6 +828,21 @@ impl EditorData {
                 if self.common.find.replace_active.get_untracked() {
                     self.common.find.replace_focus.set(true);
                 }
+            }
+            FocusCommand::InlineCompletionSelect => {
+                self.select_inline_completion();
+            }
+            FocusCommand::InlineCompletionNext => {
+                self.next_inline_completion();
+            }
+            FocusCommand::InlineCompletionPrevious => {
+                self.previous_inline_completion();
+            }
+            FocusCommand::InlineCompletionCancel => {
+                self.cancel_inline_completion();
+            }
+            FocusCommand::InlineCompletionInvoke => {
+                self.update_inline_completion(InlineCompletionTriggerKind::Invoked);
             }
             _ => {}
         }
@@ -1059,6 +1113,165 @@ impl EditorData {
         };
     }
 
+    fn select_inline_completion(&self) {
+        if self
+            .common
+            .inline_completion
+            .with_untracked(|c| c.status == InlineCompletionStatus::Inactive)
+        {
+            return;
+        }
+
+        let data = self
+            .common
+            .inline_completion
+            .with_untracked(|c| (c.current_item().cloned(), c.start_offset));
+        self.cancel_inline_completion();
+
+        let (Some(item), start_offset) = data else {
+            return;
+        };
+
+        let _ = item.apply(self, start_offset);
+    }
+
+    fn next_inline_completion(&self) {
+        if self
+            .common
+            .inline_completion
+            .with_untracked(|c| c.status == InlineCompletionStatus::Inactive)
+        {
+            return;
+        }
+
+        self.common.inline_completion.update(|c| {
+            c.next();
+        });
+    }
+
+    fn previous_inline_completion(&self) {
+        if self
+            .common
+            .inline_completion
+            .with_untracked(|c| c.status == InlineCompletionStatus::Inactive)
+        {
+            return;
+        }
+
+        self.common.inline_completion.update(|c| {
+            c.previous();
+        });
+    }
+
+    fn cancel_inline_completion(&self) {
+        if self
+            .common
+            .inline_completion
+            .with_untracked(|c| c.status == InlineCompletionStatus::Inactive)
+        {
+            return;
+        }
+
+        self.common.inline_completion.update(|c| {
+            c.cancel();
+        });
+
+        self.view.doc.get_untracked().clear_inline_completion();
+    }
+
+    /// Update the current inline completion
+    fn update_inline_completion(&self, trigger_kind: InlineCompletionTriggerKind) {
+        if self.get_mode() != Mode::Insert {
+            self.cancel_inline_completion();
+            return;
+        }
+
+        let doc = self.view.doc.get_untracked();
+        let path = match if doc.loaded() {
+            doc.content.with_untracked(|c| c.path().cloned())
+        } else {
+            None
+        } {
+            Some(path) => path,
+            None => return,
+        };
+
+        let offset = self.cursor.with_untracked(|c| c.offset());
+        let line = doc
+            .buffer
+            .with_untracked(|buffer| buffer.line_of_offset(offset));
+        let position = doc
+            .buffer
+            .with_untracked(|buffer| buffer.offset_to_position(offset));
+
+        let inline_completion = self.common.inline_completion;
+        let doc = self.view.doc.get_untracked();
+
+        // Update the inline completion's text if it's already active to avoid flickering
+        let has_relevant = inline_completion.with_untracked(|completion| {
+            let c_line = doc.buffer.with_untracked(|buffer| {
+                buffer.line_of_offset(completion.start_offset)
+            });
+            completion.status != InlineCompletionStatus::Inactive
+                && line == c_line
+                && completion.path == path
+        });
+        if has_relevant {
+            let config = self.common.config.get_untracked();
+            inline_completion.update(|completion| {
+                completion.update_inline_completion(&config, &doc, offset);
+            });
+        }
+
+        let path2 = path.clone();
+        let send = create_ext_action(
+            self.scope,
+            move |items: Vec<lsp_types::InlineCompletionItem>| {
+                let items = doc.buffer.with_untracked(|buffer| {
+                    items
+                        .into_iter()
+                        .map(|item| InlineCompletionItem::from_lsp(buffer, item))
+                        .collect()
+                });
+                inline_completion.update(|c| {
+                    c.set_items(items, offset, path2);
+                    c.update_doc(&doc, offset);
+                });
+            },
+        );
+
+        inline_completion.update(|c| c.status = InlineCompletionStatus::Started);
+
+        self.common.proxy.get_inline_completions(
+            path,
+            position,
+            trigger_kind,
+            move |res| {
+                if let Ok(ProxyResponse::GetInlineCompletions {
+                    completions: items,
+                }) = res
+                {
+                    let items = match items {
+                        lsp_types::InlineCompletionResponse::Array(items) => items,
+                        // Currently does not have any relevant extra fields
+                        lsp_types::InlineCompletionResponse::List(items) => {
+                            items.items
+                        }
+                    };
+                    send(items);
+                }
+            },
+        );
+    }
+
+    /// Check if there are inline completions that are being rendered
+    fn has_inline_completions(&self) -> bool {
+        self.common.inline_completion.with_untracked(|completion| {
+            completion.status != InlineCompletionStatus::Inactive
+                && !completion.items.is_empty()
+        })
+    }
+
     fn select_completion(&self) {
         let item = self
             .common
@@ -1119,7 +1332,9 @@ impl EditorData {
             c.cancel();
         });
 
-        clear_completion_lens(self.view.doc.get_untracked());
+        self.view
+            .doc
+            .with_untracked(|doc| doc.clear_completion_lens());
     }
 
     /// Update the displayed autocompletion box
@@ -1168,9 +1383,6 @@ impl EditorData {
             self.common.completion.update(|completion| {
                 completion.update_input(input.clone());
 
-                let cursor_offset = self.cursor.with_untracked(|c| c.offset());
-                completion.update_document_completion(&self.view, cursor_offset);
-
                 if !completion.input_items.contains_key("") {
                     let start_pos = doc.buffer.with_untracked(|buffer| {
                         buffer.offset_to_position(start_offset)
@@ -1197,6 +1409,12 @@ impl EditorData {
                     );
                 }
             });
+            let cursor_offset = self.cursor.with_untracked(|c| c.offset());
+            self.common
+                .completion
+                .get_untracked()
+                .update_document_completion(&self.view, cursor_offset);
+
             return;
         }
 
@@ -1324,7 +1542,7 @@ impl EditorData {
         Ok(())
     }
 
-    fn completion_apply_snippet(
+    pub fn completion_apply_snippet(
         &self,
         snippet: &str,
         selection: &Selection,
@@ -1412,7 +1630,7 @@ impl EditorData {
         });
     }
 
-    fn do_edit(
+    pub fn do_edit(
         &self,
         selection: &Selection,
         edits: &[(impl AsRef<Selection>, &str)],
@@ -1581,14 +1799,16 @@ impl EditorData {
         };
 
         let offset = self.cursor.with_untracked(|c| c.offset());
-        let exists = doc.code_actions.with_untracked(|c| c.contains_key(&offset));
+        let exists = doc
+            .code_actions()
+            .with_untracked(|c| c.contains_key(&offset));
 
         if exists {
             return;
         }
 
         // insert some empty data, so that we won't make the request again
-        doc.code_actions.update(|c| {
+        doc.code_actions().update(|c| {
             c.insert(offset, Arc::new((PluginId(0), Vec::new())));
         });
 
@@ -1599,7 +1819,7 @@ impl EditorData {
             // Get the diagnostics for the current line, which the LSP might use to inform
             // what code actions are available (such as fixes for the diagnostics).
             let diagnostics = doc
-                .diagnostics
+                .diagnostics()
                 .diagnostics
                 .get_untracked()
                 .iter()
@@ -1616,7 +1836,7 @@ impl EditorData {
 
         let send = create_ext_action(self.scope, move |resp| {
             if doc.rev() == rev {
-                doc.code_actions.update(|c| {
+                doc.code_actions().update(|c| {
                     c.insert(offset, Arc::new(resp));
                 });
             }
@@ -1641,8 +1861,9 @@ impl EditorData {
     pub fn show_code_actions(&self, mouse_click: bool) {
         let offset = self.cursor.with_untracked(|c| c.offset());
         let doc = self.view.doc.get_untracked();
-        let code_actions =
-            doc.code_actions.with_untracked(|c| c.get(&offset).cloned());
+        let code_actions = doc
+            .code_actions()
+            .with_untracked(|c| c.get(&offset).cloned());
         if let Some(code_actions) = code_actions {
             if !code_actions.1.is_empty() {
                 self.common.internal_command.send(
@@ -2261,200 +2482,9 @@ impl EditorData {
             .update(|cursor| cursor.set_offset(0, false, false));
     }
 
-    pub fn screen_lines(&self) -> ScreenLines {
-        let viewport = self.viewport.get_untracked();
-        let editor_view = self.view.kind;
-        let config = self.common.config.get_untracked();
-        let line_height = config.editor.line_height();
-
-        let min_line = (viewport.y0 / line_height as f64).floor() as usize;
-        let max_line = (viewport.y1 / line_height as f64).ceil() as usize;
-
-        let editor_view = editor_view.get_untracked();
-        match editor_view {
-            EditorViewKind::Normal => {
-                let doc = self.view.doc.get_untracked();
-                let last_line =
-                    doc.buffer.with_untracked(|buffer| buffer.last_line());
-                let mut lines = Vec::new();
-                let mut info = HashMap::new();
-                for line in min_line..max_line + 1 {
-                    if line > last_line {
-                        break;
-                    }
-                    lines.push(line);
-                    info.insert(
-                        line,
-                        LineInfo {
-                            y: line * line_height,
-                        },
-                    );
-                }
-                ScreenLines {
-                    lines,
-                    info,
-                    diff_sections: Vec::new(),
-                }
-            }
-            EditorViewKind::Diff(diff_info) => {
-                let mut visual_line = 0;
-                let mut lines = Vec::new();
-                let mut info = HashMap::new();
-                let mut diff_sections = Vec::new();
-                let mut last_change: Option<&DiffLines> = None;
-                let mut changes = diff_info.changes.iter().peekable();
-                let is_right = diff_info.is_right;
-                while let Some(change) = changes.next() {
-                    match (is_right, change) {
-                        (true, DiffLines::Left(range)) => {
-                            if let Some(DiffLines::Right(_)) = changes.peek() {
-                            } else {
-                                let len = range.len();
-                                diff_sections.push(DiffSection {
-                                    start_line: visual_line,
-                                    height: len,
-                                    kind: DiffSectionKind::NoCode,
-                                });
-                                visual_line += len;
-                            }
-                        }
-                        (false, DiffLines::Right(range)) => {
-                            let len = if let Some(DiffLines::Left(r)) = last_change {
-                                range.len() - r.len().min(range.len())
-                            } else {
-                                range.len()
-                            };
-                            if len > 0 {
-                                diff_sections.push(DiffSection {
-                                    start_line: visual_line,
-                                    height: len,
-                                    kind: DiffSectionKind::NoCode,
-                                });
-                                visual_line += len;
-                            }
-                        }
-                        (true, DiffLines::Right(range))
-                        | (false, DiffLines::Left(range)) => {
-                            let len = range.len();
-
-                            diff_sections.push(DiffSection {
-                                start_line: visual_line,
-                                height: len,
-                                kind: if is_right {
-                                    DiffSectionKind::Added
-                                } else {
-                                    DiffSectionKind::Removed
-                                },
-                            });
-
-                            visual_line += len;
-
-                            if visual_line < min_line {
-                                if is_right {
-                                    if let Some(DiffLines::Left(r)) = last_change {
-                                        let len = r.len() - r.len().min(range.len());
-                                        if len > 0 {
-                                            diff_sections.push(DiffSection {
-                                                start_line: visual_line,
-                                                height: len,
-                                                kind: DiffSectionKind::NoCode,
-                                            });
-                                            visual_line += len;
-                                        }
-                                    };
-                                }
-                                last_change = Some(change);
-                                continue;
-                            }
-
-                            for l in visual_line - len..visual_line {
-                                if l < min_line {
-                                    continue;
-                                }
-                                let actual_line =
-                                    l - (visual_line - len) + range.start;
-
-                                lines.push(actual_line);
-                                info.insert(
-                                    actual_line,
-                                    LineInfo { y: l * line_height },
-                                );
-
-                                if l > max_line {
-                                    break;
-                                }
-                            }
-
-                            if is_right {
-                                if let Some(DiffLines::Left(r)) = last_change {
-                                    let len = r.len() - r.len().min(range.len());
-                                    if len > 0 {
-                                        diff_sections.push(DiffSection {
-                                            start_line: visual_line,
-                                            height: len,
-                                            kind: DiffSectionKind::NoCode,
-                                        });
-                                        visual_line += len;
-                                    }
-                                };
-                            }
-                        }
-                        (_, DiffLines::Both(bothinfo)) => {
-                            let start = if is_right {
-                                bothinfo.right.start
-                            } else {
-                                bothinfo.left.start
-                            };
-                            let len = bothinfo.right.len();
-                            let diff_height = len
-                                - bothinfo
-                                    .skip
-                                    .as_ref()
-                                    .map(|skip| skip.len().saturating_sub(1))
-                                    .unwrap_or(0);
-                            if visual_line + diff_height < min_line {
-                                visual_line += diff_height;
-                                last_change = Some(change);
-                                continue;
-                            }
-
-                            let mut actual_line = start;
-                            while actual_line < start + len {
-                                if let Some(skip) = bothinfo.skip.as_ref() {
-                                    if skip.start == actual_line - start {
-                                        visual_line += 1;
-                                        actual_line += skip.len();
-                                        continue;
-                                    }
-                                }
-
-                                if visual_line >= min_line {
-                                    lines.push(actual_line);
-                                    info.insert(
-                                        actual_line,
-                                        LineInfo {
-                                            y: visual_line * line_height,
-                                        },
-                                    );
-                                }
-                                visual_line += 1;
-                                actual_line += 1;
-
-                                if visual_line - 1 > max_line {
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    last_change = Some(change);
-                }
-                ScreenLines {
-                    lines,
-                    info,
-                    diff_sections,
-                }
-            }
-        }
+    /// Get the line information for lines on the screen.  
+    pub fn screen_lines(&self) -> RwSignal<ScreenLines> {
+        self.view.screen_lines
     }
 }
 
@@ -2476,6 +2506,7 @@ impl KeyPressFocus for EditorData {
             }
             Condition::ListFocus => self.has_completions(),
             Condition::CompletionFocus => self.has_completions(),
+            Condition::InlineCompletionVisible => self.has_inline_completions(),
             Condition::InSnippet => self.snippet.with_untracked(|s| s.is_some()),
             Condition::EditorFocus => self
                 .view
@@ -2595,12 +2626,7 @@ impl KeyPressFocus for EditorData {
             // normal editor receive char
             if self.get_mode() == Mode::Insert {
                 let mut cursor = self.cursor.get_untracked();
-                let config = self.common.config.get_untracked();
-                let deltas =
-                    self.view
-                        .doc
-                        .get_untracked()
-                        .do_insert(&mut cursor, c, &config);
+                let deltas = self.view.doc.get_untracked().do_insert(&mut cursor, c);
                 self.cursor.set(cursor);
 
                 if !c
@@ -2611,6 +2637,11 @@ impl KeyPressFocus for EditorData {
                 } else {
                     self.cancel_completion();
                 }
+
+                self.update_inline_completion(
+                    InlineCompletionTriggerKind::Automatic,
+                );
+
                 self.apply_deltas(&deltas);
             } else if let Some(direction) = self.inline_find.get_untracked() {
                 self.inline_find(direction.clone(), c);
@@ -2634,12 +2665,12 @@ fn show_completion(
         | EditCommand::DeleteWordBackward
         | EditCommand::DeleteWordForward
         | EditCommand::DeleteForwardAndInsert => {
-            let start = match deltas.get(0).and_then(|delta| delta.0.els.get(0)) {
+            let start = match deltas.first().and_then(|delta| delta.0.els.first()) {
                 Some(lapce_xi_rope::DeltaElement::Copy(_, start)) => *start,
                 _ => 0,
             };
 
-            let end = match deltas.get(0).and_then(|delta| delta.0.els.get(1)) {
+            let end = match deltas.first().and_then(|delta| delta.0.els.get(1)) {
                 Some(lapce_xi_rope::DeltaElement::Copy(end, _)) => *end,
                 _ => 0,
             };
@@ -2656,6 +2687,325 @@ fn show_completion(
     };
 
     show_completion
+}
+
+fn show_inline_completion(cmd: &EditCommand) -> bool {
+    matches!(
+        cmd,
+        EditCommand::DeleteBackward
+            | EditCommand::DeleteForward
+            | EditCommand::DeleteWordBackward
+            | EditCommand::DeleteWordForward
+            | EditCommand::DeleteForwardAndInsert
+            | EditCommand::IndentLine
+            | EditCommand::InsertMode
+    )
+}
+
+// TODO(minor): Should we just put this on view, since it only requires those values?
+fn compute_screen_lines(
+    config: ReadSignal<Arc<LapceConfig>>,
+    base: RwSignal<ScreenLinesBase>,
+    view_kind: ReadSignal<EditorViewKind>,
+    doc: ReadSignal<Rc<Document>>,
+    lines: &Lines,
+    text_prov: impl TextLayoutProvider + Clone,
+) -> ScreenLines {
+    // TODO: this should probably be a get since we need to depend on line-height
+    let config = config.get();
+    let line_height = config.editor.line_height();
+
+    let (y0, y1) = base
+        .with_untracked(|base| (base.active_viewport.y0, base.active_viewport.y1));
+    // Get the start and end (visual) lines that are visible in the viewport
+    let min_vline = VLine((y0 / line_height as f64).floor() as usize);
+    let max_vline = VLine((y1 / line_height as f64).ceil() as usize);
+
+    let (cache_rev, content, loaded) =
+        doc.with(|doc| (doc.cache_rev, doc.content, doc.loaded));
+
+    cache_rev.track();
+    // TODO(minor): we don't really need to depend on various subdetails that aren't affecting how
+    // the screen lines are set up, like the title of a scratch document.
+    content.track();
+    loaded.track();
+
+    let min_info = once_cell::sync::Lazy::new(|| {
+        lines
+            .iter_vlines(text_prov.clone(), false, min_vline)
+            .next()
+    });
+    // TODO: if you need the max vline you probably need the min vline too and so you could grab
+    // both in one iter call, which would be more efficient than two iterations
+    let max_info = once_cell::sync::Lazy::new(|| {
+        lines
+            .iter_vlines(text_prov.clone(), false, max_vline)
+            .next()
+    });
+
+    match view_kind.get() {
+        EditorViewKind::Normal => {
+            let mut rvlines = Vec::new();
+            let mut info = HashMap::new();
+
+            let Some(min_info) = *min_info else {
+                return ScreenLines {
+                    lines: Rc::new(rvlines),
+                    info: Rc::new(info),
+                    diff_sections: None,
+                    base,
+                };
+            };
+
+            // TODO: the original was min_line..max_line + 1, are we iterating too little now?
+            // the iterator is from min_vline..max_vline
+            let count = max_vline.get() - min_vline.get();
+            let iter = lines
+                .iter_rvlines_init(text_prov, config.id, min_info.rvline, false)
+                .take(count);
+
+            for (i, vline_info) in iter.enumerate() {
+                rvlines.push(vline_info.rvline);
+
+                let y_idx = min_vline.get() + i;
+                let vline_y = y_idx * line_height;
+                let line_y = vline_y - vline_info.rvline.line_index * line_height;
+
+                // Add the information to make it cheap to get in the future.
+                // This y positions are shifted by the baseline y0
+                info.insert(
+                    vline_info.rvline,
+                    LineInfo {
+                        y: line_y as f64 - y0,
+                        vline_y: vline_y as f64 - y0,
+                        vline_info,
+                    },
+                );
+            }
+
+            ScreenLines {
+                lines: Rc::new(rvlines),
+                info: Rc::new(info),
+                diff_sections: None,
+                base,
+            }
+        }
+        EditorViewKind::Diff(diff_info) => {
+            // TODO: let lines in diff view be wrapped, possibly screen_lines should be impl'd
+            // on DiffEditorData
+
+            let mut y_idx = 0;
+            let mut rvlines = Vec::new();
+            let mut info = HashMap::new();
+            let mut diff_sections = Vec::new();
+            let mut last_change: Option<&DiffLines> = None;
+            let mut changes = diff_info.changes.iter().peekable();
+            let is_right = diff_info.is_right;
+
+            let line_y = |info: VLineInfo<()>, vline_y: usize| -> usize {
+                vline_y - info.rvline.line_index * line_height
+            };
+
+            while let Some(change) = changes.next() {
+                match (is_right, change) {
+                    (true, DiffLines::Left(range)) => {
+                        if let Some(DiffLines::Right(_)) = changes.peek() {
+                        } else {
+                            let len = range.len();
+                            diff_sections.push(DiffSection {
+                                y_idx,
+                                height: len,
+                                kind: DiffSectionKind::NoCode,
+                            });
+                            y_idx += len;
+                        }
+                    }
+                    (false, DiffLines::Right(range)) => {
+                        let len = if let Some(DiffLines::Left(r)) = last_change {
+                            range.len() - r.len().min(range.len())
+                        } else {
+                            range.len()
+                        };
+                        if len > 0 {
+                            diff_sections.push(DiffSection {
+                                y_idx,
+                                height: len,
+                                kind: DiffSectionKind::NoCode,
+                            });
+                            y_idx += len;
+                        }
+                    }
+                    (true, DiffLines::Right(range))
+                    | (false, DiffLines::Left(range)) => {
+                        // TODO: count vline count in the range instead
+                        let height = range.len();
+
+                        diff_sections.push(DiffSection {
+                            y_idx,
+                            height,
+                            kind: if is_right {
+                                DiffSectionKind::Added
+                            } else {
+                                DiffSectionKind::Removed
+                            },
+                        });
+
+                        let initial_y_idx = y_idx;
+                        // Mopve forward by the count given.
+                        y_idx += height;
+
+                        if y_idx < min_vline.get() {
+                            if is_right {
+                                if let Some(DiffLines::Left(r)) = last_change {
+                                    // TODO: count vline count in the other editor since this is skipping an amount dependent on those vlines
+                                    let len = r.len() - r.len().min(range.len());
+                                    if len > 0 {
+                                        diff_sections.push(DiffSection {
+                                            y_idx,
+                                            height: len,
+                                            kind: DiffSectionKind::NoCode,
+                                        });
+                                        y_idx += len;
+                                    }
+                                };
+                            }
+                            last_change = Some(change);
+                            continue;
+                        }
+
+                        let Some(min_info) = *min_info else {
+                            // TODO(minor): What is the proper behavior here?
+                            break;
+                        };
+
+                        let Some(max_info) = *max_info else {
+                            // TODO(minor): What is the proper behavior here?
+                            break;
+                        };
+
+                        let start_rvline =
+                            lines.rvline_of_line(&text_prov, range.start);
+
+                        // TODO: this wouldn't need to produce vlines if screen lines didn't
+                        // require them.
+                        let iter = lines
+                            .iter_rvlines(&text_prov, false, start_rvline)
+                            .take_while(|vline_info| {
+                                vline_info.rvline.line < range.end
+                            })
+                            .enumerate();
+                        for (i, rvline_info) in iter {
+                            let rvline = rvline_info.rvline;
+                            if rvline < min_info.rvline {
+                                continue;
+                            }
+
+                            rvlines.push(rvline);
+                            let vline_y = (initial_y_idx + i) * line_height;
+                            info.insert(
+                                rvline,
+                                LineInfo {
+                                    y: line_y(rvline_info, vline_y) as f64 - y0,
+                                    vline_y: vline_y as f64 - y0,
+                                    vline_info: rvline_info,
+                                },
+                            );
+
+                            if rvline > max_info.rvline {
+                                break;
+                            }
+                        }
+
+                        if is_right {
+                            if let Some(DiffLines::Left(r)) = last_change {
+                                // TODO: count vline count in the other editor since this is skipping an amount dependent on those vlines
+                                let len = r.len() - r.len().min(range.len());
+                                if len > 0 {
+                                    diff_sections.push(DiffSection {
+                                        y_idx,
+                                        height: len,
+                                        kind: DiffSectionKind::NoCode,
+                                    });
+                                    y_idx += len;
+                                }
+                            };
+                        }
+                    }
+                    (_, DiffLines::Both(bothinfo)) => {
+                        let start = if is_right {
+                            bothinfo.right.start
+                        } else {
+                            bothinfo.left.start
+                        };
+                        let len = bothinfo.right.len();
+                        let diff_height = len
+                            - bothinfo
+                                .skip
+                                .as_ref()
+                                .map(|skip| skip.len().saturating_sub(1))
+                                .unwrap_or(0);
+                        if y_idx + diff_height < min_vline.get() {
+                            y_idx += diff_height;
+                            last_change = Some(change);
+                            continue;
+                        }
+
+                        let start_rvline = lines.rvline_of_line(&text_prov, start);
+
+                        let mut iter = lines
+                            .iter_rvlines_init(
+                                &text_prov,
+                                config.id,
+                                start_rvline,
+                                false,
+                            )
+                            .take_while(|info| info.rvline.line < start + len);
+                        while let Some(rvline_info) = iter.next() {
+                            let line = rvline_info.rvline.line;
+
+                            // Skip over the lines
+                            if let Some(skip) = bothinfo.skip.as_ref() {
+                                if Some(skip.start) == line.checked_sub(start) {
+                                    y_idx += 1;
+                                    // Skip by `skip` count, which is skip - 1 because we will
+                                    // go to the next vline on the next iter
+                                    let _ = iter.nth(skip.len().saturating_sub(1));
+                                    continue;
+                                }
+                            }
+
+                            // Add the vline if it is within view
+                            if y_idx >= min_vline.get() {
+                                rvlines.push(rvline_info.rvline);
+                                let vline_y = y_idx * line_height;
+                                info.insert(
+                                    rvline_info.rvline,
+                                    LineInfo {
+                                        y: line_y(rvline_info, vline_y) as f64 - y0,
+                                        vline_y: vline_y as f64 - y0,
+                                        vline_info: rvline_info,
+                                    },
+                                );
+                            }
+
+                            y_idx += 1;
+
+                            if y_idx - 1 > max_vline.get() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                last_change = Some(change);
+            }
+            ScreenLines {
+                lines: Rc::new(rvlines),
+                info: Rc::new(info),
+                diff_sections: Some(Rc::new(diff_sections)),
+                base,
+            }
+        }
+    }
 }
 
 fn parse_hover_resp(

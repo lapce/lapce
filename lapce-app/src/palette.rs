@@ -39,6 +39,7 @@ use crate::{
     },
     db::LapceDb,
     debug::{RunDebugConfigs, RunDebugMode},
+    doc::DocumentExt,
     editor::{
         location::{EditorLocation, EditorPosition},
         EditorData,
@@ -102,6 +103,7 @@ pub struct PaletteData {
     pub references: RwSignal<Vec<EditorLocation>>,
     pub source_control: SourceControlData,
     pub common: Rc<CommonData>,
+    left_diff_path: RwSignal<Option<PathBuf>>,
 }
 
 impl PaletteData {
@@ -196,6 +198,7 @@ impl PaletteData {
         }
 
         let clicked_index = cx.create_rw_signal(Option::<usize>::None);
+        let left_diff_path = cx.create_rw_signal(None);
 
         let palette = Self {
             run_id_counter,
@@ -219,6 +222,7 @@ impl PaletteData {
             references,
             source_control,
             common,
+            left_diff_path,
         };
 
         {
@@ -326,6 +330,19 @@ impl PaletteData {
             .update(|cursor| cursor.set_insert(Selection::caret(symbol.len())));
     }
 
+    /// Get the placeholder text to use in the palette input field.
+    pub fn placeholder_text(&self) -> &'static str {
+        if self.kind.get() == PaletteKind::DiffFiles {
+            if self.left_diff_path.with(Option::is_some) {
+                "Select right file"
+            } else {
+                "Seleft left file"
+            }
+        } else {
+            ""
+        }
+    }
+
     /// Execute the internal behavior of the palette for the given kind. This ignores updating and
     /// focusing the palette input.
     fn run_inner(&self, kind: PaletteKind) {
@@ -336,7 +353,7 @@ impl PaletteData {
 
         match kind {
             PaletteKind::PaletteHelp => self.get_palette_help(),
-            PaletteKind::File => {
+            PaletteKind::File | PaletteKind::DiffFiles => {
                 self.get_files();
             }
             PaletteKind::Line => {
@@ -359,6 +376,10 @@ impl PaletteData {
             }
             PaletteKind::SshHost => {
                 self.get_ssh_hosts();
+            }
+            #[cfg(windows)]
+            PaletteKind::WslHost => {
+                self.get_wsl_hosts();
             }
             PaletteKind::RunAndDebug => {
                 self.get_run_configs();
@@ -421,18 +442,18 @@ impl PaletteData {
             create_ext_action(self.common.scope, move |items: Vec<PathBuf>| {
                 let items = items
                     .into_iter()
-                    .map(|path| {
-                        let full_path = path.clone();
+                    .map(|full_path| {
                         // Strip the workspace prefix off the path, to avoid clutter
                         let path =
                             if let Some(workspace_path) = workspace.path.as_ref() {
-                                path.strip_prefix(workspace_path)
+                                full_path
+                                    .strip_prefix(workspace_path)
                                     .unwrap_or(&full_path)
                                     .to_path_buf()
                             } else {
-                                path
+                                full_path.clone()
                             };
-                        let filter_text = path.to_str().unwrap_or("").to_string();
+                        let filter_text = path.to_string_lossy().into_owned();
                         PaletteItem {
                             content: PaletteItemContent::File { path, full_path },
                             filter_text,
@@ -549,12 +570,12 @@ impl PaletteData {
                 let text = w.path.as_ref()?.to_str()?.to_string();
                 let filter_text = match &w.kind {
                     LapceWorkspaceType::Local => text,
-                    LapceWorkspaceType::RemoteSSH(ssh) => {
-                        format!("[{ssh}] {text}")
+                    LapceWorkspaceType::RemoteSSH(remote) => {
+                        format!("[{remote}] {text}")
                     }
                     #[cfg(windows)]
-                    LapceWorkspaceType::RemoteWSL => {
-                        format!("[wsl] {text}")
+                    LapceWorkspaceType::RemoteWSL(remote) => {
+                        format!("[{remote}] {text}")
                     }
                 };
                 Some(PaletteItem {
@@ -721,16 +742,76 @@ impl PaletteData {
         let workspaces = db.recent_workspaces().unwrap_or_default();
         let mut hosts = HashSet::new();
         for workspace in workspaces.iter() {
-            if let LapceWorkspaceType::RemoteSSH(ssh) = &workspace.kind {
-                hosts.insert(ssh.clone());
+            if let LapceWorkspaceType::RemoteSSH(host) = &workspace.kind {
+                hosts.insert(host.clone());
             }
         }
 
         let items = hosts
             .iter()
-            .map(|ssh| PaletteItem {
-                content: PaletteItemContent::SshHost { host: ssh.clone() },
-                filter_text: ssh.to_string(),
+            .map(|host| PaletteItem {
+                content: PaletteItemContent::SshHost { host: host.clone() },
+                filter_text: host.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+        self.items.set(items);
+    }
+
+    #[cfg(windows)]
+    fn get_wsl_hosts(&self) {
+        use std::os::windows::process::CommandExt;
+        use std::process;
+        let cmd = process::Command::new("wsl")
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .arg("-l")
+            .arg("-v")
+            .stdout(process::Stdio::piped())
+            .output();
+
+        let distros = if let Ok(proc) = cmd {
+            let distros = String::from_utf16(bytemuck::cast_slice(&proc.stdout))
+                .unwrap_or_default()
+                .lines()
+                .skip(1)
+                .filter_map(|line| {
+                    let line = line.trim_start();
+                    // let default = line.starts_with('*');
+                    let name = line
+                        .trim_start_matches('*')
+                        .trim_start()
+                        .split(' ')
+                        .next()?;
+                    Some(name.to_string())
+                })
+                .collect();
+
+            distros
+        } else {
+            vec![]
+        };
+
+        let db: Arc<LapceDb> = use_context().unwrap();
+        let workspaces = db.recent_workspaces().unwrap_or_default();
+        let mut hosts = HashSet::new();
+        for distro in distros {
+            hosts.insert(distro);
+        }
+
+        for workspace in workspaces.iter() {
+            if let LapceWorkspaceType::RemoteWSL(host) = &workspace.kind {
+                hosts.insert(host.host.clone());
+            }
+        }
+
+        let items = hosts
+            .iter()
+            .map(|host| PaletteItem {
+                content: PaletteItemContent::WslHost {
+                    host: crate::workspace::WslHost { host: host.clone() },
+                },
+                filter_text: host.to_string(),
                 score: 0,
                 indices: vec![],
             })
@@ -882,7 +963,7 @@ impl PaletteData {
         if let Some(editor) = self.main_split.active_editor.get_untracked() {
             let doc = editor.view.doc.get_untracked();
             let language =
-                doc.syntax.with_untracked(|syntax| syntax.language.name());
+                doc.syntax().with_untracked(|syntax| syntax.language.name());
             self.preselect_matching(&items, language);
         }
         self.items.set(items);
@@ -977,11 +1058,27 @@ impl PaletteData {
                     self.common.lapce_command.send(cmd);
                 }
                 PaletteItemContent::File { full_path, .. } => {
-                    self.common
-                        .internal_command
-                        .send(InternalCommand::OpenFile {
-                            path: full_path.to_owned(),
-                        });
+                    if self.kind.get_untracked() == PaletteKind::DiffFiles {
+                        if let Some(left_path) =
+                            self.left_diff_path.try_update(Option::take).flatten()
+                        {
+                            self.common.internal_command.send(
+                                InternalCommand::OpenDiffFiles {
+                                    left_path,
+                                    right_path: full_path.clone(),
+                                },
+                            );
+                        } else {
+                            self.left_diff_path.set(Some(full_path.clone()));
+                            self.run(PaletteKind::DiffFiles);
+                        }
+                    } else {
+                        self.common.internal_command.send(
+                            InternalCommand::OpenFile {
+                                path: full_path.clone(),
+                            },
+                        );
+                    }
                 }
                 PaletteItemContent::Line { line, .. } => {
                     let editor = self.main_split.active_editor.get_untracked();
@@ -1033,6 +1130,18 @@ impl PaletteData {
                         WindowCommand::SetWorkspace {
                             workspace: LapceWorkspace {
                                 kind: LapceWorkspaceType::RemoteSSH(host.clone()),
+                                path: None,
+                                last_open: 0,
+                            },
+                        },
+                    );
+                }
+                #[cfg(windows)]
+                PaletteItemContent::WslHost { host } => {
+                    self.common.window_common.window_command.send(
+                        WindowCommand::SetWorkspace {
+                            workspace: LapceWorkspace {
+                                kind: LapceWorkspaceType::RemoteWSL(host.clone()),
                                 path: None,
                                 last_open: 0,
                             },
@@ -1194,6 +1303,8 @@ impl PaletteData {
                 PaletteItemContent::Workspace { .. } => {}
                 PaletteItemContent::RunAndDebug { .. } => {}
                 PaletteItemContent::SshHost { .. } => {}
+                #[cfg(windows)]
+                PaletteItemContent::WslHost { .. } => {}
                 PaletteItemContent::Language { .. } => {}
                 PaletteItemContent::Reference { location, .. } => {
                     self.has_preview.set(true);
@@ -1277,6 +1388,7 @@ impl PaletteData {
                 .send(InternalCommand::ReloadConfig);
         }
 
+        self.left_diff_path.set(None);
         self.close();
     }
 

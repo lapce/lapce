@@ -1,6 +1,6 @@
 [package]
 name = "lapce"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
 rust-version = "1.65"
@@ -27,7 +27,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 rust-version = "1.64"
 homepage = "https://lapce.dev"
@@ -63,7 +63,7 @@ toml = { version = "*" }
 toml_edit = { version = "0.19.14", features = ["serde"] }
 url = { version = "2.3.1" }
 
-lsp-types = { version = "0.93", features = ["proposed"] }
+lsp-types = { version = "0.94.1", features = ["proposed"] } # not following semver, so should be locked to patch version updates only
 psp-types = { git = "https://github.com/lapce/psp-types", rev = "f7fea28f59e7b2d6faa1034a21679ad49b3524ad" }
 
 lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
@@ -71,6 +71,10 @@ lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
 lapce-core = { path = "./lapce-core" }
 lapce-rpc = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
+
+[patch.crates-io]
+# Temporarily patch lsp-types with a version that supports inline-completion
+lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "3031a76c4452f46ed265eb0154d6bb1d10ddb9f6" }
 
 [workspace.dependencies.tracing]
 git = "https://github.com/tokio-rs/tracing"

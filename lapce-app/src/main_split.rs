@@ -33,7 +33,10 @@ use tracing::warn;
 use crate::{
     alert::AlertButton,
     command::InternalCommand,
-    doc::{DiagnosticData, DocContent, DocHistory, Document, EditorDiagnostic},
+    doc::{
+        DiagnosticData, DocContent, DocHistory, Document, DocumentExt,
+        EditorDiagnostic,
+    },
     editor::{
         diff::DiffEditorData,
         location::{EditorLocation, EditorPosition},
@@ -547,6 +550,16 @@ impl MainSplitData {
         );
     }
 
+    pub fn open_diff_files(&self, left_path: PathBuf, right_path: PathBuf) {
+        let [left, right] = [left_path, right_path].map(|path| self.get_doc(path).0);
+
+        self.get_editor_tab_child(
+            EditorTabChildSource::DiffEditor { left, right },
+            false,
+            false,
+        );
+    }
+
     fn new_editor_tab(
         &self,
         editor_tab_id: EditorTabId,
@@ -881,6 +894,7 @@ impl MainSplitData {
                         None,
                         editor_id,
                         doc.clone(),
+                        None,
                         self.common.clone(),
                     );
                     let editor = Rc::new(editor);
@@ -911,6 +925,7 @@ impl MainSplitData {
                         None,
                         editor_id,
                         doc,
+                        None,
                         self.common.clone(),
                     );
                     let editor = Rc::new(editor);
@@ -1391,6 +1406,7 @@ impl MainSplitData {
                     Some(editor_tab_id),
                     None,
                     new_editor_id,
+                    None,
                 );
                 let editor = Rc::new(editor);
                 self.editors.update(|editors| {
@@ -1570,7 +1586,7 @@ impl MainSplitData {
         let split = splits.get(&split_id).copied()?;
 
         let split_chilren = split.with_untracked(|split| split.children.clone());
-        let content = split_chilren.get(0)?;
+        let content = split_chilren.first()?;
         self.split_content_focus(&content.1);
 
         Some(())
@@ -2024,7 +2040,7 @@ impl MainSplitData {
                         None
                     } else {
                         edits
-                            .get(0)
+                            .first()
                             .map(|edit| EditorPosition::Position(edit.range.start))
                     };
                     let location = EditorLocation {

@@ -283,9 +283,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Connect to SSH Host")]
     ConnectSshHost,
 
-    #[strum(serialize = "connect_wsl")]
-    #[strum(message = "Connect to WSL")]
-    ConnectWsl,
+    #[cfg(windows)]
+    #[strum(serialize = "connect_wsl_host")]
+    #[strum(message = "Connect to WSL Host")]
+    ConnectWslHost,
 
     #[strum(serialize = "disconnect_remote")]
     #[strum(message = "Disconnect From Remote")]
@@ -506,6 +507,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "previous_error")]
     PreviousError,
 
+    #[strum(message = "Diff Files")]
+    #[strum(serialize = "diff_files")]
+    DiffFiles,
+
     #[strum(serialize = "quit")]
     #[strum(message = "Quit Editor")]
     Quit,
@@ -523,6 +528,16 @@ pub enum InternalCommand {
     MakeConfirmed,
     OpenFileChanges {
         path: PathBuf,
+    },
+    StartRenamePath {
+        path: PathBuf,
+    },
+    TestRenamePath {
+        new_path: PathBuf,
+    },
+    FinishRenamePath {
+        current_path: PathBuf,
+        new_path: PathBuf,
     },
     GoToLocation {
         location: EditorLocation,
@@ -655,6 +670,10 @@ pub enum InternalCommand {
         volt_id: VoltID,
     },
     ResetBlinkCursor,
+    OpenDiffFiles {
+        left_path: PathBuf,
+        right_path: PathBuf,
+    },
 }
 
 #[derive(Clone)]

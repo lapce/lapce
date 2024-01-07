@@ -1,3 +1,4 @@
+use ::core::slice;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -19,7 +20,7 @@ use self::{
     color::LapceColor,
     color_theme::{ColorThemeConfig, ThemeColor, ThemeColorPreference},
     core::CoreConfig,
-    editor::{EditorConfig, SCALE_OR_SIZE_LIMIT},
+    editor::{EditorConfig, WrapStyle, SCALE_OR_SIZE_LIMIT},
     icon::LapceIcons,
     icon_theme::IconThemeConfig,
     svg::SvgStore,
@@ -91,6 +92,9 @@ pub struct LapceConfig {
     color_theme_list: im::Vector<String>,
     #[serde(skip)]
     icon_theme_list: im::Vector<String>,
+    /// The couple names for the wrap style
+    #[serde(skip)]
+    wrap_style_list: im::Vector<String>,
 }
 
 impl LapceConfig {
@@ -120,6 +124,13 @@ impl LapceConfig {
             .sorted()
             .collect();
         lapce_config.icon_theme_list.sort();
+
+        lapce_config.wrap_style_list = im::vector![
+            WrapStyle::None.to_string(),
+            WrapStyle::EditorWidth.to_string(),
+            // TODO: WrapStyle::WrapColumn.to_string(),
+            WrapStyle::WrapWidth.to_string()
+        ];
 
         lapce_config.terminal.get_indexed_colors();
 
@@ -171,7 +182,7 @@ impl LapceConfig {
             }
             LapceWorkspaceType::RemoteSSH(_) => {}
             #[cfg(windows)]
-            LapceWorkspaceType::RemoteWSL => {}
+            LapceWorkspaceType::RemoteWSL(_) => {}
         }
 
         config
@@ -304,16 +315,17 @@ impl LapceConfig {
     /// # Panics
     /// If the color was not able to be found in either theme, which may be indicative that
     /// it is misspelled or needs to be added to the base-theme.
-    pub fn get_color(&self, name: &str) -> &Color {
-        self.color
+    pub fn color(&self, name: &str) -> Color {
+        *self
+            .color
             .ui
             .get(name)
             .unwrap_or_else(|| panic!("Key not found: {name}"))
     }
 
     /// Retrieve a color value whose key starts with "style."
-    pub fn get_style_color(&self, name: &str) -> Option<&Color> {
-        self.color.syntax.get(name)
+    pub fn style_color(&self, name: &str) -> Option<Color> {
+        self.color.syntax.get(name).copied()
     }
 
     pub fn completion_color(
@@ -339,7 +351,7 @@ impl LapceConfig {
             _ => "string",
         };
 
-        self.get_style_color(theme_str).cloned()
+        self.style_color(theme_str)
     }
 
     fn resolve_colors(&mut self, default_config: Option<&LapceConfig>) {
@@ -355,8 +367,8 @@ impl LapceConfig {
             default_config.map(|c| &c.color.syntax),
         );
 
-        let fg = self.get_color(LapceColor::EDITOR_FOREGROUND);
-        let bg = self.get_color(LapceColor::EDITOR_BACKGROUND);
+        let fg = self.color(LapceColor::EDITOR_FOREGROUND);
+        let bg = self.color(LapceColor::EDITOR_BACKGROUND);
         let is_light = fg.r as u32 + fg.g as u32 + fg.b as u32
             > bg.r as u32 + bg.g as u32 + bg.b as u32;
         let high_contrast = self.color_theme.high_contrast.unwrap_or(false);
@@ -545,14 +557,15 @@ impl LapceConfig {
         })
     }
 
-    pub fn file_svg(&self, path: &Path) -> (String, Option<&Color>) {
+    pub fn files_svg(&self, paths: &[&Path]) -> (String, Option<Color>) {
         let svg = self
             .icon_theme
-            .resolve_path_to_icon(path)
+            .resolve_path_to_icon(paths)
             .and_then(|p| self.svg_store.write().get_svg_on_disk(&p));
+
         if let Some(svg) = svg {
             let color = if self.icon_theme.use_editor_color.unwrap_or(false) {
-                Some(self.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+                Some(self.color(LapceColor::LAPCE_ICON_ACTIVE))
             } else {
                 None
             };
@@ -560,9 +573,13 @@ impl LapceConfig {
         } else {
             (
                 self.ui_svg(LapceIcons::FILE),
-                Some(self.get_color(LapceColor::LAPCE_ICON_ACTIVE)),
+                Some(self.color(LapceColor::LAPCE_ICON_ACTIVE)),
             )
         }
+    }
+
+    pub fn file_svg(&self, path: &Path) -> (String, Option<Color>) {
+        self.files_svg(slice::from_ref(&path))
     }
 
     pub fn symbol_svg(&self, kind: &SymbolKind) -> Option<String> {
@@ -778,7 +795,7 @@ impl LapceConfig {
                 (LapceColor::TERMINAL_FOREGROUND, 0.66)
             }
         };
-        (*self.get_color(color)).with_alpha_factor(alpha)
+        self.color(color).with_alpha_factor(alpha)
     }
 
     /// Get the dropdown information for the specific setting, used for the settings UI.
@@ -801,6 +818,18 @@ impl LapceConfig {
                     .position(|s| s == &self.icon_theme.name)
                     .unwrap_or(0),
                 items: self.icon_theme_list.clone(),
+            }),
+            ("editor", "wrap-style") => Some(DropdownInfo {
+                // TODO: it would be better to have the text not be the default kebab-case when
+                // displayed in settings, but we would need to map back from the dropdown's value
+                // or index.
+                active_index: self
+                    .wrap_style_list
+                    .iter()
+                    .flat_map(|w| WrapStyle::try_from_str(w))
+                    .position(|w| w == self.editor.wrap_style)
+                    .unwrap_or(0),
+                items: self.wrap_style_list.clone(),
             }),
             ("ui", "tab-close-button") => Some(DropdownInfo {
                 active_index: self.ui.tab_close_button as usize,

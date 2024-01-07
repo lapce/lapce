@@ -3,10 +3,20 @@
 ## Unreleased
 
 ### Features/Changes
+- [#2723](https://github.com/lapce/lapce/pull/2723): Line wrapping based on width (no column-based yet)
+- [#1277](https://github.com/lapce/lapce/pull/1277): Error message prompted on missing git user.email and/or user.name
+- [#2910](https://github.com/lapce/lapce/pull/2910): Files can be compared in the diff editor
+
+### Bug Fixes
+- [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository
+
+## 0.3.1
+
+### Features/Changes
 
 ### Bug Fixes
 - [#2754](https://github.com/lapce/lapce/pull/2754): Don't mark nonexistent files as read only (fix saving new files)
-- [#2819](https://github.com/lapce/lapce/issues/2819): `Save Witohut Formatting` doesn't save the file
+- [#2819](https://github.com/lapce/lapce/issues/2819): `Save Without Formatting` doesn't save the file
 
 ## 0.3.0
 

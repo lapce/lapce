@@ -433,7 +433,7 @@ impl From<Rope> for RopeTextVal {
         Self::new(text)
     }
 }
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct RopeTextRef<'a> {
     pub text: &'a Rope,
 }

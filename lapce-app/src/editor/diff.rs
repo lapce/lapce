@@ -6,7 +6,7 @@ use floem::{
     reactive::{RwSignal, Scope},
     style::CursorStyle,
     view::View,
-    views::{clip, empty, label, list, stack, svg, Decorators},
+    views::{clip, dyn_stack, empty, label, stack, svg, Decorators},
 };
 use lapce_core::buffer::{
     diff::{expand_diff_lines, rope_diff, DiffExpand, DiffLines},
@@ -128,6 +128,7 @@ pub struct DiffEditorData {
     pub scope: Scope,
     pub left: Rc<EditorData>,
     pub right: Rc<EditorData>,
+    pub confirmed: RwSignal<bool>,
     pub focus_right: RwSignal<bool>,
 }
 
@@ -141,24 +142,21 @@ impl DiffEditorData {
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
-        let left = EditorData::new(
-            cx,
-            None,
-            Some((editor_tab_id, id)),
-            EditorId::next(),
-            left_doc,
-            common.clone(),
-        );
-        let left = Rc::new(left);
-        let right = EditorData::new(
-            cx,
-            None,
-            Some((editor_tab_id, id)),
-            EditorId::next(),
-            right_doc,
-            common,
-        );
-        let right = Rc::new(right);
+        let confirmed = cx.create_rw_signal(false);
+
+        let [left, right] = [left_doc, right_doc].map(|doc| {
+            let editor_data = EditorData::new(
+                cx,
+                None,
+                Some((editor_tab_id, id)),
+                EditorId::next(),
+                doc,
+                Some(confirmed),
+                common.clone(),
+            );
+
+            Rc::new(editor_data)
+        });
 
         let data = Self {
             id,
@@ -166,6 +164,7 @@ impl DiffEditorData {
             scope: cx,
             left,
             right,
+            confirmed,
             focus_right: cx.create_rw_signal(true),
         };
 
@@ -194,24 +193,28 @@ impl DiffEditorData {
         diff_editor_id: EditorId,
     ) -> Self {
         let cx = cx.create_child();
+        let confirmed = cx.create_rw_signal(true);
+
+        let [left, right] = [&self.left, &self.right].map(|editor_data| {
+            let editor_data = editor_data.copy(
+                cx,
+                None,
+                Some((editor_tab_id, diff_editor_id)),
+                EditorId::next(),
+                Some(confirmed),
+            );
+
+            Rc::new(editor_data)
+        });
 
         let diff_editor = DiffEditorData {
             scope: cx,
             id: diff_editor_id,
             editor_tab_id: cx.create_rw_signal(editor_tab_id),
             focus_right: cx.create_rw_signal(true),
-            left: Rc::new(self.left.copy(
-                cx,
-                None,
-                Some((editor_tab_id, diff_editor_id)),
-                EditorId::next(),
-            )),
-            right: Rc::new(self.right.copy(
-                cx,
-                None,
-                Some((editor_tab_id, diff_editor_id)),
-                EditorId::next(),
-            )),
+            left,
+            right,
+            confirmed,
         };
 
         diff_editor.listen_diff_changes();
@@ -384,7 +387,7 @@ pub fn diff_show_more_section_view(
             wave_box().style(move |s| {
                 s.absolute()
                     .size_pct(100.0, 100.0)
-                    .color(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
+                    .color(config.get().color(LapceColor::PANEL_BACKGROUND))
             }),
             label(move || format!("{} Hidden Lines", section.lines)),
             label(|| "|".to_string()).style(|s| s.margin_left(10.0)),
@@ -393,7 +396,7 @@ pub fn diff_show_more_section_view(
                     let config = config.get();
                     let size = config.ui.icon_size() as f32;
                     s.size(size, size)
-                        .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
+                        .color(config.color(LapceColor::EDITOR_FOREGROUND))
                 }),
                 label(|| "Expand All".to_string()).style(|s| s.margin_left(6.0)),
             ))
@@ -433,7 +436,7 @@ pub fn diff_show_more_section_view(
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
                         s.size(size, size)
-                            .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
+                            .color(config.color(LapceColor::EDITOR_FOREGROUND))
                     },
                 ),
                 label(|| "Expand Up".to_string()).style(|s| s.margin_left(6.0)),
@@ -474,7 +477,7 @@ pub fn diff_show_more_section_view(
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
                         s.size(size, size)
-                            .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
+                            .color(config.color(LapceColor::EDITOR_FOREGROUND))
                     },
                 ),
                 label(|| "Expand Down".to_string()).style(|s| s.margin_left(6.0)),
@@ -529,7 +532,7 @@ pub fn diff_show_more_section_view(
             s.height(config.get().editor.line_height() as f32 + 1.0)
         }),
         clip(
-            list(each_fn, key_fn, view_fn)
+            dyn_stack(each_fn, key_fn, view_fn)
                 .style(|s| s.flex_col().size_pct(100.0, 100.0)),
         )
         .style(|s| s.size_pct(100.0, 100.0)),

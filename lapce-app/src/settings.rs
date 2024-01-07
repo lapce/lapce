@@ -16,9 +16,8 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, container_box, empty, label, list, scroll, stack, svg, text,
-        virtual_list, Decorators, VirtualListDirection, VirtualListItemSize,
-        VirtualListVector,
+        container, container_box, dyn_stack, empty, label, scroll, stack, svg, text,
+        virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
 };
 use indexmap::IndexMap;
@@ -117,14 +116,15 @@ impl KeyPressFocus for SettingsData {
     fn receive_char(&self, _c: &str) {}
 }
 
-impl VirtualListVector<SettingsItem> for SettingsData {
-    type ItemIterator = Box<dyn Iterator<Item = SettingsItem>>;
-
+impl VirtualVector<SettingsItem> for SettingsData {
     fn total_len(&self) -> usize {
         self.filtered_items.get_untracked().len()
     }
 
-    fn slice(&mut self, _range: std::ops::Range<usize>) -> Self::ItemIterator {
+    fn slice(
+        &mut self,
+        _range: std::ops::Range<usize>,
+    ) -> impl Iterator<Item = SettingsItem> {
         Box::new(self.filtered_items.get().into_iter())
     }
 }
@@ -399,19 +399,16 @@ pub fn settings_view(
             s.padding_horiz(20.0)
                 .width_pct(100.0)
                 .apply_if(kind == current_kind.get(), |s| {
-                    s.background(
-                        *config.get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
-                    )
+                    s.background(config.color(LapceColor::PANEL_CURRENT_BACKGROUND))
                 })
                 .hover(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
                 .active(|s| {
                     s.background(
-                        *config
-                            .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                        config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
                     )
                 })
         })
@@ -419,7 +416,7 @@ pub fn settings_view(
 
     let switcher = || {
         stack((
-            list(
+            dyn_stack(
                 move || kinds.clone(),
                 |(k, _)| k.clone(),
                 move |(k, pos)| switcher_item(k, Box::new(move || Some(pos)), 0.0),
@@ -434,7 +431,7 @@ pub fn settings_view(
                     }),
                     0.0,
                 ),
-                list(
+                dyn_stack(
                     move || plugin_kinds.get(),
                     |(k, _)| k.clone(),
                     move |(k, pos)| {
@@ -469,7 +466,7 @@ pub fn settings_view(
             s.height_pct(100.0)
                 .width(200.0)
                 .border_right(1.0)
-                .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+                .border_color(config.get().color(LapceColor::LAPCE_BORDER))
         }),
         stack((
             container({
@@ -481,18 +478,18 @@ pub fn settings_view(
                             .border_radius(6.0)
                             .border(1.0)
                             .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                                config.get().color(LapceColor::LAPCE_BORDER),
                             )
                     })
             })
             .style(|s| s.padding_horiz(50.0).padding_vert(20.0)),
             container({
                 scroll({
-                    virtual_list(
-                        VirtualListDirection::Vertical,
-                        floem::views::VirtualListItemSize::Fn(Box::new(
-                            |item: &SettingsItem| item.size.get().height.max(50.0),
-                        )),
+                    virtual_stack(
+                        VirtualDirection::Vertical,
+                        VirtualItemSize::Fn(Box::new(|item: &SettingsItem| {
+                            item.size.get().height.max(50.0)
+                        })),
                         move || settings_data.clone(),
                         |item| (item.kind.clone(), item.name.clone()),
                         move |item| {
@@ -620,9 +617,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 .border(1.0)
                                 .border_radius(6.0)
                                 .border_color(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::LAPCE_BORDER),
+                                    config.get().color(LapceColor::LAPCE_BORDER),
                                 )
                         },
                     ),
@@ -657,9 +652,9 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                         .style(move |s| {
                             s.text_ellipsis().padding_horiz(10.0).hover(|s| {
                                 s.cursor(CursorStyle::Pointer).background(
-                                    *config.get().get_color(
-                                        LapceColor::PANEL_HOVERED_BACKGROUND,
-                                    ),
+                                    config
+                                        .get()
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
                                 )
                             })
                         })
@@ -680,9 +675,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                     let config = config.get();
                                     let size = config.ui.icon_size() as f32;
                                     s.size(size, size).color(
-                                        *config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ),
+                                        config.color(LapceColor::LAPCE_ICON_ACTIVE),
                                     )
                                 }),
                             )
@@ -702,16 +695,14 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 .border_radius(6.0)
                                 .apply_if(!expanded.get(), |s| {
                                     s.border_color(
-                                        *config
-                                            .get()
-                                            .get_color(LapceColor::LAPCE_BORDER),
+                                        config.get().color(LapceColor::LAPCE_BORDER),
                                     )
                                 })
                         }),
                         stack((
                             label(|| " ".to_string()),
                             scroll({
-                                list(
+                                dyn_stack(
                                     move || dropdown.items.clone(),
                                     |item| item.to_string(),
                                     view_fn,
@@ -725,16 +716,14 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             .style(move |s| {
                                 let config = config.get();
                                 s.background(
-                                    *config.get_color(LapceColor::EDITOR_BACKGROUND),
+                                    config.color(LapceColor::EDITOR_BACKGROUND),
                                 )
                                 .width_pct(100.0)
                                 .max_height(300.0)
                                 .z_index(1)
                                 .border_top(1.0)
                                 .border_radius(6.0)
-                                .border_color(
-                                    *config.get_color(LapceColor::LAPCE_BORDER),
-                                )
+                                .border_color(config.color(LapceColor::LAPCE_BORDER))
                                 .apply_if(!expanded.get(), |s| s.hide())
                             }),
                         ))
@@ -751,9 +740,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 .border(1.0)
                                 .border_radius(6.0)
                                 .border_color(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::LAPCE_BORDER),
+                                    config.get().color(LapceColor::LAPCE_BORDER),
                                 )
                                 .apply_if(!expanded.get(), |s| {
                                     s.border_color(Color::TRANSPARENT)
@@ -770,7 +757,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                         .width_pct(100.0)
                         .padding_horiz(10.0)
                         .font_size(config.ui.font_size() as f32 + 2.0)
-                        .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+                        .background(config.color(LapceColor::PANEL_BACKGROUND))
                 }))
             } else {
                 container_box(empty())
@@ -864,10 +851,10 @@ pub fn checkbox(
     const CHECKBOX_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 16 16"><polygon points="5.19,11.83 0.18,7.44 1.82,5.56 4.81,8.17 10,1.25 12,2.75" /></svg>"#;
     let svg_str = move || if checked() { CHECKBOX_SVG } else { "" }.to_string();
 
-    svg(svg_str).base_style(move |s| {
+    svg(svg_str).style(move |s| {
         let config = config.get();
         let size = config.ui.font_size() as f32;
-        let color = *config.get_color(LapceColor::EDITOR_FOREGROUND);
+        let color = config.color(LapceColor::EDITOR_FOREGROUND);
 
         s.min_width(size)
             .size(size, size)
@@ -880,14 +867,15 @@ pub fn checkbox(
 
 struct BTreeMapVirtualList(BTreeMap<String, String>);
 
-impl VirtualListVector<(String, String)> for BTreeMapVirtualList {
-    type ItemIterator = Box<dyn Iterator<Item = (String, String)>>;
-
+impl VirtualVector<(String, String)> for BTreeMapVirtualList {
     fn total_len(&self) -> usize {
         self.0.len()
     }
 
-    fn slice(&mut self, range: std::ops::Range<usize>) -> Self::ItemIterator {
+    fn slice(
+        &mut self,
+        range: std::ops::Range<usize>,
+    ) -> impl Iterator<Item = (String, String)> {
         Box::new(
             self.0
                 .iter()
@@ -923,9 +911,9 @@ fn color_section_list(
                 .font_bold()
                 .line_height(2.0)
         }),
-        virtual_list(
-            VirtualListDirection::Vertical,
-            VirtualListItemSize::Fixed(Box::new(move || text_height.get() + 24.0)),
+        virtual_stack(
+            VirtualDirection::Vertical,
+            VirtualItemSize::Fixed(Box::new(move || text_height.get() + 24.0)),
             move || BTreeMapVirtualList(list()),
             move |(key, _)| (key.to_owned()),
             move |(key, value)| {
@@ -1041,9 +1029,7 @@ fn color_section_list(
                                 .border(1)
                                 .border_radius(6)
                                 .border_color(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::LAPCE_BORDER),
+                                    config.get().color(LapceColor::LAPCE_BORDER),
                                 )
                         },
                     ),
@@ -1060,11 +1046,9 @@ fn color_section_list(
                             .border_radius(6)
                             .size(size, size)
                             .margin_left(10)
-                            .border_color(
-                                *config.get_color(LapceColor::LAPCE_BORDER),
-                            )
-                            .background(*color.unwrap_or_else(|| {
-                                config.get_color(LapceColor::EDITOR_FOREGROUND)
+                            .border_color(config.color(LapceColor::LAPCE_BORDER))
+                            .background(color.copied().unwrap_or_else(|| {
+                                config.color(LapceColor::EDITOR_FOREGROUND)
                             }))
                     }),
                     {
@@ -1106,14 +1090,13 @@ fn color_section_list(
                                     .border(1)
                                     .border_radius(6)
                                     .border_color(
-                                        *config.get_color(LapceColor::LAPCE_BORDER),
+                                        config.color(LapceColor::LAPCE_BORDER),
                                     )
                                     .apply_if(same, |s| s.hide())
                                     .active(|s| {
                                         s.background(
-                                            *config.get_color(
-                                                LapceColor::PANEL_BACKGROUND,
-                                            ),
+                                            config
+                                                .color(LapceColor::PANEL_BACKGROUND),
                                         )
                                     })
                             })
