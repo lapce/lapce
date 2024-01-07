@@ -4,12 +4,12 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use crossbeam_channel::Sender;
 use floem::{
-    action::{exec_after, open_file, TimerToken},
+    action::{open_file, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
     file::FileDialogOptions,
@@ -18,6 +18,7 @@ use floem::{
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
 };
+use floem_editor::editor::blink_cursor;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
@@ -1630,11 +1631,16 @@ impl WindowTabData {
                     }
                 };
 
+                let config = self.common.config;
+                let blink_interval_f = move || {
+                    config.with_untracked(|config| config.editor.blink_interval())
+                };
+
                 blink_cursor(
                     self.common.window_common.cursor_blink_timer,
                     self.common.window_common.hide_cursor,
                     should_blink,
-                    self.common.config,
+                    blink_interval_f,
                 );
             }
             InternalCommand::OpenDiffFiles {
@@ -2386,33 +2392,6 @@ impl WindowTabData {
         self.messages.update(|messages| {
             messages.push((title.to_string(), message.clone()));
         });
-    }
-}
-
-fn blink_cursor(
-    cursor_blink_timer: RwSignal<TimerToken>,
-    hide_cursor: RwSignal<bool>,
-    should_blink: impl Fn() -> bool + 'static + Copy,
-    config: ReadSignal<Arc<LapceConfig>>,
-) {
-    let blink_interval =
-        config.with_untracked(|config| config.editor.blink_interval());
-    if blink_interval > 0 && should_blink() {
-        let timer_token =
-            exec_after(Duration::from_millis(blink_interval), move |timer_token| {
-                if cursor_blink_timer.try_get_untracked() == Some(timer_token) {
-                    hide_cursor.update(|hide| {
-                        *hide = !*hide;
-                    });
-                    blink_cursor(
-                        cursor_blink_timer,
-                        hide_cursor,
-                        should_blink,
-                        config,
-                    );
-                }
-            });
-        cursor_blink_timer.set(timer_token);
     }
 }
 

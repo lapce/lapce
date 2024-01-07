@@ -4,9 +4,11 @@ use std::{
     collections::HashMap,
     rc::Rc,
     sync::Arc,
+    time::Duration,
 };
 
 use floem::{
+    action::{exec_after, TimerToken},
     cosmic_text::{Attrs, AttrsList, LineHeightValue, TextLayout, Wrap},
     keyboard::ModifiersState,
     kurbo::{Point, Rect, Vec2},
@@ -62,6 +64,8 @@ pub struct Editor {
     pub scroll_beyond_last_line: RwSignal<bool>,
     pub cursor_surrounding_lines: RwSignal<usize>,
 
+    pub show_indent_guide: RwSignal<bool>,
+
     /// Whether modal mode is enabled
     pub modal: RwSignal<bool>,
     /// Whether line numbers are relative in modal mode
@@ -76,6 +80,7 @@ pub struct Editor {
 
     pub cursor: RwSignal<Cursor>,
 
+    pub window_origin: RwSignal<Point>,
     pub viewport: RwSignal<Rect>,
 
     /// The current scroll position.
@@ -88,6 +93,12 @@ pub struct Editor {
 
     /// Modal mode register
     pub register: RwSignal<Register>,
+
+    pub cursor_info: CursorInfo,
+
+    /// Whether ime input is allowed.  
+    /// Should not be set manually outside of the specific handling for ime.
+    pub ime_allowed: RwSignal<bool>,
     // TODO: this could have the Lapce snippet support built-in
 }
 impl Editor {
@@ -99,21 +110,22 @@ impl Editor {
     /// `doc`: The backing [`Document`], such as [`TextDocument`]  
     /// `style`: How the editor should be styled, such as [`SimpleStyling`]  
     /// `register` is the modal mode register, which will be created if `None`. You can pass in an
-    /// existing signal for it if you wish to share the state between editors.
+    /// existing signal for it if you wish to share the state between editors.  
+    /// `cursor_info` is for cursor rendering information, such as the cursor blinking state. You
+    /// can pass in your own signals for this, such as for sharing blinking timing between editors.
     pub fn new(
         cx: Scope,
         id: EditorId,
         doc: Rc<dyn Document>,
         style: Rc<dyn Styling>,
         register: Option<RwSignal<Register>>,
+        cursor_info: Option<CursorInfo>,
     ) -> Rc<Editor> {
         let cx = cx.create_child();
 
         let viewport = cx.create_rw_signal(Rect::ZERO);
         let modal = false;
-        let cursor_mode = if modal
-        /* && !is_local */
-        {
+        let cursor_mode = if modal {
             CursorMode::Normal(0)
         } else {
             CursorMode::Insert(Selection::caret(0))
@@ -131,7 +143,16 @@ impl Editor {
         let screen_lines =
             cx.create_rw_signal(ScreenLines::new(cx, viewport.get_untracked()));
 
-        // TODO: reset blink cursor effect
+        let cursor_info = cursor_info.unwrap_or_else(|| CursorInfo::new(cx));
+
+        // Reset cursor blinking whenever the cursor changes
+        {
+            let cursor_info = cursor_info.clone();
+            cx.create_effect(move |_| {
+                cursor.track();
+                cursor_info.reset();
+            });
+        }
 
         let ed = Editor {
             cx: Cell::new(cx),
@@ -141,12 +162,14 @@ impl Editor {
             read_only: cx.create_rw_signal(false),
             scroll_beyond_last_line: cx.create_rw_signal(false),
             cursor_surrounding_lines: cx.create_rw_signal(1),
+            show_indent_guide: cx.create_rw_signal(false),
             modal: cx.create_rw_signal(modal),
             modal_relative_line_numbers: cx.create_rw_signal(true),
             smart_tab: cx.create_rw_signal(true),
             doc,
             style,
             cursor,
+            window_origin: cx.create_rw_signal(Point::ZERO),
             viewport,
             scroll_delta: cx.create_rw_signal(Vec2::ZERO),
             scroll_to: cx.create_rw_signal(None),
@@ -154,6 +177,8 @@ impl Editor {
             screen_lines,
             register: register
                 .unwrap_or_else(|| cx.create_rw_signal(Register::default())),
+            cursor_info,
+            ime_allowed: cx.create_rw_signal(false),
         };
         let ed = Rc::new(ed);
 
@@ -1204,5 +1229,58 @@ pub fn normal_compute_screen_lines(
         info: Rc::new(info),
         diff_sections: None,
         base,
+    }
+}
+
+// TODO: should we put `cursor` on this structure?
+/// Cursor rendering information
+#[derive(Clone)]
+pub struct CursorInfo {
+    pub hidden: RwSignal<bool>,
+
+    pub blink_timer: RwSignal<TimerToken>,
+    // TODO: should these just be rwsignals?
+    pub should_blink: Rc<dyn Fn() -> bool + 'static>,
+    pub blink_interval: Rc<dyn Fn() -> u64 + 'static>,
+}
+impl CursorInfo {
+    pub fn new(cx: Scope) -> CursorInfo {
+        CursorInfo {
+            hidden: cx.create_rw_signal(false),
+
+            blink_timer: cx.create_rw_signal(TimerToken::INVALID),
+            should_blink: Rc::new(|| true),
+            blink_interval: Rc::new(|| 500),
+        }
+    }
+
+    pub fn blink(&self) {
+        let info = self.clone();
+        let blink_interval = (info.blink_interval)();
+        if blink_interval > 0 && (info.should_blink)() {
+            let blink_timer = info.blink_timer;
+            let timer_token = exec_after(
+                Duration::from_millis(blink_interval),
+                move |timer_token| {
+                    if info.blink_timer.try_get_untracked() == Some(timer_token) {
+                        info.hidden.update(|hide| {
+                            *hide = !*hide;
+                        });
+                        info.blink();
+                    }
+                },
+            );
+            blink_timer.set(timer_token);
+        }
+    }
+
+    pub fn reset(&self) {
+        if self.hidden.get_untracked() {
+            self.hidden.set(false);
+        }
+
+        self.blink_timer.set(TimerToken::INVALID);
+
+        self.blink();
     }
 }

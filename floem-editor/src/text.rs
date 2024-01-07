@@ -15,6 +15,7 @@ use lapce_core::{
     command::EditCommand,
     cursor::Cursor,
     editor::Action,
+    indent::IndentStyle,
     mode::{Mode, MotionMode},
     register::{Clipboard, Register},
     word::WordCursor,
@@ -248,6 +249,10 @@ pub trait Styling {
 
     fn stretch(&self, _line: usize) -> Stretch {
         Stretch::Normal
+    }
+
+    fn indent_style(&self) -> IndentStyle {
+        IndentStyle::Spaces(4)
     }
 
     fn tab_width(&self, _line: usize) -> usize {
@@ -760,6 +765,7 @@ pub struct SimpleStyling<C> {
     pub weight: Weight,
     pub italic_style: floem::cosmic_text::Style,
     pub stretch: Stretch,
+    pub indent_style: IndentStyle,
     pub tab_width: usize,
     pub atomic_soft_tabs: bool,
     pub wrap: WrapMethod,
@@ -774,6 +780,7 @@ impl<C: Fn(EditorColor) -> Color> SimpleStyling<C> {
             weight: Weight::NORMAL,
             italic_style: floem::cosmic_text::Style::Normal,
             stretch: Stretch::Normal,
+            indent_style: IndentStyle::Spaces(4),
             tab_width: 4,
             atomic_soft_tabs: false,
             wrap: WrapMethod::EditorWidth,
@@ -816,6 +823,10 @@ impl<C: Fn(EditorColor) -> Color> Styling for SimpleStyling<C> {
 
     fn stretch(&self, _line: usize) -> Stretch {
         self.stretch
+    }
+
+    fn indent_style(&self) -> IndentStyle {
+        self.indent_style
     }
 
     fn tab_width(&self, _line: usize) -> usize {

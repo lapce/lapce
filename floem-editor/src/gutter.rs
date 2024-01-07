@@ -96,11 +96,6 @@ impl View for EditorGutterView {
         let cursor = self.editor.cursor;
         let style = self.editor.style.get_untracked();
 
-        // let kind_is_normal = self
-        //     .editor
-        //     .view
-        //     .kind
-        //     .with_untracked(|kind| kind.is_normal());
         let (offset, mode) = cursor.with_untracked(|c| (c.offset(), c.get_mode()));
         let last_line = self.editor.last_line();
         let current_line = self.editor.line_of_offset(offset);
@@ -117,7 +112,6 @@ impl View for EditorGutterView {
         let show_relative = self.editor.modal.get_untracked()
             && self.editor.modal_relative_line_numbers.get_untracked()
             && mode != Mode::Insert;
-        // && kind_is_normal;
 
         self.editor.screen_lines.with_untracked(|screen_lines| {
             for (line, y) in screen_lines.iter_lines_y() {
@@ -157,7 +151,5 @@ impl View for EditorGutterView {
                 );
             }
         });
-
-        // self.paint_sticky_headers(cx, kind_is_normal, &config);
     }
 }

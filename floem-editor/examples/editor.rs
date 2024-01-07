@@ -1,10 +1,8 @@
 use std::rc::Rc;
 
 use floem::{
-    event::EventListener,
     reactive::{create_rw_signal, RwSignal, Scope},
     view::View,
-    views::{label, Decorators},
 };
 use floem_editor::{
     editor::Editor,
@@ -23,7 +21,7 @@ fn main() {
     let style = Rc::new(style);
 
     let id = EditorId::next();
-    let editor = Editor::new(cx, id, doc, style, None);
+    let editor = Editor::new(cx, id, doc, style, None, None);
     let editor = create_rw_signal(editor);
 
     floem::launch(move || app_view(editor));
