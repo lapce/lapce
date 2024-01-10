@@ -1040,6 +1040,13 @@ impl View for EditorView {
             if self.inner_node.is_none() {
                 self.inner_node = Some(cx.new_node());
             }
+
+            let screen_lines = self.editor.screen_lines.get_untracked();
+            for (line, _) in screen_lines.iter_lines_y() {
+                // fill in text layout cache so that max width is correct.
+                self.editor.text_layout(line);
+            }
+
             let inner_node = self.inner_node.unwrap();
 
             // TODO: don't assume there's a constant line height

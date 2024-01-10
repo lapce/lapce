@@ -20,7 +20,6 @@ use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use crate::{
     alert::AlertButton,
     debug::RunDebugMode,
-    doc::Document,
     doc2::Doc,
     editor::location::EditorLocation,
     editor_tab::EditorTabChild,
@@ -672,7 +671,7 @@ pub enum InternalCommand {
     },
     HideAlert,
     SaveScratchDoc {
-        doc: Rc<Document>,
+        doc: Rc<Doc>,
     },
     SaveScratchDoc2 {
         doc: Rc<Doc>,

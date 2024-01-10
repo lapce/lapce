@@ -104,10 +104,10 @@ fn initialize_rename_editor(data: &FileExplorerData, path: &Path) {
         idx + file_name.len() - without_leading_dot.len()
     };
 
-    let doc = data.rename_editor_data.view.doc.get_untracked();
+    let doc = data.rename_editor_data.doc();
     doc.reload(Rope::from(&file_name), true);
     data.rename_editor_data
-        .cursor
+        .cursor()
         .update(|cursor| cursor.set_insert(Selection::region(0, selection_end)));
 
     data.rename_state

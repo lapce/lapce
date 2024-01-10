@@ -146,6 +146,7 @@ impl PluginData {
         cx: Scope,
         disabled: HashSet<VoltID>,
         workspace_disabled: HashSet<VoltID>,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
         common: Rc<CommonData>,
     ) -> Self {
         let installed = cx.create_rw_signal(IndexMap::new());
@@ -154,11 +155,7 @@ impl PluginData {
             volts: cx.create_rw_signal(IndexMap::new()),
             total: cx.create_rw_signal(0),
             query_id: cx.create_rw_signal(0),
-            query_editor: EditorData::new_local(
-                cx,
-                EditorId::next(),
-                common.clone(),
-            ),
+            query_editor: EditorData::new_local(cx, None, editors, common.clone()),
         };
         let disabled = cx.create_rw_signal(disabled);
         let workspace_disabled = cx.create_rw_signal(workspace_disabled);
@@ -206,8 +203,7 @@ impl PluginData {
                 let query = plugin
                     .available
                     .query_editor
-                    .view
-                    .doc
+                    .doc_signal()
                     .get()
                     .buffer
                     .with(|buffer| buffer.to_string());
@@ -452,9 +448,7 @@ impl PluginData {
         let query = self
             .available
             .query_editor
-            .view
-            .doc
-            .get_untracked()
+            .doc()
             .buffer
             .with_untracked(|buffer| buffer.to_string());
         let offset = self.available.volts.with_untracked(|v| v.len());

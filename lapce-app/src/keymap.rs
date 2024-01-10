@@ -32,7 +32,10 @@ pub struct KeymapPicker {
     keys: RwSignal<Vec<(KeyPress, bool)>>,
 }
 
-pub fn keymap_view(common: Rc<CommonData>) -> impl View {
+pub fn keymap_view(
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    common: Rc<CommonData>,
+) -> impl View {
     let config = common.config;
     let keypress = common.keypress;
     let ui_line_height_memo = common.ui_line_height;
@@ -45,8 +48,8 @@ pub fn keymap_view(common: Rc<CommonData>) -> impl View {
     };
 
     let cx = Scope::current();
-    let editor = EditorData::new_local(cx, EditorId::next(), common.clone());
-    let doc = editor.view.doc;
+    let editor = EditorData::new_local(cx, None, editors, common.clone());
+    let doc = editor.doc_signal();
 
     let items = move || {
         let doc = doc.get();

@@ -118,7 +118,11 @@ impl KeyPressFocus for FileExplorerData {
 }
 
 impl FileExplorerData {
-    pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
+    pub fn new(
+        cx: Scope,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        common: Rc<CommonData>,
+    ) -> Self {
         let path = common.workspace.path.clone().unwrap_or_default();
         let root = cx.create_rw_signal(FileNodeItem {
             path: path.clone(),
@@ -130,7 +134,7 @@ impl FileExplorerData {
         });
         let rename_state = cx.create_rw_signal(RenameState::NotRenaming);
         let rename_editor_data =
-            EditorData::new_local(cx, EditorId::next(), common.clone());
+            EditorData::new_local(cx, None, editors, common.clone());
         let data = Self {
             id: cx.create_rw_signal(0),
             root,
@@ -243,7 +247,7 @@ impl FileExplorerData {
                 let current_file_name = current_path.file_name().unwrap_or_default();
                 // `new_relative_path` is the new path relative to the parent directory, unless the
                 // user has entered an absolute path.
-                let new_relative_path = self.rename_editor_data.view.text();
+                let new_relative_path = self.rename_editor_data.text();
 
                 let new_relative_path: Cow<OsStr> =
                     match new_relative_path.slice_to_cow(..) {

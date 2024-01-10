@@ -16,7 +16,6 @@ use crate::{
     doc::{Document, DocumentExt},
     doc2::Doc,
     editor::EditorData,
-    editor2::EditorData2,
     snippet::Snippet,
 };
 
@@ -53,42 +52,6 @@ impl InlineCompletionItem {
     pub fn apply(
         &self,
         editor: &EditorData,
-        start_offset: usize,
-    ) -> anyhow::Result<()> {
-        let text_format = self
-            .insert_text_format
-            .unwrap_or(InsertTextFormat::PLAIN_TEXT);
-
-        let selection = if let Some(range) = &self.range {
-            Selection::region(range.start, range.end)
-        } else {
-            Selection::caret(start_offset)
-        };
-
-        match text_format {
-            InsertTextFormat::PLAIN_TEXT => editor.do_edit(
-                &selection,
-                &[(selection.clone(), self.insert_text.as_str())],
-            ),
-            InsertTextFormat::SNIPPET => {
-                editor.completion_apply_snippet(
-                    &self.insert_text,
-                    &selection,
-                    Vec::new(),
-                    start_offset,
-                )?;
-            }
-            _ => {
-                // We don't know how to support this text format
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn apply2(
-        &self,
-        editor: &EditorData2,
         start_offset: usize,
     ) -> anyhow::Result<()> {
         let text_format = self

@@ -10,13 +10,11 @@ use floem::{
 };
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 
-use crate::{
-    config::{color::LapceColor, LapceConfig},
-    doc::DocumentExt,
-};
+use crate::config::{color::LapceColor, LapceConfig};
 
-use super::{view::changes_colors_screen, view_data::EditorViewData, EditorData};
+use super::{view::changes_colors_screen, EditorData};
 
+// TODO(floem-editor): this shares most of its logic with floem-editor's version, deduplicate
 pub struct EditorGutterView {
     id: Id,
     data: ViewData,
@@ -39,7 +37,7 @@ impl EditorGutterView {
     fn paint_head_changes(
         &self,
         cx: &mut PaintCx,
-        view: &EditorViewData,
+        e_data: &EditorData,
         viewport: Rect,
         is_normal: bool,
         config: &LapceConfig,
@@ -48,12 +46,10 @@ impl EditorGutterView {
             return;
         }
 
-        let changes = view
-            .doc
-            .with_untracked(|doc| doc.head_changes().get_untracked());
+        let changes = e_data.doc().head_changes().get_untracked();
         let line_height = config.editor.line_height() as f64;
 
-        let changes = changes_colors_screen(view, changes);
+        let changes = changes_colors_screen(config, &e_data.editor, changes);
         for (y, height, removed, color) in changes {
             let height = if removed {
                 10.0
@@ -135,25 +131,20 @@ impl View for EditorGutterView {
     }
 
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
-        let viewport = self.editor.viewport.get_untracked();
-        let cursor = self.editor.cursor;
+        let viewport = self.editor.viewport().get_untracked();
+        let cursor = self.editor.cursor();
         let screen_lines = self.editor.screen_lines();
         let config = self.editor.common.config;
 
-        let kind_is_normal = self
-            .editor
-            .view
-            .kind
-            .with_untracked(|kind| kind.is_normal());
+        let kind_is_normal =
+            self.editor.kind.with_untracked(|kind| kind.is_normal());
         let (offset, mode) = cursor.with_untracked(|c| (c.offset(), c.get_mode()));
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
-        let last_line = self.editor.view.last_line();
+        let last_line = self.editor.editor.last_line();
         let current_line = self
             .editor
-            .view
-            .doc
-            .get_untracked()
+            .doc()
             .buffer
             .with_untracked(|buffer| buffer.line_of_offset(offset));
 
@@ -208,13 +199,7 @@ impl View for EditorGutterView {
             }
         });
 
-        self.paint_head_changes(
-            cx,
-            &self.editor.view,
-            viewport,
-            kind_is_normal,
-            &config,
-        );
+        self.paint_head_changes(cx, &self.editor, viewport, kind_is_normal, &config);
         self.paint_sticky_headers(cx, kind_is_normal, &config);
     }
 }

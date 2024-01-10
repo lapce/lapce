@@ -10,7 +10,6 @@ pub mod debug;
 pub mod doc;
 pub mod doc2;
 pub mod editor;
-pub mod editor2;
 pub mod editor_tab;
 pub mod file_explorer;
 pub mod find;

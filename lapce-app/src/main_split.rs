@@ -34,17 +34,13 @@ use tracing::warn;
 use crate::{
     alert::AlertButton,
     command::InternalCommand,
-    doc::{
-        DiagnosticData, DocContent, DocHistory, Document, DocumentExt,
-        EditorDiagnostic,
-    },
+    doc::{DiagnosticData, DocContent, DocHistory, EditorDiagnostic},
     doc2::Doc,
     editor::{
         diff::DiffEditorData,
         location::{EditorLocation, EditorPosition},
         EditorData,
     },
-    editor2::EditorData2,
     editor_tab::{
         EditorTabChild, EditorTabChildSource, EditorTabData, EditorTabInfo,
     },
@@ -238,10 +234,9 @@ pub struct MainSplitData {
     pub splits: RwSignal<im::HashMap<SplitId, RwSignal<SplitData>>>,
     pub editor_tabs: RwSignal<im::HashMap<EditorTabId, RwSignal<EditorTabData>>>,
     pub editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-    pub editors2: RwSignal<im::HashMap<EditorId, Rc<EditorData2>>>,
     pub diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>>,
-    pub docs: RwSignal<im::HashMap<PathBuf, Rc<Document>>>,
-    pub scratch_docs: RwSignal<im::HashMap<String, Rc<Document>>>,
+    pub docs: RwSignal<im::HashMap<PathBuf, Rc<Doc>>>,
+    pub scratch_docs: RwSignal<im::HashMap<String, Rc<Doc>>>,
     pub diagnostics: RwSignal<im::HashMap<PathBuf, DiagnosticData>>,
     pub active_editor: Memo<Option<Rc<EditorData>>>,
     pub find_editor: EditorData,
@@ -260,19 +255,17 @@ impl MainSplitData {
             im::HashMap<EditorTabId, RwSignal<EditorTabData>>,
         > = cx.create_rw_signal(im::HashMap::new());
         let editors = cx.create_rw_signal(im::HashMap::new());
-        let editors2 = cx.create_rw_signal(im::HashMap::new());
         let diff_editors: RwSignal<im::HashMap<DiffEditorId, DiffEditorData>> =
             cx.create_rw_signal(im::HashMap::new());
-        let docs: RwSignal<im::HashMap<PathBuf, Rc<Document>>> =
+        let docs: RwSignal<im::HashMap<PathBuf, Rc<Doc>>> =
             cx.create_rw_signal(im::HashMap::new());
         let scratch_docs = cx.create_rw_signal(im::HashMap::new());
         let locations = cx.create_rw_signal(im::Vector::new());
         let current_location = cx.create_rw_signal(0);
         let diagnostics = cx.create_rw_signal(im::HashMap::new());
-        let find_editor =
-            EditorData::new_local(cx, EditorId::next(), common.clone());
+        let find_editor = EditorData::new_local(cx, None, editors, common.clone());
         let replace_editor =
-            EditorData::new_local(cx, EditorId::next(), common.clone());
+            EditorData::new_local(cx, None, editors, common.clone());
 
         let active_editor = cx.create_memo(move |_| -> Option<Rc<EditorData>> {
             let active_editor_tab = active_editor_tab.get()?;
@@ -303,7 +296,7 @@ impl MainSplitData {
         });
 
         {
-            let buffer = find_editor.view.doc.get_untracked().buffer;
+            let buffer = find_editor.doc().buffer;
             let find = common.find.clone();
             cx.create_effect(move |_| {
                 let content = buffer.with(|buffer| buffer.to_string());
@@ -318,7 +311,6 @@ impl MainSplitData {
             active_editor_tab,
             editor_tabs,
             editors,
-            editors2,
             diff_editors,
             docs,
             scratch_docs,
@@ -377,10 +369,9 @@ impl MainSplitData {
 
     fn save_current_jump_location(&self) -> bool {
         if let Some(editor) = self.active_editor.get_untracked() {
-            let (doc, cursor, viewport) =
-                (editor.view.doc, editor.cursor, editor.viewport);
-            let path = doc
-                .get_untracked()
+            let (cursor, viewport) = (editor.cursor(), editor.viewport());
+            let path = editor
+                .doc()
                 .content
                 .with_untracked(|content| content.path().cloned());
             if let Some(path) = path {
@@ -448,7 +439,7 @@ impl MainSplitData {
         self.go_to_location(location, edits);
     }
 
-    pub fn get_doc(&self, path: PathBuf) -> (Rc<Document>, bool) {
+    pub fn get_doc(&self, path: PathBuf) -> (Rc<Doc>, bool) {
         let cx = self.scope;
         let doc = self.docs.with_untracked(|docs| docs.get(&path).cloned());
         if let Some(doc) = doc {
@@ -456,10 +447,11 @@ impl MainSplitData {
         } else {
             let diagnostic_data = self.get_diagnostic_data(&path);
 
-            let doc = Document::new(
+            let doc = Doc::new(
                 cx,
                 path.clone(),
                 diagnostic_data,
+                self.editors,
                 self.common.clone(),
             );
             let doc = Rc::new(doc);
@@ -526,12 +518,13 @@ impl MainSplitData {
 
     pub fn open_file_changes(&self, path: PathBuf) {
         let (right, _) = self.get_doc(path.clone());
-        let left = Document::new_hisotry(
+        let left = Doc::new_history(
             self.scope,
             DocContent::History(DocHistory {
                 path: path.clone(),
                 version: "head".to_string(),
             }),
+            self.editors,
             self.common.clone(),
         );
         let left = Rc::new(left);
@@ -632,28 +625,14 @@ impl MainSplitData {
         };
 
         let is_same_diff_editor =
-            |diff_editor_id: &DiffEditorId,
-             left: &Rc<Document>,
-             right: &Rc<Document>| {
+            |diff_editor_id: &DiffEditorId, left: &Rc<Doc>, right: &Rc<Doc>| {
                 diff_editors
                     .get(diff_editor_id)
                     .map(|diff_editor| {
                         left.content.get_untracked()
-                            == diff_editor
-                                .left
-                                .view
-                                .doc
-                                .get_untracked()
-                                .content
-                                .get_untracked()
+                            == diff_editor.left.doc().content.get_untracked()
                             && right.content.get_untracked()
-                                == diff_editor
-                                    .right
-                                    .view
-                                    .doc
-                                    .get_untracked()
-                                    .content
-                                    .get_untracked()
+                                == diff_editor.right.doc().content.get_untracked()
                     })
                     .unwrap_or(false)
             };
@@ -664,29 +643,25 @@ impl MainSplitData {
                     let can_be_selected = match child {
                         EditorTabChild::Editor(editor_id) => {
                             if let Some(editor) = editors.get(editor_id) {
-                                let doc = editor.view.doc;
-                                doc.with_untracked(|doc| {
-                                    let same_path =
-                                        if let EditorTabChildSource::Editor {
-                                            path,
-                                            ..
-                                        } = &source
-                                        {
-                                            doc.content.with_untracked(|content| {
-                                                content
-                                                    .path()
-                                                    .map(|p| p == path)
-                                                    .unwrap_or(false)
-                                            })
-                                        } else {
-                                            false
-                                        };
+                                let doc = editor.doc();
+                                let same_path =
+                                    if let EditorTabChildSource::Editor {
+                                        path,
+                                        ..
+                                    } = &source
+                                    {
+                                        doc.content.with_untracked(|content| {
+                                            content
+                                                .path()
+                                                .map(|p| p == path)
+                                                .unwrap_or(false)
+                                        })
+                                    } else {
+                                        false
+                                    };
 
-                                    same_path
-                                        || doc
-                                            .buffer
-                                            .with_untracked(|b| b.is_pristine())
-                                })
+                                same_path
+                                    || doc.buffer.with_untracked(|b| b.is_pristine())
                             } else {
                                 false
                             }
@@ -699,17 +674,10 @@ impl MainSplitData {
                                     || diff_editors
                                         .get(diff_editor_id)
                                         .map(|diff_editor| {
-                                            diff_editor
-                                                .left
-                                                .view
-                                                .doc
-                                                .get_untracked()
-                                                .is_pristine()
+                                            diff_editor.left.doc().is_pristine()
                                                 && diff_editor
                                                     .right
-                                                    .view
-                                                    .doc
-                                                    .get_untracked()
+                                                    .doc()
                                                     .is_pristine()
                                         })
                                         .unwrap_or(false)
@@ -894,12 +862,12 @@ impl MainSplitData {
             {
                 EditorTabChildSource::Editor { doc, .. } => {
                     let editor_id = EditorId::next();
-                    let editor = EditorData::new(
+                    let editor = EditorData::new_doc(
                         self.scope,
+                        doc.clone(),
                         Some(editor_tab_id),
                         None,
-                        editor_id,
-                        doc.clone(),
+                        Some(editor_id),
                         None,
                         self.common.clone(),
                     );
@@ -916,21 +884,22 @@ impl MainSplitData {
                         id: BufferId::next(),
                         name: name.clone(),
                     };
-                    let doc = Document::new_content(
+                    let doc = Doc::new_content(
                         self.scope,
                         doc_content,
+                        self.editors,
                         self.common.clone(),
                     );
                     let doc = Rc::new(doc);
                     self.scratch_docs.update(|scratch_docs| {
                         scratch_docs.insert(name, doc.clone());
                     });
-                    let editor = EditorData::new(
+                    let editor = EditorData::new_doc(
                         self.scope,
+                        doc,
                         Some(editor_tab_id),
                         None,
-                        editor_id,
-                        doc,
+                        Some(editor_id),
                         None,
                         self.common.clone(),
                     );
@@ -996,13 +965,13 @@ impl MainSplitData {
                     EditorTabChildSource::Editor { path, doc },
                 ) => {
                     if let Some(editor) = editors.get(editor_id) {
-                        let same_path =
-                            editor.view.doc.get_untracked().content.with_untracked(
-                                |content| content.path() == Some(path),
-                            );
+                        let same_path = editor
+                            .doc()
+                            .content
+                            .with_untracked(|content| content.path() == Some(path));
                         if !same_path {
                             editor.update_doc(doc.clone());
-                            editor.cursor.set(Cursor::origin(
+                            editor.cursor().set(Cursor::origin(
                                 self.common.config.with_untracked(|c| c.core.modal),
                             ));
                         }
@@ -1178,22 +1147,21 @@ impl MainSplitData {
         if let Some(editor) = removed_editor {
             editor.save_doc_position();
 
-            let (content, _) = editor.view.doc.with_untracked(|doc| {
-                (doc.content.get_untracked(), doc.is_pristine())
-            });
+            let doc = editor.doc();
+            let (content, _) = (doc.content.get_untracked(), doc.is_pristine());
             if let DocContent::Scratch { name, .. } = content {
                 let doc_exists = self.editors.with_untracked(|editors| {
                     editors.iter().any(|(_, editor_data)| {
-                        editor_data.view.doc.with_untracked(|doc| {
-                            if let DocContent::Scratch {
-                                name: current_name, ..
-                            } = &doc.content.get_untracked()
-                            {
-                                current_name == &name
-                            } else {
-                                false
-                            }
-                        })
+                        let doc = editor_data.doc();
+
+                        if let DocContent::Scratch {
+                            name: current_name, ..
+                        } = &doc.content.get_untracked()
+                        {
+                            current_name == &name
+                        } else {
+                            false
+                        }
                     })
                 });
                 if !doc_exists {
@@ -1411,7 +1379,7 @@ impl MainSplitData {
                     cx,
                     Some(editor_tab_id),
                     None,
-                    new_editor_id,
+                    Some(new_editor_id),
                     None,
                 );
                 let editor = Rc::new(editor);
@@ -1745,23 +1713,22 @@ impl MainSplitData {
     fn editor_tab_child_close_warning(
         &self,
         child: &EditorTabChild,
-    ) -> Option<(String, Rc<Document>, Rc<EditorData>)> {
+    ) -> Option<(String, Rc<Doc>, Rc<EditorData>)> {
         match child {
             EditorTabChild::Editor(editor_id) => {
                 let editor = self
                     .editors
                     .with_untracked(|editors| editors.get(editor_id).cloned())?;
-                let doc = editor.view.doc.get_untracked();
+                let doc = editor.doc();
                 let doc_content = doc.content.get_untracked();
                 let is_dirty = !doc.is_pristine();
                 if is_dirty {
                     let exists = self.editors.with_untracked(|editors| {
                         editors.iter().any(|(id, editor)| {
+                            let doc = editor.doc();
                             id != editor_id
-                                && editor.view.doc.with_untracked(|doc| {
-                                    doc.content.with_untracked(|content| {
-                                        content == &doc_content
-                                    })
+                                && doc.content.with_untracked(|content| {
+                                    content == &doc_content
                                 })
                         })
                     });
@@ -1875,7 +1842,7 @@ impl MainSplitData {
                     DocContent::File { .. } => {
                         let editor = editor.clone();
                         let editors = self.editors;
-                        let editor_id = editor.editor_id;
+                        let editor_id = editor.id();
                         let save_action = Rc::new(move || {
                             internal_command.send(InternalCommand::HideAlert);
                             editor.save(false, move || {
@@ -2039,8 +2006,8 @@ impl MainSplitData {
                     let active_path = self
                         .active_editor
                         .get_untracked()
-                        .map(|editor| editor.view.doc)
-                        .map(|doc| doc.get_untracked().content.get_untracked())
+                        .map(|editor| editor.doc())
+                        .map(|doc| doc.content.get_untracked())
                         .and_then(|content| content.path().cloned());
                     let position = if active_path.as_ref() == Some(&path) {
                         None
@@ -2070,15 +2037,13 @@ impl MainSplitData {
         }
         let active_editor = self.active_editor.get_untracked();
         let active_path = active_editor
-            .map(|editor| (editor.view.doc, editor.cursor))
+            .map(|editor| (editor.doc(), editor.cursor()))
             .and_then(|(doc, cursor)| {
                 let offset = cursor.with_untracked(|c| c.offset());
-                let (path, position) = doc.with_untracked(|doc| {
-                    (
-                        doc.content.get_untracked().path().cloned(),
-                        doc.buffer.with_untracked(|b| b.offset_to_position(offset)),
-                    )
-                });
+                let (path, position) = (
+                    doc.content.get_untracked().path().cloned(),
+                    doc.buffer.with_untracked(|b| b.offset_to_position(offset)),
+                );
                 path.map(|path| (path, position))
             });
         let (path, position) =
@@ -2152,21 +2117,15 @@ impl MainSplitData {
 
     pub fn set_find_pattern(&self, pattern: Option<String>) {
         if let Some(pattern) = pattern {
-            self.find_editor
-                .view
-                .doc
-                .get_untracked()
-                .reload(Rope::from(pattern), true);
+            self.find_editor.doc().reload(Rope::from(pattern), true);
         }
         let pattern_len = self
             .find_editor
-            .view
-            .doc
-            .get_untracked()
+            .doc()
             .buffer
             .with_untracked(|buffer| buffer.len());
         self.find_editor
-            .cursor
+            .cursor()
             .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));
     }
 
@@ -2194,12 +2153,7 @@ impl MainSplitData {
         self.get_editor_tab_child(EditorTabChildSource::NewFileEditor, false, false)
     }
 
-    pub fn save_as(
-        &self,
-        doc: Rc<Document>,
-        path: PathBuf,
-        action: impl Fn() + 'static,
-    ) {
+    pub fn save_as(&self, doc: Rc<Doc>, path: PathBuf, action: impl Fn() + 'static) {
         let (buffer_id, doc_content, rev, content) = (
             doc.buffer_id,
             doc.content.get_untracked(),
@@ -2345,7 +2299,7 @@ impl MainSplitData {
         }
     }
 
-    pub fn save_scratch_doc(&self, doc: Rc<Document>) {
+    pub fn save_scratch_doc(&self, doc: Rc<Doc>) {
         let main_split = self.clone();
         save_as(FileDialogOptions::new(), move |file: Option<FileInfo>| {
             if let Some(file) = file {
@@ -2693,7 +2647,7 @@ impl MainSplitData {
         let child = self.new_file();
         if let EditorTabChild::Editor(id) = child {
             if let Some(editor) = self.editors.get_untracked().get(&id) {
-                let doc = editor.view.doc.get_untracked();
+                let doc = editor.doc();
                 doc.reload(
                     Rope::from(self.common.config.get_untracked().export_theme()),
                     true,

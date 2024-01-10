@@ -23,9 +23,9 @@ use floem::{
     EventPropagation, Renderer,
 };
 use floem_editor::{
+    editor::Editor,
     layout::LineExtraStyle,
-    phantom_text::PhantomTextKind,
-    view::{DiffSectionKind, LineInfo, ScreenLines},
+    view::{cursor_caret, DiffSectionKind, LineInfo, LineRegion, ScreenLines},
     visual_line::{RVLine, VLine},
 };
 use itertools::Itertools;
@@ -37,16 +37,13 @@ use lapce_core::{
 use lapce_rpc::dap_types::{DapId, SourceBreakpoint};
 use lapce_xi_rope::find::CaseMatching;
 
-use super::{
-    gutter::editor_gutter_view, view_data::EditorViewData, EditorData, CHAR_WIDTH,
-};
+use super::{gutter::editor_gutter_view, EditorData, CHAR_WIDTH};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     debug::LapceBreakpoint,
-    doc::{DocContent, Document, DocumentExt},
-    keypress::KeyPressFocus,
+    doc::DocContent,
     text_input::text_input,
     window_tab::{Focus, WindowTabData},
     workspace::LapceWorkspace,
@@ -70,27 +67,27 @@ pub struct EditorView {
 }
 
 pub fn editor_view(
-    editor: Rc<EditorData>,
+    e_data: Rc<EditorData>,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> EditorView {
     let id = Id::next();
     let is_active = create_memo(move |_| is_active(true));
 
-    let viewport = editor.viewport;
+    let viewport = e_data.viewport();
 
-    let doc = editor.view.doc;
-    let view_kind = editor.view.kind;
+    let doc = e_data.doc_signal();
+    let view_kind = e_data.kind;
     create_effect(move |_| {
         doc.track();
         view_kind.track();
         id.request_layout();
     });
 
-    let hide_cursor = editor.common.window_common.hide_cursor;
+    let hide_cursor = e_data.common.window_common.hide_cursor;
     create_effect(move |_| {
         hide_cursor.track();
-        let occurrences = doc.with(|doc| doc.backend.find_result.occurrences);
+        let occurrences = doc.with(|doc| doc.find_result.occurrences);
         occurrences.track();
         id.request_paint();
     });
@@ -105,10 +102,10 @@ pub fn editor_view(
         rev
     });
 
-    let config = editor.common.config;
-    let sticky_header_height_signal = editor.sticky_header_height;
-    let editor2 = editor.clone();
-    let screen_lines = editor.view.screen_lines;
+    let config = e_data.common.config;
+    let sticky_header_height_signal = e_data.sticky_header_height;
+    let editor2 = e_data.clone();
+    let screen_lines = e_data.screen_lines();
     create_effect(move |last_rev| {
         let config = config.get();
         if !config.editor.sticky_header {
@@ -132,8 +129,7 @@ pub fn editor_view(
         }
 
         let sticky_header_info = get_sticky_header_info(
-            &editor2.view,
-            doc,
+            &editor2,
             viewport,
             sticky_header_height_signal,
             &config,
@@ -144,15 +140,16 @@ pub fn editor_view(
         rev
     });
 
-    let editor_window_origin = editor.window_origin;
-    let cursor = editor.cursor;
-    let find_focus = editor.find_focus;
-    let ime_allowed = editor.common.window_common.ime_allowed;
-    let editor_viewport = editor.viewport;
-    let editor_view = editor.view.clone();
-    let doc = editor.view.doc;
-    let editor_cursor = editor.cursor;
-    let local_editor = editor.clone();
+    let ed1 = e_data.editor.clone();
+    let ed2 = ed1.clone();
+    let ed3 = ed1.clone();
+
+    let editor_window_origin = e_data.window_origin();
+    let cursor = e_data.cursor();
+    let find_focus = e_data.find_focus;
+    let ime_allowed = e_data.common.window_common.ime_allowed;
+    let editor_viewport = e_data.viewport();
+    let editor_cursor = e_data.cursor();
     create_effect(move |_| {
         let active = is_active.get();
         if active && !find_focus.get() {
@@ -167,8 +164,7 @@ pub fn editor_view(
                     set_ime_allowed(true);
                 }
                 let (offset, affinity) = cursor.with(|c| (c.offset(), c.affinity));
-                let (_, point_below) =
-                    editor_view.points_of_offset(offset, affinity);
+                let (_, point_below) = ed1.points_of_offset(offset, affinity);
                 let window_origin = editor_window_origin.get();
                 let viewport = editor_viewport.get();
                 let pos = window_origin
@@ -181,7 +177,7 @@ pub fn editor_view(
     EditorView {
         id,
         data: ViewData::new(id),
-        editor,
+        editor: e_data,
         is_active,
         inner_node: None,
         viewport,
@@ -198,12 +194,11 @@ pub fn editor_view(
         }
 
         if let Event::ImePreedit { text, cursor } = event {
-            let doc = doc.get_untracked();
             if text.is_empty() {
-                doc.clear_preedit();
+                ed2.clear_preedit();
             } else {
                 let offset = editor_cursor.with_untracked(|c| c.offset());
-                doc.set_preedit(text.clone(), *cursor, offset);
+                ed2.set_preedit(text.clone(), *cursor, offset);
             }
         }
         EventPropagation::Stop
@@ -214,9 +209,8 @@ pub fn editor_view(
         }
 
         if let Event::ImeCommit(text) = event {
-            let doc = doc.get_untracked();
-            doc.clear_preedit();
-            local_editor.receive_char(text);
+            ed3.clear_preedit();
+            ed3.receive_char(text);
         }
         EventPropagation::Stop
     })
@@ -343,12 +337,12 @@ impl EditorView {
         affinity: CursorAffinity,
         is_block_cursor: bool,
     ) {
-        let view = &self.editor.view;
+        let ed = &self.editor.editor;
 
         // TODO: selections should have separate start/end affinity
         let (start_rvline, start_col) =
-            view.rvline_col_of_offset(start_offset, affinity);
-        let (end_rvline, end_col) = view.rvline_col_of_offset(end_offset, affinity);
+            ed.rvline_col_of_offset(start_offset, affinity);
+        let (end_rvline, end_col) = ed.rvline_col_of_offset(end_offset, affinity);
 
         for LineInfo {
             vline_y,
@@ -359,16 +353,16 @@ impl EditorView {
             let rvline = info.rvline;
             let line = rvline.line;
 
-            let phantom_text = view.line_phantom_text(line);
+            let phantom_text = ed.phantom_text(line);
             let left_col = if rvline == start_rvline {
                 start_col
             } else {
-                view.first_col(info)
+                ed.first_col(info)
             };
             let right_col = if rvline == end_rvline {
                 end_col
             } else {
-                view.last_col(info, true)
+                ed.last_col(info, true)
             };
             let left_col = phantom_text.col_after(left_col, is_block_cursor);
             let right_col = phantom_text.col_after(right_col, false);
@@ -379,10 +373,10 @@ impl EditorView {
             }
 
             // TODO: What affinity should these use?
-            let x0 = view
+            let x0 = ed
                 .line_point_of_line_col(line, left_col, CursorAffinity::Forward)
                 .x;
-            let x1 = view
+            let x1 = ed
                 .line_point_of_line_col(line, right_col, CursorAffinity::Backward)
                 .x;
             // TODO(minor): Should this be line != end_line?
@@ -393,7 +387,7 @@ impl EditorView {
             };
 
             let (x0, width) = if info.is_empty() {
-                let text_layout = view.get_text_layout(line);
+                let text_layout = ed.text_layout(line);
                 let width = text_layout
                     .get_layout_x(rvline.line_index)
                     .map(|(_, x1)| x1)
@@ -420,11 +414,11 @@ impl EditorView {
         end_offset: usize,
         affinity: CursorAffinity,
     ) {
-        let view = &self.editor.view;
+        let ed = &self.editor.editor;
         let viewport = self.viewport.get_untracked();
 
-        let (start_rvline, _) = view.rvline_col_of_offset(start_offset, affinity);
-        let (end_rvline, _) = view.rvline_col_of_offset(end_offset, affinity);
+        let (start_rvline, _) = ed.rvline_col_of_offset(start_offset, affinity);
+        let (end_rvline, _) = ed.rvline_col_of_offset(end_offset, affinity);
         // Linewise selection is by *line* so we move to the start/end rvlines of the line
         let start_rvline = screen_lines
             .first_rvline_for_line(start_rvline.line)
@@ -442,14 +436,14 @@ impl EditorView {
             let rvline = info.rvline;
             let line = rvline.line;
 
-            let phantom_text = view.line_phantom_text(line);
+            let phantom_text = ed.phantom_text(line);
 
             // The left column is always 0 for linewise selections.
-            let right_col = view.last_col(info, true);
+            let right_col = ed.last_col(info, true);
             let right_col = phantom_text.col_after(right_col, false);
 
             // TODO: what affinity to use?
-            let x1 = view
+            let x1 = ed
                 .line_point_of_line_col(line, right_col, CursorAffinity::Backward)
                 .x
                 + CHAR_WIDTH;
@@ -474,18 +468,18 @@ impl EditorView {
         affinity: CursorAffinity,
         horiz: Option<ColPosition>,
     ) {
-        let view = &self.editor.view;
+        let ed = &self.editor.editor;
 
         let (start_rvline, start_col) =
-            view.rvline_col_of_offset(start_offset, affinity);
-        let (end_rvline, end_col) = view.rvline_col_of_offset(end_offset, affinity);
+            ed.rvline_col_of_offset(start_offset, affinity);
+        let (end_rvline, end_col) = ed.rvline_col_of_offset(end_offset, affinity);
         let left_col = start_col.min(end_col);
         let right_col = start_col.max(end_col) + 1;
 
         let lines = screen_lines
             .iter_line_info_r(start_rvline..=end_rvline)
             .filter_map(|line_info| {
-                let max_col = view.last_col(line_info.vline_info, true);
+                let max_col = ed.last_col(line_info.vline_info, true);
                 (max_col > left_col).then_some((line_info, max_col))
             });
 
@@ -496,15 +490,15 @@ impl EditorView {
             } else {
                 right_col.min(max_col)
             };
-            let phantom_text = view.line_phantom_text(line);
+            let phantom_text = ed.phantom_text(line);
             let left_col = phantom_text.col_after(left_col, true);
             let right_col = phantom_text.col_after(right_col, false);
 
             // TODO: what affinity to use?
-            let x0 = view
+            let x0 = ed
                 .line_point_of_line_col(line, left_col, CursorAffinity::Forward)
                 .x;
-            let x1 = view
+            let x1 = ed
                 .line_point_of_line_col(line, right_col, CursorAffinity::Backward)
                 .x;
 
@@ -522,8 +516,9 @@ impl EditorView {
         is_local: bool,
         screen_lines: &ScreenLines,
     ) {
-        let view = &self.editor.view;
-        let cursor = self.editor.cursor;
+        let e_data = self.editor.clone();
+        let ed = e_data.editor.clone();
+        let cursor = self.editor.cursor();
         let find_focus = self.editor.find_focus;
         let hide_cursor = self.editor.common.window_common.hide_cursor;
         let config = self.editor.common.config;
@@ -540,9 +535,8 @@ impl EditorView {
 
         let breakline = self.debug_breakline.get_untracked().and_then(
             |(breakline, breakline_path)| {
-                if view
-                    .doc
-                    .get_untracked()
+                if e_data
+                    .doc()
                     .content
                     .with_untracked(|c| c.path() == Some(&breakline_path))
                 {
@@ -579,7 +573,7 @@ impl EditorView {
             if !is_local && highlight_current_line {
                 for (_, end) in cursor.regions_iter() {
                     // TODO: unsure if this is correct for wrapping lines
-                    let rvline = view.rvline_of_offset(end, cursor.affinity);
+                    let rvline = ed.rvline_of_offset(end, cursor.affinity);
 
                     if let Some(info) = screen_lines
                         .info(rvline)
@@ -603,8 +597,7 @@ impl EditorView {
                     mode: VisualMode::Normal,
                 } => {
                     let start_offset = start.min(end);
-                    let end_offset =
-                        view.move_right(start.max(end), Mode::Insert, 1);
+                    let end_offset = ed.move_right(start.max(end), Mode::Insert, 1);
 
                     self.paint_normal_selection(
                         cx,
@@ -673,7 +666,7 @@ impl EditorView {
                         CursorMode::Insert(_) => false,
                     };
                     let LineRegion { x, width, rvline } =
-                        cursor_caret(view, end, is_block, cursor.affinity);
+                        cursor_caret(&ed, end, is_block, cursor.affinity);
 
                     if let Some(info) = screen_lines.info(rvline) {
                         let rect = Rect::from_origin_size(
@@ -764,20 +757,22 @@ impl EditorView {
         }
     }
 
+    // TODO(floem-editor): this is the same as floem-editors version, we just need to hook up the config -> editor's signals
     fn paint_text(
         &self,
         cx: &mut PaintCx,
         viewport: Rect,
         screen_lines: &ScreenLines,
     ) {
-        let view = self.editor.view.clone();
+        let ed = &self.editor.editor;
+        let style = ed.style();
         let config = self.editor.common.config;
 
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
 
         // TODO: cache indent text layout
-        let indent_unit = view.indent_unit();
+        let indent_unit = style.indent_style().as_str();
         let family: Vec<FamilyOwned> =
             FamilyOwned::parse_list(&config.editor.font_family).collect();
         let attrs = Attrs::new()
@@ -790,7 +785,7 @@ impl EditorView {
         let indent_text_width = indent_text.hit_position(indent_unit.len()).point.x;
 
         for (line, y) in screen_lines.iter_lines_y() {
-            let text_layout = view.get_text_layout(line);
+            let text_layout = ed.text_layout(line);
 
             self.paint_extra_style(cx, &text_layout.extra_style, y, viewport);
 
@@ -850,16 +845,19 @@ impl EditorView {
         let min_line = screen_lines.info(min_vline).unwrap().vline_info.rvline.line;
         let max_line = screen_lines.info(max_vline).unwrap().vline_info.rvline.line;
 
-        let view = self.editor.view.clone();
+        let e_data = &self.editor;
+        let ed = &e_data.editor;
+        let doc = e_data.doc();
+
         let config = self.editor.common.config;
-        let occurrences = view.find_result().occurrences;
+        let occurrences = doc.find_result.occurrences;
 
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
 
-        view.update_find();
-        let start = view.offset_of_line(min_line);
-        let end = view.offset_of_line(max_line + 1);
+        doc.update_find();
+        let start = ed.offset_of_line(min_line);
+        let end = ed.offset_of_line(max_line + 1);
 
         // TODO: The selection rect creation logic for find is quite similar to the version
         // within insert cursor. It would be good to deduplicate it.
@@ -872,9 +870,9 @@ impl EditorView {
 
             // TODO(minor): the proper affinity here should probably be tracked by selregion
             let (start_rvline, start_col) =
-                view.rvline_col_of_offset(start, CursorAffinity::Forward);
+                ed.rvline_col_of_offset(start, CursorAffinity::Forward);
             let (end_rvline, end_col) =
-                view.rvline_col_of_offset(end, CursorAffinity::Backward);
+                ed.rvline_col_of_offset(end, CursorAffinity::Backward);
 
             for line_info in screen_lines.iter_line_info() {
                 let rvline_info = line_info.vline_info;
@@ -889,14 +887,14 @@ impl EditorView {
                     break;
                 }
 
-                let phantom_text = view.line_phantom_text(line);
+                let phantom_text = ed.phantom_text(line);
 
                 let left_col = if rvline == start_rvline { start_col } else { 0 };
                 let (right_col, _vline_end) = if rvline == end_rvline {
-                    let max_col = view.last_col(rvline_info, true);
+                    let max_col = ed.last_col(rvline_info, true);
                     (end_col.min(max_col), false)
                 } else {
-                    (view.last_col(rvline_info, true), true)
+                    (ed.last_col(rvline_info, true), true)
                 };
 
                 // Shift it by the phantom text
@@ -904,10 +902,10 @@ impl EditorView {
                 let right_col = phantom_text.col_after(right_col, false);
 
                 // TODO(minor): sel region should have the affinity of the start/end
-                let x0 = view
+                let x0 = ed
                     .line_point_of_line_col(line, left_col, CursorAffinity::Forward)
                     .x;
-                let x1 = view
+                let x1 = ed
                     .line_point_of_line_col(
                         line,
                         right_col,
@@ -941,7 +939,7 @@ impl EditorView {
         if !config.editor.sticky_header {
             return;
         }
-        if !self.editor.view.kind.get_untracked().is_normal() {
+        if !self.editor.kind.get_untracked().is_normal() {
             return;
         }
 
@@ -984,7 +982,7 @@ impl EditorView {
             .iter()
             .copied()
             .map(|line| {
-                let layout = self.editor.view.get_text_layout(line);
+                let layout = self.editor.editor.text_layout(line);
                 layout.line_count() * line_height
             })
             .sum::<usize>() as f64
@@ -1021,7 +1019,7 @@ impl EditorView {
                 0.0
             };
 
-            let text_layout = self.editor.view.get_text_layout(line);
+            let text_layout = self.editor.editor.text_layout(line);
 
             let text_height = (text_layout.line_count() * line_height) as f64;
             let height = text_height - y_diff;
@@ -1066,11 +1064,11 @@ impl EditorView {
             0.0,
         );
 
-        if !self.editor.view.kind.get_untracked().is_normal() {
+        if !self.editor.kind.get_untracked().is_normal() {
             return;
         }
 
-        let doc = self.editor.view.doc.get_untracked();
+        let doc = self.editor.doc();
         let total_len = doc.buffer.with_untracked(|buffer| buffer.last_line());
         let changes = doc.head_changes().get_untracked();
         let total_height = viewport.height();
@@ -1082,7 +1080,7 @@ impl EditorView {
             (total_len * line_height) as f64
         };
 
-        let colors = changes_colors_all(&self.editor.view, changes);
+        let colors = changes_colors_all(&config, &self.editor.editor, changes);
         for (y, height, _, color) in colors {
             let y = y / content_height * total_height;
             let height = ((height * line_height) as f64 / content_height
@@ -1103,15 +1101,15 @@ impl EditorView {
     /// hints before and adjacent to the given column. Else, the calculated position will be to the
     /// left of any such inlay hints.
     fn calculate_col_x(
-        view: &EditorViewData,
+        ed: &Editor,
         line: usize,
         col: usize,
         affinity: CursorAffinity,
     ) -> f64 {
         let before_cursor = affinity == CursorAffinity::Backward;
-        let phantom_text = view.line_phantom_text(line);
+        let phantom_text = ed.phantom_text(line);
         let col = phantom_text.col_after(col, before_cursor);
-        view.line_point_of_line_col(line, col, affinity).x
+        ed.line_point_of_line_col(line, col, affinity).x
     }
 
     /// Paint a highlight around the characters at the given positions.
@@ -1121,7 +1119,7 @@ impl EditorView {
         screen_lines: &ScreenLines,
         highlight_line_cols: impl Iterator<Item = (RVLine, usize)>,
     ) {
-        let view = &self.editor.view;
+        let editor = &self.editor.editor;
         let config = self.editor.common.config.get_untracked();
         let line_height = config.editor.line_height() as f64;
 
@@ -1129,13 +1127,13 @@ impl EditorView {
             // Is the given line on screen?
             if let Some(line_info) = screen_lines.info(rvline) {
                 let x0 = Self::calculate_col_x(
-                    view,
+                    editor,
                     rvline.line,
                     col,
                     CursorAffinity::Backward,
                 );
                 let x1 = Self::calculate_col_x(
-                    view,
+                    editor,
                     rvline.line,
                     col + 1,
                     CursorAffinity::Forward,
@@ -1161,8 +1159,8 @@ impl EditorView {
         (start, start_col): (RVLine, usize),
         (end, end_col): (RVLine, usize),
     ) {
-        let view = &self.editor.view;
-        let doc = view.doc.get_untracked();
+        let editor = &self.editor.editor;
+        let doc = self.editor.doc();
         let config = self.editor.common.config.get_untracked();
         let line_height = config.editor.line_height() as f64;
         let brush = config.color(LapceColor::EDITOR_FOREGROUND);
@@ -1171,13 +1169,13 @@ impl EditorView {
             if let Some(line_info) = screen_lines.info(start) {
                 // TODO: Due to line wrapping the y positions of these two spots could be different, do we need to change it?
                 let x0 = Self::calculate_col_x(
-                    view,
+                    editor,
                     start.line,
                     start_col + 1,
                     CursorAffinity::Forward,
                 );
                 let x1 = Self::calculate_col_x(
-                    view,
+                    editor,
                     end.line,
                     end_col,
                     CursorAffinity::Backward,
@@ -1221,13 +1219,13 @@ impl EditorView {
 
             if let [Some(y0), Some(y1)] = [y0, y1] {
                 let start_x = Self::calculate_col_x(
-                    view,
+                    editor,
                     start.line,
                     start_col + 1,
                     CursorAffinity::Forward,
                 );
                 let end_x = Self::calculate_col_x(
-                    view,
+                    editor,
                     end.line,
                     end_col,
                     CursorAffinity::Backward,
@@ -1242,10 +1240,11 @@ impl EditorView {
                         .map(|line| {
                             let non_blank_offset =
                                 buffer.first_non_blank_character_on_line(line);
-                            let (_, col) = view.offset_to_line_col(non_blank_offset);
+                            let (_, col) =
+                                editor.offset_to_line_col(non_blank_offset);
 
                             Self::calculate_col_x(
-                                view,
+                                editor,
                                 line,
                                 col,
                                 CursorAffinity::Backward,
@@ -1300,21 +1299,19 @@ impl EditorView {
         if config.editor.highlight_matching_brackets
             || config.editor.highlight_scope_lines
         {
-            let view = &self.editor.view;
-            let offset = self
-                .editor
-                .cursor
-                .with_untracked(|cursor| cursor.mode.offset());
+            let e_data = &self.editor;
+            let ed = &e_data.editor;
+            let offset = ed.cursor.with_untracked(|cursor| cursor.mode.offset());
 
-            let bracket_offsets = view
-                .doc
+            let bracket_offsets = e_data
+                .doc_signal()
                 .with_untracked(|doc| doc.find_enclosing_brackets(offset))
                 .map(|(start, end)| [start, end]);
 
             let bracket_line_cols = bracket_offsets.map(|bracket_offsets| {
                 bracket_offsets.map(|offset| {
                     let (rvline, col) =
-                        view.rvline_col_of_offset(offset, CursorAffinity::Forward);
+                        ed.rvline_col_of_offset(offset, CursorAffinity::Forward);
                     (rvline, col)
                 })
             });
@@ -1375,11 +1372,11 @@ impl View for EditorView {
                 self.inner_node = Some(cx.new_node());
             }
 
-            let screen_lines = self.editor.screen_lines().get_untracked();
-            let view = self.editor.view.clone();
+            let e_data = &self.editor;
+            let screen_lines = e_data.screen_lines().get_untracked();
             for (line, _) in screen_lines.iter_lines_y() {
                 // fill in text layout cache so that max width is correct.
-                view.get_text_layout(line);
+                e_data.editor.text_layout(line);
             }
 
             let inner_node = self.inner_node.unwrap();
@@ -1387,8 +1384,8 @@ impl View for EditorView {
             let config = self.editor.common.config.get_untracked();
             let line_height = config.editor.line_height() as f64;
 
-            let width = self.editor.view.max_line_width() + 20.0;
-            let height = line_height * self.editor.view.last_vline().get() as f64;
+            let width = e_data.editor.max_line_width() + 20.0;
+            let height = line_height * e_data.editor.last_vline().get() as f64;
 
             let style = Style::new().width(width).height(height).to_taffy_style();
             cx.set_style(inner_node, style);
@@ -1411,7 +1408,7 @@ impl View for EditorView {
     fn paint(&mut self, cx: &mut PaintCx) {
         let viewport = self.viewport.get_untracked();
         let config = self.editor.common.config.get_untracked();
-        let doc = self.editor.view.doc.get_untracked();
+        let doc = self.editor.doc();
         let is_local = doc.content.with_untracked(|content| content.is_local());
 
         // We repeatedly get the screen lines because we don't currently carefully manage the
@@ -1439,15 +1436,17 @@ impl View for EditorView {
 }
 
 fn get_sticky_header_info(
-    view: &EditorViewData,
-    doc: Rc<Document>,
+    editor_data: &EditorData,
     viewport: RwSignal<Rect>,
     sticky_header_height_signal: RwSignal<f64>,
     config: &LapceConfig,
 ) -> StickyHeaderInfo {
+    let editor = &editor_data.editor;
+    let doc = editor_data.doc();
+
     let viewport = viewport.get();
     // TODO(minor): should this be a `get`
-    let screen_lines = view.screen_lines.get();
+    let screen_lines = editor.screen_lines.get();
     let line_height = config.editor.line_height() as f64;
     // let start_line = (viewport.y0 / line_height).floor() as usize;
     let Some(start) = screen_lines.lines.first() else {
@@ -1536,7 +1535,7 @@ fn get_sticky_header_info(
                 0.0
             };
 
-            let layout = view.get_text_layout(*line);
+            let layout = editor.text_layout(*line);
             layout.line_count() as f64 * line_height - y_diff
         })
         .sum();
@@ -1549,96 +1548,6 @@ fn get_sticky_header_info(
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct LineRegion {
-    pub x: f64,
-    pub width: f64,
-    pub rvline: RVLine,
-}
-
-/// Get the render information for a caret cursor at the given `offset`.  
-pub fn cursor_caret(
-    view: &EditorViewData,
-    offset: usize,
-    block: bool,
-    affinity: CursorAffinity,
-) -> LineRegion {
-    let info = view.rvline_info_of_offset(offset, affinity);
-    let (_, col) = view.offset_to_line_col(offset);
-    let after_last_char = col == view.line_end_col(info.rvline.line, true);
-
-    let doc = view.doc.get_untracked();
-    let preedit_start = doc
-        .preedit
-        .with_untracked(|preedit| {
-            preedit.as_ref().and_then(|preedit| {
-                let preedit_line = doc
-                    .buffer
-                    .with_untracked(|b| b.line_of_offset(preedit.offset));
-                preedit.cursor.map(|x| (preedit_line, x))
-            })
-        })
-        .filter(|(preedit_line, _)| *preedit_line == info.rvline.line)
-        .map(|(_, (start, _))| start);
-
-    let phantom_text = view.line_phantom_text(info.rvline.line);
-
-    let (_, col) = view.offset_to_line_col(offset);
-    let ime_kind = preedit_start.map(|_| PhantomTextKind::Ime);
-    // The cursor should be after phantom text if the affinity is forward, or it is a block cursor.
-    // - if we have a relevant preedit we skip over IMEs
-    // - we skip over completion lens, as the text should be after the cursor
-    let col = phantom_text.col_after_ignore(
-        col,
-        affinity == CursorAffinity::Forward || (block && !after_last_char),
-        |p| p.kind == PhantomTextKind::Completion || Some(p.kind) == ime_kind,
-    );
-    // We shift forward by the IME's start. This is due to the cursor potentially being in the
-    // middle of IME phantom text while editing it.
-    let col = col + preedit_start.unwrap_or(0);
-
-    let point = view.line_point_of_line_col(info.rvline.line, col, affinity);
-
-    let rvline = if preedit_start.is_some() {
-        // If there's an IME edit, then we need to use the point's y to get the actual y position
-        // that the IME cursor is at. Since it could be in the middle of the IME phantom text
-        // TODO(minor): is there a cleaner way of doing this? It also won't work nicely with
-        // varying line heights.
-        let y = point.y;
-        let config = view.config.get_untracked();
-        let line_height = config.editor.line_height() as f64;
-
-        let line_index = (y / line_height).floor() as usize;
-        RVLine::new(info.rvline.line, line_index)
-    } else {
-        info.rvline
-    };
-
-    let x0 = point.x;
-    if block {
-        let width = if after_last_char {
-            CHAR_WIDTH
-        } else {
-            let x1 = view
-                .line_point_of_line_col(info.rvline.line, col + 1, affinity)
-                .x;
-            x1 - x0
-        };
-
-        LineRegion {
-            x: x0,
-            width,
-            rvline,
-        }
-    } else {
-        LineRegion {
-            x: x0 - 1.0,
-            width: 2.0,
-            rvline,
-        }
-    }
-}
-
 pub fn editor_container_view(
     window_tab_data: Rc<WindowTabData>,
     workspace: Arc<LapceWorkspace>,
@@ -1648,10 +1557,10 @@ pub fn editor_container_view(
     let (editor_id, find_focus, sticky_header_height, editor_view, config) = editor
         .with_untracked(|editor| {
             (
-                editor.editor_id,
+                editor.id(),
                 editor.find_focus,
                 editor.sticky_header_height,
-                editor.view.kind,
+                editor.kind,
                 editor.common.config,
             )
         });
@@ -1714,7 +1623,7 @@ pub fn editor_container_view(
             return;
         }
         let editor = editor.get_untracked();
-        let doc = editor.view.doc.get_untracked();
+        let doc = editor.doc();
         editor.scope.dispose();
 
         let scratch_doc_name =
@@ -1736,27 +1645,21 @@ pub fn editor_container_view(
 
 fn editor_gutter(
     window_tab_data: Rc<WindowTabData>,
-    editor: RwSignal<Rc<EditorData>>,
+    e_data: RwSignal<Rc<EditorData>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
-    let screen_lines = editor.with_untracked(|x| x.screen_lines());
     let breakpoints = window_tab_data.terminal.debug.breakpoints;
     let daps = window_tab_data.terminal.debug.daps;
 
     let padding_left = 25.0;
     let padding_right = 30.0;
 
-    let (view, cursor, viewport, scroll_delta, config) =
-        editor.with_untracked(|e| {
-            (
-                e.view.clone(),
-                e.cursor,
-                e.viewport,
-                e.scroll_delta,
-                e.common.config,
-            )
-        });
-    let doc = view.doc;
+    let (ed, doc, config) = e_data
+        .with_untracked(|e| (e.editor.clone(), e.doc_signal(), e.common.config));
+    let cursor = ed.cursor;
+    let viewport = ed.viewport;
+    let scroll_delta = ed.scroll_delta;
+    let screen_lines = ed.screen_lines;
 
     let num_display_lines = create_memo(move |_| {
         let screen_lines = screen_lines.get();
@@ -1775,7 +1678,7 @@ fn editor_gutter(
                 .code_actions()
                 .with(|c| c.get(&offset).map(|c| !c.1.is_empty()).unwrap_or(false));
             if has_code_actions {
-                let vline = view.vline_of_offset(offset, affinity);
+                let vline = ed.vline_of_offset(offset, affinity);
                 Some(vline)
             } else {
                 None
@@ -1808,8 +1711,8 @@ fn editor_gutter(
             //     / config.get_untracked().editor.line_height() as f64)
             //     .floor() as usize
             //     + i;
-            let editor = editor.get_untracked();
-            let doc = editor.view.doc.get_untracked();
+            let e_data = e_data.get_untracked();
+            let doc = e_data.doc();
             let offset = doc.buffer.with_untracked(|b| b.offset_of_line(line));
             if let Some(path) = doc.content.get_untracked().path() {
                 let path_breakpoints = breakpoints
@@ -1862,7 +1765,7 @@ fn editor_gutter(
                 let daps: Vec<DapId> =
                     daps.with_untracked(|daps| daps.keys().cloned().collect());
                 for dap_id in daps {
-                    editor.common.proxy.dap_set_breakpoints(
+                    e_data.common.proxy.dap_set_breakpoints(
                         dap_id,
                         path.to_path_buf(),
                         source_breakpoints.clone(),
@@ -1914,8 +1817,8 @@ fn editor_gutter(
                 }),
                 dyn_stack(
                     move || {
-                        let editor = editor.get();
-                        let doc = editor.view.doc.get();
+                        let e_data = e_data.get();
+                        let doc = e_data.doc_signal().get();
                         let content = doc.content.get();
                         let breakpoints = if let Some(path) = content.path() {
                             breakpoints
@@ -1971,7 +1874,7 @@ fn editor_gutter(
         }),
         clip(
             stack((
-                editor_gutter_view(editor.get_untracked())
+                editor_gutter_view(e_data.get_untracked())
                     .on_resize(move |rect| {
                         gutter_rect.set(rect);
                     })
@@ -1992,7 +1895,7 @@ fn editor_gutter(
                     ),
                 )
                 .on_click_stop(move |_| {
-                    editor.get_untracked().show_code_actions(true);
+                    e_data.get_untracked().show_code_actions(true);
                 })
                 .style(move |s| {
                     let config = config.get();
@@ -2044,10 +1947,10 @@ fn editor_gutter(
 
 fn editor_breadcrumbs(
     workspace: Arc<LapceWorkspace>,
-    editor: Rc<EditorData>,
+    e_data: Rc<EditorData>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let doc = editor.view.doc;
+    let doc = e_data.doc_signal();
     let doc_path = create_memo(move |_| {
         let doc = doc.get();
         let content = doc.content.get();
@@ -2156,7 +2059,7 @@ fn editor_breadcrumbs(
 }
 
 fn editor_content(
-    editor: RwSignal<Rc<EditorData>>,
+    e_data: RwSignal<Rc<EditorData>>,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
@@ -2168,13 +2071,13 @@ fn editor_content(
         viewport,
         sticky_header_height,
         config,
-    ) = editor.with_untracked(|editor| {
+    ) = e_data.with_untracked(|editor| {
         (
-            editor.cursor.read_only(),
-            editor.scroll_delta.read_only(),
-            editor.scroll_to,
-            editor.window_origin,
-            editor.viewport,
+            editor.cursor().read_only(),
+            editor.scroll_delta().read_only(),
+            editor.scroll_to(),
+            editor.window_origin(),
+            editor.viewport(),
             editor.sticky_header_height,
             editor.common.config,
         )
@@ -2182,7 +2085,7 @@ fn editor_content(
 
     scroll({
         let editor_content_view =
-            editor_view(editor.get_untracked(), debug_breakline, is_active).style(
+            editor_view(e_data.get_untracked(), debug_breakline, is_active).style(
                 move |s| {
                     let config = config.get();
                     let padding_bottom = if config.editor.scroll_beyond_last_line {
@@ -2202,22 +2105,22 @@ fn editor_content(
             .on_event_cont(EventListener::PointerDown, move |event| {
                 if let Event::PointerDown(pointer_event) = event {
                     id.request_active();
-                    editor.get_untracked().pointer_down(pointer_event);
+                    e_data.get_untracked().pointer_down(pointer_event);
                 }
             })
             .on_event_stop(EventListener::PointerMove, move |event| {
                 if let Event::PointerMove(pointer_event) = event {
-                    editor.get_untracked().pointer_move(pointer_event);
+                    e_data.get_untracked().pointer_move(pointer_event);
                 }
             })
             .on_event_stop(EventListener::PointerUp, move |event| {
                 if let Event::PointerUp(pointer_event) = event {
-                    editor.get_untracked().pointer_up(pointer_event);
+                    e_data.get_untracked().pointer_up(pointer_event);
                 }
             })
             .on_event_stop(EventListener::PointerLeave, move |event| {
                 if let Event::PointerLeave = event {
-                    editor.get_untracked().pointer_leave();
+                    e_data.get_untracked().pointer_leave();
                 }
             })
     })
@@ -2227,18 +2130,22 @@ fn editor_content(
     .on_scroll_to(move || scroll_to.get().map(|s| s.to_point()))
     .on_scroll_delta(move || scroll_delta.get())
     .on_ensure_visible(move || {
-        let editor = editor.get_untracked();
+        let e_data = e_data.get_untracked();
         let cursor = cursor.get();
         let offset = cursor.offset();
-        editor.view.doc.track();
-        editor.view.kind.track();
+        e_data.doc_signal().track();
+        e_data.kind.track();
 
-        let LineRegion { x, width, rvline } =
-            cursor_caret(&editor.view, offset, !cursor.is_insert(), cursor.affinity);
+        let LineRegion { x, width, rvline } = cursor_caret(
+            &e_data.editor,
+            offset,
+            !cursor.is_insert(),
+            cursor.affinity,
+        );
         let config = config.get_untracked();
         let line_height = config.editor.line_height();
         // TODO: is there a good way to avoid the calculation of the vline here?
-        let vline = editor.view.vline_of_rvline(rvline);
+        let vline = e_data.editor.vline_of_rvline(rvline);
         let rect = Rect::from_origin_size(
             (x, (vline.get() * line_height) as f64),
             (width, line_height as f64),
@@ -2398,7 +2305,7 @@ fn find_view(
 ) -> impl View {
     let config = find_editor.common.config;
     let find_visual = find_editor.common.find.visual;
-    let replace_doc = replace_editor.view.doc;
+    let replace_doc = replace_editor.doc_signal();
     let focus = find_editor.common.focus;
 
     let find_pos = create_memo(move |_| {
@@ -2407,9 +2314,9 @@ fn find_view(
             return (0, 0);
         }
         let editor = editor.get_untracked();
-        let cursor = editor.cursor;
+        let cursor = editor.cursor();
         let offset = cursor.with(|cursor| cursor.offset());
-        let occurrences = editor.view.doc.get().backend.find_result.occurrences;
+        let occurrences = editor.doc_signal().get().find_result.occurrences;
         occurrences.with(|occurrences| {
             for (i, region) in occurrences.regions().iter().enumerate() {
                 if offset <= region.max() {
@@ -2610,11 +2517,11 @@ fn changes_color_iter<'a>(
 /// Get the position and coloring information for over the entire current [`ScreenLines`]
 /// Returns `(y, height_idx, removed, color)`
 pub fn changes_colors_screen(
-    view: &EditorViewData,
+    config: &LapceConfig,
+    editor: &Editor,
     changes: im::Vector<DiffLines>,
 ) -> Vec<(f64, usize, bool, Color)> {
-    let screen_lines = view.screen_lines.get_untracked();
-    let config = view.config.get_untracked();
+    let screen_lines = editor.screen_lines.get_untracked();
 
     let Some((min, max)) = screen_lines.rvline_range() else {
         return Vec::new();
@@ -2637,14 +2544,14 @@ pub fn changes_colors_screen(
                 colors.pop();
             }
 
-            let rvline = view.rvline_of_line(pre_line);
-            let vline = view.vline_of_line(pre_line);
+            let rvline = editor.rvline_of_line(pre_line);
+            let vline = editor.vline_of_line(pre_line);
             let y = (vline.0 * line_height) as f64;
             let height = {
                 // Accumulate the number of line indices each potentially wrapped line spans
                 let end_line = rvline.line + len;
 
-                view.iter_rvlines_over(false, rvline, end_line).count()
+                editor.iter_rvlines_over(false, rvline, end_line).count()
             };
             let removed = len == 0;
 
@@ -2664,16 +2571,16 @@ pub fn changes_colors_screen(
 /// Get the position and coloring information for over the entire current [`ScreenLines`]
 /// Returns `(y, height_idx, removed, color)`
 pub fn changes_colors_all(
-    view: &EditorViewData,
+    config: &LapceConfig,
+    ed: &Editor,
     changes: im::Vector<DiffLines>,
 ) -> Vec<(f64, usize, bool, Color)> {
-    let config = view.config.get_untracked();
     let line_height = config.editor.line_height();
 
     let mut line = 0;
     let mut colors = Vec::new();
 
-    let mut vline_iter = view.iter_vlines(false, VLine(0)).peekable();
+    let mut vline_iter = ed.iter_vlines(false, VLine(0)).peekable();
 
     for (len, color, modified) in changes_color_iter(&changes, &config) {
         let pre_line = line;

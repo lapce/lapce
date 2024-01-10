@@ -196,6 +196,92 @@ impl Editor {
         self.doc.get_untracked()
     }
 
+    pub fn doc_track(&self) -> Rc<dyn Document> {
+        self.doc.get()
+    }
+
+    // TODO: should this be `ReadSignal`? but read signal doesn't have .track
+    pub fn doc_signal(&self) -> RwSignal<Rc<dyn Document>> {
+        self.doc
+    }
+
+    /// Swap the underlying document out
+    pub fn update_doc(self: &Rc<Editor>, doc: Rc<dyn Document>) {
+        batch(|| {
+            // Get rid of all the effects
+            self.effects_cx.get().dispose();
+
+            *self.lines.font_sizes.borrow_mut() = Arc::new(EditorFontSizes {
+                style: self.style.read_only(),
+            });
+            self.lines.clear(0, None);
+            self.doc.set(doc);
+            self.screen_lines.update(|screen_lines| {
+                screen_lines.clear(self.viewport.get_untracked());
+            });
+
+            // Recreate the effects
+            self.effects_cx.set(self.cx.get().create_child());
+            create_view_effects(self.effects_cx.get(), self.clone());
+        });
+    }
+
+    pub fn duplicate(
+        &self,
+        editor_id: Option<EditorId>,
+        share_register: bool,
+        share_blink_cursor_info: bool,
+    ) -> Rc<Editor> {
+        let doc = self.doc();
+        let style = self.style();
+        let register = if share_register {
+            Some(self.register.clone())
+        } else {
+            None
+        };
+        let cursor_info = if share_blink_cursor_info {
+            Some(self.cursor_info.clone())
+        } else {
+            None
+        };
+        let editor = Editor::new(
+            self.cx.get(),
+            editor_id.unwrap_or_else(EditorId::next),
+            doc,
+            style,
+            register,
+            cursor_info,
+        );
+
+        batch(|| {
+            editor.read_only.set(self.read_only.get_untracked());
+            editor
+                .scroll_beyond_last_line
+                .set(self.scroll_beyond_last_line.get_untracked());
+            editor
+                .cursor_surrounding_lines
+                .set(self.cursor_surrounding_lines.get_untracked());
+            editor
+                .show_indent_guide
+                .set(self.show_indent_guide.get_untracked());
+            editor.modal.set(self.modal.get_untracked());
+            editor
+                .modal_relative_line_numbers
+                .set(self.modal_relative_line_numbers.get_untracked());
+            editor.smart_tab.set(self.smart_tab.get_untracked());
+            editor.cursor.set(self.cursor.get_untracked());
+            editor.scroll_delta.set(self.scroll_delta.get_untracked());
+            editor.scroll_to.set(self.scroll_to.get_untracked());
+            editor.window_origin.set(self.window_origin.get_untracked());
+            editor.viewport.set(self.viewport.get_untracked());
+            editor.register.set(self.register.get_untracked());
+            // ?
+            // editor.ime_allowed.set(self.ime_allowed.get_untracked());
+        });
+
+        editor
+    }
+
     /// Get the styling untracked
     pub fn style(&self) -> Rc<dyn Styling> {
         self.style.get_untracked()
@@ -217,8 +303,20 @@ impl Editor {
     }
 
     // Get the text layout for a document line, creating it if needed.
-    pub(crate) fn text_layout(&self, line: usize) -> Arc<TextLayoutLine> {
+    pub fn text_layout(&self, line: usize) -> Arc<TextLayoutLine> {
         self.text_layout_trigger(line, true)
+    }
+
+    pub fn text_layout_trigger(
+        &self,
+        line: usize,
+        trigger: bool,
+    ) -> Arc<TextLayoutLine> {
+        // TODO: config id
+        let config_id = 0;
+        let text_prov = self.text_prov();
+        self.lines
+            .get_init_text_layout(config_id, &text_prov, line, trigger)
     }
 
     pub fn text_prov(&self) -> EditorTextProv {
@@ -229,18 +327,6 @@ impl Editor {
             style: self.style.get_untracked(),
             viewport: self.viewport.get_untracked(),
         }
-    }
-
-    pub(crate) fn text_layout_trigger(
-        &self,
-        line: usize,
-        trigger: bool,
-    ) -> Arc<TextLayoutLine> {
-        // TODO: config id
-        let config_id = 0;
-        let text_prov = self.text_prov();
-        self.lines
-            .get_init_text_layout(config_id, &text_prov, line, trigger)
     }
 
     fn preedit(&self) -> PreeditData {
@@ -258,14 +344,14 @@ impl Editor {
             cursor,
             offset,
         }));
-        // TODO: clear text cache
+        // TODO(floem-editor): clear text cache
     }
 
     pub fn clear_preedit(&self) {
         let preedit = self.preedit();
         if preedit.preedit.with_untracked(|preedit| preedit.is_some()) {
             preedit.preedit.set(None);
-            // TODO: clear text cache
+            // TODO(floem-editor): clear text cache
         }
     }
 
@@ -628,6 +714,10 @@ impl Editor {
 
     pub fn vline_of_line(&self, line: usize) -> VLine {
         self.lines.vline_of_line(&self.text_prov(), line)
+    }
+
+    pub fn rvline_of_line(&self, line: usize) -> RVLine {
+        self.lines.rvline_of_line(&self.text_prov(), line)
     }
 
     pub fn vline_of_rvline(&self, rvline: RVLine) -> VLine {

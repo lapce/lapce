@@ -49,7 +49,7 @@ use crate::{
     config::LapceConfig,
     db::LapceDb,
     debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
-    doc::{DocContent, DocumentExt, EditorDiagnostic},
+    doc::{DocContent, EditorDiagnostic},
     editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
@@ -352,8 +352,10 @@ impl WindowTabData {
         let main_split = MainSplitData::new(cx, common.clone());
         let code_action =
             cx.create_rw_signal(CodeActionData::new(cx, common.clone()));
-        let source_control = SourceControlData::new(cx, common.clone());
-        let file_explorer = FileExplorerData::new(cx, common.clone());
+        let source_control =
+            SourceControlData::new(cx, main_split.editors, common.clone());
+        let file_explorer =
+            FileExplorerData::new(cx, main_split.editors, common.clone());
 
         if let Some(info) = workspace_info.as_ref() {
             let root_split = main_split.root_split;
@@ -448,13 +450,14 @@ impl WindowTabData {
             );
         }
 
-        let rename = RenameData::new(cx, common.clone());
+        let rename = RenameData::new(cx, main_split.editors, common.clone());
         let global_search = GlobalSearchData::new(cx, main_split.clone());
 
         let plugin = PluginData::new(
             cx,
             HashSet::from_iter(disabled_volts),
             HashSet::from_iter(workspace_disabled_volts),
+            main_split.editors,
             common.clone(),
         );
 
@@ -668,15 +671,14 @@ impl WindowTabData {
             }
             RevealActiveFileInFileExplorer => {
                 if let Some(editor_data) = self.main_split.active_editor.get() {
-                    let path = editor_data.view.doc.with_untracked(|doc| {
-                        if let DocContent::File { path, .. } =
-                            doc.content.get_untracked()
-                        {
-                            Some(path)
-                        } else {
-                            None
-                        }
-                    });
+                    let doc = editor_data.doc();
+                    let path = if let DocContent::File { path, .. } =
+                        doc.content.get_untracked()
+                    {
+                        Some(path)
+                    } else {
+                        None
+                    };
                     let Some(path) = path else { return };
                     let path = path.parent().unwrap_or(&path);
 
@@ -688,22 +690,20 @@ impl WindowTabData {
                 self.main_split.editors.with_untracked(|editors| {
                     let mut paths = HashSet::new();
                     for (_, editor_data) in editors.iter() {
-                        let should_save =
-                            editor_data.view.doc.with_untracked(|doc| {
-                                let DocContent::File { path, .. } =
-                                    doc.content.get_untracked()
-                                else {
-                                    return false;
-                                };
-
-                                if paths.contains(&path) {
-                                    return false;
-                                }
-
+                        let doc = editor_data.doc();
+                        let should_save = if let DocContent::File { path, .. } =
+                            doc.content.get_untracked()
+                        {
+                            if paths.contains(&path) {
+                                false
+                            } else {
                                 paths.insert(path.clone());
 
                                 true
-                            });
+                            }
+                        } else {
+                            false
+                        };
 
                         if should_save {
                             editor_data.save(true, || {});
@@ -1359,12 +1359,7 @@ impl WindowTabData {
                                 .with_untracked(|editors| {
                                     editors
                                         .values()
-                                        .map(|editor| {
-                                            editor
-                                                .view
-                                                .doc
-                                                .with_untracked(|doc| doc.content)
-                                        })
+                                        .map(|editor| editor.doc().content)
                                         .filter(|content| {
                                             content.with_untracked(|content| {
                                                 match content {
@@ -1704,11 +1699,9 @@ impl WindowTabData {
                 });
                 if let Some(editor_data) = editor_data {
                     let cursor_offset =
-                        editor_data.cursor.with_untracked(|c| c.offset());
-                    completion.update_document_completion(
-                        &editor_data.view,
-                        cursor_offset,
-                    );
+                        editor_data.cursor().with_untracked(|c| c.offset());
+                    completion
+                        .update_document_completion(&editor_data, cursor_offset);
                 }
             }
             CoreNotification::PublishDiagnostics { diagnostics } => {
@@ -1931,16 +1924,19 @@ impl WindowTabData {
         }
 
         let editor_id = self.common.hover.editor_id.get_untracked();
-        let editor = self
+        let editor_data = self
             .main_split
             .editors
             .with(|editors| editors.get(&editor_id).cloned())?;
 
-        let (window_origin, viewport, view) =
-            (editor.window_origin, editor.viewport, editor.view.clone());
+        let (window_origin, viewport, editor) = (
+            editor_data.window_origin(),
+            editor_data.viewport(),
+            &editor_data.editor,
+        );
 
         // TODO(minor): affinity should be gotten from where the hover was started at.
-        let (point_above, point_below) = view.points_of_offset(
+        let (point_above, point_below) = editor.points_of_offset(
             self.common.hover.offset.get_untracked(),
             CursorAffinity::Forward,
         );
@@ -1975,20 +1971,23 @@ impl WindowTabData {
             return Point::ZERO;
         }
         let config = self.common.config.get();
-        let editor =
+        let editor_data =
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor
             } else {
                 return Point::ZERO;
             };
 
-        let (window_origin, viewport, view) =
-            (editor.window_origin, editor.viewport, editor.view.clone());
+        let (window_origin, viewport, editor) = (
+            editor_data.window_origin(),
+            editor_data.viewport(),
+            &editor_data.editor,
+        );
 
         // TODO(minor): What affinity should we use for this? Probably just use the cursor's
         // original affinity..
         let (point_above, point_below) =
-            view.points_of_offset(completion.offset, CursorAffinity::Forward);
+            editor.points_of_offset(completion.offset, CursorAffinity::Forward);
 
         let window_origin =
             window_origin.get() - self.common.window_origin.get().to_vec2();
@@ -2028,19 +2027,22 @@ impl WindowTabData {
         let tab_size = self.layout_rect.get().size();
         let code_action_size = code_action.layout_rect.size();
 
-        let editor =
+        let editor_data =
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor
             } else {
                 return Point::ZERO;
             };
 
-        let (window_origin, viewport, view) =
-            (editor.window_origin, editor.viewport, editor.view.clone());
+        let (window_origin, viewport, editor) = (
+            editor_data.window_origin(),
+            editor_data.viewport(),
+            &editor_data.editor,
+        );
 
         // TODO(minor): What affinity should we use for this?
         let (_point_above, point_below) =
-            view.points_of_offset(code_action.offset, CursorAffinity::Forward);
+            editor.points_of_offset(code_action.offset, CursorAffinity::Forward);
 
         let window_origin =
             window_origin.get() - self.common.window_origin.get().to_vec2();
@@ -2080,18 +2082,21 @@ impl WindowTabData {
         let tab_size = self.layout_rect.get().size();
         let rename_size = self.rename.layout_rect.get().size();
 
-        let editor =
+        let editor_data =
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor
             } else {
                 return Point::ZERO;
             };
 
-        let (window_origin, viewport, view) =
-            (editor.window_origin, editor.viewport, editor.view.clone());
+        let (window_origin, viewport, editor) = (
+            editor_data.window_origin(),
+            editor_data.viewport(),
+            &editor_data.editor,
+        );
 
         // TODO(minor): What affinity should we use for this?
-        let (_point_above, point_below) = view.points_of_offset(
+        let (_point_above, point_below) = editor.points_of_offset(
             self.rename.start.get_untracked(),
             CursorAffinity::Forward,
         );
@@ -2124,7 +2129,7 @@ impl WindowTabData {
                 self.main_split
                     .active_editor
                     .get()
-                    .map(|editor| editor.cursor.with(|c| c.get_mode()))
+                    .map(|editor| editor.cursor().with(|c| c.get_mode()))
             } else {
                 None
             };

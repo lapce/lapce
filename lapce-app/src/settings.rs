@@ -308,6 +308,7 @@ impl SettingsData {
 
 pub fn settings_view(
     installed_plugins: RwSignal<IndexMap<VoltID, InstalledVoltData>>,
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
     common: Rc<CommonData>,
 ) -> impl View {
     let config = common.config;
@@ -317,8 +318,8 @@ pub fn settings_view(
     let view_settings_data = settings_data.clone();
     let plugin_kinds = settings_data.plugin_kinds;
 
-    let search_editor = EditorData::new_local(cx, EditorId::next(), common);
-    let doc = search_editor.view.doc;
+    let search_editor = EditorData::new_local(cx, None, editors, common);
+    let doc = search_editor.doc_signal();
 
     let items = settings_data.items.clone();
     let kinds = settings_data.kinds.clone();
@@ -493,7 +494,11 @@ pub fn settings_view(
                         move || settings_data.clone(),
                         |item| (item.kind.clone(), item.name.clone()),
                         move |item| {
-                            settings_item_view(view_settings_data.clone(), item)
+                            settings_item_view(
+                                editors,
+                                view_settings_data.clone(),
+                                item,
+                            )
                         },
                     )
                     .style(|s| {
@@ -519,7 +524,11 @@ pub fn settings_view(
     .style(|s| s.absolute().size_pct(100.0, 100.0))
 }
 
-fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl View {
+fn settings_item_view(
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    settings_data: SettingsData,
+    item: SettingsItem,
+) -> impl View {
     let config = settings_data.common.config;
 
     let is_ticked = if let SettingsValue::Bool(is_ticked) = &item.value {
@@ -544,12 +553,9 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
         move || {
             let cx = Scope::current();
             if let Some(editor_value) = editor_value {
-                let editor = EditorData::new_local(
-                    cx,
-                    EditorId::next(),
-                    settings_data.common,
-                );
-                let doc = editor.view.doc.get_untracked();
+                let editor =
+                    EditorData::new_local(cx, None, editors, settings_data.common);
+                let doc = editor.doc();
                 doc.reload(Rope::from(editor_value), true);
 
                 let kind = item.kind.clone();
@@ -899,6 +905,7 @@ fn color_section_list(
     list: impl Fn() -> BTreeMap<String, String> + 'static,
     max_width: Memo<f64>,
     text_height: Memo<f64>,
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
     common: Rc<CommonData>,
 ) -> impl View {
     let config = common.config;
@@ -919,8 +926,8 @@ fn color_section_list(
             move |(key, value)| {
                 let cx = Scope::current();
                 let editor =
-                    EditorData::new_local(cx, EditorId::next(), common.clone());
-                let doc = editor.view.doc.get_untracked();
+                    EditorData::new_local(cx, None, editors, common.clone());
+                let doc = editor.doc();
                 doc.reload(Rope::from(value.clone()), true);
 
                 {
@@ -1110,7 +1117,10 @@ fn color_section_list(
     .style(|s| s.flex_col())
 }
 
-pub fn theme_color_settings_view(common: Rc<CommonData>) -> impl View {
+pub fn theme_color_settings_view(
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    common: Rc<CommonData>,
+) -> impl View {
     let config = common.config;
 
     let text_height = create_memo(move |_| {
@@ -1162,6 +1172,7 @@ pub fn theme_color_settings_view(common: Rc<CommonData>) -> impl View {
                 move || config.with(|c| c.color_theme.base.key_values()),
                 max_width,
                 text_height,
+                editors,
                 common.clone(),
             ),
             color_section_list(
@@ -1170,6 +1181,7 @@ pub fn theme_color_settings_view(common: Rc<CommonData>) -> impl View {
                 move || config.with(|c| c.color_theme.syntax.clone()),
                 max_width,
                 text_height,
+                editors,
                 common.clone(),
             ),
             color_section_list(
@@ -1178,6 +1190,7 @@ pub fn theme_color_settings_view(common: Rc<CommonData>) -> impl View {
                 move || config.with(|c| c.color_theme.ui.clone()),
                 max_width,
                 text_height,
+                editors,
                 common.clone(),
             ),
         ))

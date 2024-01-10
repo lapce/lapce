@@ -13,10 +13,7 @@ use lsp_types::{
 };
 use nucleo::Utf32Str;
 
-use crate::{
-    config::LapceConfig, doc::DocumentExt, editor::view_data::EditorViewData,
-    editor2::EditorData2, snippet::Snippet,
-};
+use crate::{config::LapceConfig, editor::EditorData, snippet::Snippet};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CompletionStatus {
@@ -299,49 +296,7 @@ impl CompletionData {
     /// Update the completion lens of the document with the active completion item.  
     pub fn update_document_completion(
         &self,
-        view: &EditorViewData,
-        cursor_offset: usize,
-    ) {
-        let doc = view.doc.get_untracked();
-
-        if !doc.content.with_untracked(|content| content.is_file()) {
-            return;
-        }
-
-        let config = self.config.get_untracked();
-
-        if !config.editor.enable_completion_lens {
-            doc.clear_completion_lens();
-            return;
-        }
-
-        let completion_lens = completion_lens_text(
-            view.rope_text(),
-            cursor_offset,
-            self,
-            doc.completion_lens().as_deref(),
-        );
-        match completion_lens {
-            Some(Some(lens)) => {
-                let offset = self.offset + self.input.len();
-                // TODO: will need to be adjusted to use visual line.
-                //   Could just store the offset in doc.
-                let (line, col) = view.offset_to_line_col(offset);
-
-                doc.set_completion_lens(lens, line, col);
-            }
-            // Unchanged
-            Some(None) => {}
-            None => {
-                doc.clear_completion_lens();
-            }
-        }
-    }
-
-    /// Update the completion lens of the document with the active completion item.  
-    pub fn update_document_completion2(
-        &self,
-        editor_data: &EditorData2,
+        editor_data: &EditorData,
         cursor_offset: usize,
     ) {
         let doc = editor_data.doc();

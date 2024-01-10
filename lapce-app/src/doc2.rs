@@ -20,7 +20,7 @@ use floem_editor::{
     actions::CommonAction,
     color::EditorColor,
     command::{Command, CommandExecuted},
-    editor::Editor,
+    editor::{CursorInfo, Editor},
     id::EditorId,
     phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
     text::{
@@ -64,7 +64,7 @@ use crate::{
     command::{CommandKind, LapceCommand},
     config::{color::LapceColor, editor::WrapStyle, LapceConfig},
     doc::{DiagnosticData, DocContent},
-    editor2::{compute_screen_lines, EditorData2},
+    editor::{compute_screen_lines, EditorData},
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     keypress::KeyPressFocus,
@@ -117,7 +117,7 @@ pub struct Doc {
     /// The diagnostics for the document
     pub diagnostics: DiagnosticData,
 
-    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData2>>>,
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
     pub common: Rc<CommonData>,
 }
 impl Doc {
@@ -125,7 +125,7 @@ impl Doc {
         cx: Scope,
         path: PathBuf,
         diagnostics: DiagnosticData,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData2>>>,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
         common: Rc<CommonData>,
     ) -> Doc {
         let syntax = Syntax::init(&path);
@@ -161,7 +161,7 @@ impl Doc {
 
     pub fn new_local(
         cx: Scope,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData2>>>,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
         common: Rc<CommonData>,
     ) -> Doc {
         Self::new_content(cx, DocContent::Local, editors, common)
@@ -170,7 +170,7 @@ impl Doc {
     pub fn new_content(
         cx: Scope,
         content: DocContent,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData2>>>,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
         common: Rc<CommonData>,
     ) -> Doc {
         let cx = cx.create_child();
@@ -207,7 +207,7 @@ impl Doc {
     pub fn new_history(
         cx: Scope,
         content: DocContent,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData2>>>,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
         common: Rc<CommonData>,
     ) -> Doc {
         let syntax = if let DocContent::History(history) = &content {
@@ -244,9 +244,27 @@ impl Doc {
             common,
         }
     }
-}
-impl Doc {
-    fn editor_data(&self, id: EditorId) -> Option<Rc<EditorData2>> {
+
+    /// Create an [`Editor`] instance from this [`Doc`]. Note that this needs to be registered
+    /// appropriately to create the [`EditorData`] and such.
+    pub fn create_editor(self: &Rc<Doc>, cx: Scope, id: EditorId) -> Rc<Editor> {
+        let register = self.common.register;
+        // TODO(floem-editor): use the lapce blink cursor logic!
+        let cursor_info = CursorInfo::new(cx);
+        let style = Rc::new(DocStyling {
+            config: self.common.config,
+        });
+        Editor::new(
+            cx,
+            id,
+            self.clone(),
+            style,
+            Some(register),
+            Some(cursor_info),
+        )
+    }
+
+    fn editor_data(&self, id: EditorId) -> Option<Rc<EditorData>> {
         self.editors
             .with_untracked(|editors| editors.get(&id).cloned())
     }
@@ -931,7 +949,7 @@ impl Doc {
         lines
     }
 
-    fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>> {
+    pub fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>> {
         self.head_changes
     }
 
@@ -1059,7 +1077,7 @@ impl Doc {
         }
     }
 
-    fn update_inline_completion(&self, delta: &RopeDelta) {
+    pub fn update_inline_completion(&self, delta: &RopeDelta) {
         let Some(completion) = self.inline_completion.get_untracked() else {
             return;
         };

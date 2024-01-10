@@ -61,7 +61,11 @@ impl KeyPressFocus for SourceControlData {
 }
 
 impl SourceControlData {
-    pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
+    pub fn new(
+        cx: Scope,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        common: Rc<CommonData>,
+    ) -> Self {
         Self {
             file_diffs: cx.create_rw_signal(IndexMap::new()),
             branch: cx.create_rw_signal("".to_string()),
@@ -69,7 +73,8 @@ impl SourceControlData {
             tags: cx.create_rw_signal(im::Vector::new()),
             editor: Rc::new(EditorData::new_local(
                 cx,
-                EditorId::next(),
+                None,
+                editors,
                 common.clone(),
             )),
             common,
@@ -98,9 +103,7 @@ impl SourceControlData {
 
         let message = self
             .editor
-            .view
-            .doc
-            .get_untracked()
+            .doc()
             .buffer
             .with_untracked(|buffer| buffer.to_string());
         let message = message.trim();
