@@ -26,6 +26,7 @@ use floem_editor::{
     text::{
         Document, DocumentPhantom, PreeditData, Styling, SystemClipboard, WrapMethod,
     },
+    view::{ScreenLines, ScreenLinesBase},
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -63,7 +64,7 @@ use crate::{
     command::{CommandKind, LapceCommand},
     config::{color::LapceColor, editor::WrapStyle, LapceConfig},
     doc::{DiagnosticData, DocContent},
-    editor2::EditorData2,
+    editor2::{compute_screen_lines, EditorData2},
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     keypress::KeyPressFocus,
@@ -1169,10 +1170,27 @@ impl Document for Doc {
 
     fn compute_screen_lines(
         &self,
-        editor: &floem_editor::editor::Editor,
-        base: RwSignal<floem_editor::view::ScreenLinesBase>,
-    ) -> floem_editor::view::ScreenLines {
-        todo!("handle diff editors somehow")
+        editor: &Editor,
+        base: RwSignal<ScreenLinesBase>,
+    ) -> ScreenLines {
+        let Some(editor_data) = self.editor_data(editor.id()) else {
+            debug_assert!(false);
+            return ScreenLines {
+                lines: Default::default(),
+                info: Default::default(),
+                diff_sections: Default::default(),
+                base,
+            };
+        };
+
+        compute_screen_lines(
+            self.common.config,
+            base,
+            editor_data.kind.read_only(),
+            &editor_data.doc(),
+            editor.lines(),
+            editor.text_prov(),
+        )
     }
 
     fn run_command(
@@ -1195,7 +1213,11 @@ impl Document for Doc {
     }
 
     fn receive_char(&self, ed: &Editor, c: &str) {
-        todo!()
+        let Some(editor_data) = self.editor_data(ed.id()) else {
+            return;
+        };
+
+        editor_data.receive_char(c);
     }
 }
 impl DocumentPhantom for Doc {
@@ -1467,7 +1489,7 @@ impl Styling for DocStyling {
             .with_untracked(|config| config.editor.font_size())
     }
 
-    fn line_height(&self, line: usize) -> f32 {
+    fn line_height(&self, _line: usize) -> f32 {
         self.config
             .with_untracked(|config| config.editor.line_height()) as f32
     }

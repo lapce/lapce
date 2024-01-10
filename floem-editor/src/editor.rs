@@ -212,6 +212,10 @@ impl Editor {
         self.doc().rope_text()
     }
 
+    pub fn lines(&self) -> &Lines {
+        &self.lines
+    }
+
     // Get the text layout for a document line, creating it if needed.
     pub(crate) fn text_layout(&self, line: usize) -> Arc<TextLayoutLine> {
         self.text_layout_trigger(line, true)

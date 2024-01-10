@@ -56,6 +56,9 @@ pub struct DiffSection {
     pub kind: DiffSectionKind,
 }
 
+// TODO(floem-editor): We have diff sections in screen lines because Lapce uses them, but
+// we don't really have support for diffs in floem-editor!
+// Possibly we should just move that out to a separate field on Lapce's editor.
 #[derive(Clone, PartialEq)]
 pub struct ScreenLines {
     pub lines: Rc<Vec<RVLine>>,
