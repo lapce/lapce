@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::{color::LapceColor, icon::LapceIcons},
-    doc2::{Doc, DocContent},
+    doc::{Doc, DocContent},
     id::{DiffEditorId, EditorTabId},
     main_split::MainSplitData,
     wave::wave_box,

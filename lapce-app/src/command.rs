@@ -20,7 +20,7 @@ use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use crate::{
     alert::AlertButton,
     debug::RunDebugMode,
-    doc2::Doc,
+    doc::Doc,
     editor::location::EditorLocation,
     editor_tab::EditorTabChild,
     id::EditorTabId,

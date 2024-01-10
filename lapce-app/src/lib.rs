@@ -7,7 +7,7 @@ pub mod completion;
 pub mod config;
 pub mod db;
 pub mod debug;
-pub mod doc2;
+pub mod doc;
 pub mod editor;
 pub mod editor_tab;
 pub mod file_explorer;
