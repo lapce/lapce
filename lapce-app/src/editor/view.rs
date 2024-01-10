@@ -1655,6 +1655,14 @@ impl View for EditorView {
             if self.inner_node.is_none() {
                 self.inner_node = Some(cx.new_node());
             }
+
+            let screen_lines = self.editor.screen_lines().get_untracked();
+            let view = self.editor.view.clone();
+            for (line, _) in screen_lines.iter_lines_y() {
+                // fill in text layout cache so that max width is correct.
+                view.get_text_layout(line);
+            }
+
             let inner_node = self.inner_node.unwrap();
 
             let config = self.editor.common.config.get_untracked();
