@@ -17,6 +17,11 @@ use floem::{
     peniko::Color,
     reactive::{batch, RwSignal, Scope},
 };
+use floem_editor::{
+    layout::{LineExtraStyle, TextLayoutLine},
+    phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
+    visual_line::TextLayoutCache,
+};
 use itertools::Itertools;
 use lapce_core::{
     buffer::{
@@ -51,20 +56,13 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use self::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine};
 use crate::{
     config::{color::LapceColor, LapceConfig},
-    editor::{
-        view_data::{LineExtraStyle, TextLayoutLine},
-        visual_line::TextLayoutCache,
-    },
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     window_tab::CommonData,
     workspace::LapceWorkspace,
 };
-
-pub mod phantom_text;
 
 pub struct SystemClipboard;
 

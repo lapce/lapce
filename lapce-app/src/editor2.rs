@@ -14,7 +14,6 @@ use floem_editor::{
     editor::Editor,
     id::EditorId,
     movement,
-    text::Document,
     view::{DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase},
     visual_line::{Lines, TextLayoutProvider, VLine, VLineInfo},
 };
@@ -365,7 +364,7 @@ impl EditorData2 {
     pub fn run_focus_command(
         &self,
         cmd: &FocusCommand,
-        count: Option<usize>,
+        _count: Option<usize>,
         mods: ModifiersState,
     ) -> CommandExecuted {
         // TODO(minor): Evaluate whether we should split this into subenums,

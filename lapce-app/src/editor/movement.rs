@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 
+use floem_editor::visual_line::{RVLine, VLineInfo};
 use lapce_core::{
     buffer::rope_text::RopeText,
     command::MultiSelectionCommand,
@@ -16,10 +17,7 @@ use lapce_core::{
 
 use crate::doc::Document;
 
-use super::{
-    view_data::EditorViewData,
-    visual_line::{RVLine, VLineInfo},
-};
+use super::view_data::EditorViewData;
 
 /// Move a selection region by a given movement.  
 /// Much of the time, this will just be a matter of moving the cursor, but

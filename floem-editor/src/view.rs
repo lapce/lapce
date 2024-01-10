@@ -227,7 +227,7 @@ impl ScreenLines {
     /// the viewport if necessary.
     ///
     /// Returns `true` if [`ScreenLines`] needs to be completely updated in response
-    pub(crate) fn on_created_layout(&self, ed: &Editor, line: usize) -> bool {
+    pub fn on_created_layout(&self, ed: &Editor, line: usize) -> bool {
         let base = self.base.get_untracked();
         let vp = ed.viewport.get_untracked();
 

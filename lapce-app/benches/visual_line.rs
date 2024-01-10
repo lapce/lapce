@@ -5,14 +5,12 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Wrap},
     reactive::Scope,
 };
-use lapce_app::{
-    doc::phantom_text::PhantomTextLine,
-    editor::{
-        view_data::TextLayoutLine,
-        visual_line::{
-            FontSizeCacheId, LineFontSizeProvider, Lines, ResolvedWrap,
-            TextLayoutProvider, VLine,
-        },
+use floem_editor::{
+    layout::TextLayoutLine,
+    phantom_text::PhantomTextLine,
+    visual_line::{
+        FontSizeCacheId, LineFontSizeProvider, Lines, ResolvedWrap,
+        TextLayoutProvider, VLine,
     },
 };
 use lapce_core::{

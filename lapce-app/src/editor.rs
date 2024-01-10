@@ -13,7 +13,11 @@ use floem::{
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
     reactive::{batch, use_context, ReadSignal, RwSignal, Scope},
 };
-use floem_editor::id::EditorId;
+use floem_editor::{
+    id::EditorId,
+    view::{DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase},
+    visual_line::{Lines, TextLayoutProvider, VLine, VLineInfo},
+};
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText, InvalLines},
     command::{
@@ -44,10 +48,7 @@ use crate::{
     config::LapceConfig,
     db::LapceDb,
     doc::{DocContent, Document, DocumentExt},
-    editor::{
-        location::{EditorLocation, EditorPosition},
-        visual_line::Lines,
-    },
+    editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
     id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
@@ -61,11 +62,7 @@ use crate::{
     window_tab::{CommonData, Focus, WindowTabData},
 };
 
-use self::{
-    view::{DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase},
-    view_data::{EditorViewData, EditorViewKind},
-    visual_line::{TextLayoutProvider, VLine, VLineInfo},
-};
+use self::view_data::{EditorViewData, EditorViewKind};
 
 pub mod diff;
 pub mod gutter;
@@ -73,7 +70,6 @@ pub mod location;
 pub mod movement;
 pub mod view;
 pub mod view_data;
-pub mod visual_line;
 
 const CHAR_WIDTH: f64 = 7.5;
 
@@ -548,7 +544,7 @@ impl EditorData {
     pub fn run_focus_command(
         &self,
         cmd: &FocusCommand,
-        count: Option<usize>,
+        _count: Option<usize>,
         mods: ModifiersState,
     ) -> CommandExecuted {
         // TODO(minor): Evaluate whether we should split this into subenums,
