@@ -1375,6 +1375,8 @@ pub fn remove_volt(
                 .volt_removing(volt.clone(), "Plugin Directory not set".to_string());
             anyhow::anyhow!("don't have dir")
         })?;
+        // Waiting for the instance of WASI to be dropped.
+        std::thread::sleep(std::time::Duration::from_secs(1));
         if let Err(e) = std::fs::remove_dir_all(path) {
             eprintln!("Could not delete plugin folder: {e}");
             catalog_rpc.core_rpc.volt_removing(

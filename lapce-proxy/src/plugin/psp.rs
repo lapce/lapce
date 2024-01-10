@@ -510,6 +510,10 @@ impl PluginServerRpcHandler {
                     handler.handle_handler_notification(notification)
                 }
                 PluginServerRpc::Shutdown => {
+                    self.send_server_notification(
+                        lsp_types::notification::Exit::METHOD,
+                        Params::None(()),
+                    );
                     return;
                 }
             }

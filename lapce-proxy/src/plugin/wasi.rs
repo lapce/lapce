@@ -470,6 +470,13 @@ pub fn start_volt(
             .typed::<(), ()>(&mut store)
             .unwrap();
         for msg in io_rx {
+            if msg
+                .get_method()
+                .map(|x| x == lsp_types::notification::Exit::METHOD)
+                .unwrap_or_default()
+            {
+                break;
+            }
             if let Ok(msg) = serde_json::to_string(&msg) {
                 let _ = writeln!(stdin.write().unwrap(), "{msg}");
             }
