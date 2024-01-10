@@ -43,7 +43,7 @@ use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     debug::LapceBreakpoint,
-    doc::DocContent,
+    doc2::DocContent,
     text_input::text_input,
     window_tab::{Focus, WindowTabData},
     workspace::LapceWorkspace,

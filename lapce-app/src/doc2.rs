@@ -57,19 +57,98 @@ use lapce_xi_rope::{
     spans::{Spans, SpansBuilder},
     Interval, Rope, RopeDelta, Transformer,
 };
-use lsp_types::{CodeActionResponse, DiagnosticSeverity, InlayHint, InlayHintLabel};
+use lsp_types::{
+    CodeActionResponse, Diagnostic, DiagnosticSeverity, InlayHint, InlayHintLabel,
+};
+use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::{
     command::{CommandKind, LapceCommand},
     config::{color::LapceColor, editor::WrapStyle, LapceConfig},
-    doc::{DiagnosticData, DocContent},
     editor::{compute_screen_lines, EditorData},
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     keypress::KeyPressFocus,
     window_tab::CommonData,
+    workspace::LapceWorkspace,
 };
+
+#[derive(Clone, Debug)]
+pub struct DiagnosticData {
+    pub expanded: RwSignal<bool>,
+    pub diagnostics: RwSignal<im::Vector<EditorDiagnostic>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EditorDiagnostic {
+    pub range: (usize, usize),
+    pub diagnostic: Diagnostic,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct DocHistory {
+    pub path: PathBuf,
+    pub version: String,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum DocContent {
+    /// A file at some location. This can be a remote path.
+    File { path: PathBuf, read_only: bool },
+    /// A local document, which doens't need to be sync to the disk.
+    Local,
+    /// A document of an old version in the source control
+    History(DocHistory),
+    /// A new file which doesn't exist in the file system
+    Scratch { id: BufferId, name: String },
+}
+
+impl DocContent {
+    pub fn is_local(&self) -> bool {
+        matches!(self, DocContent::Local)
+    }
+
+    pub fn is_file(&self) -> bool {
+        matches!(self, DocContent::File { .. })
+    }
+
+    pub fn read_only(&self) -> bool {
+        match self {
+            DocContent::File { read_only, .. } => *read_only,
+            DocContent::Local => false,
+            DocContent::History(_) => true,
+            DocContent::Scratch { .. } => false,
+        }
+    }
+
+    pub fn path(&self) -> Option<&PathBuf> {
+        match self {
+            DocContent::File { path, .. } => Some(path),
+            DocContent::Local => None,
+            DocContent::History(_) => None,
+            DocContent::Scratch { .. } => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DocInfo {
+    pub workspace: LapceWorkspace,
+    pub path: PathBuf,
+    pub scroll_offset: (f64, f64),
+    pub cursor_offset: usize,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RenderWhitespace {
+    #[default]
+    None,
+    All,
+    Boundary,
+    Trailing,
+}
 
 /// (Offset -> (Plugin the code actions are from, Code Actions))
 pub type CodeActions = im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>;
@@ -1192,7 +1271,6 @@ impl Document for Doc {
         base: RwSignal<ScreenLinesBase>,
     ) -> ScreenLines {
         let Some(editor_data) = self.editor_data(editor.id()) else {
-            debug_assert!(false);
             return ScreenLines {
                 lines: Default::default(),
                 info: Default::default(),

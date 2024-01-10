@@ -13,7 +13,7 @@ use super::{position::PanelPosition, view::panel_header};
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    doc::{DiagnosticData, EditorDiagnostic},
+    doc2::{DiagnosticData, EditorDiagnostic},
     editor::location::{EditorLocation, EditorPosition},
     listener::Listener,
     proxy::path_from_url,

@@ -11,13 +11,7 @@ use lapce_core::{
 
 use lsp_types::InsertTextFormat;
 
-use crate::{
-    config::LapceConfig,
-    doc::{Document, DocumentExt},
-    doc2::Doc,
-    editor::EditorData,
-    snippet::Snippet,
-};
+use crate::{config::LapceConfig, doc2::Doc, editor::EditorData, snippet::Snippet};
 
 // TODO: we could integrate completion lens with this, so it is considered at the same time
 
@@ -165,37 +159,7 @@ impl InlineCompletionData {
         });
     }
 
-    pub fn update_doc(&self, doc: &Document, offset: usize) {
-        if self.status != InlineCompletionStatus::Active {
-            doc.clear_inline_completion();
-            return;
-        }
-
-        if self.items.is_empty() {
-            doc.clear_inline_completion();
-            return;
-        }
-
-        let active = self.active.get_untracked();
-        let active = if active >= self.items.len() {
-            self.active.set(0);
-            0
-        } else {
-            active
-        };
-
-        let item = &self.items[active];
-        let text = item.insert_text.clone();
-
-        // TODO: is range really meant to be used for this?
-        let offset = item.range.as_ref().map(|r| r.start).unwrap_or(offset);
-        let (line, col) = doc
-            .buffer
-            .with_untracked(|buffer| buffer.offset_to_line_col(offset));
-        doc.set_inline_completion(text, line, col);
-    }
-
-    pub fn update_doc2(&self, doc: &Doc, offset: usize) {
+    pub fn update_doc(&self, doc: &Doc, offset: usize) {
         if self.status != InlineCompletionStatus::Active {
             doc.clear_inline_completion();
             return;
@@ -226,42 +190,6 @@ impl InlineCompletionData {
     }
 
     pub fn update_inline_completion(
-        &self,
-        config: &LapceConfig,
-        doc: &Document,
-        cursor_offset: usize,
-    ) {
-        if !config.editor.enable_inline_completion {
-            doc.clear_inline_completion();
-            return;
-        }
-
-        let text = doc.buffer.with_untracked(|buffer| buffer.text().clone());
-        let text = RopeTextRef::new(&text);
-        let Some(item) = self.current_item() else {
-            // TODO(minor): should we cancel completion
-            return;
-        };
-
-        let completion = doc.backend.inline_completion.with_untracked(|cur| {
-            let cur = cur.as_deref();
-            inline_completion_text(text, self.start_offset, cursor_offset, item, cur)
-        });
-
-        match completion {
-            ICompletionRes::Hide => {
-                doc.clear_inline_completion();
-            }
-            ICompletionRes::Unchanged => {}
-            ICompletionRes::Set(new, shift) => {
-                let offset = self.start_offset + shift;
-                let (line, col) = text.offset_to_line_col(offset);
-                doc.set_inline_completion(new, line, col);
-            }
-        }
-    }
-
-    pub fn update_inline_completion2(
         &self,
         config: &LapceConfig,
         doc: &Doc,

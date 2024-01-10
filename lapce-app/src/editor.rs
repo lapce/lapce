@@ -48,8 +48,7 @@ use crate::{
     completion::CompletionStatus,
     config::LapceConfig,
     db::LapceDb,
-    doc::DocContent,
-    doc2::Doc,
+    doc2::{Doc, DocContent},
     editor_tab::EditorTabChild,
     id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
@@ -1213,7 +1212,7 @@ impl EditorData {
         if has_relevant {
             let config = self.common.config.get_untracked();
             inline_completion.update(|completion| {
-                completion.update_inline_completion2(&config, &doc, offset);
+                completion.update_inline_completion(&config, &doc, offset);
             });
         }
 
@@ -1229,7 +1228,7 @@ impl EditorData {
                 });
                 inline_completion.update(|c| {
                     c.set_items(items, offset, path2);
-                    c.update_doc2(&doc, offset);
+                    c.update_doc(&doc, offset);
                 });
             },
         );

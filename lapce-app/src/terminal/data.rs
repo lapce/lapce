@@ -11,6 +11,7 @@ use floem::{
     keyboard::{Key, KeyEvent, ModifiersState, NamedKey},
     reactive::{RwSignal, Scope},
 };
+use floem_editor::text::SystemClipboard;
 use lapce_core::{
     command::{EditCommand, FocusCommand, ScrollCommand},
     mode::{Mode, VisualMode},
@@ -30,7 +31,6 @@ use super::{
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
     debug::RunDebugProcess,
-    doc::SystemClipboard,
     keypress::{condition::Condition, KeyPressFocus},
     window_tab::CommonData,
     workspace::LapceWorkspace,

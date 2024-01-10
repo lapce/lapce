@@ -12,7 +12,7 @@ use lapce_rpc::plugin::VoltID;
 
 use crate::{
     app::{AppData, AppInfo},
-    doc::DocInfo,
+    doc2::DocInfo,
     panel::{data::PanelOrder, kind::PanelKind, position::PanelPosition},
     window::{WindowData, WindowInfo},
     window_tab::WindowTabData,

@@ -17,8 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    doc::DocContent,
-    doc2::Doc,
+    doc2::{Doc, DocContent},
     editor::{
         diff::{DiffEditorData, DiffEditorInfo},
         location::EditorLocation,
