@@ -21,7 +21,7 @@ fn main() {
     let style = Rc::new(style);
 
     let id = EditorId::next();
-    let editor = Editor::new(cx, id, doc, style, None, None);
+    let editor = Rc::new(Editor::new(cx, id, doc, style, None, None));
     let editor = create_rw_signal(editor);
 
     floem::launch(move || app_view(editor));

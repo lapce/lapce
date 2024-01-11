@@ -346,22 +346,83 @@ impl Doc {
 
     /// Create an [`Editor`] instance from this [`Doc`]. Note that this needs to be registered
     /// appropriately to create the [`EditorData`] and such.
-    pub fn create_editor(self: &Rc<Doc>, cx: Scope, id: EditorId) -> Rc<Editor> {
-        let register = self.common.register;
-        // TODO(floem-editor): use the lapce blink cursor logic!
-        let cursor_info = CursorInfo::new(cx);
+    pub fn create_editor(self: &Rc<Doc>, cx: Scope, id: EditorId) -> Editor {
+        let common = &self.common;
+        let config = common.config;
+
+        let register = common.register;
+        let cursor_info = CursorInfo {
+            blink_interval: Rc::new(move || {
+                config.get_untracked().editor.blink_interval()
+            }),
+            blink_timer: common.window_common.cursor_blink_timer,
+            hidden: common.window_common.hide_cursor,
+            // TODO(floem-editor): use the lapce blink cursor logic!
+            should_blink: Rc::new(|| true),
+        };
         let style = Rc::new(DocStyling {
-            config: self.common.config,
+            config,
             doc: self.clone(),
         });
-        Editor::new(
+        let mut editor = Editor::new(
             cx,
             id,
             self.clone(),
             style,
             Some(register),
             Some(cursor_info),
-        )
+        );
+
+        editor.ime_allowed = common.window_common.ime_allowed;
+
+        // Updating editor fields based on config
+        let ed = editor.clone();
+        cx.create_effect(move |_| {
+            let config = config.get();
+
+            batch(|| {
+                if ed.scroll_beyond_last_line.get_untracked()
+                    != config.editor.scroll_beyond_last_line
+                {
+                    ed.scroll_beyond_last_line
+                        .set(config.editor.scroll_beyond_last_line);
+                }
+
+                if ed.cursor_surrounding_lines.get_untracked()
+                    != config.editor.cursor_surrounding_lines
+                {
+                    ed.cursor_surrounding_lines
+                        .set(config.editor.cursor_surrounding_lines);
+                }
+
+                if ed.show_indent_guide.get_untracked()
+                    != config.editor.show_indent_guide
+                {
+                    ed.show_indent_guide.set(config.editor.show_indent_guide);
+                }
+
+                if ed.modal_relative_line_numbers.get_untracked()
+                    != config.editor.modal_mode_relative_line_numbers
+                {
+                    ed.modal_relative_line_numbers
+                        .set(config.editor.modal_mode_relative_line_numbers);
+                }
+
+                if ed.smart_tab.get_untracked() != config.editor.smart_tab {
+                    ed.smart_tab.set(config.editor.smart_tab);
+                }
+
+                if ed.modal.get_untracked() != config.core.modal {
+                    ed.modal.set(config.core.modal);
+                }
+            });
+        });
+
+        // TODO: use an alternate function or parameter for Editor::new which skips
+        // creating the view effects immediately, to avoid creating them twice
+        editor.recreate_view_effects();
+
+        editor
     }
 
     fn editor_data(&self, id: EditorId) -> Option<Rc<EditorData>> {

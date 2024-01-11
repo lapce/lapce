@@ -120,7 +120,7 @@ impl Editor {
         style: Rc<dyn Styling>,
         register: Option<RwSignal<Register>>,
         cursor_info: Option<CursorInfo>,
-    ) -> Rc<Editor> {
+    ) -> Editor {
         let cx = cx.create_child();
 
         let viewport = cx.create_rw_signal(Rect::ZERO);
@@ -180,9 +180,8 @@ impl Editor {
             cursor_info,
             ime_allowed: cx.create_rw_signal(false),
         };
-        let ed = Rc::new(ed);
 
-        create_view_effects(ed.effects_cx.get(), ed.clone());
+        create_view_effects(ed.effects_cx.get(), &ed);
 
         ed
     }
@@ -205,6 +204,14 @@ impl Editor {
         self.doc
     }
 
+    pub fn recreate_view_effects(&self) {
+        batch(|| {
+            self.effects_cx.get().dispose();
+            self.effects_cx.set(self.cx.get().create_child());
+            create_view_effects(self.effects_cx.get(), self);
+        });
+    }
+
     /// Swap the underlying document out
     pub fn update_doc(self: &Rc<Editor>, doc: Rc<dyn Document>) {
         batch(|| {
@@ -222,7 +229,7 @@ impl Editor {
 
             // Recreate the effects
             self.effects_cx.set(self.cx.get().create_child());
-            create_view_effects(self.effects_cx.get(), self.clone());
+            create_view_effects(self.effects_cx.get(), &self);
         });
     }
 
@@ -231,7 +238,7 @@ impl Editor {
         editor_id: Option<EditorId>,
         share_register: bool,
         share_blink_cursor_info: bool,
-    ) -> Rc<Editor> {
+    ) -> Editor {
         let doc = self.doc();
         let style = self.style();
         let register = if share_register {
@@ -1157,8 +1164,9 @@ const MIN_WRAPPED_WIDTH: f32 = 100.0;
 /// Create various reactive effects to update the screen lines whenever relevant parts of the view,
 /// doc, text layouts, viewport, etc. change.
 /// This tries to be smart to a degree.
-fn create_view_effects(cx: Scope, ed: Rc<Editor>) {
+fn create_view_effects(cx: Scope, ed: &Editor) {
     // Cloning is fun.
+    let ed1 = ed.clone();
     let ed2 = ed.clone();
     let ed3 = ed.clone();
     let ed4 = ed.clone();
@@ -1180,8 +1188,8 @@ fn create_view_effects(cx: Scope, ed: Rc<Editor>) {
     cx.create_effect(move |_| {
         // We can't put this with the other effects because we only want to update screen lines if
         // the cache rev actually changed
-        let cache_rev = ed.doc.with(|doc| doc.cache_rev()).get();
-        ed.lines.check_cache_rev(cache_rev);
+        let cache_rev = ed1.doc.with(|doc| doc.cache_rev()).get();
+        ed1.lines.check_cache_rev(cache_rev);
     });
 
     // Listen for layout events, currently only when a layout is created, and update screen

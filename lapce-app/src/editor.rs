@@ -210,9 +210,9 @@ impl PartialEq for EditorData {
     }
 }
 impl EditorData {
-    pub fn new(
+    fn new(
         cx: Scope,
-        editor: Rc<Editor>,
+        editor: Editor,
         editor_tab_id: Option<EditorTabId>,
         diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
         confirmed: Option<RwSignal<bool>>,
@@ -232,7 +232,7 @@ impl EditorData {
             inline_find: cx.create_rw_signal(None),
             last_inline_find: cx.create_rw_signal(None),
             find_focus: cx.create_rw_signal(false),
-            editor,
+            editor: Rc::new(editor),
             kind: cx.create_rw_signal(EditorViewKind::Normal),
             sticky_header_height: cx.create_rw_signal(0.0),
             common,
@@ -290,7 +290,7 @@ impl EditorData {
             inline_find: cx.create_rw_signal(None),
             last_inline_find: cx.create_rw_signal(None),
             find_focus: cx.create_rw_signal(false),
-            editor: self.editor.duplicate(editor_id, true, true),
+            editor: Rc::new(self.editor.duplicate(editor_id, true, true)),
             kind: cx.create_rw_signal(self.kind.get_untracked().clone()),
             sticky_header_height: cx.create_rw_signal(0.0),
             common: self.common.clone(),
