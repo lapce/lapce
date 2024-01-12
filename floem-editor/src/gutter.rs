@@ -1,14 +1,13 @@
 use std::rc::Rc;
 
 use floem::{
-    context::PaintCx,
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
+    cosmic_text::{Attrs, AttrsList, TextLayout},
     id::Id,
-    peniko::kurbo::{Point, Rect, Size},
+    peniko::kurbo::Point,
     view::{View, ViewData},
     Renderer,
 };
-use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
+use lapce_core::mode::Mode;
 
 use crate::{color::EditorColor, editor::Editor};
 
@@ -28,44 +27,6 @@ pub fn editor_gutter_view(editor: Rc<Editor>) -> EditorGutterView {
         editor,
         width: 0.0,
     }
-}
-
-impl EditorGutterView {
-    // fn paint_sticky_headers(
-    //     &self,
-    //     cx: &mut PaintCx,
-    //     is_normal: bool,
-    //     config: &LapceConfig,
-    // ) {
-    //     if !is_normal {
-    //         return;
-    //     }
-
-    //     if !config.editor.sticky_header {
-    //         return;
-    //     }
-    //     let sticky_header_height = self.editor.sticky_header_height;
-    //     let sticky_header_height = sticky_header_height.get_untracked();
-    //     if sticky_header_height == 0.0 {
-    //         return;
-    //     }
-
-    //     let sticky_area_rect =
-    //         Size::new(self.width + 25.0 + 30.0, sticky_header_height)
-    //             .to_rect()
-    //             .with_origin(Point::new(-25.0, 0.0))
-    //             .inflate(25.0, 0.0);
-    //     cx.fill(
-    //         &sticky_area_rect,
-    //         config.color(LapceColor::LAPCE_DROPDOWN_SHADOW),
-    //         3.0,
-    //     );
-    //     cx.fill(
-    //         &sticky_area_rect,
-    //         config.color(LapceColor::EDITOR_STICKY_HEADER_BACKGROUND),
-    //         0.0,
-    //     );
-    // }
 }
 
 impl View for EditorGutterView {

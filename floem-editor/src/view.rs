@@ -245,7 +245,7 @@ impl ScreenLines {
             let line_height = f64::from(ed.line_height(0));
 
             // We could use `try_text_layout` here, but I believe this guards against a rare
-            // crash (though it is hard to verify) wherein the config id has changed and so the
+            // crash (though it is hard to verify) wherein the style id has changed and so the
             // layouts get cleared.
             // However, the original trigger of the layout event was when a layout was created
             // and it expects it to still exist. So we create it just in case, though we of course

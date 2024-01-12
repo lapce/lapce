@@ -71,7 +71,6 @@ pub mod diff;
 pub mod gutter;
 pub mod location;
 pub mod view;
-pub mod view_data;
 
 const CHAR_WIDTH: f64 = 7.5;
 

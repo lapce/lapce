@@ -1725,6 +1725,10 @@ impl DocStyling {
     }
 }
 impl Styling for DocStyling {
+    fn id(&self) -> u64 {
+        self.config.with_untracked(|config| config.id)
+    }
+
     fn font_size(&self, _line: usize) -> usize {
         self.config
             .with_untracked(|config| config.editor.font_size())

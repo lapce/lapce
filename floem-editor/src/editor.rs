@@ -319,11 +319,10 @@ impl Editor {
         line: usize,
         trigger: bool,
     ) -> Arc<TextLayoutLine> {
-        // TODO: config id
-        let config_id = 0;
+        let id = self.style().id();
         let text_prov = self.text_prov();
         self.lines
-            .get_init_text_layout(config_id, &text_prov, line, trigger)
+            .get_init_text_layout(id, &text_prov, line, trigger)
     }
 
     pub fn text_prov(&self) -> EditorTextProv {
@@ -351,14 +350,14 @@ impl Editor {
             cursor,
             offset,
         }));
-        // TODO(floem-editor): clear text cache
+        // TODO(floem-editor): clear text cache? or should this be handled by the doc somehow?
     }
 
     pub fn clear_preedit(&self) {
         let preedit = self.preedit();
         if preedit.preedit.with_untracked(|preedit| preedit.is_some()) {
             preedit.preedit.set(None);
-            // TODO(floem-editor): clear text cache
+            // TODO(floem-editor): clear text cache? or should this be handled by the doc somehow?
         }
     }
 
@@ -1036,7 +1035,7 @@ pub struct EditorTextProv {
     viewport: Rect,
 }
 impl TextLayoutProvider for EditorTextProv {
-    // TODO: should this just return a `Rope`, or should `Document::text` return a `&Rope`?
+    // TODO: should this just return a `Rope`?
     fn text(&self) -> &Rope {
         &self.text
     }
@@ -1133,8 +1132,6 @@ impl TextLayoutProvider for EditorTextProv {
         Arc::new(layout_line)
     }
 
-    // TODO: doc has these two functions, should we just make it a common subtrait for having
-    // phantom text?
     fn before_phantom_col(&self, line: usize, col: usize) -> usize {
         self.doc.before_phantom_col(line, col)
     }
@@ -1153,8 +1150,7 @@ impl LineFontSizeProvider for EditorFontSizes {
     }
 
     fn cache_id(&self) -> FontSizeCacheId {
-        // TODO: we could have a cache id on the styling
-        0
+        self.style.with_untracked(|style| style.id())
     }
 }
 
@@ -1300,9 +1296,8 @@ pub fn normal_compute_screen_lines(
     // TODO: the original was min_line..max_line + 1, are we iterating too little now?
     // the iterator is from min_vline..max_vline
     let count = max_vline.get() - min_vline.get();
-    // TODO(floem-editor): config id
     let iter = lines
-        .iter_rvlines_init(editor.text_prov(), 0, min_info.rvline, false)
+        .iter_rvlines_init(editor.text_prov(), style.id(), min_info.rvline, false)
         .take(count);
 
     for (i, vline_info) in iter.enumerate() {

@@ -225,6 +225,11 @@ impl WrapMethod {
 /// then `Styling` mostly just applies whatever attributes it wants and defaults at the same time?
 /// but that would complicate pieces of code that need the font size or line height independently.
 pub trait Styling {
+    // TODO: use a more granular system for invalidating styling, because it may simply be that
+    // one line gets different styling.
+    /// The id for caching the styling.
+    fn id(&self) -> u64;
+
     fn font_size(&self, _line: usize) -> usize {
         16
     }
@@ -757,23 +762,25 @@ pub const SCALE_OR_SIZE_LIMIT: f32 = 5.0;
 
 #[derive(Debug, Clone)]
 pub struct SimpleStyling<C> {
-    pub font_size: usize,
+    id: u64,
+    font_size: usize,
     // TODO: should we really have this be a float? Shouldn't it just be a LineHeightValue?
     /// If less than 5.0, line height will be a multiple of the font size
-    pub line_height: f32,
-    pub font_family: Vec<FamilyOwned>,
-    pub weight: Weight,
-    pub italic_style: floem::cosmic_text::Style,
-    pub stretch: Stretch,
-    pub indent_style: IndentStyle,
-    pub tab_width: usize,
-    pub atomic_soft_tabs: bool,
-    pub wrap: WrapMethod,
-    pub color: C,
+    line_height: f32,
+    font_family: Vec<FamilyOwned>,
+    weight: Weight,
+    italic_style: floem::cosmic_text::Style,
+    stretch: Stretch,
+    indent_style: IndentStyle,
+    tab_width: usize,
+    atomic_soft_tabs: bool,
+    wrap: WrapMethod,
+    color: C,
 }
 impl<C: Fn(EditorColor) -> Color> SimpleStyling<C> {
     pub fn new(color: C) -> SimpleStyling<C> {
         SimpleStyling {
+            id: 0,
             font_size: 16,
             line_height: 1.5,
             font_family: vec![FamilyOwned::SansSerif],
@@ -787,6 +794,65 @@ impl<C: Fn(EditorColor) -> Color> SimpleStyling<C> {
             color,
         }
     }
+
+    pub fn increment_id(&mut self) {
+        self.id += 1;
+    }
+
+    pub fn set_font_size(&mut self, font_size: usize) {
+        self.font_size = font_size;
+        self.increment_id();
+    }
+
+    pub fn set_line_height(&mut self, line_height: f32) {
+        self.line_height = line_height;
+        self.increment_id();
+    }
+
+    pub fn set_font_family(&mut self, font_family: Vec<FamilyOwned>) {
+        self.font_family = font_family;
+        self.increment_id();
+    }
+
+    pub fn set_weight(&mut self, weight: Weight) {
+        self.weight = weight;
+        self.increment_id();
+    }
+
+    pub fn set_italic_style(&mut self, italic_style: floem::cosmic_text::Style) {
+        self.italic_style = italic_style;
+        self.increment_id();
+    }
+
+    pub fn set_stretch(&mut self, stretch: Stretch) {
+        self.stretch = stretch;
+        self.increment_id();
+    }
+
+    pub fn set_indent_style(&mut self, indent_style: IndentStyle) {
+        self.indent_style = indent_style;
+        self.increment_id();
+    }
+
+    pub fn set_tab_width(&mut self, tab_width: usize) {
+        self.tab_width = tab_width;
+        self.increment_id();
+    }
+
+    pub fn set_atomic_soft_tabs(&mut self, atomic_soft_tabs: bool) {
+        self.atomic_soft_tabs = atomic_soft_tabs;
+        self.increment_id();
+    }
+
+    pub fn set_wrap(&mut self, wrap: WrapMethod) {
+        self.wrap = wrap;
+        self.increment_id();
+    }
+
+    pub fn set_color(&mut self, color: C) {
+        self.color = color;
+        self.increment_id();
+    }
 }
 impl Default for SimpleStyling<fn(EditorColor) -> Color> {
     fn default() -> Self {
@@ -794,6 +860,10 @@ impl Default for SimpleStyling<fn(EditorColor) -> Color> {
     }
 }
 impl<C: Fn(EditorColor) -> Color> Styling for SimpleStyling<C> {
+    fn id(&self) -> u64 {
+        0
+    }
+
     fn font_size(&self, _line: usize) -> usize {
         self.font_size
     }
