@@ -394,19 +394,24 @@ pub fn editor_view(
     let config = editor.common.config;
     let sticky_header_height_signal = editor.sticky_header_height;
     let editor2 = editor.clone();
+    let screen_lines = editor.view.screen_lines;
     create_effect(move |last_rev| {
         let config = config.get();
         if !config.editor.sticky_header {
-            return (DocContent::Local, 0, 0, Rect::ZERO);
+            return (DocContent::Local, 0, 0, Rect::ZERO, 0, None);
         }
 
         let doc = doc.get();
         let rect = viewport.get();
+        let (screen_lines_len, screen_lines_first) = screen_lines
+            .with(|lines| (lines.lines.len(), lines.lines.first().copied()));
         let rev = (
             doc.content.get(),
             doc.buffer.with(|b| b.rev()),
             doc.cache_rev.get(),
             rect,
+            screen_lines_len,
+            screen_lines_first,
         );
         if last_rev.as_ref() == Some(&rev) {
             return rev;
@@ -2901,6 +2906,7 @@ pub fn changes_colors_screen(
         return Vec::new();
     };
 
+    let line_height = config.editor.line_height();
     let mut line = 0;
     let mut colors = Vec::new();
 
@@ -2917,14 +2923,11 @@ pub fn changes_colors_screen(
                 colors.pop();
             }
 
-            let Some(info) = screen_lines.info_for_line(pre_line) else {
-                continue;
-            };
-
-            let y = info.vline_y;
+            let rvline = view.rvline_of_line(pre_line);
+            let vline = view.vline_of_line(pre_line);
+            let y = (vline.0 * line_height) as f64;
             let height = {
                 // Accumulate the number of line indices each potentially wrapped line spans
-                let rvline = info.vline_info.rvline;
                 let end_line = rvline.line + len;
 
                 view.iter_rvlines_over(false, rvline, end_line).count()

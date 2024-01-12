@@ -525,6 +525,10 @@ impl EditorViewData {
         self.lines.vline_of_line(&self.text_prov(), line)
     }
 
+    pub fn rvline_of_line(&self, line: usize) -> RVLine {
+        self.lines.rvline_of_line(&self.text_prov(), line)
+    }
+
     pub fn vline_of_rvline(&self, rvline: RVLine) -> VLine {
         self.lines.vline_of_rvline(&self.text_prov(), rvline)
     }
