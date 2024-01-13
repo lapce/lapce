@@ -9,6 +9,7 @@ use std::{
     thread,
 };
 
+use lapce_rpc::plugin::VoltInfo;
 use lapce_rpc::{
     dap_types::{self, DapId, DapServer, SetBreakpointsResponse},
     plugin::{PluginId, VoltID, VoltMetadata},
@@ -17,6 +18,7 @@ use lapce_rpc::{
     RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
+use lsp_types::request::Request;
 use lsp_types::{
     notification::DidOpenTextDocument, DidOpenTextDocumentParams, SemanticTokens,
     TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier,
@@ -171,6 +173,31 @@ impl PluginCatalog {
                 path.clone(),
                 check,
             );
+        }
+    }
+
+    pub fn shutdown_volt(
+        &mut self,
+        volt: VoltInfo,
+        f: Box<dyn ClonableCallback<Value, RpcError>>,
+    ) {
+        let id = volt.id();
+        for (plugin_id, plugin) in self.plugins.iter() {
+            if plugin.volt_id == id {
+                let f = dyn_clone::clone_box(&*f);
+                let plugin_id = *plugin_id;
+                plugin.server_request_async(
+                    lsp_types::request::Shutdown::METHOD,
+                    Value::Null,
+                    None,
+                    None,
+                    false,
+                    move |result| {
+                        f(plugin_id, result);
+                    },
+                );
+                plugin.shutdown();
+            }
         }
     }
 
@@ -483,7 +510,7 @@ impl PluginCatalog {
                 let configurations =
                     self.plugin_configurations.get(&volt.name).cloned();
                 let catalog_rpc = self.plugin_rpc.clone();
-                let _ = catalog_rpc.stop_volt(volt.clone());
+                catalog_rpc.stop_volt(volt.clone());
                 thread::spawn(move || {
                     let _ =
                         install_volt(catalog_rpc, workspace, configurations, volt);

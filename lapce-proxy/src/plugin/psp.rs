@@ -417,9 +417,11 @@ impl PluginServerRpcHandler {
     }
 
     pub fn shutdown(&self) {
+        // to kill lsp
         self.handle_rpc(PluginServerRpc::Handler(
             PluginHandlerNotification::Shutdown,
         ));
+        // to end PluginServerRpcHandler::mainloop
         self.handle_rpc(PluginServerRpc::Shutdown);
     }
 

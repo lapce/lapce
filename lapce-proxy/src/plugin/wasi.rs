@@ -28,6 +28,7 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
+use serde_json::Value;
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
 
@@ -461,19 +462,34 @@ pub fn start_volt(
         }
     })?;
     linker.module(&mut store, "", &module)?;
+    let local_rpc = rpc.clone();
     thread::spawn(move || {
-        let instance = linker.instantiate(&mut store, &module).unwrap();
-        let handle_rpc = instance
-            .get_func(&mut store, "handle_rpc")
-            .ok_or_else(|| anyhow!("can't convet to function"))
-            .unwrap()
-            .typed::<(), ()>(&mut store)
-            .unwrap();
-        for msg in io_rx {
-            if let Ok(msg) = serde_json::to_string(&msg) {
-                let _ = writeln!(stdin.write().unwrap(), "{msg}");
+        let mut exist_id = None;
+        {
+            let instance = linker.instantiate(&mut store, &module).unwrap();
+            let handle_rpc = instance
+                .get_func(&mut store, "handle_rpc")
+                .ok_or_else(|| anyhow!("can't convet to function"))
+                .unwrap()
+                .typed::<(), ()>(&mut store)
+                .unwrap();
+            for msg in io_rx {
+                if msg
+                    .get_method()
+                    .map(|x| x == lsp_types::request::Shutdown::METHOD)
+                    .unwrap_or_default()
+                {
+                    exist_id = msg.get_id();
+                    break;
+                }
+                if let Ok(msg) = serde_json::to_string(&msg) {
+                    let _ = writeln!(stdin.write().unwrap(), "{msg}");
+                }
+                let _ = handle_rpc.call(&mut store, ());
             }
-            let _ = handle_rpc.call(&mut store, ());
+        }
+        if let Some(id) = exist_id {
+            local_rpc.handle_server_response(id, Ok(Value::Null));
         }
     });
 

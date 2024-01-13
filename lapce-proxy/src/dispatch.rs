@@ -39,7 +39,7 @@ use parking_lot::Mutex;
 
 use crate::{
     buffer::{get_mod_time, load_file, Buffer},
-    plugin::{catalog::PluginCatalog, remove_volt, PluginCatalogRpcHandler},
+    plugin::{catalog::PluginCatalog, PluginCatalogRpcHandler},
     terminal::{Terminal, TerminalSender},
     watcher::{FileWatcher, Notify, WatchToken},
 };
@@ -271,14 +271,10 @@ impl ProxyHandler for Dispatcher {
                 let _ = self.catalog_rpc.reload_volt(volt);
             }
             RemoveVolt { volt } => {
-                let catalog_rpc = self.catalog_rpc.clone();
-                let _ = catalog_rpc.stop_volt(volt.info());
-                thread::spawn(move || {
-                    let _ = remove_volt(catalog_rpc, volt);
-                });
+                self.catalog_rpc.remove_volt(volt);
             }
             DisableVolt { volt } => {
-                let _ = self.catalog_rpc.stop_volt(volt);
+                self.catalog_rpc.stop_volt(volt);
             }
             EnableVolt { volt } => {
                 let _ = self.catalog_rpc.enable_volt(volt);
