@@ -6,7 +6,10 @@ use floem::{
     reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::CursorStyle,
     view::View,
-    views::{container, container_box, empty, label, list, stack, tab, Decorators},
+    views::{
+        container, container_box, dyn_stack, empty, label, stack, tab, Decorators,
+    },
+    EventPropagation,
 };
 
 use super::{
@@ -49,17 +52,17 @@ pub fn panel_container_view(
                 .on_event(EventListener::DragEnter, move |_| {
                     if is_dragging_panel() {
                         dragging_over.set(true);
-                        true
+                        EventPropagation::Stop
                     } else {
-                        false
+                        EventPropagation::Continue
                     }
                 })
                 .on_event(EventListener::DragLeave, move |_| {
                     if is_dragging_panel() {
                         dragging_over.set(false);
-                        true
+                        EventPropagation::Stop
                     } else {
-                        false
+                        EventPropagation::Continue
                     }
                 })
                 .on_event(EventListener::Drop, move |_| {
@@ -67,17 +70,17 @@ pub fn panel_container_view(
                     {
                         dragging_over.set(false);
                         panel.move_panel_to_position(kind, &position);
-                        true
+                        EventPropagation::Stop
                     } else {
-                        false
+                        EventPropagation::Continue
                     }
                 })
                 .style(move |s| {
                     s.size_pct(100.0, 100.0).apply_if(dragging_over.get(), |s| {
                         s.background(
-                            *config
+                            config
                                 .get()
-                                .get_color(LapceColor::EDITOR_DRAG_DROP_BACKGROUND),
+                                .color(LapceColor::EDITOR_DRAG_DROP_BACKGROUND),
                         )
                     })
                 })
@@ -92,14 +95,13 @@ pub fn panel_container_view(
             let view = empty();
             let view_id = view.id();
             let drag_start: RwSignal<Option<Point>> = create_rw_signal(None);
-            view.on_event(EventListener::PointerDown, move |event| {
+            view.on_event_stop(EventListener::PointerDown, move |event| {
                 view_id.request_active();
                 if let Event::PointerDown(pointer_event) = event {
                     drag_start.set(Some(pointer_event.pos));
                 }
-                true
             })
-            .on_event(EventListener::PointerMove, move |event| {
+            .on_event_stop(EventListener::PointerMove, move |event| {
                 if let Event::PointerMove(pointer_event) = event {
                     if let Some(drag_start_point) = drag_start.get_untracked() {
                         let current_size = current_size.get_untracked();
@@ -164,11 +166,9 @@ pub fn panel_container_view(
                         }
                     }
                 }
-                true
             })
-            .on_event(EventListener::PointerUp, move |_| {
+            .on_event_stop(EventListener::PointerUp, move |_| {
                 drag_start.set(None);
-                true
             })
             .style(move |s| {
                 let is_dragging = drag_start.get().is_some();
@@ -187,7 +187,7 @@ pub fn panel_container_view(
                         s.width(4.0).margin_left(-2.0).height_pct(100.0)
                     })
                     .apply_if(is_dragging, |s| {
-                        s.background(*config.get_color(LapceColor::EDITOR_CARET))
+                        s.background(config.color(LapceColor::EDITOR_CARET))
                             .apply_if(
                                 position == PanelContainerPosition::Bottom,
                                 |s| s.cursor(CursorStyle::RowResize),
@@ -199,7 +199,7 @@ pub fn panel_container_view(
                             .z_index(2)
                     })
                     .hover(|s| {
-                        s.background(*config.get_color(LapceColor::EDITOR_CARET))
+                        s.background(config.color(LapceColor::EDITOR_CARET))
                             .apply_if(
                                 position == PanelContainerPosition::Bottom,
                                 |s| s.cursor(CursorStyle::RowResize),
@@ -255,17 +255,17 @@ pub fn panel_container_view(
                 s.border_right(1.0)
                     .width(size as f32)
                     .height_pct(100.0)
-                    .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+                    .background(config.color(LapceColor::PANEL_BACKGROUND))
             })
             .apply_if(position == PanelContainerPosition::Right, |s| {
                 s.border_left(1.0)
                     .width(size as f32)
                     .height_pct(100.0)
-                    .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+                    .background(config.color(LapceColor::PANEL_BACKGROUND))
             })
             .apply_if(!is_bottom, |s| s.flex_col())
-            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-            .color(*config.get_color(LapceColor::PANEL_FOREGROUND))
+            .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .color(config.color(LapceColor::PANEL_FOREGROUND))
     })
 }
 
@@ -335,7 +335,7 @@ pub fn panel_header(
         s.padding_horiz(10.0)
             .padding_vert(6.0)
             .width_pct(100.0)
-            .background(*config.get().get_color(LapceColor::EDITOR_BACKGROUND))
+            .background(config.get().color(LapceColor::EDITOR_BACKGROUND))
     })
 }
 
@@ -349,7 +349,7 @@ fn panel_picker(
     let dragging = window_tab_data.common.dragging;
     let is_bottom = position.is_bottom();
     let is_first = position.is_first();
-    list(
+    dyn_stack(
         move || {
             panel
                 .panels
@@ -391,23 +391,21 @@ fn panel_picker(
                     config,
                 )
                 .draggable()
-                .on_event(EventListener::DragStart, move |_| {
+                .on_event_stop(EventListener::DragStart, move |_| {
                     dragging.set(Some(DragContent::Panel(p)));
-                    true
                 })
-                .on_event(EventListener::DragEnd, move |_| {
+                .on_event_stop(EventListener::DragEnd, move |_| {
                     dragging.set(None);
-                    true
                 })
                 .dragging_style(move |s| {
                     let config = config.get();
                     s.border(1.0)
                         .border_radius(6.0)
-                        .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+                        .border_color(config.color(LapceColor::LAPCE_BORDER))
                         .padding(6.0)
                         .background(
                             config
-                                .get_color(LapceColor::PANEL_BACKGROUND)
+                                .color(LapceColor::PANEL_BACKGROUND)
                                 .with_alpha_factor(0.7),
                         )
                 })
@@ -430,9 +428,9 @@ fn panel_picker(
                             })
                         })
                         .border_color(
-                            *config
+                            config
                                 .get()
-                                .get_color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
+                                .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE),
                         )
                 }),
             )))
@@ -440,7 +438,7 @@ fn panel_picker(
         },
     )
     .style(move |s| {
-        s.border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+        s.border_color(config.get().color(LapceColor::LAPCE_BORDER))
             .apply_if(
                 panels.with(|p| {
                     p.get(&position).map(|p| p.is_empty()).unwrap_or(true)

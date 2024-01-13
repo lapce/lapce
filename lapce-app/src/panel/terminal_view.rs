@@ -6,10 +6,11 @@ use floem::{
     reactive::create_rw_signal,
     view::View,
     views::{
-        container, empty, label, list,
+        container, dyn_stack, empty, label,
         scroll::{scroll, Thickness},
         stack, svg, tab, Decorators,
     },
+    EventPropagation,
 };
 
 use super::kind::PanelKind;
@@ -30,11 +31,10 @@ pub fn terminal_panel(window_tab_data: Rc<WindowTabData>) -> impl View {
         terminal_tab_header(window_tab_data.clone()),
         terminal_tab_content(window_tab_data),
     ))
-    .on_event(EventListener::PointerDown, move |_| {
+    .on_event_cont(EventListener::PointerDown, move |_| {
         if focus.get_untracked() != Focus::Panel(PanelKind::Terminal) {
             focus.set(Focus::Panel(PanelKind::Terminal));
         }
-        false
     })
     .style(|s| s.absolute().size_pct(100.0, 100.0).flex_col())
 }
@@ -52,7 +52,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
     let workbench_command = window_tab_data.common.workbench_command;
 
     stack((
-        scroll(list(
+        scroll(dyn_stack(
             move || {
                 let tabs = terminal.tab_info.with(|info| info.tabs.clone());
                 for (i, (index, _)) in tabs.iter().enumerate() {
@@ -115,9 +115,11 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                     .style(move |s| {
                                         let config = config.get();
                                         let size = config.ui.icon_size() as f32;
-                                        s.size(size, size).color(*config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ))
+                                        s.size(size, size).color(
+                                            config.color(
+                                                LapceColor::LAPCE_ICON_ACTIVE,
+                                            ),
+                                        )
                                     }),
                             )
                             .style(|s| s.padding_horiz(10.0).padding_vert(12.0)),
@@ -143,15 +145,13 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                     .height(header_height.get() - 15.0)
                                     .border_right(1.0)
                                     .border_color(
-                                        *config
-                                            .get()
-                                            .get_color(LapceColor::LAPCE_BORDER),
+                                        config.get().color(LapceColor::LAPCE_BORDER),
                                     )
                             }),
                         ))
                         .style(move |s| {
                             s.items_center().width(200.0).border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                                config.get().color(LapceColor::LAPCE_BORDER),
                             )
                         })
                     })
@@ -164,7 +164,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                 } else {
                                     0.0
                                 })
-                                .border_color(*config.get().get_color(
+                                .border_color(config.get().color(
                                     if focus.get()
                                         == Focus::Panel(PanelKind::Terminal)
                                     {
@@ -179,17 +179,19 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                         s.absolute().padding_horiz(3.0).size_pct(100.0, 100.0)
                     }),
                 ))
-                .on_event(EventListener::PointerDown, move |_| {
-                    if tab_info.with_untracked(|tab| tab.active)
-                        != index.get_untracked()
-                    {
-                        tab_info.update(|tab| {
-                            tab.active = index.get_untracked();
-                        });
-                        local_terminal.update_debug_active_term();
-                    }
-                    false
-                })
+                .on_event_cont(
+                    EventListener::PointerDown,
+                    move |_| {
+                        if tab_info.with_untracked(|tab| tab.active)
+                            != index.get_untracked()
+                        {
+                            tab_info.update(|tab| {
+                                tab.active = index.get_untracked();
+                            });
+                            local_terminal.update_debug_active_term();
+                        }
+                    },
+                )
             },
         ))
         .vertical_scroll_as_horizontal(|| true)
@@ -241,7 +243,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
             .items_center()
             .background(*config.get_color(LapceColor::TERMINAL_BACKGROUND))
             .border_bottom(1.0)
-            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
+            .border_color(config.color(LapceColor::LAPCE_BORDER))
     })
 }
 
@@ -252,7 +254,7 @@ fn terminal_tab_split(
     let config = terminal_panel_data.common.config;
     let active = terminal_tab_data.active;
     let terminal_tab_scope = terminal_tab_data.scope;
-    list(
+    dyn_stack(
         move || {
             let terminals = terminal_tab_data.terminals.get();
             for (i, (index, _)) in terminals.iter().enumerate() {
@@ -275,16 +277,15 @@ fn terminal_tab_split(
                     terminal_panel_data,
                     terminal.launch_error,
                 )
-                .on_event(EventListener::PointerDown, move |_| {
+                .on_event_cont(EventListener::PointerDown, move |_| {
                     active.set(index.get_untracked());
-                    false
                 })
                 .on_event(EventListener::PointerWheel, move |event| {
                     if let Event::PointerWheel(pointer_event) = event {
                         terminal.clone().wheel_scroll(pointer_event.delta.y);
-                        true
+                        EventPropagation::Stop
                     } else {
-                        false
+                        EventPropagation::Continue
                     }
                 })
                 .on_cleanup(move || {
@@ -297,7 +298,7 @@ fn terminal_tab_split(
                     .padding_horiz(10.0)
                     .apply_if(index.get() > 0, |s| {
                         s.border_left(1.0).border_color(
-                            *config.get().get_color(LapceColor::LAPCE_BORDER),
+                            config.get().color(LapceColor::LAPCE_BORDER),
                         )
                     })
                     .background(

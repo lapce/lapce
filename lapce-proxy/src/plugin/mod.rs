@@ -4,6 +4,7 @@ pub mod lsp;
 pub mod psp;
 pub mod wasi;
 
+use std::time::Duration;
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -13,7 +14,6 @@ use std::{
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
         Arc,
     },
-    thread,
 };
 
 use anyhow::{anyhow, Result};
@@ -36,9 +36,9 @@ use lsp_types::{
         CodeActionRequest, CodeActionResolveRequest, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
-        InlayHintRequest, PrepareRenameRequest, References, Rename, Request,
-        ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest,
-        SignatureHelpRequest, WorkspaceSymbol,
+        InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
+        Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
+        SemanticTokensFullRequest, SignatureHelpRequest, WorkspaceSymbolRequest,
     },
     ClientCapabilities, CodeAction, CodeActionCapabilityResolveSupport,
     CodeActionClientCapabilities, CodeActionContext, CodeActionKind,
@@ -48,8 +48,10 @@ use lsp_types::{
     CompletionParams, CompletionResponse, Diagnostic, DocumentFormattingParams,
     DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions, GotoCapability,
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverClientCapabilities,
-    HoverParams, InlayHint, InlayHintClientCapabilities, InlayHintParams, Location,
-    MarkupKind, MessageActionItemCapabilities, ParameterInformationSettings,
+    HoverParams, InlayHint, InlayHintClientCapabilities, InlayHintParams,
+    InlineCompletionClientCapabilities, InlineCompletionParams,
+    InlineCompletionResponse, InlineCompletionTriggerKind, Location, MarkupKind,
+    MessageActionItemCapabilities, ParameterInformationSettings,
     PartialResultParams, Position, PrepareRenameResponse,
     PublishDiagnosticsClientCapabilities, Range, ReferenceContext, ReferenceParams,
     RenameParams, SelectionRange, SelectionRangeParams, SemanticTokens,
@@ -67,6 +69,7 @@ use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 use tar::Archive;
+use tracing::error;
 
 use self::{
     catalog::PluginCatalog,
@@ -136,6 +139,10 @@ pub enum PluginCatalogRpc {
         text: Rope,
     },
     Handler(PluginCatalogNotification),
+    RemoveVolt {
+        volt: VoltInfo,
+        f: Box<dyn ClonableCallback<Value, RpcError>>,
+    },
     Shutdown,
 }
 
@@ -334,6 +341,9 @@ impl PluginCatalogRpcHandler {
                 }
                 PluginCatalogRpc::Shutdown => {
                     return;
+                }
+                PluginCatalogRpc::RemoveVolt { volt, f } => {
+                    plugin.shutdown_volt(volt, f);
                 }
             }
         }
@@ -622,6 +632,7 @@ impl PluginCatalogRpcHandler {
             context: CodeActionContext {
                 diagnostics,
                 only: None,
+                trigger_kind: None,
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
@@ -652,6 +663,40 @@ impl PluginCatalogRpcHandler {
             text_document: TextDocumentIdentifier { uri },
             work_done_progress_params: WorkDoneProgressParams::default(),
             range,
+        };
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
+    pub fn get_inline_completions(
+        &self,
+        path: &Path,
+        position: Position,
+        trigger_kind: InlineCompletionTriggerKind,
+        cb: impl FnOnce(PluginId, Result<InlineCompletionResponse, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = InlineCompletionRequest::METHOD;
+        let params = InlineCompletionParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            context: lsp_types::InlineCompletionContext {
+                trigger_kind,
+                selected_completion_info: None,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
@@ -698,7 +743,7 @@ impl PluginCatalogRpcHandler {
             + Send
             + 'static,
     ) {
-        let method = WorkspaceSymbol::METHOD;
+        let method = WorkspaceSymbolRequest::METHOD;
         let params = WorkspaceSymbolParams {
             query,
             work_done_progress_params: WorkDoneProgressParams::default(),
@@ -1073,8 +1118,34 @@ impl PluginCatalogRpcHandler {
         self.catalog_notification(PluginCatalogNotification::InstallVolt(volt))
     }
 
-    pub fn stop_volt(&self, volt: VoltInfo) -> Result<()> {
-        self.catalog_notification(PluginCatalogNotification::StopVolt(volt))
+    pub fn stop_volt(&self, volt: VoltInfo) {
+        let rpc = PluginCatalogRpc::RemoveVolt {
+            volt,
+            f: Box::new(|_id: PluginId, rs: Result<Value, RpcError>| {
+                if let Err(e) = rs {
+                    // maybe should send notification
+                    error!("{:?}", e);
+                }
+            }),
+        };
+        let _ = self.plugin_tx.send(rpc);
+    }
+
+    pub fn remove_volt(&self, volt: VoltMetadata) {
+        let catalog_rpc = self.clone();
+        let volt_clone = volt.clone();
+        let rpc = PluginCatalogRpc::RemoveVolt {
+            volt: volt.info(),
+            f: Box::new(|_id: PluginId, rs: Result<Value, RpcError>| {
+                if let Err(e) = rs {
+                    // maybe should send notification
+                    error!("{:?}", e);
+                } else if let Err(e) = remove_volt(catalog_rpc, volt_clone) {
+                    error!("{:?}", e);
+                }
+            }),
+        };
+        let _ = self.plugin_tx.send(rpc);
     }
 
     pub fn reload_volt(&self, volt: VoltMetadata) -> Result<()> {
@@ -1331,14 +1402,26 @@ pub fn remove_volt(
     catalog_rpc: PluginCatalogRpcHandler,
     volt: VoltMetadata,
 ) -> Result<()> {
-    thread::spawn(move || -> Result<()> {
+    std::thread::spawn(move || -> Result<()> {
         let path = volt.dir.as_ref().ok_or_else(|| {
             catalog_rpc
                 .core_rpc
                 .volt_removing(volt.clone(), "Plugin Directory not set".to_string());
             anyhow::anyhow!("don't have dir")
         })?;
-        if let Err(e) = std::fs::remove_dir_all(path) {
+        let mut rs = Ok(());
+        // Try to remove dir
+        // This is due to some operating systems not releasing immediately, such as Windows.
+        for _ in 0..2 {
+            rs = std::fs::remove_dir_all(path);
+            if rs.is_err() {
+                std::thread::sleep(Duration::from_millis(500));
+            } else {
+                break;
+            }
+        }
+        if let Err(e) = rs {
+            error!("remove_dir_all {:?}", e);
             eprintln!("Could not delete plugin folder: {e}");
             catalog_rpc.core_rpc.volt_removing(
                 volt.clone(),
@@ -1431,6 +1514,9 @@ fn client_capabilities() -> ClientCapabilities {
                 ..Default::default()
             }),
             publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
+                ..Default::default()
+            }),
+            inline_completion: Some(InlineCompletionClientCapabilities {
                 ..Default::default()
             }),
 

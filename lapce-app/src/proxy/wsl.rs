@@ -1,61 +1,20 @@
-use std::{
-    path::Path,
-    process::{Command, Stdio},
-};
+use std::{path::Path, process::Command};
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
+
+use crate::workspace::WslHost;
 
 use super::{new_command, remote::Remote};
 
-#[derive(Debug)]
-pub struct WslDistro {
-    pub name: String,
-    pub default: bool,
-}
-
 pub struct WslRemote {
-    pub distro: String,
-}
-
-impl WslDistro {
-    pub fn all() -> Result<Vec<WslDistro>> {
-        let cmd = new_command("wsl")
-            .arg("-l")
-            .arg("-v")
-            .stdout(Stdio::piped())
-            .output()?;
-
-        if !cmd.status.success() {
-            return Err(anyhow!("failed to execute `wsl -l -v`"));
-        }
-
-        let distros = String::from_utf16(bytemuck::cast_slice(&cmd.stdout))?
-            .lines()
-            .skip(1)
-            .filter_map(|line| {
-                let line = line.trim_start();
-                let default = line.starts_with('*');
-                let name = line
-                    .trim_start_matches('*')
-                    .trim_start()
-                    .split(' ')
-                    .next()?;
-                Some(WslDistro {
-                    name: name.to_string(),
-                    default,
-                })
-            })
-            .collect();
-
-        Ok(distros)
-    }
+    pub wsl: WslHost,
 }
 
 impl Remote for WslRemote {
     fn upload_file(&self, local: impl AsRef<Path>, remote: &str) -> Result<()> {
-        let mut wsl_path = Path::new(r"\\wsl.localhost\").join(&self.distro);
+        let mut wsl_path = Path::new(r"\\wsl.localhost\").join(&self.wsl.host);
         if !wsl_path.exists() {
-            wsl_path = Path::new(r"\\wsl$").join(&self.distro);
+            wsl_path = Path::new(r"\\wsl$").join(&self.wsl.host);
         }
         wsl_path = if remote.starts_with('~') {
             let home_dir = self.home_dir()?;
@@ -69,7 +28,7 @@ impl Remote for WslRemote {
 
     fn command_builder(&self) -> Command {
         let mut cmd = new_command("wsl");
-        cmd.arg("-d").arg(&self.distro).arg("--");
+        cmd.arg("-d").arg(&self.wsl.host).arg("--");
         cmd
     }
 }

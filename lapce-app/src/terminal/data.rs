@@ -356,10 +356,7 @@ impl TerminalData {
             common.term_notification_tx.clone(),
         )));
 
-        let mut profile = match profile {
-            Some(profile) => profile,
-            None => TerminalProfile::default(),
-        };
+        let mut profile = profile.unwrap_or_default();
 
         if profile.workdir.is_none() {
             profile.workdir = if let Ok(path) = url::Url::from_file_path(

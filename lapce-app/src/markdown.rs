@@ -28,7 +28,7 @@ pub fn parse_markdown(
         FamilyOwned::parse_list(&config.editor.font_family).collect();
 
     let default_attrs = Attrs::new()
-        .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
+        .color(config.color(LapceColor::EDITOR_FOREGROUND))
         .font_size(config.ui.font_size() as f32)
         .line_height(LineHeightValue::Normal(line_height as f32));
     let mut attr_list = AttrsList::new(default_attrs);
@@ -159,7 +159,7 @@ pub fn parse_markdown(
                     pos..pos + text.len(),
                     default_attrs
                         .family(&code_font_family)
-                        .color(*config.get_color(LapceColor::MARKDOWN_BLOCKQUOTE)),
+                        .color(config.color(LapceColor::MARKDOWN_BLOCKQUOTE)),
                 );
                 current_text.push_str(&text);
                 pos += text.len();
@@ -219,7 +219,7 @@ fn attribute_for_tag<'a>(
         Tag::BlockQuote => Some(
             default_attrs
                 .style(Style::Italic)
-                .color(*config.get_color(LapceColor::MARKDOWN_BLOCKQUOTE)),
+                .color(config.color(LapceColor::MARKDOWN_BLOCKQUOTE)),
         ),
         Tag::CodeBlock(_) => Some(default_attrs.family(code_font_family)),
         Tag::Emphasis => Some(default_attrs.style(Style::Italic)),
@@ -227,7 +227,7 @@ fn attribute_for_tag<'a>(
         // TODO: Strikethrough support
         Tag::Link(_link_type, _target, _title) => {
             // TODO: Link support
-            Some(default_attrs.color(*config.get_color(LapceColor::EDITOR_LINK)))
+            Some(default_attrs.color(config.color(LapceColor::EDITOR_LINK)))
         }
         // All other tags are currently ignored
         _ => None,
@@ -276,11 +276,11 @@ pub fn highlight_as_code(
             if let Some(color) = style
                 .fg_color
                 .as_ref()
-                .and_then(|fg| config.get_style_color(fg))
+                .and_then(|fg| config.style_color(fg))
             {
                 attr_list.add_span(
                     start_offset + range.start..start_offset + range.end,
-                    default_attrs.color(*color),
+                    default_attrs.color(color),
                 );
             }
         }

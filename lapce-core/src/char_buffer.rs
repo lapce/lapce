@@ -582,11 +582,10 @@ impl fmt::Display for CharBuffer {
     }
 }
 
-#[allow(clippy::incorrect_partial_ord_impl_on_ord_type)]
 impl PartialOrd for CharBuffer {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        (**self).partial_cmp(&**other)
+        Some(self.cmp(other))
     }
 }
 
@@ -644,35 +643,35 @@ fn test_char_buffer() {
 
     UTF-8 encoded sample plain-text file
     ‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
-    
+
     Markus Kuhn [ˈmaʳkʊs kuːn] <mkuhn@acm.org> — 1999-08-20
-    
-    
+
+
     The ASCII compatible UTF-8 encoding of ISO 10646 and Unicode
     plain-text files is defined in RFC 2279 and in ISO 10646-1 Annex R.
-    
-    
+
+
     Using Unicode/UTF-8, you can write in emails and source code things such as
-    
+
     Mathematics and Sciences:
-    
+
       ∮ E⋅da = Q,  n → ∞, ∑ f(i) = ∏ g(i), ∀x∈ℝ: ⌈x⌉ = −⌊−x⌋, α ∧ ¬β = ¬(¬α ∨ β),
-    
+
       ℕ ⊆ ℕ₀ ⊂ ℤ ⊂ ℚ ⊂ ℝ ⊂ ℂ, ⊥ < a ≠ b ≡ c ≤ d ≪ ⊤ ⇒ (A ⇔ B),
-    
+
       2H₂ + O₂ ⇌ 2H₂O, R = 4.7 kΩ, ⌀ 200 mm
-    
+
     Linguistics and dictionaries:
-    
+
       ði ıntəˈnæʃənəl fəˈnɛtık əsoʊsiˈeıʃn
       Y [ˈʏpsilɔn], Yen [jɛn], Yoga [ˈjoːgɑ]
-    
+
     APL:
-    
+
       ((V⍳V)=⍳⍴V)/V←,V    ⌷←⍳→⍴∆∇⊃‾⍎⍕⌈
-    
+
     Nicer typography in plain text files:
-    
+
       ╔══════════════════════════════════════════╗
       ║                                          ║
       ║   • ‘single’ and “double” quotes         ║
@@ -690,27 +689,27 @@ fn test_char_buffer() {
       ║   • the euro symbol: │ 14.95 € │         ║
       ║                      ╰─────────╯         ║
       ╚══════════════════════════════════════════╝
-    
+
     Greek (in Polytonic):
-    
+
       The Greek anthem:
-    
+
       Σὲ γνωρίζω ἀπὸ τὴν κόψη
       τοῦ σπαθιοῦ τὴν τρομερή,
       σὲ γνωρίζω ἀπὸ τὴν ὄψη
       ποὺ μὲ βία μετράει τὴ γῆ.
-    
+
       ᾿Απ᾿ τὰ κόκκαλα βγαλμένη
       τῶν ῾Ελλήνων τὰ ἱερά
       καὶ σὰν πρῶτα ἀνδρειωμένη
       χαῖρε, ὦ χαῖρε, ᾿Ελευθεριά!
-    
+
       From a speech of Demosthenes in the 4th century BC:
-    
+
       Οὐχὶ ταὐτὰ παρίσταταί μοι γιγνώσκειν, ὦ ἄνδρες ᾿Αθηναῖοι,
       ὅταν τ᾿ εἰς τὰ πράγματα ἀποβλέψω καὶ ὅταν πρὸς τοὺς
       λόγους οὓς ἀκούω· τοὺς μὲν γὰρ λόγους περὶ τοῦ
-      τιμωρήσασθαι Φίλιππον ὁρῶ γιγνομένους, τὰ δὲ πράγματ᾿ 
+      τιμωρήσασθαι Φίλιππον ὁρῶ γιγνομένους, τὰ δὲ πράγματ᾿
       εἰς τοῦτο προήκοντα,  ὥσθ᾿ ὅπως μὴ πεισόμεθ᾿ αὐτοὶ
       πρότερον κακῶς σκέψασθαι δέον. οὐδέν οὖν ἄλλο μοι δοκοῦσιν
       οἱ τὰ τοιαῦτα λέγοντες ἢ τὴν ὑπόθεσιν, περὶ ἧς βουλεύεσθαι,
@@ -723,13 +722,13 @@ fn test_char_buffer() {
       τίνα τιμωρήσεταί τις καὶ ὃν τρόπον ἐξέσται σκοπεῖν· πρὶν δὲ
       τὴν ἀρχὴν ὀρθῶς ὑποθέσθαι, μάταιον ἡγοῦμαι περὶ τῆς
       τελευτῆς ὁντινοῦν ποιεῖσθαι λόγον.
-    
+
       Δημοσθένους, Γ´ ᾿Ολυνθιακὸς
-    
+
     Georgian:
-    
+
       From a Unicode conference invitation:
-    
+
       გთხოვთ ახლავე გაიაროთ რეგისტრაცია Unicode-ის მეათე საერთაშორისო
       კონფერენციაზე დასასწრებად, რომელიც გაიმართება 10-12 მარტს,
       ქ. მაინცში, გერმანიაში. კონფერენცია შეჰკრებს ერთად მსოფლიოს
@@ -737,23 +736,23 @@ fn test_char_buffer() {
       ინტერნაციონალიზაცია და ლოკალიზაცია, Unicode-ის გამოყენება
       ოპერაციულ სისტემებსა, და გამოყენებით პროგრამებში, შრიფტებში,
       ტექსტების დამუშავებასა და მრავალენოვან კომპიუტერულ სისტემებში.
-    
+
     Russian:
-    
+
       From a Unicode conference invitation:
-    
+
       Зарегистрируйтесь сейчас на Десятую Международную Конференцию по
       Unicode, которая состоится 10-12 марта 1997 года в Майнце в Германии.
       Конференция соберет широкий круг экспертов по  вопросам глобального
       Интернета и Unicode, локализации и интернационализации, воплощению и
       применению Unicode в различных операционных системах и программных
       приложениях, шрифтах, верстке и многоязычных компьютерных системах.
-    
+
     Thai (UCS Level 2):
-    
+
       Excerpt from a poetry on The Romance of The Three Kingdoms (a Chinese
       classic 'San Gua'):
-    
+
       [----------------------------|------------------------]
         ๏ แผ่นดินฮั่นเสื่อมโทรมแสนสังเวช  พระปกเกศกองบู๊กู้ขึ้นใหม่
       สิบสองกษัตริย์ก่อนหน้าแลถัดไป       สององค์ไซร้โง่เขลาเบาปัญญา
@@ -763,15 +762,15 @@ fn test_char_buffer() {
       ฝ่ายอ้องอุ้นยุแยกให้แตกกัน          ใช้สาวนั้นเป็นชนวนชื่นชวนใจ
         พลันลิฉุยกุยกีกลับก่อเหตุ          ช่างอาเพศจริงหนาฟ้าร้องไห้
       ต้องรบราฆ่าฟันจนบรรลัย           ฤๅหาใครค้ำชูกู้บรรลังก์ ฯ
-    
+
       (The above is a two-column text. If combining characters are handled
       correctly, the lines of the second column should be aligned with the
       | character above.)
-    
+
     Ethiopian:
-    
+
       Proverbs in the Amharic language:
-    
+
       ሰማይ አይታረስ ንጉሥ አይከሰስ።
       ብላ ካለኝ እንደአባቴ በቆመጠኝ።
       ጌጥ ያለቤቱ ቁምጥና ነው።
@@ -790,51 +789,51 @@ fn test_char_buffer() {
       ተንጋሎ ቢተፉ ተመልሶ ባፉ።
       ወዳጅህ ማር ቢሆን ጨርስህ አትላሰው።
       እግርህን በፍራሽህ ልክ ዘርጋ።
-    
+
     Runes:
-    
+
       ᚻᛖ ᚳᚹᚫᚦ ᚦᚫᛏ ᚻᛖ ᛒᚢᛞᛖ ᚩᚾ ᚦᚫᛗ ᛚᚪᚾᛞᛖ ᚾᚩᚱᚦᚹᛖᚪᚱᛞᚢᛗ ᚹᛁᚦ ᚦᚪ ᚹᛖᛥᚫ
-    
+
       (Old English, which transcribed into Latin reads 'He cwaeth that he
       bude thaem lande northweardum with tha Westsae.' and means 'He said
       that he lived in the northern land near the Western Sea.')
-    
+
     Braille:
-    
+
       ⡌⠁⠧⠑ ⠼⠁⠒  ⡍⠜⠇⠑⠹⠰⠎ ⡣⠕⠌
-    
+
       ⡍⠜⠇⠑⠹ ⠺⠁⠎ ⠙⠑⠁⠙⠒ ⠞⠕ ⠃⠑⠛⠔ ⠺⠊⠹⠲ ⡹⠻⠑ ⠊⠎ ⠝⠕ ⠙⠳⠃⠞
       ⠱⠁⠞⠑⠧⠻ ⠁⠃⠳⠞ ⠹⠁⠞⠲ ⡹⠑ ⠗⠑⠛⠊⠌⠻ ⠕⠋ ⠙⠊⠎ ⠃⠥⠗⠊⠁⠇ ⠺⠁⠎
       ⠎⠊⠛⠝⠫ ⠃⠹ ⠹⠑ ⠊⠇⠻⠛⠹⠍⠁⠝⠂ ⠹⠑ ⠊⠇⠻⠅⠂ ⠹⠑ ⠥⠝⠙⠻⠞⠁⠅⠻⠂
       ⠁⠝⠙ ⠹⠑ ⠡⠊⠑⠋ ⠍⠳⠗⠝⠻⠲ ⡎⠊⠗⠕⠕⠛⠑ ⠎⠊⠛⠝⠫ ⠊⠞⠲ ⡁⠝⠙
-      ⡎⠊⠗⠕⠕⠛⠑⠰⠎ ⠝⠁⠍⠑ ⠺⠁⠎ ⠛⠕⠕⠙ ⠥⠏⠕⠝ ⠰⡡⠁⠝⠛⠑⠂ ⠋⠕⠗ ⠁⠝⠹⠹⠔⠛ ⠙⠑ 
+      ⡎⠊⠗⠕⠕⠛⠑⠰⠎ ⠝⠁⠍⠑ ⠺⠁⠎ ⠛⠕⠕⠙ ⠥⠏⠕⠝ ⠰⡡⠁⠝⠛⠑⠂ ⠋⠕⠗ ⠁⠝⠹⠹⠔⠛ ⠙⠑
       ⠡⠕⠎⠑ ⠞⠕ ⠏⠥⠞ ⠙⠊⠎ ⠙⠁⠝⠙ ⠞⠕⠲
-    
+
       ⡕⠇⠙ ⡍⠜⠇⠑⠹ ⠺⠁⠎ ⠁⠎ ⠙⠑⠁⠙ ⠁⠎ ⠁ ⠙⠕⠕⠗⠤⠝⠁⠊⠇⠲
-    
+
       ⡍⠔⠙⠖ ⡊ ⠙⠕⠝⠰⠞ ⠍⠑⠁⠝ ⠞⠕ ⠎⠁⠹ ⠹⠁⠞ ⡊ ⠅⠝⠪⠂ ⠕⠋ ⠍⠹
       ⠪⠝ ⠅⠝⠪⠇⠫⠛⠑⠂ ⠱⠁⠞ ⠹⠻⠑ ⠊⠎ ⠏⠜⠞⠊⠊⠥⠇⠜⠇⠹ ⠙⠑⠁⠙ ⠁⠃⠳⠞
       ⠁ ⠙⠕⠕⠗⠤⠝⠁⠊⠇⠲ ⡊ ⠍⠊⠣⠞ ⠙⠁⠧⠑ ⠃⠑⠲ ⠔⠊⠇⠔⠫⠂ ⠍⠹⠎⠑⠇⠋⠂ ⠞⠕
-      ⠗⠑⠛⠜⠙ ⠁ ⠊⠕⠋⠋⠔⠤⠝⠁⠊⠇ ⠁⠎ ⠹⠑ ⠙⠑⠁⠙⠑⠌ ⠏⠊⠑⠊⠑ ⠕⠋ ⠊⠗⠕⠝⠍⠕⠝⠛⠻⠹ 
-      ⠔ ⠹⠑ ⠞⠗⠁⠙⠑⠲ ⡃⠥⠞ ⠹⠑ ⠺⠊⠎⠙⠕⠍ ⠕⠋ ⠳⠗ ⠁⠝⠊⠑⠌⠕⠗⠎ 
+      ⠗⠑⠛⠜⠙ ⠁ ⠊⠕⠋⠋⠔⠤⠝⠁⠊⠇ ⠁⠎ ⠹⠑ ⠙⠑⠁⠙⠑⠌ ⠏⠊⠑⠊⠑ ⠕⠋ ⠊⠗⠕⠝⠍⠕⠝⠛⠻⠹
+      ⠔ ⠹⠑ ⠞⠗⠁⠙⠑⠲ ⡃⠥⠞ ⠹⠑ ⠺⠊⠎⠙⠕⠍ ⠕⠋ ⠳⠗ ⠁⠝⠊⠑⠌⠕⠗⠎
       ⠊⠎ ⠔ ⠹⠑ ⠎⠊⠍⠊⠇⠑⠆ ⠁⠝⠙ ⠍⠹ ⠥⠝⠙⠁⠇⠇⠪⠫ ⠙⠁⠝⠙⠎
       ⠩⠁⠇⠇ ⠝⠕⠞ ⠙⠊⠌⠥⠗⠃ ⠊⠞⠂ ⠕⠗ ⠹⠑ ⡊⠳⠝⠞⠗⠹⠰⠎ ⠙⠕⠝⠑ ⠋⠕⠗⠲ ⡹⠳
       ⠺⠊⠇⠇ ⠹⠻⠑⠋⠕⠗⠑ ⠏⠻⠍⠊⠞ ⠍⠑ ⠞⠕ ⠗⠑⠏⠑⠁⠞⠂ ⠑⠍⠏⠙⠁⠞⠊⠊⠁⠇⠇⠹⠂ ⠹⠁⠞
       ⡍⠜⠇⠑⠹ ⠺⠁⠎ ⠁⠎ ⠙⠑⠁⠙ ⠁⠎ ⠁ ⠙⠕⠕⠗⠤⠝⠁⠊⠇⠲
-    
+
       (The first couple of paragraphs of \"A Christmas Carol\" by Dickens)
-    
+
     Compact font selection example text:
-    
+
       ABCDEFGHIJKLMNOPQRSTUVWXYZ /0123456789
       abcdefghijklmnopqrstuvwxyz £©µÀÆÖÞßéöÿ
       –—‘“”„†•…‰™œŠŸž€ ΑΒΓΔΩαβγδω АБВГДабвгд
       ∀∂∈ℝ∧∪≡∞ ↑↗↨↻⇣ ┐┼╔╘░►☺♀ ﬁ�⑀₂ἠḂӥẄɐː⍎אԱა
-    
+
     Greetings in various languages:
-    
+
       Hello world, Καλημέρα κόσμε, コンニチハ
-    
+
     Box drawing alignment tests:                                          █
                                                                           ▉
       ╔══╦══╗  ┌──┬──┐  ╭──┬──╮  ╭──┬──╮  ┏━━┳━━┓  ┎┒┏┑   ╷  ╻ ┏┯┓ ┌┰┐    ▊ ╱╲╱╲╳╳╳
@@ -844,7 +843,7 @@ fn test_char_buffer() {
       ║│╱ ╲│║  │║   ║│  ││ │ ││  │║ ┃ ║│  ┃│ ╽ │┃  ░░▒▒▓▓██ ┊  ┆ ╎ ╏  ┇ ┋ ▎
       ║└─╥─┘║  │╚═╤═╝│  │╘═╪═╛│  │╙─╀─╜│  ┃└─╂─┘┃  ░░▒▒▓▓██ ┊  ┆ ╎ ╏  ┇ ┋ ▏
       ╚══╩══╝  └──┴──┘  ╰──┴──╯  ╰──┴──╯  ┗━━┻━━┛           └╌╌┘ ╎ ┗╍╍┛ ┋  ▁▂▃▄▅▆▇█
-   
+
 ",
     );
 
@@ -931,10 +930,7 @@ fn test_char_buffer() {
         Q: std::hash::Hash + ?Sized,
         S: core::hash::BuildHasher,
     {
-        use core::hash::Hasher;
-        let mut state = hash_builder.build_hasher();
-        val.hash(&mut state);
-        state.finish()
+        hash_builder.hash_one(val)
     }
 
     for mut char in string.chars() {

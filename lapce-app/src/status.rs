@@ -7,7 +7,7 @@ use floem::{
     reactive::{create_memo, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Display},
     view::View,
-    views::{label, list, stack, svg, Decorators},
+    views::{dyn_stack, label, stack, svg, Decorators},
 };
 use indexmap::IndexMap;
 use lapce_core::mode::{Mode, VisualMode};
@@ -17,6 +17,7 @@ use crate::{
     app::clickable_icon,
     command::LapceWorkbenchCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    doc::DocumentExt,
     listener::Listener,
     palette::kind::PaletteKind,
     panel::{kind::PanelKind, position::PanelContainerPosition},
@@ -108,8 +109,8 @@ pub fn status(
                     ),
                 };
 
-                let bg = *config.get_color(bg);
-                let fg = *config.get_color(fg);
+                let bg = config.color(bg);
+                let fg = config.color(fg);
 
                 s.display(display)
                     .padding_horiz(10.0)
@@ -123,12 +124,11 @@ pub fn status(
                     let config = config.get();
                     let icon_size = config.ui.icon_size() as f32;
                     s.size(icon_size, icon_size)
-                        .color(*config.get_color(LapceColor::LAPCE_ICON_ACTIVE))
+                        .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
                 }),
                 label(branch).style(move |s| {
-                    s.margin_left(10.0).color(
-                        *config.get().get_color(LapceColor::STATUS_FOREGROUND),
-                    )
+                    s.margin_left(10.0)
+                        .color(config.get().color(LapceColor::STATUS_FOREGROUND))
                 }),
             ))
             .style(move |s| {
@@ -142,15 +142,12 @@ pub fn status(
                 .align_items(Some(AlignItems::Center))
                 .hover(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
             })
-            .on_click(move |_| {
+            .on_click_stop(move |_| {
                 workbench_command.send(LapceWorkbenchCommand::PaletteSCMReferences);
-                true
             }),
             {
                 let panel = panel.clone();
@@ -159,17 +156,14 @@ pub fn status(
                         move |s| {
                             let config = config.get();
                             let size = config.ui.icon_size() as f32;
-                            s.size(size, size).color(
-                                *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                            )
+                            s.size(size, size)
+                                .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
                         },
                     ),
                     label(move || diagnostic_count.get().0.to_string()).style(
                         move |s| {
                             s.margin_left(5.0).color(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::STATUS_FOREGROUND),
+                                config.get().color(LapceColor::STATUS_FOREGROUND),
                             )
                         },
                     ),
@@ -177,24 +171,21 @@ pub fn status(
                         move |s| {
                             let config = config.get();
                             let size = config.ui.icon_size() as f32;
-                            s.size(size, size).margin_left(5.0).color(
-                                *config.get_color(LapceColor::LAPCE_ICON_ACTIVE),
-                            )
+                            s.size(size, size)
+                                .margin_left(5.0)
+                                .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
                         },
                     ),
                     label(move || diagnostic_count.get().1.to_string()).style(
                         move |s| {
                             s.margin_left(5.0).color(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::STATUS_FOREGROUND),
+                                config.get().color(LapceColor::STATUS_FOREGROUND),
                             )
                         },
                     ),
                 ))
-                .on_click(move |_| {
+                .on_click_stop(move |_| {
                     panel.show_panel(&PanelKind::Problem);
-                    true
                 })
                 .style(move |s| {
                     s.height_pct(100.0)
@@ -202,9 +193,9 @@ pub fn status(
                         .items_center()
                         .hover(|s| {
                             s.cursor(CursorStyle::Pointer).background(
-                                *config
+                                config
                                     .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                    .color(LapceColor::PANEL_HOVERED_BACKGROUND),
                             )
                         })
                 })
@@ -296,7 +287,7 @@ pub fn status(
         .style(move |s| {
             s.height_pct(100.0)
                 .items_center()
-                .color(*config.get().get_color(LapceColor::STATUS_FOREGROUND))
+                .color(config.get().color(LapceColor::STATUS_FOREGROUND))
         }),
         stack({
             let palette_clone = palette.clone();
@@ -332,9 +323,8 @@ pub fn status(
                 }
                 String::new()
             })
-            .on_click(move |_| {
+            .on_click_stop(move |_| {
                 palette_clone.run(PaletteKind::Line);
-                true
             })
             .style(move |s| {
                 let config = config.get();
@@ -354,25 +344,24 @@ pub fn status(
                 .height_pct(100.0)
                 .padding_horiz(10.0)
                 .items_center()
-                .color(*config.get_color(LapceColor::STATUS_FOREGROUND))
+                .color(config.color(LapceColor::STATUS_FOREGROUND))
                 .hover(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
             });
             let palette_clone = palette.clone();
             let language_info = label(move || {
                 if let Some(editor) = editor.get() {
-                    let doc = editor.view.doc.get_untracked();
-                    doc.syntax.with(|s| s.language.name())
+                    let doc = editor.view.doc.get();
+                    doc.syntax().with(|s| s.language.name())
                 } else {
                     "unknown"
                 }
             })
-            .on_click(move |_| {
+            .on_click_stop(move |_| {
                 palette_clone.run(PaletteKind::Language);
-                true
             })
             .style(move |s| {
                 let config = config.get();
@@ -392,10 +381,10 @@ pub fn status(
                 .height_pct(100.0)
                 .padding_horiz(10.0)
                 .items_center()
-                .color(*config.get_color(LapceColor::STATUS_FOREGROUND))
+                .color(config.color(LapceColor::STATUS_FOREGROUND))
                 .hover(|s| {
                     s.cursor(CursorStyle::Pointer).background(
-                        *config.get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
                 })
             });
@@ -417,8 +406,8 @@ pub fn status(
     .style(move |s| {
         let config = config.get();
         s.border_top(1.0)
-            .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-            .background(*config.get_color(LapceColor::STATUS_BACKGROUND))
+            .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .background(config.color(LapceColor::STATUS_BACKGROUND))
             .height(config.ui.status_height() as f32)
             .align_items(Some(AlignItems::Center))
     })
@@ -429,7 +418,7 @@ fn progress_view(
     progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
 ) -> impl View {
     let id = AtomicU64::new(0);
-    list(
+    dyn_stack(
         move || progresses.get(),
         move |_| id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
         move |(_, p)| {
@@ -444,7 +433,7 @@ fn progress_view(
             }))
             .style(move |s| {
                 s.margin_left(10.0)
-                    .color(*config.get().get_color(LapceColor::STATUS_FOREGROUND))
+                    .color(config.get().color(LapceColor::STATUS_FOREGROUND))
             })
         },
     )

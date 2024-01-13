@@ -9,7 +9,7 @@ use floem::{
     reactive::{ReadSignal, RwSignal, Scope},
     style::CursorStyle,
     view::View,
-    views::{container, label, list, stack, svg, Decorators},
+    views::{container, dyn_stack, label, stack, svg, Decorators},
 };
 
 use crate::{
@@ -66,7 +66,7 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                 svg(move || config.get().ui_svg(LapceIcons::WARNING)).style(
                     move |s| {
                         s.size(50.0, 50.0)
-                            .color(*config.get().get_color(LapceColor::LAPCE_WARN))
+                            .color(config.get().color(LapceColor::LAPCE_WARN))
                     },
                 ),
                 label(move || title.get()).style(move |s| {
@@ -77,16 +77,15 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                 }),
                 label(move || msg.get())
                     .style(move |s| s.width_pct(100.0).margin_top(10.0)),
-                list(
+                dyn_stack(
                     move || buttons.get(),
                     move |_button| {
                         button_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
                     },
                     move |button| {
                         label(move || button.text.clone())
-                            .on_click(move |_| {
+                            .on_click_stop(move |_| {
                                 (button.action)();
-                                true
                             })
                             .style(move |s| {
                                 let config = config.get();
@@ -98,17 +97,17 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                                     .border(1.0)
                                     .border_radius(6.0)
                                     .border_color(
-                                        *config.get_color(LapceColor::LAPCE_BORDER),
+                                        config.color(LapceColor::LAPCE_BORDER),
                                     )
                                     .hover(|s| {
                                         s.cursor(CursorStyle::Pointer).background(
-                                            *config.get_color(
+                                            config.color(
                                                 LapceColor::PANEL_HOVERED_BACKGROUND,
                                             ),
                                         )
                                     })
                                     .active(|s| {
-                                        s.background(*config.get_color(
+                                        s.background(config.color(
                                     LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
                                     })
@@ -117,9 +116,8 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                 )
                 .style(|s| s.flex_col().width_pct(100.0).margin_top(10.0)),
                 label(|| "Cancel".to_string())
-                    .on_click(move |_| {
+                    .on_click_stop(move |_| {
                         active.set(false);
-                        true
                     })
                     .style(move |s| {
                         let config = config.get();
@@ -130,18 +128,15 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
                             .line_height(1.5)
                             .border(1.0)
                             .border_radius(6.0)
-                            .border_color(
-                                *config.get_color(LapceColor::LAPCE_BORDER),
-                            )
+                            .border_color(config.color(LapceColor::LAPCE_BORDER))
                             .hover(|s| {
                                 s.cursor(CursorStyle::Pointer).background(
-                                    *config.get_color(
-                                        LapceColor::PANEL_HOVERED_BACKGROUND,
-                                    ),
+                                    config
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
                                 )
                             })
                             .active(|s| {
-                                s.background(*config.get_color(
+                                s.background(config.color(
                                     LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
                                 ))
                             })
@@ -149,19 +144,19 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
             ))
             .style(|s| s.flex_col().items_center().width_pct(100.0))
         })
-        .on_event(EventListener::PointerDown, |_| true)
+        .on_event_stop(EventListener::PointerDown, |_| {})
         .style(move |s| {
             let config = config.get();
             s.padding(20.0)
                 .width(250.0)
                 .border(1.0)
                 .border_radius(6.0)
-                .border_color(*config.get_color(LapceColor::LAPCE_BORDER))
-                .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
-                .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+                .border_color(config.color(LapceColor::LAPCE_BORDER))
+                .color(config.color(LapceColor::EDITOR_FOREGROUND))
+                .background(config.color(LapceColor::PANEL_BACKGROUND))
         })
     })
-    .on_event(EventListener::PointerDown, move |_| true)
+    .on_event_stop(EventListener::PointerDown, move |_| {})
     .style(move |s| {
         s.absolute()
             .size_pct(100.0, 100.0)
@@ -171,7 +166,7 @@ pub fn alert_box(alert_data: AlertBoxData) -> impl View {
             .background(
                 config
                     .get()
-                    .get_color(LapceColor::LAPCE_DROPDOWN_SHADOW)
+                    .color(LapceColor::LAPCE_DROPDOWN_SHADOW)
                     .with_alpha_factor(0.5),
             )
     })

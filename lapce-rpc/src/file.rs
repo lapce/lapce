@@ -1,6 +1,7 @@
 use std::{
     cmp::{Ord, Ordering, PartialOrd},
     collections::HashMap,
+    mem,
     path::{Path, PathBuf},
 };
 
@@ -47,11 +48,183 @@ impl PathObject {
     }
 }
 
+/// Stores the state of any in progress rename of a path.
+///
+/// The `editor_needs_reset` field is `true` if the rename editor should have its contents reset
+/// when the view function next runs.
+#[derive(Clone)]
+pub enum RenameState {
+    NotRenaming,
+    Renaming {
+        path: PathBuf,
+        editor_needs_reset: bool,
+    },
+    RenameRequestPending {
+        path: PathBuf,
+        editor_needs_reset: bool,
+    },
+    RenameErr {
+        path: PathBuf,
+        editor_needs_reset: bool,
+        err: String,
+    },
+}
+
+impl RenameState {
+    pub fn is_accepting_input(&self) -> bool {
+        match self {
+            Self::NotRenaming | Self::RenameRequestPending { .. } => false,
+            Self::Renaming { .. } | Self::RenameErr { .. } => true,
+        }
+    }
+
+    pub fn is_err(&self) -> bool {
+        match self {
+            Self::NotRenaming
+            | Self::Renaming { .. }
+            | Self::RenameRequestPending { .. } => false,
+            Self::RenameErr { .. } => true,
+        }
+    }
+
+    pub fn set_ok(&mut self) {
+        if let &mut Self::RenameErr {
+            ref mut path,
+            editor_needs_reset,
+            ..
+        } = self
+        {
+            let path = mem::take(path);
+
+            *self = Self::Renaming {
+                path,
+                editor_needs_reset,
+            };
+        }
+    }
+
+    pub fn set_pending(&mut self) {
+        if let &mut Self::Renaming {
+            ref mut path,
+            editor_needs_reset,
+        }
+        | &mut Self::RenameErr {
+            ref mut path,
+            editor_needs_reset,
+            ..
+        } = self
+        {
+            let path = mem::take(path);
+
+            *self = Self::RenameRequestPending {
+                path,
+                editor_needs_reset,
+            };
+        }
+    }
+
+    pub fn set_err(&mut self, err: String) {
+        if let &mut Self::Renaming {
+            ref mut path,
+            editor_needs_reset,
+        }
+        | &mut Self::RenameRequestPending {
+            ref mut path,
+            editor_needs_reset,
+        }
+        | &mut Self::RenameErr {
+            ref mut path,
+            editor_needs_reset,
+            ..
+        } = self
+        {
+            let path = mem::take(path);
+
+            *self = Self::RenameErr {
+                path,
+                editor_needs_reset,
+                err,
+            };
+        }
+    }
+
+    pub fn set_editor_needs_reset(&mut self, needs_reset: bool) {
+        if let Self::Renaming {
+            editor_needs_reset, ..
+        }
+        | Self::RenameRequestPending {
+            editor_needs_reset, ..
+        }
+        | Self::RenameErr {
+            editor_needs_reset, ..
+        } = self
+        {
+            *editor_needs_reset = needs_reset;
+        }
+    }
+
+    pub fn path(&self) -> Option<&Path> {
+        match self {
+            Self::NotRenaming => None,
+            Self::Renaming { path, .. }
+            | Self::RenameRequestPending { path, .. }
+            | Self::RenameErr { path, .. } => Some(path),
+        }
+    }
+
+    pub fn editor_needs_reset(&self) -> bool {
+        match self {
+            Self::NotRenaming => false,
+            &Self::Renaming {
+                editor_needs_reset, ..
+            }
+            | &Self::RenameRequestPending {
+                editor_needs_reset, ..
+            }
+            | &Self::RenameErr {
+                editor_needs_reset, ..
+            } => editor_needs_reset,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum IsRenaming {
+    NotRenaming,
+    Renaming { err: Option<String> },
+}
+
+impl IsRenaming {
+    fn is_node_renaming(rename_state: &RenameState, node_path: &Path) -> Self {
+        match rename_state {
+            RenameState::NotRenaming => Self::NotRenaming,
+            RenameState::Renaming { path, .. }
+            | RenameState::RenameRequestPending { path, .. } => {
+                if path == node_path {
+                    Self::Renaming { err: None }
+                } else {
+                    Self::NotRenaming
+                }
+            }
+            RenameState::RenameErr { path, err, .. } => {
+                if path == node_path {
+                    Self::Renaming {
+                        err: Some(err.clone()),
+                    }
+                } else {
+                    Self::NotRenaming
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct FileNodeViewData {
     pub path: PathBuf,
     pub is_dir: bool,
     pub open: bool,
+    pub is_renaming: IsRenaming,
     pub level: usize,
 }
 
@@ -65,25 +238,28 @@ pub struct FileNodeItem {
     pub children_open_count: usize,
 }
 
-#[allow(clippy::incorrect_partial_ord_impl_on_ord_type)]
 impl PartialOrd for FileNodeItem {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (self.is_dir, other.is_dir) {
-            (true, false) => return Some(Ordering::Less),
-            (false, true) => return Some(Ordering::Greater),
-            _ => {}
-        }
-
-        let self_file_name = self.path.file_name()?.to_str()?;
-        let other_file_name = other.path.file_name()?.to_str()?;
-
-        Some(human_sort::compare(self_file_name, other_file_name))
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for FileNodeItem {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        match (self.is_dir, other.is_dir) {
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            _ => {
+                let [self_file_name, other_file_name] = [&self.path, &other.path]
+                    .map(|path| {
+                        path.file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_lowercase()
+                    });
+                human_sort::compare(&self_file_name, &other_file_name)
+            }
+        }
     }
 }
 
@@ -222,6 +398,7 @@ impl FileNodeItem {
     pub fn append_view_slice(
         &self,
         view_items: &mut Vec<FileNodeViewData>,
+        rename_state: &RenameState,
         min: usize,
         max: usize,
         current: usize,
@@ -240,13 +417,21 @@ impl FileNodeItem {
                 path: self.path.clone(),
                 is_dir: self.is_dir,
                 open: self.open,
+                is_renaming: IsRenaming::is_node_renaming(rename_state, &self.path),
                 level,
             });
         }
 
         if self.open {
             for item in self.sorted_children() {
-                i = item.append_view_slice(view_items, min, max, i + 1, level + 1);
+                i = item.append_view_slice(
+                    view_items,
+                    rename_state,
+                    min,
+                    max,
+                    i + 1,
+                    level + 1,
+                );
                 if i > max {
                     return i;
                 }

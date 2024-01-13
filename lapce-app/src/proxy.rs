@@ -76,9 +76,11 @@ pub fn new_proxy(
                         proxy_rpc.mainloop(&mut dispatcher);
                     });
                 }
-                LapceWorkspaceType::RemoteSSH(ssh) => {
+                LapceWorkspaceType::RemoteSSH(remote) => {
                     if let Err(e) = start_remote(
-                        SshRemote { ssh: ssh.clone() },
+                        SshRemote {
+                            ssh: remote.clone(),
+                        },
                         core_rpc.clone(),
                         proxy_rpc.clone(),
                     ) {
@@ -86,20 +88,15 @@ pub fn new_proxy(
                     }
                 }
                 #[cfg(windows)]
-                LapceWorkspaceType::RemoteWSL => {
-                    use wsl::{WslDistro, WslRemote};
-                    let distro = WslDistro::all()
-                        .ok()
-                        .and_then(|d| d.into_iter().find(|distro| distro.default))
-                        .map(|d| d.name);
-                    if let Some(distro) = distro {
-                        if let Err(e) = start_remote(
-                            WslRemote { distro },
-                            core_rpc.clone(),
-                            proxy_rpc.clone(),
-                        ) {
-                            error!("Failed to start SSH remote: {e}");
-                        }
+                LapceWorkspaceType::RemoteWSL(remote) => {
+                    if let Err(e) = start_remote(
+                        wsl::WslRemote {
+                            wsl: remote.clone(),
+                        },
+                        core_rpc.clone(),
+                        proxy_rpc.clone(),
+                    ) {
+                        error!("Failed to start SSH remote: {e}");
                     }
                 }
             }

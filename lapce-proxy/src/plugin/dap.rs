@@ -243,7 +243,7 @@ impl DapClient {
 
                 let active_frame = current_thread
                     .and_then(|thread_id| stack_frames.get(&thread_id))
-                    .and_then(|stack_frames| stack_frames.get(0));
+                    .and_then(|stack_frames| stack_frames.first());
 
                 let mut vars = Vec::new();
                 if let Some(frame) = active_frame {

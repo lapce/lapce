@@ -13,8 +13,9 @@ use lapce_xi_rope::RopeDelta;
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
     CompletionItem, Diagnostic, DocumentSymbolResponse, GotoDefinitionResponse,
-    Hover, InlayHint, Location, Position, PrepareRenameResponse, SelectionRange,
-    SymbolInformation, TextDocumentItem, TextEdit, WorkspaceEdit,
+    Hover, InlayHint, InlineCompletionResponse, InlineCompletionTriggerKind,
+    Location, Position, PrepareRenameResponse, SelectionRange, SymbolInformation,
+    TextDocumentItem, TextEdit, WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -111,6 +112,11 @@ pub enum ProxyRequest {
     GetInlayHints {
         path: PathBuf,
     },
+    GetInlineCompletions {
+        path: PathBuf,
+        position: Position,
+        trigger_kind: InlineCompletionTriggerKind,
+    },
     GetSemanticTokens {
         path: PathBuf,
     },
@@ -148,12 +154,16 @@ pub enum ProxyRequest {
     Save {
         rev: u64,
         path: PathBuf,
+        /// Whether to create the parent directories if they do not exist.
+        create_parents: bool,
     },
     SaveBufferAs {
         buffer_id: BufferId,
         path: PathBuf,
         rev: u64,
         content: String,
+        /// Whether to create the parent directories if they do not exist.
+        create_parents: bool,
     },
     CreateFile {
         path: PathBuf,
@@ -171,6 +181,9 @@ pub enum ProxyRequest {
     RenamePath {
         from: PathBuf,
         to: PathBuf,
+    },
+    TestCreateAtPath {
+        path: PathBuf,
     },
     DapVariable {
         dap_id: DapId,
@@ -369,6 +382,9 @@ pub enum ProxyResponse {
     GetInlayHints {
         hints: Vec<InlayHint>,
     },
+    GetInlineCompletions {
+        completions: InlineCompletionResponse,
+    },
     GetSemanticTokens {
         styles: SemanticStyles,
     },
@@ -389,6 +405,9 @@ pub enum ProxyResponse {
     },
     DapGetScopesResponse {
         scopes: Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
+    },
+    CreatePathResponse {
+        path: PathBuf,
     },
     Success {},
     SaveResponse {},
@@ -662,12 +681,21 @@ impl ProxyRpcHandler {
         self.request_async(ProxyRequest::RenamePath { from, to }, f);
     }
 
+    pub fn test_create_at_path(
+        &self,
+        path: PathBuf,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::TestCreateAtPath { path }, f);
+    }
+
     pub fn save_buffer_as(
         &self,
         buffer_id: BufferId,
         path: PathBuf,
         rev: u64,
         content: String,
+        create_parents: bool,
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(
@@ -676,6 +704,7 @@ impl ProxyRpcHandler {
                 path,
                 rev,
                 content,
+                create_parents,
             },
             f,
         );
@@ -700,8 +729,21 @@ impl ProxyRpcHandler {
         );
     }
 
-    pub fn save(&self, rev: u64, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(ProxyRequest::Save { rev, path }, f);
+    pub fn save(
+        &self,
+        rev: u64,
+        path: PathBuf,
+        create_parents: bool,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::Save {
+                rev,
+                path,
+                create_parents,
+            },
+            f,
+        );
     }
 
     pub fn get_files(&self, f: impl ProxyCallback + 'static) {
@@ -896,6 +938,23 @@ impl ProxyRpcHandler {
 
     pub fn get_inlay_hints(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::GetInlayHints { path }, f);
+    }
+
+    pub fn get_inline_completions(
+        &self,
+        path: PathBuf,
+        position: Position,
+        trigger_kind: InlineCompletionTriggerKind,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::GetInlineCompletions {
+                path,
+                position,
+                trigger_kind,
+            },
+            f,
+        );
     }
 
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {
