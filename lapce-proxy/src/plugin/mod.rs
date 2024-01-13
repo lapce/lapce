@@ -1140,10 +1140,8 @@ impl PluginCatalogRpcHandler {
                 if let Err(e) = rs {
                     // maybe should send notification
                     error!("{:?}", e);
-                } else {
-                    if let Err(e) = remove_volt(catalog_rpc, volt_clone) {
-                        error!("{:?}", e);
-                    }
+                } else if let Err(e) = remove_volt(catalog_rpc, volt_clone) {
+                    error!("{:?}", e);
                 }
             }),
         };

@@ -26,7 +26,6 @@ use lsp_types::{
 use parking_lot::Mutex;
 use psp_types::Notification;
 use serde_json::Value;
-use tracing::debug;
 
 use super::{
     dap::{DapClient, DapRpcHandler, DebuggerData},
