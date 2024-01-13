@@ -10,7 +10,7 @@ use std::{
 
 use floem::{
     action::exec_after,
-    cosmic_text::{Attrs, AttrsList, FamilyOwned},
+    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
     keyboard::ModifiersState,
     peniko::Color,
@@ -22,6 +22,7 @@ use floem_editor::{
     command::{Command, CommandExecuted},
     editor::{CursorInfo, Editor},
     id::EditorId,
+    layout::LineExtraStyle,
     phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
     text::{
         Document, DocumentPhantom, PreeditData, Styling, SystemClipboard, WrapMethod,
@@ -956,6 +957,47 @@ impl Doc {
         });
     }
 
+    /// Iterate over the editor diagnostics on a line
+    fn iter_diagnostics(
+        &self,
+        line: usize,
+    ) -> impl Iterator<Item = EditorDiagnostic> + '_ {
+        self.common
+            .config
+            .get_untracked()
+            .editor
+            .enable_completion_lens
+            .then_some(())
+            .map(|_| self.diagnostics.diagnostics.get_untracked())
+            .into_iter()
+            .flatten()
+            .filter(move |diag| {
+                diag.diagnostic.range.end.line as usize == line
+                    && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
+            })
+    }
+
+    /// Get the max severity of the diagnostics o na line.  
+    /// This is used to determine the color given to the background of the line
+    fn max_diag_severity(&self, line: usize) -> Option<DiagnosticSeverity> {
+        let mut max_severity = None;
+        for diag in self.iter_diagnostics(line) {
+            match (diag.diagnostic.severity, max_severity) {
+                (Some(severity), Some(max)) => {
+                    if severity < max {
+                        max_severity = Some(severity);
+                    }
+                }
+                (Some(severity), None) => {
+                    max_severity = Some(severity);
+                }
+                _ => {}
+            }
+        }
+
+        max_severity
+    }
+
     /// Get the current completion lens text
     pub fn completion_lens(&self) -> Option<String> {
         self.completion_lens.get_untracked()
@@ -1770,8 +1812,26 @@ impl Styling for DocStyling {
             .with_untracked(|config| config.editor.atomic_soft_tabs)
     }
 
-    fn apply_attr_styles(&self, line: usize, default: Attrs, attrs: &mut AttrsList) {
-        self.apply_colorization(line, &default, attrs);
+    fn apply_attr_styles(
+        &self,
+        line: usize,
+        default: Attrs,
+        attrs_list: &mut AttrsList,
+    ) {
+        let config = self.doc.common.config.get_untracked();
+
+        self.apply_colorization(line, &default, attrs_list);
+
+        let phantom_text = self.doc.phantom_text(line);
+        for line_style in self.doc.line_style(line).iter() {
+            if let Some(fg_color) = line_style.style.fg_color.as_ref() {
+                if let Some(fg_color) = config.style_color(fg_color) {
+                    let start = phantom_text.col_at(line_style.start);
+                    let end = phantom_text.col_at(line_style.end);
+                    attrs_list.add_span(start..end, default.color(fg_color));
+                }
+            }
+        }
     }
 
     fn wrap(&self) -> WrapMethod {
@@ -1792,9 +1852,119 @@ impl Styling for DocStyling {
 
     fn apply_layout_styles(
         &self,
-        _line: usize,
-        _layout_line: &mut floem_editor::layout::TextLayoutLine,
+        line: usize,
+        layout_line: &mut floem_editor::layout::TextLayoutLine,
     ) {
+        let doc = &self.doc;
+        let config = doc.common.config.get_untracked();
+
+        layout_line.extra_style.clear();
+        let layout = &layout_line.text;
+
+        let phantom_text = doc.phantom_text(line);
+
+        let phantom_styles = phantom_text
+            .offset_size_iter()
+            .filter(move |(_, _, _, p)| p.bg.is_some() || p.under_line.is_some())
+            .flat_map(move |(col_shift, size, col, phantom)| {
+                let start = col + col_shift;
+                let end = start + size;
+
+                extra_styles_for_range(
+                    layout,
+                    start,
+                    end,
+                    phantom.bg,
+                    phantom.under_line,
+                    None,
+                )
+            });
+        layout_line.extra_style.extend(phantom_styles);
+
+        // Add the styling for the diagnostic severity, if applicable
+        if let Some(max_severity) = doc.max_diag_severity(line) {
+            let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
+                LapceColor::ERROR_LENS_ERROR_BACKGROUND
+            } else if max_severity == DiagnosticSeverity::WARNING {
+                LapceColor::ERROR_LENS_WARNING_BACKGROUND
+            } else {
+                LapceColor::ERROR_LENS_OTHER_BACKGROUND
+            };
+
+            let size = layout.size();
+            let x1 = if !config.editor.error_lens_end_of_line {
+                let error_end_x = size.width;
+                Some(error_end_x.max(size.width))
+            } else {
+                None
+            };
+
+            // TODO(minor): Should we show the background only on wrapped lines that have the
+            // diagnostic actually on that line?
+            // That would make it more obvious where it is from and matches other editors.
+            layout_line.extra_style.push(LineExtraStyle {
+                x: 0.0,
+                y: 0.0,
+                width: x1,
+                height: size.height,
+                bg_color: Some(config.color(theme_prop)),
+                under_line: None,
+                wave_line: None,
+            });
+        }
+
+        doc.diagnostics.diagnostics.with_untracked(|diags| {
+            doc.buffer.with_untracked(|buffer| {
+                for diag in diags {
+                    if diag.diagnostic.range.start.line as usize <= line
+                        && line <= diag.diagnostic.range.end.line as usize
+                    {
+                        let start = if diag.diagnostic.range.start.line as usize
+                            == line
+                        {
+                            let (_, col) = buffer.offset_to_line_col(diag.range.0);
+                            col
+                        } else {
+                            let offset =
+                                buffer.first_non_blank_character_on_line(line);
+                            let (_, col) = buffer.offset_to_line_col(offset);
+                            col
+                        };
+                        let start = phantom_text.col_after(start, true);
+
+                        let end = if diag.diagnostic.range.end.line as usize == line
+                        {
+                            let (_, col) = buffer.offset_to_line_col(diag.range.1);
+                            col
+                        } else {
+                            buffer.line_end_col(line, true)
+                        };
+                        let end = phantom_text.col_after(end, false);
+
+                        // let x0 = text_layout.hit_position(start).point.x;
+                        // let x1 = text_layout.hit_position(end).point.x;
+                        let color_name = match diag.diagnostic.severity {
+                            Some(DiagnosticSeverity::ERROR) => {
+                                LapceColor::LAPCE_ERROR
+                            }
+                            _ => LapceColor::LAPCE_WARN,
+                        };
+                        let color = config.color(color_name);
+
+                        let styles = extra_styles_for_range(
+                            layout,
+                            start,
+                            end,
+                            None,
+                            None,
+                            Some(color),
+                        );
+
+                        layout_line.extra_style.extend(styles);
+                    }
+                }
+            })
+        });
     }
 
     fn color(&self, color: EditorColor) -> Color {
@@ -1813,4 +1983,55 @@ impl std::fmt::Debug for Doc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("Document {:?}", self.buffer_id))
     }
+}
+
+fn extra_styles_for_range(
+    text_layout: &TextLayout,
+    start: usize,
+    end: usize,
+    bg_color: Option<Color>,
+    under_line: Option<Color>,
+    wave_line: Option<Color>,
+) -> impl Iterator<Item = LineExtraStyle> + '_ {
+    let start_hit = text_layout.hit_position(start);
+    let end_hit = text_layout.hit_position(end);
+
+    text_layout
+        .layout_runs()
+        .enumerate()
+        .filter_map(move |(current_line, run)| {
+            if current_line < start_hit.line || current_line > end_hit.line {
+                return None;
+            }
+
+            let x = if current_line == start_hit.line {
+                start_hit.point.x
+            } else {
+                run.glyphs.first().map(|g| g.x).unwrap_or(0.0) as f64
+            };
+            let end_x = if current_line == end_hit.line {
+                end_hit.point.x
+            } else {
+                run.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0) as f64
+            };
+            let width = end_x - x;
+
+            if width == 0.0 {
+                return None;
+            }
+
+            let y = (run.line_height - run.glyph_ascent - run.glyph_descent) as f64
+                / 2.0;
+            let height = (run.glyph_ascent + run.glyph_descent) as f64;
+
+            Some(LineExtraStyle {
+                x,
+                y,
+                width: Some(width),
+                height,
+                bg_color,
+                under_line,
+                wave_line,
+            })
+        })
 }

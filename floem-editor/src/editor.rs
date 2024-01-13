@@ -1083,6 +1083,27 @@ impl TextLayoutProvider for EditorTextProv {
 
         self.style.apply_attr_styles(line, attrs, &mut attrs_list);
 
+        // Apply phantom text specific styling
+        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
+            let start = col + offset;
+            let end = start + size;
+
+            let mut attrs = attrs;
+            if let Some(fg) = phantom.fg {
+                attrs = attrs.color(fg);
+            }
+            if let Some(phantom_font_size) = phantom.font_size {
+                attrs = attrs.font_size(phantom_font_size.min(font_size) as f32);
+            }
+            attrs_list.add_span(start..end, attrs);
+            // if let Some(font_family) = phantom.font_family.clone() {
+            //     layout_builder = layout_builder.range_attribute(
+            //         start..end,
+            //         TextAttribute::FontFamily(font_family),
+            //     );
+            // }
+        }
+
         let mut text_layout = TextLayout::new();
         // TODO: we could move tab width setting to be done by the document
         text_layout.set_tab_width(self.style.tab_width(line));
