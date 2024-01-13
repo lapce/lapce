@@ -293,6 +293,14 @@ pub trait Styling {
     fn color(&self, color: EditorColor) -> Color {
         default_light_color(color)
     }
+
+    /// Whether it should draw the cursor caret on the given line.  
+    /// Note that these are extra conditions on top of the typical hide cursor &
+    /// the editor being active conditions
+    /// This is called whenever we paint the line.
+    fn paint_caret(&self, _editor: &Editor, _line: usize) -> bool {
+        true
+    }
 }
 
 pub fn default_light_color(color: EditorColor) -> Color {

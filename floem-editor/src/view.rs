@@ -333,8 +333,8 @@ pub struct EditorView {
 impl EditorView {
     #[allow(clippy::too_many_arguments)]
     fn paint_normal_selection(
-        &self,
         cx: &mut PaintCx,
+        ed: &Editor,
         color: Color,
         screen_lines: &ScreenLines,
         start_offset: usize,
@@ -342,8 +342,6 @@ impl EditorView {
         affinity: CursorAffinity,
         is_block_cursor: bool,
     ) {
-        let ed = &self.editor;
-
         // TODO: selections should have separate start/end affinity
         let (start_rvline, start_col) =
             ed.rvline_col_of_offset(start_offset, affinity);
@@ -413,17 +411,16 @@ impl EditorView {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn paint_linewise_selection(
-        &self,
+    pub fn paint_linewise_selection(
         cx: &mut PaintCx,
+        ed: &Editor,
         color: Color,
         screen_lines: &ScreenLines,
         start_offset: usize,
         end_offset: usize,
         affinity: CursorAffinity,
     ) {
-        let ed = &self.editor;
-        let viewport = self.editor.viewport.get_untracked();
+        let viewport = ed.viewport.get_untracked();
 
         let (start_rvline, _) = ed.rvline_col_of_offset(start_offset, affinity);
         let (end_rvline, _) = ed.rvline_col_of_offset(end_offset, affinity);
@@ -467,9 +464,9 @@ impl EditorView {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn paint_blockwise_selection(
-        &self,
+    pub fn paint_blockwise_selection(
         cx: &mut PaintCx,
+        ed: &Editor,
         color: Color,
         screen_lines: &ScreenLines,
         start_offset: usize,
@@ -477,8 +474,6 @@ impl EditorView {
         affinity: CursorAffinity,
         horiz: Option<ColPosition>,
     ) {
-        let ed = &self.editor;
-
         let (start_rvline, start_col) =
             ed.rvline_col_of_offset(start_offset, affinity);
         let (end_rvline, end_col) = ed.rvline_col_of_offset(end_offset, affinity);
@@ -521,21 +516,17 @@ impl EditorView {
     }
 
     fn paint_cursor(
-        &self,
         cx: &mut PaintCx,
+        ed: &Editor,
         is_local: bool,
+        is_active: bool,
         screen_lines: &ScreenLines,
     ) {
-        let ed = &self.editor;
-        let cursor = self.editor.cursor;
-        let hide_cursor = self.editor.cursor_info.hidden;
+        let cursor = ed.cursor;
 
-        let viewport = self.editor.viewport.get_untracked();
-        let is_active = self.is_active.get_untracked();
+        let viewport = ed.viewport.get_untracked();
 
         let current_line_color = ed.color(EditorColor::CurrentLine);
-        let selection_color = ed.color(EditorColor::Selection);
-        let caret_color = ed.color(EditorColor::Caret);
 
         cursor.with_untracked(|cursor| {
             let highlight_current_line = match cursor.mode {
@@ -562,97 +553,133 @@ impl EditorView {
                 }
             }
 
-            match cursor.mode {
-                CursorMode::Normal(_) => {}
-                CursorMode::Visual {
-                    start,
-                    end,
-                    mode: VisualMode::Normal,
-                } => {
-                    let start_offset = start.min(end);
-                    let end_offset = ed.move_right(start.max(end), Mode::Insert, 1);
+            EditorView::paint_selection(cx, ed, screen_lines);
 
-                    self.paint_normal_selection(
-                        cx,
-                        selection_color,
-                        screen_lines,
-                        start_offset,
-                        end_offset,
-                        cursor.affinity,
-                        true,
-                    );
-                }
-                CursorMode::Visual {
-                    start,
-                    end,
-                    mode: VisualMode::Linewise,
-                } => {
-                    self.paint_linewise_selection(
-                        cx,
-                        selection_color,
-                        screen_lines,
-                        start.min(end),
-                        start.max(end),
-                        cursor.affinity,
-                    );
-                }
-                CursorMode::Visual {
-                    start,
-                    end,
-                    mode: VisualMode::Blockwise,
-                } => {
-                    self.paint_blockwise_selection(
-                        cx,
-                        selection_color,
-                        screen_lines,
-                        start.min(end),
-                        start.max(end),
-                        cursor.affinity,
-                        cursor.horiz,
-                    );
-                }
-                CursorMode::Insert(_) => {
-                    for (start, end) in
-                        cursor.regions_iter().filter(|(start, end)| start != end)
-                    {
-                        self.paint_normal_selection(
-                            cx,
-                            selection_color,
-                            screen_lines,
-                            start.min(end),
-                            start.max(end),
-                            cursor.affinity,
-                            false,
-                        );
-                    }
-                }
+            EditorView::paint_cursor_caret(cx, ed, is_active, screen_lines);
+        });
+    }
+
+    pub fn paint_selection(
+        cx: &mut PaintCx,
+        ed: &Editor,
+        screen_lines: &ScreenLines,
+    ) {
+        let cursor = ed.cursor;
+
+        let selection_color = ed.color(EditorColor::Selection);
+
+        cursor.with_untracked(|cursor| match cursor.mode {
+            CursorMode::Normal(_) => {}
+            CursorMode::Visual {
+                start,
+                end,
+                mode: VisualMode::Normal,
+            } => {
+                let start_offset = start.min(end);
+                let end_offset = ed.move_right(start.max(end), Mode::Insert, 1);
+
+                EditorView::paint_normal_selection(
+                    cx,
+                    ed,
+                    selection_color,
+                    screen_lines,
+                    start_offset,
+                    end_offset,
+                    cursor.affinity,
+                    true,
+                );
             }
-
-            if is_active && !hide_cursor.get_untracked() {
-                for (_, end) in cursor.regions_iter() {
-                    let is_block = match cursor.mode {
-                        CursorMode::Normal(_) | CursorMode::Visual { .. } => true,
-                        CursorMode::Insert(_) => false,
-                    };
-                    let LineRegion { x, width, rvline } =
-                        cursor_caret(ed, end, is_block, cursor.affinity);
-
-                    if let Some(info) = screen_lines.info(rvline) {
-                        let line_height =
-                            ed.line_height(info.vline_info.rvline.line);
-                        let rect = Rect::from_origin_size(
-                            (x, info.vline_y),
-                            (width, f64::from(line_height)),
-                        );
-                        cx.fill(&rect, caret_color, 0.0);
-                    }
+            CursorMode::Visual {
+                start,
+                end,
+                mode: VisualMode::Linewise,
+            } => {
+                EditorView::paint_linewise_selection(
+                    cx,
+                    ed,
+                    selection_color,
+                    screen_lines,
+                    start.min(end),
+                    start.max(end),
+                    cursor.affinity,
+                );
+            }
+            CursorMode::Visual {
+                start,
+                end,
+                mode: VisualMode::Blockwise,
+            } => {
+                EditorView::paint_blockwise_selection(
+                    cx,
+                    ed,
+                    selection_color,
+                    screen_lines,
+                    start.min(end),
+                    start.max(end),
+                    cursor.affinity,
+                    cursor.horiz,
+                );
+            }
+            CursorMode::Insert(_) => {
+                for (start, end) in
+                    cursor.regions_iter().filter(|(start, end)| start != end)
+                {
+                    EditorView::paint_normal_selection(
+                        cx,
+                        ed,
+                        selection_color,
+                        screen_lines,
+                        start.min(end),
+                        start.max(end),
+                        cursor.affinity,
+                        false,
+                    );
                 }
             }
         });
     }
 
-    fn paint_wave_line(
-        &self,
+    pub fn paint_cursor_caret(
+        cx: &mut PaintCx,
+        ed: &Editor,
+        is_active: bool,
+        screen_lines: &ScreenLines,
+    ) {
+        let cursor = ed.cursor;
+        let hide_cursor = ed.cursor_info.hidden;
+        let caret_color = ed.color(EditorColor::Caret);
+
+        if !(is_active && !hide_cursor.get_untracked()) {
+            return;
+        }
+
+        cursor.with_untracked(|cursor| {
+            let style = ed.style();
+            for (_, end) in cursor.regions_iter() {
+                let is_block = match cursor.mode {
+                    CursorMode::Normal(_) | CursorMode::Visual { .. } => true,
+                    CursorMode::Insert(_) => false,
+                };
+                let LineRegion { x, width, rvline } =
+                    cursor_caret(ed, end, is_block, cursor.affinity);
+
+                if let Some(info) = screen_lines.info(rvline) {
+                    if !style.paint_caret(ed, rvline.line) {
+                        continue;
+                    }
+
+                    let line_height = ed.line_height(info.vline_info.rvline.line);
+                    let rect = Rect::from_origin_size(
+                        (x, info.vline_y),
+                        (width, f64::from(line_height)),
+                    );
+                    cx.fill(&rect, caret_color, 0.0);
+                }
+            }
+        });
+    }
+
+    pub fn paint_wave_line(
         cx: &mut PaintCx,
         width: f64,
         point: Point,
@@ -677,8 +704,7 @@ impl EditorView {
         cx.stroke(&path, color, 1.0);
     }
 
-    fn paint_extra_style(
-        &self,
+    pub fn paint_extra_style(
         cx: &mut PaintCx,
         extra_styles: &[LineExtraStyle],
         y: f64,
@@ -723,18 +749,22 @@ impl EditorView {
             if let Some(color) = style.wave_line {
                 let width = style.width.unwrap_or_else(|| viewport.width());
                 let y = y + style.y + height;
-                self.paint_wave_line(cx, width, Point::new(style.x, y), color);
+                EditorView::paint_wave_line(
+                    cx,
+                    width,
+                    Point::new(style.x, y),
+                    color,
+                );
             }
         }
     }
 
-    fn paint_text(
-        &self,
+    pub fn paint_text(
         cx: &mut PaintCx,
+        ed: &Editor,
         viewport: Rect,
         screen_lines: &ScreenLines,
     ) {
-        let ed = &self.editor;
         let style = ed.style();
 
         // TODO: cache indent text layout width
@@ -751,9 +781,9 @@ impl EditorView {
         let indent_text_width = indent_text.hit_position(indent_unit.len()).point.x;
 
         for (line, y) in screen_lines.iter_lines_y() {
-            let text_layout = self.editor.text_layout(line);
+            let text_layout = ed.text_layout(line);
 
-            self.paint_extra_style(cx, &text_layout.extra_style, y, viewport);
+            EditorView::paint_extra_style(cx, &text_layout.extra_style, y, viewport);
 
             if let Some(whitespaces) = &text_layout.whitespaces {
                 let family = style.font_family(line);
@@ -798,13 +828,17 @@ impl EditorView {
         }
     }
 
-    fn paint_scroll_bar(&self, cx: &mut PaintCx, viewport: Rect, is_local: bool) {
+    pub fn paint_scroll_bar(
+        cx: &mut PaintCx,
+        ed: &Editor,
+        viewport: Rect,
+        is_local: bool,
+    ) {
         if is_local {
             return;
         }
 
-        let ed = &self.editor;
-
+        // TODO: let this be customized
         const BAR_WIDTH: f64 = 10.0;
         cx.fill(
             &Rect::ZERO
@@ -1076,7 +1110,7 @@ impl View for EditorView {
     fn paint(&mut self, cx: &mut PaintCx) {
         let ed = &self.editor;
         let viewport = ed.viewport.get_untracked();
-        let is_local = false; // TODO
+        let is_local = false; // TODO(floem-editor)
 
         // We repeatedly get the screen lines because we don't currently carefully manage the
         // paint functions to avoid potentially needing to recompute them, which could *maybe*
@@ -1087,10 +1121,16 @@ impl View for EditorView {
         // I expect that most/all of the paint functions could restrict themselves to only what is
         // within the active screen lines without issue.
         let screen_lines = ed.screen_lines.get_untracked();
-        self.paint_cursor(cx, is_local, &screen_lines);
+        EditorView::paint_cursor(
+            cx,
+            ed,
+            is_local,
+            self.is_active.get_untracked(),
+            &screen_lines,
+        );
         let screen_lines = ed.screen_lines.get_untracked();
-        self.paint_text(cx, viewport, &screen_lines);
-        self.paint_scroll_bar(cx, viewport, is_local);
+        EditorView::paint_text(cx, ed, viewport, &screen_lines);
+        EditorView::paint_scroll_bar(cx, ed, viewport, is_local);
     }
 }
 

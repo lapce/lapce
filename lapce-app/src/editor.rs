@@ -72,8 +72,6 @@ pub mod gutter;
 pub mod location;
 pub mod view;
 
-const CHAR_WIDTH: f64 = 7.5;
-
 #[derive(Clone, Debug)]
 pub enum InlineFindDirection {
     Left,

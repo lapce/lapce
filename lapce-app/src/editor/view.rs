@@ -3,12 +3,11 @@ use std::{cmp, path::PathBuf, rc::Rc, sync::Arc};
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::PaintCx,
-    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     event::{Event, EventListener},
     id::Id,
     keyboard::ModifiersState,
     peniko::{
-        kurbo::{BezPath, Line, Point, Rect, Size},
+        kurbo::{Line, Point, Rect, Size},
         Color,
     },
     reactive::{
@@ -24,20 +23,21 @@ use floem::{
 };
 use floem_editor::{
     editor::Editor,
-    layout::LineExtraStyle,
-    view::{cursor_caret, DiffSectionKind, LineInfo, LineRegion, ScreenLines},
+    view::{
+        cursor_caret, DiffSectionKind, EditorView as FloemEditorView, LineRegion,
+        ScreenLines,
+    },
     visual_line::{RVLine, VLine},
 };
 use itertools::Itertools;
 use lapce_core::{
     buffer::{diff::DiffLines, rope_text::RopeText},
-    cursor::{ColPosition, CursorAffinity, CursorMode},
-    mode::{Mode, VisualMode},
+    cursor::{CursorAffinity, CursorMode},
 };
 use lapce_rpc::dap_types::{DapId, SourceBreakpoint};
 use lapce_xi_rope::find::CaseMatching;
 
-use super::{gutter::editor_gutter_view, EditorData, CHAR_WIDTH};
+use super::{gutter::editor_gutter_view, EditorData};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -325,191 +325,6 @@ impl EditorView {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn paint_normal_selection(
-        &self,
-        cx: &mut PaintCx,
-        color: Color,
-        line_height: f64,
-        screen_lines: &ScreenLines,
-        start_offset: usize,
-        end_offset: usize,
-        affinity: CursorAffinity,
-        is_block_cursor: bool,
-    ) {
-        let ed = &self.editor.editor;
-
-        // TODO: selections should have separate start/end affinity
-        let (start_rvline, start_col) =
-            ed.rvline_col_of_offset(start_offset, affinity);
-        let (end_rvline, end_col) = ed.rvline_col_of_offset(end_offset, affinity);
-
-        for LineInfo {
-            vline_y,
-            vline_info: info,
-            ..
-        } in screen_lines.iter_line_info_r(start_rvline..=end_rvline)
-        {
-            let rvline = info.rvline;
-            let line = rvline.line;
-
-            let phantom_text = ed.phantom_text(line);
-            let left_col = if rvline == start_rvline {
-                start_col
-            } else {
-                ed.first_col(info)
-            };
-            let right_col = if rvline == end_rvline {
-                end_col
-            } else {
-                ed.last_col(info, true)
-            };
-            let left_col = phantom_text.col_after(left_col, is_block_cursor);
-            let right_col = phantom_text.col_after(right_col, false);
-
-            // Skip over empty selections
-            if !info.is_empty() && left_col == right_col {
-                continue;
-            }
-
-            // TODO: What affinity should these use?
-            let x0 = ed
-                .line_point_of_line_col(line, left_col, CursorAffinity::Forward)
-                .x;
-            let x1 = ed
-                .line_point_of_line_col(line, right_col, CursorAffinity::Backward)
-                .x;
-            // TODO(minor): Should this be line != end_line?
-            let x1 = if rvline != end_rvline {
-                x1 + CHAR_WIDTH
-            } else {
-                x1
-            };
-
-            let (x0, width) = if info.is_empty() {
-                let text_layout = ed.text_layout(line);
-                let width = text_layout
-                    .get_layout_x(rvline.line_index)
-                    .map(|(_, x1)| x1)
-                    .unwrap_or(0.0)
-                    .into();
-                (0.0, width)
-            } else {
-                (x0, x1 - x0)
-            };
-
-            let rect = Rect::from_origin_size((x0, vline_y), (width, line_height));
-            cx.fill(&rect, color, 0.0);
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn paint_linewise_selection(
-        &self,
-        cx: &mut PaintCx,
-        color: Color,
-        line_height: f64,
-        screen_lines: &ScreenLines,
-        start_offset: usize,
-        end_offset: usize,
-        affinity: CursorAffinity,
-    ) {
-        let ed = &self.editor.editor;
-        let viewport = self.viewport.get_untracked();
-
-        let (start_rvline, _) = ed.rvline_col_of_offset(start_offset, affinity);
-        let (end_rvline, _) = ed.rvline_col_of_offset(end_offset, affinity);
-        // Linewise selection is by *line* so we move to the start/end rvlines of the line
-        let start_rvline = screen_lines
-            .first_rvline_for_line(start_rvline.line)
-            .unwrap_or(start_rvline);
-        let end_rvline = screen_lines
-            .last_rvline_for_line(end_rvline.line)
-            .unwrap_or(end_rvline);
-
-        for LineInfo {
-            vline_info: info,
-            vline_y,
-            ..
-        } in screen_lines.iter_line_info_r(start_rvline..=end_rvline)
-        {
-            let rvline = info.rvline;
-            let line = rvline.line;
-
-            let phantom_text = ed.phantom_text(line);
-
-            // The left column is always 0 for linewise selections.
-            let right_col = ed.last_col(info, true);
-            let right_col = phantom_text.col_after(right_col, false);
-
-            // TODO: what affinity to use?
-            let x1 = ed
-                .line_point_of_line_col(line, right_col, CursorAffinity::Backward)
-                .x
-                + CHAR_WIDTH;
-
-            let rect = Rect::from_origin_size(
-                (viewport.x0, vline_y),
-                (x1 - viewport.x0, line_height),
-            );
-            cx.fill(&rect, color, 0.0);
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn paint_blockwise_selection(
-        &self,
-        cx: &mut PaintCx,
-        color: Color,
-        line_height: f64,
-        screen_lines: &ScreenLines,
-        start_offset: usize,
-        end_offset: usize,
-        affinity: CursorAffinity,
-        horiz: Option<ColPosition>,
-    ) {
-        let ed = &self.editor.editor;
-
-        let (start_rvline, start_col) =
-            ed.rvline_col_of_offset(start_offset, affinity);
-        let (end_rvline, end_col) = ed.rvline_col_of_offset(end_offset, affinity);
-        let left_col = start_col.min(end_col);
-        let right_col = start_col.max(end_col) + 1;
-
-        let lines = screen_lines
-            .iter_line_info_r(start_rvline..=end_rvline)
-            .filter_map(|line_info| {
-                let max_col = ed.last_col(line_info.vline_info, true);
-                (max_col > left_col).then_some((line_info, max_col))
-            });
-
-        for (line_info, max_col) in lines {
-            let line = line_info.vline_info.rvline.line;
-            let right_col = if let Some(ColPosition::End) = horiz {
-                max_col
-            } else {
-                right_col.min(max_col)
-            };
-            let phantom_text = ed.phantom_text(line);
-            let left_col = phantom_text.col_after(left_col, true);
-            let right_col = phantom_text.col_after(right_col, false);
-
-            // TODO: what affinity to use?
-            let x0 = ed
-                .line_point_of_line_col(line, left_col, CursorAffinity::Forward)
-                .x;
-            let x1 = ed
-                .line_point_of_line_col(line, right_col, CursorAffinity::Backward)
-                .x;
-
-            let rect = Rect::from_origin_size(
-                (x0, line_info.vline_y),
-                (x1 - x0, line_height),
-            );
-            cx.fill(&rect, color, 0.0);
-        }
-    }
-
     fn paint_cursor(
         &self,
         cx: &mut PaintCx,
@@ -520,7 +335,6 @@ impl EditorView {
         let ed = e_data.editor.clone();
         let cursor = self.editor.cursor();
         let find_focus = self.editor.find_focus;
-        let hide_cursor = self.editor.common.window_common.hide_cursor;
         let config = self.editor.common.config;
 
         let config = config.get_untracked();
@@ -530,8 +344,6 @@ impl EditorView {
             self.is_active.get_untracked() && !find_focus.get_untracked();
 
         let current_line_color = config.color(LapceColor::EDITOR_CURRENT_LINE);
-        let selection_color = config.color(LapceColor::EDITOR_SELECTION);
-        let caret_color = config.color(LapceColor::EDITOR_CARET);
 
         let breakline = self.debug_breakline.get_untracked().and_then(
             |(breakline, breakline_path)| {
@@ -589,246 +401,10 @@ impl EditorView {
                 }
             }
 
-            match cursor.mode {
-                CursorMode::Normal(_) => {}
-                CursorMode::Visual {
-                    start,
-                    end,
-                    mode: VisualMode::Normal,
-                } => {
-                    let start_offset = start.min(end);
-                    let end_offset = ed.move_right(start.max(end), Mode::Insert, 1);
+            FloemEditorView::paint_selection(cx, &ed, screen_lines);
 
-                    self.paint_normal_selection(
-                        cx,
-                        selection_color,
-                        line_height,
-                        screen_lines,
-                        start_offset,
-                        end_offset,
-                        cursor.affinity,
-                        true,
-                    );
-                }
-                CursorMode::Visual {
-                    start,
-                    end,
-                    mode: VisualMode::Linewise,
-                } => {
-                    self.paint_linewise_selection(
-                        cx,
-                        selection_color,
-                        line_height,
-                        screen_lines,
-                        start.min(end),
-                        start.max(end),
-                        cursor.affinity,
-                    );
-                }
-                CursorMode::Visual {
-                    start,
-                    end,
-                    mode: VisualMode::Blockwise,
-                } => {
-                    self.paint_blockwise_selection(
-                        cx,
-                        selection_color,
-                        line_height,
-                        screen_lines,
-                        start.min(end),
-                        start.max(end),
-                        cursor.affinity,
-                        cursor.horiz,
-                    );
-                }
-                CursorMode::Insert(_) => {
-                    for (start, end) in
-                        cursor.regions_iter().filter(|(start, end)| start != end)
-                    {
-                        self.paint_normal_selection(
-                            cx,
-                            selection_color,
-                            line_height,
-                            screen_lines,
-                            start.min(end),
-                            start.max(end),
-                            cursor.affinity,
-                            false,
-                        );
-                    }
-                }
-            }
-
-            if is_active && !hide_cursor.get_untracked() {
-                for (_, end) in cursor.regions_iter() {
-                    let is_block = match cursor.mode {
-                        CursorMode::Normal(_) | CursorMode::Visual { .. } => true,
-                        CursorMode::Insert(_) => false,
-                    };
-                    let LineRegion { x, width, rvline } =
-                        cursor_caret(&ed, end, is_block, cursor.affinity);
-
-                    if let Some(info) = screen_lines.info(rvline) {
-                        let rect = Rect::from_origin_size(
-                            (x, info.vline_y),
-                            (width, line_height),
-                        );
-                        cx.fill(&rect, caret_color, 0.0);
-                    }
-                }
-            }
+            FloemEditorView::paint_cursor_caret(cx, &ed, is_active, screen_lines);
         });
-    }
-
-    fn paint_wave_line(
-        &self,
-        cx: &mut PaintCx,
-        width: f64,
-        point: Point,
-        color: Color,
-    ) {
-        let radius = 2.0;
-        let origin = Point::new(point.x, point.y + radius);
-        let mut path = BezPath::new();
-        path.move_to(origin);
-
-        let mut x = 0.0;
-        let mut direction = -1.0;
-        while x < width {
-            let point = origin + (x, 0.0);
-            let p1 = point + (radius, -radius * direction);
-            let p2 = point + (radius * 2.0, 0.0);
-            path.quad_to(p1, p2);
-            x += radius * 2.0;
-            direction *= -1.0;
-        }
-
-        cx.stroke(&path, color, 1.0);
-    }
-
-    fn paint_extra_style(
-        &self,
-        cx: &mut PaintCx,
-        extra_styles: &[LineExtraStyle],
-        y: f64,
-        viewport: Rect,
-    ) {
-        for style in extra_styles {
-            let height = style.height;
-            if let Some(bg) = style.bg_color {
-                let width = style.width.unwrap_or_else(|| viewport.width());
-                let base = if style.width.is_none() {
-                    viewport.x0
-                } else {
-                    0.0
-                };
-                let x = style.x + base;
-                let y = y + style.y;
-                cx.fill(
-                    &Rect::ZERO
-                        .with_size(Size::new(width, height))
-                        .with_origin(Point::new(x, y)),
-                    bg,
-                    0.0,
-                );
-            }
-
-            if let Some(color) = style.under_line {
-                let width = style.width.unwrap_or_else(|| viewport.width());
-                let base = if style.width.is_none() {
-                    viewport.x0
-                } else {
-                    0.0
-                };
-                let x = style.x + base;
-                let y = y + style.y + height;
-                cx.stroke(
-                    &Line::new(Point::new(x, y), Point::new(x + width, y)),
-                    color,
-                    1.0,
-                );
-            }
-
-            if let Some(color) = style.wave_line {
-                let width = style.width.unwrap_or_else(|| viewport.width());
-                let y = y + style.y + height;
-                self.paint_wave_line(cx, width, Point::new(style.x, y), color);
-            }
-        }
-    }
-
-    // TODO(floem-editor): this is the same as floem-editors version, we just need to hook up the config -> editor's signals
-    fn paint_text(
-        &self,
-        cx: &mut PaintCx,
-        viewport: Rect,
-        screen_lines: &ScreenLines,
-    ) {
-        let ed = &self.editor.editor;
-        let style = ed.style();
-        let config = self.editor.common.config;
-
-        let config = config.get_untracked();
-        let line_height = config.editor.line_height() as f64;
-
-        // TODO: cache indent text layout
-        let indent_unit = style.indent_style().as_str();
-        let family: Vec<FamilyOwned> =
-            FamilyOwned::parse_list(&config.editor.font_family).collect();
-        let attrs = Attrs::new()
-            .family(&family)
-            .font_size(config.editor.font_size() as f32);
-        let attrs_list = AttrsList::new(attrs);
-
-        let mut indent_text = TextLayout::new();
-        indent_text.set_text(&format!("{indent_unit}a"), attrs_list);
-        let indent_text_width = indent_text.hit_position(indent_unit.len()).point.x;
-
-        for (line, y) in screen_lines.iter_lines_y() {
-            let text_layout = ed.text_layout(line);
-
-            self.paint_extra_style(cx, &text_layout.extra_style, y, viewport);
-
-            if let Some(whitespaces) = &text_layout.whitespaces {
-                let family: Vec<FamilyOwned> =
-                    FamilyOwned::parse_list(&config.editor.font_family).collect();
-                let attrs = Attrs::new()
-                    .color(config.color(LapceColor::EDITOR_VISIBLE_WHITESPACE))
-                    .family(&family)
-                    .font_size(config.editor.font_size() as f32);
-                let attrs_list = AttrsList::new(attrs);
-                let mut space_text = TextLayout::new();
-                space_text.set_text("·", attrs_list.clone());
-                let mut tab_text = TextLayout::new();
-                tab_text.set_text("→", attrs_list);
-
-                for (c, (x0, _x1)) in whitespaces.iter() {
-                    match *c {
-                        '\t' => {
-                            cx.draw_text(&tab_text, Point::new(*x0, y));
-                        }
-                        ' ' => {
-                            cx.draw_text(&space_text, Point::new(*x0, y));
-                        }
-                        _ => {}
-                    }
-                }
-            }
-
-            if config.editor.show_indent_guide {
-                let mut x = 0.0;
-                while x + 1.0 < text_layout.indent {
-                    cx.stroke(
-                        &Line::new(Point::new(x, y), Point::new(x, y + line_height)),
-                        config.color(LapceColor::EDITOR_INDENT_GUIDE),
-                        1.0,
-                    );
-                    x += indent_text_width;
-                }
-            }
-
-            cx.draw_text(&text_layout.text, Point::new(0.0, y));
-        }
     }
 
     fn paint_find(&self, cx: &mut PaintCx, screen_lines: &ScreenLines) {
@@ -1048,20 +624,13 @@ impl EditorView {
         is_local: bool,
         config: Arc<LapceConfig>,
     ) {
-        if is_local {
-            return;
-        }
         const BAR_WIDTH: f64 = 10.0;
-        cx.fill(
-            &Rect::ZERO
-                .with_size(Size::new(1.0, viewport.height()))
-                .with_origin(Point::new(
-                    viewport.x0 + viewport.width() - BAR_WIDTH,
-                    viewport.y0,
-                ))
-                .inflate(0.0, 10.0),
-            config.color(LapceColor::LAPCE_SCROLL_BAR),
-            0.0,
+
+        FloemEditorView::paint_scroll_bar(
+            cx,
+            &self.editor.editor,
+            viewport,
+            is_local,
         );
 
         if !self.editor.kind.get_untracked().is_normal() {
@@ -1407,8 +976,10 @@ impl View for EditorView {
 
     fn paint(&mut self, cx: &mut PaintCx) {
         let viewport = self.viewport.get_untracked();
-        let config = self.editor.common.config.get_untracked();
-        let doc = self.editor.doc();
+        let e_data = &self.editor;
+        let ed = &e_data.editor;
+        let config = e_data.common.config.get_untracked();
+        let doc = e_data.doc();
         let is_local = doc.content.with_untracked(|content| content.is_local());
 
         // We repeatedly get the screen lines because we don't currently carefully manage the
@@ -1419,17 +990,17 @@ impl View for EditorView {
         // avoiding recomputation seems easiest/clearest.
         // I expect that most/all of the paint functions could restrict themselves to only what is
         // within the active screen lines without issue.
-        let screen_lines = self.editor.screen_lines().get_untracked();
+        let screen_lines = ed.screen_lines.get_untracked();
         self.paint_cursor(cx, is_local, &screen_lines);
-        let screen_lines = self.editor.screen_lines().get_untracked();
+        let screen_lines = ed.screen_lines.get_untracked();
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
-        let screen_lines = self.editor.screen_lines().get_untracked();
+        let screen_lines = ed.screen_lines.get_untracked();
         self.paint_find(cx, &screen_lines);
-        let screen_lines = self.editor.screen_lines().get_untracked();
+        let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
-        let screen_lines = self.editor.screen_lines().get_untracked();
-        self.paint_text(cx, viewport, &screen_lines);
-        let screen_lines = self.editor.screen_lines().get_untracked();
+        let screen_lines = ed.screen_lines.get_untracked();
+        FloemEditorView::paint_text(cx, &ed, viewport, &screen_lines);
+        let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);
     }

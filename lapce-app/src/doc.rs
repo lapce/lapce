@@ -1977,6 +1977,15 @@ impl Styling for DocStyling {
 
         self.config.with_untracked(|config| config.color(name))
     }
+
+    fn paint_caret(&self, editor: &Editor, _line: usize) -> bool {
+        let Some(e_data) = self.doc.editor_data(editor.id()) else {
+            return true;
+        };
+
+        // If the find is active, then we don't want to paint the caret
+        !e_data.find_focus.get_untracked()
+    }
 }
 
 impl std::fmt::Debug for Doc {
