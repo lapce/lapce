@@ -4,6 +4,7 @@ pub mod lsp;
 pub mod psp;
 pub mod wasi;
 
+use std::time::Duration;
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -13,7 +14,6 @@ use std::{
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
         Arc,
     },
-    thread,
 };
 
 use anyhow::{anyhow, Result};
@@ -69,6 +69,7 @@ use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 use tar::Archive;
+use tracing::error;
 
 use self::{
     catalog::PluginCatalog,
@@ -138,6 +139,10 @@ pub enum PluginCatalogRpc {
         text: Rope,
     },
     Handler(PluginCatalogNotification),
+    RemoveVolt {
+        volt: VoltInfo,
+        f: Box<dyn ClonableCallback<Value, RpcError>>,
+    },
     Shutdown,
 }
 
@@ -336,6 +341,9 @@ impl PluginCatalogRpcHandler {
                 }
                 PluginCatalogRpc::Shutdown => {
                     return;
+                }
+                PluginCatalogRpc::RemoveVolt { volt, f } => {
+                    plugin.shutdown_volt(volt, f);
                 }
             }
         }
@@ -1110,8 +1118,36 @@ impl PluginCatalogRpcHandler {
         self.catalog_notification(PluginCatalogNotification::InstallVolt(volt))
     }
 
-    pub fn stop_volt(&self, volt: VoltInfo) -> Result<()> {
-        self.catalog_notification(PluginCatalogNotification::StopVolt(volt))
+    pub fn stop_volt(&self, volt: VoltInfo) {
+        let rpc = PluginCatalogRpc::RemoveVolt {
+            volt,
+            f: Box::new(|_id: PluginId, rs: Result<Value, RpcError>| {
+                if let Err(e) = rs {
+                    // maybe should send notification
+                    error!("{:?}", e);
+                }
+            }),
+        };
+        let _ = self.plugin_tx.send(rpc);
+    }
+
+    pub fn remove_volt(&self, volt: VoltMetadata) {
+        let catalog_rpc = self.clone();
+        let volt_clone = volt.clone();
+        let rpc = PluginCatalogRpc::RemoveVolt {
+            volt: volt.info(),
+            f: Box::new(|_id: PluginId, rs: Result<Value, RpcError>| {
+                if let Err(e) = rs {
+                    // maybe should send notification
+                    error!("{:?}", e);
+                } else {
+                    if let Err(e) = remove_volt(catalog_rpc, volt_clone) {
+                        error!("{:?}", e);
+                    }
+                }
+            }),
+        };
+        let _ = self.plugin_tx.send(rpc);
     }
 
     pub fn reload_volt(&self, volt: VoltMetadata) -> Result<()> {
@@ -1368,16 +1404,26 @@ pub fn remove_volt(
     catalog_rpc: PluginCatalogRpcHandler,
     volt: VoltMetadata,
 ) -> Result<()> {
-    thread::spawn(move || -> Result<()> {
+    std::thread::spawn(move || -> Result<()> {
         let path = volt.dir.as_ref().ok_or_else(|| {
             catalog_rpc
                 .core_rpc
                 .volt_removing(volt.clone(), "Plugin Directory not set".to_string());
             anyhow::anyhow!("don't have dir")
         })?;
-        // Waiting for the instance of WASI to be dropped.
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        if let Err(e) = std::fs::remove_dir_all(path) {
+        let mut rs = Ok(());
+        // Try to remove dir
+        // This is due to some operating systems not releasing immediately, such as Windows.
+        for _ in 0..2 {
+            rs = std::fs::remove_dir_all(path);
+            if rs.is_err() {
+                std::thread::sleep(Duration::from_millis(500));
+            } else {
+                break;
+            }
+        }
+        if let Err(e) = rs {
+            error!("remove_dir_all {:?}", e);
             eprintln!("Could not delete plugin folder: {e}");
             catalog_rpc.core_rpc.volt_removing(
                 volt.clone(),

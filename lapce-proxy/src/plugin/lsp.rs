@@ -205,6 +205,13 @@ impl LspClient {
         );
         thread::spawn(move || {
             for msg in io_rx {
+                if msg
+                    .get_method()
+                    .map(|x| x == lsp_types::request::Shutdown::METHOD)
+                    .unwrap_or_default()
+                {
+                    break;
+                }
                 if let Ok(msg) = serde_json::to_string(&msg) {
                     let msg =
                         format!("Content-Length: {}\r\n\r\n{}", msg.len(), msg);
