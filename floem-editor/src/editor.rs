@@ -1,7 +1,8 @@
 use std::{
     cell::{Cell, RefCell},
     cmp::Ordering,
-    collections::HashMap,
+    collections::{hash_map::DefaultHasher, HashMap},
+    hash::{Hash, Hasher},
     rc::Rc,
     sync::Arc,
     time::Duration,
@@ -138,6 +139,7 @@ impl Editor {
 
         let font_sizes = RefCell::new(Arc::new(EditorFontSizes {
             style: style.read_only(),
+            doc: doc.read_only(),
         }));
         let lines = Rc::new(Lines::new(cx, font_sizes));
         let screen_lines =
@@ -220,6 +222,7 @@ impl Editor {
 
             *self.lines.font_sizes.borrow_mut() = Arc::new(EditorFontSizes {
                 style: self.style.read_only(),
+                doc: self.doc.read_only(),
             });
             self.lines.clear(0, None);
             self.doc.set(doc);
@@ -1143,6 +1146,7 @@ impl TextLayoutProvider for EditorTextProv {
 
 struct EditorFontSizes {
     style: ReadSignal<Rc<dyn Styling>>,
+    doc: ReadSignal<Rc<dyn Document>>,
 }
 impl LineFontSizeProvider for EditorFontSizes {
     fn font_size(&self, line: usize) -> usize {
@@ -1150,7 +1154,16 @@ impl LineFontSizeProvider for EditorFontSizes {
     }
 
     fn cache_id(&self) -> FontSizeCacheId {
-        self.style.with_untracked(|style| style.id())
+        let mut hasher = DefaultHasher::new();
+
+        // TODO: is this actually good enough for comparing cache state?
+        // We could just have it return an arbitrary type that impl's Eq?
+        self.style
+            .with_untracked(|style| style.id().hash(&mut hasher));
+        self.doc
+            .with_untracked(|doc| doc.cache_rev().get_untracked().hash(&mut hasher));
+
+        hasher.finish()
     }
 }
 
