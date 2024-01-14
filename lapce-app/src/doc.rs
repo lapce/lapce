@@ -39,7 +39,7 @@ use lapce_core::{
     char_buffer::CharBuffer,
     command::EditCommand,
     cursor::Cursor,
-    editor::{Action, EditType},
+    editor::{Action, EditConf, EditType},
     language::LapceLanguage,
     mode::MotionMode,
     register::Register,
@@ -588,11 +588,15 @@ impl Doc {
                         cursor,
                         buffer,
                         cmd,
-                        syntax.language.comment_token(),
                         &mut clipboard,
-                        modal,
                         register,
-                        smart_tab,
+                        EditConf {
+                            comment_token: syntax.language.comment_token(),
+                            modal,
+                            smart_tab,
+                            keep_indent: true,
+                            auto_indent: true,
+                        },
                     )
                 })
                 .unwrap()
@@ -1713,11 +1717,15 @@ impl CommonAction for Doc {
                     cursor,
                     buffer,
                     cmd,
-                    comment_token,
                     &mut clipboard,
-                    modal,
                     register,
-                    smart_tab,
+                    EditConf {
+                        comment_token,
+                        modal,
+                        smart_tab,
+                        keep_indent: true,
+                        auto_indent: true,
+                    },
                 )
             })
             .unwrap();

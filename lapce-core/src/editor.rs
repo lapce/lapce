@@ -76,6 +76,14 @@ impl EditType {
     }
 }
 
+pub struct EditConf<'a> {
+    pub comment_token: &'a str,
+    pub modal: bool,
+    pub smart_tab: bool,
+    pub keep_indent: bool,
+    pub auto_indent: bool,
+}
+
 pub struct Editor {}
 // TODO(floem-editor): rename this file's `Editor`, or rename `floem-editor`'s `Editor`
 // we could also just have these functions be exported rather than be associated with a type
@@ -344,6 +352,8 @@ impl Editor {
         buffer: &mut Buffer,
         cursor: &mut Cursor,
         selection: Selection,
+        keep_indent: bool,
+        auto_indent: bool,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         let mut edits = Vec::with_capacity(selection.regions().len());
         let mut extra_edits = Vec::new();
@@ -358,21 +368,25 @@ impl Editor {
             let second_half = buffer.slice_to_cow(offset..line_end);
             let second_half = second_half.trim();
 
+            // TODO: this could be done with 1 string
             let new_line_content = {
                 let indent_storage;
-                let indent = if has_unmatched_pair(&first_half) {
+                let indent = if auto_indent && has_unmatched_pair(&first_half) {
                     indent_storage =
                         format!("{}{}", line_indent, buffer.indent_unit());
                     &indent_storage
-                } else if second_half.is_empty() {
+                } else if keep_indent && second_half.is_empty() {
                     indent_storage = buffer.indent_on_line(line + 1);
                     if indent_storage.len() > line_indent.len() {
                         &indent_storage
                     } else {
                         &line_indent
                     }
-                } else {
+                } else if keep_indent {
                     &line_indent
+                } else {
+                    indent_storage = String::new();
+                    &indent_storage
                 };
                 format!("\n{indent}")
             };
@@ -800,11 +814,15 @@ impl Editor {
         cursor: &mut Cursor,
         buffer: &mut Buffer,
         cmd: &EditCommand,
-        comment_token: &str,
         clipboard: &mut T,
-        modal: bool,
         register: &mut Register,
-        smart_tab: bool,
+        EditConf {
+            comment_token,
+            modal,
+            smart_tab,
+            keep_indent,
+            auto_indent,
+        }: EditConf,
     ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
         use crate::command::EditCommand::*;
         match cmd {
@@ -880,12 +898,20 @@ impl Editor {
                 deltas
             }
             InsertNewLine => match cursor.mode.clone() {
-                CursorMode::Normal(offset) => {
-                    Self::insert_new_line(buffer, cursor, Selection::caret(offset))
-                }
-                CursorMode::Insert(selection) => {
-                    Self::insert_new_line(buffer, cursor, selection)
-                }
+                CursorMode::Normal(offset) => Self::insert_new_line(
+                    buffer,
+                    cursor,
+                    Selection::caret(offset),
+                    keep_indent,
+                    auto_indent,
+                ),
+                CursorMode::Insert(selection) => Self::insert_new_line(
+                    buffer,
+                    cursor,
+                    selection,
+                    keep_indent,
+                    auto_indent,
+                ),
                 CursorMode::Visual {
                     start: _,
                     end: _,
@@ -1186,8 +1212,13 @@ impl Editor {
                 } else {
                     buffer.first_non_blank_character_on_line(line)
                 };
-                let delta =
-                    Self::insert_new_line(buffer, cursor, Selection::caret(offset));
+                let delta = Self::insert_new_line(
+                    buffer,
+                    cursor,
+                    Selection::caret(offset),
+                    keep_indent,
+                    auto_indent,
+                );
                 if line == 0 {
                     cursor.mode = CursorMode::Insert(Selection::caret(offset));
                 }
@@ -1196,7 +1227,13 @@ impl Editor {
             NewLineBelow => {
                 let offset = cursor.offset();
                 let offset = buffer.offset_line_end(offset, true);
-                Self::insert_new_line(buffer, cursor, Selection::caret(offset))
+                Self::insert_new_line(
+                    buffer,
+                    cursor,
+                    Selection::caret(offset),
+                    keep_indent,
+                    auto_indent,
+                )
             }
             DeleteBackward => {
                 let (selection, edit_type) = match cursor.mode {

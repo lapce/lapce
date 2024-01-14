@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Debug, rc::Rc};
+use std::{borrow::Cow, cell::Cell, fmt::Debug, rc::Rc};
 
 use downcast_rs::{impl_downcast, Downcast};
 use floem::{
@@ -14,7 +14,7 @@ use lapce_core::{
     },
     command::EditCommand,
     cursor::Cursor,
-    editor::Action,
+    editor::{Action, EditConf},
     indent::IndentStyle,
     mode::{Mode, MotionMode},
     register::{Clipboard, Register},
@@ -358,6 +358,11 @@ pub struct TextDocument {
     buffer: RwSignal<Buffer>,
     cache_rev: RwSignal<u64>,
     preedit: PreeditData,
+
+    /// Whether to keep the indent of the previous line when inserting a new line
+    pub keep_indent: Cell<bool>,
+    /// Whether to automatically indent the new line via heuristics
+    pub auto_indent: Cell<bool>,
 }
 impl TextDocument {
     pub fn new(cx: Scope, text: impl Into<Rope>) -> TextDocument {
@@ -371,6 +376,8 @@ impl TextDocument {
             buffer: cx.create_rw_signal(buffer),
             cache_rev: cx.create_rw_signal(0),
             preedit,
+            keep_indent: Cell::new(true),
+            auto_indent: Cell::new(false),
         }
     }
 
@@ -491,11 +498,15 @@ impl CommonAction for TextDocument {
                     cursor,
                     buffer,
                     cmd,
-                    comment_token,
                     &mut clipboard,
-                    modal,
                     register,
-                    smart_tab,
+                    EditConf {
+                        modal,
+                        comment_token,
+                        smart_tab,
+                        keep_indent: self.keep_indent.get(),
+                        auto_indent: self.auto_indent.get(),
+                    },
                 )
             })
             .unwrap();
