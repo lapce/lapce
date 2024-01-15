@@ -31,13 +31,13 @@ pub fn handle_command_default(
         Command::Scroll(cmd) => {
             // TODO(floem-editor): lapce checks if the content is local??
 
-            handle_focus_command_default(ed, action, cmd, count, modifiers)
+            handle_scroll_command_default(ed, cmd, count, modifiers)
         }
         Command::MotionMode(cmd) => {
-            handle_motion_mode_command_default(ed, action, cmd, count, modifiers)
+            handle_motion_mode_command_default(ed, action, cmd, count)
         }
         Command::MultiSelection(cmd) => {
-            handle_multi_selection_command_default(ed, action, cmd, count, modifiers)
+            handle_multi_selection_command_default(ed, cmd)
         }
     }
 }
@@ -74,11 +74,6 @@ fn handle_edit_command_default(
     ed.cursor.set(cursor);
     ed.register.set(register);
 
-    // TODO(floem-editor): this is where lapce changes some completion state depending on the cmd
-    // and deltas. Cmd could be easily done via a wrapper, but deltas need what we calculated here.
-    // Should we have a callback function you can pass in, or just have lapce redeclare this
-    // function?
-
     CommandExecuted::Yes
 }
 fn handle_move_command_default(
@@ -106,38 +101,30 @@ fn handle_move_command_default(
 
     ed.cursor.set(cursor);
 
-    // TODO(floem-editor): this is where lapce cancels completion
-
     CommandExecuted::Yes
 }
 
-fn handle_focus_command_default(
+fn handle_scroll_command_default(
     ed: &Editor,
-    action: &dyn CommonAction,
     cmd: &ScrollCommand,
     count: Option<usize>,
     mods: ModifiersState,
 ) -> CommandExecuted {
-    // TODO(minor): Evaluate whether we should split this into subenums,
-    // such as actions specific to the actual editor pane, movement, and list movement.
-    // TODO(floem-editor): The above becomes relevant.
-    // We also need a good way for lapce to have its own specific commands..
     match cmd {
         ScrollCommand::PageUp => {
-            todo!()
+            ed.page_move(false, mods);
         }
         ScrollCommand::PageDown => {
-            todo!()
+            ed.page_move(true, mods);
         }
-        ScrollCommand::ScrollUp => {
-            todo!()
-        }
+        ScrollCommand::ScrollUp => ed.scroll(0.0, false, count.unwrap_or(1), mods),
         ScrollCommand::ScrollDown => {
-            todo!()
+            ed.scroll(0.0, true, count.unwrap_or(1), mods);
         }
-        ScrollCommand::CenterOfWindow => todo!(),
-        ScrollCommand::TopOfWindow => todo!(),
-        ScrollCommand::BottomOfWindow => todo!(),
+        // TODO:
+        ScrollCommand::CenterOfWindow => {}
+        ScrollCommand::TopOfWindow => {}
+        ScrollCommand::BottomOfWindow => {}
     }
 
     CommandExecuted::Yes
@@ -148,7 +135,6 @@ fn handle_motion_mode_command_default(
     action: &dyn CommonAction,
     cmd: &MotionModeCommand,
     count: Option<usize>,
-    mods: ModifiersState,
 ) -> CommandExecuted {
     let count = count.unwrap_or(1);
     let motion_mode = match cmd {
@@ -170,16 +156,11 @@ fn handle_motion_mode_command_default(
 
 fn handle_multi_selection_command_default(
     ed: &Editor,
-    action: &dyn CommonAction,
     cmd: &MultiSelectionCommand,
-    count: Option<usize>,
-    mods: ModifiersState,
 ) -> CommandExecuted {
     let mut cursor = ed.cursor.get_untracked();
     movement::do_multi_selection(ed, &mut cursor, cmd);
     ed.cursor.set(cursor);
-
-    // TODO(floem-editor): this is where lapce cancels completion
 
     CommandExecuted::Yes
 }

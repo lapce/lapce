@@ -545,7 +545,10 @@ impl EditorData {
             ScrollCommand::ScrollDown => {
                 self.scroll(true, count.unwrap_or(1), mods);
             }
-            _ => {}
+            // TODO:
+            ScrollCommand::CenterOfWindow => {}
+            ScrollCommand::TopOfWindow => {}
+            ScrollCommand::BottomOfWindow => {}
         }
 
         let current_completion_index = self
