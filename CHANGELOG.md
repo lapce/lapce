@@ -10,6 +10,7 @@
 
 ### Bug Fixes
 - [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository
+- [#2920](https://github.com/lapce/lapce/pull/2920): Fix unicode path handling on windows LSPs
 
 ## 0.3.1
 
