@@ -2731,6 +2731,7 @@ mod tests {
         ];
         assert_eq!(lines.last_vline(&text_prov), VLine(7));
         assert_eq!(lines.last_rvline(&text_prov), RVLine::new(3, 0));
+        #[allow(clippy::needless_range_loop)]
         for line in 0..8 {
             let info = ffvline_info(&lines, &text_prov, VLine(line)).unwrap();
             assert_eq!(
@@ -2767,6 +2768,7 @@ mod tests {
             lines.last_vline(&text_prov).get()
                 - lines.last_rvline(&text_prov).line_index,
         );
+        #[allow(clippy::needless_range_loop)]
         for line in 0..4 {
             let vline = VLine(vline_line_data[line]);
             assert_eq!(
@@ -2808,6 +2810,7 @@ mod tests {
             (30, 3, 0),
             (33, 3, 1),
         ];
+        #[allow(clippy::needless_range_loop)]
         for vline in 0..10 {
             let info = ffvline_info(&lines, &text_prov, VLine(vline)).unwrap();
             assert_eq!(
@@ -2832,6 +2835,7 @@ mod tests {
             lines.last_vline(&text_prov).get()
                 - lines.last_rvline(&text_prov).line_index,
         );
+        #[allow(clippy::needless_range_loop)]
         for line in 0..4 {
             let vline = VLine(vline_line_data[line]);
             assert_eq!(
@@ -2923,6 +2927,7 @@ mod tests {
             (34, 3, 0),
         ];
 
+        #[allow(clippy::needless_range_loop)]
         for line in 0..9 {
             let info = ffvline_info(&lines, &text_prov, VLine(line)).unwrap();
             assert_eq!(
@@ -3455,11 +3460,7 @@ mod tests {
         // vs starting at zero and iterating to that index.
         for i in 0..x.len() {
             let nums = get_nums(i);
-            println!(
-                "i: {i}, #nums: {}, #&x[i..]: {}",
-                nums.len(),
-                (&x[i..]).len()
-            );
+            println!("i: {i}, #nums: {}, #&x[i..]: {}", nums.len(), x[i..].len());
             assert_eq!(nums, &x[i..], "failed at #{i}");
         }
 
