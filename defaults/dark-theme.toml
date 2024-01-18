@@ -61,6 +61,11 @@ yellow = "#E5C07B"
 "variable.other.member" = "$red"
 "tag" = "$blue"
 
+"bracket.color.1" = "$blue"
+"bracket.color.2" = "$yellow"
+"bracket.color.3" = "$purple"
+"bracket.unpaired" = "$red"
+
 [color-theme.ui]
 "lapce.error" = "$red"
 "lapce.warn" = "$yellow"

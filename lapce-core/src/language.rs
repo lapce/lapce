@@ -1,10 +1,14 @@
-use std::{collections::HashSet, path::Path, str::FromStr};
+use std::{
+    collections::{hash_map::Entry, HashMap, HashSet},
+    path::Path,
+    str::FromStr,
+};
 
-use anyhow::Result;
+use lapce_rpc::style::{LineStyle, Style};
 use once_cell::sync::Lazy;
 use strum_macros::{AsRefStr, AsStaticStr, Display, EnumMessage, EnumString};
 use tracing::{debug, error};
-use tree_sitter::TreeCursor;
+use tree_sitter::{Point, TreeCursor};
 
 use crate::{
     directory::Directory,
@@ -1815,6 +1819,75 @@ fn walk_tree(
     if list.contains(&kind) && cursor.goto_first_child() {
         loop {
             walk_tree(cursor, normal_lines, list, ignore_list);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        cursor.goto_parent();
+    }
+}
+
+fn add_bracket_pos(
+    bracket_pos: &mut HashMap<usize, Vec<LineStyle>>,
+    start_pos: Point,
+    color: String,
+) {
+    let line_style = LineStyle {
+        start: start_pos.column,
+        end: start_pos.column + 1,
+        style: Style {
+            fg_color: Some(color),
+        },
+    };
+    match bracket_pos.entry(start_pos.row) {
+        Entry::Vacant(v) => _ = v.insert(vec![line_style]),
+        Entry::Occupied(mut o) => o.get_mut().push(line_style),
+    }
+}
+
+pub(crate) fn walk_tree_bracket_ast(
+    cursor: &mut TreeCursor,
+    level: &mut usize,
+    counter: &mut usize,
+    bracket_pos: &mut HashMap<usize, Vec<LineStyle>>,
+    palette: &Vec<String>,
+) {
+    if cursor.node().kind().ends_with('(')
+        || cursor.node().kind().ends_with('{')
+        || cursor.node().kind().ends_with('[')
+    {
+        let row = cursor.node().end_position().row;
+        let col = cursor.node().end_position().column - 1;
+        let start_pos = Point::new(row, col);
+        add_bracket_pos(
+            bracket_pos,
+            start_pos,
+            palette.get(*level % palette.len()).unwrap().clone(),
+        );
+        *level += 1;
+    } else if cursor.node().kind().ends_with(')')
+        || cursor.node().kind().ends_with('}')
+        || cursor.node().kind().ends_with(']')
+    {
+        let (new_level, overflow) = (*level).overflowing_sub(1);
+        let row = cursor.node().end_position().row;
+        let col = cursor.node().end_position().column - 1;
+        let start_pos = Point::new(row, col);
+        if overflow {
+            add_bracket_pos(bracket_pos, start_pos, "bracket.unpaired".to_string());
+        } else {
+            *level = new_level;
+            add_bracket_pos(
+                bracket_pos,
+                start_pos,
+                palette.get(*level % palette.len()).unwrap().clone(),
+            );
+        }
+    }
+    *counter += 1;
+    if cursor.goto_first_child() {
+        loop {
+            walk_tree_bracket_ast(cursor, level, counter, bracket_pos, palette);
             if !cursor.goto_next_sibling() {
                 break;
             }
