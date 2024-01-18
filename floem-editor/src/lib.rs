@@ -1,4 +1,3 @@
-// TODO(floem-editor): rename this to lib.rs
 pub mod actions;
 pub mod color;
 pub mod command;

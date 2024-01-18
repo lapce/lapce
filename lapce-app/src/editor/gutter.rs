@@ -14,7 +14,6 @@ use crate::config::{color::LapceColor, LapceConfig};
 
 use super::{view::changes_colors_screen, EditorData};
 
-// TODO(floem-editor): this shares most of its logic with floem-editor's version, deduplicate
 pub struct EditorGutterView {
     id: Id,
     data: ViewData,

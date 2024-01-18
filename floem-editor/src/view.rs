@@ -84,6 +84,10 @@ impl ScreenLines {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.lines.is_empty()
+    }
+
     pub fn clear(&mut self, viewport: Rect) {
         self.lines = Default::default();
         self.info = Default::default();
@@ -228,6 +232,12 @@ impl ScreenLines {
     ///
     /// Returns `true` if [`ScreenLines`] needs to be completely updated in response
     pub fn on_created_layout(&self, ed: &Editor, line: usize) -> bool {
+        // The default creation is empty, force an update if we're ever like this since it should
+        // not happen.
+        if self.is_empty() {
+            return true;
+        }
+
         let base = self.base.get_untracked();
         let vp = ed.viewport.get_untracked();
 

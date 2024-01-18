@@ -345,6 +345,14 @@ impl Doc {
         }
     }
 
+    /// Create a styling instance for this doc
+    pub fn styling(self: &Rc<Doc>) -> Rc<DocStyling> {
+        Rc::new(DocStyling {
+            config: self.common.config,
+            doc: self.clone(),
+        })
+    }
+
     /// Create an [`Editor`] instance from this [`Doc`]. Note that this needs to be registered
     /// appropriately to create the [`EditorData`] and such.
     pub fn create_editor(self: &Rc<Doc>, cx: Scope, id: EditorId) -> Editor {
@@ -361,15 +369,11 @@ impl Doc {
             // TODO(floem-editor): use the lapce blink cursor logic!
             should_blink: Rc::new(|| true),
         };
-        let style = Rc::new(DocStyling {
-            config,
-            doc: self.clone(),
-        });
         let mut editor = Editor::new(
             cx,
             id,
             self.clone(),
-            style,
+            self.styling(),
             Some(register),
             Some(cursor_info),
         );
@@ -1450,7 +1454,7 @@ impl Document for Doc {
             self.common.config,
             base,
             editor_data.kind.read_only(),
-            &editor_data.doc(),
+            &editor_data.doc_signal().get(),
             editor.lines(),
             editor.text_prov(),
         )

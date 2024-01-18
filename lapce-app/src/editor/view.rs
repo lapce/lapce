@@ -78,6 +78,7 @@ pub fn editor_view(
 
     let doc = e_data.doc_signal();
     let view_kind = e_data.kind;
+    let screen_lines = e_data.screen_lines();
     create_effect(move |_| {
         doc.track();
         view_kind.track();
@@ -105,7 +106,6 @@ pub fn editor_view(
     let config = e_data.common.config;
     let sticky_header_height_signal = e_data.sticky_header_height;
     let editor2 = e_data.clone();
-    let screen_lines = e_data.screen_lines();
     create_effect(move |last_rev| {
         let config = config.get();
         if !config.editor.sticky_header {

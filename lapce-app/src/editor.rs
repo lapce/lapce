@@ -216,8 +216,7 @@ impl EditorData {
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
-        // TODO(floem-editor): shouldn't we swap out some of the Editor's signals with the common
-        // shared ones?
+
         let confirmed = confirmed.unwrap_or_else(|| cx.create_rw_signal(false));
         EditorData {
             scope: cx,
@@ -264,7 +263,8 @@ impl EditorData {
 
     /// Swap out the document this editor is for
     pub fn update_doc(&self, doc: Rc<Doc>) {
-        self.editor.update_doc(doc);
+        let style = doc.styling();
+        self.editor.update_doc(doc, Some(style));
     }
 
     pub fn copy(
@@ -2685,7 +2685,8 @@ pub(crate) fn compute_screen_lines(
     let min_vline = VLine((y0 / line_height as f64).floor() as usize);
     let max_vline = VLine((y1 / line_height as f64).ceil() as usize);
 
-    doc.cache_rev.track();
+    let cache_rev = doc.cache_rev.get();
+    lines.check_cache_rev(cache_rev);
     // TODO(minor): we don't really need to depend on various subdetails that aren't affecting how
     // the screen lines are set up, like the title of a scratch document.
     doc.content.track();

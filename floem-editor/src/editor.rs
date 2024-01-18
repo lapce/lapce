@@ -215,7 +215,11 @@ impl Editor {
     }
 
     /// Swap the underlying document out
-    pub fn update_doc(self: &Rc<Editor>, doc: Rc<dyn Document>) {
+    pub fn update_doc(
+        self: &Rc<Editor>,
+        doc: Rc<dyn Document>,
+        styling: Option<Rc<dyn Styling>>,
+    ) {
         batch(|| {
             // Get rid of all the effects
             self.effects_cx.get().dispose();
@@ -226,6 +230,9 @@ impl Editor {
             });
             self.lines.clear(0, None);
             self.doc.set(doc);
+            if let Some(styling) = styling {
+                self.style.set(styling);
+            }
             self.screen_lines.update(|screen_lines| {
                 screen_lines.clear(self.viewport.get_untracked());
             });
@@ -1196,7 +1203,6 @@ const MIN_WRAPPED_WIDTH: f32 = 100.0;
 /// This tries to be smart to a degree.
 fn create_view_effects(cx: Scope, ed: &Editor) {
     // Cloning is fun.
-    let ed1 = ed.clone();
     let ed2 = ed.clone();
     let ed3 = ed.clone();
     let ed4 = ed.clone();
@@ -1213,33 +1219,30 @@ fn create_view_effects(cx: Scope, ed: &Editor) {
         });
     };
 
-    // Listen for cache revision changes (essentially edits to the file or requiring
-    // changes on text layouts, like if diagnostics load in)
-    cx.create_effect(move |_| {
-        // We can't put this with the other effects because we only want to update screen lines if
-        // the cache rev actually changed
-        let cache_rev = ed1.doc.with(|doc| doc.cache_rev()).get();
-        ed1.lines.check_cache_rev(cache_rev);
-    });
-
     // Listen for layout events, currently only when a layout is created, and update screen
     // lines based on that
     ed3.lines.layout_event.listen_with(cx, move |val| {
-        let view = &ed2;
+        let ed = &ed2;
         // TODO: Move this logic onto screen lines somehow, perhaps just an auxilary
         // function, to avoid getting confused about what is relevant where.
 
         match val {
             LayoutEvent::CreatedLayout { line, .. } => {
-                let sl = view.screen_lines.get_untracked();
+                let sl = ed.screen_lines.get_untracked();
 
                 // Intelligently update screen lines, avoiding recalculation if possible
-                let should_update = sl.on_created_layout(view, line);
+                let should_update = sl.on_created_layout(ed, line);
 
                 if should_update {
                     untrack(|| {
-                        update_screen_lines(view);
+                        update_screen_lines(ed);
                     });
+
+                    // Ensure that it is created even after the base/viewport signals have been
+                    // updated.
+                    // But we have to trigger an event since it could alter the screenlines
+                    // TODO: this has some risk for infinite looping if we're unlucky.
+                    ed2.text_layout_trigger(line, true);
                 }
             }
         }
@@ -1307,7 +1310,8 @@ pub fn normal_compute_screen_lines(
     let min_vline = VLine((y0 / line_height as f64).floor() as usize);
     let max_vline = VLine((y1 / line_height as f64).ceil() as usize);
 
-    editor.doc.get().cache_rev().track();
+    let cache_rev = editor.doc.get().cache_rev().get();
+    editor.lines.check_cache_rev(cache_rev);
     // TODO(floem-editor): somehow let us track some relevant information like 'loaded' or 'content'?
 
     let min_info = editor.iter_vlines(false, min_vline).next();
