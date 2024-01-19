@@ -20,4 +20,5 @@ pub mod selection;
 pub mod soft_tab;
 pub mod style;
 pub mod syntax;
+pub mod util;
 pub mod word;

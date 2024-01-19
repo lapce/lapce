@@ -22,8 +22,8 @@ use tree_sitter::{
     Language, Point, Query, QueryCaptures, QueryCursor, QueryMatch, Tree,
 };
 
-use super::{util::RopeProvider, PARSER};
-use crate::{language::LapceLanguage, style::SCOPES};
+use super::PARSER;
+use crate::{language::LapceLanguage, style::SCOPES, util::RopeProvider};
 
 thread_local! {
     static HIGHLIGHT_CONFIGS: RefCell<HashMap<LapceLanguage, Result<Arc<HighlightConfiguration>, HighlightIssue>>> = Default::default();

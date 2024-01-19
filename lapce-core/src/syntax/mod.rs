@@ -31,19 +31,18 @@ use self::{
         HighlightConfiguration, HighlightEvent, HighlightIter, HighlightIterLayer,
         IncludedChildren, LocalScope,
     },
-    util::{matching_bracket_general, matching_pair_direction, RopeProvider},
 };
 use crate::{
     buffer::rope_text::RopeText,
     language::{self, LapceLanguage},
     lens::{Lens, LensBuilder},
     style::SCOPES,
+    util::{matching_bracket_general, matching_pair_direction, RopeProvider},
 };
 
 use crate::buffer::Buffer;
 pub mod edit;
 pub mod highlight;
-pub mod util;
 
 // Uses significant portions Helix's implementation, and on tree-sitter's highlighter implementation
 

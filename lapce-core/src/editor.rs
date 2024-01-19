@@ -10,7 +10,7 @@ use crate::{
     mode::{Mode, MotionMode, VisualMode},
     register::{Clipboard, Register, RegisterData, RegisterKind},
     selection::{InsertDrift, SelRegion, Selection},
-    syntax::util::{
+    util::{
         has_unmatched_pair, matching_char, matching_pair_direction,
         str_is_pair_left, str_matching_pair,
     },

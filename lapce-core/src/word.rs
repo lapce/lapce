@@ -2,7 +2,7 @@ use lapce_xi_rope::{Cursor, Rope, RopeInfo};
 
 use crate::{
     mode::Mode,
-    syntax::util::{matching_char, matching_pair_direction},
+    util::{matching_char, matching_pair_direction},
 };
 
 /// Describe char classifications used to compose word boundaries
