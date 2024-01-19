@@ -15,13 +15,11 @@ use lapce_xi_rope::{
 };
 
 use crate::{
-    char_buffer::CharBuffer,
     cursor::CursorMode,
     editor::EditType,
     indent::{auto_detect_indent_style, IndentStyle},
     mode::Mode,
     selection::Selection,
-    syntax::Syntax,
     word::WordCursor,
 };
 
@@ -269,9 +267,9 @@ impl Buffer {
         (delta, inval_lines)
     }
 
-    pub fn detect_indent(&mut self, syntax: &Syntax) {
-        self.indent_style = auto_detect_indent_style(&self.text)
-            .unwrap_or_else(|| IndentStyle::from_str(syntax.language.indent_unit()));
+    pub fn detect_indent(&mut self, default: impl FnOnce() -> IndentStyle) {
+        self.indent_style =
+            auto_detect_indent_style(&self.text).unwrap_or_else(default);
     }
 
     pub fn indent_unit(&self) -> &'static str {
@@ -694,19 +692,6 @@ impl Buffer {
         WordCursor::new(&self.text, offset)
             .inner
             .peek_next_codepoint()
-    }
-
-    pub fn previous_unmatched(
-        &self,
-        syntax: &Syntax,
-        c: char,
-        offset: usize,
-    ) -> Option<usize> {
-        if syntax.layers.is_some() {
-            syntax.find_tag(offset, true, &CharBuffer::new(c))
-        } else {
-            WordCursor::new(&self.text, offset).previous_unmatched(c)
-        }
     }
 }
 

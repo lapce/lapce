@@ -40,6 +40,7 @@ use lapce_core::{
     command::EditCommand,
     cursor::Cursor,
     editor::{Action, EditConf, EditType},
+    indent::IndentStyle,
     language::LapceLanguage,
     mode::MotionMode,
     register::Register,
@@ -469,7 +470,9 @@ impl Doc {
             self.syntax.with_untracked(|syntax| {
                 self.buffer.update(|buffer| {
                     buffer.init_content(content);
-                    buffer.detect_indent(syntax);
+                    buffer.detect_indent(|| {
+                        IndentStyle::from_str(syntax.language.indent_unit())
+                    });
                 });
             });
             self.loaded.set(true);
@@ -542,7 +545,7 @@ impl Doc {
                         buffer,
                         s,
                         &|buffer, c, offset| {
-                            buffer.previous_unmatched(syntax, c, offset)
+                            syntax_prev_unmatched(buffer, syntax, c, offset)
                         },
                         config.editor.auto_closing_matching_pairs,
                         config.editor.auto_surround,
@@ -1982,6 +1985,20 @@ impl Styling for DocStyling {
 impl std::fmt::Debug for Doc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&format!("Document {:?}", self.buffer_id))
+    }
+}
+
+/// Get the previous unmatched character `c` from the `offset` using `syntax` if applicable
+fn syntax_prev_unmatched(
+    buffer: &Buffer,
+    syntax: &Syntax,
+    c: char,
+    offset: usize,
+) -> Option<usize> {
+    if syntax.layers.is_some() {
+        syntax.find_tag(offset, true, &CharBuffer::new(c))
+    } else {
+        WordCursor::new(buffer.text(), offset).previous_unmatched(c)
     }
 }
 
