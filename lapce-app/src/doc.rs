@@ -502,13 +502,16 @@ impl Doc {
     /// Reload the document's content, and is what you should typically use when you want to *set*
     /// an existing document's content.
     pub fn reload(&self, content: Rope, set_pristine: bool) {
+        // Get the text before the edit
+        let text = self.text();
+
         // self.code_actions.clear();
         // self.inlay_hints = None;
         let delta = self
             .buffer
             .try_update(|buffer| buffer.reload(content, set_pristine))
             .unwrap();
-        self.apply_deltas(&[delta]);
+        self.apply_deltas(&text, &[delta]);
     }
 
     pub fn handle_file_changed(&self, content: Rope) {
@@ -522,10 +525,13 @@ impl Doc {
         cursor: &mut Cursor,
         s: &str,
         config: &LapceConfig,
-    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
+    ) -> Vec<(RopeDelta, InvalLines)> {
         if self.content.with_untracked(|c| c.read_only()) {
             return Vec::new();
         }
+
+        // Get the text before the edit
+        let text = self.text();
 
         let old_cursor = cursor.mode.clone();
         let deltas = self.syntax.with_untracked(|syntax| {
@@ -549,7 +555,7 @@ impl Doc {
             buffer.set_cursor_before(old_cursor);
             buffer.set_cursor_after(cursor.mode.clone());
         });
-        self.apply_deltas(&deltas);
+        self.apply_deltas(&text, &deltas);
         deltas
     }
 
@@ -557,16 +563,19 @@ impl Doc {
         &self,
         edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
-    ) -> Option<(RopeDelta, InvalLines, SyntaxEdit)> {
+    ) -> Option<(RopeDelta, InvalLines)> {
         if self.content.with_untracked(|c| c.read_only()) {
             return None;
         }
-        let (delta, inval_lines, edits) = self
+        // Get the text before the edit
+        let text = self.text();
+
+        let (delta, inval_lines) = self
             .buffer
             .try_update(|buffer| buffer.edit(edits, edit_type))
             .unwrap();
-        self.apply_deltas(&[(delta.clone(), inval_lines.clone(), edits.clone())]);
-        Some((delta, inval_lines, edits))
+        self.apply_deltas(&text, &[(delta.clone(), inval_lines.clone())]);
+        Some((delta, inval_lines))
     }
 
     pub fn do_edit(
@@ -576,12 +585,15 @@ impl Doc {
         modal: bool,
         register: &mut Register,
         smart_tab: bool,
-    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
+    ) -> Vec<(RopeDelta, InvalLines)> {
         if self.content.with_untracked(|c| c.read_only())
             && !cmd.not_changing_buffer()
         {
             return Vec::new();
         }
+
+        // Get the text before the edit
+        let text = self.text();
 
         let mut clipboard = SystemClipboard::new();
         let old_cursor = cursor.mode.clone();
@@ -613,14 +625,18 @@ impl Doc {
             });
         }
 
-        self.apply_deltas(&deltas);
+        self.apply_deltas(&text, &deltas);
         deltas
     }
 
-    pub fn apply_deltas(&self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
+    pub fn apply_deltas(
+        &self,
+        before_text: &Rope,
+        deltas: &[(RopeDelta, InvalLines)],
+    ) {
         let rev = self.rev() - deltas.len() as u64;
         batch(|| {
-            for (i, (delta, inval, _)) in deltas.iter().enumerate() {
+            for (i, (delta, inval)) in deltas.iter().enumerate() {
                 self.update_styles(delta);
                 self.update_inlay_hints(delta);
                 self.update_diagnostics(delta);
@@ -640,7 +656,10 @@ impl Doc {
         // TODO(minor): We could avoid this potential allocation since most apply_delta callers are actually using a Vec
         // which we could reuse.
         // We use a smallvec because there is unlikely to be more than a couple of deltas
-        let edits = deltas.iter().map(|(_, _, edits)| edits.clone()).collect();
+        let edits = deltas
+            .iter()
+            .map(|(delta, _)| SyntaxEdit::from_delta(before_text, delta.clone()))
+            .collect();
         self.on_update(Some(edits));
     }
 
@@ -1674,6 +1693,9 @@ impl CommonAction for Doc {
         is_vertical: bool,
         register: &mut Register,
     ) {
+        // Get the text before the edit
+        let text = self.text();
+
         let deltas = self
             .buffer
             .try_update(move |buffer| {
@@ -1688,7 +1710,7 @@ impl CommonAction for Doc {
                 )
             })
             .unwrap();
-        self.apply_deltas(&deltas);
+        self.apply_deltas(&text, &deltas);
     }
 
     fn do_edit(
@@ -1699,50 +1721,7 @@ impl CommonAction for Doc {
         register: &mut Register,
         smart_tab: bool,
     ) -> bool {
-        // TODO(floem-editor): should this be how read only is handled??
-        if self.content.with_untracked(|c| c.read_only())
-            && !cmd.not_changing_buffer()
-        {
-            return false;
-        }
-
-        // TODO: a good bit of this logic is shared with TextDocument, should we make a general
-        // function?
-        let mut clipboard = SystemClipboard::new();
-        let old_cursor = cursor.mode.clone();
-        let comment_token = self
-            .syntax
-            .with_untracked(|syntax| syntax.language)
-            .comment_token();
-        let deltas = self
-            .buffer
-            .try_update(|buffer| {
-                Action::do_edit(
-                    cursor,
-                    buffer,
-                    cmd,
-                    &mut clipboard,
-                    register,
-                    EditConf {
-                        comment_token,
-                        modal,
-                        smart_tab,
-                        keep_indent: true,
-                        auto_indent: true,
-                    },
-                )
-            })
-            .unwrap();
-
-        if !deltas.is_empty() {
-            self.buffer.update(|buffer| {
-                buffer.set_cursor_before(old_cursor);
-                buffer.set_cursor_after(cursor.mode.clone());
-            });
-        }
-
-        self.apply_deltas(&deltas);
-
+        let deltas = Doc::do_edit(self, cursor, cmd, modal, register, smart_tab);
         !deltas.is_empty()
     }
 }

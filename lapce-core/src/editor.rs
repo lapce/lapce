@@ -10,12 +10,9 @@ use crate::{
     mode::{Mode, MotionMode, VisualMode},
     register::{Clipboard, Register, RegisterData, RegisterKind},
     selection::{InsertDrift, SelRegion, Selection},
-    syntax::{
-        edit::SyntaxEdit,
-        util::{
-            has_unmatched_pair, matching_char, matching_pair_direction,
-            str_is_pair_left, str_matching_pair,
-        },
+    syntax::util::{
+        has_unmatched_pair, matching_char, matching_pair_direction,
+        str_is_pair_left, str_matching_pair,
     },
     word::{get_char_property, CharClassification},
 };
@@ -98,15 +95,15 @@ impl Editor {
         prev_unmatched: &dyn Fn(&Buffer, char, usize) -> Option<usize>,
         auto_closing_matching_pairs: bool,
         auto_surround: bool,
-    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
+    ) -> Vec<(RopeDelta, InvalLines)> {
         let mut deltas = Vec::new();
         if let CursorMode::Insert(selection) = &cursor.mode {
             if s.chars().count() != 1 {
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(selection, s)], EditType::InsertChars);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
-                deltas.push((delta, inval_lines, edits));
+                deltas.push((delta, inval_lines));
                 cursor.mode = CursorMode::Insert(selection);
             } else {
                 let c = s.chars().next().unwrap();
@@ -251,7 +248,7 @@ impl Editor {
                     .map(|(selection, content)| (selection, content.as_str()))
                     .collect::<Vec<_>>();
 
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit(&edits, EditType::InsertChars);
 
                 buffer.set_cursor_before(CursorMode::Insert(selection.clone()));
@@ -262,7 +259,7 @@ impl Editor {
 
                 buffer.set_cursor_after(CursorMode::Insert(selection.clone()));
 
-                deltas.push((delta, inval_lines, edits));
+                deltas.push((delta, inval_lines));
                 // Apply late edits
                 let edits_after = edits_after
                     .iter()
@@ -281,9 +278,9 @@ impl Editor {
                     .collect::<Vec<_>>();
 
                 if !edits_after.is_empty() {
-                    let (delta, inval_lines, edits) =
+                    let (delta, inval_lines) =
                         buffer.edit(&edits_after, EditType::InsertChars);
-                    deltas.push((delta, inval_lines, edits));
+                    deltas.push((delta, inval_lines));
                 }
 
                 // Adjust selection according to previous late edits
@@ -354,7 +351,7 @@ impl Editor {
         selection: Selection,
         keep_indent: bool,
         auto_indent: bool,
-    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
+    ) -> Vec<(RopeDelta, InvalLines)> {
         let mut edits = Vec::with_capacity(selection.regions().len());
         let mut extra_edits = Vec::new();
         let mut shift = 0i32;
@@ -417,22 +414,20 @@ impl Editor {
             .iter()
             .map(|(selection, s)| (selection, s.as_str()))
             .collect::<Vec<_>>();
-        let (delta, inval_lines, edits) =
-            buffer.edit(&edits, EditType::InsertNewline);
+        let (delta, inval_lines) = buffer.edit(&edits, EditType::InsertNewline);
         let mut selection =
             selection.apply_delta(&delta, true, InsertDrift::Default);
 
-        let mut deltas = vec![(delta, inval_lines, edits)];
+        let mut deltas = vec![(delta, inval_lines)];
 
         if !extra_edits.is_empty() {
             let edits = extra_edits
                 .iter()
                 .map(|(selection, s)| (selection, s.as_str()))
                 .collect::<Vec<_>>();
-            let (delta, inval_lines, edits) =
-                buffer.edit(&edits, EditType::InsertNewline);
+            let (delta, inval_lines) = buffer.edit(&edits, EditType::InsertNewline);
             selection = selection.apply_delta(&delta, false, InsertDrift::Default);
-            deltas.push((delta, inval_lines, edits));
+            deltas.push((delta, inval_lines));
         }
 
         cursor.mode = CursorMode::Insert(selection);
@@ -448,7 +443,7 @@ impl Editor {
         end: usize,
         is_vertical: bool,
         register: &mut Register,
-    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
+    ) -> Vec<(RopeDelta, InvalLines)> {
         let mut deltas = Vec::new();
         match motion_mode {
             MotionMode::Delete { .. } => {
@@ -466,10 +461,10 @@ impl Editor {
                     },
                 );
                 let selection = Selection::region(start, end);
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(&selection, "")], EditType::MotionDelete);
                 cursor.apply_delta(&delta);
-                deltas.push((delta, inval_lines, edits));
+                deltas.push((delta, inval_lines));
             }
             MotionMode::Yank { .. } => {
                 let (start, end) =
@@ -488,14 +483,13 @@ impl Editor {
             }
             MotionMode::Indent => {
                 let selection = Selection::region(start, end);
-                let (delta, inval_lines, edits) = Self::do_indent(buffer, selection);
-                deltas.push((delta, inval_lines, edits));
+                let (delta, inval_lines) = Self::do_indent(buffer, selection);
+                deltas.push((delta, inval_lines));
             }
             MotionMode::Outdent => {
                 let selection = Selection::region(start, end);
-                let (delta, inval_lines, edits) =
-                    Self::do_outdent(buffer, selection);
-                deltas.push((delta, inval_lines, edits));
+                let (delta, inval_lines) = Self::do_outdent(buffer, selection);
+                deltas.push((delta, inval_lines));
             }
         }
         deltas
@@ -511,7 +505,7 @@ impl Editor {
         selection: &Selection,
         content: &str,
         mode: VisualMode,
-    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
+    ) -> (RopeDelta, InvalLines) {
         if selection.len() > 1 {
             let line_ends: Vec<_> =
                 content.match_indices('\n').map(|(idx, _)| idx).collect();
@@ -594,7 +588,7 @@ impl Editor {
         cursor: &mut Cursor,
         buffer: &mut Buffer,
         data: &RegisterData,
-    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
+    ) -> Vec<(RopeDelta, InvalLines)> {
         let mut deltas = Vec::new();
         match data.mode {
             VisualMode::Normal => {
@@ -609,7 +603,7 @@ impl Editor {
                     }
                 };
                 let after = cursor.is_insert() || !data.content.contains('\n');
-                let (delta, inval_lines, edits) = Self::compute_paste_edit(
+                let (delta, inval_lines) = Self::compute_paste_edit(
                     buffer,
                     &selection,
                     &data.content,
@@ -617,7 +611,7 @@ impl Editor {
                 );
                 let selection =
                     selection.apply_delta(&delta, after, InsertDrift::Default);
-                deltas.push((delta, inval_lines, edits));
+                deltas.push((delta, inval_lines));
                 if !after {
                     cursor.update_selection(buffer, selection);
                 } else {
@@ -664,7 +658,7 @@ impl Editor {
                         (selection, data)
                     }
                 };
-                let (delta, inval_lines, edits) = Self::compute_paste_edit(
+                let (delta, inval_lines) = Self::compute_paste_edit(
                     buffer, &selection, &content, data.mode,
                 );
                 let selection = selection.apply_delta(
@@ -672,7 +666,7 @@ impl Editor {
                     cursor.is_insert(),
                     InsertDrift::Default,
                 );
-                deltas.push((delta, inval_lines, edits));
+                deltas.push((delta, inval_lines));
                 match cursor.mode {
                     CursorMode::Normal(_) | CursorMode::Visual { .. } => {
                         let offset = selection.min_offset();
@@ -697,7 +691,7 @@ impl Editor {
     fn do_indent(
         buffer: &mut Buffer,
         selection: Selection,
-    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
+    ) -> (RopeDelta, InvalLines) {
         let indent = buffer.indent_unit();
         let mut edits = Vec::new();
 
@@ -730,7 +724,7 @@ impl Editor {
     fn do_outdent(
         buffer: &mut Buffer,
         selection: Selection,
-    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
+    ) -> (RopeDelta, InvalLines) {
         let indent = buffer.indent_unit();
         let mut edits = Vec::new();
 
@@ -767,7 +761,7 @@ impl Editor {
         cursor: &mut Cursor,
         buffer: &mut Buffer,
         direction: DuplicateDirection,
-    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
+    ) -> Vec<(RopeDelta, InvalLines)> {
         // TODO other modes
         let selection = match cursor.mode {
             CursorMode::Insert(ref mut sel) => sel,
@@ -802,11 +796,11 @@ impl Editor {
             .map(|(sel, content)| (sel, content.as_str()))
             .collect::<Vec<_>>();
 
-        let (delta, inval_lines, edits) = buffer.edit(&edits, EditType::InsertChars);
+        let (delta, inval_lines) = buffer.edit(&edits, EditType::InsertChars);
 
         *selection = selection.apply_delta(&delta, true, InsertDrift::Default);
 
-        vec![(delta, inval_lines, edits)]
+        vec![(delta, inval_lines)]
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -823,7 +817,7 @@ impl Editor {
             keep_indent,
             auto_indent,
         }: EditConf,
-    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
+    ) -> Vec<(RopeDelta, InvalLines)> {
         use crate::command::EditCommand::*;
         match cmd {
             MoveLineUp => {
@@ -840,7 +834,7 @@ impl Editor {
                             let end = buffer.offset_of_line(end_line + 1);
                             let content =
                                 buffer.slice_to_cow(start..end).to_string();
-                            let (delta, inval_lines, edits) = buffer.edit(
+                            let (delta, inval_lines) = buffer.edit(
                                 [
                                     (&Selection::region(start, end), ""),
                                     (
@@ -852,7 +846,7 @@ impl Editor {
                                 ],
                                 EditType::MoveLine,
                             );
-                            deltas.push((delta, inval_lines, edits));
+                            deltas.push((delta, inval_lines));
                             region.start -= previous_line_len;
                             region.end -= previous_line_len;
                         }
@@ -876,7 +870,7 @@ impl Editor {
                             let end = buffer.offset_of_line(end_line + 1);
                             let content =
                                 buffer.slice_to_cow(start..end).to_string();
-                            let (delta, inval_lines, edits) = buffer.edit(
+                            let (delta, inval_lines) = buffer.edit(
                                 [
                                     (
                                         &Selection::caret(
@@ -888,7 +882,7 @@ impl Editor {
                                 ],
                                 EditType::MoveLine,
                             );
-                            deltas.push((delta, inval_lines, edits));
+                            deltas.push((delta, inval_lines));
                             region.start += next_line_len;
                             region.end += next_line_len;
                         }
@@ -947,24 +941,24 @@ impl Editor {
                             }
                         }
 
-                        let (delta, inval_lines, edits) =
+                        let (delta, inval_lines) =
                             buffer.edit(&edits, EditType::InsertChars);
                         let selection = selection.apply_delta(
                             &delta,
                             true,
                             InsertDrift::Default,
                         );
-                        deltas.push((delta, inval_lines, edits));
+                        deltas.push((delta, inval_lines));
                         cursor.mode = CursorMode::Insert(selection);
                     } else {
-                        let (delta, inval_lines, edits) =
+                        let (delta, inval_lines) =
                             buffer.edit([(&selection, "\t")], EditType::InsertChars);
                         let selection = selection.apply_delta(
                             &delta,
                             true,
                             InsertDrift::Default,
                         );
-                        deltas.push((delta, inval_lines, edits));
+                        deltas.push((delta, inval_lines));
                         cursor.mode = CursorMode::Insert(selection);
                     }
                 }
@@ -972,9 +966,9 @@ impl Editor {
             }
             IndentLine => {
                 let selection = cursor.edit_selection(buffer);
-                let (delta, inval_lines, edits) = Self::do_indent(buffer, selection);
+                let (delta, inval_lines) = Self::do_indent(buffer, selection);
                 cursor.apply_delta(&delta);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             JoinLines => {
                 let offset = cursor.offset();
@@ -992,10 +986,9 @@ impl Editor {
             }
             OutdentLine => {
                 let selection = cursor.edit_selection(buffer);
-                let (delta, inval_lines, edits) =
-                    Self::do_outdent(buffer, selection);
+                let (delta, inval_lines) = Self::do_outdent(buffer, selection);
                 cursor.apply_delta(&delta);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             ToggleLineComment => {
                 let mut lines = HashSet::new();
@@ -1040,7 +1033,7 @@ impl Editor {
                     }
                 }
 
-                let (delta, inval_lines, edits) = if had_comment {
+                let (delta, inval_lines) = if had_comment {
                     let mut selection = Selection::new();
                     for (line, indent, len) in lines.iter() {
                         let start = buffer.offset_of_line(*line) + indent;
@@ -1063,12 +1056,10 @@ impl Editor {
                     )
                 };
                 cursor.apply_delta(&delta);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             Undo => {
-                if let Some((delta, inval_lines, edits, cursor_mode)) =
-                    buffer.do_undo()
-                {
+                if let Some((delta, inval_lines, cursor_mode)) = buffer.do_undo() {
                     if let Some(cursor_mode) = cursor_mode {
                         cursor.mode = if modal {
                             CursorMode::Normal(cursor_mode.offset())
@@ -1086,15 +1077,13 @@ impl Editor {
                     } else {
                         cursor.apply_delta(&delta);
                     }
-                    vec![(delta, inval_lines, edits)]
+                    vec![(delta, inval_lines)]
                 } else {
                     vec![]
                 }
             }
             Redo => {
-                if let Some((delta, inval_lines, edits, cursor_mode)) =
-                    buffer.do_redo()
-                {
+                if let Some((delta, inval_lines, cursor_mode)) = buffer.do_redo() {
                     if let Some(cursor_mode) = cursor_mode {
                         cursor.mode = if modal {
                             CursorMode::Normal(cursor_mode.offset())
@@ -1112,7 +1101,7 @@ impl Editor {
                     } else {
                         cursor.apply_delta(&delta);
                     }
-                    vec![(delta, inval_lines, edits)]
+                    vec![(delta, inval_lines)]
                 } else {
                     vec![]
                 }
@@ -1156,12 +1145,12 @@ impl Editor {
                         cursor.edit_selection(buffer)
                     };
 
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(&selection, "")], EditType::Cut);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             ClipboardPaste => {
                 if let Some(s) = clipboard.get_string() {
@@ -1332,12 +1321,12 @@ impl Editor {
                         (selection, edit_type)
                     }
                 };
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(&selection, "")], edit_type);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             DeleteForward => {
                 let (selection, edit_type) = match cursor.mode {
@@ -1368,12 +1357,12 @@ impl Editor {
                         (new_selection, edit_type)
                     }
                 };
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(&selection, "")], edit_type);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             DeleteLine => {
                 let selection = cursor.edit_selection(buffer);
@@ -1386,12 +1375,12 @@ impl Editor {
                     1,
                 );
                 let selection = Selection::region(start, end);
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(&selection, "")], EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.mode = CursorMode::Insert(selection);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             DeleteWordForward => {
                 let selection = match cursor.mode {
@@ -1411,12 +1400,12 @@ impl Editor {
                         new_selection
                     }
                 };
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(&selection, "")], EditType::DeleteWord);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             DeleteWordBackward => {
                 let selection = match cursor.mode {
@@ -1436,12 +1425,12 @@ impl Editor {
                         new_selection
                     }
                 };
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(&selection, "")], EditType::DeleteWord);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             DeleteToBeginningOfLine => {
                 let selection = match cursor.mode {
@@ -1462,12 +1451,12 @@ impl Editor {
                         new_selection
                     }
                 };
-                let (delta, inval_lines, edits) = buffer
+                let (delta, inval_lines) = buffer
                     .edit([(&selection, "")], EditType::DeleteToBeginningOfLine);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             DeleteToEndOfLine => {
                 let selection = match cursor.mode {
@@ -1487,21 +1476,21 @@ impl Editor {
                         selection
                     }
                 };
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(&selection, "")], EditType::DeleteToEndOfLine);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.update_selection(buffer, selection);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             DeleteForwardAndInsert => {
                 let selection = cursor.edit_selection(buffer);
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(&selection, "")], EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.mode = CursorMode::Insert(selection);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             DeleteWordAndInsert => {
                 let selection = {
@@ -1516,12 +1505,12 @@ impl Editor {
 
                     new_selection
                 };
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(&selection, "")], EditType::DeleteWord);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.mode = CursorMode::Insert(selection);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             DeleteLineAndInsert => {
                 let selection = cursor.edit_selection(buffer);
@@ -1534,12 +1523,12 @@ impl Editor {
                     1,
                 );
                 let selection = Selection::region(start, end - 1); // -1 because we want to keep the line itself
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(&selection, "")], EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.mode = CursorMode::Insert(selection);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             DeleteToEndOfLineAndInsert => {
                 let mut selection = cursor.edit_selection(buffer);
@@ -1552,12 +1541,12 @@ impl Editor {
                     SelRegion::new(cursor_offset, end_of_line_offset, None);
                 selection.add_region(new_region);
 
-                let (delta, inval_lines, edits) =
+                let (delta, inval_lines) =
                     buffer.edit([(&selection, "")], EditType::Delete);
                 let selection =
                     selection.apply_delta(&delta, true, InsertDrift::Default);
                 cursor.mode = CursorMode::Insert(selection);
-                vec![(delta, inval_lines, edits)]
+                vec![(delta, inval_lines)]
             }
             NormalMode => {
                 if !modal {

@@ -9,10 +9,9 @@ use std::{
 };
 
 use lapce_xi_rope::{
-    delta::InsertDelta,
-    multiset::{CountMatcher, Subset},
+    multiset::Subset,
     tree::{Node, NodeInfo},
-    Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta, RopeInfo,
+    Delta, DeltaBuilder, DeltaElement, Interval, Rope, RopeDelta,
 };
 
 use crate::{
@@ -22,7 +21,7 @@ use crate::{
     indent::{auto_detect_indent_style, IndentStyle},
     mode::Mode,
     selection::Selection,
-    syntax::{self, edit::SyntaxEdit, Syntax},
+    syntax::Syntax,
     word::WordCursor,
 };
 
@@ -242,7 +241,7 @@ impl Buffer {
     pub fn init_content(&mut self, content: Rope) {
         if !content.is_empty() {
             let delta = Delta::simple_edit(Interval::new(0, 0), content, 0);
-            let (new_rev, new_text, new_tombstones, new_deletes_from_union, _) =
+            let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
                 self.mk_new_rev(0, delta.clone());
             self.apply_edit(
                 &delta,
@@ -259,15 +258,15 @@ impl Buffer {
         &mut self,
         content: Rope,
         set_pristine: bool,
-    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
+    ) -> (RopeDelta, InvalLines) {
         let len = self.text.len();
         let delta = Delta::simple_edit(Interval::new(0, len), content, len);
         self.this_edit_type = EditType::Other;
-        let (delta, inval_lines, edits) = self.add_delta(delta);
+        let (delta, inval_lines) = self.add_delta(delta);
         if set_pristine {
             self.set_pristine();
         }
-        (delta, inval_lines, edits)
+        (delta, inval_lines)
     }
 
     pub fn detect_indent(&mut self, syntax: &Syntax) {
@@ -287,7 +286,7 @@ impl Buffer {
         &mut self,
         edits: I,
         edit_type: EditType,
-    ) -> (RopeDelta, InvalLines, SyntaxEdit)
+    ) -> (RopeDelta, InvalLines)
     where
         I: IntoIterator<Item = E>,
         E: Borrow<(S, &'a str)>,
@@ -319,14 +318,12 @@ impl Buffer {
         self.add_delta(delta)
     }
 
-    fn add_delta(
-        &mut self,
-        delta: RopeDelta,
-    ) -> (RopeDelta, InvalLines, SyntaxEdit) {
+    // TODO: don't clone the delta and return it, if the caller needs it then they can clone it
+    fn add_delta(&mut self, delta: RopeDelta) -> (RopeDelta, InvalLines) {
         let undo_group = self.calculate_undo_group();
         self.last_edit_type = self.this_edit_type;
 
-        let (new_rev, new_text, new_tombstones, new_deletes_from_union, edits) =
+        let (new_rev, new_text, new_tombstones, new_deletes_from_union) =
             self.mk_new_rev(undo_group, delta.clone());
 
         let inval_lines = self.apply_edit(
@@ -337,7 +334,7 @@ impl Buffer {
             new_deletes_from_union,
         );
 
-        (delta, inval_lines, edits)
+        (delta, inval_lines)
     }
 
     fn apply_edit(
@@ -392,45 +389,12 @@ impl Buffer {
         }
     }
 
-    fn generate_edits(
-        &self,
-        ins_delta: &InsertDelta<RopeInfo>,
-        deletes: &Subset,
-    ) -> SyntaxEdit {
-        let deletes = deletes.transform_expand(&ins_delta.inserted_subset());
-
-        let mut edits = Vec::new();
-
-        let mut insert_edits: Vec<tree_sitter::InputEdit> =
-            InsertsValueIter::new(ins_delta)
-                .map(|insert| {
-                    let start = insert.old_offset;
-                    let inserted = insert.node;
-                    syntax::edit::create_insert_edit(&self.text, start, inserted)
-                })
-                .collect();
-        insert_edits.reverse();
-        edits.append(&mut insert_edits);
-
-        let text = ins_delta.apply(&self.text);
-        let mut delete_edits: Vec<tree_sitter::InputEdit> = deletes
-            .range_iter(CountMatcher::NonZero)
-            .map(|(start, end)| syntax::edit::create_delete_edit(&text, start, end))
-            .collect();
-        delete_edits.reverse();
-        edits.append(&mut delete_edits);
-
-        SyntaxEdit::new(edits)
-    }
-
     fn mk_new_rev(
         &self,
         undo_group: usize,
         delta: RopeDelta,
-    ) -> (Revision, Rope, Rope, Subset, SyntaxEdit) {
+    ) -> (Revision, Rope, Rope, Subset) {
         let (ins_delta, deletes) = delta.factor();
-
-        let edits = self.generate_edits(&ins_delta, &deletes);
 
         let deletes_at_rev = &self.deletes_from_union;
 
@@ -479,7 +443,6 @@ impl Buffer {
             new_text,
             new_tombstones,
             new_deletes_from_union,
-            edits,
         )
     }
 
@@ -651,7 +614,6 @@ impl Buffer {
     ) -> (
         RopeDelta,
         InvalLines,
-        SyntaxEdit,
         Option<CursorMode>,
         Option<CursorMode>,
     ) {
@@ -661,10 +623,6 @@ impl Buffer {
             &self.deletes_from_union,
             &new_deletes_from_union,
         );
-        let edits = {
-            let (ins_delta, deletes) = delta.clone().factor();
-            self.generate_edits(&ins_delta, &deletes)
-        };
         let new_text = delta.apply(&self.text);
         let new_tombstones = shuffle_tombstones(
             &self.text,
@@ -685,12 +643,12 @@ impl Buffer {
             new_deletes_from_union,
         );
 
-        (delta, inval_lines, edits, cursor_before, cursor_after)
+        (delta, inval_lines, cursor_before, cursor_after)
     }
 
     pub fn do_undo(
         &mut self,
-    ) -> Option<(RopeDelta, InvalLines, SyntaxEdit, Option<CursorMode>)> {
+    ) -> Option<(RopeDelta, InvalLines, Option<CursorMode>)> {
         if self.cur_undo <= 1 {
             return None;
         }
@@ -698,15 +656,15 @@ impl Buffer {
         self.cur_undo -= 1;
         self.undos.insert(self.live_undos[self.cur_undo]);
         self.last_edit_type = EditType::Undo;
-        let (delta, inval_lines, edits, cursor_before, _cursor_after) =
+        let (delta, inval_lines, cursor_before, _cursor_after) =
             self.undo(self.undos.clone());
 
-        Some((delta, inval_lines, edits, cursor_before))
+        Some((delta, inval_lines, cursor_before))
     }
 
     pub fn do_redo(
         &mut self,
-    ) -> Option<(RopeDelta, InvalLines, SyntaxEdit, Option<CursorMode>)> {
+    ) -> Option<(RopeDelta, InvalLines, Option<CursorMode>)> {
         if self.cur_undo >= self.live_undos.len() {
             return None;
         }
@@ -714,10 +672,10 @@ impl Buffer {
         self.undos.remove(&self.live_undos[self.cur_undo]);
         self.cur_undo += 1;
         self.last_edit_type = EditType::Redo;
-        let (delta, inval_lines, edits, _cursor_before, cursor_after) =
+        let (delta, inval_lines, _cursor_before, cursor_after) =
             self.undo(self.undos.clone());
 
-        Some((delta, inval_lines, edits, cursor_after))
+        Some((delta, inval_lines, cursor_after))
     }
 
     pub fn move_word_forward(&self, offset: usize) -> usize {

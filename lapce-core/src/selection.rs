@@ -760,7 +760,7 @@ mod test {
     fn should_apply_delta_after_insertion() {
         let selection = Selection::caret(0);
 
-        let (mock_delta, _, _) = {
+        let (mock_delta, _) = {
             let mut buffer = Buffer::new("");
             buffer.edit(&[(selection.clone(), "Hello")], EditType::InsertChars)
         };
