@@ -21,6 +21,7 @@ use floem_editor_core::{
     word::WordCursor,
 };
 use lapce_xi_rope::Rope;
+use serde::{Deserialize, Serialize};
 use smallvec::smallvec;
 
 use crate::{
@@ -212,6 +213,16 @@ impl WrapMethod {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RenderWhitespace {
+    #[default]
+    None,
+    All,
+    Boundary,
+    Trailing,
+}
+
 /// There's currently three stages of styling text:  
 /// - `Attrs`: This sets the default values for the text
 ///   - Default font size, font family, etc.
@@ -260,6 +271,12 @@ pub trait Styling {
         IndentStyle::Spaces(4)
     }
 
+    /// Which line the indentation line should be based off of  
+    /// This is used for lining it up under a scope.
+    fn indent_line(&self, line: usize, _line_content: &str) -> usize {
+        line
+    }
+
     fn tab_width(&self, _line: usize) -> usize {
         4
     }
@@ -285,6 +302,10 @@ pub trait Styling {
     // questions that visual lines' [`Lines`] uses
     fn wrap(&self) -> WrapMethod {
         WrapMethod::EditorWidth
+    }
+
+    fn render_whitespace(&self) -> RenderWhitespace {
+        RenderWhitespace::None
     }
 
     fn apply_layout_styles(&self, _line: usize, _layout_line: &mut TextLayoutLine) {}
@@ -462,8 +483,6 @@ impl CommonAction for TextDocument {
         is_vertical: bool,
         register: &mut Register,
     ) {
-        // TODO(floem-editor): Action::execute_motion_mode returns with the buffer's syntax edits
-        // but we don't want treesitter to be included in base floem-editor
         self.buffer.try_update(move |buffer| {
             Action::execute_motion_mode(
                 cursor,

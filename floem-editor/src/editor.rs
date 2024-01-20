@@ -33,7 +33,7 @@ use crate::{
     id::EditorId,
     layout::TextLayoutLine,
     phantom_text::PhantomTextLine,
-    text::Preedit,
+    text::{Preedit, RenderWhitespace},
     view::{LineInfo, ScreenLinesBase},
     visual_line::{
         hit_position_aff, FontSizeCacheId, LayoutEvent, LineFontSizeProvider, Lines,
@@ -340,6 +340,7 @@ impl Editor {
         EditorTextProv {
             text: doc.text(),
             doc,
+            lines: self.lines.clone(),
             style: self.style.get_untracked(),
             viewport: self.viewport.get_untracked(),
         }
@@ -355,20 +356,31 @@ impl Editor {
         cursor: Option<(usize, usize)>,
         offset: usize,
     ) {
-        self.preedit().preedit.set(Some(Preedit {
-            text,
-            cursor,
-            offset,
-        }));
-        // TODO(floem-editor): clear text cache? or should this be handled by the doc somehow?
+        batch(|| {
+            self.preedit().preedit.set(Some(Preedit {
+                text,
+                cursor,
+                offset,
+            }));
+
+            self.doc().cache_rev().update(|cache_rev| {
+                *cache_rev += 1;
+            });
+        });
     }
 
     pub fn clear_preedit(&self) {
         let preedit = self.preedit();
-        if preedit.preedit.with_untracked(|preedit| preedit.is_some()) {
-            preedit.preedit.set(None);
-            // TODO(floem-editor): clear text cache? or should this be handled by the doc somehow?
+        if preedit.preedit.with_untracked(|preedit| preedit.is_none()) {
+            return;
         }
+
+        batch(|| {
+            preedit.preedit.set(None);
+            self.doc().cache_rev().update(|cache_rev| {
+                *cache_rev += 1;
+            });
+        });
     }
 
     pub fn receive_char(&self, c: &str) {
@@ -1041,8 +1053,93 @@ pub struct EditorTextProv {
     text: Rope,
     doc: Rc<dyn Document>,
     style: Rc<dyn Styling>,
+    lines: Rc<Lines>,
 
     viewport: Rect,
+}
+impl EditorTextProv {
+    // Get the text layout for a document line, creating it if needed.
+    pub fn text_layout(&self, line: usize) -> Arc<TextLayoutLine> {
+        self.text_layout_trigger(line, true)
+    }
+
+    pub fn text_layout_trigger(
+        &self,
+        line: usize,
+        trigger: bool,
+    ) -> Arc<TextLayoutLine> {
+        let id = self.style.id();
+        self.lines.get_init_text_layout(id, self, line, trigger)
+    }
+
+    /// Create rendable whitespace layout by creating a new text layout
+    /// with invisible spaces and special utf8 characters that display
+    /// the different white space characters.
+    fn new_whitespace_layout(
+        line_content: &str,
+        text_layout: &TextLayout,
+        phantom: &PhantomTextLine,
+        render_whitespace: RenderWhitespace,
+    ) -> Option<Vec<(char, (f64, f64))>> {
+        let mut render_leading = false;
+        let mut render_boundary = false;
+        let mut render_between = false;
+
+        // TODO: render whitespaces only on highlighted text
+        match render_whitespace {
+            RenderWhitespace::All => {
+                render_leading = true;
+                render_boundary = true;
+                render_between = true;
+            }
+            RenderWhitespace::Boundary => {
+                render_leading = true;
+                render_boundary = true;
+            }
+            RenderWhitespace::Trailing => {} // All configs include rendering trailing whitespace
+            RenderWhitespace::None => return None,
+        }
+
+        let mut whitespace_buffer = Vec::new();
+        let mut rendered_whitespaces: Vec<(char, (f64, f64))> = Vec::new();
+        let mut char_found = false;
+        let mut col = 0;
+        for c in line_content.chars() {
+            match c {
+                '\t' => {
+                    let col_left = phantom.col_after(col, true);
+                    let col_right = phantom.col_after(col + 1, false);
+                    let x0 = text_layout.hit_position(col_left).point.x;
+                    let x1 = text_layout.hit_position(col_right).point.x;
+                    whitespace_buffer.push(('\t', (x0, x1)));
+                }
+                ' ' => {
+                    let col_left = phantom.col_after(col, true);
+                    let col_right = phantom.col_after(col + 1, false);
+                    let x0 = text_layout.hit_position(col_left).point.x;
+                    let x1 = text_layout.hit_position(col_right).point.x;
+                    whitespace_buffer.push((' ', (x0, x1)));
+                }
+                _ => {
+                    if (char_found && render_between)
+                        || (char_found
+                            && render_boundary
+                            && whitespace_buffer.len() > 1)
+                        || (!char_found && render_leading)
+                    {
+                        rendered_whitespaces.extend(whitespace_buffer.iter());
+                    }
+
+                    char_found = true;
+                    whitespace_buffer.clear();
+                }
+            }
+            col += c.len_utf8();
+        }
+        rendered_whitespaces.extend(whitespace_buffer.iter());
+
+        Some(rendered_whitespaces)
+    }
 }
 impl TextLayoutProvider for EditorTextProv {
     // TODO: should this just return a `Rope`?
@@ -1130,27 +1227,22 @@ impl TextLayoutProvider for EditorTextProv {
             WrapMethod::WrapColumn { .. } => {}
         }
 
-        // TODO(floem-editor):
-        // let whitespaces = Self::new_whitespace_layout(
-        //     line_content_original,
-        //     &text_layout,
-        //     &phantom_text,
-        //     styling.render_whitespace(),
-        // );
+        let whitespaces = Self::new_whitespace_layout(
+            &line_content_original,
+            &text_layout,
+            &phantom_text,
+            self.style.render_whitespace(),
+        );
 
-        // let indent_line = B::indent_line(self, line, line_content_original);
+        let indent_line = self.style.indent_line(line, &line_content_original);
 
-        // let indent = if indent_line != line {
-        //     self.get_text_layout(indent_line, font_size).indent + 1.0
-        // } else {
-        //     let (_, col) = self.buffer.with_untracked(|buffer| {
-        //         let offset = buffer.first_non_blank_character_on_line(indent_line);
-        //         buffer.offset_to_line_col(offset)
-        //     });
-        //     text_layout.hit_position(col).point.x
-        // };
-        let whitespaces = None;
-        let indent = 0.0;
+        let indent = if indent_line != line {
+            self.text_layout(indent_line).indent + 1.0
+        } else {
+            let offset = text.first_non_blank_character_on_line(indent_line);
+            let (_, col) = text.offset_to_line_col(offset);
+            text_layout.hit_position(col).point.x
+        };
 
         let mut layout_line = TextLayoutLine {
             text: text_layout,
@@ -1312,12 +1404,8 @@ pub fn normal_compute_screen_lines(
 
     let cache_rev = editor.doc.get().cache_rev().get();
     editor.lines.check_cache_rev(cache_rev);
-    // TODO(floem-editor): somehow let us track some relevant information like 'loaded' or 'content'?
 
     let min_info = editor.iter_vlines(false, min_vline).next();
-    // TODO: if you need the max vline you probably need the min vline too and so you could grab
-    // both in one iter call, which would be more efficient than two iterations
-    // let max_info = editor.iter_vlines(false, max_vline).next();
 
     let mut rvlines = Vec::new();
     let mut info = HashMap::new();

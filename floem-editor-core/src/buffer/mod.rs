@@ -272,6 +272,11 @@ impl Buffer {
             auto_detect_indent_style(&self.text).unwrap_or_else(default);
     }
 
+    pub fn indent_style(&self) -> IndentStyle {
+        self.indent_style
+    }
+
+    // TODO: users of this function should often be using Styling::indent_style instead!
     pub fn indent_unit(&self) -> &'static str {
         self.indent_style.as_str()
     }

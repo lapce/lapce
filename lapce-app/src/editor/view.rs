@@ -626,12 +626,11 @@ impl EditorView {
     ) {
         const BAR_WIDTH: f64 = 10.0;
 
-        FloemEditorView::paint_scroll_bar(
-            cx,
-            &self.editor.editor,
-            viewport,
-            is_local,
-        );
+        if is_local {
+            return;
+        }
+
+        FloemEditorView::paint_scroll_bar(cx, &self.editor.editor, viewport);
 
         if !self.editor.kind.get_untracked().is_normal() {
             return;

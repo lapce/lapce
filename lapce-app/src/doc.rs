@@ -143,16 +143,6 @@ pub struct DocInfo {
     pub cursor_offset: usize,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum RenderWhitespace {
-    #[default]
-    None,
-    All,
-    Boundary,
-    Trailing,
-}
-
 /// (Offset -> (Plugin the code actions are from, Code Actions))
 pub type CodeActions = im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>;
 
@@ -1798,6 +1788,24 @@ impl Styling for DocStyling {
         floem::cosmic_text::Stretch::Normal
     }
 
+    fn indent_style(&self) -> IndentStyle {
+        self.doc.buffer.with_untracked(|b| b.indent_style())
+    }
+
+    fn indent_line(&self, line: usize, line_content: &str) -> usize {
+        if line_content.trim().is_empty() {
+            let text = self.doc.text();
+            let offset = text.offset_of_line(line);
+            if let Some(offset) =
+                self.doc.syntax.with_untracked(|s| s.parent_offset(offset))
+            {
+                return text.line_of_offset(offset);
+            }
+        }
+
+        line
+    }
+
     fn tab_width(&self, _line: usize) -> usize {
         self.config.with_untracked(|config| config.editor.tab_width)
     }
@@ -1843,6 +1851,11 @@ impl Styling for DocStyling {
                     .max(MIN_WRAPPED_WIDTH),
             },
         }
+    }
+
+    fn render_whitespace(&self) -> floem_editor::text::RenderWhitespace {
+        self.config
+            .with_untracked(|config| config.editor.render_whitespace)
     }
 
     fn apply_layout_styles(

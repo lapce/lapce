@@ -527,7 +527,6 @@ impl EditorView {
     fn paint_cursor(
         cx: &mut PaintCx,
         ed: &Editor,
-        is_local: bool,
         is_active: bool,
         screen_lines: &ScreenLines,
     ) {
@@ -544,7 +543,7 @@ impl EditorView {
             };
 
             // Highlight the current line
-            if !is_local && highlight_current_line {
+            if highlight_current_line {
                 for (_, end) in cursor.regions_iter() {
                     // TODO: unsure if this is correct for wrapping lines
                     let rvline = ed.rvline_of_offset(end, cursor.affinity);
@@ -837,16 +836,7 @@ impl EditorView {
         }
     }
 
-    pub fn paint_scroll_bar(
-        cx: &mut PaintCx,
-        ed: &Editor,
-        viewport: Rect,
-        is_local: bool,
-    ) {
-        if is_local {
-            return;
-        }
-
+    pub fn paint_scroll_bar(cx: &mut PaintCx, ed: &Editor, viewport: Rect) {
         // TODO: let this be customized
         const BAR_WIDTH: f64 = 10.0;
         cx.fill(
@@ -926,7 +916,6 @@ impl View for EditorView {
     fn paint(&mut self, cx: &mut PaintCx) {
         let ed = &self.editor;
         let viewport = ed.viewport.get_untracked();
-        let is_local = false; // TODO(floem-editor)
 
         // We repeatedly get the screen lines because we don't currently carefully manage the
         // paint functions to avoid potentially needing to recompute them, which could *maybe*
@@ -940,13 +929,12 @@ impl View for EditorView {
         EditorView::paint_cursor(
             cx,
             ed,
-            is_local,
             self.is_active.get_untracked(),
             &screen_lines,
         );
         let screen_lines = ed.screen_lines.get_untracked();
         EditorView::paint_text(cx, ed, viewport, &screen_lines);
-        EditorView::paint_scroll_bar(cx, ed, viewport, is_local);
+        EditorView::paint_scroll_bar(cx, ed, viewport);
     }
 }
 

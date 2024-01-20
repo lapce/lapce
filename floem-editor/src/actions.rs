@@ -29,8 +29,6 @@ pub fn handle_command_default(
             handle_move_command_default(ed, action, movement, count, modifiers)
         }
         Command::Scroll(cmd) => {
-            // TODO(floem-editor): lapce checks if the content is local??
-
             handle_scroll_command_default(ed, cmd, count, modifiers)
         }
         Command::MotionMode(cmd) => {

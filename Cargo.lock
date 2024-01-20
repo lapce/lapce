@@ -1708,6 +1708,7 @@ dependencies = [
  "floem",
  "floem-editor-core",
  "lapce-xi-rope",
+ "serde",
  "smallvec",
  "strum",
  "strum_macros",

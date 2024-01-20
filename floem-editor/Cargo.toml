@@ -10,6 +10,7 @@ authors.workspace = true
 
 [dependencies]
 lapce-xi-rope.workspace = true
+serde.workspace = true
 smallvec.workspace = true
 strum.workspace = true
 strum_macros.workspace = true

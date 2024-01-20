@@ -188,7 +188,6 @@ pub struct EditorData {
     pub editor_tab_id: RwSignal<Option<EditorTabId>>,
     pub diff_editor_id: RwSignal<Option<(EditorTabId, DiffEditorId)>>,
     pub confirmed: RwSignal<bool>,
-    // TODO(floem-editor): window origin? maybe on editor..?
     pub snippet: RwSignal<Option<SnippetIndex>>,
     // TODO(floem-editor): should this be on the editor?
     pub last_movement: RwSignal<Movement>,
