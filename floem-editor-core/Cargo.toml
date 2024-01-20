@@ -1,0 +1,20 @@
+[package]
+name = "floem-editor-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+itertools.workspace = true
+serde.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+tracing.workspace = true
+
+lapce-xi-rope.workspace = true
+
+bitflags = "1.3.2"

@@ -64,7 +64,7 @@ use std::{
 };
 
 use floem::{cosmic_text::LayoutGlyph, reactive::Scope};
-use lapce_core::{
+use floem_editor_core::{
     buffer::rope_text::{RopeText, RopeTextRef},
     cursor::CursorAffinity,
     word::WordCursor,
@@ -2072,7 +2072,7 @@ mod tests {
         cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Wrap},
         reactive::Scope,
     };
-    use lapce_core::{
+    use floem_editor_core::{
         buffer::rope_text::{RopeText, RopeTextRef},
         cursor::CursorAffinity,
     };

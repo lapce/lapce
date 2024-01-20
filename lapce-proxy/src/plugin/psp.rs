@@ -12,11 +12,9 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
+use floem_editor_core::buffer::rope_text::{RopeText, RopeTextRef};
 use jsonrpc_lite::{Id, JsonRpc, Params};
-use lapce_core::{
-    buffer::rope_text::{RopeText, RopeTextRef},
-    encoding::offset_utf16_to_utf8,
-};
+use lapce_core::{encoding::offset_utf16_to_utf8, rope_text_pos::RopeTextPosition};
 use lapce_rpc::{
     core::CoreRpcHandler,
     plugin::{PluginId, VoltID},

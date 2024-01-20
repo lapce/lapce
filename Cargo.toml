@@ -24,7 +24,7 @@ members = [
   "lapce-proxy",
   "lapce-rpc",
   "lapce-core",
-  "floem-editor",
+  "floem-editor", "floem-editor-core",
 ]
 
 [workspace.package]

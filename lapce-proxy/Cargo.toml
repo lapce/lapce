@@ -35,10 +35,12 @@ lapce-xi-rope.workspace = true
 lapce-core.workspace = true
 lapce-rpc.workspace = true
 
+floem-editor-core = { path = "../floem-editor-core" }
+
 # proxy specific dependencies
 
 url = "2.3.1"
-zstd = "0.11.2" # follow same version wasmtime-cache in lockfile
+zstd = "0.11.2"         # follow same version wasmtime-cache in lockfile
 dyn-clone = "1.0.10"
 walkdir = "2.3.2"
 globset = "0.4.9"

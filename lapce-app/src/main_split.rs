@@ -16,7 +16,7 @@ use floem_editor::id::EditorId;
 use itertools::Itertools;
 use lapce_core::{
     buffer::rope_text::RopeText, command::FocusCommand, cursor::Cursor,
-    selection::Selection, syntax::Syntax,
+    rope_text_pos::RopeTextPosition, selection::Selection, syntax::Syntax,
 };
 use lapce_rpc::{
     buffer::BufferId,

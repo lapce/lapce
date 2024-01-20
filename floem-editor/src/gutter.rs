@@ -7,7 +7,7 @@ use floem::{
     view::{View, ViewData},
     Renderer,
 };
-use lapce_core::mode::Mode;
+use floem_editor_core::mode::Mode;
 
 use crate::{color::EditorColor, editor::Editor};
 

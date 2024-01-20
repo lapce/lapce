@@ -17,7 +17,7 @@ use floem::{
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
     reactive::{batch, untrack, ReadSignal, RwSignal, Scope},
 };
-use lapce_core::{
+use floem_editor_core::{
     buffer::rope_text::{RopeText, RopeTextVal},
     command::MoveCommand,
     cursor::{ColPosition, Cursor, CursorAffinity, CursorMode},

@@ -1,14 +1,13 @@
+use floem_editor_core::buffer::{
+    rope_text::{RopeText, RopeTextRef},
+    InsertsValueIter,
+};
 use lapce_xi_rope::{
     delta::InsertDelta,
     multiset::{CountMatcher, Subset},
     Rope, RopeDelta, RopeInfo,
 };
 use tree_sitter::Point;
-
-use crate::buffer::{
-    rope_text::{RopeText, RopeTextRef},
-    InsertsValueIter,
-};
 
 #[derive(Clone)]
 pub struct SyntaxEdit(pub(crate) Vec<tree_sitter::InputEdit>);

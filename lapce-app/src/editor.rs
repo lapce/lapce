@@ -32,6 +32,7 @@ use lapce_core::{
     editor::EditType,
     mode::{Mode, MotionMode},
     movement::Movement,
+    rope_text_pos::RopeTextPosition,
     selection::{InsertDrift, Selection},
 };
 use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};

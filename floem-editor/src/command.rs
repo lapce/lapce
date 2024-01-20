@@ -1,4 +1,4 @@
-use lapce_core::command::{
+use floem_editor_core::command::{
     EditCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
     ScrollCommand,
 };

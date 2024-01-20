@@ -7,7 +7,7 @@ use floem::{
     peniko::Color,
     reactive::{ReadSignal, RwSignal, Scope},
 };
-use lapce_core::{
+use floem_editor_core::{
     buffer::{
         rope_text::{RopeText, RopeTextVal},
         Buffer,

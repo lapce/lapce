@@ -1,5 +1,5 @@
 use floem::keyboard::ModifiersState;
-use lapce_core::{
+use floem_editor_core::{
     command::{
         EditCommand, MotionModeCommand, MultiSelectionCommand, ScrollCommand,
     },
@@ -54,7 +54,7 @@ fn handle_edit_command_default(
     let text = ed.rope_text();
 
     let yank_data =
-        if let lapce_core::cursor::CursorMode::Visual { .. } = &cursor.mode {
+        if let floem_editor_core::cursor::CursorMode::Visual { .. } = &cursor.mode {
             Some(cursor.yank(&text))
         } else {
             None

@@ -44,6 +44,7 @@ use lapce_core::{
     language::LapceLanguage,
     mode::MotionMode,
     register::Register,
+    rope_text_pos::RopeTextPosition,
     selection::{InsertDrift, Selection},
     style::line_styles,
     syntax::{edit::SyntaxEdit, BracketParser, Syntax},

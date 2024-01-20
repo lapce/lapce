@@ -18,7 +18,7 @@ use floem::{
     views::{clip, container, empty, label, scroll, stack, Decorators},
     EventPropagation, Renderer,
 };
-use lapce_core::{
+use floem_editor_core::{
     buffer::rope_text::RopeText,
     cursor::{ColPosition, CursorAffinity, CursorMode},
     mode::{Mode, VisualMode},

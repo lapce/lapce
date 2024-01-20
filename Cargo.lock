@@ -1706,6 +1706,7 @@ version = "0.3.1"
 dependencies = [
  "downcast-rs",
  "floem",
+ "floem-editor-core",
  "itertools",
  "lapce-core",
  "lapce-rpc",
@@ -1713,6 +1714,19 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
+ "strum",
+ "strum_macros",
+ "tracing 0.2.0",
+]
+
+[[package]]
+name = "floem-editor-core"
+version = "0.3.1"
+dependencies = [
+ "bitflags 1.3.2",
+ "itertools",
+ "lapce-xi-rope",
+ "serde",
  "strum",
  "strum_macros",
  "tracing 0.2.0",
@@ -2935,6 +2949,7 @@ dependencies = [
  "flate2",
  "floem",
  "floem-editor",
+ "floem-editor-core",
  "fs_extra",
  "futures",
  "im",
@@ -2983,8 +2998,8 @@ version = "0.3.1"
 dependencies = [
  "anyhow",
  "arc-swap",
- "bitflags 1.3.2",
  "directories",
+ "floem-editor-core",
  "include_dir",
  "itertools",
  "lapce-rpc",
@@ -2992,7 +3007,6 @@ dependencies = [
  "libloading 0.7.3",
  "lsp-types",
  "once_cell",
- "serde",
  "slotmap",
  "strum",
  "strum_macros",
@@ -3023,6 +3037,7 @@ dependencies = [
  "directories",
  "dyn-clone",
  "flate2",
+ "floem-editor-core",
  "git2",
  "globset",
  "grep-matcher",

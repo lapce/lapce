@@ -2,7 +2,7 @@ use floem::{
     cosmic_text::{LayoutLine, TextLayout},
     peniko::Color,
 };
-use lapce_core::buffer::rope_text::RopeText;
+use floem_editor_core::buffer::rope_text::RopeText;
 
 use crate::visual_line::TextLayoutProvider;
 

@@ -1,32 +1,6 @@
 use core::str::FromStr;
 use std::collections::HashMap;
 
-use lapce_xi_rope::{rope::ChunkIter, Rope};
-use tree_sitter::TextProvider;
-
-pub struct RopeChunksIterBytes<'a> {
-    chunks: ChunkIter<'a>,
-}
-impl<'a> Iterator for RopeChunksIterBytes<'a> {
-    type Item = &'a [u8];
-    fn next(&mut self) -> Option<Self::Item> {
-        self.chunks.next().map(str::as_bytes)
-    }
-}
-
-/// This allows tree-sitter to iterate over our Rope without us having to convert it into
-/// a contiguous byte-list.
-pub struct RopeProvider<'a>(pub &'a Rope);
-impl<'a> TextProvider<'a> for RopeProvider<'a> {
-    type I = RopeChunksIterBytes<'a>;
-    fn text(&mut self, node: tree_sitter::Node) -> Self::I {
-        let start = node.start_byte();
-        let end = node.end_byte().min(self.0.len());
-        let chunks = self.0.iter_chunks(start..end);
-        RopeChunksIterBytes { chunks }
-    }
-}
-
 /// If the character is an opening bracket return Some(true), if closing, return Some(false)
 pub fn matching_pair_direction(c: char) -> Option<bool> {
     Some(match c {

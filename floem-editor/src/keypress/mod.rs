@@ -4,7 +4,7 @@ pub mod press;
 use std::{collections::HashMap, rc::Rc, str::FromStr};
 
 use floem::{keyboard::ModifiersState, reactive::RwSignal};
-use lapce_core::command::{
+use floem_editor_core::command::{
     EditCommand, MoveCommand, MultiSelectionCommand, ScrollCommand,
 };
 

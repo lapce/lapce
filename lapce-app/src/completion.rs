@@ -5,7 +5,9 @@ use floem::{
     reactive::{ReadSignal, RwSignal, Scope},
 };
 use floem_editor::{id::EditorId, text::Document};
-use lapce_core::{buffer::rope_text::RopeText, movement::Movement};
+use lapce_core::{
+    buffer::rope_text::RopeText, movement::Movement, rope_text_pos::RopeTextPosition,
+};
 use lapce_rpc::{plugin::PluginId, proxy::ProxyRpcHandler};
 use lsp_types::{
     CompletionItem, CompletionResponse, CompletionTextEdit, InsertTextFormat,

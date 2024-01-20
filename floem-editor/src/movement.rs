@@ -1,6 +1,6 @@
 //! Movement logic for the editor.
 
-use lapce_core::{
+use floem_editor_core::{
     buffer::rope_text::RopeText,
     command::MultiSelectionCommand,
     cursor::{ColPosition, Cursor, CursorAffinity, CursorMode},

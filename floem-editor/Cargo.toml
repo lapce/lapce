@@ -19,6 +19,7 @@ strum_macros.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
+floem-editor-core = { path = "../floem-editor-core" }
 # TODO: inherit this from workspace?
 floem = { git = "https://github.com/lapce/floem", rev = "6ae536237716d606e5546edb9f72867f2bc23946" }
 # TODO: once https://github.com/rust-lang/rust/issues/65991 is stabilized we don't need this

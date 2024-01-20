@@ -6,6 +6,7 @@ use lapce_core::{
         rope_text::{RopeText, RopeTextRef},
         Buffer,
     },
+    rope_text_pos::RopeTextPosition,
     selection::Selection,
 };
 
