@@ -137,7 +137,7 @@ impl Editor {
         let doc = cx.create_rw_signal(doc);
         let style = cx.create_rw_signal(style);
 
-        let font_sizes = RefCell::new(Arc::new(EditorFontSizes {
+        let font_sizes = RefCell::new(Rc::new(EditorFontSizes {
             style: style.read_only(),
             doc: doc.read_only(),
         }));
@@ -224,7 +224,7 @@ impl Editor {
             // Get rid of all the effects
             self.effects_cx.get().dispose();
 
-            *self.lines.font_sizes.borrow_mut() = Arc::new(EditorFontSizes {
+            *self.lines.font_sizes.borrow_mut() = Rc::new(EditorFontSizes {
                 style: self.style.read_only(),
                 doc: self.doc.read_only(),
             });
@@ -239,7 +239,7 @@ impl Editor {
 
             // Recreate the effects
             self.effects_cx.set(self.cx.get().create_child());
-            create_view_effects(self.effects_cx.get(), &self);
+            create_view_effects(self.effects_cx.get(), self);
         });
     }
 
@@ -252,7 +252,7 @@ impl Editor {
         let doc = self.doc();
         let style = self.style();
         let register = if share_register {
-            Some(self.register.clone())
+            Some(self.register)
         } else {
             None
         };

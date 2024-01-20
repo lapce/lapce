@@ -383,14 +383,14 @@ pub fn default_key_handler(
 ) -> impl Fn(&KeyPress, ModifiersState) -> CommandExecuted + 'static {
     let keypress_map = KeypressMap::default();
     move |keypress, modifiers| {
-        let Some(command) = keypress_map.keymaps.get(&keypress) else {
+        let Some(command) = keypress_map.keymaps.get(keypress) else {
             return CommandExecuted::No;
         };
 
         editor.with_untracked(|editor| {
             editor
                 .doc()
-                .run_command(&editor, command, Some(1), modifiers)
+                .run_command(editor, command, Some(1), modifiers)
         })
     }
 }

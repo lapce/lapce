@@ -999,7 +999,7 @@ impl View for EditorView {
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
-        FloemEditorView::paint_text(cx, &ed, viewport, &screen_lines);
+        FloemEditorView::paint_text(cx, ed, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);
@@ -2102,7 +2102,7 @@ pub fn changes_colors_screen(
     let mut line = 0;
     let mut colors = Vec::new();
 
-    for (len, color, modified) in changes_color_iter(&changes, &config) {
+    for (len, color, modified) in changes_color_iter(&changes, config) {
         let pre_line = line;
 
         line += len;
@@ -2153,7 +2153,7 @@ pub fn changes_colors_all(
 
     let mut vline_iter = ed.iter_vlines(false, VLine(0)).peekable();
 
-    for (len, color, modified) in changes_color_iter(&changes, &config) {
+    for (len, color, modified) in changes_color_iter(&changes, config) {
         let pre_line = line;
 
         line += len;

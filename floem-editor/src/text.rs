@@ -601,7 +601,7 @@ impl DocumentPhantom for PhantomTextDocument {
             text.push(preedit);
         }
 
-        return PhantomTextLine { text };
+        PhantomTextLine { text }
     }
 
     fn has_multiline_phantom(&self) -> bool {

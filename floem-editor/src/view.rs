@@ -19,7 +19,6 @@ use floem::{
     EventPropagation, Renderer,
 };
 use floem_editor_core::{
-    buffer::rope_text::RopeText,
     cursor::{ColPosition, CursorAffinity, CursorMode},
     mode::{Mode, VisualMode},
 };
@@ -659,7 +658,7 @@ impl EditorView {
         let hide_cursor = ed.cursor_info.hidden;
         let caret_color = ed.color(EditorColor::Caret);
 
-        if !(is_active && !hide_cursor.get_untracked()) {
+        if !is_active || hide_cursor.get_untracked() {
             return;
         }
 
@@ -861,199 +860,6 @@ impl EditorView {
             ed.color(EditorColor::Scrollbar),
             0.0,
         );
-    }
-
-    /// Calculate the `x` coordinate of the left edge of the given column on the given line.
-    /// If `before_cursor` is `true`, the calculated position will be to the right of any inlay
-    /// hints before and adjacent to the given column. Else, the calculated position will be to the
-    /// left of any such inlay hints.
-    fn calculate_col_x(
-        ed: &Editor,
-        line: usize,
-        col: usize,
-        affinity: CursorAffinity,
-    ) -> f64 {
-        let before_cursor = affinity == CursorAffinity::Backward;
-        let phantom_text = ed.phantom_text(line);
-        let col = phantom_text.col_after(col, before_cursor);
-        ed.line_point_of_line_col(line, col, affinity).x
-    }
-
-    /// Paint a highlight around the characters at the given positions.
-    fn paint_char_highlights(
-        &self,
-        cx: &mut PaintCx,
-        screen_lines: &ScreenLines,
-        highlight_line_cols: impl Iterator<Item = (RVLine, usize)>,
-    ) {
-        let ed = &self.editor;
-
-        for (rvline, col) in highlight_line_cols {
-            // Is the given line on screen?
-            if let Some(line_info) = screen_lines.info(rvline) {
-                let x0 = Self::calculate_col_x(
-                    ed,
-                    rvline.line,
-                    col,
-                    CursorAffinity::Backward,
-                );
-                let x1 = Self::calculate_col_x(
-                    ed,
-                    rvline.line,
-                    col + 1,
-                    CursorAffinity::Forward,
-                );
-
-                let line_height = f64::from(ed.line_height(rvline.line));
-
-                let y0 = line_info.vline_y;
-                let y1 = y0 + line_height;
-
-                let rect = Rect::new(x0, y0, x1, y1);
-
-                cx.stroke(&rect, ed.color(EditorColor::Foreground), 1.0);
-            }
-        }
-    }
-
-    /// Paint scope lines between `(start_rvline, start_line, start_col)` and
-    /// `(end_rvline, end_line end_col)`.
-    fn paint_scope_lines(
-        &self,
-        cx: &mut PaintCx,
-        viewport: Rect,
-        screen_lines: &ScreenLines,
-        (start, start_col): (RVLine, usize),
-        (end, end_col): (RVLine, usize),
-    ) {
-        let ed = &self.editor;
-        let brush = ed.color(EditorColor::Foreground);
-
-        if start == end {
-            if let Some(line_info) = screen_lines.info(start) {
-                // TODO: Due to line wrapping the y positions of these two spots could be different, do we need to change it?
-                let x0 = Self::calculate_col_x(
-                    ed,
-                    start.line,
-                    start_col + 1,
-                    CursorAffinity::Forward,
-                );
-                let x1 = Self::calculate_col_x(
-                    ed,
-                    end.line,
-                    end_col,
-                    CursorAffinity::Backward,
-                );
-
-                if x0 < x1 {
-                    let line_height =
-                        f64::from(ed.line_height(line_info.vline_info.rvline.line));
-                    let y = line_info.vline_y + line_height;
-
-                    let p0 = Point::new(x0, y);
-                    let p1 = Point::new(x1, y);
-                    let line = Line::new(p0, p1);
-
-                    cx.stroke(&line, brush, 1.0);
-                }
-            }
-        } else {
-            // Are start_line and end_line on screen?
-            let start_line_y = screen_lines.info(start).map(|line_info| {
-                let line_height =
-                    f64::from(ed.line_height(line_info.vline_info.rvline.line));
-                line_info.vline_y + line_height
-            });
-            let end_line_y = screen_lines.info(end).map(|line_info| {
-                let line_height =
-                    f64::from(ed.line_height(line_info.vline_info.rvline.line));
-                line_info.vline_y + line_height
-            });
-
-            // We only need to draw anything if start_line is on or before the visible section and
-            // end_line is on or after the visible section.
-            let y0 = start_line_y.or_else(|| {
-                screen_lines
-                    .lines
-                    .first()
-                    .is_some_and(|&first_vline| first_vline > start)
-                    .then(|| viewport.min_y())
-            });
-            let y1 = end_line_y.or_else(|| {
-                screen_lines
-                    .lines
-                    .last()
-                    .is_some_and(|&last_line| last_line < end)
-                    .then(|| viewport.max_y())
-            });
-
-            if let [Some(y0), Some(y1)] = [y0, y1] {
-                let start_x = Self::calculate_col_x(
-                    ed,
-                    start.line,
-                    start_col + 1,
-                    CursorAffinity::Forward,
-                );
-                let end_x = Self::calculate_col_x(
-                    ed,
-                    end.line,
-                    end_col,
-                    CursorAffinity::Backward,
-                );
-
-                // TODO(minor): is this correct with line wrapping?
-                // The vertical line should be drawn to the left of any non-whitespace characters
-                // in the enclosed section.
-                let rope_text = ed.rope_text();
-                let min_text_x = {
-                    ((start.line + 1)..=end.line)
-                        .filter(|&line| !rope_text.is_line_whitespace(line))
-                        .map(|line| {
-                            let non_blank_offset =
-                                rope_text.first_non_blank_character_on_line(line);
-                            let (_, col) = ed.offset_to_line_col(non_blank_offset);
-
-                            Self::calculate_col_x(
-                                ed,
-                                line,
-                                col,
-                                CursorAffinity::Backward,
-                            )
-                        })
-                        .min_by(f64::total_cmp)
-                };
-
-                let min_x = min_text_x.map_or(start_x, |min_text_x| {
-                    std::cmp::min_by(min_text_x, start_x, f64::total_cmp)
-                });
-
-                // Is start_line on screen, and is the vertical line to the left of the opening
-                // bracket?
-                if let Some(y) = start_line_y.filter(|_| start_x > min_x) {
-                    let p0 = Point::new(min_x, y);
-                    let p1 = Point::new(start_x, y);
-                    let line = Line::new(p0, p1);
-
-                    cx.stroke(&line, brush, 1.0);
-                }
-
-                // Is end_line on screen, and is the vertical line to the left of the closing
-                // bracket?
-                if let Some(y) = end_line_y.filter(|_| end_x > min_x) {
-                    let p0 = Point::new(min_x, y);
-                    let p1 = Point::new(end_x, y);
-                    let line = Line::new(p0, p1);
-
-                    cx.stroke(&line, brush, 1.0);
-                }
-
-                let p0 = Point::new(min_x, y0);
-                let p1 = Point::new(min_x, y1);
-                let line = Line::new(p0, p1);
-
-                cx.stroke(&line, brush, 1.0);
-            }
-        }
     }
 }
 impl View for EditorView {
@@ -1466,7 +1272,7 @@ fn editor_content(
                 // scroll beyond last line a f32
                 // TODO: we shouldn't be using `get` on editor here, isn't this more of a 'has the
                 // style cache changed'?
-                let line_height = editor.get().line_height(0) as f32;
+                let line_height = editor.get().line_height(0);
                 viewport.get().height() as f32 - line_height
             } else {
                 0.0
@@ -1551,7 +1357,7 @@ fn editor_content(
         let vline = editor.vline_of_rvline(rvline);
         let rect = Rect::from_origin_size(
             (x, vline.get() as f64 * line_height),
-            (width, line_height as f64),
+            (width, line_height),
         )
         .inflate(10.0, 0.0);
 

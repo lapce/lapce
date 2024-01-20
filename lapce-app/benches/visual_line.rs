@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use floem::{
@@ -163,7 +163,7 @@ fn make_lines_ph(
         has_multiline_phantom,
     };
     let cx = Scope::new();
-    let lines = Lines::new(cx, RefCell::new(Arc::new(font_sizes)));
+    let lines = Lines::new(cx, RefCell::new(Rc::new(font_sizes)));
     lines.set_wrap(wrap);
 
     if init {

@@ -285,7 +285,7 @@ pub struct Lines {
     /// An `Arc<RefCell<_>>` has the issue that with a `dyn` it can't know they're the same size
     /// if you were to assign. So this allows us to swap out the `Arc`, though it does mean that
     /// the other holders of the `Arc` don't get the new version. That is fine currently.
-    pub font_sizes: RefCell<Arc<dyn LineFontSizeProvider>>,
+    pub font_sizes: RefCell<Rc<dyn LineFontSizeProvider>>,
     text_layouts: Rc<RefCell<TextLayoutCache>>,
     wrap: Cell<ResolvedWrap>,
     font_size_cache_id: Cell<FontSizeCacheId>,
@@ -295,7 +295,7 @@ pub struct Lines {
 impl Lines {
     pub fn new(
         cx: Scope,
-        font_sizes: RefCell<Arc<dyn LineFontSizeProvider>>,
+        font_sizes: RefCell<Rc<dyn LineFontSizeProvider>>,
     ) -> Lines {
         let id = font_sizes.borrow().cache_id();
         Lines {
@@ -1667,7 +1667,7 @@ impl<T: TextLayoutProvider> Iterator for VisualLines<T> {
 /// Iterator of the visual lines in a [`Lines`] relative to some starting buffer line.  
 /// This only considers wrapped and phantom text lines that have been rendered into a text layout.
 struct VisualLinesRelative<T: TextLayoutProvider> {
-    font_sizes: Arc<dyn LineFontSizeProvider>,
+    font_sizes: Rc<dyn LineFontSizeProvider>,
     text_layouts: Rc<RefCell<TextLayoutCache>>,
     text_prov: T,
 
@@ -2066,7 +2066,7 @@ pub fn hit_position_aff(
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::Cow, cell::RefCell, collections::HashMap, sync::Arc};
+    use std::{borrow::Cow, cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
     use floem::{
         cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Wrap},
@@ -2257,7 +2257,7 @@ mod tests {
         };
         let text = TestTextLayoutProvider::new(text, ph, wrap);
         let cx = Scope::new();
-        let lines = Lines::new(cx, RefCell::new(Arc::new(font_sizes)));
+        let lines = Lines::new(cx, RefCell::new(Rc::new(font_sizes)));
         lines.set_wrap(r_wrap);
 
         if init {
