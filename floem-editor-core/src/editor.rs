@@ -81,13 +81,9 @@ pub struct EditConf<'a> {
     pub auto_indent: bool,
 }
 
-pub struct Editor {}
-// TODO(floem-editor): rename this file's `Editor`, or rename `floem-editor`'s `Editor`
-// we could also just have these functions be exported rather than be associated with a type
-// we never construct
-pub type Action = Editor;
+pub struct Action {}
 
-impl Editor {
+impl Action {
     pub fn insert(
         cursor: &mut Cursor,
         buffer: &mut Buffer,
@@ -1667,7 +1663,7 @@ mod test {
     use crate::{
         buffer::{rope_text::RopeText, Buffer},
         cursor::{Cursor, CursorMode},
-        editor::{DuplicateDirection, Editor},
+        editor::{Action, DuplicateDirection},
         selection::{SelRegion, Selection},
         word::WordCursor,
     };
@@ -1682,7 +1678,7 @@ mod test {
         let mut cursor =
             Cursor::new(CursorMode::Insert(Selection::caret(1)), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "e", &prev_unmatched, true, true);
+        Action::insert(&mut cursor, &mut buffer, "e", &prev_unmatched, true, true);
         assert_eq!("aebc", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1694,7 +1690,7 @@ mod test {
         selection.add_region(SelRegion::caret(5));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "i", &prev_unmatched, true, true);
+        Action::insert(&mut cursor, &mut buffer, "i", &prev_unmatched, true, true);
         assert_eq!("aibc\neifg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1706,13 +1702,13 @@ mod test {
         selection.add_region(SelRegion::caret(5));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "i", &prev_unmatched, true, true);
+        Action::insert(&mut cursor, &mut buffer, "i", &prev_unmatched, true, true);
         assert_eq!("aibc\neifg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "j", &prev_unmatched, true, true);
+        Action::insert(&mut cursor, &mut buffer, "j", &prev_unmatched, true, true);
         assert_eq!("aijbc\neijfg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "{", &prev_unmatched, true, true);
+        Action::insert(&mut cursor, &mut buffer, "{", &prev_unmatched, true, true);
         assert_eq!("aij{bc\neij{fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, " ", &prev_unmatched, true, true);
+        Action::insert(&mut cursor, &mut buffer, " ", &prev_unmatched, true, true);
         assert_eq!("aij{ bc\neij{ fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1724,9 +1720,9 @@ mod test {
         selection.add_region(SelRegion::caret(6));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "{", &prev_unmatched, true, true);
+        Action::insert(&mut cursor, &mut buffer, "{", &prev_unmatched, true, true);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "}", &prev_unmatched, true, true);
+        Action::insert(&mut cursor, &mut buffer, "}", &prev_unmatched, true, true);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1737,7 +1733,7 @@ mod test {
         selection.add_region(SelRegion::new(0, 4, None));
         selection.add_region(SelRegion::new(5, 9, None));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
-        Editor::insert(&mut cursor, &mut buffer, "{", &prev_unmatched, true, true);
+        Action::insert(&mut cursor, &mut buffer, "{", &prev_unmatched, true, true);
         assert_eq!("{a bc}\n{e fg}\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1749,9 +1745,9 @@ mod test {
         selection.add_region(SelRegion::caret(6));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "{", &prev_unmatched, false, false);
+        Action::insert(&mut cursor, &mut buffer, "{", &prev_unmatched, false, false);
         assert_eq!("a{ bc\ne{ fg\n", buffer.slice_to_cow(0..buffer.len()));
-        Editor::insert(&mut cursor, &mut buffer, "}", &prev_unmatched, false, false);
+        Action::insert(&mut cursor, &mut buffer, "}", &prev_unmatched, false, false);
         assert_eq!("a{} bc\ne{} fg\n", buffer.slice_to_cow(0..buffer.len()));
     }
 
@@ -1762,7 +1758,7 @@ mod test {
         selection.add_region(SelRegion::caret(0));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
+        Action::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
 
         assert_ne!(cursor.offset(), 0);
         assert_eq!(
@@ -1778,7 +1774,7 @@ mod test {
         selection.add_region(SelRegion::caret(0));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
+        Action::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
 
         assert_eq!(cursor.offset(), 0);
         assert_eq!(
@@ -1795,7 +1791,7 @@ mod test {
         selection.add_region(SelRegion::caret(1));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
+        Action::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
 
         assert_eq!(
             "first line\nfirst line\nsecond line\n",
@@ -1811,7 +1807,7 @@ mod test {
         selection.add_region(SelRegion::caret(1));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
+        Action::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
 
         assert_eq!(
             "first line\nfirst line\nsecond line\n",
@@ -1827,7 +1823,7 @@ mod test {
         selection.add_region(SelRegion::caret(15));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
+        Action::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
 
         assert_eq!(
             "first line\nfirst line\nsecond line\nsecond line\n",
@@ -1843,7 +1839,7 @@ mod test {
         selection.add_region(SelRegion::caret(15));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
+        Action::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
 
         assert_eq!(
             "first line\nfirst line\nsecond line\nsecond line\n",
@@ -1859,7 +1855,7 @@ mod test {
         selection.add_region(SelRegion::caret(0));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
+        Action::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Down);
 
         assert_eq!(
             "first line\nfirst line\nsecond line\nsecond line\n",
@@ -1875,7 +1871,7 @@ mod test {
         selection.add_region(SelRegion::caret(0));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
+        Action::duplicate_line(&mut cursor, &mut buffer, DuplicateDirection::Up);
 
         assert_eq!(
             "first line\nfirst line\nsecond line\nsecond line\n",
@@ -1893,7 +1889,7 @@ mod test {
         selection.add_region(SelRegion::caret(12));
         let mut cursor = Cursor::new(CursorMode::Insert(selection), None, None);
 
-        Editor::insert(&mut cursor, &mut buffer, "(", &prev_unmatched, true, true);
+        Action::insert(&mut cursor, &mut buffer, "(", &prev_unmatched, true, true);
 
         assert_eq!(
             "() 123() 567() 9ab() def",

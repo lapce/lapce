@@ -193,7 +193,6 @@ pub struct EditorData {
     pub find_focus: RwSignal<bool>,
     pub editor: Rc<Editor>,
     pub kind: RwSignal<EditorViewKind>,
-    // TODO(floem-editor): there is a create effect for calculating the sticky header's height in editor_view
     pub sticky_header_height: RwSignal<f64>,
     pub common: Rc<CommonData>,
 }
