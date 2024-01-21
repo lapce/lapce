@@ -1595,51 +1595,11 @@ impl WindowTabData {
                 self.main_split.open_volt_view(volt_id);
             }
             InternalCommand::ResetBlinkCursor => {
-                // TODO(floem-editor): we want to reuse this logic with new editor
-                // - but we want to share hide_cursor (and friends) between editors
-                // but we probably would mess things up if we called CursorInfo.{blink,reset}
-                // multiple times for a shared signal? but maybe not?
-                // if self.common.window_common.hide_cursor.get_untracked() {
-                //     self.common.window_common.hide_cursor.set(false);
-                // }
-                // self.common
-                //     .window_common
-                //     .cursor_blink_timer
-                //     .set(TimerToken::INVALID);
-
-                // let should_blink = {
-                //     let focus = self.common.focus;
-                //     let keyboard_focus = self.common.keyboard_focus;
-                //     move || {
-                //         let focus = focus.get_untracked();
-                //         if matches!(
-                //             focus,
-                //             Focus::Workbench
-                //                 | Focus::Palette
-                //                 | Focus::Panel(PanelKind::Plugin)
-                //                 | Focus::Panel(PanelKind::Search)
-                //                 | Focus::Panel(PanelKind::SourceControl)
-                //         ) {
-                //             return true;
-                //         }
-                //         if keyboard_focus.get_untracked().is_some() {
-                //             return true;
-                //         }
-                //         false
-                //     }
-                // };
-
-                // let config = self.common.config;
-                // let blink_interval_f = move || {
-                //     config.with_untracked(|config| config.editor.blink_interval())
-                // };
-
-                // blink_cursor(
-                //     self.common.window_common.cursor_blink_timer,
-                //     self.common.window_common.hide_cursor,
-                //     should_blink,
-                //     blink_interval_f,
-                // );
+                // All the editors share the blinking information and logic, so we can just reset
+                // one of them.
+                if let Some(e_data) = self.main_split.active_editor.get_untracked() {
+                    e_data.editor.cursor_info.reset();
+                }
             }
             InternalCommand::OpenDiffFiles {
                 left_path,

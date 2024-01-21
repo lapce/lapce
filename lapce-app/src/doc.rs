@@ -73,7 +73,8 @@ use crate::{
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     keypress::KeyPressFocus,
-    window_tab::CommonData,
+    panel::kind::PanelKind,
+    window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
 };
 
@@ -352,14 +353,15 @@ impl Doc {
         let config = common.config;
 
         let register = common.register;
+        // TODO(floem-editor): we could have these Rcs created once and stored somewhere, maybe on
+        // common, to avoid recreating them everytime.
         let cursor_info = CursorInfo {
             blink_interval: Rc::new(move || {
                 config.get_untracked().editor.blink_interval()
             }),
             blink_timer: common.window_common.cursor_blink_timer,
             hidden: common.window_common.hide_cursor,
-            // TODO(floem-editor): use the lapce blink cursor logic!
-            should_blink: Rc::new(|| true),
+            should_blink: Rc::new(should_blink(common.focus, common.keyboard_focus)),
         };
         let mut editor = Editor::new(
             cx,
@@ -2013,6 +2015,30 @@ fn syntax_prev_unmatched(
         syntax.find_tag(offset, true, &CharBuffer::new(c))
     } else {
         WordCursor::new(buffer.text(), offset).previous_unmatched(c)
+    }
+}
+
+fn should_blink(
+    focus: RwSignal<Focus>,
+    keyboard_focus: RwSignal<Option<floem::id::Id>>,
+) -> impl Fn() -> bool {
+    move || {
+        let focus = focus.get_untracked();
+        if matches!(
+            focus,
+            Focus::Workbench
+                | Focus::Palette
+                | Focus::Panel(PanelKind::Plugin)
+                | Focus::Panel(PanelKind::Search)
+                | Focus::Panel(PanelKind::SourceControl)
+        ) {
+            return true;
+        }
+
+        if keyboard_focus.get_untracked().is_some() {
+            return true;
+        }
+        false
     }
 }
 
