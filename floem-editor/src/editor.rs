@@ -22,6 +22,7 @@ use floem_editor_core::{
     command::MoveCommand,
     cursor::{ColPosition, Cursor, CursorAffinity, CursorMode},
     mode::Mode,
+    movement::Movement,
     register::Register,
     selection::Selection,
     soft_tab::{snap_to_soft_tab_line_col, SnapDirection},
@@ -96,6 +97,8 @@ pub struct Editor {
     pub register: RwSignal<Register>,
 
     pub cursor_info: CursorInfo,
+
+    pub last_movement: RwSignal<Movement>,
 
     /// Whether ime input is allowed.  
     /// Should not be set manually outside of the specific handling for ime.
@@ -180,6 +183,7 @@ impl Editor {
             register: register
                 .unwrap_or_else(|| cx.create_rw_signal(Register::default())),
             cursor_info,
+            last_movement: cx.create_rw_signal(Movement::Left),
             ime_allowed: cx.create_rw_signal(false),
         };
 
@@ -292,6 +296,7 @@ impl Editor {
             editor.window_origin.set(self.window_origin.get_untracked());
             editor.viewport.set(self.viewport.get_untracked());
             editor.register.set(self.register.get_untracked());
+            editor.last_movement.set(self.last_movement.get_untracked());
             // ?
             // editor.ime_allowed.set(self.ime_allowed.get_untracked());
         });

@@ -31,7 +31,6 @@ use lapce_core::{
     cursor::{Cursor, CursorMode},
     editor::EditType,
     mode::{Mode, MotionMode},
-    movement::Movement,
     rope_text_pos::RopeTextPosition,
     selection::{InsertDrift, Selection},
 };
@@ -189,8 +188,6 @@ pub struct EditorData {
     pub diff_editor_id: RwSignal<Option<(EditorTabId, DiffEditorId)>>,
     pub confirmed: RwSignal<bool>,
     pub snippet: RwSignal<Option<SnippetIndex>>,
-    // TODO(floem-editor): should this be on the editor?
-    pub last_movement: RwSignal<Movement>,
     pub inline_find: RwSignal<Option<InlineFindDirection>>,
     pub last_inline_find: RwSignal<Option<(InlineFindDirection, String)>>,
     pub find_focus: RwSignal<bool>,
@@ -223,7 +220,6 @@ impl EditorData {
             diff_editor_id: cx.create_rw_signal(diff_editor_id),
             confirmed,
             snippet: cx.create_rw_signal(None),
-            last_movement: cx.create_rw_signal(Movement::Left),
             inline_find: cx.create_rw_signal(None),
             last_inline_find: cx.create_rw_signal(None),
             find_focus: cx.create_rw_signal(false),
@@ -282,7 +278,6 @@ impl EditorData {
             diff_editor_id: cx.create_rw_signal(diff_editor_id),
             confirmed,
             snippet: cx.create_rw_signal(None),
-            last_movement: cx.create_rw_signal(self.last_movement.get_untracked()),
             inline_find: cx.create_rw_signal(None),
             last_inline_find: cx.create_rw_signal(None),
             find_focus: cx.create_rw_signal(false),
@@ -466,7 +461,9 @@ impl EditorData {
         count: Option<usize>,
         mods: ModifiersState,
     ) -> CommandExecuted {
-        if movement.is_jump() && movement != &self.last_movement.get_untracked() {
+        if movement.is_jump()
+            && movement != &self.editor.last_movement.get_untracked()
+        {
             let path = self
                 .doc()
                 .content
@@ -484,7 +481,7 @@ impl EditorData {
                 );
             }
         }
-        self.last_movement.set(movement.clone());
+        self.editor.last_movement.set(movement.clone());
 
         let mut cursor = self.cursor().get_untracked();
         self.common.register.update(|register| {

@@ -83,6 +83,8 @@ fn handle_move_command_default(
 ) -> CommandExecuted {
     // TODO: should we track jump locations?
 
+    ed.last_movement.set(movement.clone());
+
     let mut cursor = ed.cursor.get_untracked();
     let modify = modifiers.shift_key();
     ed.register.update(|register| {
