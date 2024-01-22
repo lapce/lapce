@@ -1,4 +1,10 @@
-use std::{collections::HashMap, rc::Rc, str::FromStr, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
 
 use floem::{
     action::{exec_after, show_context_menu, TimerToken},
@@ -18,6 +24,7 @@ use floem_editor::{
     view::{DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase},
     visual_line::{Lines, TextLayoutProvider, VLine, VLineInfo},
 };
+use floem_editor_core::selection::SelRegion;
 use lapce_core::{
     buffer::{
         diff::DiffLines,
@@ -446,7 +453,140 @@ impl EditorData {
         cmd: &MultiSelectionCommand,
     ) -> CommandExecuted {
         let mut cursor = self.editor.cursor.get_untracked();
-        movement::do_multi_selection(&self.editor, &mut cursor, cmd);
+        let rope_text = self.rope_text();
+        let doc = self.doc();
+        let config = self.common.config.get_untracked();
+
+        // This is currently special-cased in Lapce because floem editor does not have 'find'
+        match cmd {
+            MultiSelectionCommand::SelectAllCurrent => {
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                    if !selection.is_empty() {
+                        let find = doc.find();
+
+                        let first = selection.first().unwrap();
+                        let (start, end) = if first.is_caret() {
+                            rope_text.select_word(first.start)
+                        } else {
+                            (first.min(), first.max())
+                        };
+                        let search_str = rope_text.slice_to_cow(start..end);
+                        let case_sensitive = find.case_sensitive(false);
+                        let multicursor_case_sensitive =
+                            config.editor.multicursor_case_sensitive;
+                        let case_sensitive =
+                            multicursor_case_sensitive || case_sensitive;
+                        // let search_whole_word = config.editor.multicursor_whole_words;
+                        find.set_case_sensitive(case_sensitive);
+                        find.set_find(&search_str);
+                        let mut offset = 0;
+                        while let Some((start, end)) =
+                            find.next(rope_text.text(), offset, false, false)
+                        {
+                            offset = end;
+                            selection.add_region(SelRegion::new(start, end, None));
+                        }
+                    }
+                    cursor.set_insert(selection);
+                }
+            }
+            MultiSelectionCommand::SelectNextCurrent => {
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                    if !selection.is_empty() {
+                        let mut had_caret = false;
+                        for region in selection.regions_mut() {
+                            if region.is_caret() {
+                                had_caret = true;
+                                let (start, end) =
+                                    rope_text.select_word(region.start);
+                                region.start = start;
+                                region.end = end;
+                            }
+                        }
+                        if !had_caret {
+                            let find = doc.find();
+
+                            let r = selection.last_inserted().unwrap();
+                            let search_str =
+                                rope_text.slice_to_cow(r.min()..r.max());
+                            let case_sensitive = find.case_sensitive(false);
+                            let case_sensitive =
+                                config.editor.multicursor_case_sensitive
+                                    || case_sensitive;
+                            // let search_whole_word =
+                            // config.editor.multicursor_whole_words;
+                            find.set_case_sensitive(case_sensitive);
+                            find.set_find(&search_str);
+                            let mut offset = r.max();
+                            let mut seen = HashSet::new();
+                            while let Some((start, end)) =
+                                find.next(rope_text.text(), offset, false, true)
+                            {
+                                if !selection
+                                    .regions()
+                                    .iter()
+                                    .any(|r| r.min() == start && r.max() == end)
+                                {
+                                    selection.add_region(SelRegion::new(
+                                        start, end, None,
+                                    ));
+                                    break;
+                                }
+                                if seen.contains(&end) {
+                                    break;
+                                }
+                                offset = end;
+                                seen.insert(offset);
+                            }
+                        }
+                    }
+                    cursor.set_insert(selection);
+                }
+            }
+            MultiSelectionCommand::SelectSkipCurrent => {
+                if let CursorMode::Insert(mut selection) = cursor.mode.clone() {
+                    if !selection.is_empty() {
+                        let r = selection.last_inserted().unwrap();
+                        if r.is_caret() {
+                            let (start, end) = rope_text.select_word(r.start);
+                            selection.replace_last_inserted_region(SelRegion::new(
+                                start, end, None,
+                            ));
+                        } else {
+                            let find = doc.find();
+
+                            let search_str =
+                                rope_text.slice_to_cow(r.min()..r.max());
+                            find.set_find(&search_str);
+                            let mut offset = r.max();
+                            let mut seen = HashSet::new();
+                            while let Some((start, end)) =
+                                find.next(rope_text.text(), offset, false, true)
+                            {
+                                if !selection
+                                    .regions()
+                                    .iter()
+                                    .any(|r| r.min() == start && r.max() == end)
+                                {
+                                    selection.replace_last_inserted_region(
+                                        SelRegion::new(start, end, None),
+                                    );
+                                    break;
+                                }
+                                if seen.contains(&end) {
+                                    break;
+                                }
+                                offset = end;
+                                seen.insert(offset);
+                            }
+                        }
+                    }
+                    cursor.set_insert(selection);
+                }
+            }
+            _ => movement::do_multi_selection(&self.editor, &mut cursor, cmd),
+        };
+
         self.editor.cursor.set(cursor);
         // self.cancel_signature();
         self.cancel_completion();

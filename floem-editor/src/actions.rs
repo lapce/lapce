@@ -58,8 +58,10 @@ fn handle_edit_command_default(
             None
         };
 
-    // TODO(floem-editor): Should we instead pass the editor so that it can grab
+    // TODO: Should we instead pass the editor so that it can grab
     // modal + smart-tab (etc) if it wants?
+    // That would end up with some duplication of logic, but it would
+    // be more flexible.
     let had_edits =
         action.do_edit(&mut cursor, cmd, modal, &mut register, smart_tab);
 

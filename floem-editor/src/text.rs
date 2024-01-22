@@ -508,10 +508,7 @@ impl CommonAction for TextDocument {
     ) -> bool {
         let mut clipboard = SystemClipboard::new();
         let old_cursor = cursor.mode.clone();
-        // TODO(floem-editor): should this just be `//` by default
-        // or should it be configurable on text document
-        // or just removed here?
-        let comment_token = "";
+        // TODO: configurable comment token
         let deltas = self
             .buffer
             .try_update(|buffer| {
@@ -523,7 +520,7 @@ impl CommonAction for TextDocument {
                     register,
                     EditConf {
                         modal,
-                        comment_token,
+                        comment_token: "",
                         smart_tab,
                         keep_indent: self.keep_indent.get(),
                         auto_indent: self.auto_indent.get(),

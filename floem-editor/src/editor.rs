@@ -499,54 +499,6 @@ impl Editor {
             // move cursor to pointer position if outside current selection
             self.single_click(pointer_event);
         }
-
-        // TODO(floem-editor): should we have a default right click context menu?
-        // let is_file = doc.content.with_untracked(|content| content.is_file());
-        // let mut menu = Menu::new("");
-        // let cmds = if is_file {
-        //     vec![
-        //         Some(CommandKind::Focus(FocusCommand::GotoDefinition)),
-        //         Some(CommandKind::Focus(FocusCommand::GotoTypeDefinition)),
-        //         None,
-        //         Some(CommandKind::Focus(FocusCommand::Rename)),
-        //         None,
-        //         Some(CommandKind::Edit(EditCommand::ClipboardCut)),
-        //         Some(CommandKind::Edit(EditCommand::ClipboardCopy)),
-        //         Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
-        //         None,
-        //         Some(CommandKind::Workbench(
-        //             LapceWorkbenchCommand::PaletteCommand,
-        //         )),
-        //     ]
-        // } else {
-        //     vec![
-        //         Some(CommandKind::Edit(EditCommand::ClipboardCut)),
-        //         Some(CommandKind::Edit(EditCommand::ClipboardCopy)),
-        //         Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
-        //         None,
-        //         Some(CommandKind::Workbench(
-        //             LapceWorkbenchCommand::PaletteCommand,
-        //         )),
-        //     ]
-        // };
-        // let lapce_command = self.common.lapce_command;
-        // for cmd in cmds {
-        //     if let Some(cmd) = cmd {
-        //         menu = menu.entry(
-        //             MenuItem::new(cmd.desc().unwrap_or_else(|| cmd.str())).action(
-        //                 move || {
-        //                     lapce_command.send(LapceCommand {
-        //                         kind: cmd.clone(),
-        //                         data: None,
-        //                     })
-        //                 },
-        //             ),
-        //         );
-        //     } else {
-        //         menu = menu.separator();
-        //     }
-        // }
-        // show_context_menu(menu, None);
     }
 
     // TODO: should this have modifiers state in its api

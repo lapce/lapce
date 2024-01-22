@@ -353,7 +353,7 @@ impl Doc {
         let config = common.config;
 
         let register = common.register;
-        // TODO(floem-editor): we could have these Rcs created once and stored somewhere, maybe on
+        // TODO: we could have these Rcs created once and stored somewhere, maybe on
         // common, to avoid recreating them everytime.
         let cursor_info = CursorInfo {
             blink_interval: Rc::new(move || {
