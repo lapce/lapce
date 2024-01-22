@@ -498,16 +498,13 @@ impl Doc {
     /// Reload the document's content, and is what you should typically use when you want to *set*
     /// an existing document's content.
     pub fn reload(&self, content: Rope, set_pristine: bool) {
-        // Get the text before the edit
-        let text = self.text();
-
         // self.code_actions.clear();
         // self.inlay_hints = None;
         let delta = self
             .buffer
             .try_update(|buffer| buffer.reload(content, set_pristine))
             .unwrap();
-        self.apply_deltas(&text, &[delta]);
+        self.apply_deltas(&[delta]);
     }
 
     pub fn handle_file_changed(&self, content: Rope) {
@@ -521,13 +518,10 @@ impl Doc {
         cursor: &mut Cursor,
         s: &str,
         config: &LapceConfig,
-    ) -> Vec<(RopeDelta, InvalLines)> {
+    ) -> Vec<(Rope, RopeDelta, InvalLines)> {
         if self.content.with_untracked(|c| c.read_only()) {
             return Vec::new();
         }
-
-        // Get the text before the edit
-        let text = self.text();
 
         let old_cursor = cursor.mode.clone();
         let deltas = self.syntax.with_untracked(|syntax| {
@@ -551,7 +545,7 @@ impl Doc {
             buffer.set_cursor_before(old_cursor);
             buffer.set_cursor_after(cursor.mode.clone());
         });
-        self.apply_deltas(&text, &deltas);
+        self.apply_deltas(&deltas);
         deltas
     }
 
@@ -559,19 +553,17 @@ impl Doc {
         &self,
         edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
-    ) -> Option<(RopeDelta, InvalLines)> {
+    ) -> Option<(Rope, RopeDelta, InvalLines)> {
         if self.content.with_untracked(|c| c.read_only()) {
             return None;
         }
-        // Get the text before the edit
-        let text = self.text();
 
-        let (delta, inval_lines) = self
+        let (text, delta, inval_lines) = self
             .buffer
             .try_update(|buffer| buffer.edit(edits, edit_type))
             .unwrap();
-        self.apply_deltas(&text, &[(delta.clone(), inval_lines.clone())]);
-        Some((delta, inval_lines))
+        self.apply_deltas(&[(text.clone(), delta.clone(), inval_lines.clone())]);
+        Some((text, delta, inval_lines))
     }
 
     pub fn do_edit(
@@ -581,15 +573,12 @@ impl Doc {
         modal: bool,
         register: &mut Register,
         smart_tab: bool,
-    ) -> Vec<(RopeDelta, InvalLines)> {
+    ) -> Vec<(Rope, RopeDelta, InvalLines)> {
         if self.content.with_untracked(|c| c.read_only())
             && !cmd.not_changing_buffer()
         {
             return Vec::new();
         }
-
-        // Get the text before the edit
-        let text = self.text();
 
         let mut clipboard = SystemClipboard::new();
         let old_cursor = cursor.mode.clone();
@@ -621,18 +610,14 @@ impl Doc {
             });
         }
 
-        self.apply_deltas(&text, &deltas);
+        self.apply_deltas(&deltas);
         deltas
     }
 
-    pub fn apply_deltas(
-        &self,
-        before_text: &Rope,
-        deltas: &[(RopeDelta, InvalLines)],
-    ) {
+    pub fn apply_deltas(&self, deltas: &[(Rope, RopeDelta, InvalLines)]) {
         let rev = self.rev() - deltas.len() as u64;
         batch(|| {
-            for (i, (delta, inval)) in deltas.iter().enumerate() {
+            for (i, (_, delta, inval)) in deltas.iter().enumerate() {
                 self.update_styles(delta);
                 self.update_inlay_hints(delta);
                 self.update_diagnostics(delta);
@@ -654,7 +639,9 @@ impl Doc {
         // We use a smallvec because there is unlikely to be more than a couple of deltas
         let edits = deltas
             .iter()
-            .map(|(delta, _)| SyntaxEdit::from_delta(before_text, delta.clone()))
+            .map(|(before_text, delta, _)| {
+                SyntaxEdit::from_delta(before_text, delta.clone())
+            })
             .collect();
         self.on_update(Some(edits));
     }
@@ -1689,9 +1676,6 @@ impl CommonAction for Doc {
         is_vertical: bool,
         register: &mut Register,
     ) {
-        // Get the text before the edit
-        let text = self.text();
-
         let deltas = self
             .buffer
             .try_update(move |buffer| {
@@ -1706,7 +1690,7 @@ impl CommonAction for Doc {
                 )
             })
             .unwrap();
-        self.apply_deltas(&text, &deltas);
+        self.apply_deltas(&deltas);
     }
 
     fn do_edit(

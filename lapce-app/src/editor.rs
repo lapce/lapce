@@ -1539,7 +1539,7 @@ impl EditorData {
         let text = snippet.text();
         let mut cursor = self.cursor().get_untracked();
         let old_cursor = cursor.mode.clone();
-        let (delta, inval_lines) = self
+        let (b_text, delta, inval_lines) = self
             .doc()
             .do_raw_edit(
                 &[
@@ -1565,7 +1565,7 @@ impl EditorData {
                 buffer.set_cursor_after(cursor.mode.clone());
             });
             self.cursor().set(cursor);
-            self.apply_deltas(&[(delta, inval_lines)]);
+            self.apply_deltas(&[(b_text, delta, inval_lines)]);
             return Ok(());
         }
 
@@ -1580,7 +1580,7 @@ impl EditorData {
             buffer.set_cursor_after(cursor.mode.clone());
         });
         self.cursor().set(cursor);
-        self.apply_deltas(&[(delta, inval_lines)]);
+        self.apply_deltas(&[(b_text, delta, inval_lines)]);
         self.add_snippet_placeholders(snippet_tabs);
         Ok(())
     }
@@ -1621,11 +1621,11 @@ impl EditorData {
     ) {
         let mut cursor = self.cursor().get_untracked();
         let doc = self.doc();
-        let (delta, inval_lines) = match doc.do_raw_edit(edits, EditType::Completion)
-        {
-            Some(e) => e,
-            None => return,
-        };
+        let (text, delta, inval_lines) =
+            match doc.do_raw_edit(edits, EditType::Completion) {
+                Some(e) => e,
+                None => return,
+            };
         let selection = selection.apply_delta(&delta, true, InsertDrift::Default);
         let old_cursor = cursor.mode.clone();
         doc.buffer.update(|buffer| {
@@ -1635,7 +1635,7 @@ impl EditorData {
         });
         self.cursor().set(cursor);
 
-        self.apply_deltas(&[(delta, inval_lines)]);
+        self.apply_deltas(&[(text, delta, inval_lines)]);
     }
 
     pub fn do_text_edit(&self, edits: &[TextEdit]) {
@@ -1657,11 +1657,11 @@ impl EditorData {
         self.do_edit(&selection, &edits);
     }
 
-    fn apply_deltas(&self, deltas: &[(RopeDelta, InvalLines)]) {
+    fn apply_deltas(&self, deltas: &[(Rope, RopeDelta, InvalLines)]) {
         if !deltas.is_empty() && !self.confirmed.get_untracked() {
             self.confirmed.set(true);
         }
-        for (delta, _) in deltas {
+        for (_, delta, _) in deltas {
             // self.inactive_apply_delta(delta);
             self.update_snippet_offset(delta);
             // self.update_breakpoints(delta);
@@ -2616,7 +2616,7 @@ impl DocSignal {
 fn show_completion(
     cmd: &EditCommand,
     doc: &Rope,
-    deltas: &[(RopeDelta, InvalLines)],
+    deltas: &[(Rope, RopeDelta, InvalLines)],
 ) -> bool {
     let show_completion = match cmd {
         EditCommand::DeleteBackward
@@ -2624,12 +2624,12 @@ fn show_completion(
         | EditCommand::DeleteWordBackward
         | EditCommand::DeleteWordForward
         | EditCommand::DeleteForwardAndInsert => {
-            let start = match deltas.first().and_then(|delta| delta.0.els.first()) {
+            let start = match deltas.first().and_then(|delta| delta.1.els.first()) {
                 Some(lapce_xi_rope::DeltaElement::Copy(_, start)) => *start,
                 _ => 0,
             };
 
-            let end = match deltas.first().and_then(|delta| delta.0.els.get(1)) {
+            let end = match deltas.first().and_then(|delta| delta.1.els.get(1)) {
                 Some(lapce_xi_rope::DeltaElement::Copy(end, _)) => *end,
                 _ => 0,
             };
