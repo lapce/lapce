@@ -1796,7 +1796,7 @@ impl Styling for DocStyling {
 
     fn indent_line(&self, line: usize, line_content: &str) -> usize {
         if line_content.trim().is_empty() {
-            let text = self.doc.text();
+            let text = self.doc.rope_text();
             let offset = text.offset_of_line(line);
             if let Some(offset) =
                 self.doc.syntax.with_untracked(|s| s.parent_offset(offset))

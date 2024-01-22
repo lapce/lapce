@@ -82,7 +82,9 @@ impl PreeditData {
 
 /// A document. This holds text.  
 pub trait Document: DocumentPhantom + Downcast {
-    /// Get the text of the document
+    /// Get the text of the document  
+    /// Note: typically you should call [`Document::rope_text`] as that provides more checks and
+    /// utility functions.
     fn text(&self) -> Rope;
 
     fn rope_text(&self) -> RopeTextVal {
