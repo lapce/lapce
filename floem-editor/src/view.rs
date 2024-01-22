@@ -947,8 +947,6 @@ pub fn editor_view(
 
     let data = ViewData::new(id);
 
-    // TODO: is_active
-
     let doc = editor.doc;
     let style = editor.style;
     create_effect(move |_| {
@@ -1131,26 +1129,7 @@ pub fn editor_container_view(
                 editor_gutter(editor, is_active),
                 container(editor_content(editor, is_active, handle_key_event))
                     .style(move |s| s.size_pct(100.0, 100.0)),
-                empty().style(move |s| {
-                    s.absolute().width_pct(100.0)
-                    // TODO:
-                    // .height(sticky_header_height.get() as f32)
-                    // .apply_if(
-                    //     !config.editor.sticky_header
-                    //         || sticky_header_height.get() == 0.0
-                    //         || !editor_view.get().is_normal(),
-                    //     |s| s.hide(),
-                    // )
-                }),
-                // find_view(
-                //     editor,
-                //     find_editor,
-                //     find_focus,
-                //     replace_editor,
-                //     replace_active,
-                //     replace_focus,
-                //     is_active,
-                // ),
+                empty().style(move |s| s.absolute().width_pct(100.0)),
             ))
             .on_resize(move |rect| {
                 editor_rect.set(rect);
@@ -1160,29 +1139,9 @@ pub fn editor_container_view(
         .style(|s| s.size_pct(100.0, 100.0)),
     ))
     .on_cleanup(move || {
-        // TODO(floem-editor): We should do cleanup of the scope at least, but we also need it
-        // conditional such that it doesn't always run.
-        // if editors.with_untracked(|editors| editors.contains_key(&editor_id)) {
-        //     // editor still exist, so it might be moved to a different editor tab
-        //     return;
-        // }
-        // let editor = editor.get_untracked();
-        // let doc = editor.view.doc.get_untracked();
-        // editor.scope.dispose();
-
-        // let scratch_doc_name =
-        //     if let DocContent::Scratch { name, .. } = doc.content.get_untracked() {
-        //         Some(name.to_string())
-        //     } else {
-        //         None
-        //     };
-        // if let Some(name) = scratch_doc_name {
-        //     if !scratch_docs
-        //         .with_untracked(|scratch_docs| scratch_docs.contains_key(&name))
-        //     {
-        //         doc.scope.dispose();
-        //     }
-        // }
+        // TODO: should we have some way for doc to tell us if we're allowed to cleanup the editor?
+        let editor = editor.get_untracked();
+        editor.cx.get().dispose();
     })
     // TODO(minor): only depend on style
     .style(move |s| {
@@ -1370,8 +1329,6 @@ fn editor_content(
             let cursor_surrounding_lines =
                 editor.cursor_surrounding_lines.get_untracked() as f64;
             rect.y0 -= cursor_surrounding_lines * line_height;
-            // TODO:
-            // + sticky_header_height.get_untracked();
             rect.y1 += cursor_surrounding_lines * line_height;
             rect
         }

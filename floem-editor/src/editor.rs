@@ -53,7 +53,7 @@ pub(crate) const CHAR_WIDTH: f64 = 7.5;
 /// The data for a specific editor view
 #[derive(Clone)]
 pub struct Editor {
-    cx: Cell<Scope>,
+    pub cx: Cell<Scope>,
     effects_cx: Cell<Scope>,
 
     id: EditorId,
