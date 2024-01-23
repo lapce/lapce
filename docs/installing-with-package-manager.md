@@ -13,9 +13,8 @@ Lapce is also additionally available via:
 For Fedora Linux, Lapce is (unofficially) available via dnf RPM package manager, using nightly as of 2024.01:
 
 - [copr](https://copr.fedorainfracloud.org/coprs/titaniumtown/lapce/)
-
-Install with:
+  
 ```bash
-$ sudo dnf copr enable titaniumtown/lapce 
-$ sudo dnf install lapce
+sudo dnf copr enable titaniumtown/lapce 
+sudo dnf install lapce
 ```
