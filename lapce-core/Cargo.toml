@@ -21,7 +21,7 @@ lapce-xi-rope.workspace = true
 
 lapce-rpc.workspace = true
 
-floem-editor-core = { path = "../floem-editor-core" }
+floem-editor-core.workspace = true
 
 libloading = "0.7.3"
 slotmap = "1.0"

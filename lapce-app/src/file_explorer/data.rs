@@ -8,13 +8,13 @@ use std::{
 
 use floem::{
     action::show_context_menu,
+    editor::id::EditorId,
     ext_event::create_ext_action,
     keyboard::ModifiersState,
     menu::{Menu, MenuItem},
     reactive::{RwSignal, Scope},
     EventPropagation,
 };
-use floem_editor::id::EditorId;
 use lapce_core::{
     command::{EditCommand, FocusCommand},
     mode::Mode,
@@ -133,8 +133,7 @@ impl FileExplorerData {
             children_open_count: 0,
         });
         let rename_state = cx.create_rw_signal(RenameState::NotRenaming);
-        let rename_editor_data =
-            EditorData::new_local(cx, None, editors, common.clone());
+        let rename_editor_data = EditorData::new_local(cx, editors, common.clone());
         let data = Self {
             id: cx.create_rw_signal(0),
             root,

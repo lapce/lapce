@@ -6,13 +6,13 @@ use std::{
 
 use floem::{
     action::save_as,
+    editor::id::EditorId,
     ext_event::create_ext_action,
     file::{FileDialogOptions, FileInfo},
     keyboard::ModifiersState,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{Memo, RwSignal, Scope},
 };
-use floem_editor::id::EditorId;
 use itertools::Itertools;
 use lapce_core::{
     buffer::rope_text::RopeText, command::FocusCommand, cursor::Cursor,
@@ -262,9 +262,8 @@ impl MainSplitData {
         let locations = cx.create_rw_signal(im::Vector::new());
         let current_location = cx.create_rw_signal(0);
         let diagnostics = cx.create_rw_signal(im::HashMap::new());
-        let find_editor = EditorData::new_local(cx, None, editors, common.clone());
-        let replace_editor =
-            EditorData::new_local(cx, None, editors, common.clone());
+        let find_editor = EditorData::new_local(cx, editors, common.clone());
+        let replace_editor = EditorData::new_local(cx, editors, common.clone());
 
         let active_editor = cx.create_memo(move |_| -> Option<Rc<EditorData>> {
             let active_editor_tab = active_editor_tab.get()?;
@@ -860,24 +859,23 @@ impl MainSplitData {
             |editor_tab_id: EditorTabId, source: &EditorTabChildSource| match source
             {
                 EditorTabChildSource::Editor { doc, .. } => {
-                    let editor_id = EditorId::next();
                     let editor = EditorData::new_doc(
                         self.scope,
                         doc.clone(),
                         Some(editor_tab_id),
                         None,
-                        Some(editor_id),
                         None,
                         self.common.clone(),
                     );
                     let editor = Rc::new(editor);
+                    let editor_id = editor.id();
+
                     self.editors.update(|editors| {
                         editors.insert(editor_id, editor);
                     });
                     EditorTabChild::Editor(editor_id)
                 }
                 EditorTabChildSource::NewFileEditor => {
-                    let editor_id = EditorId::next();
                     let name = self.get_name_for_new_file();
                     let doc_content = DocContent::Scratch {
                         id: BufferId::next(),
@@ -898,11 +896,12 @@ impl MainSplitData {
                         doc,
                         Some(editor_tab_id),
                         None,
-                        Some(editor_id),
                         None,
                         self.common.clone(),
                     );
                     let editor = Rc::new(editor);
+                    let editor_id = editor.id();
+
                     self.editors.update(|editors| {
                         editors.insert(editor_id, editor);
                     });
@@ -1373,15 +1372,14 @@ impl MainSplitData {
 
         let new_child = match child {
             EditorTabChild::Editor(editor_id) => {
-                let new_editor_id = EditorId::next();
                 let editor = self.editors.get_untracked().get(editor_id)?.copy(
                     cx,
                     Some(editor_tab_id),
                     None,
-                    Some(new_editor_id),
                     None,
                 );
                 let editor = Rc::new(editor);
+                let new_editor_id = editor.id();
                 self.editors.update(|editors| {
                     editors.insert(new_editor_id, editor);
                 });

@@ -35,7 +35,7 @@ lapce-xi-rope.workspace = true
 lapce-core.workspace = true
 lapce-rpc.workspace = true
 
-floem-editor-core = { path = "../floem-editor-core" }
+floem-editor-core.workspace = true
 
 # proxy specific dependencies
 

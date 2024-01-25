@@ -1,12 +1,12 @@
 use std::{path::PathBuf, rc::Rc};
 
 use floem::{
+    editor::id::EditorId,
     ext_event::create_ext_action,
     keyboard::ModifiersState,
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope},
 };
-use floem_editor::id::EditorId;
 use lapce_core::{command::FocusCommand, mode::Mode, selection::Selection};
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
@@ -77,7 +77,7 @@ impl RenameData {
         let position = cx.create_rw_signal(Position::default());
         let layout_rect = cx.create_rw_signal(Rect::ZERO);
         let path = cx.create_rw_signal(PathBuf::new());
-        let editor = EditorData::new_local(cx, None, editors, common.clone());
+        let editor = EditorData::new_local(cx, editors, common.clone());
         Self {
             active,
             editor,

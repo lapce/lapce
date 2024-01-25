@@ -3,6 +3,14 @@ use std::{cmp, path::PathBuf, rc::Rc, sync::Arc};
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::PaintCx,
+    editor::{
+        editor::Editor,
+        view::{
+            cursor_caret, DiffSectionKind, EditorView as FloemEditorView,
+            LineRegion, ScreenLines,
+        },
+        visual_line::{RVLine, VLine},
+    },
     event::{Event, EventListener},
     id::Id,
     keyboard::ModifiersState,
@@ -20,14 +28,6 @@ use floem::{
         clip, container, dyn_stack, empty, label, scroll, stack, svg, Decorators,
     },
     EventPropagation, Renderer,
-};
-use floem_editor::{
-    editor::Editor,
-    view::{
-        cursor_caret, DiffSectionKind, EditorView as FloemEditorView, LineRegion,
-        ScreenLines,
-    },
-    visual_line::{RVLine, VLine},
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -135,7 +135,7 @@ pub fn editor_view(
             &config,
         );
 
-        id.update_state(sticky_header_info, false);
+        id.update_state(sticky_header_info);
 
         rev
     });
@@ -1605,7 +1605,7 @@ fn editor_breadcrumbs(
             ))
             .style(|s| s.items_center()),
         )
-        .on_scroll_to(move || {
+        .scroll_to(move || {
             doc.track();
             Some(Point::new(3000.0, 0.0))
         })
@@ -1697,9 +1697,9 @@ fn editor_content(
     .on_move(move |point| {
         window_origin.set(point);
     })
-    .on_scroll_to(move || scroll_to.get().map(|s| s.to_point()))
-    .on_scroll_delta(move || scroll_delta.get())
-    .on_ensure_visible(move || {
+    .scroll_to(move || scroll_to.get().map(|s| s.to_point()))
+    .scroll_delta(move || scroll_delta.get())
+    .ensure_visible(move || {
         let e_data = e_data.get_untracked();
         let cursor = cursor.get();
         let offset = cursor.offset();

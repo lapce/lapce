@@ -8,6 +8,17 @@ use std::{
 
 use floem::{
     action::{exec_after, show_context_menu, TimerToken},
+    editor::{
+        command::CommandExecuted,
+        editor::Editor,
+        id::EditorId,
+        movement,
+        text::Document,
+        view::{
+            DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase,
+        },
+        visual_line::{Lines, TextLayoutProvider, VLine, VLineInfo},
+    },
     ext_event::create_ext_action,
     keyboard::ModifiersState,
     kurbo::{Point, Rect, Vec2},
@@ -15,16 +26,6 @@ use floem::{
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
     reactive::{batch, use_context, ReadSignal, RwSignal, Scope},
 };
-use floem_editor::{
-    command::CommandExecuted,
-    editor::Editor,
-    id::EditorId,
-    movement,
-    text::Document,
-    view::{DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase},
-    visual_line::{Lines, TextLayoutProvider, VLine, VLineInfo},
-};
-use floem_editor_core::selection::SelRegion;
 use lapce_core::{
     buffer::{
         diff::DiffLines,
@@ -39,7 +40,7 @@ use lapce_core::{
     editor::EditType,
     mode::{Mode, MotionMode},
     rope_text_pos::RopeTextPosition,
-    selection::{InsertDrift, Selection},
+    selection::{InsertDrift, SelRegion, Selection},
 };
 use lapce_rpc::{buffer::BufferId, plugin::PluginId, proxy::ProxyResponse};
 use lapce_xi_rope::{Rope, RopeDelta, Transformer};
@@ -107,7 +108,6 @@ impl EditorInfo {
                     Some(editor_tab_id),
                     None,
                     None,
-                    None,
                     data.common,
                 );
                 editor_data.go_to_location(
@@ -127,10 +127,10 @@ impl EditorInfo {
                 editor_data
             }
             DocContent::Local => {
-                EditorData::new_local(data.scope, None, data.editors, data.common)
+                EditorData::new_local(data.scope, data.editors, data.common)
             }
             DocContent::History(_) => {
-                EditorData::new_local(data.scope, None, data.editors, data.common)
+                EditorData::new_local(data.scope, data.editors, data.common)
             }
             DocContent::Scratch { name, .. } => {
                 let doc = data
@@ -159,7 +159,6 @@ impl EditorInfo {
                     data.scope,
                     doc,
                     Some(editor_tab_id),
-                    None,
                     None,
                     None,
                     data.common,
@@ -238,12 +237,19 @@ impl EditorData {
 
     pub fn new_local(
         cx: Scope,
-        editor_id: Option<EditorId>,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        common: Rc<CommonData>,
+    ) -> Self {
+        Self::new_local_id(cx, EditorId::next(), editors, common)
+    }
+
+    pub fn new_local_id(
+        cx: Scope,
+        editor_id: EditorId,
         editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
-        let editor_id = editor_id.unwrap_or_else(EditorId::next);
         let doc = Rc::new(Doc::new_local(cx, editors, common.clone()));
         let editor = doc.create_editor(cx, editor_id);
         Self::new(cx, editor, None, None, None, common)
@@ -254,11 +260,10 @@ impl EditorData {
         doc: Rc<Doc>,
         editor_tab_id: Option<EditorTabId>,
         diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
-        editor_id: Option<EditorId>,
         confirmed: Option<RwSignal<bool>>,
         common: Rc<CommonData>,
     ) -> Self {
-        let editor = doc.create_editor(cx, editor_id.unwrap_or_else(EditorId::next));
+        let editor = doc.create_editor(cx, EditorId::next());
         Self::new(cx, editor, editor_tab_id, diff_editor_id, confirmed, common)
     }
 
@@ -273,25 +278,20 @@ impl EditorData {
         cx: Scope,
         editor_tab_id: Option<EditorTabId>,
         diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
-        editor_id: Option<EditorId>,
         confirmed: Option<RwSignal<bool>>,
     ) -> Self {
         let cx = cx.create_child();
+
         let confirmed = confirmed.unwrap_or_else(|| cx.create_rw_signal(true));
-        EditorData {
-            scope: cx,
-            editor_tab_id: cx.create_rw_signal(editor_tab_id),
-            diff_editor_id: cx.create_rw_signal(diff_editor_id),
-            confirmed,
-            snippet: cx.create_rw_signal(None),
-            inline_find: cx.create_rw_signal(None),
-            last_inline_find: cx.create_rw_signal(None),
-            find_focus: cx.create_rw_signal(false),
-            editor: Rc::new(self.editor.duplicate(editor_id, true, true)),
-            kind: cx.create_rw_signal(self.kind.get_untracked().clone()),
-            sticky_header_height: cx.create_rw_signal(0.0),
-            common: self.common.clone(),
-        }
+
+        Self::new_doc(
+            cx,
+            self.doc(),
+            editor_tab_id,
+            diff_editor_id,
+            Some(confirmed),
+            self.common.clone(),
+        )
     }
 
     pub fn id(&self) -> EditorId {

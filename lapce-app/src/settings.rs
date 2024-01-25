@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Duration};
 use floem::{
     action::{exec_after, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
+    editor::id::EditorId,
     event::EventListener,
     keyboard::ModifiersState,
     peniko::{
@@ -20,7 +21,6 @@ use floem::{
         virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
 };
-use floem_editor::id::EditorId;
 use indexmap::IndexMap;
 use inflector::Inflector;
 use lapce_core::mode::Mode;
@@ -318,7 +318,7 @@ pub fn settings_view(
     let view_settings_data = settings_data.clone();
     let plugin_kinds = settings_data.plugin_kinds;
 
-    let search_editor = EditorData::new_local(cx, None, editors, common);
+    let search_editor = EditorData::new_local(cx, editors, common);
     let doc = search_editor.doc_signal();
 
     let items = settings_data.items.clone();
@@ -511,7 +511,7 @@ pub fn settings_view(
                 .on_scroll(move |rect| {
                     scroll_pos.set(rect.origin());
                 })
-                .on_ensure_visible(move || ensure_visible.get())
+                .ensure_visible(move || ensure_visible.get())
                 .on_resize(move |rect| {
                     settings_content_size.set(rect.size());
                 })
@@ -554,7 +554,7 @@ fn settings_item_view(
             let cx = Scope::current();
             if let Some(editor_value) = editor_value {
                 let editor =
-                    EditorData::new_local(cx, None, editors, settings_data.common);
+                    EditorData::new_local(cx, editors, settings_data.common);
                 let doc = editor.doc();
                 doc.reload(Rope::from(editor_value), true);
 
@@ -925,8 +925,7 @@ fn color_section_list(
             move |(key, _)| (key.to_owned()),
             move |(key, value)| {
                 let cx = Scope::current();
-                let editor =
-                    EditorData::new_local(cx, None, editors, common.clone());
+                let editor = EditorData::new_local(cx, editors, common.clone());
                 let doc = editor.doc();
                 doc.reload(Rope::from(value.clone()), true);
 

@@ -172,7 +172,9 @@ impl AppData {
     }
 
     fn default_window_config(&self) -> WindowConfig {
-        WindowConfig::default().themed(false).title("Lapce")
+        WindowConfig::default()
+            .apply_default_theme(false)
+            .title("Lapce")
     }
 
     pub fn new_window(&self) {
@@ -911,7 +913,7 @@ fn editor_tab_header(
             .on_scroll(move |rect| {
                 scroll_offset.set(rect);
             })
-            .on_ensure_visible(move || {
+            .ensure_visible(move || {
                 let active = editor_tab_active.get();
                 editor_tab
                     .with_untracked(|editor_tab| editor_tab.children[active].1)
@@ -2399,7 +2401,7 @@ fn palette_content(
             )
             .style(|s| s.width_full().flex_col())
         })
-        .on_ensure_visible(move || {
+        .ensure_visible(move || {
             Size::new(1.0, palette_item_height)
                 .to_rect()
                 .with_origin(Point::new(
@@ -2768,7 +2770,7 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
                 .flex_col()
         }),
     )
-    .on_ensure_visible(move || {
+    .ensure_visible(move || {
         let config = config.get();
         let active = active.get();
         Size::new(1.0, config.editor.line_height() as f64)
@@ -2839,7 +2841,7 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
         )
         .style(|s| s.width_full().padding_vert(4.0)),
     )
-    .on_ensure_visible(move || {
+    .ensure_visible(move || {
         let config = config.get();
         let active = active.get();
         Size::new(1.0, config.editor.line_height() as f64)

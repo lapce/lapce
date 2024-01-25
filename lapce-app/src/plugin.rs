@@ -7,6 +7,7 @@ use std::{
 use anyhow::Result;
 use floem::{
     action::show_context_menu,
+    editor::id::EditorId,
     ext_event::create_ext_action,
     keyboard::ModifiersState,
     kurbo::Rect,
@@ -21,7 +22,6 @@ use floem::{
         scroll, stack, svg, text, Decorators,
     },
 };
-use floem_editor::id::EditorId;
 use indexmap::IndexMap;
 use lapce_core::{directory::Directory, mode::Mode};
 use lapce_proxy::plugin::{download_volt, volt_icon, wasi::find_all_volts};
@@ -155,7 +155,7 @@ impl PluginData {
             volts: cx.create_rw_signal(IndexMap::new()),
             total: cx.create_rw_signal(0),
             query_id: cx.create_rw_signal(0),
-            query_editor: EditorData::new_local(cx, None, editors, common.clone()),
+            query_editor: EditorData::new_local(cx, editors, common.clone()),
         };
         let disabled = cx.create_rw_signal(disabled);
         let workspace_disabled = cx.create_rw_signal(workspace_disabled);

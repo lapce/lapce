@@ -3,15 +3,15 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Wrap},
-    reactive::Scope,
-};
-use floem_editor::{
-    layout::TextLayoutLine,
-    phantom_text::PhantomTextLine,
-    visual_line::{
-        FontSizeCacheId, LineFontSizeProvider, Lines, ResolvedWrap,
-        TextLayoutProvider, VLine,
+    editor::{
+        layout::TextLayoutLine,
+        phantom_text::PhantomTextLine,
+        visual_line::{
+            FontSizeCacheId, LineFontSizeProvider, Lines, ResolvedWrap,
+            TextLayoutProvider, VLine,
+        },
     },
+    reactive::Scope,
 };
 use lapce_core::{
     buffer::rope_text::{RopeText, RopeTextRef},

@@ -11,23 +11,24 @@ use std::{
 use floem::{
     action::exec_after,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
+    editor::{
+        actions::CommonAction,
+        color::EditorColor,
+        command::{Command, CommandExecuted},
+        editor::{CursorInfo, Editor},
+        id::EditorId,
+        layout::{LineExtraStyle, TextLayoutLine},
+        phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
+        text::{
+            Document, DocumentPhantom, PreeditData, RenderWhitespace, Styling,
+            SystemClipboard, WrapMethod,
+        },
+        view::{ScreenLines, ScreenLinesBase},
+    },
     ext_event::create_ext_action,
     keyboard::ModifiersState,
     peniko::Color,
     reactive::{batch, ReadSignal, RwSignal, Scope},
-};
-use floem_editor::{
-    actions::CommonAction,
-    color::EditorColor,
-    command::{Command, CommandExecuted},
-    editor::{CursorInfo, Editor},
-    id::EditorId,
-    layout::LineExtraStyle,
-    phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
-    text::{
-        Document, DocumentPhantom, PreeditData, Styling, SystemClipboard, WrapMethod,
-    },
-    view::{ScreenLines, ScreenLinesBase},
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -363,15 +364,10 @@ impl Doc {
             hidden: common.window_common.hide_cursor,
             should_blink: Rc::new(should_blink(common.focus, common.keyboard_focus)),
         };
-        let mut editor = Editor::new(
-            cx,
-            id,
-            self.clone(),
-            self.styling(),
-            Some(register),
-            Some(cursor_info),
-        );
+        let mut editor = Editor::new_direct(cx, id, self.clone(), self.styling());
 
+        editor.register = register;
+        editor.cursor_info = cursor_info;
         editor.ime_allowed = common.window_common.ime_allowed;
 
         // Updating editor fields based on config
@@ -417,8 +413,6 @@ impl Doc {
             });
         });
 
-        // TODO: use an alternate function or parameter for Editor::new which skips
-        // creating the view effects immediately, to avoid creating them twice
         editor.recreate_view_effects();
 
         editor
@@ -1490,10 +1484,7 @@ impl Document for Doc {
     }
 }
 impl DocumentPhantom for Doc {
-    fn phantom_text(
-        &self,
-        line: usize,
-    ) -> floem_editor::phantom_text::PhantomTextLine {
+    fn phantom_text(&self, line: usize) -> PhantomTextLine {
         let config = &self.common.config.get_untracked();
 
         let (start_offset, end_offset) = self.buffer.with_untracked(|buffer| {
@@ -1839,16 +1830,12 @@ impl Styling for DocStyling {
         }
     }
 
-    fn render_whitespace(&self) -> floem_editor::text::RenderWhitespace {
+    fn render_whitespace(&self) -> RenderWhitespace {
         self.config
             .with_untracked(|config| config.editor.render_whitespace)
     }
 
-    fn apply_layout_styles(
-        &self,
-        line: usize,
-        layout_line: &mut floem_editor::layout::TextLayoutLine,
-    ) {
+    fn apply_layout_styles(&self, line: usize, layout_line: &mut TextLayoutLine) {
         let doc = &self.doc;
         let config = doc.common.config.get_untracked();
 

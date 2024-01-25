@@ -1,10 +1,10 @@
 use std::{path::PathBuf, rc::Rc};
 
 use floem::{
+    editor::id::EditorId,
     keyboard::ModifiersState,
     reactive::{RwSignal, Scope},
 };
-use floem_editor::id::EditorId;
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
 use lapce_rpc::source_control::FileDiff;
@@ -71,12 +71,7 @@ impl SourceControlData {
             branch: cx.create_rw_signal("".to_string()),
             branches: cx.create_rw_signal(im::Vector::new()),
             tags: cx.create_rw_signal(im::Vector::new()),
-            editor: Rc::new(EditorData::new_local(
-                cx,
-                None,
-                editors,
-                common.clone(),
-            )),
+            editor: Rc::new(EditorData::new_local(cx, editors, common.clone())),
             common,
         }
     }

@@ -1,6 +1,7 @@
 use std::{rc::Rc, sync::atomic};
 
 use floem::{
+    editor::id::EditorId,
     event::EventListener,
     ext_event::create_ext_action,
     reactive::{RwSignal, Scope},
@@ -8,7 +9,6 @@ use floem::{
     view::View,
     views::{clip, dyn_stack, empty, label, stack, svg, Decorators},
 };
-use floem_editor::id::EditorId;
 use lapce_core::buffer::{
     diff::{expand_diff_lines, rope_diff, DiffExpand, DiffLines},
     rope_text::RopeText,
@@ -160,7 +160,6 @@ impl DiffEditorData {
                 doc,
                 None,
                 Some((editor_tab_id, id)),
-                None,
                 Some(confirmed),
                 common.clone(),
             );
@@ -204,7 +203,6 @@ impl DiffEditorData {
                 cx,
                 None,
                 Some((editor_tab_id, diff_editor_id)),
-                None,
                 Some(confirmed),
             );
 

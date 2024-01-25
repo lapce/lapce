@@ -340,7 +340,7 @@ fn available_view(plugin: PluginData) -> impl View {
                     }),
             )
             .hide_bar(|| true)
-            .on_ensure_visible(move || {
+            .ensure_visible(move || {
                 Size::new(20.0, 0.0)
                     .to_rect()
                     .with_origin(Point::new(cursor_x.get(), 0.0))

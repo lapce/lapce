@@ -1,10 +1,10 @@
 use std::{borrow::Cow, path::PathBuf, str::FromStr, sync::Arc};
 
 use floem::{
+    editor::{id::EditorId, text::Document},
     peniko::kurbo::Rect,
     reactive::{ReadSignal, RwSignal, Scope},
 };
-use floem_editor::{id::EditorId, text::Document};
 use lapce_core::{
     buffer::rope_text::RopeText, movement::Movement, rope_text_pos::RopeTextPosition,
 };

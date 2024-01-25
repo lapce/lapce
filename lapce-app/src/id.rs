@@ -1,4 +1,4 @@
-use floem_editor::id::Id;
+use floem::editor::id::Id;
 
 pub type SplitId = Id;
 pub type WindowTabId = Id;

@@ -37,17 +37,17 @@ pub fn focus_text(
 
     create_effect(move |_| {
         let new_text = text();
-        id.update_state(FocusTextState::Text(new_text), false);
+        id.update_state(FocusTextState::Text(new_text));
     });
 
     create_effect(move |_| {
         let focus_color = focus_color();
-        id.update_state(FocusTextState::FocusColor(focus_color), false);
+        id.update_state(FocusTextState::FocusColor(focus_color));
     });
 
     create_effect(move |_| {
         let focus_indices = focus_indices();
-        id.update_state(FocusTextState::FocusIndices(focus_indices), false);
+        id.update_state(FocusTextState::FocusIndices(focus_indices));
     });
 
     FocusText {

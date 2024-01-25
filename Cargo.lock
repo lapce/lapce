@@ -1259,6 +1259,9 @@ name = "cursor-icon"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96a6ac251f4a2aca6b3f91340350eab87ae57c3f127ffeb585e92bd336717991"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "d3d12"
@@ -1679,8 +1682,8 @@ dependencies = [
  "copypasta",
  "crossbeam-channel",
  "educe",
- "floem_reactive",
- "floem_renderer",
+ "floem_reactive 0.1.0",
+ "floem_renderer 0.1.0",
  "floem_tiny_skia",
  "floem_vger",
  "im",
@@ -1701,15 +1704,88 @@ dependencies = [
 ]
 
 [[package]]
+name = "floem"
+version = "0.1.1"
+dependencies = [
+ "bitflags 2.4.0",
+ "copypasta",
+ "crossbeam-channel",
+ "downcast-rs",
+ "educe",
+ "floem-editor-core 0.1.1",
+ "floem-peniko",
+ "floem-winit",
+ "floem_reactive 0.1.1",
+ "floem_renderer 0.1.1",
+ "floem_tiny_skia_renderer",
+ "floem_vger_renderer",
+ "im",
+ "im-rc",
+ "image",
+ "indexmap 2.0.2",
+ "kurbo",
+ "lapce-xi-rope",
+ "once_cell",
+ "parking_lot 0.12.1",
+ "raw-window-handle 0.5.2",
+ "rfd",
+ "rustc-hash",
+ "serde",
+ "sha2",
+ "smallvec",
+ "strum",
+ "strum_macros",
+ "taffy",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "floem-cosmic-text"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "874758f33d4d911ae825fbd610feb310df8c0c69982e51b1bf37fccffed3eef2"
+dependencies = [
+ "floem-peniko",
+ "fontdb 0.16.0",
+ "libm",
+ "log",
+ "once_cell",
+ "ouroboros",
+ "parking_lot 0.12.1",
+ "rangemap",
+ "rustybuzz 0.8.0",
+ "stretto",
+ "swash",
+ "sys-locale",
+ "ttf-parser 0.18.1",
+ "unicode-bidi",
+ "unicode-linebreak",
+ "unicode-script",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "floem-editor"
 version = "0.3.1"
 dependencies = [
  "downcast-rs",
- "floem",
- "floem-editor-core",
+ "floem 0.1.0",
+ "floem-editor-core 0.3.1",
  "lapce-xi-rope",
  "serde",
  "smallvec",
+ "strum",
+ "strum_macros",
+ "tracing 0.2.0",
+]
+
+[[package]]
+name = "floem-editor-core"
+version = "0.1.1"
+dependencies = [
+ "bitflags 1.3.2",
+ "itertools",
+ "lapce-xi-rope",
  "strum",
  "strum_macros",
  "tracing 0.2.0",
@@ -1729,9 +1805,89 @@ dependencies = [
 ]
 
 [[package]]
+name = "floem-peniko"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f505394c816e710e2b664647a7a1a4ffdf45e3b3493ad6560d9489f23100430"
+dependencies = [
+ "kurbo",
+ "smallvec",
+]
+
+[[package]]
+name = "floem-vger"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0745091a847446ef1bb33ca56edd7b4597560b8b8bedacee9b3b39208985373"
+dependencies = [
+ "euclid",
+ "floem-cosmic-text",
+ "fontdue",
+ "rect_packer",
+ "wgpu",
+]
+
+[[package]]
+name = "floem-winit"
+version = "0.29.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fc88e6b23b93c7ba38e9cd465d2d0cbd3cd4999f05f685349e2b3cdfe88813a"
+dependencies = [
+ "ahash 0.8.3",
+ "android-activity",
+ "atomic-waker",
+ "bitflags 2.4.0",
+ "bytemuck",
+ "calloop",
+ "cfg_aliases",
+ "core-foundation",
+ "core-graphics",
+ "cursor-icon",
+ "icrate",
+ "js-sys",
+ "libc",
+ "log",
+ "memmap2 0.9.0",
+ "ndk",
+ "ndk-sys",
+ "objc2",
+ "once_cell",
+ "orbclient",
+ "percent-encoding",
+ "raw-window-handle 0.5.2",
+ "raw-window-handle 0.6.0",
+ "redox_syscall 0.3.5",
+ "rustix 0.38.20",
+ "sctk-adwaita",
+ "serde",
+ "smithay-client-toolkit",
+ "smol_str",
+ "unicode-segmentation",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wayland-backend 0.3.2",
+ "wayland-client 0.31.1",
+ "wayland-protocols",
+ "wayland-protocols-plasma",
+ "web-sys",
+ "web-time",
+ "windows-sys 0.48.0",
+ "x11-dl",
+ "x11rb 0.13.0",
+ "xkbcommon-dl",
+]
+
+[[package]]
 name = "floem_reactive"
 version = "0.1.0"
 source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
+name = "floem_reactive"
+version = "0.1.1"
 dependencies = [
  "smallvec",
 ]
@@ -1748,16 +1904,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "floem_renderer"
+version = "0.1.1"
+dependencies = [
+ "floem-cosmic-text",
+ "floem-peniko",
+ "image",
+ "resvg",
+]
+
+[[package]]
 name = "floem_tiny_skia"
 version = "0.1.0"
 source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
 dependencies = [
  "anyhow",
  "bytemuck",
- "floem_renderer",
+ "floem_renderer 0.1.0",
  "futures",
  "image",
  "peniko",
+ "raw-window-handle 0.5.2",
+ "resvg",
+ "softbuffer",
+ "swash",
+]
+
+[[package]]
+name = "floem_tiny_skia_renderer"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "floem-peniko",
+ "floem_renderer 0.1.1",
+ "futures",
+ "image",
  "raw-window-handle 0.5.2",
  "resvg",
  "softbuffer",
@@ -1770,7 +1952,7 @@ version = "0.1.0"
 source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
 dependencies = [
  "anyhow",
- "floem_renderer",
+ "floem_renderer 0.1.0",
  "futures",
  "image",
  "peniko",
@@ -1778,6 +1960,22 @@ dependencies = [
  "resvg",
  "swash",
  "vger",
+ "wgpu",
+]
+
+[[package]]
+name = "floem_vger_renderer"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "floem-peniko",
+ "floem-vger",
+ "floem_renderer 0.1.1",
+ "futures",
+ "image",
+ "raw-window-handle 0.5.2",
+ "resvg",
+ "swash",
  "wgpu",
 ]
 
@@ -2591,6 +2789,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "im-rc"
+version = "15.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af1955a75fa080c677d3972822ec4bad316169ab1cfc6c257a942c2265dbe5fe"
+dependencies = [
+ "bitmaps",
+ "rand_core",
+ "rand_xoshiro",
+ "sized-chunks",
+ "typenum",
+ "version_check",
+]
+
+[[package]]
 name = "image"
 version = "0.24.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2943,9 +3155,7 @@ dependencies = [
  "directories",
  "dmg",
  "flate2",
- "floem",
- "floem-editor",
- "floem-editor-core",
+ "floem 0.1.1",
  "fs_extra",
  "futures",
  "im",
@@ -2995,7 +3205,7 @@ dependencies = [
  "anyhow",
  "arc-swap",
  "directories",
- "floem-editor-core",
+ "floem-editor-core 0.1.1",
  "include_dir",
  "itertools",
  "lapce-rpc",
@@ -3033,7 +3243,7 @@ dependencies = [
  "directories",
  "dyn-clone",
  "flate2",
- "floem-editor-core",
+ "floem-editor-core 0.1.1",
  "git2",
  "globset",
  "grep-matcher",

@@ -1,6 +1,7 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::{
+    editor::id::EditorId,
     event::{Event, EventListener},
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
@@ -13,7 +14,6 @@ use floem::{
         VirtualDirection, VirtualItemSize,
     },
 };
-use floem_editor::id::EditorId;
 use lapce_core::mode::Modes;
 
 use crate::{
@@ -48,7 +48,7 @@ pub fn keymap_view(
     };
 
     let cx = Scope::current();
-    let editor = EditorData::new_local(cx, None, editors, common.clone());
+    let editor = EditorData::new_local(cx, editors, common.clone());
     let doc = editor.doc_signal();
 
     let items = move || {

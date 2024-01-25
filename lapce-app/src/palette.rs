@@ -124,9 +124,9 @@ impl PaletteData {
         });
         let kind = cx.create_rw_signal(PaletteKind::File);
         let input_editor =
-            EditorData::new_local(cx, None, main_split.editors, common.clone());
+            EditorData::new_local(cx, main_split.editors, common.clone());
         let preview_editor =
-            EditorData::new_local(cx, None, main_split.editors, common.clone());
+            EditorData::new_local(cx, main_split.editors, common.clone());
         let preview_editor = Rc::new(preview_editor);
         let has_preview = cx.create_rw_signal(false);
         let run_id = cx.create_rw_signal(0);

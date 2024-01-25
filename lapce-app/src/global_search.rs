@@ -107,8 +107,7 @@ impl VirtualVector<(PathBuf, SearchMatchData)> for GlobalSearchData {
 impl GlobalSearchData {
     pub fn new(cx: Scope, main_split: MainSplitData) -> Self {
         let common = main_split.common.clone();
-        let editor =
-            EditorData::new_local(cx, None, main_split.editors, common.clone());
+        let editor = EditorData::new_local(cx, main_split.editors, common.clone());
         let search_result = cx.create_rw_signal(IndexMap::new());
 
         let global_search = Self {

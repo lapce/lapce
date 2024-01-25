@@ -83,21 +83,18 @@ pub fn text_input(
                     (content, offset, None)
                 }
             };
-            id.update_state(
-                TextInputState::Content {
-                    text: content,
-                    offset,
-                    preedit_range,
-                },
-                false,
-            );
+            id.update_state(TextInputState::Content {
+                text: content,
+                offset,
+                preedit_range,
+            });
         });
     }
 
     {
         create_effect(move |_| {
             let focus = is_focused.get();
-            id.update_state(TextInputState::Focus(focus), false);
+            id.update_state(TextInputState::Focus(focus));
         });
 
         let editor = editor.clone();
@@ -251,7 +248,7 @@ impl TextInput {
         let id = self.id;
         create_effect(move |_| {
             let placeholder = placeholder();
-            id.update_state(TextInputState::Placeholder(placeholder), false);
+            id.update_state(TextInputState::Placeholder(placeholder));
         });
         self
     }

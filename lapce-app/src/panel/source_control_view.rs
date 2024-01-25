@@ -2,6 +2,7 @@ use std::{path::PathBuf, rc::Rc};
 
 use floem::{
     action::show_context_menu,
+    editor::view::{cursor_caret, LineRegion},
     event::{Event, EventListener},
     menu::{Menu, MenuItem},
     peniko::kurbo::Rect,
@@ -10,7 +11,6 @@ use floem::{
     view::View,
     views::{container, dyn_stack, label, scroll, stack, svg, Decorators},
 };
-use floem_editor::view::{cursor_caret, LineRegion};
 use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;
 
@@ -108,7 +108,7 @@ pub fn source_control_panel(
                 .on_scroll(move |rect| {
                     viewport.set(rect);
                 })
-                .on_ensure_visible(move || {
+                .ensure_visible(move || {
                     let cursor = cursor.get();
                     let offset = cursor.offset();
                     let e_data = editor.get_untracked();

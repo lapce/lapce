@@ -1,6 +1,8 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
-use floem::{keyboard::ModifiersState, peniko::kurbo::Vec2};
+use floem::{
+    editor::command::Command, keyboard::ModifiersState, peniko::kurbo::Vec2,
+};
 use indexmap::IndexMap;
 use lapce_core::command::{
     EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
@@ -28,7 +30,7 @@ use crate::{
     workspace::LapceWorkspace,
 };
 
-pub use floem_editor::command::CommandExecuted;
+pub use floem::editor::command::CommandExecuted;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LapceCommand {
@@ -72,9 +74,9 @@ impl CommandKind {
         }
     }
 }
-impl From<floem_editor::command::Command> for CommandKind {
-    fn from(cmd: floem_editor::command::Command) -> Self {
-        use floem_editor::command::Command::*;
+impl From<Command> for CommandKind {
+    fn from(cmd: Command) -> Self {
+        use Command::*;
         match cmd {
             Edit(edit) => CommandKind::Edit(edit),
             Move(movement) => CommandKind::Move(movement),

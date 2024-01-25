@@ -57,7 +57,7 @@ pub fn terminal_view(
 
     create_effect(move |_| {
         let raw = raw.get();
-        id.update_state(TerminalViewState::Raw(raw), false);
+        id.update_state(TerminalViewState::Raw(raw));
     });
 
     create_effect(move |_| {
@@ -68,7 +68,7 @@ pub fn terminal_view(
     let config = terminal_panel_data.common.config;
     create_effect(move |_| {
         config.with(|_c| {});
-        id.update_state(TerminalViewState::Config, false);
+        id.update_state(TerminalViewState::Config);
     });
 
     let proxy = terminal_panel_data.common.proxy.clone();
@@ -86,7 +86,7 @@ pub fn terminal_view(
         }
 
         if last != Some(is_focused) {
-            id.update_state(TerminalViewState::Focus(is_focused), false);
+            id.update_state(TerminalViewState::Focus(is_focused));
         }
 
         is_focused
