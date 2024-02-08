@@ -8,11 +8,11 @@ use std::{
 
 use floem::{
     action::show_context_menu,
-    editor::id::EditorId,
     ext_event::create_ext_action,
     keyboard::ModifiersState,
     menu::{Menu, MenuItem},
     reactive::{RwSignal, Scope},
+    views::editor::id::EditorId,
     EventPropagation,
 };
 use lapce_core::{

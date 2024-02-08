@@ -1,7 +1,6 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::{
-    editor::id::EditorId,
     event::{Event, EventListener},
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
@@ -10,8 +9,8 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, dyn_stack, label, scroll, stack, text, virtual_stack, Decorators,
-        VirtualDirection, VirtualItemSize,
+        container, dyn_stack, editor::id::EditorId, label, scroll, stack, text,
+        virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
     },
 };
 use lapce_core::mode::Modes;

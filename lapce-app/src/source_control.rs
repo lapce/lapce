@@ -1,9 +1,9 @@
 use std::{path::PathBuf, rc::Rc};
 
 use floem::{
-    editor::id::EditorId,
     keyboard::ModifiersState,
     reactive::{RwSignal, Scope},
+    views::editor::id::EditorId,
 };
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;

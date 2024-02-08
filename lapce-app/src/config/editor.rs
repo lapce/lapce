@@ -1,4 +1,4 @@
-use floem::editor::text::RenderWhitespace;
+use floem::views::editor::text::RenderWhitespace;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 

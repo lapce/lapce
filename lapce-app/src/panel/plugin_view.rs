@@ -100,15 +100,14 @@ fn installed_view(plugin: PluginData) -> impl View {
             dyn_container(
                 move || icon.get(),
                 move |icon| match icon {
-                    None => Box::new(
-                        img(move || VOLT_DEFAULT_PNG.to_vec())
-                            .style(|s| s.size_full()),
-                    ),
-                    Some(VoltIcon::Svg(svg_str)) => Box::new(
-                        svg(move || svg_str.clone()).style(|s| s.size_full()),
-                    ),
+                    None => img(move || VOLT_DEFAULT_PNG.to_vec())
+                        .style(|s| s.size_full())
+                        .any(),
+                    Some(VoltIcon::Svg(svg_str)) => {
+                        svg(move || svg_str.clone()).style(|s| s.size_full()).any()
+                    }
                     Some(VoltIcon::Img(buf)) => {
-                        Box::new(img(move || buf.clone()).style(|s| s.size_full()))
+                        img(move || buf.clone()).style(|s| s.size_full()).any()
                     }
                 },
             )
@@ -267,15 +266,14 @@ fn available_view(plugin: PluginData) -> impl View {
             dyn_container(
                 move || icon.get(),
                 move |icon| match icon {
-                    None => Box::new(
-                        img(move || VOLT_DEFAULT_PNG.to_vec())
-                            .style(|s| s.size_full()),
-                    ),
-                    Some(VoltIcon::Svg(svg_str)) => Box::new(
-                        svg(move || svg_str.clone()).style(|s| s.size_full()),
-                    ),
+                    None => img(move || VOLT_DEFAULT_PNG.to_vec())
+                        .style(|s| s.size_full())
+                        .any(),
+                    Some(VoltIcon::Svg(svg_str)) => {
+                        svg(move || svg_str.clone()).style(|s| s.size_full()).any()
+                    }
                     Some(VoltIcon::Img(buf)) => {
-                        Box::new(img(move || buf.clone()).style(|s| s.size_full()))
+                        img(move || buf.clone()).style(|s| s.size_full()).any()
                     }
                 },
             )

@@ -8,9 +8,14 @@ use std::{
 
 use floem::{
     action::{exec_after, show_context_menu, TimerToken},
-    editor::{
+    ext_event::create_ext_action,
+    keyboard::ModifiersState,
+    kurbo::{Point, Rect, Vec2},
+    menu::{Menu, MenuItem},
+    pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
+    reactive::{batch, use_context, ReadSignal, RwSignal, Scope},
+    views::editor::{
         command::CommandExecuted,
-        editor::Editor,
         id::EditorId,
         movement,
         text::Document,
@@ -18,13 +23,8 @@ use floem::{
             DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase,
         },
         visual_line::{Lines, TextLayoutProvider, VLine, VLineInfo},
+        Editor,
     },
-    ext_event::create_ext_action,
-    keyboard::ModifiersState,
-    kurbo::{Point, Rect, Vec2},
-    menu::{Menu, MenuItem},
-    pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
-    reactive::{batch, use_context, ReadSignal, RwSignal, Scope},
 };
 use lapce_core::{
     buffer::{
@@ -436,6 +436,7 @@ impl EditorData {
         let mut register = self.common.register.get_untracked();
 
         movement::do_motion_mode(
+            &self.editor,
             &*self.doc(),
             &mut cursor,
             motion_mode,

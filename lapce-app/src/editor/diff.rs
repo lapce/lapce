@@ -1,13 +1,14 @@
 use std::{rc::Rc, sync::atomic};
 
 use floem::{
-    editor::id::EditorId,
     event::EventListener,
     ext_event::create_ext_action,
     reactive::{RwSignal, Scope},
     style::CursorStyle,
     view::View,
-    views::{clip, dyn_stack, empty, label, stack, svg, Decorators},
+    views::{
+        clip, dyn_stack, editor::id::EditorId, empty, label, stack, svg, Decorators,
+    },
 };
 use lapce_core::buffer::{
     diff::{expand_diff_lines, rope_diff, DiffExpand, DiffLines},

@@ -3,14 +3,6 @@ use std::{cmp, path::PathBuf, rc::Rc, sync::Arc};
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::PaintCx,
-    editor::{
-        editor::Editor,
-        view::{
-            cursor_caret, DiffSectionKind, EditorView as FloemEditorView,
-            LineRegion, ScreenLines,
-        },
-        visual_line::{RVLine, VLine},
-    },
     event::{Event, EventListener},
     id::Id,
     keyboard::ModifiersState,
@@ -23,9 +15,18 @@ use floem::{
     },
     style::{CursorStyle, Style},
     taffy::prelude::Node,
-    view::{View, ViewData},
+    view::{AnyWidget, View, ViewData, Widget},
     views::{
-        clip, container, dyn_stack, empty, label, scroll, stack, svg, Decorators,
+        clip, container, dyn_stack,
+        editor::{
+            view::{
+                cursor_caret, DiffSectionKind, EditorView as FloemEditorView,
+                LineRegion, ScreenLines,
+            },
+            visual_line::{RVLine, VLine},
+            Editor,
+        },
+        empty, label, scroll, stack, svg, Decorators,
     },
     EventPropagation, Renderer,
 };
@@ -56,7 +57,6 @@ struct StickyHeaderInfo {
 }
 
 pub struct EditorView {
-    id: Id,
     data: ViewData,
     editor: Rc<EditorData>,
     is_active: Memo<bool>,
@@ -175,7 +175,6 @@ pub fn editor_view(
     });
 
     EditorView {
-        id,
         data: ViewData::new(id),
         editor: e_data,
         is_active,
@@ -908,10 +907,20 @@ impl EditorView {
 }
 
 impl View for EditorView {
-    fn id(&self) -> Id {
-        self.id
+    fn view_data(&self) -> &ViewData {
+        &self.data
     }
 
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
+    }
+
+    fn build(self) -> AnyWidget {
+        Box::new(self)
+    }
+}
+
+impl Widget for EditorView {
     fn view_data(&self) -> &ViewData {
         &self.data
     }
@@ -927,7 +936,7 @@ impl View for EditorView {
     ) {
         if let Ok(state) = state.downcast() {
             self.sticky_header_info = *state;
-            cx.request_layout(self.id);
+            cx.request_layout(self.data.id());
         }
     }
 
@@ -935,7 +944,7 @@ impl View for EditorView {
         &mut self,
         cx: &mut floem::context::LayoutCx,
     ) -> floem::taffy::prelude::Node {
-        cx.layout_node(self.id, true, |cx| {
+        cx.layout_node(self.data.id(), true, |cx| {
             if self.inner_node.is_none() {
                 self.inner_node = Some(cx.new_node());
             }

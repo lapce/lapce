@@ -24,7 +24,6 @@ members = [
   "lapce-proxy",
   "lapce-rpc",
   "lapce-core",
-  "floem-editor", "floem-editor-core",
 ]
 
 [workspace.package]
@@ -73,7 +72,8 @@ lapce-core = { path = "./lapce-core" }
 lapce-rpc = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
-floem-editor-core = { git = "https://github.com/lapce/floem", rev = "ac058755a44a59db3e49815b0c811419a34c465e", features = ["editor", "serde"] }
+floem-editor-core = { git = "https://github.com/lapce/floem", rev = "d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1", features = ["serde"] }
+# floem-editor-core = { path = "../workspaces/floem/editor-core/", features = ["serde"] }
 
 [patch.crates-io]
 # Temporarily patch lsp-types with a version that supports inline-completion

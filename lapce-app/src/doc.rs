@@ -2,6 +2,7 @@ use std::{
     borrow::Cow,
     cell::RefCell,
     collections::HashMap,
+    ops::Range,
     path::{Path, PathBuf},
     rc::Rc,
     sync::{atomic, Arc},
@@ -11,11 +12,14 @@ use std::{
 use floem::{
     action::exec_after,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
-    editor::{
+    ext_event::create_ext_action,
+    keyboard::ModifiersState,
+    peniko::Color,
+    reactive::{batch, ReadSignal, RwSignal, Scope},
+    views::editor::{
         actions::CommonAction,
         color::EditorColor,
         command::{Command, CommandExecuted},
-        editor::{CursorInfo, Editor},
         id::EditorId,
         layout::{LineExtraStyle, TextLayoutLine},
         phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
@@ -24,11 +28,8 @@ use floem::{
             SystemClipboard, WrapMethod,
         },
         view::{ScreenLines, ScreenLinesBase},
+        CursorInfo, Editor,
     },
-    ext_event::create_ext_action,
-    keyboard::ModifiersState,
-    peniko::Color,
-    reactive::{batch, ReadSignal, RwSignal, Scope},
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -1482,6 +1483,18 @@ impl Document for Doc {
 
         editor_data.receive_char(c);
     }
+
+    fn edit(
+        &self,
+        iter: &mut dyn Iterator<Item = (Selection, &str)>,
+        edit_type: EditType,
+    ) {
+        let delta = self
+            .buffer
+            .try_update(|buffer| buffer.edit(iter, edit_type))
+            .unwrap();
+        self.apply_deltas(&[delta]);
+    }
 }
 impl DocumentPhantom for Doc {
     fn phantom_text(&self, line: usize) -> PhantomTextLine {
@@ -1660,10 +1673,10 @@ impl DocumentPhantom for Doc {
 impl CommonAction for Doc {
     fn exec_motion_mode(
         &self,
+        _ed: &Editor,
         cursor: &mut Cursor,
         motion_mode: MotionMode,
-        start: usize,
-        end: usize,
+        range: Range<usize>,
         is_vertical: bool,
         register: &mut Register,
     ) {
@@ -1674,8 +1687,7 @@ impl CommonAction for Doc {
                     cursor,
                     buffer,
                     motion_mode,
-                    start,
-                    end,
+                    range,
                     is_vertical,
                     register,
                 )
@@ -1686,6 +1698,7 @@ impl CommonAction for Doc {
 
     fn do_edit(
         &self,
+        _ed: &Editor,
         cursor: &mut Cursor,
         cmd: &EditCommand,
         modal: bool,

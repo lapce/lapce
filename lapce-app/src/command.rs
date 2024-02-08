@@ -1,7 +1,7 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
-    editor::command::Command, keyboard::ModifiersState, peniko::kurbo::Vec2,
+    keyboard::ModifiersState, peniko::kurbo::Vec2, views::editor::command::Command,
 };
 use indexmap::IndexMap;
 use lapce_core::command::{
@@ -30,7 +30,7 @@ use crate::{
     workspace::LapceWorkspace,
 };
 
-pub use floem::editor::command::CommandExecuted;
+pub use floem::views::editor::command::CommandExecuted;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LapceCommand {

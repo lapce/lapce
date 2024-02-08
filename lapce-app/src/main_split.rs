@@ -6,12 +6,12 @@ use std::{
 
 use floem::{
     action::save_as,
-    editor::id::EditorId,
     ext_event::create_ext_action,
     file::{FileDialogOptions, FileInfo},
     keyboard::ModifiersState,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{Memo, RwSignal, Scope},
+    views::editor::id::EditorId,
 };
 use itertools::Itertools;
 use lapce_core::{

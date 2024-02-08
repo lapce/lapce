@@ -972,30 +972,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cosmic-text"
-version = "0.7.0"
-source = "git+https://github.com/lapce/cosmic-text?rev=fdc5165f79bb24c76bfeb335dbfa133094636e25#fdc5165f79bb24c76bfeb335dbfa133094636e25"
-dependencies = [
- "fontdb 0.16.0",
- "libm",
- "log",
- "once_cell",
- "ouroboros",
- "parking_lot 0.12.1",
- "peniko",
- "rangemap",
- "rustybuzz 0.8.0",
- "stretto",
- "swash",
- "sys-locale",
- "ttf-parser 0.18.1",
- "unicode-bidi",
- "unicode-linebreak",
- "unicode-script",
- "unicode-segmentation",
-]
-
-[[package]]
 name = "cov-mark"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1675,48 +1651,19 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 
 [[package]]
 name = "floem"
-version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
-dependencies = [
- "bitflags 2.4.0",
- "copypasta",
- "crossbeam-channel",
- "educe",
- "floem_reactive 0.1.0",
- "floem_renderer 0.1.0",
- "floem_tiny_skia",
- "floem_vger",
- "im",
- "image",
- "indexmap 2.0.2",
- "kurbo",
- "once_cell",
- "parking_lot 0.12.1",
- "peniko",
- "raw-window-handle 0.5.2",
- "rfd",
- "rustc-hash",
- "sha2",
- "smallvec",
- "taffy",
- "unicode-segmentation",
- "winit",
-]
-
-[[package]]
-name = "floem"
 version = "0.1.1"
+source = "git+https://github.com/lapce/floem?rev=d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1#d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1"
 dependencies = [
  "bitflags 2.4.0",
  "copypasta",
  "crossbeam-channel",
  "downcast-rs",
  "educe",
- "floem-editor-core 0.1.1",
+ "floem-editor-core",
  "floem-peniko",
  "floem-winit",
- "floem_reactive 0.1.1",
- "floem_renderer 0.1.1",
+ "floem_reactive",
+ "floem_renderer",
  "floem_tiny_skia_renderer",
  "floem_vger_renderer",
  "im",
@@ -1765,35 +1712,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "floem-editor"
-version = "0.3.1"
-dependencies = [
- "downcast-rs",
- "floem 0.1.0",
- "floem-editor-core 0.3.1",
- "lapce-xi-rope",
- "serde",
- "smallvec",
- "strum",
- "strum_macros",
- "tracing 0.2.0",
-]
-
-[[package]]
 name = "floem-editor-core"
 version = "0.1.1"
-dependencies = [
- "bitflags 1.3.2",
- "itertools",
- "lapce-xi-rope",
- "strum",
- "strum_macros",
- "tracing 0.2.0",
-]
-
-[[package]]
-name = "floem-editor-core"
-version = "0.3.1"
+source = "git+https://github.com/lapce/floem?rev=d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1#d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1"
 dependencies = [
  "bitflags 1.3.2",
  "itertools",
@@ -1801,7 +1722,6 @@ dependencies = [
  "serde",
  "strum",
  "strum_macros",
- "tracing 0.2.0",
 ]
 
 [[package]]
@@ -1879,33 +1799,16 @@ dependencies = [
 
 [[package]]
 name = "floem_reactive"
-version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
-dependencies = [
- "smallvec",
-]
-
-[[package]]
-name = "floem_reactive"
 version = "0.1.1"
+source = "git+https://github.com/lapce/floem?rev=d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1#d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1"
 dependencies = [
  "smallvec",
 ]
 
 [[package]]
 name = "floem_renderer"
-version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
-dependencies = [
- "cosmic-text",
- "image",
- "peniko",
- "resvg",
-]
-
-[[package]]
-name = "floem_renderer"
 version = "0.1.1"
+source = "git+https://github.com/lapce/floem?rev=d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1#d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1"
 dependencies = [
  "floem-cosmic-text",
  "floem-peniko",
@@ -1914,63 +1817,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "floem_tiny_skia"
-version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
-dependencies = [
- "anyhow",
- "bytemuck",
- "floem_renderer 0.1.0",
- "futures",
- "image",
- "peniko",
- "raw-window-handle 0.5.2",
- "resvg",
- "softbuffer",
- "swash",
-]
-
-[[package]]
 name = "floem_tiny_skia_renderer"
 version = "0.1.1"
+source = "git+https://github.com/lapce/floem?rev=d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1#d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1"
 dependencies = [
  "anyhow",
  "bytemuck",
  "floem-peniko",
- "floem_renderer 0.1.1",
+ "floem_renderer",
  "futures",
  "image",
  "raw-window-handle 0.5.2",
  "resvg",
  "softbuffer",
  "swash",
-]
-
-[[package]]
-name = "floem_vger"
-version = "0.1.0"
-source = "git+https://github.com/lapce/floem?rev=6ae536237716d606e5546edb9f72867f2bc23946#6ae536237716d606e5546edb9f72867f2bc23946"
-dependencies = [
- "anyhow",
- "floem_renderer 0.1.0",
- "futures",
- "image",
- "peniko",
- "raw-window-handle 0.5.2",
- "resvg",
- "swash",
- "vger",
- "wgpu",
 ]
 
 [[package]]
 name = "floem_vger_renderer"
 version = "0.1.1"
+source = "git+https://github.com/lapce/floem?rev=d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1#d9a3fb887f0b242eaa77be9a03df9340f7bc7bf1"
 dependencies = [
  "anyhow",
  "floem-peniko",
  "floem-vger",
- "floem_renderer 0.1.1",
+ "floem_renderer",
  "futures",
  "image",
  "raw-window-handle 0.5.2",
@@ -3155,7 +3026,7 @@ dependencies = [
  "directories",
  "dmg",
  "flate2",
- "floem 0.1.1",
+ "floem",
  "fs_extra",
  "futures",
  "im",
@@ -3205,7 +3076,7 @@ dependencies = [
  "anyhow",
  "arc-swap",
  "directories",
- "floem-editor-core 0.1.1",
+ "floem-editor-core",
  "include_dir",
  "itertools",
  "lapce-rpc",
@@ -3243,7 +3114,7 @@ dependencies = [
  "directories",
  "dyn-clone",
  "flate2",
- "floem-editor-core 0.1.1",
+ "floem-editor-core",
  "git2",
  "globset",
  "grep-matcher",
@@ -4174,15 +4045,6 @@ name = "pathdiff"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8835116a5c179084a830efb3adc117ab007512b535bc1a21c991d3b32a6b44dd"
-
-[[package]]
-name = "peniko"
-version = "0.1.0"
-source = "git+https://github.com/linebender/peniko?rev=cafdac9a211a0fb2fec5656bd663d1ac770bcc81#cafdac9a211a0fb2fec5656bd663d1ac770bcc81"
-dependencies = [
- "kurbo",
- "smallvec",
-]
 
 [[package]]
 name = "percent-encoding"
@@ -6318,18 +6180,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
-name = "vger"
-version = "0.2.7"
-source = "git+https://github.com/lapce/vger-rs?rev=1820c59e09fa731d0867a908d0ef094d27e1b3fb#1820c59e09fa731d0867a908d0ef094d27e1b3fb"
-dependencies = [
- "cosmic-text",
- "euclid",
- "fontdue",
- "rect_packer",
- "wgpu",
-]
-
-[[package]]
 name = "vte"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7526,54 +7376,6 @@ name = "windows_x86_64_msvc"
 version = "0.48.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed94fce61571a4006852b7389a063ab983c02eb1bb37b47f8272ce92d06d9538"
-
-[[package]]
-name = "winit"
-version = "0.29.4"
-source = "git+https://github.com/lapce/winit?rev=a75f4124c5f26990d061a49ae7451f4bbad8bc0e#a75f4124c5f26990d061a49ae7451f4bbad8bc0e"
-dependencies = [
- "ahash 0.8.3",
- "android-activity",
- "atomic-waker",
- "bitflags 2.4.0",
- "bytemuck",
- "calloop",
- "cfg_aliases",
- "core-foundation",
- "core-graphics",
- "cursor-icon",
- "icrate",
- "js-sys",
- "libc",
- "log",
- "memmap2 0.9.0",
- "ndk",
- "ndk-sys",
- "objc2",
- "once_cell",
- "orbclient",
- "percent-encoding",
- "raw-window-handle 0.5.2",
- "raw-window-handle 0.6.0",
- "redox_syscall 0.3.5",
- "rustix 0.38.20",
- "sctk-adwaita",
- "smithay-client-toolkit",
- "smol_str",
- "unicode-segmentation",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wayland-backend 0.3.2",
- "wayland-client 0.31.1",
- "wayland-protocols",
- "wayland-protocols-plasma",
- "web-sys",
- "web-time",
- "windows-sys 0.48.0",
- "x11-dl",
- "x11rb 0.13.0",
- "xkbcommon-dl",
-]
 
 [[package]]
 name = "winnow"

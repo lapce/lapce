@@ -3,7 +3,6 @@ use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Duration};
 use floem::{
     action::{exec_after, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
-    editor::id::EditorId,
     event::EventListener,
     keyboard::ModifiersState,
     peniko::{
@@ -16,6 +15,7 @@ use floem::{
     },
     style::CursorStyle,
     view::View,
+    views::editor::id::EditorId,
     views::{
         container, container_box, dyn_stack, empty, label, scroll, stack, svg, text,
         virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,

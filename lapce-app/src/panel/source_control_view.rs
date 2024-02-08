@@ -2,14 +2,17 @@ use std::{path::PathBuf, rc::Rc};
 
 use floem::{
     action::show_context_menu,
-    editor::view::{cursor_caret, LineRegion},
     event::{Event, EventListener},
     menu::{Menu, MenuItem},
     peniko::kurbo::Rect,
     reactive::{create_memo, create_rw_signal},
     style::{CursorStyle, Style},
     view::View,
-    views::{container, dyn_stack, label, scroll, stack, svg, Decorators},
+    views::{
+        container, dyn_stack,
+        editor::view::{cursor_caret, LineRegion},
+        label, scroll, stack, svg, Decorators,
+    },
 };
 use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;

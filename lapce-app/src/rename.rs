@@ -1,11 +1,11 @@
 use std::{path::PathBuf, rc::Rc};
 
 use floem::{
-    editor::id::EditorId,
     ext_event::create_ext_action,
     keyboard::ModifiersState,
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope},
+    views::editor::id::EditorId,
 };
 use lapce_core::{command::FocusCommand, mode::Mode, selection::Selection};
 use lapce_rpc::proxy::ProxyResponse;

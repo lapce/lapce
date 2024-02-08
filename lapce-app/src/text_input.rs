@@ -18,7 +18,7 @@ use floem::{
     },
     taffy::prelude::Node,
     unit::PxPct,
-    view::{View, ViewData},
+    view::{AnyWidget, View, ViewData, Widget},
     views::Decorators,
     EventPropagation, Renderer,
 };
@@ -413,6 +413,19 @@ impl View for TextInput {
         self.id
     }
 
+    fn view_data(&self) -> &ViewData {
+        &self.data
+    }
+
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
+    }
+
+    fn build(self) -> AnyWidget {
+        Box::new(self)
+    }
+}
+impl Widget for TextInput {
     fn view_data(&self) -> &ViewData {
         &self.data
     }

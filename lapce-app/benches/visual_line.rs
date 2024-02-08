@@ -3,7 +3,8 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Wrap},
-    editor::{
+    reactive::Scope,
+    views::editor::{
         layout::TextLayoutLine,
         phantom_text::PhantomTextLine,
         visual_line::{
@@ -11,7 +12,6 @@ use floem::{
             TextLayoutProvider, VLine,
         },
     },
-    reactive::Scope,
 };
 use lapce_core::{
     buffer::rope_text::{RopeText, RopeTextRef},

@@ -1,7 +1,7 @@
 use floem::{
-    editor::id::EditorId,
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope},
+    views::editor::id::EditorId,
 };
 
 use crate::markdown::MarkdownContent;

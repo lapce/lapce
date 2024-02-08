@@ -8,9 +8,9 @@ use alacritty_terminal::{
     Term,
 };
 use floem::{
-    editor::text::SystemClipboard,
     keyboard::{Key, KeyEvent, ModifiersState, NamedKey},
     reactive::{RwSignal, Scope},
+    views::editor::text::SystemClipboard,
 };
 use lapce_core::{
     command::{EditCommand, FocusCommand, ScrollCommand},
