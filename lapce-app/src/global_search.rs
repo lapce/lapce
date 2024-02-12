@@ -14,7 +14,6 @@ use lapce_xi_rope::Rope;
 use crate::{
     command::{CommandExecuted, CommandKind},
     editor::EditorData,
-    id::EditorId,
     keypress::{condition::Condition, KeyPressFocus},
     main_split::MainSplitData,
     window_tab::CommonData,
@@ -64,6 +63,7 @@ impl KeyPressFocus for GlobalSearchData {
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}
+            CommandKind::Scroll(_) => {}
             CommandKind::Focus(_) => {}
             CommandKind::Edit(_)
             | CommandKind::Move(_)
@@ -107,7 +107,7 @@ impl VirtualVector<(PathBuf, SearchMatchData)> for GlobalSearchData {
 impl GlobalSearchData {
     pub fn new(cx: Scope, main_split: MainSplitData) -> Self {
         let common = main_split.common.clone();
-        let editor = EditorData::new_local(cx, EditorId::next(), common.clone());
+        let editor = EditorData::new_local(cx, main_split.editors, common.clone());
         let search_result = cx.create_rw_signal(IndexMap::new());
 
         let global_search = Self {
@@ -119,7 +119,7 @@ impl GlobalSearchData {
 
         {
             let global_search = global_search.clone();
-            let buffer = global_search.editor.view.doc.get_untracked().buffer;
+            let buffer = global_search.editor.doc().buffer;
             cx.create_effect(move |_| {
                 let pattern = buffer.with(|buffer| buffer.to_string());
                 if pattern.is_empty() {
@@ -152,7 +152,7 @@ impl GlobalSearchData {
         }
 
         {
-            let buffer = global_search.editor.view.doc.get_untracked().buffer;
+            let buffer = global_search.editor.doc().buffer;
             let main_split = global_search.main_split.clone();
             cx.create_effect(move |_| {
                 let content = buffer.with(|buffer| buffer.to_string());
@@ -192,13 +192,9 @@ impl GlobalSearchData {
 
     pub fn set_pattern(&self, pattern: String) {
         let pattern_len = pattern.len();
+        self.editor.doc().reload(Rope::from(pattern), true);
         self.editor
-            .view
-            .doc
-            .get_untracked()
-            .reload(Rope::from(pattern), true);
-        self.editor
-            .cursor
+            .cursor()
             .update(|cursor| cursor.set_insert(Selection::region(0, pattern_len)));
     }
 }

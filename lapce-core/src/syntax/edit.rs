@@ -1,7 +1,13 @@
-use lapce_xi_rope::Rope;
+use floem_editor_core::buffer::{
+    rope_text::{RopeText, RopeTextRef},
+    InsertsValueIter,
+};
+use lapce_xi_rope::{
+    delta::InsertDelta,
+    multiset::{CountMatcher, Subset},
+    Rope, RopeDelta, RopeInfo,
+};
 use tree_sitter::Point;
-
-use crate::buffer::rope_text::{RopeText, RopeTextRef};
 
 #[derive(Clone)]
 pub struct SyntaxEdit(pub(crate) Vec<tree_sitter::InputEdit>);
@@ -9,6 +15,43 @@ pub struct SyntaxEdit(pub(crate) Vec<tree_sitter::InputEdit>);
 impl SyntaxEdit {
     pub fn new(edits: Vec<tree_sitter::InputEdit>) -> Self {
         Self(edits)
+    }
+
+    pub fn from_delta(text: &Rope, delta: RopeDelta) -> SyntaxEdit {
+        let (ins_delta, deletes) = delta.factor();
+
+        Self::from_factored_delta(text, &ins_delta, &deletes)
+    }
+
+    pub fn from_factored_delta(
+        text: &Rope,
+        ins_delta: &InsertDelta<RopeInfo>,
+        deletes: &Subset,
+    ) -> SyntaxEdit {
+        let deletes = deletes.transform_expand(&ins_delta.inserted_subset());
+
+        let mut edits = Vec::new();
+
+        let mut insert_edits: Vec<tree_sitter::InputEdit> =
+            InsertsValueIter::new(ins_delta)
+                .map(|insert| {
+                    let start = insert.old_offset;
+                    let inserted = insert.node;
+                    create_insert_edit(text, start, inserted)
+                })
+                .collect();
+        insert_edits.reverse();
+        edits.append(&mut insert_edits);
+
+        let text = ins_delta.apply(text);
+        let mut delete_edits: Vec<tree_sitter::InputEdit> = deletes
+            .range_iter(CountMatcher::NonZero)
+            .map(|(start, end)| create_delete_edit(&text, start, end))
+            .collect();
+        delete_edits.reverse();
+        edits.append(&mut delete_edits);
+
+        SyntaxEdit::new(edits)
     }
 }
 

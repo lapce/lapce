@@ -17,7 +17,6 @@ use crate::{
     app::clickable_icon,
     command::LapceWorkbenchCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    doc::DocumentExt,
     listener::Listener,
     palette::kind::PaletteKind,
     panel::{kind::PanelKind, position::PanelContainerPosition},
@@ -294,10 +293,9 @@ pub fn status(
             let cursor_info = label(move || {
                 if let Some(editor) = editor.get() {
                     let mut status = String::new();
-                    let cursor = editor.cursor.get();
+                    let cursor = editor.cursor().get();
                     if let Some((line, column, character)) = editor
-                        .view
-                        .doc
+                        .doc_signal()
                         .get()
                         .buffer
                         .with(|buffer| cursor.get_line_col_char(buffer))
@@ -332,7 +330,7 @@ pub fn status(
                     if editor
                         .get()
                         .map(|editor| {
-                            editor.view.doc.get().content.with(|c| c.is_file())
+                            editor.doc_signal().get().content.with(|c| c.is_file())
                         })
                         .unwrap_or(false)
                     {
@@ -354,7 +352,7 @@ pub fn status(
             let palette_clone = palette.clone();
             let language_info = label(move || {
                 if let Some(editor) = editor.get() {
-                    let doc = editor.view.doc.get();
+                    let doc = editor.doc_signal().get();
                     doc.syntax().with(|s| s.language.name())
                 } else {
                     "unknown"
@@ -369,7 +367,7 @@ pub fn status(
                     if editor
                         .get()
                         .map(|editor| {
-                            editor.view.doc.get().content.with(|c| c.is_file())
+                            editor.doc_signal().get().content.with(|c| c.is_file())
                         })
                         .unwrap_or(false)
                     {

@@ -9,7 +9,7 @@ use floem::{
     reactive::create_effect,
     style::{FontFamily, FontSize, LineHeight, Style, TextColor},
     taffy::prelude::Node,
-    view::{View, ViewData},
+    view::{AnyWidget, View, ViewData, Widget},
     Renderer,
 };
 
@@ -37,17 +37,17 @@ pub fn focus_text(
 
     create_effect(move |_| {
         let new_text = text();
-        id.update_state(FocusTextState::Text(new_text), false);
+        id.update_state(FocusTextState::Text(new_text));
     });
 
     create_effect(move |_| {
         let focus_color = focus_color();
-        id.update_state(FocusTextState::FocusColor(focus_color), false);
+        id.update_state(FocusTextState::FocusColor(focus_color));
     });
 
     create_effect(move |_| {
         let focus_indices = focus_indices();
-        id.update_state(FocusTextState::FocusIndices(focus_indices), false);
+        id.update_state(FocusTextState::FocusIndices(focus_indices));
     });
 
     FocusText {
@@ -165,10 +165,19 @@ impl FocusText {
 }
 
 impl View for FocusText {
-    fn id(&self) -> floem::id::Id {
-        self.id
+    fn view_data(&self) -> &ViewData {
+        &self.data
     }
 
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
+    }
+
+    fn build(self) -> AnyWidget {
+        Box::new(self)
+    }
+}
+impl Widget for FocusText {
     fn view_data(&self) -> &ViewData {
         &self.data
     }

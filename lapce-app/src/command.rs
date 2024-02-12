@@ -1,9 +1,12 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
-use floem::{keyboard::ModifiersState, peniko::kurbo::Vec2};
+use floem::{
+    keyboard::ModifiersState, peniko::kurbo::Vec2, views::editor::command::Command,
+};
 use indexmap::IndexMap;
 use lapce_core::command::{
-    EditCommand, FocusCommand, MotionModeCommand, MoveCommand, MultiSelectionCommand,
+    EditCommand, FocusCommand, MotionModeCommand, MoveCommand,
+    MultiSelectionCommand, ScrollCommand,
 };
 use lapce_rpc::{
     dap_types::{DapId, RunDebugConfig},
@@ -19,13 +22,15 @@ use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 use crate::{
     alert::AlertButton,
     debug::RunDebugMode,
-    doc::Document,
+    doc::Doc,
     editor::location::EditorLocation,
     editor_tab::EditorTabChild,
     id::EditorTabId,
     main_split::{SplitDirection, SplitMoveDirection},
     workspace::LapceWorkspace,
 };
+
+pub use floem::views::editor::command::CommandExecuted;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LapceCommand {
@@ -38,6 +43,7 @@ pub enum CommandKind {
     Workbench(LapceWorkbenchCommand),
     Edit(EditCommand),
     Move(MoveCommand),
+    Scroll(ScrollCommand),
     Focus(FocusCommand),
     MotionMode(MotionModeCommand),
     MultiSelection(MultiSelectionCommand),
@@ -49,6 +55,7 @@ impl CommandKind {
             CommandKind::Workbench(cmd) => cmd.get_message(),
             CommandKind::Edit(cmd) => cmd.get_message(),
             CommandKind::Move(cmd) => cmd.get_message(),
+            CommandKind::Scroll(cmd) => cmd.get_message(),
             CommandKind::Focus(cmd) => cmd.get_message(),
             CommandKind::MotionMode(cmd) => cmd.get_message(),
             CommandKind::MultiSelection(cmd) => cmd.get_message(),
@@ -60,17 +67,26 @@ impl CommandKind {
             CommandKind::Workbench(cmd) => cmd.into(),
             CommandKind::Edit(cmd) => cmd.into(),
             CommandKind::Move(cmd) => cmd.into(),
+            CommandKind::Scroll(cmd) => cmd.into(),
             CommandKind::Focus(cmd) => cmd.into(),
             CommandKind::MotionMode(cmd) => cmd.into(),
             CommandKind::MultiSelection(cmd) => cmd.into(),
         }
     }
 }
-
-#[derive(PartialEq, Eq)]
-pub enum CommandExecuted {
-    Yes,
-    No,
+impl From<Command> for CommandKind {
+    fn from(cmd: Command) -> Self {
+        use Command::*;
+        match cmd {
+            Edit(edit) => CommandKind::Edit(edit),
+            Move(movement) => CommandKind::Move(movement),
+            Scroll(scroll) => CommandKind::Scroll(scroll),
+            MotionMode(motion_mode) => CommandKind::MotionMode(motion_mode),
+            MultiSelection(multi_selection) => {
+                CommandKind::MultiSelection(multi_selection)
+            }
+        }
+    }
 }
 
 pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
@@ -657,7 +673,10 @@ pub enum InternalCommand {
     },
     HideAlert,
     SaveScratchDoc {
-        doc: Rc<Document>,
+        doc: Rc<Doc>,
+    },
+    SaveScratchDoc2 {
+        doc: Rc<Doc>,
     },
     UpdateProxyStatus {
         status: ProxyStatus,

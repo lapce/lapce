@@ -172,7 +172,9 @@ impl AppData {
     }
 
     fn default_window_config(&self) -> WindowConfig {
-        WindowConfig::default().themed(false).title("Lapce")
+        WindowConfig::default()
+            .apply_default_theme(false)
+            .title("Lapce")
     }
 
     pub fn new_window(&self) {
@@ -911,7 +913,7 @@ fn editor_tab_header(
             .on_scroll(move |rect| {
                 scroll_offset.set(rect);
             })
-            .on_ensure_visible(move || {
+            .ensure_visible(move || {
                 let active = editor_tab_active.get();
                 editor_tab
                     .with_untracked(|editor_tab| editor_tab.children[active].1)
@@ -1096,10 +1098,10 @@ fn editor_tab_content(
                             false
                         }
                     };
-                    let left_viewport = diff_editor_data.left.viewport;
-                    let left_scroll_to = diff_editor_data.left.scroll_to;
-                    let right_viewport = diff_editor_data.right.viewport;
-                    let right_scroll_to = diff_editor_data.right.scroll_to;
+                    let left_viewport = diff_editor_data.left.viewport();
+                    let left_scroll_to = diff_editor_data.left.scroll_to();
+                    let right_viewport = diff_editor_data.right.viewport();
+                    let right_scroll_to = diff_editor_data.right.scroll_to();
                     create_effect(move |_| {
                         let left_viewport = left_viewport.get();
                         if right_viewport.get_untracked() != left_viewport {
@@ -1179,12 +1181,12 @@ fn editor_tab_content(
                 }
             }
             EditorTabChild::Settings(_) => {
-                container_box(settings_view(plugin.installed, common))
+                container_box(settings_view(plugin.installed, editors, common))
             }
             EditorTabChild::ThemeColorSettings(_) => {
-                container_box(theme_color_settings_view(common))
+                container_box(theme_color_settings_view(editors, common))
             }
-            EditorTabChild::Keymap(_) => container_box(keymap_view(common)),
+            EditorTabChild::Keymap(_) => container_box(keymap_view(editors, common)),
             EditorTabChild::Volt(_, id) => {
                 container_box(plugin_info_view(plugin.clone(), id))
             }
@@ -2399,7 +2401,7 @@ fn palette_content(
             )
             .style(|s| s.width_full().flex_col())
         })
-        .on_ensure_visible(move || {
+        .ensure_visible(move || {
             Size::new(1.0, palette_item_height)
                 .to_rect()
                 .with_origin(Point::new(
@@ -2768,7 +2770,7 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
                 .flex_col()
         }),
     )
-    .on_ensure_visible(move || {
+    .ensure_visible(move || {
         let config = config.get();
         let active = active.get();
         Size::new(1.0, config.editor.line_height() as f64)
@@ -2839,7 +2841,7 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
         )
         .style(|s| s.width_full().padding_vert(4.0)),
     )
-    .on_ensure_visible(move || {
+    .ensure_visible(move || {
         let config = config.get();
         let active = active.get();
         Size::new(1.0, config.editor.line_height() as f64)

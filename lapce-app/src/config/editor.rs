@@ -1,7 +1,6 @@
+use floem::views::editor::text::RenderWhitespace;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
-
-use crate::doc::RenderWhitespace;
 
 pub const SCALE_OR_SIZE_LIMIT: f64 = 5.0;
 

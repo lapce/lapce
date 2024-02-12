@@ -10,20 +10,21 @@ use floem::{
         Color,
     },
     reactive::{create_memo, create_rw_signal, Memo, ReadSignal, RwSignal, Scope},
+    views::editor::id::EditorId,
 };
 use lapce_rpc::plugin::VoltID;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
-    doc::{DocContent, Document},
+    doc::{Doc, DocContent},
     editor::{
         diff::{DiffEditorData, DiffEditorInfo},
         location::EditorLocation,
         EditorData, EditorInfo,
     },
     id::{
-        DiffEditorId, EditorId, EditorTabId, KeymapId, SettingsId, SplitId,
+        DiffEditorId, EditorTabId, KeymapId, SettingsId, SplitId,
         ThemeColorSettingsId, VoltViewId,
     },
     main_split::MainSplitData,
@@ -50,7 +51,7 @@ impl EditorTabChildInfo {
         match &self {
             EditorTabChildInfo::Editor(editor_info) => {
                 let editor_data = editor_info.to_data(data, editor_tab_id);
-                EditorTabChild::Editor(editor_data.editor_id)
+                EditorTabChild::Editor(editor_data.id())
             }
             EditorTabChildInfo::DiffEditor(diff_editor_info) => {
                 let diff_editor_data = diff_editor_info.to_data(data, editor_tab_id);
@@ -120,14 +121,8 @@ impl EditorTabInfo {
 }
 
 pub enum EditorTabChildSource {
-    Editor {
-        path: PathBuf,
-        doc: Rc<Document>,
-    },
-    DiffEditor {
-        left: Rc<Document>,
-        right: Rc<Document>,
-    },
+    Editor { path: PathBuf, doc: Rc<Doc> },
+    DiffEditor { left: Rc<Doc>, right: Rc<Doc> },
     NewFileEditor,
     Settings,
     ThemeColorSettings,
@@ -214,7 +209,7 @@ impl EditorTabChild {
                 let editor_data =
                     editors.with(|editors| editors.get(&editor_id).cloned());
                 let path = if let Some(editor_data) = editor_data {
-                    let doc = editor_data.view.doc.get();
+                    let doc = editor_data.doc_signal().get();
                     let (content, is_pristine, confirmed) = (
                         doc.content.get(),
                         doc.buffer.with(|b| b.is_pristine()),
@@ -272,12 +267,13 @@ impl EditorTabChild {
                 let info = diff_editor_data
                     .map(|diff_editor_data| {
                         [diff_editor_data.left, diff_editor_data.right].map(|data| {
-                            let (content, is_pristine) = data.view.doc.with(|doc| {
-                                (
-                                    doc.content.get(),
-                                    doc.buffer.with(|b| b.is_pristine()),
-                                )
-                            });
+                            let (content, is_pristine) =
+                                data.doc_signal().with(|doc| {
+                                    (
+                                        doc.content.get(),
+                                        doc.buffer.with(|b| b.is_pristine()),
+                                    )
+                                });
                             match content {
                                 DocContent::File { path, .. } => {
                                     Some((path, is_pristine))
@@ -419,16 +415,13 @@ impl EditorTabData {
         for (i, child) in self.children.iter().enumerate() {
             if let (_, _, EditorTabChild::Editor(editor_id)) = child {
                 if let Some(editor) = editors.get(editor_id) {
-                    let is_path =
-                        editor.view.doc.get_untracked().content.with_untracked(
-                            |content| {
-                                if let DocContent::File { path: p, .. } = content {
-                                    p == path
-                                } else {
-                                    false
-                                }
-                            },
-                        );
+                    let is_path = editor.doc().content.with_untracked(|content| {
+                        if let DocContent::File { path: p, .. } = content {
+                            p == path
+                        } else {
+                            false
+                        }
+                    });
                     if is_path {
                         return Some((i, editor.clone()));
                     }

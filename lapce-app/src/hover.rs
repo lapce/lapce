@@ -1,9 +1,10 @@
 use floem::{
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope},
+    views::editor::id::EditorId,
 };
 
-use crate::{id::EditorId, markdown::MarkdownContent};
+use crate::markdown::MarkdownContent;
 
 #[derive(Clone)]
 pub struct HoverData {

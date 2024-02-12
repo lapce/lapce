@@ -3,8 +3,11 @@ use std::{borrow::Cow, path::PathBuf, str::FromStr, sync::Arc};
 use floem::{
     peniko::kurbo::Rect,
     reactive::{ReadSignal, RwSignal, Scope},
+    views::editor::{id::EditorId, text::Document},
 };
-use lapce_core::{buffer::rope_text::RopeText, movement::Movement};
+use lapce_core::{
+    buffer::rope_text::RopeText, movement::Movement, rope_text_pos::RopeTextPosition,
+};
 use lapce_rpc::{plugin::PluginId, proxy::ProxyRpcHandler};
 use lsp_types::{
     CompletionItem, CompletionResponse, CompletionTextEdit, InsertTextFormat,
@@ -12,10 +15,7 @@ use lsp_types::{
 };
 use nucleo::Utf32Str;
 
-use crate::{
-    config::LapceConfig, doc::DocumentExt, editor::view_data::EditorViewData,
-    id::EditorId, snippet::Snippet,
-};
+use crate::{config::LapceConfig, editor::EditorData, snippet::Snippet};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CompletionStatus {
@@ -298,10 +298,10 @@ impl CompletionData {
     /// Update the completion lens of the document with the active completion item.  
     pub fn update_document_completion(
         &self,
-        view: &EditorViewData,
+        editor_data: &EditorData,
         cursor_offset: usize,
     ) {
-        let doc = view.doc.get_untracked();
+        let doc = editor_data.doc();
 
         if !doc.content.with_untracked(|content| content.is_file()) {
             return;
@@ -315,7 +315,7 @@ impl CompletionData {
         }
 
         let completion_lens = completion_lens_text(
-            view.rope_text(),
+            doc.rope_text(),
             cursor_offset,
             self,
             doc.completion_lens().as_deref(),
@@ -325,7 +325,7 @@ impl CompletionData {
                 let offset = self.offset + self.input.len();
                 // TODO: will need to be adjusted to use visual line.
                 //   Could just store the offset in doc.
-                let (line, col) = view.offset_to_line_col(offset);
+                let (line, col) = editor_data.editor.offset_to_line_col(offset);
 
                 doc.set_completion_lens(lens, line, col);
             }

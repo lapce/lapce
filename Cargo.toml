@@ -72,6 +72,9 @@ lapce-core = { path = "./lapce-core" }
 lapce-rpc = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
+floem-editor-core = { git = "https://github.com/lapce/floem", rev = "c45e8e8ab6ab85e12bd98527e34db4a9397c3764", features = ["serde"] }
+# floem-editor-core = { path = "../workspaces/floem/editor-core/", features = ["serde"] }
+
 [patch.crates-io]
 # Temporarily patch lsp-types with a version that supports inline-completion
 lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "3031a76c4452f46ed265eb0154d6bb1d10ddb9f6" }

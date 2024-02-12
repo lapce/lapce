@@ -14,6 +14,7 @@ use std::{
     sync::{atomic::AtomicUsize, Arc},
 };
 
+use floem_editor_core::util::{matching_bracket_general, matching_pair_direction};
 use itertools::Itertools;
 use lapce_rpc::style::{LineStyle, Style};
 use lapce_xi_rope::{
@@ -31,7 +32,7 @@ use self::{
         HighlightConfiguration, HighlightEvent, HighlightIter, HighlightIterLayer,
         IncludedChildren, LocalScope,
     },
-    util::{matching_bracket_general, matching_pair_direction, RopeProvider},
+    util::RopeProvider,
 };
 use crate::{
     buffer::rope_text::RopeText,

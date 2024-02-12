@@ -1,14 +1,12 @@
-use std::{cell::RefCell, collections::HashMap, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Wrap},
     reactive::Scope,
-};
-use lapce_app::{
-    doc::phantom_text::PhantomTextLine,
-    editor::{
-        view_data::TextLayoutLine,
+    views::editor::{
+        layout::TextLayoutLine,
+        phantom_text::PhantomTextLine,
         visual_line::{
             FontSizeCacheId, LineFontSizeProvider, Lines, ResolvedWrap,
             TextLayoutProvider, VLine,
@@ -67,7 +65,7 @@ impl<'a> TextLayoutProvider for TLProv<'a> {
             };
 
         let phantom_text = self.phantom.get(&line).cloned().unwrap_or_default();
-        let line_content = phantom_text.combine_with_text(line_content);
+        let line_content = phantom_text.combine_with_text(&line_content);
 
         let attrs = Attrs::new()
             .family(&self.font_family)
@@ -165,12 +163,11 @@ fn make_lines_ph(
         has_multiline_phantom,
     };
     let cx = Scope::new();
-    let lines = Lines::new(cx, RefCell::new(Arc::new(font_sizes)));
+    let lines = Lines::new(cx, RefCell::new(Rc::new(font_sizes)));
     lines.set_wrap(wrap);
 
     if init {
-        let config_id = 0;
-        lines.init_all(config_id, &text, true);
+        lines.init_all(0, 0, &text, true);
     }
 
     (text, lines)

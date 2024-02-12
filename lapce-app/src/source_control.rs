@@ -3,6 +3,7 @@ use std::{path::PathBuf, rc::Rc};
 use floem::{
     keyboard::ModifiersState,
     reactive::{RwSignal, Scope},
+    views::editor::id::EditorId,
 };
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
@@ -11,7 +12,6 @@ use lapce_rpc::source_control::FileDiff;
 use crate::{
     command::{CommandExecuted, CommandKind},
     editor::EditorData,
-    id::EditorId,
     keypress::{condition::Condition, KeyPressFocus},
     window_tab::CommonData,
 };
@@ -61,17 +61,17 @@ impl KeyPressFocus for SourceControlData {
 }
 
 impl SourceControlData {
-    pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
+    pub fn new(
+        cx: Scope,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        common: Rc<CommonData>,
+    ) -> Self {
         Self {
             file_diffs: cx.create_rw_signal(IndexMap::new()),
             branch: cx.create_rw_signal("".to_string()),
             branches: cx.create_rw_signal(im::Vector::new()),
             tags: cx.create_rw_signal(im::Vector::new()),
-            editor: Rc::new(EditorData::new_local(
-                cx,
-                EditorId::next(),
-                common.clone(),
-            )),
+            editor: Rc::new(EditorData::new_local(cx, editors, common.clone())),
             common,
         }
     }
@@ -98,9 +98,7 @@ impl SourceControlData {
 
         let message = self
             .editor
-            .view
-            .doc
-            .get_untracked()
+            .doc()
             .buffer
             .with_untracked(|buffer| buffer.to_string());
         let message = message.trim();

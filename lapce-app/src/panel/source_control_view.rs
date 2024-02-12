@@ -8,7 +8,11 @@ use floem::{
     reactive::{create_memo, create_rw_signal},
     style::{CursorStyle, Style},
     view::View,
-    views::{container, dyn_stack, label, scroll, stack, svg, Decorators},
+    views::{
+        container, dyn_stack,
+        editor::view::{cursor_caret, LineRegion},
+        label, scroll, stack, svg, Decorators,
+    },
 };
 use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;
@@ -17,7 +21,7 @@ use super::{kind::PanelKind, position::PanelPosition, view::panel_header};
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
     config::{color::LapceColor, icon::LapceIcons},
-    editor::view::{cursor_caret, editor_view, LineRegion},
+    editor::view::editor_view,
     settings::checkbox,
     source_control::SourceControlData,
     window_tab::{Focus, WindowTabData},
@@ -31,10 +35,10 @@ pub fn source_control_panel(
     let source_control = window_tab_data.source_control.clone();
     let focus = source_control.common.focus;
     let editor = source_control.editor.clone();
-    let doc = editor.view.doc;
-    let cursor = editor.cursor;
-    let viewport = editor.viewport;
-    let window_origin = editor.window_origin;
+    let doc = editor.doc_signal();
+    let cursor = editor.cursor();
+    let viewport = editor.viewport();
+    let window_origin = editor.window_origin();
     let editor = create_rw_signal(editor);
     let is_active = move |tracked| {
         let focus = if tracked {
@@ -107,15 +111,14 @@ pub fn source_control_panel(
                 .on_scroll(move |rect| {
                     viewport.set(rect);
                 })
-                .on_ensure_visible(move || {
+                .ensure_visible(move || {
                     let cursor = cursor.get();
                     let offset = cursor.offset();
-                    let editor = editor.get_untracked();
-                    let editor_view = editor.view.clone();
-                    editor_view.doc.track();
-                    editor_view.kind.track();
+                    let e_data = editor.get_untracked();
+                    e_data.doc_signal().track();
+                    e_data.kind.track();
                     let LineRegion { x, width, rvline } = cursor_caret(
-                        &editor_view,
+                        &e_data.editor,
                         offset,
                         !cursor.is_insert(),
                         cursor.affinity,
@@ -123,7 +126,7 @@ pub fn source_control_panel(
                     let config = config.get_untracked();
                     let line_height = config.editor.line_height();
                     // TODO: is there a way to avoid the calculation of the vline here?
-                    let vline = editor.view.vline_of_rvline(rvline);
+                    let vline = e_data.editor.vline_of_rvline(rvline);
                     Rect::from_origin_size(
                         (x, (vline.get() * line_height) as f64),
                         (width, line_height as f64),

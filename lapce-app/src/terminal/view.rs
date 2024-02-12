@@ -9,7 +9,7 @@ use floem::{
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{create_effect, ReadSignal, RwSignal},
-    view::{View, ViewData},
+    view::{AnyWidget, View, ViewData, Widget},
     Renderer,
 };
 use lapce_core::mode::Mode;
@@ -32,7 +32,6 @@ enum TerminalViewState {
 }
 
 pub struct TerminalView {
-    id: Id,
     data: ViewData,
     term_id: TermId,
     raw: Arc<RwLock<RawTerminal>>,
@@ -57,7 +56,7 @@ pub fn terminal_view(
 
     create_effect(move |_| {
         let raw = raw.get();
-        id.update_state(TerminalViewState::Raw(raw), false);
+        id.update_state(TerminalViewState::Raw(raw));
     });
 
     create_effect(move |_| {
@@ -68,7 +67,7 @@ pub fn terminal_view(
     let config = terminal_panel_data.common.config;
     create_effect(move |_| {
         config.with(|_c| {});
-        id.update_state(TerminalViewState::Config, false);
+        id.update_state(TerminalViewState::Config);
     });
 
     let proxy = terminal_panel_data.common.proxy.clone();
@@ -86,14 +85,13 @@ pub fn terminal_view(
         }
 
         if last != Some(is_focused) {
-            id.update_state(TerminalViewState::Focus(is_focused), false);
+            id.update_state(TerminalViewState::Focus(is_focused));
         }
 
         is_focused
     });
 
     TerminalView {
-        id,
         data: ViewData::new(id),
         term_id,
         raw: raw.get_untracked(),
@@ -138,10 +136,20 @@ impl Drop for TerminalView {
 }
 
 impl View for TerminalView {
-    fn id(&self) -> Id {
-        self.id
+    fn view_data(&self) -> &ViewData {
+        &self.data
     }
 
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
+    }
+
+    fn build(self) -> AnyWidget {
+        Box::new(self)
+    }
+}
+
+impl Widget for TerminalView {
     fn view_data(&self) -> &ViewData {
         &self.data
     }
@@ -165,7 +173,7 @@ impl View for TerminalView {
                     self.raw = raw;
                 }
             }
-            cx.app_state_mut().request_paint(self.id);
+            cx.app_state_mut().request_paint(self.data.id());
         }
     }
 
@@ -173,14 +181,14 @@ impl View for TerminalView {
         &mut self,
         cx: &mut floem::context::LayoutCx,
     ) -> floem::taffy::prelude::Node {
-        cx.layout_node(self.id, false, |_cx| Vec::new())
+        cx.layout_node(self.data.id(), false, |_cx| Vec::new())
     }
 
     fn compute_layout(
         &mut self,
         cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
-        let layout = cx.get_layout(self.id).unwrap();
+        let layout = cx.get_layout(self.data.id()).unwrap();
         let size = layout.size;
         let size = Size::new(size.width as f64, size.height as f64);
         if size.is_empty() {

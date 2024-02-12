@@ -4,12 +4,12 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
     sync::Arc,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use crossbeam_channel::Sender;
 use floem::{
-    action::{exec_after, open_file, TimerToken},
+    action::{open_file, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
     file::FileDialogOptions,
@@ -49,7 +49,7 @@ use crate::{
     config::LapceConfig,
     db::LapceDb,
     debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
-    doc::{DocContent, DocumentExt, EditorDiagnostic},
+    doc::{DocContent, EditorDiagnostic},
     editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
@@ -352,8 +352,10 @@ impl WindowTabData {
         let main_split = MainSplitData::new(cx, common.clone());
         let code_action =
             cx.create_rw_signal(CodeActionData::new(cx, common.clone()));
-        let source_control = SourceControlData::new(cx, common.clone());
-        let file_explorer = FileExplorerData::new(cx, common.clone());
+        let source_control =
+            SourceControlData::new(cx, main_split.editors, common.clone());
+        let file_explorer =
+            FileExplorerData::new(cx, main_split.editors, common.clone());
 
         if let Some(info) = workspace_info.as_ref() {
             let root_split = main_split.root_split;
@@ -448,13 +450,14 @@ impl WindowTabData {
             );
         }
 
-        let rename = RenameData::new(cx, common.clone());
+        let rename = RenameData::new(cx, main_split.editors, common.clone());
         let global_search = GlobalSearchData::new(cx, main_split.clone());
 
         let plugin = PluginData::new(
             cx,
             HashSet::from_iter(disabled_volts),
             HashSet::from_iter(workspace_disabled_volts),
+            main_split.editors,
             common.clone(),
         );
 
@@ -582,7 +585,10 @@ impl WindowTabData {
             CommandKind::Workbench(command) => {
                 self.run_workbench_command(command, cmd.data);
             }
-            CommandKind::Focus(_) | CommandKind::Edit(_) | CommandKind::Move(_) => {
+            CommandKind::Scroll(_)
+            | CommandKind::Focus(_)
+            | CommandKind::Edit(_)
+            | CommandKind::Move(_) => {
                 if self.palette.status.get_untracked() != PaletteStatus::Inactive {
                     self.palette
                         .run_command(&cmd, None, ModifiersState::empty());
@@ -665,15 +671,14 @@ impl WindowTabData {
             }
             RevealActiveFileInFileExplorer => {
                 if let Some(editor_data) = self.main_split.active_editor.get() {
-                    let path = editor_data.view.doc.with_untracked(|doc| {
-                        if let DocContent::File { path, .. } =
-                            doc.content.get_untracked()
-                        {
-                            Some(path)
-                        } else {
-                            None
-                        }
-                    });
+                    let doc = editor_data.doc();
+                    let path = if let DocContent::File { path, .. } =
+                        doc.content.get_untracked()
+                    {
+                        Some(path)
+                    } else {
+                        None
+                    };
                     let Some(path) = path else { return };
                     let path = path.parent().unwrap_or(&path);
 
@@ -685,22 +690,20 @@ impl WindowTabData {
                 self.main_split.editors.with_untracked(|editors| {
                     let mut paths = HashSet::new();
                     for (_, editor_data) in editors.iter() {
-                        let should_save =
-                            editor_data.view.doc.with_untracked(|doc| {
-                                let DocContent::File { path, .. } =
-                                    doc.content.get_untracked()
-                                else {
-                                    return false;
-                                };
-
-                                if paths.contains(&path) {
-                                    return false;
-                                }
-
+                        let doc = editor_data.doc();
+                        let should_save = if let DocContent::File { path, .. } =
+                            doc.content.get_untracked()
+                        {
+                            if paths.contains(&path) {
+                                false
+                            } else {
                                 paths.insert(path.clone());
 
                                 true
-                            });
+                            }
+                        } else {
+                            false
+                        };
 
                         if should_save {
                             editor_data.save(true, || {});
@@ -1356,12 +1359,7 @@ impl WindowTabData {
                                 .with_untracked(|editors| {
                                     editors
                                         .values()
-                                        .map(|editor| {
-                                            editor
-                                                .view
-                                                .doc
-                                                .with_untracked(|doc| doc.content)
-                                        })
+                                        .map(|editor| editor.doc().content)
                                         .filter(|content| {
                                             content.with_untracked(|content| {
                                                 match content {
@@ -1584,6 +1582,9 @@ impl WindowTabData {
             InternalCommand::SaveScratchDoc { doc } => {
                 self.main_split.save_scratch_doc(doc);
             }
+            InternalCommand::SaveScratchDoc2 { doc } => {
+                self.main_split.save_scratch_doc2(doc);
+            }
             InternalCommand::UpdateProxyStatus { status } => {
                 self.common.proxy_status.set(Some(status));
             }
@@ -1594,42 +1595,11 @@ impl WindowTabData {
                 self.main_split.open_volt_view(volt_id);
             }
             InternalCommand::ResetBlinkCursor => {
-                if self.common.window_common.hide_cursor.get_untracked() {
-                    self.common.window_common.hide_cursor.set(false);
+                // All the editors share the blinking information and logic, so we can just reset
+                // one of them.
+                if let Some(e_data) = self.main_split.active_editor.get_untracked() {
+                    e_data.editor.cursor_info.reset();
                 }
-                self.common
-                    .window_common
-                    .cursor_blink_timer
-                    .set(TimerToken::INVALID);
-
-                let should_blink = {
-                    let focus = self.common.focus;
-                    let keyboard_focus = self.common.keyboard_focus;
-                    move || {
-                        let focus = focus.get_untracked();
-                        if matches!(
-                            focus,
-                            Focus::Workbench
-                                | Focus::Palette
-                                | Focus::Panel(PanelKind::Plugin)
-                                | Focus::Panel(PanelKind::Search)
-                                | Focus::Panel(PanelKind::SourceControl)
-                        ) {
-                            return true;
-                        }
-                        if keyboard_focus.get_untracked().is_some() {
-                            return true;
-                        }
-                        false
-                    }
-                };
-
-                blink_cursor(
-                    self.common.window_common.cursor_blink_timer,
-                    self.common.window_common.hide_cursor,
-                    should_blink,
-                    self.common.config,
-                );
             }
             InternalCommand::OpenDiffFiles {
                 left_path,
@@ -1689,11 +1659,9 @@ impl WindowTabData {
                 });
                 if let Some(editor_data) = editor_data {
                     let cursor_offset =
-                        editor_data.cursor.with_untracked(|c| c.offset());
-                    completion.update_document_completion(
-                        &editor_data.view,
-                        cursor_offset,
-                    );
+                        editor_data.cursor().with_untracked(|c| c.offset());
+                    completion
+                        .update_document_completion(&editor_data, cursor_offset);
                 }
             }
             CoreNotification::PublishDiagnostics { diagnostics } => {
@@ -1916,16 +1884,19 @@ impl WindowTabData {
         }
 
         let editor_id = self.common.hover.editor_id.get_untracked();
-        let editor = self
+        let editor_data = self
             .main_split
             .editors
             .with(|editors| editors.get(&editor_id).cloned())?;
 
-        let (window_origin, viewport, view) =
-            (editor.window_origin, editor.viewport, editor.view.clone());
+        let (window_origin, viewport, editor) = (
+            editor_data.window_origin(),
+            editor_data.viewport(),
+            &editor_data.editor,
+        );
 
         // TODO(minor): affinity should be gotten from where the hover was started at.
-        let (point_above, point_below) = view.points_of_offset(
+        let (point_above, point_below) = editor.points_of_offset(
             self.common.hover.offset.get_untracked(),
             CursorAffinity::Forward,
         );
@@ -1960,20 +1931,23 @@ impl WindowTabData {
             return Point::ZERO;
         }
         let config = self.common.config.get();
-        let editor =
+        let editor_data =
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor
             } else {
                 return Point::ZERO;
             };
 
-        let (window_origin, viewport, view) =
-            (editor.window_origin, editor.viewport, editor.view.clone());
+        let (window_origin, viewport, editor) = (
+            editor_data.window_origin(),
+            editor_data.viewport(),
+            &editor_data.editor,
+        );
 
         // TODO(minor): What affinity should we use for this? Probably just use the cursor's
         // original affinity..
         let (point_above, point_below) =
-            view.points_of_offset(completion.offset, CursorAffinity::Forward);
+            editor.points_of_offset(completion.offset, CursorAffinity::Forward);
 
         let window_origin =
             window_origin.get() - self.common.window_origin.get().to_vec2();
@@ -2013,19 +1987,22 @@ impl WindowTabData {
         let tab_size = self.layout_rect.get().size();
         let code_action_size = code_action.layout_rect.size();
 
-        let editor =
+        let editor_data =
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor
             } else {
                 return Point::ZERO;
             };
 
-        let (window_origin, viewport, view) =
-            (editor.window_origin, editor.viewport, editor.view.clone());
+        let (window_origin, viewport, editor) = (
+            editor_data.window_origin(),
+            editor_data.viewport(),
+            &editor_data.editor,
+        );
 
         // TODO(minor): What affinity should we use for this?
         let (_point_above, point_below) =
-            view.points_of_offset(code_action.offset, CursorAffinity::Forward);
+            editor.points_of_offset(code_action.offset, CursorAffinity::Forward);
 
         let window_origin =
             window_origin.get() - self.common.window_origin.get().to_vec2();
@@ -2065,18 +2042,21 @@ impl WindowTabData {
         let tab_size = self.layout_rect.get().size();
         let rename_size = self.rename.layout_rect.get().size();
 
-        let editor =
+        let editor_data =
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor
             } else {
                 return Point::ZERO;
             };
 
-        let (window_origin, viewport, view) =
-            (editor.window_origin, editor.viewport, editor.view.clone());
+        let (window_origin, viewport, editor) = (
+            editor_data.window_origin(),
+            editor_data.viewport(),
+            &editor_data.editor,
+        );
 
         // TODO(minor): What affinity should we use for this?
-        let (_point_above, point_below) = view.points_of_offset(
+        let (_point_above, point_below) = editor.points_of_offset(
             self.rename.start.get_untracked(),
             CursorAffinity::Forward,
         );
@@ -2109,7 +2089,7 @@ impl WindowTabData {
                 self.main_split
                     .active_editor
                     .get()
-                    .map(|editor| editor.cursor.with(|c| c.get_mode()))
+                    .map(|editor| editor.cursor().with(|c| c.get_mode()))
             } else {
                 None
             };
@@ -2380,33 +2360,6 @@ impl WindowTabData {
         self.messages.update(|messages| {
             messages.push((title.to_string(), message.clone()));
         });
-    }
-}
-
-fn blink_cursor(
-    cursor_blink_timer: RwSignal<TimerToken>,
-    hide_cursor: RwSignal<bool>,
-    should_blink: impl Fn() -> bool + 'static + Copy,
-    config: ReadSignal<Arc<LapceConfig>>,
-) {
-    let blink_interval =
-        config.with_untracked(|config| config.editor.blink_interval());
-    if blink_interval > 0 && should_blink() {
-        let timer_token =
-            exec_after(Duration::from_millis(blink_interval), move |timer_token| {
-                if cursor_blink_timer.try_get_untracked() == Some(timer_token) {
-                    hide_cursor.update(|hide| {
-                        *hide = !*hide;
-                    });
-                    blink_cursor(
-                        cursor_blink_timer,
-                        hide_cursor,
-                        should_blink,
-                        config,
-                    );
-                }
-            });
-        cursor_blink_timer.set(timer_token);
     }
 }
 

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use floem::peniko::kurbo::Vec2;
-use lapce_core::buffer::{rope_text::RopeText, Buffer};
+use lapce_core::{buffer::rope_text::RopeText, rope_text_pos::RopeTextPosition};
 use lsp_types::Position;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -24,12 +24,10 @@ pub enum EditorPosition {
 }
 
 impl EditorPosition {
-    pub fn to_offset(&self, buffer: &Buffer) -> usize {
+    pub fn to_offset(&self, text: &impl RopeText) -> usize {
         match self {
-            EditorPosition::Line(n) => buffer.first_non_blank_character_on_line(*n),
-            EditorPosition::Position(position) => {
-                buffer.offset_of_position(position)
-            }
+            EditorPosition::Line(n) => text.first_non_blank_character_on_line(*n),
+            EditorPosition::Position(position) => text.offset_of_position(position),
             EditorPosition::Offset(offset) => *offset,
         }
     }

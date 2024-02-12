@@ -5,6 +5,7 @@ use floem::{
     keyboard::ModifiersState,
     peniko::kurbo::Rect,
     reactive::{RwSignal, Scope},
+    views::editor::id::EditorId,
 };
 use lapce_core::{command::FocusCommand, mode::Mode, selection::Selection};
 use lapce_rpc::proxy::ProxyResponse;
@@ -14,7 +15,6 @@ use lsp_types::Position;
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand, LapceCommand},
     editor::EditorData,
-    id::EditorId,
     keypress::{condition::Condition, KeyPressFocus},
     window_tab::{CommonData, Focus},
 };
@@ -47,6 +47,7 @@ impl KeyPressFocus for RenameData {
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}
+            CommandKind::Scroll(_) => {}
             CommandKind::Focus(cmd) => {
                 self.run_focus_command(cmd);
             }
@@ -66,13 +67,17 @@ impl KeyPressFocus for RenameData {
 }
 
 impl RenameData {
-    pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
+    pub fn new(
+        cx: Scope,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        common: Rc<CommonData>,
+    ) -> Self {
         let active = cx.create_rw_signal(false);
         let start = cx.create_rw_signal(0);
         let position = cx.create_rw_signal(Position::default());
         let layout_rect = cx.create_rw_signal(Rect::ZERO);
         let path = cx.create_rw_signal(PathBuf::new());
-        let editor = EditorData::new_local(cx, EditorId::next(), common.clone());
+        let editor = EditorData::new_local(cx, editors, common.clone());
         Self {
             active,
             editor,
@@ -91,12 +96,8 @@ impl RenameData {
         start: usize,
         position: Position,
     ) {
-        self.editor
-            .view
-            .doc
-            .get_untracked()
-            .reload(Rope::from(&placeholder), true);
-        self.editor.cursor.update(|cursor| {
+        self.editor.doc().reload(Rope::from(&placeholder), true);
+        self.editor.cursor().update(|cursor| {
             cursor.set_insert(Selection::region(0, placeholder.len()))
         });
         self.path.set(path);
@@ -129,9 +130,7 @@ impl RenameData {
     fn confirm(&self) {
         let new_name = self
             .editor
-            .view
-            .doc
-            .get_untracked()
+            .doc()
             .buffer
             .with_untracked(|buffer| buffer.to_string());
         let new_name = new_name.trim();

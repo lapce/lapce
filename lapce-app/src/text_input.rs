@@ -1,4 +1,4 @@
-use std::{rc::Rc, sync::Arc};
+use std::sync::Arc;
 
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
@@ -18,7 +18,7 @@ use floem::{
     },
     taffy::prelude::Node,
     unit::PxPct,
-    view::{View, ViewData},
+    view::{AnyWidget, View, ViewData, Widget},
     views::Decorators,
     EventPropagation, Renderer,
 };
@@ -30,9 +30,7 @@ use lapce_core::{
 
 use crate::{
     config::{color::LapceColor, LapceConfig},
-    doc::Document,
-    editor::EditorData,
-    keypress::KeyPressFocus,
+    editor::{DocSignal, EditorData},
 };
 
 prop_extracter! {
@@ -47,20 +45,21 @@ prop_extracter! {
 }
 
 pub fn text_input(
-    editor: EditorData,
+    e_data: EditorData,
     is_focused: impl Fn() -> bool + 'static,
 ) -> TextInput {
     let id = Id::next();
 
-    let doc = editor.view.doc;
-    let cursor = editor.cursor;
-    let config = editor.common.config;
-    let keypress = editor.common.keypress;
+    let doc = e_data.doc_signal();
+    let cursor = e_data.cursor();
+    let config = e_data.common.config;
+    let keypress = e_data.common.keypress;
     let window_origin = create_rw_signal(Point::ZERO);
     let cursor_line = create_rw_signal(Line::new(Point::ZERO, Point::ZERO));
     let keyboard_focus = create_rw_signal(false);
     let is_focused = create_memo(move |_| is_focused() || keyboard_focus.get());
-    let local_editor = editor.clone();
+    let local_editor = e_data.clone();
+    let editor = local_editor.editor.clone();
 
     {
         let doc = doc.get();
@@ -68,7 +67,7 @@ pub fn text_input(
             let offset = cursor.with(|c| c.offset());
             let (content, offset, preedit_range) = {
                 let content = doc.buffer.with(|b| b.to_string());
-                if let Some(preedit) = doc.preedit.get().as_ref() {
+                if let Some(preedit) = doc.preedit.preedit.get().as_ref() {
                     let mut new_content = String::new();
                     new_content.push_str(&content[..offset]);
                     new_content.push_str(&preedit.text);
@@ -84,25 +83,22 @@ pub fn text_input(
                     (content, offset, None)
                 }
             };
-            id.update_state(
-                TextInputState::Content {
-                    text: content,
-                    offset,
-                    preedit_range,
-                },
-                false,
-            );
+            id.update_state(TextInputState::Content {
+                text: content,
+                offset,
+                preedit_range,
+            });
         });
     }
 
     {
         create_effect(move |_| {
             let focus = is_focused.get();
-            id.update_state(TextInputState::Focus(focus), false);
+            id.update_state(TextInputState::Focus(focus));
         });
 
         let editor = editor.clone();
-        let ime_allowed = editor.common.window_common.ime_allowed;
+        let ime_allowed = editor.ime_allowed;
         create_effect(move |_| {
             let focus = is_focused.get();
             if focus {
@@ -124,8 +120,10 @@ pub fn text_input(
         });
     }
 
-    let common_keyboard_focus = editor.common.keyboard_focus;
+    let common_keyboard_focus = e_data.common.keyboard_focus;
 
+    let ed1 = editor.clone();
+    let ed2 = editor.clone();
     TextInput {
         id,
         data: ViewData::new(id),
@@ -146,7 +144,7 @@ pub fn text_input(
         doc,
         cursor_pos: Point::ZERO,
         on_cursor_pos: None,
-        hide_cursor: editor.common.window_common.hide_cursor,
+        hide_cursor: editor.cursor_info.hidden,
         style: Default::default(),
     }
     .style(|s| {
@@ -170,7 +168,7 @@ pub fn text_input(
     .on_event(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             let keypress = keypress.get_untracked();
-            if keypress.key_down(key_event, &editor) {
+            if keypress.key_down(key_event, &e_data) {
                 EventPropagation::Stop
             } else {
                 EventPropagation::Continue
@@ -189,12 +187,11 @@ pub fn text_input(
             cursor: ime_cursor,
         } = event
         {
-            let doc = local_editor.view.doc.get_untracked();
             if text.is_empty() {
-                doc.clear_preedit();
+                ed1.clear_preedit();
             } else {
                 let offset = cursor.with_untracked(|c| c.offset());
-                doc.set_preedit(text.clone(), ime_cursor.to_owned(), offset);
+                ed1.set_preedit(text.clone(), ime_cursor.to_owned(), offset);
             }
         }
         EventPropagation::Stop
@@ -205,9 +202,8 @@ pub fn text_input(
         }
 
         if let Event::ImeCommit(text) = event {
-            let doc = local_editor.view.doc.get_untracked();
-            doc.clear_preedit();
-            local_editor.receive_char(text.as_str());
+            ed2.clear_preedit();
+            ed2.receive_char(text.as_str());
         }
         EventPropagation::Stop
     })
@@ -229,7 +225,7 @@ pub struct TextInput {
     content: String,
     offset: usize,
     preedit_range: Option<(usize, usize)>,
-    doc: RwSignal<Rc<Document>>,
+    doc: DocSignal,
     cursor: RwSignal<Cursor>,
     focus: bool,
     text_node: Option<Node>,
@@ -252,7 +248,7 @@ impl TextInput {
         let id = self.id;
         create_effect(move |_| {
             let placeholder = placeholder();
-            id.update_state(TextInputState::Placeholder(placeholder), false);
+            id.update_state(TextInputState::Placeholder(placeholder));
         });
         self
     }
@@ -417,6 +413,19 @@ impl View for TextInput {
         self.id
     }
 
+    fn view_data(&self) -> &ViewData {
+        &self.data
+    }
+
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
+    }
+
+    fn build(self) -> AnyWidget {
+        Box::new(self)
+    }
+}
+impl Widget for TextInput {
     fn view_data(&self) -> &ViewData {
         &self.data
     }

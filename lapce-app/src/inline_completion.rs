@@ -6,17 +6,13 @@ use lapce_core::{
         rope_text::{RopeText, RopeTextRef},
         Buffer,
     },
+    rope_text_pos::RopeTextPosition,
     selection::Selection,
 };
 
 use lsp_types::InsertTextFormat;
 
-use crate::{
-    config::LapceConfig,
-    doc::{Document, DocumentExt},
-    editor::EditorData,
-    snippet::Snippet,
-};
+use crate::{config::LapceConfig, doc::Doc, editor::EditorData, snippet::Snippet};
 
 // TODO: we could integrate completion lens with this, so it is considered at the same time
 
@@ -164,7 +160,7 @@ impl InlineCompletionData {
         });
     }
 
-    pub fn update_doc(&self, doc: &Document, offset: usize) {
+    pub fn update_doc(&self, doc: &Doc, offset: usize) {
         if self.status != InlineCompletionStatus::Active {
             doc.clear_inline_completion();
             return;
@@ -197,7 +193,7 @@ impl InlineCompletionData {
     pub fn update_inline_completion(
         &self,
         config: &LapceConfig,
-        doc: &Document,
+        doc: &Doc,
         cursor_offset: usize,
     ) {
         if !config.editor.enable_inline_completion {
@@ -212,7 +208,7 @@ impl InlineCompletionData {
             return;
         };
 
-        let completion = doc.backend.inline_completion.with_untracked(|cur| {
+        let completion = doc.inline_completion.with_untracked(|cur| {
             let cur = cur.as_deref();
             inline_completion_text(text, self.start_offset, cursor_offset, item, cur)
         });

@@ -9,9 +9,8 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use lapce_core::{
-    buffer::rope_text::CharIndicesJoin, encoding::offset_utf8_to_utf16,
-};
+use floem_editor_core::buffer::rope_text::CharIndicesJoin;
+use lapce_core::encoding::offset_utf8_to_utf16;
 use lapce_rpc::buffer::BufferId;
 use lapce_xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 use lsp_types::*;

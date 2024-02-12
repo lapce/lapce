@@ -74,6 +74,7 @@ impl KeyPressFocus for AboutData {
             CommandKind::Workbench(_) => {}
             CommandKind::Edit(_) => {}
             CommandKind::Move(_) => {}
+            CommandKind::Scroll(_) => {}
             CommandKind::Focus(cmd) => {
                 if cmd == &FocusCommand::ModalClose {
                     self.close();
