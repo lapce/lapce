@@ -2859,7 +2859,13 @@ pub(crate) fn compute_screen_lines(
             // the iterator is from min_vline..max_vline
             let count = max_vline.get() - min_vline.get();
             let iter = lines
-                .iter_rvlines_init(text_prov, config.id, min_info.rvline, false)
+                .iter_rvlines_init(
+                    text_prov,
+                    cache_rev,
+                    config.id,
+                    min_info.rvline,
+                    false,
+                )
                 .take(count);
 
             for (i, vline_info) in iter.enumerate() {
@@ -3053,6 +3059,7 @@ pub(crate) fn compute_screen_lines(
                         let mut iter = lines
                             .iter_rvlines_init(
                                 &text_prov,
+                                cache_rev,
                                 config.id,
                                 start_rvline,
                                 false,

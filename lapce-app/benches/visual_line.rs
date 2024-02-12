@@ -167,8 +167,7 @@ fn make_lines_ph(
     lines.set_wrap(wrap);
 
     if init {
-        let config_id = 0;
-        lines.init_all(config_id, &text, true);
+        lines.init_all(0, 0, &text, true);
     }
 
     (text, lines)
