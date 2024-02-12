@@ -301,7 +301,15 @@ impl LapceDb {
             .get("app")?
             .ok_or_else(|| anyhow!("can't find app info"))?;
         let info = std::str::from_utf8(&info)?;
-        let info: AppInfo = serde_json::from_str(info)?;
+        let mut info: AppInfo = serde_json::from_str(info)?;
+        for window in info.windows.iter_mut() {
+            if window.size.width < 10.0 {
+                window.size.width = 800.0;
+            }
+            if window.size.height < 10.0 {
+                window.size.width = 600.0;
+            }
+        }
         Ok(info)
     }
 
@@ -311,7 +319,13 @@ impl LapceDb {
             .get("window")?
             .ok_or_else(|| anyhow!("can't find app info"))?;
         let info = std::str::from_utf8(&info)?;
-        let info: WindowInfo = serde_json::from_str(info)?;
+        let mut info: WindowInfo = serde_json::from_str(info)?;
+        if info.size.width < 10.0 {
+            info.size.width = 800.0;
+        }
+        if info.size.height < 10.0 {
+            info.size.width = 600.0;
+        }
         Ok(info)
     }
 
