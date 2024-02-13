@@ -471,7 +471,7 @@ pub fn settings_view(
         }),
         stack((
             container({
-                text_input(search_editor, || false)
+                text_input(search_editor, || true)
                     .placeholder(|| "Search Settings".to_string())
                     .keyboard_navigatable()
                     .style(move |s| {
