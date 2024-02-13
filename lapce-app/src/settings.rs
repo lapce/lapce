@@ -454,19 +454,6 @@ pub fn settings_view(
                 .font_size(config.get().ui.font_size() as f32 + 1.0)
         })
     };
-    
-    let search_input = text_input(search_editor, || true)
-                    .placeholder(|| "Search Settings".to_string())
-                    .keyboard_navigatable()
-                    .style(move |s| {
-                        s.width_pct(100.0)
-                            .border_radius(6.0)
-                            .border(1.0)
-                            .border_color(
-                                config.get().color(LapceColor::LAPCE_BORDER),
-                            )
-                    });
-    search_input.id().request_focus();
 
     stack((
         container({
@@ -484,7 +471,18 @@ pub fn settings_view(
         }),
         stack((
             container({
-                search_input
+                text_input(search_editor, || true)
+                    .placeholder(|| "Search Settings".to_string())
+                    .keyboard_navigatable()
+                    .style(move |s| {
+                        s.width_pct(100.0)
+                            .border_radius(6.0)
+                            .border(1.0)
+                            .border_color(
+                                config.get().color(LapceColor::LAPCE_BORDER),
+                            )
+                    })
+                    .request_focus(||{})
             })
             .style(|s| s.padding_horiz(50.0).padding_vert(20.0)),
             container({
