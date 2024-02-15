@@ -38,7 +38,7 @@ anyhow = "1.0"
 backtrace = "0.3"
 chrono = "0.4"
 clap = { version = "3.2.25", features = ["derive"] }
-crossbeam-channel = "0.5.8"
+crossbeam-channel = "0.5.11"
 directories = "4.0.1"
 flate2 = "1.0"
 hashbrown = { version = "0.14.0", features = ["serde"] }
