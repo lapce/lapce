@@ -60,7 +60,7 @@ strum_macros = "0.21.1" # ditto
 tar = "0.4"
 thiserror = "1.0"
 toml = { version = "*" }
-toml_edit = { version = "0.19.14", features = ["serde"] }
+toml_edit = { version = "0.20.2", features = ["serde"] }
 url = { version = "2.3.1" }
 
 lsp-types = { version = "0.94.1", features = ["proposed"] } # not following semver, so should be locked to patch version updates only
