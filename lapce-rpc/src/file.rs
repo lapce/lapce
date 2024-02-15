@@ -232,9 +232,14 @@ pub struct FileNodeViewData {
 pub struct FileNodeItem {
     pub path: PathBuf,
     pub is_dir: bool,
+    /// Whether the directory's children have been read.  
+    /// Does nothing if not a directory.
     pub read: bool,
+    /// Whether the directory is open in the explorer view.
     pub open: bool,
     pub children: HashMap<PathBuf, FileNodeItem>,
+    /// The number of child (directories) that are open themselves  
+    /// Used for sizing of the explorer list
     pub children_open_count: usize,
 }
 
@@ -264,12 +269,16 @@ impl Ord for FileNodeItem {
 }
 
 impl FileNodeItem {
+    /// Collect the children, sorted by name.  
+    /// Note: this will be empty if the directory has not been read.
     pub fn sorted_children(&self) -> Vec<&FileNodeItem> {
         let mut children = self.children.values().collect::<Vec<&FileNodeItem>>();
         children.sort();
         children
     }
 
+    /// Collect the children, sorted by name.  
+    /// Note: this will be empty if the directory has not been read.
     pub fn sorted_children_mut(&mut self) -> Vec<&mut FileNodeItem> {
         let mut children = self
             .children
@@ -316,16 +325,20 @@ impl FileNodeItem {
         Some(ancestors.into_iter().rev())
     }
 
+    /// Recursively get the node at `path`.
     pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
         self.ancestors_rev(path)?
             .try_fold(self, |node, path| node.children.get(path))
     }
 
+    /// Recursively get the (mutable) node at `path`.
     pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
         self.ancestors_rev(path)?
             .try_fold(self, |node, path| node.children.get_mut(path))
     }
 
+    /// Remove a specific child from the node.  
+    /// The path is recursive and will remove the child from parent indicated by the path.
     pub fn remove_child(&mut self, path: &Path) -> Option<FileNodeItem> {
         let parent = path.parent()?;
         let node = self.get_file_node_mut(parent)?;
@@ -337,6 +350,7 @@ impl FileNodeItem {
         Some(node)
     }
 
+    /// Add a new (unread & unopened) child to the node.
     pub fn add_child(&mut self, path: &Path, is_dir: bool) -> Option<()> {
         let parent = path.parent()?;
         let node = self.get_file_node_mut(parent)?;
@@ -358,6 +372,8 @@ impl FileNodeItem {
         Some(())
     }
 
+    /// Set the children of the node.  
+    /// Note: this opens the node.
     pub fn set_item_children(
         &mut self,
         path: &Path,

@@ -43,6 +43,7 @@ enum RenamedPath {
 
 #[derive(Clone)]
 pub struct FileExplorerData {
+    /// Id for the cache, updated every time the file explorer is modified
     pub id: RwSignal<usize>,
     pub root: RwSignal<FileNodeItem>,
     pub rename_state: RwSignal<RenameState>,
@@ -150,16 +151,21 @@ impl FileExplorerData {
         data
     }
 
+    /// Reload the file explorer data via reading the root directory.  
+    /// Note that this will not update immediately.
     pub fn reload(&self) {
         let path = self.root.with_untracked(|root| root.path.clone());
         self.read_dir(&path);
     }
 
+    /// Toggle whether the directory is expanded or not.  
+    /// Does nothing if the path does not exist or is not a directory.
     pub fn toggle_expand(&self, path: &Path) {
         self.id.update(|id| {
             *id += 1;
         });
-        if let Some(read) = self
+
+        let Some(read) = self
             .root
             .try_update(|root| {
                 let read = if let Some(node) = root.get_file_node_mut(path) {
@@ -171,19 +177,24 @@ impl FileExplorerData {
                 } else {
                     None
                 };
+
                 if Some(true) == read {
                     root.update_node_count_recursive(path);
                 }
                 read
             })
             .unwrap()
-        {
-            if !read {
-                self.read_dir(path);
-            }
+        else {
+            return;
+        };
+
+        // Read the directory's files if they haven't been read yet
+        if !read {
+            self.read_dir(path);
         }
     }
 
+    /// Read the directory's information and update the file explorer tree.  
     pub fn read_dir(&self, path: &Path) {
         let root = self.root;
         let id = self.id;
@@ -192,52 +203,61 @@ impl FileExplorerData {
         let send = {
             let path = path.to_path_buf();
             create_ext_action(self.common.scope, move |result| {
-                if let Ok(ProxyResponse::ReadDirResponse { mut items }) = result {
-                    id.update(|id| {
-                        *id += 1;
-                    });
-                    root.update(|root| {
-                        if let Some(node) = root.get_file_node_mut(&path) {
-                            match Glob::new(&config.get().editor.files_exclude) {
-                                Ok(glob) => {
-                                    let matcher = glob.compile_matcher();
-                                    items.retain(|i| !matcher.is_match(&i.path));
-                                }
-                                Err(e) => tracing::error!(
-                                    target:"files_exclude",
-                                    "Failed to compile glob: {}",
-                                    e
-                                ),
-                            }
+                let Ok(ProxyResponse::ReadDirResponse { mut items }) = result else {
+                    return;
+                };
 
-                            node.read = true;
-                            let removed_paths: Vec<PathBuf> = node
-                                .children
-                                .keys()
-                                .filter(|p| !items.iter().any(|i| &&i.path == p))
-                                .map(PathBuf::from)
-                                .collect();
-                            for path in removed_paths {
-                                node.children.remove(&path);
+                id.update(|id| {
+                    *id += 1;
+                });
+                root.update(|root| {
+                    // Get the node for this path, which should already exist if we're calling
+                    // read_dir on it.
+                    if let Some(node) = root.get_file_node_mut(&path) {
+                        // TODO: do not recreate glob every time we read a directory
+                        // Retain only items that are not excluded from view by the configuration
+                        match Glob::new(&config.get().editor.files_exclude) {
+                            Ok(glob) => {
+                                let matcher = glob.compile_matcher();
+                                items.retain(|i| !matcher.is_match(&i.path));
                             }
+                            Err(e) => tracing::error!(
+                                target:"files_exclude",
+                                "Failed to compile glob: {}",
+                                e
+                            ),
+                        }
 
-                            for item in items {
-                                if let Some(existing) = node.children.get(&item.path)
-                                {
-                                    if existing.read {
-                                        data.read_dir(&existing.path);
-                                    }
-                                } else {
-                                    // Add new paths
-                                    node.children.insert(item.path.clone(), item);
+                        node.read = true;
+
+                        // Remove paths that no longer exist
+                        let removed_paths: Vec<PathBuf> = node
+                            .children
+                            .keys()
+                            .filter(|p| !items.iter().any(|i| &&i.path == p))
+                            .map(PathBuf::from)
+                            .collect();
+                        for path in removed_paths {
+                            node.children.remove(&path);
+                        }
+
+                        // Reread dirs that were already read and add new paths
+                        for item in items {
+                            if let Some(existing) = node.children.get(&item.path) {
+                                if existing.read {
+                                    data.read_dir(&existing.path);
                                 }
+                            } else {
+                                node.children.insert(item.path.clone(), item);
                             }
                         }
-                        root.update_node_count_recursive(&path);
-                    });
-                }
+                    }
+                    root.update_node_count_recursive(&path);
+                });
             })
         };
+
+        // Ask the proxy for the directory information
         self.common
             .proxy
             .read_dir(path.to_path_buf(), move |result| {
