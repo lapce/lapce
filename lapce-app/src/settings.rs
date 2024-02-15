@@ -482,6 +482,7 @@ pub fn settings_view(
                                 config.get().color(LapceColor::LAPCE_BORDER),
                             )
                     })
+                    .request_focus(|| {})
             })
             .style(|s| s.padding_horiz(50.0).padding_vert(20.0)),
             container({
