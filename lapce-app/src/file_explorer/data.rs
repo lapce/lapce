@@ -15,6 +15,7 @@ use floem::{
     views::editor::id::EditorId,
     EventPropagation,
 };
+use globset::Glob;
 use lapce_core::{
     command::{EditCommand, FocusCommand},
     mode::Mode,
@@ -187,15 +188,28 @@ impl FileExplorerData {
         let root = self.root;
         let id = self.id;
         let data = self.clone();
+        let config = self.common.config;
         let send = {
             let path = path.to_path_buf();
             create_ext_action(self.common.scope, move |result| {
-                if let Ok(ProxyResponse::ReadDirResponse { items }) = result {
+                if let Ok(ProxyResponse::ReadDirResponse { mut items }) = result {
                     id.update(|id| {
                         *id += 1;
                     });
                     root.update(|root| {
                         if let Some(node) = root.get_file_node_mut(&path) {
+                            match Glob::new(&config.get().editor.files_exclude) {
+                                Ok(glob) => {
+                                    let matcher = glob.compile_matcher();
+                                    items.retain(|i| !matcher.is_match(&i.path));
+                                }
+                                Err(e) => tracing::error!(
+                                    target:"files_exclude",
+                                    "Failed to compile glob: {}",
+                                    e
+                                ),
+                            }
+
                             node.read = true;
                             let removed_paths: Vec<PathBuf> = node
                                 .children
@@ -214,6 +228,7 @@ impl FileExplorerData {
                                         data.read_dir(&existing.path);
                                     }
                                 } else {
+                                    // Add new paths
                                     node.children.insert(item.path.clone(), item);
                                 }
                             }
