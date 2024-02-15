@@ -61,7 +61,7 @@ structdesc = { git = "https://github.com/lapce/structdesc" }
 base64 = "0.21.5"
 sha2 = "0.10.6"
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
-globset = "0.4.9"
+globset = "0.4.13"
 
 [target.'cfg(target_os="macos")'.dependencies]
 fs_extra = "1.2.0"
