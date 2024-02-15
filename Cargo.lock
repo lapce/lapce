@@ -3029,6 +3029,7 @@ dependencies = [
  "floem",
  "fs_extra",
  "futures",
+ "globset",
  "im",
  "include_dir",
  "indexmap 2.0.2",

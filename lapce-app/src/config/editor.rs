@@ -221,6 +221,10 @@ pub struct EditorConfig {
     pub bracket_pair_colorization: bool,
     #[field_names(desc = "Bracket colorization Limit")]
     pub bracket_colorization_limit: u64,
+    #[field_names(
+        desc = "Glob patterns for excluding files and folders (in file explorer)"
+    )]
+    pub files_exclude: String,
 }
 
 impl EditorConfig {
