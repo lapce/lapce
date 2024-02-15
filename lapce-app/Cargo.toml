@@ -45,7 +45,7 @@ url.workspace = true
 
 pulldown-cmark = "0.9.1"
 Inflector = "0.11.4"
-open = "5.0.0"
+open = "5.0.1"
 unicode-width = "0.1.11"
 nucleo = "0.2.0"
 sled = "0.34.7"
