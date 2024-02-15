@@ -201,10 +201,7 @@ impl FileExplorerData {
                             match Glob::new(&config.get().editor.files_exclude) {
                                 Ok(glob) => {
                                     let matcher = glob.compile_matcher();
-                                    items = items
-                                        .into_iter()
-                                        .filter(|i| !matcher.is_match(&i.path))
-                                        .collect();
+                                    items.retain(|i| !matcher.is_match(&i.path));
                                 }
                                 Err(e) => tracing::error!(
                                     target:"files_exclude",
