@@ -43,8 +43,6 @@ enum RenamedPath {
 
 #[derive(Clone)]
 pub struct FileExplorerData {
-    /// Id for the cache, updated every time the file explorer is modified
-    pub id: RwSignal<usize>,
     pub root: RwSignal<FileNodeItem>,
     pub rename_state: RwSignal<RenameState>,
     pub rename_editor_data: EditorData,
@@ -137,7 +135,6 @@ impl FileExplorerData {
         let rename_state = cx.create_rw_signal(RenameState::NotRenaming);
         let rename_editor_data = EditorData::new_local(cx, editors, common.clone());
         let data = Self {
-            id: cx.create_rw_signal(0),
             root,
             rename_state,
             rename_editor_data,
@@ -161,10 +158,6 @@ impl FileExplorerData {
     /// Toggle whether the directory is expanded or not.  
     /// Does nothing if the path does not exist or is not a directory.
     pub fn toggle_expand(&self, path: &Path) {
-        self.id.update(|id| {
-            *id += 1;
-        });
-
         let Some(read) = self
             .root
             .try_update(|root| {
@@ -197,7 +190,6 @@ impl FileExplorerData {
     /// Read the directory's information and update the file explorer tree.  
     pub fn read_dir(&self, path: &Path) {
         let root = self.root;
-        let id = self.id;
         let data = self.clone();
         let config = self.common.config;
         let send = {
@@ -207,9 +199,6 @@ impl FileExplorerData {
                     return;
                 };
 
-                id.update(|id| {
-                    *id += 1;
-                });
                 root.update(|root| {
                     // Get the node for this path, which should already exist if we're calling
                     // read_dir on it.
