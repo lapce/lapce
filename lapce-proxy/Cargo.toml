@@ -59,7 +59,7 @@ trash = "3.0.6"
 ignore = "0.4.18"
 grep-searcher = "0.1.11"
 grep-matcher = "0.1.6"
-grep-regex = "0.1.9"
+grep-regex = "0.1.11"
 
 # wasm
 wasmtime = "14.0.0"
