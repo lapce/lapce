@@ -221,6 +221,10 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
     let root = data.root;
     let ui_line_height = data.common.ui_line_height;
     let config = data.common.config;
+    let rename_state = data.rename_state;
+
+    let secondary_click_data = data.clone();
+
     virtual_stack(
         VirtualDirection::Vertical,
         VirtualItemSize::Fixed(Box::new(move || ui_line_height.get())),
@@ -346,6 +350,13 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
         },
     )
     .style(|s| s.flex_col().align_items(AlignItems::Stretch).width_full())
+    .on_secondary_click_stop(move |_| {
+        if let RenameState::NotRenaming = rename_state.get_untracked() {
+            if let Some(path) = &secondary_click_data.common.workspace.path {
+                secondary_click_data.secondary_click(path);
+            }
+        }
+    })
 }
 
 fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {

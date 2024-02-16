@@ -545,6 +545,7 @@ pub enum InternalCommand {
     OpenFileChanges {
         path: PathBuf,
     },
+    ReloadFileExplorer,
     StartRenamePath {
         path: PathBuf,
     },

@@ -1313,6 +1313,9 @@ impl WindowTabData {
             InternalCommand::OpenFileChanges { path } => {
                 self.main_split.open_file_changes(path);
             }
+            InternalCommand::ReloadFileExplorer => {
+                self.file_explorer.reload();
+            }
             InternalCommand::StartRenamePath { path } => {
                 self.file_explorer.rename_state.set(RenameState::Renaming {
                     path,

@@ -12,13 +12,14 @@ use floem::{
     keyboard::ModifiersState,
     menu::{Menu, MenuItem},
     reactive::{RwSignal, Scope},
-    views::editor::id::EditorId,
+    views::editor::{id::EditorId, text::SystemClipboard},
     EventPropagation,
 };
 use globset::Glob;
 use lapce_core::{
     command::{EditCommand, FocusCommand},
     mode::Mode,
+    register::Clipboard,
 };
 use lapce_rpc::{
     file::{FileNodeItem, RenameState},
@@ -187,8 +188,14 @@ impl FileExplorerData {
         }
     }
 
-    /// Read the directory's information and update the file explorer tree.  
     pub fn read_dir(&self, path: &Path) {
+        self.read_dir_cb(path, |_| {});
+    }
+
+    /// Read the directory's information and update the file explorer tree.  
+    /// `done : FnOnce(was_read: bool)` is called when the operation is completed, whether success,
+    /// failure, or ignored.
+    pub fn read_dir_cb(&self, path: &Path, done: impl FnOnce(bool) + 'static) {
         let root = self.root;
         let data = self.clone();
         let config = self.common.config;
@@ -196,6 +203,7 @@ impl FileExplorerData {
             let path = path.to_path_buf();
             create_ext_action(self.common.scope, move |result| {
                 let Ok(ProxyResponse::ReadDirResponse { mut items }) = result else {
+                    done(false);
                     return;
                 };
 
@@ -243,6 +251,8 @@ impl FileExplorerData {
                     }
                     root.update_node_count_recursive(&path);
                 });
+
+                done(true);
             })
         };
 
@@ -344,41 +354,144 @@ impl FileExplorerData {
     }
 
     pub fn secondary_click(&self, path: &Path) {
-        let menu = {
-            let common = self.common.clone();
-            let path = path.to_owned();
-            let left_path = path.clone();
-            let left_diff_path = self.left_diff_path;
+        let common = self.common.clone();
+        let path_a = path.to_owned();
+        let left_diff_path = self.left_diff_path;
+        // TODO: should we just pass is_dir into secondary click?
+        let is_dir = self.is_dir(path);
+        let is_workspace = self
+            .common
+            .workspace
+            .path
+            .as_ref()
+            .map_or(false, |p| path == p);
 
-            Menu::new("")
-                .entry(MenuItem::new("Rename...").action(move || {
+        let mut menu = Menu::new("");
+
+        let path = path_a.clone();
+        let data = self.clone();
+        menu = menu.entry(MenuItem::new("New File").action(move || {
+            let path_b = path.clone();
+            data.read_dir_cb(&path, move |was_read| {
+                if !was_read {
+                    tracing::warn!(
+                        "Failed to read directory, avoiding creating file: {:?}",
+                        path_b
+                    );
+                    return;
+                }
+            });
+        }));
+
+        let path = path_a.clone();
+        menu = menu.entry(MenuItem::new("New Directory").action(move || {
+            println!("New Folder");
+        }));
+
+        menu = menu.separator();
+
+        // TODO: there are situations where we can open the file explorer to remote files
+        if !common.workspace.kind.is_remote() {
+            let path = path_a.clone();
+            menu = menu.entry(MenuItem::new("Reveal in file explorer").action(
+                move || {
+                    let path = path.parent().unwrap_or(&path);
+                    if !path.exists() {
+                        return;
+                    }
+
+                    if let Err(err) = open::that(path) {
+                        tracing::error!(
+                            "Failed to reveal file in system file explorer: {}",
+                            err
+                        );
+                    }
+                },
+            ));
+        }
+
+        if !is_workspace {
+            let path = path_a.clone();
+            let internal_command = common.internal_command;
+            menu = menu.entry(MenuItem::new("Rename").action(move || {
+                internal_command
+                    .send(InternalCommand::StartRenamePath { path: path.clone() });
+            }));
+
+            let path = path_a.clone();
+            menu = menu.entry(MenuItem::new("Duplicate").action(move || {
+                println!("Duplicate");
+            }));
+
+            // TODO: it is common for shift+right click to make 'Move file to trash' an actual
+            // Delete, which can be useful for large files.
+            let path = path_a.clone();
+            let proxy = common.proxy.clone();
+            let trash_text = if is_dir {
+                "Move Directory to Trash"
+            } else {
+                "Move File to Trash"
+            };
+            menu = menu.entry(MenuItem::new(trash_text).action(move || {
+                proxy.trash_path(path.clone(), |res| {
+                    if let Err(err) = res {
+                        tracing::warn!("Failed to trash path: {:?}", err);
+                    }
+                })
+            }));
+        }
+
+        menu = menu.separator();
+
+        let path = path_a.clone();
+        menu = menu.entry(MenuItem::new("Copy Path").action(move || {
+            let mut clipboard = SystemClipboard::new();
+            clipboard.put_string(path.to_string_lossy());
+        }));
+
+        let path = path_a.clone();
+        let workspace = common.workspace.clone();
+        menu = menu.entry(MenuItem::new("Copy Relative Path").action(move || {
+            let relative_path = if let Some(workspace_path) = &workspace.path {
+                path.strip_prefix(workspace_path).unwrap_or(&path)
+            } else {
+                path.as_ref()
+            };
+
+            let mut clipboard = SystemClipboard::new();
+            clipboard.put_string(relative_path.to_string_lossy());
+        }));
+
+        menu = menu.separator();
+
+        let path = path_a.clone();
+        menu = menu.entry(
+            MenuItem::new("Select for Compare")
+                .action(move || left_diff_path.set(Some(path.clone()))),
+        );
+
+        if let Some(left_path) = self.left_diff_path.get_untracked() {
+            let common = self.common.clone();
+            let right_path = path_a.to_owned();
+
+            menu = menu.entry(MenuItem::new("Compare with Selected").action(
+                move || {
                     common
                         .internal_command
-                        .send(InternalCommand::StartRenamePath {
-                            path: path.clone(),
-                        });
-                }))
-                .entry(
-                    MenuItem::new("Select for Compare")
-                        .action(move || left_diff_path.set(Some(left_path.clone()))),
-                )
-        };
+                        .send(InternalCommand::OpenDiffFiles {
+                            left_path: left_path.clone(),
+                            right_path: right_path.clone(),
+                        })
+                },
+            ))
+        }
 
-        let menu = if let Some(left_path) = self.left_diff_path.get_untracked() {
-            let common = self.common.clone();
-            let right_path = path.to_owned();
+        menu = menu.separator();
 
-            menu.entry(MenuItem::new("Compare with Selected").action(move || {
-                common
-                    .internal_command
-                    .send(InternalCommand::OpenDiffFiles {
-                        left_path: left_path.clone(),
-                        right_path: right_path.clone(),
-                    })
-            }))
-        } else {
-            menu
-        };
+        let internal_command = common.internal_command;
+        menu = menu.entry(MenuItem::new("Refresh").action(move || {
+            internal_command.send(InternalCommand::ReloadFileExplorer);
+        }));
 
         show_context_menu(menu, None);
     }
