@@ -3,6 +3,7 @@ name = "lapce"
 version = "0.3.1"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 edition = "2021"
+license = "Apache-2.0"
 rust-version = "1.65"
 default-run = "lapce"
 
