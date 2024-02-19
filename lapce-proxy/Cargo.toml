@@ -39,7 +39,7 @@ floem-editor-core.workspace = true
 
 # proxy specific dependencies
 
-url = "2.3.1"
+url = "2.5.0"
 zstd = "0.11.2"         # follow same version wasmtime-cache in lockfile
 dyn-clone = "1.0.16"
 walkdir = "2.3.2"
