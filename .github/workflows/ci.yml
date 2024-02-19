@@ -73,7 +73,7 @@ jobs:
         run: cargo test --doc --workspace
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           files: lcov.info
 
