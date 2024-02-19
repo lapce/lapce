@@ -58,7 +58,7 @@ floem = { git = "https://github.com/lapce/floem", rev = "ada3d68642cab2245308ead
 # floem = { path = "../../workspaces/floem", features = ["serde"] }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
-base64 = "0.21.5"
+base64 = "0.21.7"
 sha2 = "0.10.6"
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
 globset = "0.4.13"
