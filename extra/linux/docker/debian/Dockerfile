@@ -134,7 +134,7 @@ case "${RELEASE_TAG_NAME}" in
     # date=$(date +%Y%m%d%H%M)
     RELEASE_TAG_NAME="${version}+${commit}"
   ;;
-  debug*)
+  debug|nightly)
     version=$(cat /target/lapce.version)
     date=$(date +%Y%m%d%H%M)
     RELEASE_TAG_NAME="${version}+${date}"
