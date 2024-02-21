@@ -388,7 +388,7 @@ jobs:
           gh release create $TAG_NAME $PRERELEASE --title "$TAG_NAME" --target $GITHUB_SHA \
             lapce-macos/* \
             lapce-linux/* \
-            lapce-debian*/* \
-            lapce-ubuntu*/* \
+            lapce-debian*/*/* \
+            lapce-ubuntu*/*/* \
             lapce-proxy-linux-*/* \
             lapce-windows/*
