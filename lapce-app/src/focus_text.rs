@@ -8,7 +8,7 @@ use floem::{
     prop_extracter,
     reactive::create_effect,
     style::{FontFamily, FontSize, LineHeight, Style, TextColor},
-    taffy::prelude::Node,
+    taffy::prelude::NodeId,
     view::{AnyWidget, View, ViewData, Widget},
     Renderer,
 };
@@ -72,7 +72,7 @@ pub struct FocusText {
     text_layout: Option<TextLayout>,
     focus_color: Color,
     focus_indices: Vec<usize>,
-    text_node: Option<Node>,
+    text_node: Option<NodeId>,
     available_text: Option<String>,
     available_width: Option<f32>,
     available_text_layout: Option<TextLayout>,
@@ -218,7 +218,7 @@ impl Widget for FocusText {
     fn layout(
         &mut self,
         cx: &mut floem::context::LayoutCx,
-    ) -> floem::taffy::prelude::Node {
+    ) -> floem::taffy::prelude::NodeId {
         cx.layout_node(self.id, true, |cx| {
             if self.text_layout.is_none() {
                 self.set_text_layout();

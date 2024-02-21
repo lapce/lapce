@@ -16,7 +16,7 @@ use floem::{
         CursorStyle, FontFamily, FontSize, FontStyle, FontWeight, LineHeight,
         PaddingLeft, Style, TextColor,
     },
-    taffy::prelude::Node,
+    taffy::prelude::NodeId,
     unit::PxPct,
     view::{AnyWidget, View, ViewData, Widget},
     views::Decorators,
@@ -228,7 +228,7 @@ pub struct TextInput {
     doc: DocSignal,
     cursor: RwSignal<Cursor>,
     focus: bool,
-    text_node: Option<Node>,
+    text_node: Option<NodeId>,
     text_layout: RwSignal<Option<TextLayout>>,
     text_rect: Rect,
     text_viewport: Rect,
@@ -473,7 +473,7 @@ impl Widget for TextInput {
     fn layout(
         &mut self,
         cx: &mut floem::context::LayoutCx,
-    ) -> floem::taffy::prelude::Node {
+    ) -> floem::taffy::prelude::NodeId {
         cx.layout_node(self.id, true, |cx| {
             if self
                 .text_layout

@@ -180,7 +180,7 @@ impl Widget for TerminalView {
     fn layout(
         &mut self,
         cx: &mut floem::context::LayoutCx,
-    ) -> floem::taffy::prelude::Node {
+    ) -> floem::taffy::prelude::NodeId {
         cx.layout_node(self.data.id(), false, |_cx| Vec::new())
     }
 
