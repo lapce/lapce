@@ -27,29 +27,23 @@ jobs:
     outputs:
       tag_name: ${{ steps.tag.outputs.tag }}
     steps:
-      - if: github.event_name == 'workflow_dispatch'
-        run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
+      - id: vars
+        shell: bash
+        run: echo "sha_short=${GITHUB_SHA::7}" | tee -a $GITHUB_OUTPUT
 
-      - if: github.event_name == 'schedule'
-        run: echo 'TAG_NAME=nightly' >> $GITHUB_ENV
+      - if: github.event_name == 'workflow_dispatch'
+        run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" | tee -a $GITHUB_ENV
+
+      - if: github.event_name == 'schedule' || github.event_name == 'pull_request'
+        run: echo 'TAG_NAME=nightly-${{ steps.vars.outputs.sha_short }}' | tee -a $GITHUB_ENV
 
       - if: github.event_name == 'push'
         run: |
           TAG_NAME=${{ github.ref }}
-          echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
-
-      - if: github.event_name == 'pull_request'
-        run: echo 'TAG_NAME=debug' >> $GITHUB_ENV
-
-      - id: vars
-        shell: bash
-        run: echo "sha_short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
-
-      - if: env.TAG_NAME == 'nightly'
-        run: echo 'TAG_NAME=nightly-${{ steps.vars.outputs.sha_short }}' >> $GITHUB_ENV
+          echo "TAG_NAME=${TAG_NAME#refs/tags/}" | tee -a $GITHUB_ENV
 
       - id: tag
-        run: echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+        run: echo "tag=$TAG_NAME" | tee -a $GITHUB_OUTPUT
 
   windows:
     runs-on: windows-latest
@@ -62,7 +56,7 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Update rust
         run: rustup update
@@ -100,7 +94,7 @@ jobs:
           Start-Sleep -Seconds 10
           $compressor.close()
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: lapce-windows
           path: |
@@ -111,37 +105,30 @@ jobs:
 
   linux:
     runs-on: ubuntu-latest
-    container: ubuntu:18.04
     needs: tagname
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
-      DEBIAN_FRONTEND: noninteractive
-
     steps:
-      - uses: actions/checkout@v3
-      - name: Install dependencies
+      - uses: actions/checkout@v4
+      - name: Build deb packages
         run: |
-          apt-get -y update
-          apt-get -y install python3 curl wget clang libxkbcommon-x11-dev pkg-config libvulkan-dev libwayland-dev xorg-dev libxcb-shape0-dev libxcb-xfixes0-dev
-
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: x86_64-unknown-linux-gnu
-          profile: minimal
-
-      - name: Fetch dependencies
-        run: cargo fetch --locked
-
-      - name: Build
-        run: cargo build --frozen --profile release-lto --bin lapce
+          docker buildx create --driver=docker-container --use
+          docker buildx bake --pull ubuntu-focal --set ubuntu-focal.target=binary
 
       - name: Gzip
         run: |
           mkdir Lapce
-          cp ./target/release-lto/lapce Lapce/
-          tar -zcvf ./Lapce-linux.tar.gz Lapce
+          cp ./target/linux_amd64/lapce Lapce/
+          tar -zcvf ./lapce-linux-amd64.tar.gz Lapce
+
+          rm -rf Lapce
+
+          mkdir Lapce
+          cp ./target/linux_arm64/lapce Lapce/
+          tar -zcvf ./lapce-linux-arm64.tar.gz Lapce
+
+      - name: Fetch dependencies
+        run: cargo fetch --locked
 
       - name: Vendor dependencies
         run: |
@@ -149,12 +136,61 @@ jobs:
           mv ./vendor-config.toml ./vendor/
           tar -zcf vendor.tar.gz ./vendor/
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: lapce-linux
           path: |
-            ./Lapce-linux.tar.gz
+            ./lapce-linux-*.tar.gz
             ./vendor.tar.gz
+          retention-days: 1
+
+  debian:
+    runs-on: ubuntu-latest
+    needs: tagname
+    env:
+      RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [debian]
+        os_version: [bookworm, bullseye]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build deb packages
+        run: |
+          docker buildx create --driver=docker-container --use
+          docker buildx bake --pull ${{ matrix.distro }}-${{ matrix.os_version }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lapce-${{ matrix.distro }}-${{ matrix.os_version }}
+          path: |
+            ./target/linux_*/*
+          retention-days: 1
+
+  ubuntu:
+    runs-on: ubuntu-latest
+    needs: tagname
+    env:
+      RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ubuntu]
+        os_version:
+          - focal
+          - jammy
+          - noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build deb packages
+        run: |
+          docker buildx create --driver=docker-container --use
+          docker buildx bake --pull ${{ matrix.distro }}-${{ matrix.os_version }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lapce-${{ matrix.distro }}-${{ matrix.os_version }}
+          path: |
+            ./target/linux_*/*
           retention-days: 1
 
   linux-musl:
@@ -178,7 +214,7 @@ jobs:
           - triple: aarch64-unknown-linux-musl
             platform: aarch64
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Alpine Linux for ${{ matrix.platform }} (target arch)
         id: alpine-target
@@ -238,7 +274,7 @@ jobs:
         run: |
           gzip -c ./target/${{ matrix.triple }}/release/lapce-proxy > ./lapce-proxy-linux-${{ matrix.platform }}.gz
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: lapce-proxy-linux-${{ matrix.platform }}
           path: |
@@ -255,7 +291,7 @@ jobs:
       NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install ARM target
         run: rustup update && rustup target add aarch64-apple-darwin
@@ -290,7 +326,7 @@ jobs:
         with:
           product-path: "./target/release-lto/macos/Lapce-macos.dmg"
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: lapce-macos
           path: |
@@ -299,8 +335,7 @@ jobs:
           retention-days: 1
 
   publish:
-    if: github.event_name != 'pull_request'
-    needs: [linux, linux-musl, windows, macos]
+    needs: [linux, linux-musl, debian, windows, macos]
     runs-on: ubuntu-latest
     env:
       GH_REPO: ${{ github.repository }}
@@ -310,35 +345,50 @@ jobs:
     steps:
       # Must perform checkout first, since it deletes the target directory
       # before running, and would therefore delete the downloaded artifacts
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
 
       - if: github.event_name == 'workflow_dispatch'
-        run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
+        run: echo "TAG_NAME=${{ github.event.inputs.tag_name }}" | tee -a $GITHUB_ENV
 
       - if: github.event_name == 'schedule'
-        run: echo 'TAG_NAME=nightly' >> $GITHUB_ENV
+        run: echo 'TAG_NAME=nightly' | tee -a $GITHUB_ENV
 
       - if: github.event_name == 'push'
         run: |
           TAG_NAME=${{ github.ref }}
-          echo "TAG_NAME=${TAG_NAME#refs/tags/}" >> $GITHUB_ENV
+          echo "TAG_NAME=${TAG_NAME#refs/tags/}" | tee -a $GITHUB_ENV
 
       - if: env.TAG_NAME == 'nightly'
         run: |
-          (echo 'SUBJECT=Lapce development build';
-           echo 'PRERELEASE=--prerelease') >> $GITHUB_ENV
+          {
+            echo 'SUBJECT=Lapce development build'
+            echo 'PRERELEASE=--prerelease'
+          } | tee -a $GITHUB_ENV
+
+      - if: env.TAG_NAME == 'nightly' && github.event_name != 'pull_request'
+        name: Re-Tag nightly
+        run: |
           gh release delete nightly --yes || true
           git push origin :nightly || true
 
       - if: env.TAG_NAME != 'nightly'
         run: |
-          (echo 'SUBJECT=Lapce release build';
-           echo 'PRERELEASE=') >> $GITHUB_ENV
+          {
+            echo 'SUBJECT=Lapce release build'
+            echo 'PRERELEASE='
+          } | tee -a $GITHUB_ENV
 
       - name: Publish release
+        if: github.event_name != 'pull_request'
         env:
           DEBUG: api
         run: |
-          gh release create $TAG_NAME $PRERELEASE --title "$TAG_NAME" --target $GITHUB_SHA lapce-macos/* lapce-linux/* lapce-proxy-linux-*/* lapce-windows/*
+          gh release create $TAG_NAME $PRERELEASE --title "$TAG_NAME" --target $GITHUB_SHA \
+            lapce-macos/* \
+            lapce-linux/* \
+            lapce-debian*/*/* \
+            lapce-ubuntu*/*/* \
+            lapce-proxy-linux-*/* \
+            lapce-windows/*
