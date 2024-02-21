@@ -17,7 +17,7 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container_box, dyn_container, dyn_stack, editor::id::EditorId, empty, img,
+        container, dyn_container, dyn_stack, editor::id::EditorId, empty, img,
         label, rich_text, scroll, stack, svg, text, Decorators,
     },
 };
@@ -789,15 +789,15 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                             .as_ref()
                             .and_then(|(_, _, icon, _, _)| icon.clone())
                         {
-                            None => container_box(
+                            None => container(
                                 img(move || VOLT_DEFAULT_PNG.to_vec())
                                     .style(|s| s.size_full()),
                             ),
-                            Some(VoltIcon::Svg(svg_str)) => container_box(
+                            Some(VoltIcon::Svg(svg_str)) => container(
                                 svg(move || svg_str.clone())
                                     .style(|s| s.size_full()),
                             ),
-                            Some(VoltIcon::Img(buf)) => container_box(
+                            Some(VoltIcon::Img(buf)) => container(
                                 img(move || buf.clone()).style(|s| s.size_full()),
                             ),
                         }
@@ -930,18 +930,16 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                                     )
                                 },
                                 move |content| match content {
-                                    MarkdownContent::Text(text_layout) => {
-                                        container_box(
-                                            rich_text(move || text_layout.clone())
-                                                .style(|s| s.width_full()),
-                                        )
-                                        .style(|s| s.width_full())
-                                    }
+                                    MarkdownContent::Text(text_layout) => container(
+                                        rich_text(move || text_layout.clone())
+                                            .style(|s| s.width_full()),
+                                    )
+                                    .style(|s| s.width_full()),
                                     MarkdownContent::Image { .. } => {
-                                        container_box(empty())
+                                        container(empty())
                                     }
                                     MarkdownContent::Separator => {
-                                        container_box(empty().style(move |s| {
+                                        container(empty().style(move |s| {
                                             s.width_full()
                                                 .margin_vert(5.0)
                                                 .height(1.0)

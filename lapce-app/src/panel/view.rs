@@ -6,9 +6,7 @@ use floem::{
     reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::CursorStyle,
     view::View,
-    views::{
-        container, container_box, dyn_stack, empty, label, stack, tab, Decorators,
-    },
+    views::{container, dyn_stack, empty, label, stack, tab, Decorators},
     EventPropagation,
 };
 
@@ -291,28 +289,26 @@ fn panel_view(
         move |kind| {
             let view = match kind {
                 PanelKind::Terminal => {
-                    container_box(terminal_panel(window_tab_data.clone()))
+                    container(terminal_panel(window_tab_data.clone()))
                 }
-                PanelKind::FileExplorer => container_box(file_explorer_panel(
-                    window_tab_data.clone(),
-                    position,
-                )),
-                PanelKind::SourceControl => container_box(source_control_panel(
+                PanelKind::FileExplorer => {
+                    container(file_explorer_panel(window_tab_data.clone(), position))
+                }
+                PanelKind::SourceControl => container(source_control_panel(
                     window_tab_data.clone(),
                     position,
                 )),
                 PanelKind::Plugin => {
-                    container_box(plugin_panel(window_tab_data.clone(), position))
+                    container(plugin_panel(window_tab_data.clone(), position))
                 }
-                PanelKind::Search => container_box(global_search_panel(
-                    window_tab_data.clone(),
-                    position,
-                )),
+                PanelKind::Search => {
+                    container(global_search_panel(window_tab_data.clone(), position))
+                }
                 PanelKind::Problem => {
-                    container_box(problem_panel(window_tab_data.clone(), position))
+                    container(problem_panel(window_tab_data.clone(), position))
                 }
                 PanelKind::Debug => {
-                    container_box(debug_panel(window_tab_data.clone(), position))
+                    container(debug_panel(window_tab_data.clone(), position))
                 }
             };
             view.style(|s| s.size_pct(100.0, 100.0))

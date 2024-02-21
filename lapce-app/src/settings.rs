@@ -17,8 +17,8 @@ use floem::{
     view::View,
     views::editor::id::EditorId,
     views::{
-        container, container_box, dyn_stack, empty, label, scroll, stack, svg, text,
-        virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
+        container, dyn_stack, empty, label, scroll, stack, svg, text, virtual_stack,
+        Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
 };
 use indexmap::IndexMap;
@@ -617,18 +617,13 @@ fn settings_item_view(
                     rev
                 });
 
-                container_box(
-                    text_input(editor, || false).keyboard_navigatable().style(
-                        move |s| {
-                            s.width(300.0)
-                                .border(1.0)
-                                .border_radius(6.0)
-                                .border_color(
-                                    config.get().color(LapceColor::LAPCE_BORDER),
-                                )
-                        },
-                    ),
-                )
+                container(text_input(editor, || false).keyboard_navigatable().style(
+                    move |s| {
+                        s.width(300.0).border(1.0).border_radius(6.0).border_color(
+                            config.get().color(LapceColor::LAPCE_BORDER),
+                        )
+                    },
+                ))
             } else if let SettingsValue::Dropdown(dropdown) = item.value {
                 let expanded = create_rw_signal(false);
                 let current_value = dropdown
@@ -666,7 +661,7 @@ fn settings_item_view(
                             })
                         })
                 };
-                container_box(
+                container(
                     stack((
                         stack((
                             label(move || current_value.get()).style(move |s| {
@@ -757,7 +752,7 @@ fn settings_item_view(
                     .style(move |s| s.width(250.0).line_height(1.8)),
                 )
             } else if item.header {
-                container_box(label(move || item.kind.clone()).style(move |s| {
+                container(label(move || item.kind.clone()).style(move |s| {
                     let config = config.get();
                     s.line_height(2.0)
                         .font_bold()
@@ -767,7 +762,7 @@ fn settings_item_view(
                         .background(config.color(LapceColor::PANEL_BACKGROUND))
                 }))
             } else {
-                container_box(empty())
+                container(empty())
             }
         }
     };
@@ -809,7 +804,7 @@ fn settings_item_view(
                     }
                 });
 
-                container_box(
+                container(
                     stack((
                         checkbox(move || checked.get(), config),
                         label(|| " ".to_string()).style(|s| s.line_height(1.6)),
@@ -828,7 +823,7 @@ fn settings_item_view(
                         .items_start()
                 })
             } else {
-                container_box(empty()).style(|s| s.hide())
+                container(empty()).style(|s| s.hide())
             },
         )),
         view().style(move |s| s.apply_if(!item.header, |s| s.margin_top(6.0))),

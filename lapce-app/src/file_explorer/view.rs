@@ -8,8 +8,8 @@ use floem::{
     style::{AlignItems, CursorStyle, Position, Style},
     view::View,
     views::{
-        container, container_box, dyn_stack, label, scroll, stack, svg,
-        virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
+        container, dyn_stack, label, scroll, stack, svg, virtual_stack, Decorators,
+        VirtualDirection, VirtualItemSize,
     },
     EventPropagation,
 };
@@ -170,7 +170,7 @@ fn file_node_text_view(
         text_input_id.request_focus();
 
         if let Some(err) = err {
-            container_box(
+            container(
                 stack((
                     text_input_view,
                     label(move || err.clone()).style(move |s| {
@@ -200,10 +200,10 @@ fn file_node_text_view(
                 .style(|s| s.flex_grow(1.0)),
             )
         } else {
-            container_box(text_input_view)
+            container(text_input_view)
         }
     } else {
-        container_box(
+        container(
             label(move || {
                 node.path
                     .file_name()

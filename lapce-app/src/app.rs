@@ -31,8 +31,8 @@ use floem::{
     unit::PxPctAuto,
     view::View,
     views::{
-        clip, container, container_box, drag_resize_window_area, drag_window_area,
-        dyn_stack, empty, label, rich_text, scroll::scroll, stack, svg, tab, text,
+        clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
+        empty, label, rich_text, scroll::scroll, stack, svg, tab, text,
         virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
     window::{ResizeDirection, WindowConfig, WindowId},
@@ -677,16 +677,16 @@ fn editor_tab_header(
             };
 
             match tab_close_button_style {
-                TabCloseButton::Left => container_box(
+                TabCloseButton::Left => container(
                     stack((tab_close_button, tab_content, tab_icon))
                         .style(tab_style),
                 ),
-                TabCloseButton::Right => container_box(
+                TabCloseButton::Right => container(
                     stack((tab_icon, tab_content, tab_close_button))
                         .style(tab_style),
                 ),
                 TabCloseButton::Off => {
-                    container_box(stack((tab_icon, tab_content)).style(tab_style))
+                    container(stack((tab_icon, tab_content)).style(tab_style))
                 }
             }
         };
@@ -1058,14 +1058,14 @@ fn editor_tab_content(
                         }
                     };
                     let editor_data = create_rw_signal(editor_data);
-                    container_box(editor_container_view(
+                    container(editor_container_view(
                         window_tab_data.clone(),
                         workspace.clone(),
                         is_active,
                         editor_data,
                     ))
                 } else {
-                    container_box(text("emtpy editor"))
+                    container(text("emtpy editor"))
                 }
             }
             EditorTabChild::DiffEditor(diff_editor_id) => {
@@ -1120,7 +1120,7 @@ fn editor_tab_content(
                         create_rw_signal(diff_editor_data.left.clone());
                     let right_editor =
                         create_rw_signal(diff_editor_data.right.clone());
-                    container_box(
+                    container(
                         stack((
                             container(editor_container_view(
                                 window_tab_data.clone(),
@@ -1177,18 +1177,18 @@ fn editor_tab_content(
                         diff_editor_scope.dispose();
                     })
                 } else {
-                    container_box(text("emtpy diff editor"))
+                    container(text("emtpy diff editor"))
                 }
             }
             EditorTabChild::Settings(_) => {
-                container_box(settings_view(plugin.installed, editors, common))
+                container(settings_view(plugin.installed, editors, common))
             }
             EditorTabChild::ThemeColorSettings(_) => {
-                container_box(theme_color_settings_view(editors, common))
+                container(theme_color_settings_view(editors, common))
             }
-            EditorTabChild::Keymap(_) => container_box(keymap_view(editors, common)),
+            EditorTabChild::Keymap(_) => container(keymap_view(editors, common)),
             EditorTabChild::Volt(_, id) => {
-                container_box(plugin_info_view(plugin.clone(), id))
+                container(plugin_info_view(plugin.clone(), id))
             }
         };
         child.style(|s| s.size_full())
@@ -1684,7 +1684,7 @@ fn split_list(
                     let editor_tab_data = editor_tabs
                         .with_untracked(|tabs| tabs.get(editor_tab_id).cloned());
                     if let Some(editor_tab_data) = editor_tab_data {
-                        container_box(editor_tab(
+                        container(editor_tab(
                             window_tab_data.clone(),
                             plugin.clone(),
                             active_editor_tab,
@@ -1692,7 +1692,7 @@ fn split_list(
                             dragging,
                         ))
                     } else {
-                        container_box(text("emtpy editor tab"))
+                        container(text("emtpy editor tab"))
                     }
                 }
                 SplitContent::Split(split_id) => {
@@ -1706,7 +1706,7 @@ fn split_list(
                             dragging,
                         )
                     } else {
-                        container_box(text("emtpy split"))
+                        container(text("emtpy split"))
                     }
                 }
             };
@@ -1752,7 +1752,7 @@ fn split_list(
                 .style(move |s| s.flex_grow(split_size.get() as f32).flex_basis(0.0))
         }
     };
-    container_box(
+    container(
         stack((
             dyn_stack(items, key, view_fn).style(move |s| {
                 s.flex_direction(match direction() {
@@ -1941,7 +1941,7 @@ fn palette_item(
 
             let path = path.to_path_buf();
             let style_path = path.clone();
-            container_box(
+            container(
                 stack((
                     svg(move || config.get().file_svg(&path).0).style(move |s| {
                         let config = config.get();
@@ -2006,7 +2006,7 @@ fn palette_item(
                     }
                 })
                 .collect();
-            container_box(
+            container(
                 stack((
                     svg(move || {
                         let config = config.get();
@@ -2087,7 +2087,7 @@ fn palette_item(
                     }
                 })
                 .collect();
-            container_box(
+            container(
                 stack((
                     svg(move || {
                         let config = config.get();
@@ -2159,7 +2159,7 @@ fn palette_item(
                     }
                 })
                 .collect();
-            container_box(
+            container(
                 stack((
                     svg(move || {
                         let config = config.get();
@@ -2211,7 +2211,7 @@ fn palette_item(
             } else {
                 vec![]
             };
-            container_box(
+            container(
                 stack((
                     focus_text(
                         move || text.clone(),
@@ -2253,7 +2253,7 @@ fn palette_item(
         | PaletteItemContent::IconTheme { .. } => {
             let text = item.filter_text;
             let indices = item.indices;
-            container_box(
+            container(
                 focus_text(
                     move || text.clone(),
                     move || indices.clone(),
@@ -2266,7 +2266,7 @@ fn palette_item(
         PaletteItemContent::WslHost { .. } => {
             let text = item.filter_text;
             let indices = item.indices;
-            container_box(
+            container(
                 focus_text(
                     move || text.clone(),
                     move || indices.clone(),
@@ -2655,20 +2655,18 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
             move || hover_data.content.get(),
             move |_| id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             move |content| match content {
-                MarkdownContent::Text(text_layout) => container_box(
+                MarkdownContent::Text(text_layout) => container(
                     rich_text(move || text_layout.clone())
                         .style(|s| s.max_width(600.0)),
                 )
                 .style(|s| s.max_width_full()),
-                MarkdownContent::Image { .. } => container_box(empty()),
-                MarkdownContent::Separator => {
-                    container_box(empty().style(move |s| {
-                        s.width_full()
-                            .margin_vert(5.0)
-                            .height(1.0)
-                            .background(config.get().color(LapceColor::LAPCE_BORDER))
-                    }))
-                }
+                MarkdownContent::Image { .. } => container(empty()),
+                MarkdownContent::Separator => container(empty().style(move |s| {
+                    s.width_full()
+                        .margin_vert(5.0)
+                        .height(1.0)
+                        .background(config.get().color(LapceColor::LAPCE_BORDER))
+                })),
             },
         )
         .style(|s| s.flex_col().padding_horiz(10.0).padding_vert(5.0)),
