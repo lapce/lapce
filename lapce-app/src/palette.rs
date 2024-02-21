@@ -397,28 +397,16 @@ impl PaletteData {
     /// Initialize the palette with a list of the available palette kinds.
     fn get_palette_help(&self) {
         let items = PaletteKind::iter()
-            .filter_map(|kind| {
-                // Don't include PaletteHelp as the user is already here.
-                (kind != PaletteKind::PaletteHelp)
-                    .then(|| {
-                        let symbol = kind.symbol();
-
-                        // Only include palette kinds accessible by typing a prefix into the
-                        // palette.
-                        (kind == PaletteKind::File || !symbol.is_empty())
-                            .then_some(kind)
-                    })
-                    .flatten()
-            })
             .filter_map(|kind| kind.command().map(|cmd| (kind, cmd)))
             .map(|(kind, cmd)| {
-                let description = kind.symbol().to_string()
-                    + " "
-                    + cmd.get_message().unwrap_or("");
+                let description = cmd.get_message().unwrap_or("");
 
                 PaletteItem {
-                    content: PaletteItemContent::PaletteHelp { cmd },
-                    filter_text: description,
+                    content: PaletteItemContent::PaletteHelp {
+                        prefix: kind.symbol(),
+                        cmd,
+                    },
+                    filter_text: description.to_owned(),
                     score: 0,
                     indices: vec![],
                 }
@@ -1042,7 +1030,7 @@ impl PaletteData {
         self.close();
         if let Some(item) = items.get(index) {
             match &item.content {
-                PaletteItemContent::PaletteHelp { cmd } => {
+                PaletteItemContent::PaletteHelp { prefix: _, cmd } => {
                     let cmd = LapceCommand {
                         kind: CommandKind::Workbench(cmd.clone()),
                         data: None,

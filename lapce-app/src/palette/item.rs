@@ -21,6 +21,7 @@ pub struct PaletteItem {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PaletteItemContent {
     PaletteHelp {
+        prefix: &'static str,
         cmd: LapceWorkbenchCommand,
     },
     File {
