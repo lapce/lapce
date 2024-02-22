@@ -1652,7 +1652,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=ada3d68642cab2245308eadf4899837f8e87ccf1#ada3d68642cab2245308eadf4899837f8e87ccf1"
+source = "git+https://github.com/lapce/floem?rev=341afd255f98ca431e4f615864daa4dbcc057501#341afd255f98ca431e4f615864daa4dbcc057501"
 dependencies = [
  "bitflags 2.4.0",
  "copypasta",
@@ -1714,7 +1714,7 @@ dependencies = [
 [[package]]
 name = "floem-editor-core"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=ada3d68642cab2245308eadf4899837f8e87ccf1#ada3d68642cab2245308eadf4899837f8e87ccf1"
+source = "git+https://github.com/lapce/floem?rev=341afd255f98ca431e4f615864daa4dbcc057501#341afd255f98ca431e4f615864daa4dbcc057501"
 dependencies = [
  "bitflags 1.3.2",
  "itertools",
@@ -1800,7 +1800,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=ada3d68642cab2245308eadf4899837f8e87ccf1#ada3d68642cab2245308eadf4899837f8e87ccf1"
+source = "git+https://github.com/lapce/floem?rev=341afd255f98ca431e4f615864daa4dbcc057501#341afd255f98ca431e4f615864daa4dbcc057501"
 dependencies = [
  "smallvec",
 ]
@@ -1808,7 +1808,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=ada3d68642cab2245308eadf4899837f8e87ccf1#ada3d68642cab2245308eadf4899837f8e87ccf1"
+source = "git+https://github.com/lapce/floem?rev=341afd255f98ca431e4f615864daa4dbcc057501#341afd255f98ca431e4f615864daa4dbcc057501"
 dependencies = [
  "floem-cosmic-text",
  "floem-peniko",
@@ -1819,7 +1819,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=ada3d68642cab2245308eadf4899837f8e87ccf1#ada3d68642cab2245308eadf4899837f8e87ccf1"
+source = "git+https://github.com/lapce/floem?rev=341afd255f98ca431e4f615864daa4dbcc057501#341afd255f98ca431e4f615864daa4dbcc057501"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1836,7 +1836,7 @@ dependencies = [
 [[package]]
 name = "floem_vger_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=ada3d68642cab2245308eadf4899837f8e87ccf1#ada3d68642cab2245308eadf4899837f8e87ccf1"
+source = "git+https://github.com/lapce/floem?rev=341afd255f98ca431e4f615864daa4dbcc057501#341afd255f98ca431e4f615864daa4dbcc057501"
 dependencies = [
  "anyhow",
  "floem-peniko",
@@ -2373,9 +2373,9 @@ dependencies = [
 
 [[package]]
 name = "grid"
-version = "0.10.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eec1c01eb1de97451ee0d60de7d81cf1e72aabefb021616027f3d1c3ec1c723c"
+checksum = "d196ffc1627db18a531359249b2bf8416178d84b729f3cebeb278f285fb9b58c"
 
 [[package]]
 name = "h2"
@@ -5357,13 +5357,14 @@ dependencies = [
 
 [[package]]
 name = "taffy"
-version = "0.3.18"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c2287b6d7f721ada4cddf61ade5e760b2c6207df041cac9bfaa192897362fd3"
+checksum = "fddbee94e20bc4612dcb789953324236eebd4fc6a08c650ccbf7f615e59a0d6a"
 dependencies = [
  "arrayvec",
  "grid",
  "num-traits",
+ "serde",
  "slotmap",
 ]
 

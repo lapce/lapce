@@ -8,8 +8,8 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, container_box, dyn_stack, label, scroll, stack, svg, text,
-        virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
+        container, dyn_stack, label, scroll, stack, svg, text, virtual_stack,
+        Decorators, VirtualDirection, VirtualItemSize,
     },
 };
 use lapce_rpc::{
@@ -85,7 +85,7 @@ fn debug_process_icons(
         stopped.map(|stopped| stopped.get()).unwrap_or(false)
     };
     match mode {
-        RunDebugMode::Run => container_box(stack((
+        RunDebugMode::Run => container(stack((
             {
                 let terminal = terminal.clone();
                 clickable_icon(
@@ -126,7 +126,7 @@ fn debug_process_icons(
                 .style(|s| s.margin_right(4.0))
             },
         ))),
-        RunDebugMode::Debug => container_box(stack((
+        RunDebugMode::Debug => container(stack((
             {
                 let terminal = terminal.clone();
                 clickable_icon(

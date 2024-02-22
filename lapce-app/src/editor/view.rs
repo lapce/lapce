@@ -14,7 +14,7 @@ use floem::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
     },
     style::{CursorStyle, Style},
-    taffy::prelude::Node,
+    taffy::prelude::NodeId,
     view::{AnyWidget, View, ViewData, Widget},
     views::{
         clip, container, dyn_stack,
@@ -60,7 +60,7 @@ pub struct EditorView {
     data: ViewData,
     editor: Rc<EditorData>,
     is_active: Memo<bool>,
-    inner_node: Option<Node>,
+    inner_node: Option<NodeId>,
     viewport: RwSignal<Rect>,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     sticky_header_info: StickyHeaderInfo,
@@ -943,7 +943,7 @@ impl Widget for EditorView {
     fn layout(
         &mut self,
         cx: &mut floem::context::LayoutCx,
-    ) -> floem::taffy::prelude::Node {
+    ) -> floem::taffy::prelude::NodeId {
         cx.layout_node(self.data.id(), true, |cx| {
             if self.inner_node.is_none() {
                 self.inner_node = Some(cx.new_node());

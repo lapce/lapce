@@ -1813,10 +1813,15 @@ impl MainSplitData {
                                     let main_split = main_split.clone();
                                     let child = child.clone();
                                     let local_main_split = main_split.clone();
-                                    if let Some(file) = file {
+                                    if let Some(mut file) = file {
                                         main_split.save_as(
                                             doc.clone(),
-                                            file.path,
+                                            if let Some(path) = file.path.pop() {
+                                                path
+                                            } else {
+                                                tracing::error!("No path");
+                                                return;
+                                            },
                                             move || {
                                                 local_main_split
                                                     .clone()
@@ -2299,8 +2304,17 @@ impl MainSplitData {
     pub fn save_scratch_doc(&self, doc: Rc<Doc>) {
         let main_split = self.clone();
         save_as(FileDialogOptions::new(), move |file: Option<FileInfo>| {
-            if let Some(file) = file {
-                main_split.save_as(doc.clone(), file.path, move || {});
+            if let Some(mut file) = file {
+                main_split.save_as(
+                    doc.clone(),
+                    if let Some(path) = file.path.pop() {
+                        path
+                    } else {
+                        tracing::error!("No path");
+                        return;
+                    },
+                    move || {},
+                );
             }
         });
     }
@@ -2308,8 +2322,17 @@ impl MainSplitData {
     pub fn save_scratch_doc2(&self, doc: Rc<Doc>) {
         let main_split = self.clone();
         save_as(FileDialogOptions::new(), move |file: Option<FileInfo>| {
-            if let Some(file) = file {
-                main_split.save_as2(doc.clone(), file.path, move || {});
+            if let Some(mut file) = file {
+                main_split.save_as2(
+                    doc.clone(),
+                    if let Some(path) = file.path.pop() {
+                        path
+                    } else {
+                        tracing::error!("No path");
+                        return;
+                    },
+                    move || {},
+                );
             }
         });
     }

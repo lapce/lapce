@@ -628,10 +628,15 @@ impl WindowTabData {
                     let window_command = self.common.window_common.window_command;
                     let options = FileDialogOptions::new().select_directories();
                     open_file(options, move |file| {
-                        if let Some(file) = file {
+                        if let Some(mut file) = file {
                             let workspace = LapceWorkspace {
                                 kind: LapceWorkspaceType::Local,
-                                path: Some(file.path),
+                                path: Some(if let Some(path) = file.path.pop() {
+                                    path
+                                } else {
+                                    tracing::error!("No path");
+                                    return;
+                                }),
                                 last_open: std::time::SystemTime::now()
                                     .duration_since(std::time::UNIX_EPOCH)
                                     .unwrap()
@@ -659,9 +664,15 @@ impl WindowTabData {
                     let internal_command = self.common.internal_command;
                     let options = FileDialogOptions::new();
                     open_file(options, move |file| {
-                        if let Some(file) = file {
-                            internal_command
-                                .send(InternalCommand::OpenFile { path: file.path })
+                        if let Some(mut file) = file {
+                            internal_command.send(InternalCommand::OpenFile {
+                                path: if let Some(path) = file.path.pop() {
+                                    path
+                                } else {
+                                    tracing::error!("No path");
+                                    return;
+                                },
+                            })
                         }
                     });
                 }
