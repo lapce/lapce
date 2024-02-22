@@ -57,7 +57,7 @@ regex = "1.10.2"
 reqwest = { version = "0.11", features = ["blocking", "json", "socks"] }
 serde = "1.0"
 serde_json = "1.0"
-smallvec = "1.11.1"
+smallvec = "1.13.1"
 strum = "0.21.0" # follow same version as system-deps in lockfile
 strum_macros = "0.21.1" # ditto
 tar = "0.4"
