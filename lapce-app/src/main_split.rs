@@ -1816,7 +1816,12 @@ impl MainSplitData {
                                     if let Some(mut file) = file {
                                         main_split.save_as(
                                             doc.clone(),
-                                            file.path.pop().unwrap(),
+                                            if let Some(path) = file.path.pop() {
+                                                path
+                                            } else {
+                                                tracing::error!("No path");
+                                                return;
+                                            },
                                             move || {
                                                 local_main_split
                                                     .clone()
@@ -2302,7 +2307,12 @@ impl MainSplitData {
             if let Some(mut file) = file {
                 main_split.save_as(
                     doc.clone(),
-                    file.path.pop().unwrap(),
+                    if let Some(path) = file.path.pop() {
+                        path
+                    } else {
+                        tracing::error!("No path");
+                        return;
+                    },
                     move || {},
                 );
             }
@@ -2315,7 +2325,12 @@ impl MainSplitData {
             if let Some(mut file) = file {
                 main_split.save_as2(
                     doc.clone(),
-                    file.path.pop().unwrap(),
+                    if let Some(path) = file.path.pop() {
+                        path
+                    } else {
+                        tracing::error!("No path");
+                        return;
+                    },
                     move || {},
                 );
             }

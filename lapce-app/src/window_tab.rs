@@ -631,7 +631,12 @@ impl WindowTabData {
                         if let Some(mut file) = file {
                             let workspace = LapceWorkspace {
                                 kind: LapceWorkspaceType::Local,
-                                path: Some(file.path.pop().unwrap()),
+                                path: Some(if let Some(path) = file.path.pop() {
+                                    path
+                                } else {
+                                    tracing::error!("No path");
+                                    return;
+                                }),
                                 last_open: std::time::SystemTime::now()
                                     .duration_since(std::time::UNIX_EPOCH)
                                     .unwrap()
@@ -661,7 +666,12 @@ impl WindowTabData {
                     open_file(options, move |file| {
                         if let Some(mut file) = file {
                             internal_command.send(InternalCommand::OpenFile {
-                                path: file.path.pop().unwrap(),
+                                path: if let Some(path) = file.path.pop() {
+                                    path
+                                } else {
+                                    tracing::error!("No path");
+                                    return;
+                                },
                             })
                         }
                     });
