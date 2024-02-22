@@ -24,7 +24,7 @@ use lsp_types::{
     notification::Initialized, request::Initialize, DocumentFilter,
     InitializeParams, InitializedParams, TextDocumentContentChangeEvent,
     TextDocumentIdentifier, Url, VersionedTextDocumentIdentifier,
-    WorkDoneProgressParams,
+    WorkDoneProgressParams, WorkspaceFolder,
 };
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
@@ -198,13 +198,18 @@ impl Plugin {
             InitializeParams {
                 process_id: Some(process::id()),
                 root_path: None,
-                root_uri,
+                root_uri: root_uri.clone(),
                 capabilities: client_capabilities(),
                 trace: None,
                 client_info: None,
                 locale: None,
                 initialization_options: configurations,
-                workspace_folders: None,
+                workspace_folders: root_uri.map(|uri| {
+                    vec![WorkspaceFolder {
+                        name: uri.as_str().to_string(),
+                        uri,
+                    }]
+                }),
                 work_done_progress_params: WorkDoneProgressParams::default(),
             },
             None,

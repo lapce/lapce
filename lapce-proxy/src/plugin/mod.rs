@@ -4,7 +4,6 @@ pub mod lsp;
 pub mod psp;
 pub mod wasi;
 
-use std::time::Duration;
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -14,6 +13,7 @@ use std::{
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
         Arc,
     },
+    time::Duration,
 };
 
 use anyhow::{anyhow, Result};
@@ -1536,6 +1536,7 @@ fn client_capabilities() -> ClientCapabilities {
                 ..Default::default()
             }),
             configuration: Some(false),
+            workspace_folders: Some(true),
             ..Default::default()
         }),
         ..Default::default()
