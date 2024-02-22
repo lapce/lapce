@@ -294,21 +294,23 @@ impl KeyPressData {
         false
     }
 
-
-    fn get_keyinput_from_event<'a>(event: &'a KeyEvent) -> KeyInput {
-        // when the KeyEvent is of type Character use its string value to get 
+    fn get_keyinput_from_event(event: &KeyEvent) -> KeyInput {
+        // when the KeyEvent is of type Character use its string value to get
         // the corresponding KeyInput. On non english keyboard layouts
-        // the logical_key and physical_key may not match and the key mapping won't 
+        // the logical_key and physical_key may not match and the key mapping won't
         // work when using both values from the event directly
         match &event.key.logical_key {
-            Key::Character(key) => KeyInput::from_str(
-                key.as_str(),
-            ).unwrap(),
+            Key::Character(key) => {
+                KeyInput::from_str(key.as_str()).unwrap_or(KeyInput::Keyboard(
+                    event.key.logical_key.clone(),
+                    event.key.physical_key,
+                ))
+            }
             _ => KeyInput::Keyboard(
                 event.key.logical_key.clone(),
                 event.key.physical_key,
             ),
-        }   
+        }
     }
 
     fn get_key_modifiers(key_event: &KeyEvent) -> ModifiersState {
