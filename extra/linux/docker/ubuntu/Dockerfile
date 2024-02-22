@@ -122,7 +122,13 @@ export RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=/usr/bin/ld.lld"
 export PKG_CONFIG="$(xx-clang --print-prog-name=pkg-config)"
 export CARGO_BUILD_TARGET="$(xx-cargo --print-target-triple)"
 
-xx-cargo build --profile release-lto --bin lapce --frozen
+xx-cargo build \
+  --frozen \
+  --package lapce-app \
+  --profile release-lto \
+  --no-default-features \
+  --features all-languages
+
 xx-verify "${CARGO_TARGET_DIR}"/"$(xx-cargo --print-target-triple)"/release-lto/lapce
 
 mkdir -p /target
@@ -138,11 +144,17 @@ set -euxo pipefail
 
 export _PACKAGE_ARCHITECTURE=$(xx-info debian-arch)
 
-mkdir -v -p ${PACKAGE_NAME}/{etc,usr/bin,debian}
+mkdir -v -p ${PACKAGE_NAME}/{etc,usr/{bin,share/{applications,metainfo,pixmaps}},debian}
 cd ${PACKAGE_NAME}
 
+cp '/source/extra/linux/dev.lapce.lapce.desktop' './usr/share/applications/dev.lapce.lapce.desktop'
+cp '/source/extra/linux/dev.lapce.lapce.metainfo.xml' './usr/share/metainfo/dev.lapce.lapce.metainfo.xml'
+cp '/source/extra/images/logo.png' './usr/share/pixmaps/dev.lapce.lapce.png'
+
+mv '/target/lapce' './usr/bin/'
+
+# single binary
 cp /target/lapce /output/lapce
-mv /target/lapce ./usr/bin/
 
 if [[ "${PACKAGE_NAME}" == "lapce" ]]; then
   conflicts="lapce-nightly"
