@@ -13,6 +13,7 @@ clap.workspace = true
 crossbeam-channel.workspace = true
 directories.workspace = true
 flate2.workspace = true
+globset.workspace = true
 im.workspace = true
 include_dir.workspace = true
 indexmap.workspace = true
@@ -52,16 +53,13 @@ sled = "0.34.7"
 bytemuck = "1.14.0"
 tokio = { version = "1.36", features = ["full"] }
 futures = "0.3.26"
-floem = { git = "https://github.com/lapce/floem", rev = "341afd255f98ca431e4f615864daa4dbcc057501", features = [
-    "serde",
-] }
+floem = { git = "https://github.com/lapce/floem", rev = "341afd255f98ca431e4f615864daa4dbcc057501", features = ["serde"] }
 # floem = { path = "../../workspaces/floem", features = ["serde"] }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
 base64 = "0.21.7"
 sha2 = "0.10.6"
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
-globset = "0.4.13"
 
 [target.'cfg(target_os="macos")'.dependencies]
 fs_extra = "1.2.0"
