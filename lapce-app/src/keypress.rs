@@ -181,13 +181,9 @@ impl KeyPressData {
     pub fn keypress<'a>(event: impl Into<EventRef<'a>>) -> Option<KeyPress> {
         let event = event.into();
         debug!("{event:?}");
-
         let keypress = match event {
             EventRef::Keyboard(ev) => KeyPress {
-                key: KeyInput::Keyboard(
-                    ev.key.logical_key.clone(),
-                    ev.key.physical_key,
-                ),
+                key: Self::get_keyinput_from_event(ev),
                 mods: Self::get_key_modifiers(ev),
             },
             EventRef::Pointer(ev) => KeyPress {
@@ -296,6 +292,23 @@ impl KeyPressData {
         }
 
         false
+    }
+
+
+    fn get_keyinput_from_event<'a>(event: &'a KeyEvent) -> KeyInput {
+        // when the KeyEvent is of type Character use its string value to get 
+        // the corresponding KeyInput. On non english keyboard layouts
+        // the logical_key and physical_key may not match and the key mapping won't 
+        // work when using both values from the event directly
+        match &event.key.logical_key {
+            Key::Character(key) => KeyInput::from_str(
+                key.as_str(),
+            ).unwrap(),
+            _ => KeyInput::Keyboard(
+                event.key.logical_key.clone(),
+                event.key.physical_key,
+            ),
+        }   
     }
 
     fn get_key_modifiers(key_event: &KeyEvent) -> ModifiersState {
