@@ -11,6 +11,7 @@ clap.workspace = true
 crossbeam-channel.workspace = true
 directories.workspace = true
 flate2.workspace = true
+globset.workspace = true
 indexmap.workspace = true
 interprocess.workspace = true
 notify.workspace = true
@@ -26,6 +27,7 @@ tar.workspace = true
 toml.workspace = true
 toml_edit.workspace = true
 tracing.workspace = true
+url.workspace = true
 
 lsp-types.workspace = true
 psp-types.workspace = true
@@ -39,11 +41,9 @@ floem-editor-core.workspace = true
 
 # proxy specific dependencies
 
-url = "2.5.0"
 zstd = "0.11.2"         # follow same version wasmtime-cache in lockfile
 dyn-clone = "1.0.16"
 walkdir = "2.3.2"
-globset = "0.4.13"
 locale_config = "0.3.0"
 jsonrpc-lite = "0.6.0"
 polling = "3.0.0"

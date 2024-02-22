@@ -42,6 +42,7 @@ clap = { version = "3.2.25", features = ["derive"] }
 crossbeam-channel = "0.5.11"
 directories = "4.0.1"
 flate2 = "1.0"
+globset = "0.4.13"
 hashbrown = { version = "0.14.0", features = ["serde"] }
 im = { version = "15.0.0", features = ["serde"] }
 include_dir = "0.6.2"
