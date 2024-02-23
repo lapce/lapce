@@ -151,7 +151,7 @@ cp '/source/extra/linux/dev.lapce.lapce.desktop' './usr/share/applications/dev.l
 cp '/source/extra/linux/dev.lapce.lapce.metainfo.xml' './usr/share/metainfo/dev.lapce.lapce.metainfo.xml'
 cp '/source/extra/images/logo.png' './usr/share/pixmaps/dev.lapce.lapce.png'
 
-mv '/target/lapce' './usr/bin/'
+cp '/target/lapce' './usr/bin/'
 
 # single binary
 cp /target/lapce /output/lapce
