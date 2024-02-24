@@ -13,8 +13,9 @@ use lapce_xi_rope::RopeDelta;
 use lsp_types::{
     request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
     CompletionItem, Diagnostic, DocumentSymbolResponse, GotoDefinitionResponse,
-    Hover, InlayHint, Location, Position, PrepareRenameResponse, SelectionRange,
-    SymbolInformation, TextDocumentItem, TextEdit, WorkspaceEdit,
+    Hover, InlayHint, InlineCompletionResponse, InlineCompletionTriggerKind,
+    Location, Position, PrepareRenameResponse, SelectionRange, SymbolInformation,
+    TextDocumentItem, TextEdit, WorkspaceEdit,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
@@ -22,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use super::plugin::VoltID;
 use crate::{
     buffer::BufferId,
-    dap_types::{DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
+    dap_types::{self, DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
     file::{FileNodeItem, PathObject},
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
@@ -111,6 +112,11 @@ pub enum ProxyRequest {
     GetInlayHints {
         path: PathBuf,
     },
+    GetInlineCompletions {
+        path: PathBuf,
+        position: Position,
+        trigger_kind: InlineCompletionTriggerKind,
+    },
     GetSemanticTokens {
         path: PathBuf,
     },
@@ -148,12 +154,16 @@ pub enum ProxyRequest {
     Save {
         rev: u64,
         path: PathBuf,
+        /// Whether to create the parent directories if they do not exist.
+        create_parents: bool,
     },
     SaveBufferAs {
         buffer_id: BufferId,
         path: PathBuf,
         rev: u64,
         content: String,
+        /// Whether to create the parent directories if they do not exist.
+        create_parents: bool,
     },
     CreateFile {
         path: PathBuf,
@@ -171,6 +181,17 @@ pub enum ProxyRequest {
     RenamePath {
         from: PathBuf,
         to: PathBuf,
+    },
+    TestCreateAtPath {
+        path: PathBuf,
+    },
+    DapVariable {
+        dap_id: DapId,
+        reference: usize,
+    },
+    DapGetScopes {
+        dap_id: DapId,
+        frame_id: usize,
     },
 }
 
@@ -267,6 +288,18 @@ pub enum ProxyNotification {
         dap_id: DapId,
         thread_id: ThreadId,
     },
+    DapStepOver {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepInto {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepOut {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
     DapPause {
         dap_id: DapId,
         thread_id: ThreadId,
@@ -349,6 +382,9 @@ pub enum ProxyResponse {
     GetInlayHints {
         hints: Vec<InlayHint>,
     },
+    GetInlineCompletions {
+        completions: InlineCompletionResponse,
+    },
     GetSemanticTokens {
         styles: SemanticStyles,
     },
@@ -363,6 +399,15 @@ pub enum ProxyResponse {
     },
     GlobalSearchResponse {
         matches: IndexMap<PathBuf, Vec<SearchMatch>>,
+    },
+    DapVariableResponse {
+        varialbes: Vec<dap_types::Variable>,
+    },
+    DapGetScopesResponse {
+        scopes: Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
+    },
+    CreatePathResponse {
+        path: PathBuf,
     },
     Success {},
     SaveResponse {},
@@ -636,12 +681,21 @@ impl ProxyRpcHandler {
         self.request_async(ProxyRequest::RenamePath { from, to }, f);
     }
 
+    pub fn test_create_at_path(
+        &self,
+        path: PathBuf,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::TestCreateAtPath { path }, f);
+    }
+
     pub fn save_buffer_as(
         &self,
         buffer_id: BufferId,
         path: PathBuf,
         rev: u64,
         content: String,
+        create_parents: bool,
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(
@@ -650,6 +704,7 @@ impl ProxyRpcHandler {
                 path,
                 rev,
                 content,
+                create_parents,
             },
             f,
         );
@@ -674,8 +729,21 @@ impl ProxyRpcHandler {
         );
     }
 
-    pub fn save(&self, rev: u64, path: PathBuf, f: impl ProxyCallback + 'static) {
-        self.request_async(ProxyRequest::Save { rev, path }, f);
+    pub fn save(
+        &self,
+        rev: u64,
+        path: PathBuf,
+        create_parents: bool,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::Save {
+                rev,
+                path,
+                create_parents,
+            },
+            f,
+        );
     }
 
     pub fn get_files(&self, f: impl ProxyCallback + 'static) {
@@ -872,6 +940,23 @@ impl ProxyRpcHandler {
         self.request_async(ProxyRequest::GetInlayHints { path }, f);
     }
 
+    pub fn get_inline_completions(
+        &self,
+        path: PathBuf,
+        position: Position,
+        trigger_kind: InlineCompletionTriggerKind,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(
+            ProxyRequest::GetInlineCompletions {
+                path,
+                position,
+                trigger_kind,
+            },
+            f,
+        );
+    }
+
     pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {
         self.notification(ProxyNotification::Update { path, delta, rev });
     }
@@ -939,6 +1024,18 @@ impl ProxyRpcHandler {
         self.notification(ProxyNotification::DapContinue { dap_id, thread_id })
     }
 
+    pub fn dap_step_over(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapStepOver { dap_id, thread_id })
+    }
+
+    pub fn dap_step_into(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapStepInto { dap_id, thread_id })
+    }
+
+    pub fn dap_step_out(&self, dap_id: DapId, thread_id: ThreadId) {
+        self.notification(ProxyNotification::DapStepOut { dap_id, thread_id })
+    }
+
     pub fn dap_pause(&self, dap_id: DapId, thread_id: ThreadId) {
         self.notification(ProxyNotification::DapPause { dap_id, thread_id })
     }
@@ -962,6 +1059,24 @@ impl ProxyRpcHandler {
             path,
             breakpoints,
         })
+    }
+
+    pub fn dap_variable(
+        &self,
+        dap_id: DapId,
+        reference: usize,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::DapVariable { dap_id, reference }, f);
+    }
+
+    pub fn dap_get_scopes(
+        &self,
+        dap_id: DapId,
+        frame_id: usize,
+        f: impl ProxyCallback + 'static,
+    ) {
+        self.request_async(ProxyRequest::DapGetScopes { dap_id, frame_id }, f);
     }
 }
 

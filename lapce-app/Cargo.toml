@@ -7,11 +7,13 @@ edition.workspace = true
 [dependencies]
 alacritty_terminal.workspace = true
 anyhow.workspace = true
+backtrace.workspace = true
 chrono.workspace = true
 clap.workspace = true
 crossbeam-channel.workspace = true
 directories.workspace = true
 flate2.workspace = true
+globset.workspace = true
 im.workspace = true
 include_dir.workspace = true
 indexmap.workspace = true
@@ -44,26 +46,32 @@ url.workspace = true
 
 pulldown-cmark = "0.9.1"
 Inflector = "0.11.4"
-open = "3.0.2"
-unicode-width = "0.1.10"
+open = "5.0.1"
+unicode-width = "0.1.11"
 nucleo = "0.2.0"
 sled = "0.34.7"
-bytemuck = "1.8.0"
-tokio = { version = "1.21", features = ["full"] }
+bytemuck = "1.14.0"
+tokio = { version = "1.36", features = ["full"] }
 futures = "0.3.26"
-clipboard = "0.5.0"
-floem = { git = "https://github.com/lapce/floem", rev = "e8c1d33454a0a0dc0d009dd140b93513357b55a0" }
-# floem = { path = "../../workspaces/floem" }
+floem = { git = "https://github.com/lapce/floem", rev = "341afd255f98ca431e4f615864daa4dbcc057501", features = ["serde"] }
+# floem = { path = "../../workspaces/floem", features = ["serde"] }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
-base64 = "0.21.0"
+base64 = "0.21.7"
+sha2 = "0.10.6"
+zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_os="macos")'.dependencies]
 fs_extra = "1.2.0"
 dmg = "0.1.1"
 
-[target.'cfg(target_os="windows")'.dependencies]
-zip = { version = "0.6.3", default-features = false, features = ["deflate"] }
+[target.'cfg(windows)'.dependencies.windows-sys]
+workspace = true
+features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+]
 
 [features]
 default = ["all-languages", "updater"]
@@ -82,7 +90,15 @@ all-languages = [
     "lapce-core/lang-javascript",
     "lapce-core/lang-json",
     "lapce-core/lang-markdown",
+    "lapce-core/lang-python",
     "lapce-core/lang-rust",
     "lapce-core/lang-toml",
     "lapce-core/lang-yaml",
 ]
+
+[dev-dependencies]
+criterion = "0.4"
+
+[[bench]]
+name = "visual_line"
+harness = false

@@ -2,7 +2,9 @@ use std::{
     borrow::Cow,
     collections::VecDeque,
     io::{self, ErrorKind, Read, Write},
+    num::NonZeroUsize,
     path::PathBuf,
+    sync::Arc,
 };
 
 use alacritty_terminal::{
@@ -11,32 +13,50 @@ use alacritty_terminal::{
     event_loop::Msg,
     tty::{self, setup_env, EventedPty, EventedReadWrite},
 };
+use anyhow::Result;
+use crossbeam_channel::{Receiver, Sender};
 use directories::BaseDirs;
 use lapce_rpc::{
     core::CoreRpcHandler,
     terminal::{TermId, TerminalProfile},
 };
-#[cfg(not(windows))]
-use mio::unix::UnixReady;
-#[allow(deprecated)]
-use mio::{
-    channel::{channel, Receiver, Sender},
-    Events, PollOpt, Ready,
-};
+use polling::PollMode;
 
 const READ_BUFFER_SIZE: usize = 0x10_0000;
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+const PTY_READ_WRITE_TOKEN: usize = 0;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+const PTY_CHILD_EVENT_TOKEN: usize = 1;
+
+#[cfg(target_os = "windows")]
+const PTY_READ_WRITE_TOKEN: usize = 2;
+#[cfg(target_os = "windows")]
+const PTY_CHILD_EVENT_TOKEN: usize = 1;
+
 pub type TermConfig = alacritty_terminal::config::Config;
+
+pub struct TerminalSender {
+    tx: Sender<Msg>,
+    poller: Arc<polling::Poller>,
+}
+
+impl TerminalSender {
+    pub fn new(tx: Sender<Msg>, poller: Arc<polling::Poller>) -> Self {
+        Self { tx, poller }
+    }
+
+    pub fn send(&self, msg: Msg) {
+        let _ = self.tx.send(msg);
+        let _ = self.poller.notify();
+    }
+}
 
 pub struct Terminal {
     term_id: TermId,
-    poll: mio::Poll,
+    pub(crate) poller: Arc<polling::Poller>,
     pub(crate) pty: alacritty_terminal::tty::Pty,
-
-    #[allow(deprecated)]
     rx: Receiver<Msg>,
-
-    #[allow(deprecated)]
     pub tx: Sender<Msg>,
 }
 
@@ -46,8 +66,8 @@ impl Terminal {
         profile: TerminalProfile,
         width: usize,
         height: usize,
-    ) -> Terminal {
-        let poll = mio::Poll::new().unwrap();
+    ) -> Result<Terminal> {
+        let poll = polling::Poller::new().expect("create Poll").into();
         let mut config = TermConfig::default();
 
         config.pty_config.working_directory = Terminal::workdir(&profile);
@@ -68,104 +88,119 @@ impl Terminal {
             cell_width: 1,
             cell_height: 1,
         };
-        let pty = alacritty_terminal::tty::new(&config.pty_config, size, 0).unwrap();
+        let pty = alacritty_terminal::tty::new(&config.pty_config, size, 0)?;
 
-        #[allow(deprecated)]
-        let (tx, rx) = channel();
+        let (tx, rx) = crossbeam_channel::unbounded();
 
-        Terminal {
+        Ok(Terminal {
             term_id,
-            poll,
+            poller: poll,
             pty,
             tx,
             rx,
-        }
+        })
     }
 
     pub fn run(&mut self, core_rpc: CoreRpcHandler) {
-        let mut tokens = (0..).map(Into::into);
-        let poll_opts = PollOpt::edge() | PollOpt::oneshot();
-
-        let channel_token = tokens.next().unwrap();
-        self.poll
-            .register(&self.rx, channel_token, Ready::readable(), poll_opts)
-            .unwrap();
-
-        self.pty
-            .register(&self.poll, &mut tokens, Ready::readable(), poll_opts)
-            .unwrap();
-
-        let mut buf = [0u8; READ_BUFFER_SIZE];
-        let mut events = Events::with_capacity(1024);
         let mut state = State::default();
+        let mut buf = [0u8; READ_BUFFER_SIZE];
+
+        let poll_opts = PollMode::Level;
+        let mut interest = polling::Event::readable(0);
+
+        // Register TTY through EventedRW interface.
+        unsafe {
+            self.pty
+                .register(&self.poller, interest, poll_opts)
+                .unwrap();
+        }
+
+        let mut events =
+            polling::Events::with_capacity(NonZeroUsize::new(1024).unwrap());
 
         'event_loop: loop {
-            let _ = self.poll.poll(&mut events, None);
-            for event in events.iter() {
-                match event.token() {
-                    token if token == channel_token => {
-                        if !self.channel_event(channel_token, &mut state) {
-                            break 'event_loop;
-                        }
-                    }
+            events.clear();
+            if let Err(err) = self.poller.wait(&mut events, None) {
+                match err.kind() {
+                    ErrorKind::Interrupted => continue,
+                    _ => panic!("EventLoop polling error: {err:?}"),
+                }
+            }
 
-                    token if token == self.pty.child_event_token() => {
+            // Handle channel events, if there are any.
+            if !self.drain_recv_channel(&mut state) {
+                break;
+            }
+
+            for event in events.iter() {
+                match event.key {
+                    PTY_CHILD_EVENT_TOKEN => {
                         if let Some(tty::ChildEvent::Exited) =
                             self.pty.next_child_event()
                         {
                             break 'event_loop;
                         }
                     }
-                    token
-                        if token == self.pty.read_token()
-                            || token == self.pty.write_token() =>
-                    {
-                        #[cfg(unix)]
-                        if UnixReady::from(event.readiness()).is_hup() {
+
+                    PTY_READ_WRITE_TOKEN => {
+                        if event.is_interrupt() {
                             // Don't try to do I/O on a dead PTY.
                             continue;
                         }
 
-                        if event.readiness().is_readable() {
-                            match self.pty.reader().read(&mut buf) {
-                                Ok(n) => {
-                                    core_rpc.update_terminal(
-                                        self.term_id,
-                                        buf[..n].to_vec(),
-                                    );
+                        if event.readable {
+                            if let Err(err) = self.pty_read(&core_rpc, &mut buf) {
+                                // On Linux, a `read` on the master side of a PTY can fail
+                                // with `EIO` if the client side hangs up.  In that case,
+                                // just loop back round for the inevitable `Exited` event.
+                                // This sucks, but checking the process is either racy or
+                                // blocking.
+                                #[cfg(target_os = "linux")]
+                                if err.raw_os_error() == Some(libc::EIO) {
+                                    continue;
                                 }
-                                Err(_e) => (),
+
+                                tracing::error!(
+                                    "Error reading from PTY in event loop: {}",
+                                    err
+                                );
+                                break 'event_loop;
                             }
                         }
 
-                        if event.readiness().is_writable() {
-                            if let Err(_err) = self.pty_write(&mut state) {}
+                        if event.writable {
+                            if let Err(_err) = self.pty_write(&mut state) {
+                                // error!(
+                                //     "Error writing to PTY in event loop: {}",
+                                //     err
+                                // );
+                                break 'event_loop;
+                            }
                         }
                     }
-
                     _ => (),
                 }
             }
+
             // Register write interest if necessary.
-            let mut interest = Ready::readable();
-            if state.needs_write() {
-                interest.insert(Ready::writable());
+            let needs_write = state.needs_write();
+            if needs_write != interest.writable {
+                interest.writable = needs_write;
+
+                // Re-register with new interest.
+                self.pty
+                    .reregister(&self.poller, interest, poll_opts)
+                    .unwrap();
             }
-            // Reregister with new interest.
-            self.pty
-                .reregister(&self.poll, interest, poll_opts)
-                .unwrap();
         }
         core_rpc.terminal_process_stopped(self.term_id);
-        let _ = self.poll.deregister(&self.rx);
-        let _ = self.pty.deregister(&self.poll);
+        let _ = self.pty.deregister(&self.poller);
     }
 
     /// Drain the channel.
     ///
     /// Returns `false` when a shutdown message was received.
     fn drain_recv_channel(&mut self, state: &mut State) -> bool {
-        #[allow(deprecated)]
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
                 Msg::Input(input) => state.write_list.push_back(input),
@@ -178,21 +213,26 @@ impl Terminal {
     }
 
     #[inline]
-    fn channel_event(&mut self, token: mio::Token, state: &mut State) -> bool {
-        if !self.drain_recv_channel(state) {
-            return false;
+    fn pty_read(
+        &mut self,
+        core_rpc: &CoreRpcHandler,
+        buf: &mut [u8],
+    ) -> io::Result<()> {
+        loop {
+            match self.pty.reader().read(buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    core_rpc.update_terminal(self.term_id, buf[..n].to_vec());
+                }
+                Err(err) => match err.kind() {
+                    ErrorKind::Interrupted | ErrorKind::WouldBlock => {
+                        break;
+                    }
+                    _ => return Err(err),
+                },
+            }
         }
-
-        self.poll
-            .reregister(
-                &self.rx,
-                token,
-                Ready::readable(),
-                PollOpt::edge() | PollOpt::oneshot(),
-            )
-            .unwrap();
-
-        true
+        Ok(())
     }
 
     #[inline]

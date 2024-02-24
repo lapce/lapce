@@ -16,12 +16,14 @@ use lapce_rpc::{
     dap_types::{
         self, ConfigurationDone, Continue, ContinueArguments, ContinueResponse,
         DapEvent, DapId, DapPayload, DapRequest, DapResponse, DapServer,
-        DebuggerCapabilities, Disconnect, Initialize, Launch, Pause, PauseArguments,
-        Request, RunDebugConfig, RunInTerminal, RunInTerminalArguments,
-        RunInTerminalResponse, SetBreakpoints, SetBreakpointsArguments,
+        DebuggerCapabilities, Disconnect, Initialize, Launch, Next, NextArguments,
+        Pause, PauseArguments, Request, RunDebugConfig, RunInTerminal,
+        RunInTerminalArguments, RunInTerminalResponse, Scope, Scopes,
+        ScopesArguments, ScopesResponse, SetBreakpoints, SetBreakpointsArguments,
         SetBreakpointsResponse, Source, SourceBreakpoint, StackTrace,
-        StackTraceArguments, StackTraceResponse, Terminate, ThreadId, Threads,
-        ThreadsResponse,
+        StackTraceArguments, StackTraceResponse, StepIn, StepInArguments, StepOut,
+        StepOutArguments, Terminate, ThreadId, Threads, ThreadsResponse, Variable,
+        Variables, VariablesArguments, VariablesResponse,
     },
     terminal::TermId,
     RpcError,
@@ -185,9 +187,8 @@ impl DapClient {
                     .ok_or_else(|| anyhow!("no arguments"))?;
                 let args: RunInTerminalArguments =
                     serde_json::from_value(value.clone())?;
-                let command = args.args.join(" ");
                 let mut config = self.config.clone();
-                config.debug_command = Some(command);
+                config.debug_command = Some(args.args);
                 self.plugin_rpc.core_rpc.run_in_terminal(config);
                 let (term_id, process_id) =
                     self.dap_rpc.termain_process_rx.recv()?;
@@ -234,10 +235,32 @@ impl DapClient {
                     }
                 }
 
+                let current_thread = if all_threads_stopped {
+                    Some(stopped.thread_id.unwrap_or_default())
+                } else {
+                    stopped.thread_id
+                };
+
+                let active_frame = current_thread
+                    .and_then(|thread_id| stack_frames.get(&thread_id))
+                    .and_then(|stack_frames| stack_frames.first());
+
+                let mut vars = Vec::new();
+                if let Some(frame) = active_frame {
+                    if let Ok(scopes) = self.dap_rpc.scopes(frame.id) {
+                        for scope in scopes {
+                            let result =
+                                self.dap_rpc.variables(scope.variables_reference);
+                            vars.push((scope, result.unwrap_or_default()));
+                        }
+                    }
+                }
+
                 self.plugin_rpc.core_rpc.dap_stopped(
                     self.config.dap_id,
                     stopped.clone(),
                     stack_frames,
+                    vars,
                 );
 
                 // if all_threads_stopped {
@@ -379,6 +402,13 @@ pub enum DapRpc {
     Restart(HashMap<PathBuf, Vec<SourceBreakpoint>>),
     Shutdown,
     Disconnected,
+}
+
+#[derive(Clone)]
+pub struct DebuggerData {
+    pub debugger_type: String,
+    pub program: String,
+    pub args: Option<Vec<String>>,
 }
 
 #[derive(Clone)]
@@ -672,5 +702,83 @@ impl DapRpcHandler {
             .request::<StackTrace>(params)
             .map_err(|e| anyhow!(e.message))?;
         Ok(resp)
+    }
+
+    pub fn scopes(&self, frame_id: usize) -> Result<Vec<Scope>> {
+        let args = ScopesArguments { frame_id };
+
+        let response = self
+            .request::<Scopes>(args)
+            .map_err(|e| anyhow!(e.message))?;
+        Ok(response.scopes)
+    }
+
+    pub fn scopes_async(
+        &self,
+        frame_id: usize,
+        f: impl RpcCallback<ScopesResponse, RpcError> + 'static,
+    ) {
+        let args = ScopesArguments { frame_id };
+
+        self.request_async::<Scopes>(args, f);
+    }
+
+    pub fn variables(&self, variables_reference: usize) -> Result<Vec<Variable>> {
+        let args = VariablesArguments {
+            variables_reference,
+            filter: None,
+            start: None,
+            count: None,
+            format: None,
+        };
+
+        let response = self
+            .request::<Variables>(args)
+            .map_err(|e| anyhow!(e.message))?;
+        Ok(response.variables)
+    }
+
+    pub fn variables_async(
+        &self,
+        variables_reference: usize,
+        f: impl RpcCallback<VariablesResponse, RpcError> + 'static,
+    ) {
+        let args = VariablesArguments {
+            variables_reference,
+            filter: None,
+            start: None,
+            count: None,
+            format: None,
+        };
+
+        self.request_async::<Variables>(args, f);
+    }
+
+    pub fn next(&self, thread_id: ThreadId) {
+        let args = NextArguments {
+            thread_id,
+            granularity: None,
+        };
+
+        self.request_async::<Next>(args, move |_| {});
+    }
+
+    pub fn step_in(&self, thread_id: ThreadId) {
+        let args = StepInArguments {
+            thread_id,
+            target_id: None,
+            granularity: None,
+        };
+
+        self.request_async::<StepIn>(args, move |_| {});
+    }
+
+    pub fn step_out(&self, thread_id: ThreadId) {
+        let args = StepOutArguments {
+            thread_id,
+            granularity: None,
+        };
+
+        self.request_async::<StepOut>(args, move |_| {});
     }
 }

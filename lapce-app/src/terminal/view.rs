@@ -8,8 +8,8 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
-    reactive::{create_effect, ReadSignal},
-    view::{ChangeFlags, View},
+    reactive::{create_effect, ReadSignal, RwSignal},
+    view::{AnyWidget, View, ViewData, Widget},
     Renderer,
 };
 use lapce_core::mode::Mode;
@@ -32,7 +32,7 @@ enum TerminalViewState {
 }
 
 pub struct TerminalView {
-    id: Id,
+    data: ViewData,
     term_id: TermId,
     raw: Arc<RwLock<RawTerminal>>,
     mode: ReadSignal<Mode>,
@@ -41,6 +41,7 @@ pub struct TerminalView {
     config: ReadSignal<Arc<LapceConfig>>,
     run_config: ReadSignal<Option<RunDebugProcess>>,
     proxy: ProxyRpcHandler,
+    launch_error: RwSignal<Option<String>>,
 }
 
 pub fn terminal_view(
@@ -49,18 +50,24 @@ pub fn terminal_view(
     mode: ReadSignal<Mode>,
     run_config: ReadSignal<Option<RunDebugProcess>>,
     terminal_panel_data: TerminalPanelData,
+    launch_error: RwSignal<Option<String>>,
 ) -> TerminalView {
     let id = Id::next();
 
     create_effect(move |_| {
         let raw = raw.get();
-        id.update_state(TerminalViewState::Raw(raw), false);
+        id.update_state(TerminalViewState::Raw(raw));
+    });
+
+    create_effect(move |_| {
+        launch_error.track();
+        id.request_paint();
     });
 
     let config = terminal_panel_data.common.config;
     create_effect(move |_| {
         config.with(|_c| {});
-        id.update_state(TerminalViewState::Config, false);
+        id.update_state(TerminalViewState::Config);
     });
 
     let proxy = terminal_panel_data.common.proxy.clone();
@@ -78,14 +85,14 @@ pub fn terminal_view(
         }
 
         if last != Some(is_focused) {
-            id.update_state(TerminalViewState::Focus(is_focused), false);
+            id.update_state(TerminalViewState::Focus(is_focused));
         }
 
         is_focused
     });
 
     TerminalView {
-        id,
+        data: ViewData::new(id),
         term_id,
         raw: raw.get_untracked(),
         mode,
@@ -94,6 +101,7 @@ pub fn terminal_view(
         run_config,
         size: Size::ZERO,
         is_focused: false,
+        launch_error,
     }
 }
 
@@ -128,31 +136,33 @@ impl Drop for TerminalView {
 }
 
 impl View for TerminalView {
-    fn id(&self) -> Id {
-        self.id
+    fn view_data(&self) -> &ViewData {
+        &self.data
     }
 
-    fn child(&self, _id: Id) -> Option<&dyn View> {
-        None
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
     }
 
-    fn child_mut(&mut self, _id: Id) -> Option<&mut dyn View> {
-        None
+    fn build(self) -> AnyWidget {
+        Box::new(self)
+    }
+}
+
+impl Widget for TerminalView {
+    fn view_data(&self) -> &ViewData {
+        &self.data
     }
 
-    fn children(&self) -> Vec<&dyn View> {
-        Vec::new()
-    }
-
-    fn children_mut(&mut self) -> Vec<&mut dyn View> {
-        Vec::new()
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
     }
 
     fn update(
         &mut self,
-        _cx: &mut floem::context::UpdateCx,
+        cx: &mut floem::context::UpdateCx,
         state: Box<dyn std::any::Any>,
-    ) -> ChangeFlags {
+    ) {
         if let Ok(state) = state.downcast() {
             match *state {
                 TerminalViewState::Config => {}
@@ -163,21 +173,22 @@ impl View for TerminalView {
                     self.raw = raw;
                 }
             }
-            ChangeFlags::PAINT
-        } else {
-            ChangeFlags::empty()
+            cx.app_state_mut().request_paint(self.data.id());
         }
     }
 
     fn layout(
         &mut self,
         cx: &mut floem::context::LayoutCx,
-    ) -> floem::taffy::prelude::Node {
-        cx.layout_node(self.id, false, |_cx| Vec::new())
+    ) -> floem::taffy::prelude::NodeId {
+        cx.layout_node(self.data.id(), false, |_cx| Vec::new())
     }
 
-    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) -> Option<Rect> {
-        let layout = cx.get_layout(self.id).unwrap();
+    fn compute_layout(
+        &mut self,
+        cx: &mut floem::context::ComputeLayoutCx,
+    ) -> Option<Rect> {
+        let layout = cx.get_layout(self.data.id()).unwrap();
         let size = layout.size;
         let size = Size::new(size.width as f64, size.height as f64);
         if size.is_empty() {
@@ -194,15 +205,6 @@ impl View for TerminalView {
         None
     }
 
-    fn event(
-        &mut self,
-        _cx: &mut floem::context::EventCx,
-        _id_path: Option<&[Id]>,
-        _event: floem::event::Event,
-    ) -> bool {
-        false
-    }
-
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
         let config = self.config.get_untracked();
         let mode = self.mode.get_untracked();
@@ -215,6 +217,21 @@ impl View for TerminalView {
         let family: Vec<FamilyOwned> =
             FamilyOwned::parse_list(font_family).collect();
         let attrs = Attrs::new().family(&family).font_size(font_size as f32);
+
+        if let Some(error) = self.launch_error.get() {
+            let mut text_layout = TextLayout::new();
+            text_layout.set_text(
+                &format!("Terminal failed to launch. Error: {error}"),
+                AttrsList::new(
+                    attrs.color(config.color(LapceColor::EDITOR_FOREGROUND)),
+                ),
+            );
+            cx.draw_text(
+                &text_layout,
+                Point::new(6.0, 0.0 + (line_height - char_size.height) / 2.0),
+            );
+            return;
+        }
 
         let raw = self.raw.read();
         let term = &raw.term;
@@ -250,7 +267,7 @@ impl View for TerminalView {
                 let y1 = y0 + line_height;
                 cx.fill(
                     &Rect::new(x0, y0, x1, y1),
-                    config.get_color(LapceColor::EDITOR_SELECTION),
+                    config.color(LapceColor::EDITOR_SELECTION),
                     0.0,
                 );
             }
@@ -260,14 +277,14 @@ impl View for TerminalView {
                 * line_height;
             cx.fill(
                 &Rect::new(0.0, y, self.size.width, y + line_height),
-                config.get_color(LapceColor::EDITOR_CURRENT_LINE),
+                config.color(LapceColor::EDITOR_CURRENT_LINE),
                 0.0,
             );
         }
 
         let cursor_point = &content.cursor.point;
 
-        let term_bg = *config.get_color(LapceColor::TERMINAL_BACKGROUND);
+        let term_bg = config.color(LapceColor::TERMINAL_BACKGROUND);
         let mut text_layout = TextLayout::new();
         for item in content.display_iter {
             let point = item.point;
@@ -312,12 +329,12 @@ impl View for TerminalView {
                     if self.run_config.with_untracked(|run_config| {
                         run_config.as_ref().map(|r| r.stopped).unwrap_or(false)
                     }) {
-                        config.get_color(LapceColor::LAPCE_ERROR)
+                        config.color(LapceColor::LAPCE_ERROR)
                     } else {
-                        config.get_color(LapceColor::TERMINAL_CURSOR)
+                        config.color(LapceColor::TERMINAL_CURSOR)
                     }
                 } else {
-                    config.get_color(LapceColor::EDITOR_CARET)
+                    config.color(LapceColor::EDITOR_CARET)
                 };
                 if self.is_focused {
                     cx.fill(&rect, cursor_color, 0.0);

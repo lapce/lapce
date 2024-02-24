@@ -4,11 +4,14 @@
 # the name of this task
 name = "task"
 
+# the type of the debugger. If not set, it can't be debugged but can still be run
+# type = "lldb"
+
 # the program to run
 program = ""
 
-# the program arguments, e.g. args = ["arg1", "arg2"] 
-args = []
+# the program arguments, e.g. args = ["arg1", "arg2"], optional
+# args = []
 
 # current working directory, optional
 # cwd = "${workspace}"
@@ -17,3 +20,10 @@ args = []
 # [configs.env]
 # VAR1 = "VAL1"
 # VAR2 = "VAL2"
+
+# task to run before the run/debug session is started, optional
+# [configs.prelaunch]
+# program = "cargo"
+# args = [
+#   "build",
+# ]

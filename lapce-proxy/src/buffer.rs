@@ -9,9 +9,8 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use lapce_core::{
-    buffer::rope_text::CharIndicesJoin, encoding::offset_utf8_to_utf16,
-};
+use floem_editor_core::buffer::rope_text::CharIndicesJoin;
+use lapce_core::encoding::offset_utf8_to_utf16;
 use lapce_rpc::buffer::BufferId;
 use lapce_xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 use lsp_types::*;
@@ -31,7 +30,16 @@ impl Buffer {
     pub fn new(id: BufferId, path: PathBuf) -> Buffer {
         let (s, read_only) = match load_file(&path) {
             Ok(s) => (s, false),
-            Err(_) => ("Not Supported".to_string(), true),
+            Err(err) => match err.downcast_ref::<std::io::Error>() {
+                Some(err) => match err.kind() {
+                    std::io::ErrorKind::PermissionDenied => {
+                        ("Permission Denied".to_string(), true)
+                    }
+                    std::io::ErrorKind::NotFound => ("".to_string(), false),
+                    _ => ("Not Supported".to_string(), true),
+                },
+                None => ("Not Supported".to_string(), true),
+            },
         };
         let rope = Rope::from(s);
         let rev = u64::from(!rope.is_empty());
@@ -48,7 +56,7 @@ impl Buffer {
         }
     }
 
-    pub fn save(&mut self, rev: u64) -> Result<()> {
+    pub fn save(&mut self, rev: u64, create_parents: bool) -> Result<()> {
         if self.read_only {
             return Err(anyhow!("can't save to read only file"));
         }
@@ -74,6 +82,12 @@ impl Buffer {
         let bak_file_path = &path.with_extension(bak_extension);
         if !new_file {
             fs::copy(&path, bak_file_path)?;
+        }
+
+        if create_parents {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
         }
 
         let mut f = fs::OpenOptions::new()
@@ -247,6 +261,7 @@ pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
                     "sql" => "sql",
                     "swift" => "swift",
                     "svelte" => "svelte",
+                    "thrift" => "thrift",
                     "toml" => "toml",
                     "ts" => "typescript",
                     "tsx" => "typescriptreact",

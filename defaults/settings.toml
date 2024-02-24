@@ -7,7 +7,7 @@ icon-theme = "Lapce Codicons"
 custom-titlebar = true
 
 [editor]
-font-family = "Cascadia Code"
+font-family = "Monospace"
 font-size = 13
 code-lens-font-size = 2
 line-height = 1.5
@@ -17,12 +17,16 @@ show-tab = true
 show-bread-crumbs = true
 scroll-beyond-last-line = true
 cursor-surrounding-lines = 1
+wrap-style = "editor-width"
+wrap-column = 80
+wrap-width = 600                                             # px
 sticky-header = true
 completion-show-documentation = true
 show-signature = true
 signature-label-code-block = true
 auto-closing-matching-pairs = true
-hover-delay = 300                       # ms
+auto-surround = true
+hover-delay = 300                                            # ms
 modal-mode-relative-line-numbers = true
 format-on-save = false
 highlight-matching-brackets = true
@@ -37,10 +41,12 @@ enable-error-lens = true
 error-lens-end-of-line = true
 error-lens-font-family = ""
 error-lens-font-size = 0
+error-lens-multiline = false
 enable-completion-lens = false
+enable-inline-completion = true
 completion-lens-font-family = ""
 completion-lens-font-size = 0
-blink-interval = 500                    # ms
+blink-interval = 500                                         # ms
 multicursor-case-sensitive = true
 multicursor-whole-words = true
 render-whitespace = "none"
@@ -48,8 +54,11 @@ show-indent-guide = true
 atomic-soft-tabs = false
 double-click = "single"
 move-focus-while-search = true
-diff-context-lines=3
-scroll-speed-modifier=1
+diff-context-lines = 3
+scroll-speed-modifier = 1
+bracket-pair-colorization = false
+bracket-colorization-limit = 30000
+files-exclude = "**/{.git,.svn,.hg,CVS,.DS_Store,Thumbs.db}" # Glob patterns
 
 [terminal]
 font-family = ""
@@ -57,8 +66,8 @@ font-size = 0
 line-height = 0
 
 [terminal.default-profile]
-macos   = "default"
-linux   = "default"
+macos = "default"
+linux = "default"
 windows = "default"
 
 [terminal.profiles]
@@ -204,7 +213,7 @@ magenta = "#C678DD"
 "activity.current" = "$black"
 
 "debug.breakpoint" = "$red"
-"debug.breakpoint.hover" = "$grey"
+"debug.breakpoint.hover" = "#E06C7566"
 
 "panel.background" = "#21252B"
 "panel.foreground" = "$white"
@@ -270,6 +279,9 @@ name = ""
 "debug_small" = "debug-alt-small.svg"
 "debug_restart" = "debug-restart.svg"
 "debug_continue" = "debug-continue.svg"
+"debug_step_over" = "debug-step-over.svg"
+"debug_step_into" = "debug-step-into.svg"
+"debug_step_out" = "debug-step-out.svg"
 "debug_pause" = "debug-pause.svg"
 "debug_stop" = "debug-stop.svg"
 "debug_console" = "debug-console.svg"
@@ -282,6 +294,7 @@ name = ""
 "extensions" = "extensions.svg"
 "keyboard" = "keyboard.svg"
 "breadcrumb_separator" = "chevron-right.svg"
+"symbol_color" = "symbol-color.svg"
 
 "window.close" = "chrome-close.svg"
 "window.restore" = "chrome-restore.svg"

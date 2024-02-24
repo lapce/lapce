@@ -18,7 +18,7 @@ pub struct TerminalConfig {
     #[field_names(
         desc = "Set the terminal line height, If 0, it uses editor line height"
     )]
-    pub line_height: usize,
+    pub line_height: f64,
     #[field_names(desc = "Profiles available in terminal pane")]
     pub profiles: HashMap<String, TerminalProfile>,
     #[field_names(desc = "Default profile for each platform")]
@@ -71,5 +71,32 @@ impl TerminalConfig {
         }
 
         self.indexed_colors = Arc::new(indexed_colors);
+    }
+
+    pub fn get_default_profile(
+        &self,
+    ) -> Option<lapce_rpc::terminal::TerminalProfile> {
+        let Some(profile) = self.profiles.get(
+            self.default_profile
+                .get(&std::env::consts::OS.to_string())
+                .unwrap_or(&String::from("default")),
+        ) else {
+            return None;
+        };
+        let workdir = if let Some(workdir) = &profile.workdir {
+            url::Url::parse(&workdir.display().to_string()).ok()
+        } else {
+            None
+        };
+
+        let profile = profile.clone();
+
+        Some(lapce_rpc::terminal::TerminalProfile {
+            name: std::env::consts::OS.to_string(),
+            command: profile.command,
+            arguments: profile.arguments,
+            workdir,
+            environment: profile.environment,
+        })
     }
 }

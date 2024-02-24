@@ -1,4 +1,11 @@
-use std::{collections::HashSet, env, path::Path, rc::Rc, sync::Arc, time::Instant};
+use std::{
+    collections::{BTreeMap, HashSet},
+    env,
+    path::{Path, PathBuf},
+    rc::Rc,
+    sync::Arc,
+    time::Instant,
+};
 
 use crossbeam_channel::Sender;
 use floem::{
@@ -14,16 +21,17 @@ use floem::{
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
-    command::FocusCommand, directory::Directory, meta, mode::Mode,
-    register::Register,
+    command::FocusCommand, cursor::CursorAffinity, directory::Directory, meta,
+    mode::Mode, register::Register,
 };
 use lapce_rpc::{
     core::CoreNotification,
     dap_types::RunDebugConfig,
-    file::PathObject,
-    proxy::{ProxyRpcHandler, ProxyStatus},
+    file::{PathObject, RenameState},
+    proxy::{ProxyResponse, ProxyRpcHandler, ProxyStatus},
     source_control::FileDiff,
     terminal::TermId,
+    RpcError,
 };
 use lsp_types::{ProgressParams, ProgressToken, ShowMessageParams};
 use serde_json::Value;
@@ -40,18 +48,16 @@ use crate::{
     completion::{CompletionData, CompletionStatus},
     config::LapceConfig,
     db::LapceDb,
-    debug::{DapData, RunDebugMode, RunDebugProcess},
+    debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
     doc::{DocContent, EditorDiagnostic},
-    editor::{
-        location::{EditorLocation, EditorPosition},
-        reset_blink_cursor,
-    },
+    editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
     find::Find,
     global_search::GlobalSearchData,
     hover::HoverData,
     id::WindowTabId,
+    inline_completion::InlineCompletionData,
     keypress::{condition::Condition, EventRef, KeyPressData, KeyPressFocus},
     listener::Listener,
     main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
@@ -69,7 +75,7 @@ use crate::{
         event::{terminal_update_process, TermEvent, TermNotification},
         panel::TerminalPanelData,
     },
-    update::ReleaseInfo,
+    window::WindowCommonData,
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
 
@@ -110,13 +116,12 @@ pub struct CommonData {
     pub focus: RwSignal<Focus>,
     pub keypress: RwSignal<KeyPressData>,
     pub completion: RwSignal<CompletionData>,
+    pub inline_completion: RwSignal<InlineCompletionData>,
     pub hover: HoverData,
     pub register: RwSignal<Register>,
     pub find: Find,
     pub workbench_size: RwSignal<Size>,
     pub window_origin: RwSignal<Point>,
-    pub window_maximized: RwSignal<bool>,
-    pub window_command: Listener<WindowCommand>,
     pub internal_command: Listener<InternalCommand>,
     pub lapce_command: Listener<LapceCommand>,
     pub workbench_command: Listener<LapceWorkbenchCommand>,
@@ -128,10 +133,11 @@ pub struct CommonData {
     pub dragging: RwSignal<Option<DragContent>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
     pub proxy_status: RwSignal<Option<ProxyStatus>>,
-    pub cursor_blink_timer: RwSignal<TimerToken>,
     pub mouse_hover_timer: RwSignal<TimerToken>,
-    pub hide_cursor: RwSignal<bool>,
-    pub ime_allowed: RwSignal<bool>,
+    pub breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
+    // the current focused view which will receive keyboard events
+    pub keyboard_focus: RwSignal<Option<floem::id::Id>>,
+    pub window_common: Rc<WindowCommonData>,
 }
 
 #[derive(Clone)]
@@ -155,11 +161,8 @@ pub struct WindowTabData {
     pub title_height: RwSignal<f64>,
     pub status_height: RwSignal<f64>,
     pub proxy: ProxyData,
-    pub window_scale: RwSignal<f64>,
     pub set_config: WriteSignal<Arc<LapceConfig>>,
     pub update_in_progress: RwSignal<bool>,
-    pub latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-    pub num_window_tabs: Memo<usize>,
     pub progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
     pub messages: RwSignal<Vec<(String, ShowMessageParams)>>,
     pub common: Rc<CommonData>,
@@ -246,14 +249,7 @@ impl WindowTabData {
     pub fn new(
         cx: Scope,
         workspace: Arc<LapceWorkspace>,
-        window_command: Listener<WindowCommand>,
-        window_scale: RwSignal<f64>,
-        latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
-        window_size: RwSignal<Size>,
-        num_window_tabs: Memo<usize>,
-        window_maximized: RwSignal<bool>,
-        window_tab_header_height: RwSignal<f64>,
-        ime_allowed: RwSignal<bool>,
+        window_common: Rc<WindowCommonData>,
     ) -> Self {
         let cx = cx.create_child();
         let db: Arc<LapceDb> = use_context().unwrap();
@@ -302,6 +298,7 @@ impl WindowTabData {
 
         let focus = cx.create_rw_signal(Focus::Workbench);
         let completion = cx.create_rw_signal(CompletionData::new(cx, config));
+        let inline_completion = cx.create_rw_signal(InlineCompletionData::new(cx));
         let hover = HoverData::new(cx);
 
         let register = cx.create_rw_signal(Register::default());
@@ -329,11 +326,10 @@ impl WindowTabData {
             keypress,
             focus,
             completion,
+            inline_completion,
             hover,
             register,
             find,
-            window_command,
-            window_maximized,
             internal_command,
             lapce_command,
             workbench_command,
@@ -346,18 +342,20 @@ impl WindowTabData {
             workbench_size: cx.create_rw_signal(Size::ZERO),
             config,
             proxy_status,
-            cursor_blink_timer: cx.create_rw_signal(TimerToken::INVALID),
             mouse_hover_timer: cx.create_rw_signal(TimerToken::INVALID),
-            hide_cursor: cx.create_rw_signal(false),
             window_origin: cx.create_rw_signal(Point::ZERO),
-            ime_allowed,
+            breakpoints: cx.create_rw_signal(BTreeMap::new()),
+            keyboard_focus: cx.create_rw_signal(None),
+            window_common: window_common.clone(),
         });
 
         let main_split = MainSplitData::new(cx, common.clone());
         let code_action =
             cx.create_rw_signal(CodeActionData::new(cx, common.clone()));
-        let source_control = SourceControlData::new(cx, common.clone());
-        let file_explorer = FileExplorerData::new(cx, common.clone());
+        let source_control =
+            SourceControlData::new(cx, main_split.editors, common.clone());
+        let file_explorer =
+            FileExplorerData::new(cx, main_split.editors, common.clone());
 
         if let Some(info) = workspace_info.as_ref() {
             let root_split = main_split.root_split;
@@ -396,15 +394,15 @@ impl WindowTabData {
         let panel_available_size = cx.create_memo(move |_| {
             let title_height = title_height.get();
             let status_height = status_height.get();
-            let num_window_tabs = num_window_tabs.get();
-            let window_size = window_size.get();
+            let num_window_tabs = window_common.num_window_tabs.get();
+            let window_size = window_common.size.get();
             Size::new(
                 window_size.width,
                 window_size.height
                     - title_height
                     - status_height
                     - if num_window_tabs > 1 {
-                        window_tab_header_height.get()
+                        window_common.window_tab_header_height.get()
                     } else {
                         0.0
                     },
@@ -433,14 +431,33 @@ impl WindowTabData {
 
         let terminal =
             TerminalPanelData::new(workspace.clone(), None, None, common.clone());
+        if let Some(workspace_info) = workspace_info.as_ref() {
+            terminal.debug.breakpoints.set(
+                workspace_info
+                    .breakpoints
+                    .clone()
+                    .into_iter()
+                    .map(|(path, breakpoints)| {
+                        (
+                            path,
+                            breakpoints
+                                .into_iter()
+                                .map(|b| (b.line, b))
+                                .collect::<BTreeMap<usize, LapceBreakpoint>>(),
+                        )
+                    })
+                    .collect(),
+            );
+        }
 
-        let rename = RenameData::new(cx, common.clone());
+        let rename = RenameData::new(cx, main_split.editors, common.clone());
         let global_search = GlobalSearchData::new(cx, main_split.clone());
 
         let plugin = PluginData::new(
             cx,
             HashSet::from_iter(disabled_volts),
             HashSet::from_iter(workspace_disabled_volts),
+            main_split.editors,
             common.clone(),
         );
 
@@ -486,11 +503,8 @@ impl WindowTabData {
             title_height,
             status_height,
             proxy,
-            window_scale,
             set_config,
             update_in_progress: cx.create_rw_signal(false),
-            num_window_tabs,
-            latest_release,
             progresses: cx.create_rw_signal(IndexMap::new()),
             messages: cx.create_rw_signal(Vec::new()),
             common,
@@ -498,15 +512,14 @@ impl WindowTabData {
 
         {
             let focus = window_tab_data.common.focus;
-            let cursor_blink_timer = window_tab_data.common.cursor_blink_timer;
-            let hide_cursor = window_tab_data.common.hide_cursor;
-            let config = window_tab_data.common.config;
             let active_editor = window_tab_data.main_split.active_editor;
             let rename_active = window_tab_data.rename.active;
+            let internal_command = window_tab_data.common.internal_command;
             cx.create_effect(move |_| {
                 let focus = focus.get();
                 active_editor.track();
-                reset_blink_cursor(cursor_blink_timer, hide_cursor, config);
+                internal_command.send(InternalCommand::ResetBlinkCursor);
+
                 if focus != Focus::Rename && rename_active.get_untracked() {
                     rename_active.set(false);
                 }
@@ -572,7 +585,10 @@ impl WindowTabData {
             CommandKind::Workbench(command) => {
                 self.run_workbench_command(command, cmd.data);
             }
-            CommandKind::Focus(_) | CommandKind::Edit(_) | CommandKind::Move(_) => {
+            CommandKind::Scroll(_)
+            | CommandKind::Focus(_)
+            | CommandKind::Edit(_)
+            | CommandKind::Move(_) => {
                 if self.palette.status.get_untracked() != PaletteStatus::Inactive {
                     self.palette
                         .run_command(&cmd, None, ModifiersState::empty());
@@ -609,13 +625,18 @@ impl WindowTabData {
             // ==== Files / Folders ====
             OpenFolder => {
                 if !self.workspace.kind.is_remote() {
-                    let window_command = self.common.window_command;
+                    let window_command = self.common.window_common.window_command;
                     let options = FileDialogOptions::new().select_directories();
                     open_file(options, move |file| {
-                        if let Some(file) = file {
+                        if let Some(mut file) = file {
                             let workspace = LapceWorkspace {
                                 kind: LapceWorkspaceType::Local,
-                                path: Some(file.path),
+                                path: Some(if let Some(path) = file.path.pop() {
+                                    path
+                                } else {
+                                    tracing::error!("No path");
+                                    return;
+                                }),
                                 last_open: std::time::SystemTime::now()
                                     .duration_since(std::time::UNIX_EPOCH)
                                     .unwrap()
@@ -629,7 +650,7 @@ impl WindowTabData {
             }
             CloseFolder => {
                 if !self.workspace.kind.is_remote() {
-                    let window_command = self.common.window_command;
+                    let window_command = self.common.window_common.window_command;
                     let workspace = LapceWorkspace {
                         kind: LapceWorkspaceType::Local,
                         path: None,
@@ -643,9 +664,15 @@ impl WindowTabData {
                     let internal_command = self.common.internal_command;
                     let options = FileDialogOptions::new();
                     open_file(options, move |file| {
-                        if let Some(file) = file {
-                            internal_command
-                                .send(InternalCommand::OpenFile { path: file.path })
+                        if let Some(mut file) = file {
+                            internal_command.send(InternalCommand::OpenFile {
+                                path: if let Some(path) = file.path.pop() {
+                                    path
+                                } else {
+                                    tracing::error!("No path");
+                                    return;
+                                },
+                            })
                         }
                     });
                 }
@@ -655,15 +682,14 @@ impl WindowTabData {
             }
             RevealActiveFileInFileExplorer => {
                 if let Some(editor_data) = self.main_split.active_editor.get() {
-                    let path = editor_data.view.doc.with_untracked(|doc| {
-                        if let DocContent::File { path, .. } =
-                            doc.content.get_untracked()
-                        {
-                            Some(path)
-                        } else {
-                            None
-                        }
-                    });
+                    let doc = editor_data.doc();
+                    let path = if let DocContent::File { path, .. } =
+                        doc.content.get_untracked()
+                    {
+                        Some(path)
+                    } else {
+                        None
+                    };
                     let Some(path) = path else { return };
                     let path = path.parent().unwrap_or(&path);
 
@@ -675,22 +701,20 @@ impl WindowTabData {
                 self.main_split.editors.with_untracked(|editors| {
                     let mut paths = HashSet::new();
                     for (_, editor_data) in editors.iter() {
-                        let should_save =
-                            editor_data.view.doc.with_untracked(|doc| {
-                                let DocContent::File { path, .. } =
-                                    doc.content.get_untracked()
-                                else {
-                                    return false;
-                                };
-
-                                if paths.contains(&path) {
-                                    return false;
-                                }
-
+                        let doc = editor_data.doc();
+                        let should_save = if let DocContent::File { path, .. } =
+                            doc.content.get_untracked()
+                        {
+                            if paths.contains(&path) {
+                                false
+                            } else {
                                 paths.insert(path.clone());
 
                                 true
-                            });
+                            }
+                        } else {
+                            false
+                        };
 
                         if should_save {
                             editor_data.save(true, || {});
@@ -721,6 +745,9 @@ impl WindowTabData {
                 if let Some(dir) = Directory::config_directory() {
                     open_uri(&dir);
                 }
+            }
+            OpenThemeColorSettings => {
+                self.main_split.open_theme_color_settings();
             }
             OpenKeyboardShortcuts => {
                 self.main_split.open_keymap();
@@ -772,44 +799,55 @@ impl WindowTabData {
             }
 
             InstallTheme => {}
-            ExportCurrentThemeSettings => {}
+            ExportCurrentThemeSettings => {
+                self.main_split.export_theme();
+            }
             ToggleInlayHints => {}
 
             // ==== Window ====
             ReloadWindow => {
-                self.common
-                    .window_command
-                    .send(WindowCommand::SetWorkspace {
+                self.common.window_common.window_command.send(
+                    WindowCommand::SetWorkspace {
                         workspace: (*self.workspace).clone(),
-                    });
+                    },
+                );
             }
             NewWindow => {
-                self.common.window_command.send(WindowCommand::NewWindow);
+                self.common
+                    .window_common
+                    .window_command
+                    .send(WindowCommand::NewWindow);
             }
             CloseWindow => {
-                self.common.window_command.send(WindowCommand::CloseWindow);
+                self.common
+                    .window_common
+                    .window_command
+                    .send(WindowCommand::CloseWindow);
             }
             // ==== Window Tabs ====
             NewWindowTab => {
-                self.common
-                    .window_command
-                    .send(WindowCommand::NewWorkspaceTab {
+                self.common.window_common.window_command.send(
+                    WindowCommand::NewWorkspaceTab {
                         workspace: LapceWorkspace::default(),
                         end: false,
-                    });
+                    },
+                );
             }
             CloseWindowTab => {
                 self.common
+                    .window_common
                     .window_command
                     .send(WindowCommand::CloseWorkspaceTab { index: None });
             }
             NextWindowTab => {
                 self.common
+                    .window_common
                     .window_command
                     .send(WindowCommand::NextWorkspaceTab);
             }
             PreviousWindowTab => {
                 self.common
+                    .window_common
                     .window_command
                     .send(WindowCommand::PreviousWorkspaceTab);
             }
@@ -876,7 +914,14 @@ impl WindowTabData {
 
             // ==== Terminal ====
             NewTerminalTab => {
-                self.terminal.new_tab(None, None);
+                self.terminal.new_tab(
+                    None,
+                    self.common
+                        .config
+                        .get_untracked()
+                        .terminal
+                        .get_default_profile(),
+                );
                 if !self.panel.is_panel_visible(&PanelKind::Terminal) {
                     self.panel.show_panel(&PanelKind::Terminal);
                 }
@@ -919,19 +964,20 @@ impl WindowTabData {
             ConnectSshHost => {
                 self.palette.run(PaletteKind::SshHost);
             }
-            ConnectWsl => {
-                // TODO:
+            #[cfg(windows)]
+            ConnectWslHost => {
+                self.palette.run(PaletteKind::WslHost);
             }
             DisconnectRemote => {
-                self.common
-                    .window_command
-                    .send(WindowCommand::SetWorkspace {
+                self.common.window_common.window_command.send(
+                    WindowCommand::SetWorkspace {
                         workspace: LapceWorkspace {
                             kind: LapceWorkspaceType::Local,
                             path: None,
                             last_open: 0,
                         },
-                    });
+                    },
+                );
             }
 
             // ==== Palette Commands ====
@@ -967,6 +1013,7 @@ impl WindowTabData {
             ChangeFileLanguage => {
                 self.palette.run(PaletteKind::Language);
             }
+            DiffFiles => self.palette.run(PaletteKind::DiffFiles),
 
             // ==== Running / Debugging ====
             RunAndDebugRestart => {
@@ -987,23 +1034,25 @@ impl WindowTabData {
 
             // ==== UI ====
             ZoomIn => {
-                let mut scale = self.window_scale.get_untracked();
+                let mut scale =
+                    self.common.window_common.window_scale.get_untracked();
                 scale += 0.1;
                 if scale > 4.0 {
                     scale = 4.0
                 }
-                self.window_scale.set(scale);
+                self.common.window_common.window_scale.set(scale);
             }
             ZoomOut => {
-                let mut scale = self.window_scale.get_untracked();
+                let mut scale =
+                    self.common.window_common.window_scale.get_untracked();
                 scale -= 0.1;
                 if scale < 0.1 {
                     scale = 0.1
                 }
-                self.window_scale.set(scale);
+                self.common.window_common.window_scale.set(scale);
             }
             ZoomReset => {
-                self.window_scale.set(1.0);
+                self.common.window_common.window_scale.set(1.0);
             }
 
             ToggleMaximizedPanel => {
@@ -1097,6 +1146,9 @@ impl WindowTabData {
             FocusTerminal => {
                 self.common.focus.set(Focus::Panel(PanelKind::Terminal));
             }
+            OpenUIInspector => {
+                self.common.view_id.get_untracked().inspect();
+            }
 
             // ==== Source Control ====
             SourceControlInit => {
@@ -1150,7 +1202,13 @@ impl WindowTabData {
 
             // ==== Updating ====
             RestartToUpdate => {
-                if let Some(release) = self.latest_release.get_untracked().as_ref() {
+                if let Some(release) = self
+                    .common
+                    .window_common
+                    .latest_release
+                    .get_untracked()
+                    .as_ref()
+                {
                     let release = release.clone();
                     let update_in_progress = self.update_in_progress;
                     if release.version != *meta::VERSION {
@@ -1254,6 +1312,110 @@ impl WindowTabData {
             }
             InternalCommand::OpenFileChanges { path } => {
                 self.main_split.open_file_changes(path);
+            }
+            InternalCommand::StartRenamePath { path } => {
+                self.file_explorer.rename_state.set(RenameState::Renaming {
+                    path,
+                    editor_needs_reset: true,
+                });
+            }
+            InternalCommand::TestRenamePath { new_path } => {
+                let rename_state = self.file_explorer.rename_state;
+
+                let send = create_ext_action(
+                    self.scope,
+                    move |response: Result<ProxyResponse, RpcError>| match response {
+                        Ok(_) => {
+                            rename_state.update(RenameState::set_ok);
+                        }
+                        Err(err) => {
+                            rename_state.update(|rename_state| {
+                                rename_state.set_err(err.message)
+                            });
+                        }
+                    },
+                );
+
+                self.common.proxy.test_create_at_path(new_path, send);
+            }
+            InternalCommand::FinishRenamePath {
+                current_path,
+                new_path,
+            } => {
+                let send_current_path = current_path.clone();
+                let send_new_path = new_path.clone();
+                let file_explorer = self.file_explorer.clone();
+                let editors = self.main_split.editors;
+
+                let send = create_ext_action(
+                    self.scope,
+                    move |response: Result<ProxyResponse, RpcError>| match response {
+                        Ok(response) => {
+                            // Get the canonicalized new path from the proxy.
+                            let new_path =
+                                if let ProxyResponse::CreatePathResponse { path } =
+                                    response
+                                {
+                                    path
+                                } else {
+                                    send_new_path
+                                };
+
+                            // If the renamed item is a file, update any editors the file is open
+                            // in to use the new path.
+                            // If the renamed item is a directory, update any editors in which a
+                            // file the renamed directory is an ancestor of is open to use the
+                            // file's new path.
+                            let renamed_editors_content: Vec<_> = editors
+                                .with_untracked(|editors| {
+                                    editors
+                                        .values()
+                                        .map(|editor| editor.doc().content)
+                                        .filter(|content| {
+                                            content.with_untracked(|content| {
+                                                match content {
+                                                    DocContent::File {
+                                                        path,
+                                                        ..
+                                                    } => path.starts_with(
+                                                        &send_current_path,
+                                                    ),
+                                                    _ => false,
+                                                }
+                                            })
+                                        })
+                                        .collect()
+                                });
+
+                            for content in renamed_editors_content {
+                                content.update(|content| {
+                                    if let DocContent::File { path, .. } = content {
+                                        if let Ok(suffix) =
+                                            path.strip_prefix(&send_current_path)
+                                        {
+                                            *path = new_path.join(suffix);
+                                        }
+                                    }
+                                });
+                            }
+
+                            file_explorer.reload();
+                            file_explorer.rename_state.set(RenameState::NotRenaming);
+                        }
+                        Err(err) => {
+                            file_explorer.rename_state.update(|rename_state| {
+                                rename_state.set_err(err.message)
+                            });
+                        }
+                    },
+                );
+
+                self.file_explorer
+                    .rename_state
+                    .update(RenameState::set_pending);
+                self.common
+                    .proxy
+                    .rename_path(current_path.clone(), new_path, send);
             }
             InternalCommand::GoToLocation { location } => {
                 self.main_split.go_to_location(location, None);
@@ -1431,9 +1593,29 @@ impl WindowTabData {
             InternalCommand::SaveScratchDoc { doc } => {
                 self.main_split.save_scratch_doc(doc);
             }
+            InternalCommand::SaveScratchDoc2 { doc } => {
+                self.main_split.save_scratch_doc2(doc);
+            }
             InternalCommand::UpdateProxyStatus { status } => {
                 self.common.proxy_status.set(Some(status));
             }
+            InternalCommand::DapFrameScopes { dap_id, frame_id } => {
+                self.terminal.dap_frame_scopes(dap_id, frame_id);
+            }
+            InternalCommand::OpenVoltView { volt_id } => {
+                self.main_split.open_volt_view(volt_id);
+            }
+            InternalCommand::ResetBlinkCursor => {
+                // All the editors share the blinking information and logic, so we can just reset
+                // one of them.
+                if let Some(e_data) = self.main_split.active_editor.get_untracked() {
+                    e_data.editor.cursor_info.reset();
+                }
+            }
+            InternalCommand::OpenDiffFiles {
+                left_path,
+                right_path,
+            } => self.main_split.open_diff_files(left_path, right_path),
         }
     }
 
@@ -1478,22 +1660,20 @@ impl WindowTabData {
             } => {
                 self.common.completion.update(|completion| {
                     completion.receive(*request_id, input, resp, *plugin_id);
-
-                    let editor_data = completion.latest_editor_id.and_then(|id| {
-                        self.main_split
-                            .editors
-                            .with_untracked(|tabs| tabs.get(&id).cloned())
-                    });
-
-                    if let Some(editor_data) = editor_data {
-                        let cursor_offset =
-                            editor_data.cursor.with_untracked(|c| c.offset());
-                        completion.update_document_completion(
-                            &editor_data.view,
-                            cursor_offset,
-                        );
-                    }
                 });
+
+                let completion = self.common.completion.get_untracked();
+                let editor_data = completion.latest_editor_id.and_then(|id| {
+                    self.main_split
+                        .editors
+                        .with_untracked(|tabs| tabs.get(&id).cloned())
+                });
+                if let Some(editor_data) = editor_data {
+                    let cursor_offset =
+                        editor_data.cursor().with_untracked(|c| c.offset());
+                    completion
+                        .update_document_completion(&editor_data, cursor_offset);
+                }
             }
             CoreNotification::PublishDiagnostics { diagnostics } => {
                 let path = path_from_url(&diagnostics.uri);
@@ -1538,8 +1718,11 @@ impl WindowTabData {
                     self.common.focus.set(Focus::Workbench);
                 }
             }
+            CoreNotification::TerminalLaunchFailed { term_id, error } => {
+                self.terminal.launch_failed(term_id, error);
+            }
             CoreNotification::RunInTerminal { config } => {
-                self.run_in_terminal(cx, &RunDebugMode::Debug, config);
+                self.run_in_terminal(cx, &RunDebugMode::Debug, config, true);
             }
             CoreNotification::TerminalProcessId {
                 term_id,
@@ -1551,14 +1734,53 @@ impl WindowTabData {
                 dap_id,
                 stopped,
                 stack_frames,
+                variables,
             } => {
-                self.terminal.dap_stopped(dap_id, stopped, stack_frames);
+                self.terminal
+                    .dap_stopped(dap_id, stopped, stack_frames, variables);
             }
             CoreNotification::OpenPaths { paths } => {
                 self.open_paths(paths);
             }
             CoreNotification::DapContinued { dap_id } => {
                 self.terminal.dap_continued(dap_id);
+            }
+            CoreNotification::DapBreakpointsResp {
+                path, breakpoints, ..
+            } => {
+                self.terminal.debug.breakpoints.update(|all_breakpoints| {
+                    if let Some(current_breakpoints) = all_breakpoints.get_mut(path)
+                    {
+                        let mut line_changed = HashSet::new();
+                        let mut i = 0;
+                        for (_, current_breakpoint) in current_breakpoints.iter_mut()
+                        {
+                            if !current_breakpoint.active {
+                                continue;
+                            }
+                            if let Some(breakpoint) = breakpoints.get(i) {
+                                current_breakpoint.id = breakpoint.id;
+                                current_breakpoint.verified = breakpoint.verified;
+                                current_breakpoint.message =
+                                    breakpoint.message.clone();
+                                if let Some(new_line) = breakpoint.line {
+                                    if current_breakpoint.line + 1 != new_line {
+                                        line_changed.insert(current_breakpoint.line);
+                                        current_breakpoint.line =
+                                            new_line.saturating_sub(1);
+                                    }
+                                }
+                            }
+                            i += 1;
+                        }
+                        for line in line_changed {
+                            if let Some(changed) = current_breakpoints.remove(&line)
+                            {
+                                current_breakpoints.insert(changed.line, changed);
+                            }
+                        }
+                    }
+                });
             }
             CoreNotification::OpenFileChanged { path, content } => {
                 self.main_split.open_file_changed(path, content);
@@ -1654,6 +1876,16 @@ impl WindowTabData {
         WorkspaceInfo {
             split: main_split_data.get_untracked().split_info(self),
             panel: self.panel.panel_info(),
+            breakpoints: self
+                .terminal
+                .debug
+                .breakpoints
+                .get_untracked()
+                .into_iter()
+                .map(|(path, breakpoints)| {
+                    (path, breakpoints.into_values().collect::<Vec<_>>())
+                })
+                .collect(),
         }
     }
 
@@ -1663,16 +1895,22 @@ impl WindowTabData {
         }
 
         let editor_id = self.common.hover.editor_id.get_untracked();
-        let editor = self
+        let editor_data = self
             .main_split
             .editors
             .with(|editors| editors.get(&editor_id).cloned())?;
 
-        let (window_origin, viewport, view) =
-            (editor.window_origin, editor.viewport, editor.view.clone());
+        let (window_origin, viewport, editor) = (
+            editor_data.window_origin(),
+            editor_data.viewport(),
+            &editor_data.editor,
+        );
 
-        let (point_above, point_below) =
-            view.points_of_offset(self.common.hover.offset.get_untracked());
+        // TODO(minor): affinity should be gotten from where the hover was started at.
+        let (point_above, point_below) = editor.points_of_offset(
+            self.common.hover.offset.get_untracked(),
+            CursorAffinity::Forward,
+        );
 
         let window_origin =
             window_origin.get() - self.common.window_origin.get().to_vec2();
@@ -1704,17 +1942,23 @@ impl WindowTabData {
             return Point::ZERO;
         }
         let config = self.common.config.get();
-        let editor =
+        let editor_data =
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor
             } else {
                 return Point::ZERO;
             };
 
-        let (window_origin, viewport, view) =
-            (editor.window_origin, editor.viewport, editor.view.clone());
+        let (window_origin, viewport, editor) = (
+            editor_data.window_origin(),
+            editor_data.viewport(),
+            &editor_data.editor,
+        );
 
-        let (point_above, point_below) = view.points_of_offset(completion.offset);
+        // TODO(minor): What affinity should we use for this? Probably just use the cursor's
+        // original affinity..
+        let (point_above, point_below) =
+            editor.points_of_offset(completion.offset, CursorAffinity::Forward);
 
         let window_origin =
             window_origin.get() - self.common.window_origin.get().to_vec2();
@@ -1754,17 +1998,22 @@ impl WindowTabData {
         let tab_size = self.layout_rect.get().size();
         let code_action_size = code_action.layout_rect.size();
 
-        let editor =
+        let editor_data =
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor
             } else {
                 return Point::ZERO;
             };
 
-        let (window_origin, viewport, view) =
-            (editor.window_origin, editor.viewport, editor.view.clone());
+        let (window_origin, viewport, editor) = (
+            editor_data.window_origin(),
+            editor_data.viewport(),
+            &editor_data.editor,
+        );
 
-        let (_point_above, point_below) = view.points_of_offset(code_action.offset);
+        // TODO(minor): What affinity should we use for this?
+        let (_point_above, point_below) =
+            editor.points_of_offset(code_action.offset, CursorAffinity::Forward);
 
         let window_origin =
             window_origin.get() - self.common.window_origin.get().to_vec2();
@@ -1804,18 +2053,24 @@ impl WindowTabData {
         let tab_size = self.layout_rect.get().size();
         let rename_size = self.rename.layout_rect.get().size();
 
-        let editor =
+        let editor_data =
             if let Some(editor) = self.main_split.active_editor.get_untracked() {
                 editor
             } else {
                 return Point::ZERO;
             };
 
-        let (window_origin, viewport, view) =
-            (editor.window_origin, editor.viewport, editor.view.clone());
+        let (window_origin, viewport, editor) = (
+            editor_data.window_origin(),
+            editor_data.viewport(),
+            &editor_data.editor,
+        );
 
-        let (_point_above, point_below) =
-            view.points_of_offset(self.rename.start.get_untracked());
+        // TODO(minor): What affinity should we use for this?
+        let (_point_above, point_below) = editor.points_of_offset(
+            self.rename.start.get_untracked(),
+            CursorAffinity::Forward,
+        );
 
         let window_origin =
             window_origin.get() - self.common.window_origin.get().to_vec2();
@@ -1845,7 +2100,7 @@ impl WindowTabData {
                 self.main_split
                     .active_editor
                     .get()
-                    .map(|editor| editor.cursor.with(|c| c.get_mode()))
+                    .map(|editor| editor.cursor().with(|c| c.get_mode()))
             } else {
                 None
             };
@@ -1967,13 +2222,17 @@ impl WindowTabData {
     ) {
         match mode {
             RunDebugMode::Run => {
-                self.run_in_terminal(cx, mode, config);
+                self.run_in_terminal(cx, mode, config, false);
             }
             RunDebugMode::Debug => {
-                self.common.proxy.dap_start(
-                    config.clone(),
-                    self.terminal.debug.source_breakpoints(),
-                );
+                if config.prelaunch.is_some() {
+                    self.run_in_terminal(cx, mode, config, false);
+                } else {
+                    self.common.proxy.dap_start(
+                        config.clone(),
+                        self.terminal.debug.source_breakpoints(),
+                    )
+                };
             }
         }
     }
@@ -1983,7 +2242,10 @@ impl WindowTabData {
         cx: Scope,
         mode: &RunDebugMode,
         config: &RunDebugConfig,
+        from_dap: bool,
     ) {
+        // if not from dap, then run prelaunch first
+        let is_prelaunch = !from_dap;
         let term_id = if let Some(terminal) =
             self.terminal.get_stopped_run_debug_terminal(mode, config)
         {
@@ -1992,6 +2254,7 @@ impl WindowTabData {
                 config: config.clone(),
                 stopped: false,
                 created: Instant::now(),
+                is_prelaunch,
             }));
 
             terminal.term_id
@@ -2002,6 +2265,7 @@ impl WindowTabData {
                     config: config.clone(),
                     stopped: false,
                     created: Instant::now(),
+                    is_prelaunch,
                 }),
                 None,
             );
@@ -2012,7 +2276,10 @@ impl WindowTabData {
 
         self.terminal.debug.active_term.set(Some(term_id));
         self.terminal.debug.daps.update(|daps| {
-            daps.insert(config.dap_id, DapData::new(cx, config.dap_id, term_id));
+            daps.insert(
+                config.dap_id,
+                DapData::new(cx, config.dap_id, term_id, self.common.clone()),
+            );
         });
 
         if !self.panel.is_panel_visible(&PanelKind::Terminal) {
@@ -2025,16 +2292,16 @@ impl WindowTabData {
             paths.iter().partition(|p| p.is_dir);
 
         for folder in folders {
-            self.common
-                .window_command
-                .send(WindowCommand::NewWorkspaceTab {
+            self.common.window_common.window_command.send(
+                WindowCommand::NewWorkspaceTab {
                     workspace: LapceWorkspace {
                         kind: self.workspace.kind.clone(),
                         path: Some(folder.path.clone()),
                         last_open: 0,
                     },
                     end: false,
-                });
+                },
+            );
         }
 
         for file in files {

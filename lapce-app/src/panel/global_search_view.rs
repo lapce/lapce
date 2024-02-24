@@ -6,8 +6,8 @@ use floem::{
     style::{CursorStyle, Style},
     view::View,
     views::{
-        container, label, scroll, stack, svg, virtual_list, Decorators,
-        VirtualListDirection, VirtualListItemSize,
+        container, label, scroll, stack, svg, virtual_stack, Decorators,
+        VirtualDirection, VirtualItemSize,
     },
 };
 use lapce_xi_rope::find::CaseMatching;
@@ -85,9 +85,8 @@ pub fn global_search_panel(
                 )
                 .style(|s| s.padding_left(6.0)),
             ))
-            .on_event(EventListener::PointerDown, move |_| {
+            .on_event_cont(EventListener::PointerDown, move |_| {
                 focus.set(Focus::Panel(PanelKind::Search));
-                false
             })
             .style(move |s| {
                 s.width_pct(100.0)
@@ -95,7 +94,7 @@ pub fn global_search_panel(
                     .items_center()
                     .border(1.0)
                     .border_radius(6.0)
-                    .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+                    .border_color(config.get().color(LapceColor::LAPCE_BORDER))
             }),
         )
         .style(|s| s.width_pct(100.0).padding(10.0)),
@@ -113,9 +112,9 @@ fn search_result(
     let ui_line_height = global_search_data.common.ui_line_height;
     container({
         scroll({
-            virtual_list(
-                VirtualListDirection::Vertical,
-                VirtualListItemSize::Fn(Box::new(
+            virtual_stack(
+                VirtualDirection::Vertical,
+                VirtualItemSize::Fn(Box::new(
                     |(_, match_data): &(PathBuf, SearchMatchData)| {
                         match_data.height()
                     },
@@ -165,17 +164,14 @@ fn search_result(
                                     .size(size, size)
                                     .min_size(size, size)
                                     .color(
-                                        *config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ),
+                                        config.color(LapceColor::LAPCE_ICON_ACTIVE),
                                     )
                             }),
                             svg(move || config.get().file_svg(&path).0).style(
                                 move |s| {
                                     let config = config.get();
                                     let size = config.ui.icon_size() as f32;
-                                    let color =
-                                        config.file_svg(&style_path).1.copied();
+                                    let color = config.file_svg(&style_path).1;
                                     s.margin_right(6.0)
                                         .size(size, size)
                                         .min_size(size, size)
@@ -190,9 +186,7 @@ fn search_result(
                                 }),
                                 label(move || folder.clone()).style(move |s| {
                                     s.color(
-                                        *config
-                                            .get()
-                                            .get_color(LapceColor::EDITOR_DIM),
+                                        config.get().color(LapceColor::EDITOR_DIM),
                                     )
                                     .min_width(0.0)
                                     .text_ellipsis()
@@ -200,23 +194,24 @@ fn search_result(
                             ))
                             .style(move |s| s.min_width(0.0).items_center()),
                         ))
-                        .on_click(move |_| {
+                        .on_click_stop(move |_| {
                             expanded.update(|expanded| *expanded = !*expanded);
-                            true
                         })
                         .style(move |s| {
-                            s.width_pct(100.0).min_width_pct(100.0).items_center()
-                        })
-                        .hover_style(move |s| {
-                            s.cursor(CursorStyle::Pointer).background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
+                            s.width_pct(100.0)
+                                .min_width_pct(100.0)
+                                .items_center()
+                                .hover(|s| {
+                                    s.cursor(CursorStyle::Pointer).background(
+                                        config.get().color(
+                                            LapceColor::PANEL_HOVERED_BACKGROUND,
+                                        ),
+                                    )
+                                })
                         }),
-                        virtual_list(
-                            VirtualListDirection::Vertical,
-                            VirtualListItemSize::Fixed(Box::new(move || {
+                        virtual_stack(
+                            VirtualDirection::Vertical,
+                            VirtualItemSize::Fixed(Box::new(move || {
                                 ui_line_height.get()
                             })),
                             move || {
@@ -266,42 +261,39 @@ fn search_result(
                                             .collect()
                                     },
                                     move || {
-                                        *config
-                                            .get()
-                                            .get_color(LapceColor::EDITOR_FOCUS)
+                                        config.get().color(LapceColor::EDITOR_FOCUS)
                                     },
                                 )
                                 .style(move |s| {
                                     let config = config.get();
                                     let icon_size = config.ui.icon_size() as f32;
-                                    s.margin_left(10.0 + icon_size + 6.0)
-                                })
-                                .on_click(move |_| {
-                                    internal_command.send(
-                                        InternalCommand::JumpToLocation {
-                                            location: EditorLocation {
-                                                path: path.clone(),
-                                                position: Some(
-                                                    EditorPosition::Line(
-                                                        line_number
-                                                            .saturating_sub(1),
-                                                    ),
-                                                ),
-                                                scroll_offset: None,
-                                                ignore_unconfirmed: false,
-                                                same_editor_tab: false,
-                                            },
-                                        },
-                                    );
-                                    true
-                                })
-                                .hover_style(
-                                    move |s| {
-                                        s.cursor(CursorStyle::Pointer).background(
-                                            *config.get().get_color(
+                                    s.margin_left(10.0 + icon_size + 6.0).hover(
+                                        |s| {
+                                            s.cursor(CursorStyle::Pointer)
+                                                .background(config.color(
                                                 LapceColor::PANEL_HOVERED_BACKGROUND,
-                                            ),
-                                        )
+                                            ))
+                                        },
+                                    )
+                                })
+                                .on_click_stop(
+                                    move |_| {
+                                        internal_command.send(
+                                            InternalCommand::JumpToLocation {
+                                                location: EditorLocation {
+                                                    path: path.clone(),
+                                                    position: Some(
+                                                        EditorPosition::Line(
+                                                            line_number
+                                                                .saturating_sub(1),
+                                                        ),
+                                                    ),
+                                                    scroll_offset: None,
+                                                    ignore_unconfirmed: false,
+                                                    same_editor_tab: false,
+                                                },
+                                            },
+                                        );
                                     },
                                 )
                             },

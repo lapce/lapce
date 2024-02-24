@@ -1,22 +1,38 @@
 # How to contribute
 Thank you for your interest in contributing to Lapce! No contribution is too small and we consider _all_ contributions to the project. There are many ways to contribute (a few are listed here) but if you think of something else, join us on [Discord](https://discord.gg/n8tGJ6Rn6D) or let us know via an [issue](https://github.com/lapce/lapce/issues).
 
-A summary of how to contribute is below. If you are a _user_, also check out [this guide](docs/new-contributor-guide-user.md). If you are a _developer_, also check out [this guide](docs/new-contributor-guide-developer.md).
+## Questions
+
+We're always around hanging on our [Discord](https://discord.gg/n8tGJ6Rn6D) server but if you're only participating on GitHub, you can open a [Discussion](https://github.com/lapce/lapce/discussions)
 
 ## Feature Requests
 
-A feature request is _something you want to have included in Lapce_. We track feature requests on GitHub via [issues](https://github.com/lapce/lapce/issues). There are generally two kinds of features:
+A feature request is _editor behaviour that you want to have included in Lapce_. We track feature requests on GitHub via [issues](https://github.com/lapce/lapce/issues). There are generally few kinds of features:
 
-1. A feature more suited to the core development of Lapce. If this is the case please make a suggestion in an [issue](https://github.com/lapce/lapce/issues).
-2. A feature that is more suited to a Plugin. We currently have an issue to track requests specifically for Plugins! You can view the discussion and make suggestions [here](https://github.com/lapce/lapce/issues/558).
+### Core features
 
-To reduce the number of duplicate requests, please search through the issues to see if something has already been suggested. If a feature you want has been suggested, then comment on that issue to let us know it's popular. You can use emoji-reactions to show us just how popular!
+A feature more suited to the core development of Lapce. If this is the case please make a suggestion in an [issue](https://github.com/lapce/lapce/issues).
+
+### Programming language support (autocompletion/intellisense/formatting)
+
+A feature that relates to specific programming language or development tool that provides intellisense, or various editor commands.
+We do not track plugins development here, each plugin should have own issue tracker with eventual issues linked/referenced to main Lapce issue tracker.
+
+### Syntax highlighting
+
+There is main issue for tracking syntax highlighting grammars support at https://github.com/lapce/lapce/issues/272.
+
+---
+
+To reduce the number of duplicate requests, please search through the issues to see if something has already been suggested. If a feature you want has been suggested, then comment on that issue to let us know it's popular. You can use emoji-reactions to show us just how popular.
 
 ## Bug Reports
 
 Bugs should also be reported on GitHub via [issues](https://github.com/lapce/lapce/issues). This allows us to track them and see how prevalent they are.
 
-If you encounter a bug when using Lapce, check the issues to see if anyone else has encountered it. If it already exists, you can use emoji reactions to indicate it should be fixed ASAP!
+If you encounter a bug when using Lapce, check the issues to see if anyone else has encountered it. If it already exists, you can use emoji reactions so we can see community interest in specific issues and how important they are.
+
+Please follow the rule of [NoPlusOne](https://github.com/golang/go/wiki/NoPlusOne)
 
 ## Pull Requests
 

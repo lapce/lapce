@@ -8,11 +8,12 @@ use alacritty_terminal::{
     Term,
 };
 use floem::{
-    keyboard::{Key, KeyEvent, ModifiersState},
+    keyboard::{Key, KeyEvent, ModifiersState, NamedKey},
     reactive::{RwSignal, Scope},
+    views::editor::text::SystemClipboard,
 };
 use lapce_core::{
-    command::{EditCommand, FocusCommand},
+    command::{EditCommand, FocusCommand, ScrollCommand},
     mode::{Mode, VisualMode},
     movement::{LinePosition, Movement},
     register::Clipboard,
@@ -30,7 +31,6 @@ use super::{
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand},
     debug::RunDebugProcess,
-    doc::SystemClipboard,
     keypress::{condition::Condition, KeyPressFocus},
     window_tab::CommonData,
     workspace::LapceWorkspace,
@@ -42,6 +42,7 @@ pub struct TerminalData {
     pub term_id: TermId,
     pub workspace: Arc<LapceWorkspace>,
     pub title: RwSignal<String>,
+    pub launch_error: RwSignal<Option<String>>,
     pub mode: RwSignal<Mode>,
     pub visual_mode: RwSignal<VisualMode>,
     pub raw: RwSignal<Arc<RwLock<RawTerminal>>>,
@@ -157,7 +158,7 @@ impl KeyPressFocus for TerminalData {
                 }
                 EditCommand::ClipboardCopy => {
                     let mut clipboard = SystemClipboard::new();
-                    if self.mode.get_untracked() == Mode::Visual {
+                    if matches!(self.mode.get_untracked(), Mode::Visual(_)) {
                         self.mode.set(Mode::Normal);
                     }
                     let raw = self.raw.get_untracked();
@@ -194,8 +195,8 @@ impl KeyPressFocus for TerminalData {
                 }
                 _ => return CommandExecuted::No,
             },
-            CommandKind::Focus(cmd) => match cmd {
-                FocusCommand::PageUp => {
+            CommandKind::Scroll(cmd) => match cmd {
+                ScrollCommand::PageUp => {
                     let raw = self.raw.get_untracked();
                     let mut raw = raw.write();
                     let term = &mut raw.term;
@@ -207,7 +208,7 @@ impl KeyPressFocus for TerminalData {
                         scroll_lines,
                     ));
                 }
-                FocusCommand::PageDown => {
+                ScrollCommand::PageDown => {
                     let raw = self.raw.get_untracked();
                     let mut raw = raw.write();
                     let term = &mut raw.term;
@@ -219,6 +220,9 @@ impl KeyPressFocus for TerminalData {
                         scroll_lines,
                     ));
                 }
+                _ => return CommandExecuted::No,
+            },
+            CommandKind::Focus(cmd) => match cmd {
                 FocusCommand::SplitVertical => {
                     self.common.internal_command.send(
                         InternalCommand::SplitTerminal {
@@ -317,7 +321,7 @@ impl TerminalData {
         let raw = Self::new_raw_terminal(
             workspace.clone(),
             term_id,
-            run_debug.as_ref().map(|r| &r.config),
+            run_debug.as_ref().map(|r| (&r.config, r.is_prelaunch)),
             profile,
             common.clone(),
         );
@@ -326,6 +330,7 @@ impl TerminalData {
         let mode = cx.create_rw_signal(Mode::Terminal);
         let visual_mode = cx.create_rw_signal(VisualMode::Normal);
         let raw = cx.create_rw_signal(raw);
+        let launch_error = cx.create_rw_signal(None);
 
         Self {
             scope: cx,
@@ -337,13 +342,14 @@ impl TerminalData {
             mode,
             visual_mode,
             common,
+            launch_error,
         }
     }
 
     pub fn new_raw_terminal(
         workspace: Arc<LapceWorkspace>,
         term_id: TermId,
-        run_debug: Option<&RunDebugConfig>,
+        run_debug: Option<(&RunDebugConfig, bool)>,
         profile: Option<TerminalProfile>,
         common: Rc<CommonData>,
     ) -> Arc<RwLock<RawTerminal>> {
@@ -353,10 +359,7 @@ impl TerminalData {
             common.term_notification_tx.clone(),
         )));
 
-        let mut profile = match profile {
-            Some(profile) => profile,
-            None => TerminalProfile::default(),
-        };
+        let mut profile = profile.unwrap_or_default();
 
         if profile.workdir.is_none() {
             profile.workdir = if let Ok(path) = url::Url::from_file_path(
@@ -368,7 +371,7 @@ impl TerminalData {
             };
         }
 
-        if let Some(run_debug) = run_debug {
+        if let Some((run_debug, is_prelaunch)) = run_debug {
             if let Some(path) = run_debug.cwd.as_ref() {
                 if let Ok(as_url) = url::Url::from_file_path(PathBuf::from(path)) {
                     profile.workdir = Some(as_url);
@@ -388,13 +391,30 @@ impl TerminalData {
                 }
             }
 
+            let prelaunch = if is_prelaunch {
+                run_debug.prelaunch.clone()
+            } else {
+                None
+            };
+
             profile.environment = run_debug.env.clone();
 
             if let Some(debug_command) = run_debug.debug_command.as_ref() {
-                profile.command = Some(debug_command.clone());
+                let mut args = debug_command.to_owned();
+                let command = args.first().cloned().unwrap_or_default();
+                if !args.is_empty() {
+                    args.remove(0);
+                }
+                profile.command = Some(command);
+                if !args.is_empty() {
+                    profile.arguments = Some(args);
+                }
+            } else if let Some(prelaunch) = prelaunch {
+                profile.command = Some(prelaunch.program);
+                profile.arguments = prelaunch.args;
             } else {
                 profile.command = Some(run_debug.program.clone());
-                profile.arguments = Some(run_debug.args.clone());
+                profile.arguments = run_debug.args.clone();
             }
         }
 
@@ -547,7 +567,7 @@ impl TerminalData {
                     None
                 }
             }
-            Key::Backspace => {
+            Key::Named(NamedKey::Backspace) => {
                 Some(if key.modifiers.control_key() {
                     "\x08" // backspace
                 } else if key.modifiers.alt_key() {
@@ -557,21 +577,41 @@ impl TerminalData {
                 })
             }
 
-            Key::Tab => Some("\x09"),
-            Key::Enter => Some("\r"),
-            Key::Escape => Some("\x1b"),
+            Key::Named(NamedKey::Tab) => Some("\x09"),
+            Key::Named(NamedKey::Enter) => Some("\r"),
+            Key::Named(NamedKey::Escape) => Some("\x1b"),
 
             // The following either expands to `\x1b[X` or `\x1b[1;NX` where N is a modifier value
-            Key::ArrowUp => term_sequence!([all], key, "\x1b[A", "\x1b[1;", "A"),
-            Key::ArrowDown => term_sequence!([all], key, "\x1b[B", "\x1b[1;", "B"),
-            Key::ArrowRight => term_sequence!([all], key, "\x1b[C", "\x1b[1;", "C"),
-            Key::ArrowLeft => term_sequence!([all], key, "\x1b[D", "\x1b[1;", "D"),
-            Key::Home => term_sequence!([all], key, "\x1bOH", "\x1b[1;", "H"),
-            Key::End => term_sequence!([all], key, "\x1bOF", "\x1b[1;", "F"),
-            Key::Insert => term_sequence!([all], key, "\x1b[2~", "\x1b[2;", "~"),
-            Key::Delete => term_sequence!([all], key, "\x1b[3~", "\x1b[3;", "~"),
-            Key::PageUp => term_sequence!([all], key, "\x1b[5~", "\x1b[5;", "~"),
-            Key::PageDown => term_sequence!([all], key, "\x1b[6~", "\x1b[6;", "~"),
+            Key::Named(NamedKey::ArrowUp) => {
+                term_sequence!([all], key, "\x1b[A", "\x1b[1;", "A")
+            }
+            Key::Named(NamedKey::ArrowDown) => {
+                term_sequence!([all], key, "\x1b[B", "\x1b[1;", "B")
+            }
+            Key::Named(NamedKey::ArrowRight) => {
+                term_sequence!([all], key, "\x1b[C", "\x1b[1;", "C")
+            }
+            Key::Named(NamedKey::ArrowLeft) => {
+                term_sequence!([all], key, "\x1b[D", "\x1b[1;", "D")
+            }
+            Key::Named(NamedKey::Home) => {
+                term_sequence!([all], key, "\x1bOH", "\x1b[1;", "H")
+            }
+            Key::Named(NamedKey::End) => {
+                term_sequence!([all], key, "\x1bOF", "\x1b[1;", "F")
+            }
+            Key::Named(NamedKey::Insert) => {
+                term_sequence!([all], key, "\x1b[2~", "\x1b[2;", "~")
+            }
+            Key::Named(NamedKey::Delete) => {
+                term_sequence!([all], key, "\x1b[3~", "\x1b[3;", "~")
+            }
+            Key::Named(NamedKey::PageUp) => {
+                term_sequence!([all], key, "\x1b[5~", "\x1b[5;", "~")
+            }
+            Key::Named(NamedKey::PageDown) => {
+                term_sequence!([all], key, "\x1b[6~", "\x1b[6;", "~")
+            }
             _ => None,
         }
     }
@@ -598,10 +638,10 @@ impl TerminalData {
 
         match self.mode.get_untracked() {
             Mode::Normal => {
-                self.mode.set(Mode::Visual);
+                self.mode.set(Mode::Visual(visual_mode));
                 self.visual_mode.set(visual_mode);
             }
-            Mode::Visual => {
+            Mode::Visual(_) => {
                 if self.visual_mode.get_untracked() == visual_mode {
                     self.mode.set(Mode::Normal);
                 } else {
@@ -674,7 +714,7 @@ impl TerminalData {
         let raw = Self::new_raw_terminal(
             self.workspace.clone(),
             self.term_id,
-            run_debug.as_ref().map(|r| &r.config),
+            run_debug.as_ref().map(|r| (&r.config, r.is_prelaunch)),
             None,
             self.common.clone(),
         );

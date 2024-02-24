@@ -1,25 +1,26 @@
-use std::{rc::Rc, sync::Arc};
+use std::sync::Arc;
 
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::EventCx,
-    cosmic_text::{
-        Attrs, AttrsList, FamilyOwned, LineHeightValue, Style as FontStyle,
-        TextLayout, Weight,
-    },
+    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     event::{Event, EventListener},
     id::Id,
     peniko::{
         kurbo::{Line, Point, Rect, Size, Vec2},
         Color,
     },
+    prop_extracter,
     reactive::{create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal},
-    style::{ComputedStyle, CursorStyle, Style},
-    taffy::prelude::Node,
+    style::{
+        CursorStyle, FontFamily, FontSize, FontStyle, FontWeight, LineHeight,
+        PaddingLeft, Style, TextColor,
+    },
+    taffy::prelude::NodeId,
     unit::PxPct,
-    view::{ChangeFlags, View},
+    view::{AnyWidget, View, ViewData, Widget},
     views::Decorators,
-    Renderer,
+    EventPropagation, Renderer,
 };
 use lapce_core::{
     buffer::rope_text::RopeText,
@@ -29,26 +30,36 @@ use lapce_core::{
 
 use crate::{
     config::{color::LapceColor, LapceConfig},
-    doc::Document,
-    editor::EditorData,
-    keypress::KeyPressFocus,
+    editor::{DocSignal, EditorData},
 };
 
+prop_extracter! {
+    Extracter {
+        color: TextColor,
+        font_size: FontSize,
+        font_family: FontFamily,
+        font_weight: FontWeight,
+        font_style: FontStyle,
+        line_height: LineHeight,
+    }
+}
+
 pub fn text_input(
-    editor: EditorData,
+    e_data: EditorData,
     is_focused: impl Fn() -> bool + 'static,
 ) -> TextInput {
     let id = Id::next();
 
-    let doc = editor.view.doc;
-    let cursor = editor.cursor;
-    let config = editor.common.config;
-    let keypress = editor.common.keypress;
+    let doc = e_data.doc_signal();
+    let cursor = e_data.cursor();
+    let config = e_data.common.config;
+    let keypress = e_data.common.keypress;
     let window_origin = create_rw_signal(Point::ZERO);
     let cursor_line = create_rw_signal(Line::new(Point::ZERO, Point::ZERO));
     let keyboard_focus = create_rw_signal(false);
     let is_focused = create_memo(move |_| is_focused() || keyboard_focus.get());
-    let local_editor = editor.clone();
+    let local_editor = e_data.clone();
+    let editor = local_editor.editor.clone();
 
     {
         let doc = doc.get();
@@ -56,7 +67,7 @@ pub fn text_input(
             let offset = cursor.with(|c| c.offset());
             let (content, offset, preedit_range) = {
                 let content = doc.buffer.with(|b| b.to_string());
-                if let Some(preedit) = doc.preedit.get().as_ref() {
+                if let Some(preedit) = doc.preedit.preedit.get().as_ref() {
                     let mut new_content = String::new();
                     new_content.push_str(&content[..offset]);
                     new_content.push_str(&preedit.text);
@@ -72,25 +83,22 @@ pub fn text_input(
                     (content, offset, None)
                 }
             };
-            id.update_state(
-                TextInputState::Content {
-                    text: content,
-                    offset,
-                    preedit_range,
-                },
-                false,
-            );
+            id.update_state(TextInputState::Content {
+                text: content,
+                offset,
+                preedit_range,
+            });
         });
     }
 
     {
         create_effect(move |_| {
             let focus = is_focused.get();
-            id.update_state(TextInputState::Focus(focus), false);
+            id.update_state(TextInputState::Focus(focus));
         });
 
         let editor = editor.clone();
-        let ime_allowed = editor.common.ime_allowed;
+        let ime_allowed = editor.ime_allowed;
         create_effect(move |_| {
             let focus = is_focused.get();
             if focus {
@@ -112,8 +120,13 @@ pub fn text_input(
         });
     }
 
+    let common_keyboard_focus = e_data.common.keyboard_focus;
+
+    let ed1 = editor.clone();
+    let ed2 = editor.clone();
     TextInput {
         id,
+        data: ViewData::new(id),
         config,
         offset: 0,
         preedit_range: None,
@@ -129,17 +142,12 @@ pub fn text_input(
         placeholder_text_layout: None,
         cursor,
         doc,
-        color: None,
-        font_size: None,
-        font_family: None,
-        font_weight: None,
-        font_style: None,
         cursor_pos: Point::ZERO,
         on_cursor_pos: None,
-        hide_cursor: editor.common.hide_cursor,
-        line_height: None,
+        hide_cursor: editor.cursor_info.hidden,
+        style: Default::default(),
     }
-    .base_style(|s| {
+    .style(|s| {
         s.cursor(CursorStyle::Text)
             .padding_horiz(10.0)
             .padding_vert(6.0)
@@ -147,25 +155,31 @@ pub fn text_input(
     .on_move(move |pos| {
         window_origin.set(pos);
     })
-    .on_event(EventListener::FocusGained, move |_| {
+    .on_event_stop(EventListener::FocusGained, move |_| {
         keyboard_focus.set(true);
-        true
+        common_keyboard_focus.set(Some(id));
     })
-    .on_event(EventListener::FocusLost, move |_| {
+    .on_event_stop(EventListener::FocusLost, move |_| {
         keyboard_focus.set(false);
-        true
+        if common_keyboard_focus.get_untracked() == Some(id) {
+            common_keyboard_focus.set(None);
+        }
     })
     .on_event(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             let keypress = keypress.get_untracked();
-            keypress.key_down(key_event, &editor)
+            if keypress.key_down(key_event, &e_data) {
+                EventPropagation::Stop
+            } else {
+                EventPropagation::Continue
+            }
         } else {
-            false
+            EventPropagation::Continue
         }
     })
     .on_event(EventListener::ImePreedit, move |event| {
         if !is_focused.get_untracked() {
-            return false;
+            return EventPropagation::Continue;
         }
 
         if let Event::ImePreedit {
@@ -173,27 +187,25 @@ pub fn text_input(
             cursor: ime_cursor,
         } = event
         {
-            let doc = local_editor.view.doc.get_untracked();
             if text.is_empty() {
-                doc.clear_preedit();
+                ed1.clear_preedit();
             } else {
                 let offset = cursor.with_untracked(|c| c.offset());
-                doc.set_preedit(text.clone(), *ime_cursor, offset);
+                ed1.set_preedit(text.clone(), ime_cursor.to_owned(), offset);
             }
         }
-        true
+        EventPropagation::Stop
     })
     .on_event(EventListener::ImeCommit, move |event| {
         if !is_focused.get_untracked() {
-            return false;
+            return EventPropagation::Continue;
         }
 
         if let Event::ImeCommit(text) = event {
-            let doc = local_editor.view.doc.get_untracked();
-            doc.clear_preedit();
-            local_editor.receive_char(text);
+            ed2.clear_preedit();
+            ed2.receive_char(text.as_str());
         }
-        true
+        EventPropagation::Stop
     })
 }
 
@@ -209,13 +221,14 @@ enum TextInputState {
 
 pub struct TextInput {
     id: Id,
+    data: ViewData,
     content: String,
     offset: usize,
     preedit_range: Option<(usize, usize)>,
-    doc: RwSignal<Rc<Document>>,
+    doc: DocSignal,
     cursor: RwSignal<Cursor>,
     focus: bool,
-    text_node: Option<Node>,
+    text_node: Option<NodeId>,
     text_layout: RwSignal<Option<TextLayout>>,
     text_rect: Rect,
     text_viewport: Rect,
@@ -223,16 +236,11 @@ pub struct TextInput {
     cursor_line: RwSignal<Line>,
     placeholder: String,
     placeholder_text_layout: Option<TextLayout>,
-    color: Option<Color>,
-    font_size: Option<f32>,
-    font_family: Option<String>,
-    font_weight: Option<Weight>,
-    font_style: Option<FontStyle>,
-    line_height: Option<LineHeightValue>,
     cursor_pos: Point,
     on_cursor_pos: Option<Box<dyn Fn(Point)>>,
     hide_cursor: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
+    style: Extracter,
 }
 
 impl TextInput {
@@ -240,7 +248,7 @@ impl TextInput {
         let id = self.id;
         create_effect(move |_| {
             let placeholder = placeholder();
-            id.update_state(TextInputState::Placeholder(placeholder), false);
+            id.update_state(TextInputState::Placeholder(placeholder));
         });
         self
     }
@@ -252,14 +260,15 @@ impl TextInput {
 
     fn set_text_layout(&mut self) {
         let mut text_layout = TextLayout::new();
-        let mut attrs = Attrs::new().color(self.color.unwrap_or(Color::BLACK));
-        if let Some(font_size) = self.font_size {
+        let mut attrs =
+            Attrs::new().color(self.style.color().unwrap_or(Color::BLACK));
+        if let Some(font_size) = self.style.font_size() {
             attrs = attrs.font_size(font_size);
         }
-        if let Some(font_style) = self.font_style {
+        if let Some(font_style) = self.style.font_style() {
             attrs = attrs.style(font_style);
         }
-        let font_family = self.font_family.as_ref().map(|font_family| {
+        let font_family = self.style.font_family().as_ref().map(|font_family| {
             let family: Vec<FamilyOwned> =
                 FamilyOwned::parse_list(font_family).collect();
             family
@@ -267,10 +276,10 @@ impl TextInput {
         if let Some(font_family) = font_family.as_ref() {
             attrs = attrs.family(font_family);
         }
-        if let Some(font_weight) = self.font_weight {
+        if let Some(font_weight) = self.style.font_weight() {
             attrs = attrs.weight(font_weight);
         }
-        if let Some(line_height) = self.line_height {
+        if let Some(line_height) = self.style.line_height() {
             attrs = attrs.line_height(line_height);
         }
         text_layout.set_text(
@@ -284,8 +293,12 @@ impl TextInput {
         self.text_layout.set(Some(text_layout));
 
         let mut placeholder_text_layout = TextLayout::new();
-        attrs =
-            attrs.color(self.color.unwrap_or(Color::BLACK).with_alpha_factor(0.5));
+        attrs = attrs.color(
+            self.style
+                .color()
+                .unwrap_or(Color::BLACK)
+                .with_alpha_factor(0.5),
+        );
         placeholder_text_layout.set_text(&self.placeholder, AttrsList::new(attrs));
         self.placeholder_text_layout = Some(placeholder_text_layout);
     }
@@ -295,7 +308,7 @@ impl TextInput {
             if let Some(text_layout) = text_layout.as_ref() {
                 let padding_left = cx
                     .get_computed_style(self.id)
-                    .map(|s| match s.padding_left {
+                    .map(|s| match s.get(PaddingLeft) {
                         PxPct::Px(v) => v,
                         PxPct::Pct(pct) => {
                             let layout = cx.get_layout(self.id()).unwrap();
@@ -400,27 +413,32 @@ impl View for TextInput {
         self.id
     }
 
-    fn child(&self, _id: Id) -> Option<&dyn View> {
-        None
+    fn view_data(&self) -> &ViewData {
+        &self.data
     }
 
-    fn child_mut(&mut self, _id: Id) -> Option<&mut dyn View> {
-        None
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
     }
 
-    fn children(&self) -> Vec<&dyn View> {
-        Vec::new()
+    fn build(self) -> AnyWidget {
+        Box::new(self)
+    }
+}
+impl Widget for TextInput {
+    fn view_data(&self) -> &ViewData {
+        &self.data
     }
 
-    fn children_mut(&mut self) -> Vec<&mut dyn View> {
-        Vec::new()
+    fn view_data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
     }
 
     fn update(
         &mut self,
         cx: &mut floem::context::UpdateCx,
         state: Box<dyn std::any::Any>,
-    ) -> ChangeFlags {
+    ) {
         if let Ok(state) = state.downcast() {
             match *state {
                 TextInputState::Content {
@@ -442,32 +460,21 @@ impl View for TextInput {
                 }
             }
             cx.request_layout(self.id);
-            ChangeFlags::LAYOUT
-        } else {
-            ChangeFlags::empty()
+        }
+    }
+
+    fn style(&mut self, cx: &mut floem::context::StyleCx<'_>) {
+        if self.style.read(cx) {
+            self.set_text_layout();
+            cx.app_state_mut().request_layout(self.id());
         }
     }
 
     fn layout(
         &mut self,
         cx: &mut floem::context::LayoutCx,
-    ) -> floem::taffy::prelude::Node {
+    ) -> floem::taffy::prelude::NodeId {
         cx.layout_node(self.id, true, |cx| {
-            if self.font_size != cx.current_font_size()
-                || self.font_family.as_deref() != cx.current_font_family()
-                || self.font_weight != cx.current_font_weight()
-                || self.font_style != cx.current_font_style()
-                || self.line_height != cx.current_line_height()
-            {
-                self.font_size = cx.current_font_size();
-                self.font_family = cx.current_font_family().map(|s| s.to_string());
-                self.font_weight = cx.current_font_weight();
-                self.font_style = cx.current_font_style();
-                self.line_height = cx.current_line_height();
-                self.text_layout.set(None);
-                self.placeholder_text_layout = None;
-            }
-
             if self
                 .text_layout
                 .with_untracked(|text_layout| text_layout.is_none())
@@ -496,10 +503,7 @@ impl View for TextInput {
 
                 let text_node = self.text_node.unwrap();
 
-                let style = Style::BASE
-                    .height(height)
-                    .compute(&ComputedStyle::default())
-                    .to_taffy_style();
+                let style = Style::new().height(height).to_taffy_style();
                 cx.set_style(text_node, style);
             });
 
@@ -507,15 +511,18 @@ impl View for TextInput {
         })
     }
 
-    fn compute_layout(&mut self, cx: &mut floem::context::LayoutCx) -> Option<Rect> {
+    fn compute_layout(
+        &mut self,
+        cx: &mut floem::context::ComputeLayoutCx,
+    ) -> Option<Rect> {
         let layout = cx.get_layout(self.id).unwrap();
 
-        let style = cx.get_computed_style(self.id);
-        let padding_left = match style.padding_left {
+        let style = cx.app_state_mut().get_builtin_style(self.id);
+        let padding_left = match style.padding_left() {
             PxPct::Px(padding) => padding,
             PxPct::Pct(pct) => pct * layout.size.width as f64,
         };
-        let padding_right = match style.padding_right {
+        let padding_right = match style.padding_right() {
             PxPct::Px(padding) => padding,
             PxPct::Pct(pct) => pct * layout.size.width as f64,
         };
@@ -561,7 +568,7 @@ impl View for TextInput {
         cx: &mut floem::context::EventCx,
         _id_path: Option<&[Id]>,
         event: floem::event::Event,
-    ) -> bool {
+    ) -> EventPropagation {
         let text_offset = self.text_viewport.origin();
         let event = event.offset((-text_offset.x, -text_offset.y));
         match event {
@@ -603,21 +610,16 @@ impl View for TextInput {
                     delta
                 };
                 self.clamp_text_viewport(self.text_viewport + delta);
-                return false;
+                return EventPropagation::Continue;
             }
             _ => {}
         }
-        false
+        EventPropagation::Continue
     }
 
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
         cx.save();
         cx.clip(&self.text_rect.inflate(1.0, 0.0));
-        if self.color != cx.current_color() {
-            self.color = cx.current_color();
-            self.set_text_layout();
-        }
-
         let text_node = self.text_node.unwrap();
         let location = cx.layout(text_node).unwrap().location;
         let point = Point::new(location.x as f64, location.y as f64)
@@ -639,7 +641,7 @@ impl View for TextInput {
                             &Rect::ZERO
                                 .with_size(Size::new(max - min, height))
                                 .with_origin(Point::new(min + point.x, point.y)),
-                            *config.get_color(LapceColor::EDITOR_SELECTION),
+                            config.color(LapceColor::EDITOR_SELECTION),
                             0.0,
                         );
                     }
@@ -672,11 +674,7 @@ impl View for TextInput {
                         end_point.y + end_position.glyph_descent,
                     ),
                 );
-                cx.stroke(
-                    &line,
-                    *config.get_color(LapceColor::EDITOR_FOREGROUND),
-                    1.0,
-                );
+                cx.stroke(&line, config.color(LapceColor::EDITOR_FOREGROUND), 1.0);
             }
 
             if !self.hide_cursor.get_untracked()
@@ -702,10 +700,7 @@ impl View for TextInput {
 
                 cx.stroke(
                     &line,
-                    *self
-                        .config
-                        .get_untracked()
-                        .get_color(LapceColor::EDITOR_CARET),
+                    self.config.get_untracked().color(LapceColor::EDITOR_CARET),
                     2.0,
                 );
             }

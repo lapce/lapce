@@ -8,6 +8,8 @@
 
 use std::{
     borrow::Cow,
+    cell::RefCell,
+    collections::HashMap,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -23,96 +25,21 @@ use tree_sitter::{
 use super::{util::RopeProvider, PARSER};
 use crate::{language::LapceLanguage, style::SCOPES};
 
-macro_rules! declare_language_highlights {
-    ($($name:ident: $feature_name:expr),* $(,)?) => {
-        mod highlights {
-            // We allow non upper case globals to make the macro definition simpler.
-            #![allow(unused_imports)]
-            #![allow(non_upper_case_globals)]
-            use once_cell::sync::Lazy;
-            use crate::language::LapceLanguage;
-            use std::sync::Arc;
-            use super::{HighlightConfiguration, HighlightIssue};
-
-            // We use Arcs because in the future we may want to load highlight configurations at runtime
-            $(
-                #[cfg(feature = $feature_name)]
-                pub static $name: Lazy<Result<Arc<HighlightConfiguration>, HighlightIssue>> = Lazy::new(|| {
-                    LapceLanguage::$name.new_highlight_config().map(Arc::new)
-                });
-            )*
-        }
-
-        pub(crate) fn get_highlight_config(lang: LapceLanguage) -> Result<Arc<HighlightConfiguration>, HighlightIssue> {
-            match lang {
-                $(
-                    #[cfg(feature = $feature_name)]
-                    LapceLanguage::$name => highlights::$name.clone()
-                ),*,
-                _ => Err(HighlightIssue::NotAvailable),
-            }
-        }
-    };
+thread_local! {
+    static HIGHLIGHT_CONFIGS: RefCell<HashMap<LapceLanguage, Result<Arc<HighlightConfiguration>, HighlightIssue>>> = Default::default();
 }
 
-declare_language_highlights!(
-    Bash: "lang-bash",
-    C: "lang-c",
-    Clojure: "lang-clojure",
-    Cmake: "lang-cmake",
-    Cpp: "lang-cpp",
-    Csharp: "lang-csharp",
-    Css: "lang-css",
-    D: "lang-d",
-    Dart: "lang-dart",
-    Dockerfile: "lang-dockerfile",
-    Elixir: "lang-elixir",
-    Elm: "lang-elm",
-    Erlang: "lang-erlang",
-    Glimmer: "lang-glimmer",
-    Glsl: "lang-glsl",
-    Go: "lang-go",
-    Hare: "lang-hare",
-    Haskell: "lang-haskell",
-    Haxe: "lang-haxe",
-    Hcl: "lang-hcl",
-    Html: "lang-html",
-    Java: "lang-java",
-    Javascript: "lang-javascript",
-    Json: "lang-json",
-    Jsx: "lang-javascript",
-    Julia: "lang-julia",
-    Kotlin: "lang-kotlin",
-    Latex: "lang-latex",
-    Lua: "lang-lua",
-    Markdown: "lang-markdown",
-    MarkdownInline: "lang-markdown",
-    Nix: "lang-nix",
-    Ocaml: "lang-ocaml",
-    OcamlInterface: "lang-ocaml",
-    Php: "lang-php",
-    Prisma: "lang-prisma",
-    ProtoBuf: "lang-protobuf",
-    Python: "lang-python",
-    Ql: "lang-ql",
-    R: "lang-r",
-    Ruby: "lang-ruby",
-    Rust: "lang-rust",
-    Scheme: "lang-scheme",
-    Scss: "lang-scss",
-    Sh: "lang-bash",
-    Sql: "lang-sql",
-    Svelte: "lang-svelte",
-    Swift: "lang-swift",
-    Toml: "lang-toml",
-    Tsx: "lang-typescript",
-    Typescript: "lang-typescript",
-    Vue: "lang-vue",
-    Wgsl: "lang-wgsl",
-    Xml: "lang-xml",
-    Yaml: "lang-yaml",
-    Zig: "lang-zig",
-);
+pub(crate) fn get_highlight_config(
+    lang: LapceLanguage,
+) -> Result<Arc<HighlightConfiguration>, HighlightIssue> {
+    HIGHLIGHT_CONFIGS.with(|configs| {
+        let mut configs = configs.borrow_mut();
+        let config = configs
+            .entry(lang)
+            .or_insert_with(|| lang.new_highlight_config().map(Arc::new));
+        config.clone()
+    })
+}
 
 /// Indicates which highlight should be applied to a region of source code.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -313,7 +240,6 @@ impl HighlightConfiguration {
                 let mut best_index = None;
                 let mut best_match_len = 0;
                 for (i, recognized_name) in recognized_names.iter().enumerate() {
-                    let recognized_name = recognized_name;
                     let mut len = 0;
                     let mut matches = true;
                     for (i, part) in recognized_name.split('.').enumerate() {

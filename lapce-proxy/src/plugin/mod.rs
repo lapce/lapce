@@ -13,7 +13,7 @@ use std::{
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
         Arc,
     },
-    thread,
+    time::Duration,
 };
 
 use anyhow::{anyhow, Result};
@@ -23,7 +23,7 @@ use flate2::read::GzDecoder;
 use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
-    dap_types::{DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
+    dap_types::{self, DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
     plugin::{PluginId, VoltInfo, VoltMetadata},
     proxy::ProxyRpcHandler,
     style::LineStyle,
@@ -36,9 +36,9 @@ use lsp_types::{
         CodeActionRequest, CodeActionResolveRequest, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
-        InlayHintRequest, PrepareRenameRequest, References, Rename, Request,
-        ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest,
-        SignatureHelpRequest, WorkspaceSymbol,
+        InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
+        Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
+        SemanticTokensFullRequest, SignatureHelpRequest, WorkspaceSymbolRequest,
     },
     ClientCapabilities, CodeAction, CodeActionCapabilityResolveSupport,
     CodeActionClientCapabilities, CodeActionContext, CodeActionKind,
@@ -48,11 +48,14 @@ use lsp_types::{
     CompletionParams, CompletionResponse, Diagnostic, DocumentFormattingParams,
     DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions, GotoCapability,
     GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverClientCapabilities,
-    HoverParams, InlayHint, InlayHintClientCapabilities, InlayHintParams, Location,
-    MarkupKind, MessageActionItemCapabilities, ParameterInformationSettings,
-    PartialResultParams, Position, PrepareRenameResponse, Range, ReferenceContext,
-    ReferenceParams, RenameParams, SelectionRange, SelectionRangeParams,
-    SemanticTokens, SemanticTokensClientCapabilities, SemanticTokensParams,
+    HoverParams, InlayHint, InlayHintClientCapabilities, InlayHintParams,
+    InlineCompletionClientCapabilities, InlineCompletionParams,
+    InlineCompletionResponse, InlineCompletionTriggerKind, Location, MarkupKind,
+    MessageActionItemCapabilities, ParameterInformationSettings,
+    PartialResultParams, Position, PrepareRenameResponse,
+    PublishDiagnosticsClientCapabilities, Range, ReferenceContext, ReferenceParams,
+    RenameParams, SelectionRange, SelectionRangeParams, SemanticTokens,
+    SemanticTokensClientCapabilities, SemanticTokensParams,
     ShowMessageRequestClientCapabilities, SignatureHelp,
     SignatureHelpClientCapabilities, SignatureHelpParams,
     SignatureInformationSettings, SymbolInformation, TextDocumentClientCapabilities,
@@ -66,6 +69,7 @@ use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 use tar::Archive;
+use tracing::error;
 
 use self::{
     catalog::PluginCatalog,
@@ -103,6 +107,21 @@ pub enum PluginCatalogRpc {
         text: Rope,
         f: Box<dyn RpcCallback<Vec<LineStyle>, RpcError>>,
     },
+    DapVariable {
+        dap_id: DapId,
+        reference: usize,
+        f: Box<dyn RpcCallback<Vec<dap_types::Variable>, RpcError>>,
+    },
+    DapGetScopes {
+        dap_id: DapId,
+        frame_id: usize,
+        f: Box<
+            dyn RpcCallback<
+                Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
+                RpcError,
+            >,
+        >,
+    },
     DidOpenTextDocument {
         document: TextDocumentItem,
     },
@@ -120,6 +139,10 @@ pub enum PluginCatalogRpc {
         text: Rope,
     },
     Handler(PluginCatalogNotification),
+    RemoveVolt {
+        volt: VoltInfo,
+        f: Box<dyn ClonableCallback<Value, RpcError>>,
+    },
     Shutdown,
 }
 
@@ -147,6 +170,18 @@ pub enum PluginCatalogNotification {
         dap_id: DapId,
         thread_id: ThreadId,
     },
+    DapStepOver {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepInto {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
+    DapStepOut {
+        dap_id: DapId,
+        thread_id: ThreadId,
+    },
     DapPause {
         dap_id: DapId,
         thread_id: ThreadId,
@@ -165,6 +200,11 @@ pub enum PluginCatalogNotification {
         dap_id: DapId,
         path: PathBuf,
         breakpoints: Vec<SourceBreakpoint>,
+    },
+    RegisterDebuggerType {
+        debugger_type: String,
+        program: String,
+        args: Option<Vec<String>>,
     },
     Shutdown,
 }
@@ -285,8 +325,25 @@ impl PluginCatalogRpcHandler {
                         new_text,
                     );
                 }
+                PluginCatalogRpc::DapVariable {
+                    dap_id,
+                    reference,
+                    f,
+                } => {
+                    plugin.dap_variable(dap_id, reference, f);
+                }
+                PluginCatalogRpc::DapGetScopes {
+                    dap_id,
+                    frame_id,
+                    f,
+                } => {
+                    plugin.dap_get_scopes(dap_id, frame_id, f);
+                }
                 PluginCatalogRpc::Shutdown => {
                     return;
+                }
+                PluginCatalogRpc::RemoveVolt { volt, f } => {
+                    plugin.shutdown_volt(volt, f);
                 }
             }
         }
@@ -575,6 +632,7 @@ impl PluginCatalogRpcHandler {
             context: CodeActionContext {
                 diagnostics,
                 only: None,
+                trigger_kind: None,
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
@@ -605,6 +663,40 @@ impl PluginCatalogRpcHandler {
             text_document: TextDocumentIdentifier { uri },
             work_done_progress_params: WorkDoneProgressParams::default(),
             range,
+        };
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
+    pub fn get_inline_completions(
+        &self,
+        path: &Path,
+        position: Position,
+        trigger_kind: InlineCompletionTriggerKind,
+        cb: impl FnOnce(PluginId, Result<InlineCompletionResponse, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = InlineCompletionRequest::METHOD;
+        let params = InlineCompletionParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            context: lsp_types::InlineCompletionContext {
+                trigger_kind,
+                selected_completion_info: None,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
@@ -651,7 +743,7 @@ impl PluginCatalogRpcHandler {
             + Send
             + 'static,
     ) {
-        let method = WorkspaceSymbol::METHOD;
+        let method = WorkspaceSymbolRequest::METHOD;
         let params = WorkspaceSymbolParams {
             query,
             work_done_progress_params: WorkDoneProgressParams::default(),
@@ -1026,8 +1118,34 @@ impl PluginCatalogRpcHandler {
         self.catalog_notification(PluginCatalogNotification::InstallVolt(volt))
     }
 
-    pub fn stop_volt(&self, volt: VoltInfo) -> Result<()> {
-        self.catalog_notification(PluginCatalogNotification::StopVolt(volt))
+    pub fn stop_volt(&self, volt: VoltInfo) {
+        let rpc = PluginCatalogRpc::RemoveVolt {
+            volt,
+            f: Box::new(|_id: PluginId, rs: Result<Value, RpcError>| {
+                if let Err(e) = rs {
+                    // maybe should send notification
+                    error!("{:?}", e);
+                }
+            }),
+        };
+        let _ = self.plugin_tx.send(rpc);
+    }
+
+    pub fn remove_volt(&self, volt: VoltMetadata) {
+        let catalog_rpc = self.clone();
+        let volt_clone = volt.clone();
+        let rpc = PluginCatalogRpc::RemoveVolt {
+            volt: volt.info(),
+            f: Box::new(|_id: PluginId, rs: Result<Value, RpcError>| {
+                if let Err(e) = rs {
+                    // maybe should send notification
+                    error!("{:?}", e);
+                } else if let Err(e) = remove_volt(catalog_rpc, volt_clone) {
+                    error!("{:?}", e);
+                }
+            }),
+        };
+        let _ = self.plugin_tx.send(rpc);
     }
 
     pub fn reload_volt(&self, volt: VoltMetadata) -> Result<()> {
@@ -1084,6 +1202,27 @@ impl PluginCatalogRpcHandler {
         })
     }
 
+    pub fn dap_step_over(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStepOver {
+            dap_id,
+            thread_id,
+        })
+    }
+
+    pub fn dap_step_into(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStepInto {
+            dap_id,
+            thread_id,
+        })
+    }
+
+    pub fn dap_step_out(&self, dap_id: DapId, thread_id: ThreadId) -> Result<()> {
+        self.catalog_notification(PluginCatalogNotification::DapStepOut {
+            dap_id,
+            thread_id,
+        })
+    }
+
     pub fn dap_stop(&self, dap_id: DapId) -> Result<()> {
         self.catalog_notification(PluginCatalogNotification::DapStop { dap_id })
     }
@@ -1116,6 +1255,50 @@ impl PluginCatalogRpcHandler {
             path,
             breakpoints,
         })
+    }
+
+    pub fn dap_variable(
+        &self,
+        dap_id: DapId,
+        reference: usize,
+        f: impl FnOnce(Result<Vec<dap_types::Variable>, RpcError>) + Send + 'static,
+    ) {
+        let _ = self.plugin_tx.send(PluginCatalogRpc::DapVariable {
+            dap_id,
+            reference,
+            f: Box::new(f),
+        });
+    }
+
+    pub fn dap_get_scopes(
+        &self,
+        dap_id: DapId,
+        frame_id: usize,
+        f: impl FnOnce(
+                Result<Vec<(dap_types::Scope, Vec<dap_types::Variable>)>, RpcError>,
+            ) + Send
+            + 'static,
+    ) {
+        let _ = self.plugin_tx.send(PluginCatalogRpc::DapGetScopes {
+            dap_id,
+            frame_id,
+            f: Box::new(f),
+        });
+    }
+
+    pub fn register_debugger_type(
+        &self,
+        debugger_type: String,
+        program: String,
+        args: Option<Vec<String>>,
+    ) {
+        let _ = self.catalog_notification(
+            PluginCatalogNotification::RegisterDebuggerType {
+                debugger_type,
+                program,
+                args,
+            },
+        );
     }
 }
 
@@ -1219,14 +1402,26 @@ pub fn remove_volt(
     catalog_rpc: PluginCatalogRpcHandler,
     volt: VoltMetadata,
 ) -> Result<()> {
-    thread::spawn(move || -> Result<()> {
+    std::thread::spawn(move || -> Result<()> {
         let path = volt.dir.as_ref().ok_or_else(|| {
             catalog_rpc
                 .core_rpc
                 .volt_removing(volt.clone(), "Plugin Directory not set".to_string());
             anyhow::anyhow!("don't have dir")
         })?;
-        if let Err(e) = std::fs::remove_dir_all(path) {
+        let mut rs = Ok(());
+        // Try to remove dir
+        // This is due to some operating systems not releasing immediately, such as Windows.
+        for _ in 0..2 {
+            rs = std::fs::remove_dir_all(path);
+            if rs.is_err() {
+                std::thread::sleep(Duration::from_millis(500));
+            } else {
+                break;
+            }
+        }
+        if let Err(e) = rs {
+            error!("remove_dir_all {:?}", e);
             eprintln!("Could not delete plugin folder: {e}");
             catalog_rpc.core_rpc.volt_removing(
                 volt.clone(),
@@ -1318,6 +1513,13 @@ fn client_capabilities() -> ClientCapabilities {
             definition: Some(GotoCapability {
                 ..Default::default()
             }),
+            publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
+                ..Default::default()
+            }),
+            inline_completion: Some(InlineCompletionClientCapabilities {
+                ..Default::default()
+            }),
+
             ..Default::default()
         }),
         window: Some(WindowClientCapabilities {
@@ -1334,6 +1536,7 @@ fn client_capabilities() -> ClientCapabilities {
                 ..Default::default()
             }),
             configuration: Some(false),
+            workspace_folders: Some(true),
             ..Default::default()
         }),
         ..Default::default()

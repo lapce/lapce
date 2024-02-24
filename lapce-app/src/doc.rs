@@ -1,18 +1,35 @@
 use std::{
+    borrow::Cow,
     cell::RefCell,
     collections::HashMap,
-    path::PathBuf,
+    ops::Range,
+    path::{Path, PathBuf},
     rc::Rc,
     sync::{atomic, Arc},
     time::Duration,
 };
 
-use clipboard::{ClipboardContext, ClipboardProvider};
 use floem::{
     action::exec_after,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
-    reactive::{RwSignal, Scope},
+    keyboard::ModifiersState,
+    peniko::Color,
+    reactive::{batch, ReadSignal, RwSignal, Scope},
+    views::editor::{
+        actions::CommonAction,
+        color::EditorColor,
+        command::{Command, CommandExecuted},
+        id::EditorId,
+        layout::{LineExtraStyle, TextLayoutLine},
+        phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine},
+        text::{
+            Document, DocumentPhantom, PreeditData, RenderWhitespace, Styling,
+            SystemClipboard, WrapMethod,
+        },
+        view::{ScreenLines, ScreenLinesBase},
+        CursorInfo, Editor,
+    },
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -21,14 +38,18 @@ use lapce_core::{
         rope_text::RopeText,
         Buffer, InvalLines,
     },
+    char_buffer::CharBuffer,
     command::EditCommand,
     cursor::Cursor,
-    editor::{EditType, Editor},
+    editor::{Action, EditConf, EditType},
+    indent::IndentStyle,
     language::LapceLanguage,
-    register::{Clipboard, Register},
+    mode::MotionMode,
+    register::Register,
+    rope_text_pos::RopeTextPosition,
     selection::{InsertDrift, Selection},
     style::line_styles,
-    syntax::{edit::SyntaxEdit, Syntax},
+    syntax::{edit::SyntaxEdit, BracketParser, Syntax},
     word::WordCursor,
 };
 use lapce_rpc::{
@@ -47,45 +68,17 @@ use lsp_types::{
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
-use self::phantom_text::{PhantomText, PhantomTextKind, PhantomTextLine};
 use crate::{
-    config::{color::LapceColor, LapceConfig},
-    editor::view_data::{LineExtraStyle, TextLayoutCache, TextLayoutLine},
+    command::{CommandKind, LapceCommand},
+    config::{color::LapceColor, editor::WrapStyle, LapceConfig},
+    editor::{compute_screen_lines, EditorData},
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
-    window_tab::CommonData,
+    keypress::KeyPressFocus,
+    panel::kind::PanelKind,
+    window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
 };
-
-pub mod phantom_text;
-
-pub struct SystemClipboard {
-    ctx: ClipboardContext,
-}
-
-impl Default for SystemClipboard {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl SystemClipboard {
-    pub fn new() -> Self {
-        SystemClipboard {
-            ctx: ClipboardProvider::new().unwrap(),
-        }
-    }
-}
-
-impl Clipboard for SystemClipboard {
-    fn get_string(&mut self) -> Option<String> {
-        self.ctx.get_contents().ok()
-    }
-
-    fn put_string(&mut self, s: impl AsRef<str>) {
-        let _ = self.ctx.set_contents(s.as_ref().to_string());
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct DiagnosticData {
@@ -153,23 +146,11 @@ pub struct DocInfo {
     pub cursor_offset: usize,
 }
 
-#[derive(Clone)]
-pub struct Preedit {
-    pub text: String,
-    pub cursor: Option<(usize, usize)>,
-    pub offset: usize,
-}
+/// (Offset -> (Plugin the code actions are from, Code Actions))
+pub type CodeActions = im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>;
 
-impl std::fmt::Debug for Document {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("Document {:?}", self.buffer_id))
-    }
-}
-
-/// A single document that can be viewed by multiple [`EditorData`]'s
-/// [`EditorViewData`]s and [`EditorView]s.
 #[derive(Clone)]
-pub struct Document {
+pub struct Doc {
     pub scope: Scope,
     pub buffer_id: BufferId,
     pub content: RwSignal<DocContent>,
@@ -178,7 +159,6 @@ pub struct Document {
     pub loaded: RwSignal<bool>,
     pub buffer: RwSignal<Buffer>,
     pub syntax: RwSignal<Syntax>,
-    /// Semantic highlighting information (which is provided by the LSP)
     semantic_styles: RwSignal<Option<Spans<Style>>>,
     /// Inlay hints for the document
     pub inlay_hints: RwSignal<Option<Spans<InlayHint>>>,
@@ -187,45 +167,65 @@ pub struct Document {
     pub completion_lens: RwSignal<Option<String>>,
     /// (line, col)
     pub completion_pos: RwSignal<(usize, usize)>,
-    /// ime preedit information
-    pub preedit: RwSignal<Option<Preedit>>,
+
+    /// Current inline completion text, if any.  
+    /// This will be displayed even on views that are not focused.
+    pub inline_completion: RwSignal<Option<String>>,
+    /// (line, col)
+    pub inline_completion_pos: RwSignal<(usize, usize)>,
+
     /// (Offset -> (Plugin the code actions are from, Code Actions))
-    pub code_actions:
-        RwSignal<im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>>,
+    pub code_actions: RwSignal<CodeActions>,
+
     /// Stores information about different versions of the document from source control.
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
     pub head_changes: RwSignal<im::Vector<DiffLines>>,
+
     line_styles: Rc<RefCell<LineStyles>>,
-    /// The text layouts for the document. This may be shared with other views.
-    text_layouts: Rc<RefCell<TextLayoutCache>>,
+    pub parser: Rc<RefCell<BracketParser>>,
+
     /// A cache for the sticky headers which maps a line to the lines it should show in the header.
     pub sticky_headers: Rc<RefCell<HashMap<usize, Option<Vec<usize>>>>>,
+
+    pub preedit: PreeditData,
+
     pub find_result: FindResult,
+
     /// The diagnostics for the document
     pub diagnostics: DiagnosticData,
-    common: Rc<CommonData>,
-}
 
-impl Document {
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    pub common: Rc<CommonData>,
+}
+impl Doc {
     pub fn new(
         cx: Scope,
         path: PathBuf,
         diagnostics: DiagnosticData,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
         common: Rc<CommonData>,
     ) -> Self {
         let syntax = Syntax::init(&path);
-        Self {
+        let config = common.config.get_untracked();
+        Doc {
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: cx.create_rw_signal(Buffer::new("")),
-            cache_rev: cx.create_rw_signal(0),
             syntax: cx.create_rw_signal(syntax),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
+            parser: Rc::new(RefCell::new(BracketParser::new(
+                String::new(),
+                config.editor.bracket_pair_colorization,
+                config.editor.bracket_colorization_limit,
+            ))),
             semantic_styles: cx.create_rw_signal(None),
             inlay_hints: cx.create_rw_signal(None),
             diagnostics,
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
+            inline_completion: cx.create_rw_signal(None),
+            inline_completion_pos: cx.create_rw_signal((0, 0)),
+            cache_rev: cx.create_rw_signal(0),
             content: cx.create_rw_signal(DocContent::File {
                 path,
                 read_only: false,
@@ -233,34 +233,42 @@ impl Document {
             loaded: cx.create_rw_signal(false),
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
-            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
-            preedit: cx.create_rw_signal(None),
+            preedit: PreeditData::new(cx),
+            editors,
             common,
         }
     }
 
-    pub fn new_local(cx: Scope, common: Rc<CommonData>) -> Self {
-        Self::new_content(cx, DocContent::Local, common)
+    pub fn new_local(
+        cx: Scope,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        common: Rc<CommonData>,
+    ) -> Doc {
+        Self::new_content(cx, DocContent::Local, editors, common)
     }
 
     pub fn new_content(
         cx: Scope,
         content: DocContent,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
         common: Rc<CommonData>,
-    ) -> Self {
+    ) -> Doc {
         let cx = cx.create_child();
+        let config = common.config.get_untracked();
         Self {
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: cx.create_rw_signal(Buffer::new("")),
-            cache_rev: cx.create_rw_signal(0),
-            content: cx.create_rw_signal(content),
             syntax: cx.create_rw_signal(Syntax::plaintext()),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
-            sticky_headers: Rc::new(RefCell::new(HashMap::new())),
+            parser: Rc::new(RefCell::new(BracketParser::new(
+                String::new(),
+                config.editor.bracket_pair_colorization,
+                config.editor.bracket_colorization_limit,
+            ))),
             semantic_styles: cx.create_rw_signal(None),
             inlay_hints: cx.create_rw_signal(None),
             diagnostics: DiagnosticData {
@@ -269,37 +277,45 @@ impl Document {
             },
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
-            loaded: cx.create_rw_signal(true),
+            inline_completion: cx.create_rw_signal(None),
+            inline_completion_pos: cx.create_rw_signal((0, 0)),
+            cache_rev: cx.create_rw_signal(0),
+            content: cx.create_rw_signal(content),
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
-            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
-            code_actions: cx.create_rw_signal(im::HashMap::new()),
+            sticky_headers: Rc::new(RefCell::new(HashMap::new())),
+            loaded: cx.create_rw_signal(true),
             find_result: FindResult::new(cx),
-            preedit: cx.create_rw_signal(None),
+            code_actions: cx.create_rw_signal(im::HashMap::new()),
+            preedit: PreeditData::new(cx),
+            editors,
             common,
         }
     }
 
-    pub fn new_hisotry(
+    pub fn new_history(
         cx: Scope,
         content: DocContent,
+        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
         common: Rc<CommonData>,
-    ) -> Self {
+    ) -> Doc {
+        let config = common.config.get_untracked();
         let syntax = if let DocContent::History(history) = &content {
             Syntax::init(&history.path)
         } else {
             Syntax::plaintext()
         };
-        let cx = cx.create_child();
         Self {
             scope: cx,
             buffer_id: BufferId::next(),
             buffer: cx.create_rw_signal(Buffer::new("")),
-            cache_rev: cx.create_rw_signal(0),
-            content: cx.create_rw_signal(content),
             syntax: cx.create_rw_signal(syntax),
             line_styles: Rc::new(RefCell::new(HashMap::new())),
-            sticky_headers: Rc::new(RefCell::new(HashMap::new())),
+            parser: Rc::new(RefCell::new(BracketParser::new(
+                String::new(),
+                config.editor.bracket_pair_colorization,
+                config.editor.bracket_colorization_limit,
+            ))),
             semantic_styles: cx.create_rw_signal(None),
             inlay_hints: cx.create_rw_signal(None),
             diagnostics: DiagnosticData {
@@ -308,23 +324,118 @@ impl Document {
             },
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
+            inline_completion: cx.create_rw_signal(None),
+            inline_completion_pos: cx.create_rw_signal((0, 0)),
+            cache_rev: cx.create_rw_signal(0),
+            content: cx.create_rw_signal(content),
+            sticky_headers: Rc::new(RefCell::new(HashMap::new())),
             loaded: cx.create_rw_signal(true),
             histories: cx.create_rw_signal(im::HashMap::new()),
             head_changes: cx.create_rw_signal(im::Vector::new()),
-            text_layouts: Rc::new(RefCell::new(TextLayoutCache::new())),
             code_actions: cx.create_rw_signal(im::HashMap::new()),
             find_result: FindResult::new(cx),
-            preedit: cx.create_rw_signal(None),
+            preedit: PreeditData::new(cx),
+            editors,
             common,
         }
     }
 
+    /// Create a styling instance for this doc
+    pub fn styling(self: &Rc<Doc>) -> Rc<DocStyling> {
+        Rc::new(DocStyling {
+            config: self.common.config,
+            doc: self.clone(),
+        })
+    }
+
+    /// Create an [`Editor`] instance from this [`Doc`]. Note that this needs to be registered
+    /// appropriately to create the [`EditorData`] and such.
+    pub fn create_editor(self: &Rc<Doc>, cx: Scope, id: EditorId) -> Editor {
+        let common = &self.common;
+        let config = common.config;
+
+        let register = common.register;
+        // TODO: we could have these Rcs created once and stored somewhere, maybe on
+        // common, to avoid recreating them everytime.
+        let cursor_info = CursorInfo {
+            blink_interval: Rc::new(move || {
+                config.get_untracked().editor.blink_interval()
+            }),
+            blink_timer: common.window_common.cursor_blink_timer,
+            hidden: common.window_common.hide_cursor,
+            should_blink: Rc::new(should_blink(common.focus, common.keyboard_focus)),
+        };
+        let mut editor = Editor::new_direct(cx, id, self.clone(), self.styling());
+
+        editor.register = register;
+        editor.cursor_info = cursor_info;
+        editor.ime_allowed = common.window_common.ime_allowed;
+
+        // Updating editor fields based on config
+        let ed = editor.clone();
+        cx.create_effect(move |_| {
+            let config = config.get();
+
+            batch(|| {
+                if ed.scroll_beyond_last_line.get_untracked()
+                    != config.editor.scroll_beyond_last_line
+                {
+                    ed.scroll_beyond_last_line
+                        .set(config.editor.scroll_beyond_last_line);
+                }
+
+                if ed.cursor_surrounding_lines.get_untracked()
+                    != config.editor.cursor_surrounding_lines
+                {
+                    ed.cursor_surrounding_lines
+                        .set(config.editor.cursor_surrounding_lines);
+                }
+
+                if ed.show_indent_guide.get_untracked()
+                    != config.editor.show_indent_guide
+                {
+                    ed.show_indent_guide.set(config.editor.show_indent_guide);
+                }
+
+                if ed.modal_relative_line_numbers.get_untracked()
+                    != config.editor.modal_mode_relative_line_numbers
+                {
+                    ed.modal_relative_line_numbers
+                        .set(config.editor.modal_mode_relative_line_numbers);
+                }
+
+                if ed.smart_tab.get_untracked() != config.editor.smart_tab {
+                    ed.smart_tab.set(config.editor.smart_tab);
+                }
+
+                if ed.modal.get_untracked() != config.core.modal {
+                    ed.modal.set(config.core.modal);
+                }
+            });
+        });
+
+        editor.recreate_view_effects();
+
+        editor
+    }
+
+    fn editor_data(&self, id: EditorId) -> Option<Rc<EditorData>> {
+        self.editors
+            .with_untracked(|editors| editors.get(&id).cloned())
+    }
+
+    pub fn syntax(&self) -> ReadSignal<Syntax> {
+        self.syntax.read_only()
+    }
+
     pub fn set_syntax(&self, syntax: Syntax) {
-        self.syntax.set(syntax);
-        if self.semantic_styles.with_untracked(|s| s.is_none()) {
-            self.clear_style_cache();
-        }
-        self.clear_sticky_headers_cache();
+        batch(|| {
+            self.syntax.set(syntax);
+            if self.semantic_styles.with_untracked(|s| s.is_none()) {
+                self.clear_style_cache();
+            }
+            self.clear_sticky_headers_cache();
+        });
     }
 
     /// Set the syntax highlighting this document should use.
@@ -343,16 +454,40 @@ impl Document {
 
     //// Initialize the content with some text, this marks the document as loaded.
     pub fn init_content(&self, content: Rope) {
-        self.syntax.with_untracked(|syntax| {
-            self.buffer.update(|buffer| {
-                buffer.init_content(content);
-                buffer.detect_indent(syntax);
+        batch(|| {
+            self.syntax.with_untracked(|syntax| {
+                self.buffer.update(|buffer| {
+                    buffer.init_content(content);
+                    buffer.detect_indent(|| {
+                        IndentStyle::from_str(syntax.language.indent_unit())
+                    });
+                });
             });
+            self.loaded.set(true);
+            self.on_update(None);
+            self.init_parser();
+            self.init_diagnostics();
+            self.retrieve_head();
         });
-        self.loaded.set(true);
-        self.on_update(None);
-        self.init_diagnostics();
-        self.retrieve_head();
+    }
+
+    fn init_parser(&self) {
+        let code = self.buffer.get_untracked().to_string();
+        self.syntax.with_untracked(|syntax| {
+            if syntax.styles.is_some() {
+                self.parser.borrow_mut().update_code(
+                    code,
+                    &self.buffer.get_untracked(),
+                    Some(syntax.clone()),
+                );
+            } else {
+                self.parser.borrow_mut().update_code(
+                    code,
+                    &self.buffer.get_untracked(),
+                    None,
+                );
+            }
+        });
     }
 
     /// Reload the document's content, and is what you should typically use when you want to *set*
@@ -378,7 +513,7 @@ impl Document {
         cursor: &mut Cursor,
         s: &str,
         config: &LapceConfig,
-    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
+    ) -> Vec<(Rope, RopeDelta, InvalLines)> {
         if self.content.with_untracked(|c| c.read_only()) {
             return Vec::new();
         }
@@ -387,12 +522,15 @@ impl Document {
         let deltas = self.syntax.with_untracked(|syntax| {
             self.buffer
                 .try_update(|buffer| {
-                    Editor::insert(
+                    Action::insert(
                         cursor,
                         buffer,
                         s,
-                        syntax,
+                        &|buffer, c, offset| {
+                            syntax_prev_unmatched(buffer, syntax, c, offset)
+                        },
                         config.editor.auto_closing_matching_pairs,
+                        config.editor.auto_surround,
                     )
                 })
                 .unwrap()
@@ -410,16 +548,17 @@ impl Document {
         &self,
         edits: &[(impl AsRef<Selection>, &str)],
         edit_type: EditType,
-    ) -> Option<(RopeDelta, InvalLines, SyntaxEdit)> {
+    ) -> Option<(Rope, RopeDelta, InvalLines)> {
         if self.content.with_untracked(|c| c.read_only()) {
             return None;
         }
-        let (delta, inval_lines, edits) = self
+
+        let (text, delta, inval_lines) = self
             .buffer
             .try_update(|buffer| buffer.edit(edits, edit_type))
             .unwrap();
-        self.apply_deltas(&[(delta.clone(), inval_lines.clone(), edits.clone())]);
-        Some((delta, inval_lines, edits))
+        self.apply_deltas(&[(text.clone(), delta.clone(), inval_lines.clone())]);
+        Some((text, delta, inval_lines))
     }
 
     pub fn do_edit(
@@ -429,7 +568,7 @@ impl Document {
         modal: bool,
         register: &mut Register,
         smart_tab: bool,
-    ) -> Vec<(RopeDelta, InvalLines, SyntaxEdit)> {
+    ) -> Vec<(Rope, RopeDelta, InvalLines)> {
         if self.content.with_untracked(|c| c.read_only())
             && !cmd.not_changing_buffer()
         {
@@ -441,15 +580,19 @@ impl Document {
         let deltas = self.syntax.with_untracked(|syntax| {
             self.buffer
                 .try_update(|buffer| {
-                    Editor::do_edit(
+                    Action::do_edit(
                         cursor,
                         buffer,
                         cmd,
-                        syntax,
                         &mut clipboard,
-                        modal,
                         register,
-                        smart_tab,
+                        EditConf {
+                            comment_token: syntax.language.comment_token(),
+                            modal,
+                            smart_tab,
+                            keep_indent: true,
+                            auto_indent: true,
+                        },
                     )
                 })
                 .unwrap()
@@ -466,25 +609,35 @@ impl Document {
         deltas
     }
 
-    pub fn apply_deltas(&self, deltas: &[(RopeDelta, InvalLines, SyntaxEdit)]) {
+    pub fn apply_deltas(&self, deltas: &[(Rope, RopeDelta, InvalLines)]) {
         let rev = self.rev() - deltas.len() as u64;
-        for (i, (delta, _, _)) in deltas.iter().enumerate() {
-            self.update_styles(delta);
-            self.update_inlay_hints(delta);
-            self.update_diagnostics(delta);
-            self.update_completion_lens(delta);
-            self.update_find_result(delta);
-            if let DocContent::File { path, .. } = self.content.get_untracked() {
-                self.common
-                    .proxy
-                    .update(path, delta.clone(), rev + i as u64 + 1);
+        batch(|| {
+            for (i, (_, delta, inval)) in deltas.iter().enumerate() {
+                self.update_styles(delta);
+                self.update_inlay_hints(delta);
+                self.update_diagnostics(delta);
+                self.update_completion_lens(delta);
+                self.update_find_result(delta);
+                if let DocContent::File { path, .. } = self.content.get_untracked() {
+                    self.update_breakpoints(delta, &path, &inval.old_text);
+                    self.common.proxy.update(
+                        path,
+                        delta.clone(),
+                        rev + i as u64 + 1,
+                    );
+                }
             }
-        }
+        });
 
         // TODO(minor): We could avoid this potential allocation since most apply_delta callers are actually using a Vec
         // which we could reuse.
         // We use a smallvec because there is unlikely to be more than a couple of deltas
-        let edits = deltas.iter().map(|(_, _, edits)| edits.clone()).collect();
+        let edits = deltas
+            .iter()
+            .map(|(before_text, delta, _)| {
+                SyntaxEdit::from_delta(before_text, delta.clone())
+            })
+            .collect();
         self.on_update(Some(edits));
     }
 
@@ -498,15 +651,36 @@ impl Document {
     }
 
     fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
-        self.clear_code_actions();
-        self.clear_style_cache();
-        self.trigger_syntax_change(edits);
-        self.clear_sticky_headers_cache();
-        self.trigger_head_change();
-        self.check_auto_save();
-        self.get_semantic_styles();
-        self.get_inlay_hints();
-        self.find_result.reset();
+        batch(|| {
+            self.clear_code_actions();
+            self.clear_style_cache();
+            self.trigger_syntax_change(edits);
+            self.clear_sticky_headers_cache();
+            self.trigger_head_change();
+            self.check_auto_save();
+            self.get_semantic_styles();
+            self.get_inlay_hints();
+            self.find_result.reset();
+            self.do_bracket_colorization();
+        });
+    }
+
+    fn do_bracket_colorization(&self) {
+        self.syntax.with_untracked(|syntax| {
+            if syntax.styles.is_some() {
+                self.parser.borrow_mut().update_code(
+                    self.buffer.get_untracked().to_string(),
+                    &self.buffer.get_untracked(),
+                    Some(syntax.clone()),
+                );
+            } else {
+                self.parser.borrow_mut().update_code(
+                    self.buffer.get_untracked().to_string(),
+                    &self.buffer.get_untracked(),
+                    None,
+                );
+            }
+        })
     }
 
     fn check_auto_save(&self) {
@@ -541,16 +715,18 @@ impl Document {
     /// Update the styles after an edit, so the highlights are at the correct positions.
     /// This does not do a reparse of the document itself.
     fn update_styles(&self, delta: &RopeDelta) {
-        self.semantic_styles.update(|styles| {
-            if let Some(styles) = styles.as_mut() {
-                styles.apply_shape(delta);
-            }
-        });
-        self.syntax.update(|syntax| {
-            if let Some(styles) = syntax.styles.as_mut() {
-                styles.apply_shape(delta);
-            }
-            syntax.lens.apply_delta(delta);
+        batch(|| {
+            self.semantic_styles.update(|styles| {
+                if let Some(styles) = styles.as_mut() {
+                    styles.apply_shape(delta);
+                }
+            });
+            self.syntax.update(|syntax| {
+                if let Some(styles) = syntax.styles.as_mut() {
+                    styles.apply_shape(delta);
+                }
+                syntax.lens.apply_delta(delta);
+            });
         });
     }
 
@@ -583,35 +759,16 @@ impl Document {
         });
     }
 
-    pub fn set_preedit(
-        &self,
-        text: String,
-        cursor: Option<(usize, usize)>,
-        offset: usize,
-    ) {
-        self.preedit.set(Some(Preedit {
-            text,
-            cursor,
-            offset,
-        }));
-        self.clear_text_cache();
-    }
-
-    pub fn clear_preedit(&self) {
-        self.preedit.set(None);
-        self.clear_text_cache();
-    }
-
     /// Inform any dependents on this document that they should clear any cached text.
     pub fn clear_text_cache(&self) {
-        let cache_rev = self
-            .cache_rev
-            .try_update(|cache_rev| {
-                *cache_rev += 1;
-                *cache_rev
-            })
-            .unwrap();
-        self.text_layouts.borrow_mut().clear(cache_rev);
+        self.cache_rev.try_update(|cache_rev| {
+            *cache_rev += 1;
+
+            // TODO: ???
+            // Update the text layouts within the callback so that those alerted to cache rev
+            // will see the now empty layouts.
+            // self.text_layouts.borrow_mut().clear(*cache_rev, None);
+        });
     }
 
     fn clear_sticky_headers_cache(&self) {
@@ -697,7 +854,6 @@ impl Document {
                     } else {
                         styles
                     };
-                    let styles = styles;
 
                     send(styles);
                 });
@@ -751,174 +907,8 @@ impl Document {
         });
     }
 
-    /// Get the phantom text for a given line
-    pub fn line_phantom_text(&self, line: usize) -> PhantomTextLine {
-        let config = self.common.config.get_untracked();
-
-        let (start_offset, end_offset) = self.buffer.with_untracked(|buffer| {
-            (buffer.offset_of_line(line), buffer.offset_of_line(line + 1))
-        });
-
-        let inlay_hints = self.inlay_hints.get_untracked();
-        // If hints are enabled, and the hints field is filled, then get the hints for this line
-        // and convert them into PhantomText instances
-        let hints = config
-            .editor
-            .enable_inlay_hints
-            .then_some(())
-            .and(inlay_hints.as_ref())
-            .map(|hints| hints.iter_chunks(start_offset..end_offset))
-            .into_iter()
-            .flatten()
-            .filter(|(interval, _)| {
-                interval.start >= start_offset && interval.start < end_offset
-            })
-            .map(|(interval, inlay_hint)| {
-                let (_, col) = self
-                    .buffer
-                    .with_untracked(|b| b.offset_to_line_col(interval.start));
-                let text = match &inlay_hint.label {
-                    InlayHintLabel::String(label) => label.to_string(),
-                    InlayHintLabel::LabelParts(parts) => {
-                        parts.iter().map(|p| &p.value).join("")
-                    }
-                };
-                PhantomText {
-                    kind: PhantomTextKind::InlayHint,
-                    col,
-                    text,
-                    fg: Some(*config.get_color(LapceColor::INLAY_HINT_FOREGROUND)),
-                    // font_family: Some(config.editor.inlay_hint_font_family()),
-                    font_size: Some(config.editor.inlay_hint_font_size()),
-                    bg: Some(*config.get_color(LapceColor::INLAY_HINT_BACKGROUND)),
-                    under_line: None,
-                }
-            });
-        // You're quite unlikely to have more than six hints on a single line
-        // this later has the diagnostics added onto it, but that's still likely to be below six
-        // overall.
-        let mut text: SmallVec<[PhantomText; 6]> = hints.collect();
-
-        // The max severity is used to determine the color given to the background of the line
-        let mut max_severity = None;
-        // If error lens is enabled, and the diagnostics field is filled, then get the diagnostics
-        // that end on this line which have a severity worse than HINT and convert them into
-        // PhantomText instances
-        let diag_text = config
-            .editor
-            .enable_error_lens
-            .then_some(())
-            .map(|_| self.diagnostics.diagnostics.get_untracked())
-            .into_iter()
-            .flatten()
-            .filter(|diag| {
-                diag.diagnostic.range.end.line as usize == line
-                    && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
-            })
-            .map(|diag| {
-                match (diag.diagnostic.severity, max_severity) {
-                    (Some(severity), Some(max)) => {
-                        if severity < max {
-                            max_severity = Some(severity);
-                        }
-                    }
-                    (Some(severity), None) => {
-                        max_severity = Some(severity);
-                    }
-                    _ => {}
-                }
-
-                let col = self.buffer.with_untracked(|buffer| {
-                    buffer.offset_of_line(line + 1) - buffer.offset_of_line(line)
-                });
-                let fg = {
-                    let severity = diag
-                        .diagnostic
-                        .severity
-                        .unwrap_or(DiagnosticSeverity::WARNING);
-                    let theme_prop = if severity == DiagnosticSeverity::ERROR {
-                        LapceColor::ERROR_LENS_ERROR_FOREGROUND
-                    } else if severity == DiagnosticSeverity::WARNING {
-                        LapceColor::ERROR_LENS_WARNING_FOREGROUND
-                    } else {
-                        // information + hint (if we keep that) + things without a severity
-                        LapceColor::ERROR_LENS_OTHER_FOREGROUND
-                    };
-
-                    *config.get_color(theme_prop)
-                };
-                let text =
-                    format!("    {}", diag.diagnostic.message.lines().join(" "));
-                PhantomText {
-                    kind: PhantomTextKind::Diagnostic,
-                    col,
-                    text,
-                    fg: Some(fg),
-                    font_size: Some(config.editor.error_lens_font_size()),
-                    // font_family: Some(config.editor.error_lens_font_family()),
-                    bg: None,
-                    under_line: None,
-                }
-            });
-        let mut diag_text: SmallVec<[PhantomText; 6]> = diag_text.collect();
-
-        text.append(&mut diag_text);
-
-        let (completion_line, completion_col) = self.completion_pos.get_untracked();
-        let completion_text = config
-            .editor
-            .enable_completion_lens
-            .then_some(())
-            .and(self.completion_lens.get_untracked())
-            // TODO: We're probably missing on various useful completion things to include here!
-            .filter(|_| line == completion_line)
-            .map(|completion| PhantomText {
-                kind: PhantomTextKind::Completion,
-                col: completion_col,
-                text: completion.clone(),
-                fg: Some(*config.get_color(LapceColor::COMPLETION_LENS_FOREGROUND)),
-                font_size: Some(config.editor.completion_lens_font_size()),
-                // font_family: Some(config.editor.completion_lens_font_family()),
-                bg: None,
-                under_line: None,
-                // TODO: italics?
-            });
-        if let Some(completion_text) = completion_text {
-            text.push(completion_text);
-        }
-
-        if let Some(preedit) = self.preedit.get_untracked() {
-            let (ime_line, col) = self
-                .buffer
-                .with_untracked(|b| b.offset_to_line_col(preedit.offset));
-            if line == ime_line {
-                text.push(PhantomText {
-                    kind: PhantomTextKind::Ime,
-                    text: preedit.text,
-                    col,
-                    font_size: None,
-                    fg: None,
-                    bg: None,
-                    under_line: Some(
-                        *self
-                            .common
-                            .config
-                            .get_untracked()
-                            .get_color(LapceColor::EDITOR_FOREGROUND),
-                    ),
-                });
-            }
-        }
-
-        text.sort_by(|a, b| {
-            if a.col == b.col {
-                a.kind.cmp(&b.kind)
-            } else {
-                a.col.cmp(&b.col)
-            }
-        });
-
-        PhantomTextLine { text, max_severity }
+    pub fn diagnostics(&self) -> &DiagnosticData {
+        &self.diagnostics
     }
 
     /// Update the diagnostics' positions after an edit so that they appear in the correct place.
@@ -972,6 +962,47 @@ impl Document {
         });
     }
 
+    /// Iterate over the editor diagnostics on a line
+    fn iter_diagnostics(
+        &self,
+        line: usize,
+    ) -> impl Iterator<Item = EditorDiagnostic> + '_ {
+        self.common
+            .config
+            .get_untracked()
+            .editor
+            .enable_completion_lens
+            .then_some(())
+            .map(|_| self.diagnostics.diagnostics.get_untracked())
+            .into_iter()
+            .flatten()
+            .filter(move |diag| {
+                diag.diagnostic.range.end.line as usize == line
+                    && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
+            })
+    }
+
+    /// Get the max severity of the diagnostics o na line.  
+    /// This is used to determine the color given to the background of the line
+    fn max_diag_severity(&self, line: usize) -> Option<DiagnosticSeverity> {
+        let mut max_severity = None;
+        for diag in self.iter_diagnostics(line) {
+            match (diag.diagnostic.severity, max_severity) {
+                (Some(severity), Some(max)) => {
+                    if severity < max {
+                        max_severity = Some(severity);
+                    }
+                }
+                (Some(severity), None) => {
+                    max_severity = Some(severity);
+                }
+                _ => {}
+            }
+        }
+
+        max_severity
+    }
+
     /// Get the current completion lens text
     pub fn completion_lens(&self) -> Option<String> {
         self.completion_lens.get_untracked()
@@ -991,14 +1022,38 @@ impl Document {
 
     pub fn clear_completion_lens(&self) {
         // TODO: more granular invalidation
-        self.clear_text_cache();
-        self.completion_lens.set(None);
+        if self.completion_lens.get_untracked().is_some() {
+            self.clear_text_cache();
+            self.completion_lens.set(None);
+        }
     }
 
-    fn update_find_result(&self, delta: &RopeDelta) {
-        self.find_result.occurrences.update(|s| {
-            *s = s.apply_delta(delta, true, InsertDrift::Default);
-        })
+    fn update_breakpoints(&self, delta: &RopeDelta, path: &Path, old_text: &Rope) {
+        if self
+            .common
+            .breakpoints
+            .with_untracked(|breakpoints| breakpoints.contains_key(path))
+        {
+            self.common.breakpoints.update(|breakpoints| {
+                if let Some(path_breakpoints) = breakpoints.get_mut(path) {
+                    let mut transformer = Transformer::new(delta);
+                    self.buffer.with_untracked(|buffer| {
+                        *path_breakpoints = path_breakpoints
+                            .clone()
+                            .into_values()
+                            .map(|mut b| {
+                                let offset = old_text.offset_of_line(b.line);
+                                let offset = transformer.transform(offset, false);
+                                let line = buffer.line_of_offset(offset);
+                                b.line = line;
+                                b.offset = offset;
+                                (b.line, b)
+                            })
+                            .collect();
+                    });
+                }
+            });
+        }
     }
 
     /// Update the completion lens position after an edit so that it appears in the correct place.
@@ -1042,6 +1097,12 @@ impl Document {
             .with_untracked(|b| b.offset_to_line_col(new_offset));
 
         self.completion_pos.set(new_pos);
+    }
+
+    fn update_find_result(&self, delta: &RopeDelta) {
+        self.find_result.occurrences.update(|s| {
+            *s = s.apply_delta(delta, true, InsertDrift::Default);
+        })
     }
 
     pub fn update_find(&self) {
@@ -1135,6 +1196,10 @@ impl Document {
         lines
     }
 
+    pub fn head_changes(&self) -> RwSignal<im::Vector<DiffLines>> {
+        self.head_changes
+    }
+
     /// Retrieve the `head` version of the buffer
     pub fn retrieve_head(&self) {
         if let DocContent::File { path, .. } = self.content.get_untracked() {
@@ -1215,175 +1280,603 @@ impl Document {
         });
     }
 
-    /// Create rendable whitespace layout by creating a new text layout
-    /// with invisible spaces and special utf8 characters that display
-    /// the different white space characters.
-    fn new_whitespace_layout(
-        line_content: &str,
-        text_layout: &TextLayout,
-        phantom: &PhantomTextLine,
-        config: &LapceConfig,
-    ) -> Option<Vec<(char, (f64, f64))>> {
-        let mut render_leading = false;
-        let mut render_boundary = false;
-        let mut render_between = false;
-
-        // TODO: render whitespaces only on highlighted text
-        match config.editor.render_whitespace.as_str() {
-            "all" => {
-                render_leading = true;
-                render_boundary = true;
-                render_between = true;
-            }
-            "boundary" => {
-                render_leading = true;
-                render_boundary = true;
-            }
-            "trailing" => {} // All configs include rendering trailing whitespace
-            _ => return None,
-        }
-
-        let mut whitespace_buffer = Vec::new();
-        let mut rendered_whitespaces: Vec<(char, (f64, f64))> = Vec::new();
-        let mut char_found = false;
-        let mut col = 0;
-        for c in line_content.chars() {
-            match c {
-                '\t' => {
-                    let col_left = phantom.col_after(col, true);
-                    let col_right = phantom.col_after(col + 1, false);
-                    let x0 = text_layout.hit_position(col_left).point.x;
-                    let x1 = text_layout.hit_position(col_right).point.x;
-                    whitespace_buffer.push(('\t', (x0, x1)));
-                }
-                ' ' => {
-                    let col_left = phantom.col_after(col, true);
-                    let col_right = phantom.col_after(col + 1, false);
-                    let x0 = text_layout.hit_position(col_left).point.x;
-                    let x1 = text_layout.hit_position(col_right).point.x;
-                    whitespace_buffer.push((' ', (x0, x1)));
-                }
-                _ => {
-                    if (char_found && render_between)
-                        || (char_found
-                            && render_boundary
-                            && whitespace_buffer.len() > 1)
-                        || (!char_found && render_leading)
-                    {
-                        rendered_whitespaces.extend(whitespace_buffer.iter());
+    pub fn save(&self, after_action: impl Fn() + 'static) {
+        let content = self.content.get_untracked();
+        if let DocContent::File { path, .. } = content {
+            let rev = self.rev();
+            let buffer = self.buffer;
+            let send = create_ext_action(self.scope, move |result| {
+                if let Ok(ProxyResponse::SaveResponse {}) = result {
+                    let current_rev = buffer.with_untracked(|buffer| buffer.rev());
+                    if current_rev == rev {
+                        buffer.update(|buffer| {
+                            buffer.set_pristine();
+                        });
+                        after_action();
                     }
-
-                    char_found = true;
-                    whitespace_buffer.clear();
                 }
-            }
-            col += c.len_utf8();
-        }
-        rendered_whitespaces.extend(whitespace_buffer.iter());
+            });
 
-        Some(rendered_whitespaces)
+            self.common.proxy.save(rev, path, true, move |result| {
+                send(result);
+            })
+        }
     }
 
-    /// Create a new text layout for the given line.
-    /// Typically you should use [`Document::get_text_layout`] instead.
-    fn new_text_layout(&self, line: usize, _font_size: usize) -> TextLayoutLine {
-        let config = self.common.config.get_untracked();
-        let line_content_original = self
+    pub fn set_inline_completion(
+        &self,
+        inline_completion: String,
+        line: usize,
+        col: usize,
+    ) {
+        // TODO: more granular invalidation
+        batch(|| {
+            self.clear_text_cache();
+            self.inline_completion.set(Some(inline_completion));
+            self.inline_completion_pos.set((line, col));
+        });
+    }
+
+    pub fn clear_inline_completion(&self) {
+        if self.inline_completion.with_untracked(Option::is_some) {
+            self.inline_completion.set(None);
+            self.clear_text_cache();
+        }
+    }
+
+    pub fn update_inline_completion(&self, delta: &RopeDelta) {
+        let Some(completion) = self.inline_completion.get_untracked() else {
+            return;
+        };
+
+        let (line, col) = self.completion_pos.get_untracked();
+        let offset = self
             .buffer
-            .with_untracked(|b| b.line_content(line).to_string());
+            .with_untracked(|b| b.offset_of_line_col(line, col));
 
-        // Get the line content with newline characters replaced with spaces
-        // and the content without the newline characters
-        let (line_content, line_content_original) =
-            if let Some(s) = line_content_original.strip_suffix("\r\n") {
-                (
-                    format!("{s}  "),
-                    &line_content_original[..line_content_original.len() - 2],
-                )
-            } else if let Some(s) = line_content_original.strip_suffix('\n') {
-                (
-                    format!("{s} ",),
-                    &line_content_original[..line_content_original.len() - 1],
-                )
+        // If the edit is easily checkable + updateable from, then we alter the text.
+        // In normal typing, if we didn't do this, then the text would jitter forward and then
+        // backwards as the completion is updated.
+        // TODO: this could also handle simple deletion, but we don't currently keep track of
+        // the past completion string content in the field.
+        if delta.as_simple_insert().is_some() {
+            let (iv, new_len) = delta.summary();
+            if iv.start() == iv.end()
+                && iv.start() == offset
+                && new_len <= completion.len()
+            {
+                // Remove the # of newly inserted characters
+                // These aren't necessarily the same as the characters literally in the
+                // text, but the completion will be updated when the completion widget
+                // receives the update event, and it will fix this if needed.
+                self.inline_completion
+                    .set(Some(completion[new_len..].to_string()));
+            }
+        }
+
+        // Shift the position by the rope delta
+        let mut transformer = Transformer::new(delta);
+
+        let new_offset = transformer.transform(offset, true);
+        let new_pos = self
+            .buffer
+            .with_untracked(|b| b.offset_to_line_col(new_offset));
+
+        self.inline_completion_pos.set(new_pos);
+    }
+
+    pub fn code_actions(&self) -> RwSignal<CodeActions> {
+        self.code_actions
+    }
+
+    /// Returns the offsets of the brackets enclosing the given offset.
+    /// Uses a language aware algorithm if syntax support is available for the current language,
+    /// else falls back to a language unaware algorithm.
+    pub fn find_enclosing_brackets(&self, offset: usize) -> Option<(usize, usize)> {
+        self.syntax
+            .with_untracked(|syntax| {
+                (!syntax.text.is_empty()).then(|| syntax.find_enclosing_pair(offset))
+            })
+            // If syntax.text is empty, either the buffer is empty or we don't have syntax support
+            // for the current language.
+            // Try a language unaware search for enclosing brackets in case it is the latter.
+            .unwrap_or_else(|| {
+                self.buffer.with_untracked(|buffer| {
+                    WordCursor::new(buffer.text(), offset).find_enclosing_pair()
+                })
+            })
+    }
+}
+impl Document for Doc {
+    fn text(&self) -> Rope {
+        self.buffer.with_untracked(|buffer| buffer.text().clone())
+    }
+
+    fn cache_rev(&self) -> RwSignal<u64> {
+        self.cache_rev
+    }
+
+    fn find_unmatched(&self, offset: usize, previous: bool, ch: char) -> usize {
+        self.syntax().with_untracked(|syntax| {
+            if syntax.layers.is_some() {
+                syntax
+                    .find_tag(offset, previous, &CharBuffer::from(ch))
+                    .unwrap_or(offset)
             } else {
-                (
-                    line_content_original.to_string(),
-                    &line_content_original[..],
-                )
+                let text = self.text();
+                let mut cursor = WordCursor::new(&text, offset);
+                let new_offset = if previous {
+                    cursor.previous_unmatched(ch)
+                } else {
+                    cursor.next_unmatched(ch)
+                };
+
+                new_offset.unwrap_or(offset)
+            }
+        })
+    }
+
+    fn find_matching_pair(&self, offset: usize) -> usize {
+        self.syntax().with_untracked(|syntax| {
+            if syntax.layers.is_some() {
+                syntax.find_matching_pair(offset).unwrap_or(offset)
+            } else {
+                let text = self.text();
+                WordCursor::new(&text, offset)
+                    .match_pairs()
+                    .unwrap_or(offset)
+            }
+        })
+    }
+
+    fn preedit(&self) -> PreeditData {
+        self.preedit.clone()
+    }
+
+    fn compute_screen_lines(
+        &self,
+        editor: &Editor,
+        base: RwSignal<ScreenLinesBase>,
+    ) -> ScreenLines {
+        let Some(editor_data) = self.editor_data(editor.id()) else {
+            return ScreenLines {
+                lines: Default::default(),
+                info: Default::default(),
+                diff_sections: Default::default(),
+                base,
             };
-        // Combine the phantom text with the line content
-        let phantom_text = self.line_phantom_text(line);
-        let line_content = phantom_text.combine_with_text(line_content);
+        };
 
-        let color = config.get_color(LapceColor::EDITOR_FOREGROUND);
-        let family: Vec<FamilyOwned> =
-            FamilyOwned::parse_list(&config.editor.font_family).collect();
-        let attrs = Attrs::new()
-            .color(*color)
-            .family(&family)
-            .font_size(config.editor.font_size() as f32);
-        let mut attrs_list = AttrsList::new(attrs);
+        compute_screen_lines(
+            self.common.config,
+            base,
+            editor_data.kind.read_only(),
+            &editor_data.doc_signal().get(),
+            editor.lines(),
+            editor.text_prov(),
+        )
+    }
 
-        // Apply various styles to the line's text based on our semantic/syntax highlighting
-        let styles = self.line_style(line);
-        for line_style in styles.iter() {
-            if let Some(fg_color) = line_style.style.fg_color.as_ref() {
-                if let Some(fg_color) = config.get_style_color(fg_color) {
-                    let start = phantom_text.col_at(line_style.start);
-                    let end = phantom_text.col_at(line_style.end);
-                    attrs_list.add_span(start..end, attrs.color(*fg_color));
+    fn run_command(
+        &self,
+        ed: &Editor,
+        cmd: &Command,
+        count: Option<usize>,
+        modifiers: ModifiersState,
+    ) -> CommandExecuted {
+        let Some(editor_data) = self.editor_data(ed.id()) else {
+            return CommandExecuted::No;
+        };
+
+        let cmd = CommandKind::from(cmd.clone());
+        let cmd = LapceCommand {
+            kind: cmd,
+            data: None,
+        };
+        editor_data.run_command(&cmd, count, modifiers)
+    }
+
+    fn receive_char(&self, ed: &Editor, c: &str) {
+        let Some(editor_data) = self.editor_data(ed.id()) else {
+            return;
+        };
+
+        editor_data.receive_char(c);
+    }
+
+    fn edit(
+        &self,
+        iter: &mut dyn Iterator<Item = (Selection, &str)>,
+        edit_type: EditType,
+    ) {
+        let delta = self
+            .buffer
+            .try_update(|buffer| buffer.edit(iter, edit_type))
+            .unwrap();
+        self.apply_deltas(&[delta]);
+    }
+}
+impl DocumentPhantom for Doc {
+    fn phantom_text(&self, line: usize) -> PhantomTextLine {
+        let config = &self.common.config.get_untracked();
+
+        let (start_offset, end_offset) = self.buffer.with_untracked(|buffer| {
+            (buffer.offset_of_line(line), buffer.offset_of_line(line + 1))
+        });
+
+        let inlay_hints = self.inlay_hints.get_untracked();
+        // If hints are enabled, and the hints field is filled, then get the hints for this line
+        // and convert them into PhantomText instances
+        let hints = config
+            .editor
+            .enable_inlay_hints
+            .then_some(())
+            .and(inlay_hints.as_ref())
+            .map(|hints| hints.iter_chunks(start_offset..end_offset))
+            .into_iter()
+            .flatten()
+            .filter(|(interval, _)| {
+                interval.start >= start_offset && interval.start < end_offset
+            })
+            .map(|(interval, inlay_hint)| {
+                let (_, col) = self
+                    .buffer
+                    .with_untracked(|b| b.offset_to_line_col(interval.start));
+                let text = match &inlay_hint.label {
+                    InlayHintLabel::String(label) => label.to_string(),
+                    InlayHintLabel::LabelParts(parts) => {
+                        parts.iter().map(|p| &p.value).join("")
+                    }
+                };
+                PhantomText {
+                    kind: PhantomTextKind::InlayHint,
+                    col,
+                    text,
+                    fg: Some(config.color(LapceColor::INLAY_HINT_FOREGROUND)),
+                    // font_family: Some(config.editor.inlay_hint_font_family()),
+                    font_size: Some(config.editor.inlay_hint_font_size()),
+                    bg: Some(config.color(LapceColor::INLAY_HINT_BACKGROUND)),
+                    under_line: None,
+                }
+            });
+        // You're quite unlikely to have more than six hints on a single line
+        // this later has the diagnostics added onto it, but that's still likely to be below six
+        // overall.
+        let mut text: SmallVec<[PhantomText; 6]> = hints.collect();
+
+        // If error lens is enabled, and the diagnostics field is filled, then get the diagnostics
+        // that end on this line which have a severity worse than HINT and convert them into
+        // PhantomText instances
+        let diag_text = config
+            .editor
+            .enable_error_lens
+            .then_some(())
+            .map(|_| self.diagnostics.diagnostics.get_untracked())
+            .into_iter()
+            .flatten()
+            .filter(|diag| {
+                diag.diagnostic.range.end.line as usize == line
+                    && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
+            })
+            .map(|diag| {
+                let col = self.buffer.with_untracked(|buffer| {
+                    buffer.offset_of_line(line + 1) - buffer.offset_of_line(line)
+                });
+                let fg = {
+                    let severity = diag
+                        .diagnostic
+                        .severity
+                        .unwrap_or(DiagnosticSeverity::WARNING);
+                    let theme_prop = if severity == DiagnosticSeverity::ERROR {
+                        LapceColor::ERROR_LENS_ERROR_FOREGROUND
+                    } else if severity == DiagnosticSeverity::WARNING {
+                        LapceColor::ERROR_LENS_WARNING_FOREGROUND
+                    } else {
+                        // information + hint (if we keep that) + things without a severity
+                        LapceColor::ERROR_LENS_OTHER_FOREGROUND
+                    };
+
+                    config.color(theme_prop)
+                };
+
+                let text = if config.editor.error_lens_multiline {
+                    format!("    {}", diag.diagnostic.message)
+                } else {
+                    format!("    {}", diag.diagnostic.message.lines().join(" "))
+                };
+                PhantomText {
+                    kind: PhantomTextKind::Diagnostic,
+                    col,
+                    text,
+                    fg: Some(fg),
+                    font_size: Some(config.editor.error_lens_font_size()),
+                    // font_family: Some(config.editor.error_lens_font_family()),
+                    bg: None,
+                    under_line: None,
+                }
+            });
+        let mut diag_text: SmallVec<[PhantomText; 6]> = diag_text.collect();
+
+        text.append(&mut diag_text);
+
+        let (completion_line, completion_col) = self.completion_pos.get_untracked();
+        let completion_text = config
+            .editor
+            .enable_completion_lens
+            .then_some(())
+            .and(self.completion_lens.get_untracked())
+            // TODO: We're probably missing on various useful completion things to include here!
+            .filter(|_| line == completion_line)
+            .map(|completion| PhantomText {
+                kind: PhantomTextKind::Completion,
+                col: completion_col,
+                text: completion.clone(),
+                fg: Some(config.color(LapceColor::COMPLETION_LENS_FOREGROUND)),
+                font_size: Some(config.editor.completion_lens_font_size()),
+                // font_family: Some(config.editor.completion_lens_font_family()),
+                bg: None,
+                under_line: None,
+                // TODO: italics?
+            });
+        if let Some(completion_text) = completion_text {
+            text.push(completion_text);
+        }
+
+        // TODO: don't display completion lens and inline completion at the same time
+        // and/or merge them so that they can be shifted between like multiple inline completions
+        // can
+        let (inline_completion_line, inline_completion_col) =
+            self.inline_completion_pos.get_untracked();
+        let inline_completion_text = config
+            .editor
+            .enable_inline_completion
+            .then_some(())
+            .and(self.inline_completion.get_untracked())
+            .filter(|_| line == inline_completion_line)
+            .map(|completion| PhantomText {
+                kind: PhantomTextKind::Completion,
+                col: inline_completion_col,
+                text: completion.clone(),
+                fg: Some(config.color(LapceColor::COMPLETION_LENS_FOREGROUND)),
+                font_size: Some(config.editor.completion_lens_font_size()),
+                // font_family: Some(config.editor.completion_lens_font_family()),
+                bg: None,
+                under_line: None,
+                // TODO: italics?
+            });
+        if let Some(inline_completion_text) = inline_completion_text {
+            text.push(inline_completion_text);
+        }
+
+        if let Some(preedit) = self
+            .preedit_phantom(Some(config.color(LapceColor::EDITOR_FOREGROUND)), line)
+        {
+            text.push(preedit)
+        }
+
+        text.sort_by(|a, b| {
+            if a.col == b.col {
+                a.kind.cmp(&b.kind)
+            } else {
+                a.col.cmp(&b.col)
+            }
+        });
+
+        PhantomTextLine { text }
+    }
+
+    fn has_multiline_phantom(&self) -> bool {
+        // TODO: actually check
+        true
+    }
+}
+impl CommonAction for Doc {
+    fn exec_motion_mode(
+        &self,
+        _ed: &Editor,
+        cursor: &mut Cursor,
+        motion_mode: MotionMode,
+        range: Range<usize>,
+        is_vertical: bool,
+        register: &mut Register,
+    ) {
+        let deltas = self
+            .buffer
+            .try_update(move |buffer| {
+                Action::execute_motion_mode(
+                    cursor,
+                    buffer,
+                    motion_mode,
+                    range,
+                    is_vertical,
+                    register,
+                )
+            })
+            .unwrap();
+        self.apply_deltas(&deltas);
+    }
+
+    fn do_edit(
+        &self,
+        _ed: &Editor,
+        cursor: &mut Cursor,
+        cmd: &EditCommand,
+        modal: bool,
+        register: &mut Register,
+        smart_tab: bool,
+    ) -> bool {
+        let deltas = Doc::do_edit(self, cursor, cmd, modal, register, smart_tab);
+        !deltas.is_empty()
+    }
+}
+
+/// Minimum width that we'll allow the view to be wrapped at.
+const MIN_WRAPPED_WIDTH: f32 = 100.0;
+
+#[derive(Clone)]
+pub struct DocStyling {
+    config: ReadSignal<Arc<LapceConfig>>,
+    doc: Rc<Doc>,
+}
+impl DocStyling {
+    fn apply_colorization(
+        &self,
+        line: usize,
+        attrs: &Attrs,
+        attrs_list: &mut AttrsList,
+    ) {
+        let config = self.config.get_untracked();
+        let phantom_text = self.doc.phantom_text(line);
+        if let Some(bracket_styles) = self.doc.parser.borrow().bracket_pos.get(&line)
+        {
+            for bracket_style in bracket_styles.iter() {
+                if let Some(fg_color) = bracket_style.style.fg_color.as_ref() {
+                    if let Some(fg_color) = config.style_color(fg_color) {
+                        let start = phantom_text.col_at(bracket_style.start);
+                        let end = phantom_text.col_at(bracket_style.end);
+                        attrs_list.add_span(start..end, attrs.color(fg_color));
+                    }
                 }
             }
         }
+    }
+}
+impl Styling for DocStyling {
+    fn id(&self) -> u64 {
+        self.config.with_untracked(|config| config.id)
+    }
 
-        let font_size = config.editor.font_size();
+    fn font_size(&self, _line: usize) -> usize {
+        self.config
+            .with_untracked(|config| config.editor.font_size())
+    }
 
-        // Apply phantom text specific styling
-        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
-            let start = col + offset;
-            let end = start + size;
+    fn line_height(&self, _line: usize) -> f32 {
+        self.config
+            .with_untracked(|config| config.editor.line_height()) as f32
+    }
 
-            let mut attrs = attrs;
-            if let Some(fg) = phantom.fg {
-                attrs = attrs.color(fg);
+    fn font_family(
+        &self,
+        _line: usize,
+    ) -> std::borrow::Cow<[floem::cosmic_text::FamilyOwned]> {
+        // TODO: cache this
+        Cow::Owned(self.config.with_untracked(|config| {
+            FamilyOwned::parse_list(&config.editor.font_family).collect()
+        }))
+    }
+
+    fn weight(&self, _line: usize) -> floem::cosmic_text::Weight {
+        floem::cosmic_text::Weight::NORMAL
+    }
+
+    fn italic_style(&self, _line: usize) -> floem::cosmic_text::Style {
+        floem::cosmic_text::Style::Normal
+    }
+
+    fn stretch(&self, _line: usize) -> floem::cosmic_text::Stretch {
+        floem::cosmic_text::Stretch::Normal
+    }
+
+    fn indent_style(&self) -> IndentStyle {
+        self.doc.buffer.with_untracked(|b| b.indent_style())
+    }
+
+    fn indent_line(&self, line: usize, line_content: &str) -> usize {
+        if line_content.trim().is_empty() {
+            let text = self.doc.rope_text();
+            let offset = text.offset_of_line(line);
+            if let Some(offset) =
+                self.doc.syntax.with_untracked(|s| s.parent_offset(offset))
+            {
+                return text.line_of_offset(offset);
             }
-            if let Some(phantom_font_size) = phantom.font_size {
-                attrs = attrs.font_size(phantom_font_size.min(font_size) as f32);
-            }
-            attrs_list.add_span(start..end, attrs);
-            // if let Some(font_family) = phantom.font_family.clone() {
-            //     layout_builder = layout_builder.range_attribute(
-            //         start..end,
-            //         TextAttribute::FontFamily(font_family),
-            //     );
-            // }
         }
 
-        let mut text_layout = TextLayout::new();
-        text_layout.set_tab_width(config.editor.tab_width);
-        text_layout.set_text(&line_content, attrs_list);
+        line
+    }
 
-        // Keep track of background styling from phantom text, which is done separately
-        // from the text layout attributes
-        let mut extra_style = Vec::new();
-        for (offset, size, col, phantom) in phantom_text.offset_size_iter() {
-            if phantom.bg.is_some() || phantom.under_line.is_some() {
-                let start = col + offset;
+    fn tab_width(&self, _line: usize) -> usize {
+        self.config.with_untracked(|config| config.editor.tab_width)
+    }
+
+    fn atomic_soft_tabs(&self, _line: usize) -> bool {
+        self.config
+            .with_untracked(|config| config.editor.atomic_soft_tabs)
+    }
+
+    fn apply_attr_styles(
+        &self,
+        line: usize,
+        default: Attrs,
+        attrs_list: &mut AttrsList,
+    ) {
+        let config = self.doc.common.config.get_untracked();
+
+        self.apply_colorization(line, &default, attrs_list);
+
+        let phantom_text = self.doc.phantom_text(line);
+        for line_style in self.doc.line_style(line).iter() {
+            if let Some(fg_color) = line_style.style.fg_color.as_ref() {
+                if let Some(fg_color) = config.style_color(fg_color) {
+                    let start = phantom_text.col_at(line_style.start);
+                    let end = phantom_text.col_at(line_style.end);
+                    attrs_list.add_span(start..end, default.color(fg_color));
+                }
+            }
+        }
+    }
+
+    fn wrap(&self) -> WrapMethod {
+        let wrap_style = self
+            .config
+            .with_untracked(|config| config.editor.wrap_style);
+        match wrap_style {
+            WrapStyle::None => WrapMethod::None,
+            WrapStyle::EditorWidth => WrapMethod::EditorWidth,
+            WrapStyle::WrapWidth => WrapMethod::WrapWidth {
+                width: self
+                    .config
+                    .with_untracked(|config| config.editor.wrap_width as f32)
+                    .max(MIN_WRAPPED_WIDTH),
+            },
+        }
+    }
+
+    fn render_whitespace(&self) -> RenderWhitespace {
+        self.config
+            .with_untracked(|config| config.editor.render_whitespace)
+    }
+
+    fn apply_layout_styles(&self, line: usize, layout_line: &mut TextLayoutLine) {
+        let doc = &self.doc;
+        let config = doc.common.config.get_untracked();
+
+        layout_line.extra_style.clear();
+        let layout = &layout_line.text;
+
+        let phantom_text = doc.phantom_text(line);
+
+        let phantom_styles = phantom_text
+            .offset_size_iter()
+            .filter(move |(_, _, _, p)| p.bg.is_some() || p.under_line.is_some())
+            .flat_map(move |(col_shift, size, col, phantom)| {
+                let start = col + col_shift;
                 let end = start + size;
-                let x0 = text_layout.hit_position(start).point.x;
-                let x1 = text_layout.hit_position(end).point.x;
-                extra_style.push(LineExtraStyle {
-                    x: x0,
-                    width: Some(x1 - x0),
-                    bg_color: phantom.bg,
-                    under_line: phantom.under_line,
-                    wave_line: None,
-                });
-            }
-        }
+
+                extra_styles_for_range(
+                    layout,
+                    start,
+                    end,
+                    phantom.bg,
+                    phantom.under_line,
+                    None,
+                )
+            });
+        layout_line.extra_style.extend(phantom_styles);
 
         // Add the styling for the diagnostic severity, if applicable
-        if let Some(max_severity) = phantom_text.max_severity {
+        if let Some(max_severity) = doc.max_diag_severity(line) {
             let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
                 LapceColor::ERROR_LENS_ERROR_BACKGROUND
             } else if max_severity == DiagnosticSeverity::WARNING {
@@ -1392,20 +1885,30 @@ impl Document {
                 LapceColor::ERROR_LENS_OTHER_BACKGROUND
             };
 
-            let x1 = (!config.editor.error_lens_end_of_line)
-                .then(|| text_layout.hit_position(line_content.len()).point.x);
+            let size = layout.size();
+            let x1 = if !config.editor.error_lens_end_of_line {
+                let error_end_x = size.width;
+                Some(error_end_x.max(size.width))
+            } else {
+                None
+            };
 
-            extra_style.push(LineExtraStyle {
+            // TODO(minor): Should we show the background only on wrapped lines that have the
+            // diagnostic actually on that line?
+            // That would make it more obvious where it is from and matches other editors.
+            layout_line.extra_style.push(LineExtraStyle {
                 x: 0.0,
+                y: 0.0,
                 width: x1,
-                bg_color: Some(*config.get_color(theme_prop)),
+                height: size.height,
+                bg_color: Some(config.color(theme_prop)),
                 under_line: None,
                 wave_line: None,
             });
         }
 
-        self.diagnostics.diagnostics.with_untracked(|diags| {
-            self.buffer.with_untracked(|buffer| {
+        doc.diagnostics.diagnostics.with_untracked(|diags| {
+            doc.buffer.with_untracked(|buffer| {
                 for diag in diags {
                     if diag.diagnostic.range.start.line as usize <= line
                         && line <= diag.diagnostic.range.end.line as usize
@@ -1432,155 +1935,144 @@ impl Document {
                         };
                         let end = phantom_text.col_after(end, false);
 
-                        let x0 = text_layout.hit_position(start).point.x;
-                        let x1 = text_layout.hit_position(end).point.x;
+                        // let x0 = text_layout.hit_position(start).point.x;
+                        // let x1 = text_layout.hit_position(end).point.x;
                         let color_name = match diag.diagnostic.severity {
                             Some(DiagnosticSeverity::ERROR) => {
                                 LapceColor::LAPCE_ERROR
                             }
                             _ => LapceColor::LAPCE_WARN,
                         };
-                        let color = *config.get_color(color_name);
-                        extra_style.push(LineExtraStyle {
-                            x: x0,
-                            width: Some(x1 - x0),
-                            bg_color: None,
-                            under_line: None,
-                            wave_line: Some(color),
-                        });
+                        let color = config.color(color_name);
+
+                        let styles = extra_styles_for_range(
+                            layout,
+                            start,
+                            end,
+                            None,
+                            None,
+                            Some(color),
+                        );
+
+                        layout_line.extra_style.extend(styles);
                     }
                 }
             })
         });
+    }
 
-        let whitespaces = Self::new_whitespace_layout(
-            line_content_original,
-            &text_layout,
-            &phantom_text,
-            &config,
-        );
+    fn color(&self, color: EditorColor) -> Color {
+        let name = match color {
+            EditorColor::Scrollbar => LapceColor::LAPCE_SCROLL_BAR,
+            EditorColor::DropdownShadow => LapceColor::LAPCE_DROPDOWN_SHADOW,
+            EditorColor::PreeditUnderline => LapceColor::EDITOR_FOREGROUND,
+            _ => color.into(),
+        };
 
-        let indent_line = if line_content_original.trim().is_empty() {
-            let offset = self.buffer.with_untracked(|b| b.offset_of_line(line));
-            if let Some(offset) =
-                self.syntax.with_untracked(|s| s.parent_offset(offset))
-            {
-                self.buffer.with_untracked(|b| b.line_of_offset(offset))
+        self.config.with_untracked(|config| config.color(name))
+    }
+
+    fn paint_caret(&self, editor: &Editor, _line: usize) -> bool {
+        let Some(e_data) = self.doc.editor_data(editor.id()) else {
+            return true;
+        };
+
+        // If the find is active, then we don't want to paint the caret
+        !e_data.find_focus.get_untracked()
+    }
+}
+
+impl std::fmt::Debug for Doc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("Document {:?}", self.buffer_id))
+    }
+}
+
+/// Get the previous unmatched character `c` from the `offset` using `syntax` if applicable
+fn syntax_prev_unmatched(
+    buffer: &Buffer,
+    syntax: &Syntax,
+    c: char,
+    offset: usize,
+) -> Option<usize> {
+    if syntax.layers.is_some() {
+        syntax.find_tag(offset, true, &CharBuffer::new(c))
+    } else {
+        WordCursor::new(buffer.text(), offset).previous_unmatched(c)
+    }
+}
+
+fn should_blink(
+    focus: RwSignal<Focus>,
+    keyboard_focus: RwSignal<Option<floem::id::Id>>,
+) -> impl Fn() -> bool {
+    move || {
+        let focus = focus.get_untracked();
+        if matches!(
+            focus,
+            Focus::Workbench
+                | Focus::Palette
+                | Focus::Panel(PanelKind::Plugin)
+                | Focus::Panel(PanelKind::Search)
+                | Focus::Panel(PanelKind::SourceControl)
+        ) {
+            return true;
+        }
+
+        if keyboard_focus.get_untracked().is_some() {
+            return true;
+        }
+        false
+    }
+}
+
+fn extra_styles_for_range(
+    text_layout: &TextLayout,
+    start: usize,
+    end: usize,
+    bg_color: Option<Color>,
+    under_line: Option<Color>,
+    wave_line: Option<Color>,
+) -> impl Iterator<Item = LineExtraStyle> + '_ {
+    let start_hit = text_layout.hit_position(start);
+    let end_hit = text_layout.hit_position(end);
+
+    text_layout
+        .layout_runs()
+        .enumerate()
+        .filter_map(move |(current_line, run)| {
+            if current_line < start_hit.line || current_line > end_hit.line {
+                return None;
+            }
+
+            let x = if current_line == start_hit.line {
+                start_hit.point.x
             } else {
-                line
+                run.glyphs.first().map(|g| g.x).unwrap_or(0.0) as f64
+            };
+            let end_x = if current_line == end_hit.line {
+                end_hit.point.x
+            } else {
+                run.glyphs.last().map(|g| g.x + g.w).unwrap_or(0.0) as f64
+            };
+            let width = end_x - x;
+
+            if width == 0.0 {
+                return None;
             }
-        } else {
-            line
-        };
 
-        let indent = if indent_line != line {
-            self.get_text_layout(indent_line, font_size).indent + 1.0
-        } else {
-            let (_, col) = self.buffer.with_untracked(|buffer| {
-                let offset = buffer.first_non_blank_character_on_line(indent_line);
-                buffer.offset_to_line_col(offset)
-            });
-            text_layout.hit_position(col).point.x
-        };
+            let y = (run.line_height - run.glyph_ascent - run.glyph_descent) as f64
+                / 2.0;
+            let height = (run.glyph_ascent + run.glyph_descent) as f64;
 
-        TextLayoutLine {
-            text: text_layout,
-            extra_style,
-            whitespaces,
-            indent,
-        }
-    }
-
-    /// Get the text layout for the given line.
-    /// If the text layout is not cached, it will be created and cached.
-    pub fn get_text_layout(
-        &self,
-        line: usize,
-        font_size: usize,
-    ) -> Arc<TextLayoutLine> {
-        let config = self.common.config.get_untracked();
-        // Check if the text layout needs to update due to the config being changed
-        self.text_layouts.borrow_mut().check_attributes(config.id);
-        // If we don't have a second layer of the hashmap initialized for this specific font size,
-        // do it now
-        if self.text_layouts.borrow().layouts.get(&font_size).is_none() {
-            let mut cache = self.text_layouts.borrow_mut();
-            cache.layouts.insert(font_size, HashMap::new());
-        }
-
-        // Get whether there's an entry for this specific font size and line
-        let cache_exists = self
-            .text_layouts
-            .borrow()
-            .layouts
-            .get(&font_size)
-            .unwrap()
-            .get(&line)
-            .is_some();
-        // If there isn't an entry then we actually have to create it
-        if !cache_exists {
-            let text_layout = Arc::new(self.new_text_layout(line, font_size));
-            let mut cache = self.text_layouts.borrow_mut();
-            let width = text_layout.text.size().width;
-            if width > cache.max_width {
-                cache.max_width = width;
-            }
-            cache
-                .layouts
-                .get_mut(&font_size)
-                .unwrap()
-                .insert(line, text_layout);
-        }
-
-        // Just get the entry, assuming it has been created because we initialize it above.
-        self.text_layouts
-            .borrow()
-            .layouts
-            .get(&font_size)
-            .unwrap()
-            .get(&line)
-            .cloned()
-            .unwrap()
-    }
-
-    pub fn save(&self, after_action: impl Fn() + 'static) {
-        let content = self.content.get_untracked();
-        if let DocContent::File { path, .. } = content {
-            let rev = self.rev();
-            let buffer = self.buffer;
-            let send = create_ext_action(self.scope, move |result| {
-                if let Ok(ProxyResponse::SaveResponse {}) = result {
-                    let current_rev = buffer.with_untracked(|buffer| buffer.rev());
-                    if current_rev == rev {
-                        buffer.update(|buffer| {
-                            buffer.set_pristine();
-                        });
-                        after_action();
-                    }
-                }
-            });
-
-            self.common.proxy.save(rev, path, move |result| {
-                send(result);
+            Some(LineExtraStyle {
+                x,
+                y,
+                width: Some(width),
+                height,
+                bg_color,
+                under_line,
+                wave_line,
             })
-        }
-    }
-
-    /// Returns the offsets of the brackets enclosing the given offset.
-    /// Uses a language aware algorithm if syntax support is available for the current language,
-    /// else falls back to a language unaware algorithm.
-    pub fn find_enclosing_brackets(&self, offset: usize) -> Option<(usize, usize)> {
-        self.syntax
-            .with_untracked(|syntax| {
-                (!syntax.text.is_empty()).then(|| syntax.find_enclosing_pair(offset))
-            })
-            // If syntax.text is empty, either the buffer is empty or we don't have syntax support
-            // for the current language.
-            // Try a language unaware search for enclosing brackets in case it is the latter.
-            .unwrap_or_else(|| {
-                self.buffer.with_untracked(|buffer| {
-                    WordCursor::new(buffer.text(), offset).find_enclosing_pair()
-                })
-            })
-    }
+        })
 }

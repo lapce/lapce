@@ -24,7 +24,7 @@
 <br/>
 
 
-Lapce (IPA: /læps/) is written in pure Rust with a UI in [Floem](https://github.com/lapce/floem) (which is also written in Rust). It is designed with [Rope Science](https://xi-editor.io/docs/rope_science_00.html) from the [Xi-Editor](https://github.com/xi-editor/xi-editor) which makes for lightning-fast computation, and leverages [Wgpu](https://github.com/gfx-rs/wgpu) for rendering. More information about the features of Lapce can be found on the [main website](https://lapce.dev) and user documentation can be found on [GitBook](https://docs.lapce.dev/).
+Lapce (IPA: /læps/) is written in pure Rust with a UI in [Floem](https://github.com/lapce/floem). It is designed with [Rope Science](https://xi-editor.io/docs/rope_science_00.html) from the [Xi-Editor](https://github.com/xi-editor/xi-editor) which makes for lightning-fast computation, and leverages [Wgpu](https://github.com/gfx-rs/wgpu) for rendering. More information about the features of Lapce can be found on the [main website](https://lapce.dev) and user documentation can be found on [GitBook](https://docs.lapce.dev/).
 
 ![](https://github.com/lapce/lapce/blob/master/extra/images/screenshot.png?raw=true)
 

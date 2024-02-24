@@ -1,5 +1,8 @@
+use floem::views::editor::text::RenderWhitespace;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
+
+pub const SCALE_OR_SIZE_LIMIT: f64 = 5.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum ClickMode {
@@ -10,6 +13,45 @@ pub enum ClickMode {
     DoubleClickFile,
     #[serde(rename = "all")]
     DoubleClickAll,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum WrapStyle {
+    /// No wrapping
+    None,
+    /// Wrap at the editor width
+    #[default]
+    EditorWidth,
+    // /// Wrap at the wrap-column
+    // WrapColumn,
+    /// Wrap at a specific width
+    WrapWidth,
+}
+impl WrapStyle {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            WrapStyle::None => "none",
+            WrapStyle::EditorWidth => "editor-width",
+            // WrapStyle::WrapColumn => "wrap-column",
+            WrapStyle::WrapWidth => "wrap-width",
+        }
+    }
+
+    pub fn try_from_str(s: &str) -> Option<Self> {
+        match s {
+            "none" => Some(WrapStyle::None),
+            "editor-width" => Some(WrapStyle::EditorWidth),
+            // "wrap-column" => Some(WrapStyle::WrapColumn),
+            "wrap-width" => Some(WrapStyle::WrapWidth),
+            _ => None,
+        }
+    }
+}
+impl ToString for WrapStyle {
+    fn to_string(&self) -> String {
+        self.as_str().to_string()
+    }
 }
 
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
@@ -41,6 +83,12 @@ pub struct EditorConfig {
         desc = "Set the minimum number of visible lines above and below the cursor"
     )]
     pub cursor_surrounding_lines: usize,
+    #[field_names(desc = "The kind of wrapping to perform")]
+    pub wrap_style: WrapStyle,
+    // #[field_names(desc = "The number of columns to wrap at")]
+    // pub wrap_column: usize,
+    #[field_names(desc = "The number of pixels to wrap at")]
+    pub wrap_width: usize,
     #[field_names(
         desc = "Show code context like functions and classes at the top of editor when scroll"
     )]
@@ -58,9 +106,13 @@ pub struct EditorConfig {
     )]
     pub signature_label_code_block: bool,
     #[field_names(
-        desc = "Whether the editor should disable automatic closing of matching pairs"
+        desc = "Whether the editor should enable automatic closing of matching pairs"
     )]
     pub auto_closing_matching_pairs: bool,
+    #[field_names(
+        desc = "Whether the editor should automatically surround selected text when typing quotes or brackets"
+    )]
+    pub auto_surround: bool,
     #[field_names(
         desc = "How long (in ms) it should take before the hover information appears"
     )]
@@ -98,6 +150,12 @@ pub struct EditorConfig {
     )]
     pub error_lens_end_of_line: bool,
     #[field_names(
+        desc = "Whether error lens should extend over multiple lines. If false, it will have newlines stripped."
+    )]
+    pub error_lens_multiline: bool,
+    // TODO: Error lens but put entirely on the next line
+    // TODO: error lens with indentation matching.
+    #[field_names(
         desc = "Set error lens font family. If empty, it uses the inlay hint font family."
     )]
     pub error_lens_font_family: String,
@@ -109,6 +167,8 @@ pub struct EditorConfig {
         desc = "If the editor should display the completion item as phantom text"
     )]
     pub enable_completion_lens: bool,
+    #[field_names(desc = "If the editor should display inline completions")]
+    pub enable_inline_completion: bool,
     #[field_names(
         desc = "Set completion lens font family. If empty, it uses the inlay hint font family."
     )]
@@ -132,7 +192,7 @@ pub struct EditorConfig {
     #[field_names(
         desc = "How the editor should render whitespace characters.\nOptions: none, all, boundary, trailing."
     )]
-    pub render_whitespace: String,
+    pub render_whitespace: RenderWhitespace,
     #[field_names(desc = "Whether the editor show indent guide.")]
     pub show_indent_guide: bool,
     #[field_names(
@@ -157,6 +217,14 @@ pub struct EditorConfig {
         desc = "Set the default number of visible lines above and below the diff block (-1 for infinite)"
     )]
     pub diff_context_lines: i32,
+    #[field_names(desc = "Whether the editor colorizes brackets")]
+    pub bracket_pair_colorization: bool,
+    #[field_names(desc = "Bracket colorization Limit")]
+    pub bracket_colorization_limit: u64,
+    #[field_names(
+        desc = "Glob patterns for excluding files and folders (in file explorer)"
+    )]
+    pub files_exclude: String,
 }
 
 impl EditorConfig {
@@ -165,8 +233,6 @@ impl EditorConfig {
     }
 
     pub fn line_height(&self) -> usize {
-        const SCALE_OR_SIZE_LIMIT: f64 = 5.0;
-
         let line_height = if self.line_height < SCALE_OR_SIZE_LIMIT {
             self.line_height * self.font_size as f64
         } else {

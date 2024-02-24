@@ -1,9 +1,14 @@
-use std::{collections::HashSet, path::Path, str::FromStr};
+use std::{
+    collections::{hash_map::Entry, HashMap, HashSet},
+    path::Path,
+    str::FromStr,
+};
 
+use lapce_rpc::style::{LineStyle, Style};
 use once_cell::sync::Lazy;
-use strum_macros::{AsRefStr, Display, EnumMessage, EnumString};
+use strum_macros::{AsRefStr, AsStaticStr, Display, EnumMessage, EnumString};
 use tracing::{debug, error};
-use tree_sitter::TreeCursor;
+use tree_sitter::{Point, TreeCursor};
 
 use crate::{
     directory::Directory,
@@ -16,6 +21,7 @@ pub static RUNTIME_LANGUAGES: Lazy<Vec<SyntaxProperties>> = Lazy::new(Vec::new);
 const DEFAULT_CODE_LENS_LIST: &[&str] = &["source_file"];
 #[allow(dead_code)]
 const DEFAULT_CODE_LENS_IGNORE_LIST: &[&str] = &["source_file"];
+const DEFAULT_QUERIES: include_dir::Dir = include_dir::include_dir!("queries");
 
 #[macro_export]
 macro_rules! comment_properties {
@@ -86,12 +92,11 @@ pub struct SyntaxProperties {
 struct TreeSitterProperties {
     /// This is the factory function defined in the tree-sitter crate that creates the language parser.  
     /// For most languages, it is `tree_sitter_$crate::language`.
-    language: fn() -> tree_sitter::Language,
-    /// For most languages, it is `tree_sitter_$crate::HIGHLIGHT_QUERY`.
-    highlight: Option<&'static str>,
-    /// For most languages, it is `tree_sitter_$crate::INJECTION_QUERY`.  
-    /// Though, not all languages have injections.
-    injection: Option<&'static str>,
+    language: Option<fn() -> tree_sitter::Language>,
+    /// the grammar name that's in the grammars folder
+    grammar: Option<&'static str>,
+    /// the query folder name
+    query: Option<&'static str>,
     /// Lists of tree-sitter node types that control how code lenses are built.
     /// The first is a list of nodes that should be traversed and included in
     /// the lens, along with thier children. The second is a list of nodes that
@@ -139,6 +144,7 @@ struct CommentProperties {
     Debug,
     Display,
     AsRefStr,
+    AsStaticStr,
     EnumString,
     EnumMessage,
     Default,
@@ -288,16 +294,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("#"),
 
-        #[cfg(feature = "lang-bash")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_bash::language,
-            highlight: Some(tree_sitter_bash::HIGHLIGHT_QUERY),
-            injection: None,
+            #[cfg(feature = "lang-bash")]
+            language: Some(tree_sitter_bash::language),
+            #[cfg(not(feature = "lang-bash"))]
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-bash"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::C,
@@ -308,16 +314,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("//"),
 
-        #[cfg(feature = "lang-c")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_c::language,
-            highlight: Some(include_str!("../queries/c/highlights.scm")),
-            injection: None,
+            #[cfg(feature = "lang-c")]
+            language: Some(tree_sitter_c::language),
+            #[cfg(not(feature = "lang-c"))]
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &["function_definition", "struct_specifier"],
         }),
-        #[cfg(not(feature = "lang-c"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Clojure,
@@ -352,7 +358,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
         id: LapceLanguage::Cmake,
 
         indent: "  ",
-        files: &[],
+        files: &["cmakelists"],
         extensions: &["cmake"],
 
         comment: comment_properties!("#"),
@@ -377,11 +383,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("//"),
 
-        #[cfg(feature = "lang-cpp")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_cpp::language,
-            highlight: Some(include_str!("../queries/cpp/highlights.scm")),
-            injection: None,
+            #[cfg(feature = "lang-cpp")]
+            language: Some(tree_sitter_cpp::language),
+            #[cfg(not(feature = "lang-cpp"))]
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[
                 "function_definition",
@@ -389,8 +397,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
                 "struct_specifier",
             ],
         }),
-        #[cfg(not(feature = "lang-cpp"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Csharp,
@@ -748,16 +754,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("<!--", "-->"),
 
-        #[cfg(feature = "lang-html")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_html::language,
-            highlight: Some(tree_sitter_html::HIGHLIGHT_QUERY),
-            injection: Some(tree_sitter_html::INJECTION_QUERY),
+            language: None,
+            grammar: Some("html"),
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-html"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Java,
@@ -788,16 +791,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("//"),
 
-        #[cfg(feature = "lang-javascript")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_javascript::language,
-            highlight: Some(include_str!("../queries/javascript/highlights.scm")),
-            injection: Some(tree_sitter_javascript::INJECTION_QUERY),
+            #[cfg(feature = "lang-javascript")]
+            language: Some(tree_sitter_javascript::language),
+            #[cfg(not(feature = "lang-javascript"))]
+            language: None,
+            grammar: Some("javascript"),
+            query: Some("javascript"),
             code_lens: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-javascript"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Json,
@@ -808,16 +811,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!(),
 
-        #[cfg(feature = "lang-json")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_json::language,
-            highlight: None,
-            injection: None,
+            #[cfg(feature = "lang-json")]
+            language: Some(tree_sitter_json::language),
+            #[cfg(not(feature = "lang-json"))]
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-json"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Jsx,
@@ -828,17 +831,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("//"),
 
-        #[cfg(feature = "lang-javascript")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_javascript::language,
-            highlight: Some(include_str!("../queries/jsx/highlights.scm")),
-            // TODO: Does jsx use the javascript injection query too?
-            injection: Some(tree_sitter_javascript::INJECTION_QUERY),
+            #[cfg(feature = "lang-javascript")]
+            language: Some(tree_sitter_javascript::language),
+            #[cfg(not(feature = "lang-javascript"))]
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-javascript"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Julia,
@@ -856,16 +858,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
             multi_line_end: Some("=#"),
         },
 
-        #[cfg(feature = "lang-julia")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_julia::language,
-            highlight: Some(include_str!("../queries/julia/highlights.scm")),
-            injection: Some(include_str!("../queries/julia/injections.scm")),
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-julia"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Kotlin,
@@ -943,16 +942,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!(),
 
-        #[cfg(feature = "lang-markdown")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_md::language,
-            highlight: Some(include_str!("../queries/markdown/highlights.scm")),
-            injection: Some(include_str!("../queries/markdown/injections.scm")),
+            #[cfg(feature = "lang-markdown")]
+            language: Some(tree_sitter_md::language),
+            #[cfg(not(feature = "lang-markdown"))]
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-markdown"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::MarkdownInline,
@@ -964,20 +963,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!(),
 
-        #[cfg(feature = "lang-markdown")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_md::inline_language,
-            highlight: Some(include_str!(
-                "../queries/markdown.inline/highlights.scm"
-            )),
-            injection: Some(include_str!(
-                "../queries/markdown.inline/injections.scm"
-            )),
+            #[cfg(feature = "lang-markdown")]
+            language: Some(tree_sitter_md::inline_language),
+            #[cfg(not(feature = "lang-markdown"))]
+            language: None,
+            grammar: Some("markdown"),
+            query: Some("markdown.inline"),
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-markdown"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Nix,
@@ -1062,11 +1057,10 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("//"),
 
-        #[cfg(feature = "lang-php")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_php::language,
-            highlight: Some(tree_sitter_php::HIGHLIGHT_QUERY),
-            injection: Some(tree_sitter_php::INJECTIONS_QUERY),
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (
                 &[
                     "program",
@@ -1091,8 +1085,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             ),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-php"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Prisma,
@@ -1143,11 +1135,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("#"),
 
-        #[cfg(feature = "lang-python")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_python::language,
-            highlight: Some(tree_sitter_python::HIGHLIGHT_QUERY),
-            injection: None,
+            #[cfg(feature = "lang-python")]
+            language: Some(tree_sitter_python::language),
+            #[cfg(not(feature = "lang-python"))]
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (
                 &[
                     "source_file",
@@ -1162,8 +1156,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
             ),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-python"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Ql,
@@ -1214,16 +1206,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("#"),
 
-        #[cfg(feature = "lang-ruby")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_ruby::language,
-            highlight: Some(tree_sitter_ruby::HIGHLIGHT_QUERY),
-            injection: None,
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &["module", "class", "method", "do_block"],
         }),
-        #[cfg(not(feature = "lang-ruby"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Rust,
@@ -1234,11 +1223,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("//"),
 
-        #[cfg(feature = "lang-rust")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_rust::language,
-            highlight: Some(tree_sitter_rust::HIGHLIGHT_QUERY),
-            injection: None,
+            #[cfg(feature = "lang-rust")]
+            language: Some(tree_sitter_rust::language),
+            #[cfg(not(feature = "lang-rust"))]
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (
                 &["source_file", "impl_item", "trait_item", "declaration_list"],
                 &["source_file", "use_declaration", "line_comment"],
@@ -1250,8 +1241,6 @@ const LANGUAGES: &[SyntaxProperties] = &[
                 "impl_item",
             ],
         }),
-        #[cfg(not(feature = "lang-rust"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Scheme,
@@ -1302,16 +1291,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("#"),
 
-        #[cfg(feature = "lang-bash")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_bash::language,
-            highlight: Some(tree_sitter_bash::HIGHLIGHT_QUERY),
-            injection: None,
+            #[cfg(feature = "lang-bash")]
+            language: Some(tree_sitter_bash::language),
+            #[cfg(not(feature = "lang-bash"))]
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-bash"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Sql,
@@ -1382,16 +1371,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("#"),
 
-        #[cfg(feature = "lang-toml")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_toml::language,
-            highlight: Some(tree_sitter_toml::HIGHLIGHT_QUERY),
-            injection: None,
+            #[cfg(feature = "lang-toml")]
+            language: Some(tree_sitter_toml::language),
+            #[cfg(not(feature = "lang-toml"))]
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-toml"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Tsx,
@@ -1402,16 +1391,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("//"),
 
-        #[cfg(feature = "lang-typescript")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_typescript::language_tsx,
-            highlight: Some(include_str!("../queries/typescript/highlights.scm")),
-            injection: None,
+            language: None,
+            grammar: Some("typescript"),
+            query: Some("typescript"),
             code_lens: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-typescript"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Typescript,
@@ -1422,16 +1408,13 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("//"),
 
-        #[cfg(feature = "lang-typescript")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_typescript::language_typescript,
-            highlight: Some(include_str!("../queries/typescript/highlights.scm")),
-            injection: None,
+            language: None,
+            grammar: Some("typescript"),
+            query: Some("typescript"),
             code_lens: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-typescript"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Vue,
@@ -1502,16 +1485,16 @@ const LANGUAGES: &[SyntaxProperties] = &[
 
         comment: comment_properties!("#"),
 
-        #[cfg(feature = "lang-yaml")]
         tree_sitter: Some(TreeSitterProperties {
-            language: tree_sitter_yaml::language,
-            highlight: Some(tree_sitter_yaml::HIGHLIGHTS_QUERY),
-            injection: Some(tree_sitter_yaml::INJECTIONS_QUERY),
+            #[cfg(feature = "lang-yaml")]
+            language: Some(tree_sitter_yaml::language),
+            #[cfg(not(feature = "lang-yaml"))]
+            language: None,
+            grammar: None,
+            query: None,
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
-        #[cfg(not(feature = "lang-yaml"))]
-        tree_sitter: None,
     },
     SyntaxProperties {
         id: LapceLanguage::Zig,
@@ -1536,11 +1519,12 @@ const LANGUAGES: &[SyntaxProperties] = &[
 ];
 
 impl LapceLanguage {
-    const HIGHLIGHTS_QUERIES_FILE_NAME: &str = "highlights.scm";
+    const HIGHLIGHTS_QUERIES_FILE_NAME: &'static str = "highlights.scm";
+    const HIGHLIGHTS_INJECTIONS_FILE_NAME: &'static str = "injections.scm";
     #[cfg(unix)]
-    const SYSTEM_GRAMMARS_DIRECTORY: &str = "/usr/lib";
+    const SYSTEM_GRAMMARS_DIRECTORY: &'static str = "/usr/lib";
     #[cfg(unix)]
-    const SYSTEM_QUERIES_DIRECTORY: &str = "/usr/share/tree-sitter/grammars";
+    const SYSTEM_QUERIES_DIRECTORY: &'static str = "/usr/share/tree-sitter/grammars";
 
     pub fn from_path(path: &Path) -> LapceLanguage {
         Self::from_path_raw(path).unwrap_or(LapceLanguage::Plaintext)
@@ -1566,7 +1550,7 @@ impl LapceLanguage {
         match LapceLanguage::from_str(name.to_lowercase().as_str()) {
             Ok(v) => Some(v),
             Err(e) => {
-                eprintln!("failed parsing {name} LapceLanguage: {e}");
+                debug!("failed parsing {name} LapceLanguage: {e}");
                 None
             }
         }
@@ -1575,6 +1559,7 @@ impl LapceLanguage {
     pub fn languages() -> Vec<&'static str> {
         let mut langs = vec![];
         for l in LANGUAGES {
+            // Get only languages with display name to hide inline grammars
             if let Some(lang) = strum::EnumMessage::get_message(&l.id) {
                 langs.push(lang)
             }
@@ -1597,6 +1582,11 @@ impl LapceLanguage {
         l
     }
 
+    pub fn name(&self) -> &'static str {
+        strum::EnumMessage::get_message(self)
+            .unwrap_or(strum::AsStaticRef::as_static(self))
+    }
+
     fn tree_sitter(&self) -> Option<TreeSitterProperties> {
         self.properties().tree_sitter
     }
@@ -1609,7 +1599,7 @@ impl LapceLanguage {
         }
     }
 
-    pub fn comment_token(&self) -> &str {
+    pub fn comment_token(&self) -> &'static str {
         self.properties()
             .comment
             .single_line_start
@@ -1620,22 +1610,14 @@ impl LapceLanguage {
         self.properties().indent
     }
 
-    pub(crate) fn new_highlight_config(
-        &self,
-    ) -> Result<HighlightConfiguration, HighlightIssue> {
+    fn get_grammar(&self) -> Option<tree_sitter::Language> {
         let props = self.properties();
+        let grammar_name = self.grammar_name();
 
-        let mut language = match props.tree_sitter {
-            Some(v) => (v.language)(),
-            None => return Err(HighlightIssue::NotAvailable),
-        };
-
-        if let Some(grammars_dir) = Directory::grammars_directory() {
-            if let Ok(grammar) = self::load_grammar(props.id.as_ref(), &grammars_dir)
-            {
-                language = grammar;
-            }
-        };
+        if let Some(f) = props.tree_sitter.as_ref().and_then(|p| p.language.as_ref())
+        {
+            return Some(f());
+        }
 
         #[cfg(unix)]
         {
@@ -1644,58 +1626,111 @@ impl LapceLanguage {
                 let grammars_dir = grammars_dir.join(props.id.as_ref());
                 if grammars_dir.exists() {
                     if let Ok(grammar) =
-                        self::load_grammar(props.id.as_ref(), &grammars_dir)
+                        self::load_grammar(&grammar_name, &grammars_dir)
                     {
-                        language = grammar;
+                        return Some(grammar);
                     }
                 }
             }
         };
 
-        let mut highlight = String::new();
+        if let Some(grammars_dir) = Directory::grammars_directory() {
+            if let Ok(grammar) = self::load_grammar(&grammar_name, &grammars_dir) {
+                return Some(grammar);
+            }
+        };
+
+        None
+    }
+
+    fn query_name(&self) -> String {
+        self.properties()
+            .tree_sitter
+            .as_ref()
+            .and_then(|p| p.query.or(p.grammar))
+            .unwrap_or(self.properties().id.as_ref())
+            .to_lowercase()
+    }
+
+    fn grammar_name(&self) -> String {
+        self.properties()
+            .tree_sitter
+            .as_ref()
+            .and_then(|p| p.grammar)
+            .unwrap_or(self.properties().id.as_ref())
+            .to_lowercase()
+    }
+
+    fn get_grammar_query(&self) -> (String, String) {
+        let query_name = self.query_name();
 
         // Try reading highlights from user config dir
         if let Some(queries_dir) = Directory::queries_directory() {
-            let queries_dir = queries_dir.join(props.id.to_string().to_lowercase());
+            let queries_dir = queries_dir.join(&query_name);
             if queries_dir.exists() {
                 let highlights_file =
                     queries_dir.join(Self::HIGHLIGHTS_QUERIES_FILE_NAME);
                 if highlights_file.exists() {
-                    highlight =
-                        std::fs::read_to_string(highlights_file).unwrap_or_default()
+                    if let Ok(s) = std::fs::read_to_string(highlights_file) {
+                        return (
+                            s,
+                            std::fs::read_to_string(
+                                queries_dir
+                                    .join(Self::HIGHLIGHTS_INJECTIONS_FILE_NAME),
+                            )
+                            .unwrap_or_else(|_| "".to_string()),
+                        );
+                    }
                 }
-            } else {
-                _ = std::fs::DirBuilder::new()
-                    .recursive(true)
-                    .create(queries_dir);
             }
         }
 
         #[cfg(unix)]
-        // Try reading highlights from system dir
-        if highlight.is_empty() {
+        {
             let queries_dir = Path::new(Self::SYSTEM_QUERIES_DIRECTORY);
-            if queries_dir
-                .join(props.id.to_string().to_lowercase())
-                .exists()
-            {
+            if queries_dir.join(&query_name).exists() {
                 let highlights_file =
                     queries_dir.join(Self::HIGHLIGHTS_QUERIES_FILE_NAME);
                 if highlights_file.exists() {
-                    highlight =
-                        std::fs::read_to_string(highlights_file).unwrap_or_default()
+                    if let Ok(s) = std::fs::read_to_string(highlights_file) {
+                        return (
+                            s,
+                            std::fs::read_to_string(
+                                queries_dir
+                                    .join(Self::HIGHLIGHTS_INJECTIONS_FILE_NAME),
+                            )
+                            .unwrap_or_else(|_| "".to_string()),
+                        );
+                    }
                 }
             }
         }
 
-        let query = if !highlight.is_empty() {
-            highlight.as_str()
-        } else {
-            props.tree_sitter.unwrap().highlight.unwrap_or_default()
-        };
-        let injection = props.tree_sitter.unwrap().injection.unwrap_or_default();
+        if let Some(file) =
+            DEFAULT_QUERIES.get_file(format!("{query_name}/highlights.scm"))
+        {
+            if let Some(contents) = file.contents_utf8() {
+                return (
+                    contents.to_string(),
+                    DEFAULT_QUERIES
+                        .get_file(format!("{query_name}/injections.scm"))
+                        .and_then(|f| f.contents_utf8())
+                        .unwrap_or("")
+                        .to_string(),
+                );
+            }
+        }
 
-        match HighlightConfiguration::new(language, query, injection, "") {
+        ("".to_string(), "".to_string())
+    }
+
+    pub(crate) fn new_highlight_config(
+        &self,
+    ) -> Result<HighlightConfiguration, HighlightIssue> {
+        let grammar = self.get_grammar().ok_or(HighlightIssue::NotAvailable)?;
+        let (query, injection) = self.get_grammar_query();
+
+        match HighlightConfiguration::new(grammar, &query, &injection, "") {
             Ok(x) => Ok(x),
             Err(x) => {
                 let str = format!("Encountered {x:?} while trying to construct HighlightConfiguration for {}", strum::EnumMessage::get_message(self).unwrap_or(self.as_ref()));
@@ -1722,7 +1757,7 @@ fn load_grammar(
     grammar_name: &str,
     path: &Path,
 ) -> Result<tree_sitter::Language, HighlightIssue> {
-    let mut library_path = path.join(format!("tree-sitter-{}", grammar_name));
+    let mut library_path = path.join(format!("tree-sitter-{grammar_name}"));
     library_path.set_extension(std::env::consts::DLL_EXTENSION);
 
     debug!("Grammars dir: {library_path:?}");
@@ -1784,6 +1819,75 @@ fn walk_tree(
     if list.contains(&kind) && cursor.goto_first_child() {
         loop {
             walk_tree(cursor, normal_lines, list, ignore_list);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        cursor.goto_parent();
+    }
+}
+
+fn add_bracket_pos(
+    bracket_pos: &mut HashMap<usize, Vec<LineStyle>>,
+    start_pos: Point,
+    color: String,
+) {
+    let line_style = LineStyle {
+        start: start_pos.column,
+        end: start_pos.column + 1,
+        style: Style {
+            fg_color: Some(color),
+        },
+    };
+    match bracket_pos.entry(start_pos.row) {
+        Entry::Vacant(v) => _ = v.insert(vec![line_style]),
+        Entry::Occupied(mut o) => o.get_mut().push(line_style),
+    }
+}
+
+pub(crate) fn walk_tree_bracket_ast(
+    cursor: &mut TreeCursor,
+    level: &mut usize,
+    counter: &mut usize,
+    bracket_pos: &mut HashMap<usize, Vec<LineStyle>>,
+    palette: &Vec<String>,
+) {
+    if cursor.node().kind().ends_with('(')
+        || cursor.node().kind().ends_with('{')
+        || cursor.node().kind().ends_with('[')
+    {
+        let row = cursor.node().end_position().row;
+        let col = cursor.node().end_position().column - 1;
+        let start_pos = Point::new(row, col);
+        add_bracket_pos(
+            bracket_pos,
+            start_pos,
+            palette.get(*level % palette.len()).unwrap().clone(),
+        );
+        *level += 1;
+    } else if cursor.node().kind().ends_with(')')
+        || cursor.node().kind().ends_with('}')
+        || cursor.node().kind().ends_with(']')
+    {
+        let (new_level, overflow) = (*level).overflowing_sub(1);
+        let row = cursor.node().end_position().row;
+        let col = cursor.node().end_position().column - 1;
+        let start_pos = Point::new(row, col);
+        if overflow {
+            add_bracket_pos(bracket_pos, start_pos, "bracket.unpaired".to_string());
+        } else {
+            *level = new_level;
+            add_bracket_pos(
+                bracket_pos,
+                start_pos,
+                palette.get(*level % palette.len()).unwrap().clone(),
+            );
+        }
+    }
+    *counter += 1;
+    if cursor.goto_first_child() {
+        loop {
+            walk_tree_bracket_ast(cursor, level, counter, bracket_pos, palette);
             if !cursor.goto_next_sibling() {
                 break;
             }

@@ -1,7 +1,8 @@
-use std::{rc::Rc, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Duration};
 
 use floem::{
     action::{exec_after, TimerToken},
+    cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     event::EventListener,
     keyboard::ModifiersState,
     peniko::{
@@ -9,13 +10,15 @@ use floem::{
         Color,
     },
     reactive::{
-        create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal, Scope,
+        create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
+        Scope,
     },
     style::CursorStyle,
     view::View,
+    views::editor::id::EditorId,
     views::{
-        container, container_box, empty, label, list, scroll, stack, svg,
-        virtual_list, Decorators, VirtualListDirection, VirtualListVector,
+        container, dyn_stack, empty, label, scroll, stack, svg, text, virtual_stack,
+        Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
 };
 use indexmap::IndexMap;
@@ -32,7 +35,6 @@ use crate::{
         terminal::TerminalConfig, ui::UIConfig, DropdownInfo, LapceConfig,
     },
     editor::EditorData,
-    id::EditorId,
     keypress::KeyPressFocus,
     plugin::InstalledVoltData,
     text_input::text_input,
@@ -114,14 +116,15 @@ impl KeyPressFocus for SettingsData {
     fn receive_char(&self, _c: &str) {}
 }
 
-impl VirtualListVector<SettingsItem> for SettingsData {
-    type ItemIterator = Box<dyn Iterator<Item = SettingsItem>>;
-
+impl VirtualVector<SettingsItem> for SettingsData {
     fn total_len(&self) -> usize {
         self.filtered_items.get_untracked().len()
     }
 
-    fn slice(&mut self, _range: std::ops::Range<usize>) -> Self::ItemIterator {
+    fn slice(
+        &mut self,
+        _range: std::ops::Range<usize>,
+    ) -> impl Iterator<Item = SettingsItem> {
         Box::new(self.filtered_items.get().into_iter())
     }
 }
@@ -305,6 +308,7 @@ impl SettingsData {
 
 pub fn settings_view(
     installed_plugins: RwSignal<IndexMap<VoltID, InstalledVoltData>>,
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
     common: Rc<CommonData>,
 ) -> impl View {
     let config = common.config;
@@ -314,8 +318,8 @@ pub fn settings_view(
     let view_settings_data = settings_data.clone();
     let plugin_kinds = settings_data.plugin_kinds;
 
-    let search_editor = EditorData::new_local(cx, EditorId::next(), common);
-    let doc = search_editor.view.doc;
+    let search_editor = EditorData::new_local(cx, editors, common);
+    let doc = search_editor.doc_signal();
 
     let items = settings_data.items.clone();
     let kinds = settings_data.kinds.clone();
@@ -381,7 +385,7 @@ pub fn settings_view(
             label(move || k.clone())
                 .style(move |s| s.text_ellipsis().padding_left(margin)),
         )
-        .on_click(move |_| {
+        .on_click_stop(move |_| {
             if let Some(pos) = pos() {
                 ensure_visible.set(
                     settings_content_size
@@ -390,37 +394,30 @@ pub fn settings_view(
                         .with_origin(pos.get_untracked()),
                 );
             }
-            true
         })
         .style(move |s| {
-            s.padding_horiz(20.0).width_pct(100.0).apply_if(
-                kind == current_kind.get(),
-                |s| {
-                    s.background(
-                        *config
-                            .get()
-                            .get_color(LapceColor::PANEL_CURRENT_BACKGROUND),
+            let config = config.get();
+            s.padding_horiz(20.0)
+                .width_pct(100.0)
+                .apply_if(kind == current_kind.get(), |s| {
+                    s.background(config.color(LapceColor::PANEL_CURRENT_BACKGROUND))
+                })
+                .hover(|s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
                     )
-                },
-            )
-        })
-        .hover_style(move |s| {
-            s.cursor(CursorStyle::Pointer).background(
-                *config.get().get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-            )
-        })
-        .active_style(move |s| {
-            s.background(
-                *config
-                    .get()
-                    .get_color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
-            )
+                })
+                .active(|s| {
+                    s.background(
+                        config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                    )
+                })
         })
     };
 
     let switcher = || {
         stack((
-            list(
+            dyn_stack(
                 move || kinds.clone(),
                 |(k, _)| k.clone(),
                 move |(k, pos)| switcher_item(k, Box::new(move || Some(pos)), 0.0),
@@ -435,7 +432,7 @@ pub fn settings_view(
                     }),
                     0.0,
                 ),
-                list(
+                dyn_stack(
                     move || plugin_kinds.get(),
                     |(k, _)| k.clone(),
                     move |(k, pos)| {
@@ -470,7 +467,7 @@ pub fn settings_view(
             s.height_pct(100.0)
                 .width(200.0)
                 .border_right(1.0)
-                .border_color(*config.get().get_color(LapceColor::LAPCE_BORDER))
+                .border_color(config.get().color(LapceColor::LAPCE_BORDER))
         }),
         stack((
             container({
@@ -482,22 +479,27 @@ pub fn settings_view(
                             .border_radius(6.0)
                             .border(1.0)
                             .border_color(
-                                *config.get().get_color(LapceColor::LAPCE_BORDER),
+                                config.get().color(LapceColor::LAPCE_BORDER),
                             )
                     })
+                    .request_focus(|| {})
             })
             .style(|s| s.padding_horiz(50.0).padding_vert(20.0)),
             container({
                 scroll({
-                    virtual_list(
-                        VirtualListDirection::Vertical,
-                        floem::views::VirtualListItemSize::Fn(Box::new(
-                            |item: &SettingsItem| item.size.get().height.max(50.0),
-                        )),
+                    virtual_stack(
+                        VirtualDirection::Vertical,
+                        VirtualItemSize::Fn(Box::new(|item: &SettingsItem| {
+                            item.size.get().height.max(50.0)
+                        })),
                         move || settings_data.clone(),
                         |item| (item.kind.clone(), item.name.clone()),
                         move |item| {
-                            settings_item_view(view_settings_data.clone(), item)
+                            settings_item_view(
+                                editors,
+                                view_settings_data.clone(),
+                                item,
+                            )
                         },
                     )
                     .style(|s| {
@@ -510,7 +512,7 @@ pub fn settings_view(
                 .on_scroll(move |rect| {
                     scroll_pos.set(rect.origin());
                 })
-                .on_ensure_visible(move || ensure_visible.get())
+                .ensure_visible(move || ensure_visible.get())
                 .on_resize(move |rect| {
                     settings_content_size.set(rect.size());
                 })
@@ -523,7 +525,11 @@ pub fn settings_view(
     .style(|s| s.absolute().size_pct(100.0, 100.0))
 }
 
-fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl View {
+fn settings_item_view(
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    settings_data: SettingsData,
+    item: SettingsItem,
+) -> impl View {
     let config = settings_data.common.config;
 
     let is_ticked = if let SettingsValue::Bool(is_ticked) = &item.value {
@@ -548,12 +554,9 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
         move || {
             let cx = Scope::current();
             if let Some(editor_value) = editor_value {
-                let editor = EditorData::new_local(
-                    cx,
-                    EditorId::next(),
-                    settings_data.common,
-                );
-                let doc = editor.view.doc.get_untracked();
+                let editor =
+                    EditorData::new_local(cx, editors, settings_data.common);
+                let doc = editor.doc();
                 doc.reload(Rope::from(editor_value), true);
 
                 let kind = item.kind.clone();
@@ -614,20 +617,13 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     rev
                 });
 
-                container_box(
-                    text_input(editor, || false).keyboard_navigatable().style(
-                        move |s| {
-                            s.width(300.0)
-                                .border(1.0)
-                                .border_radius(6.0)
-                                .border_color(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::LAPCE_BORDER),
-                                )
-                        },
-                    ),
-                )
+                container(text_input(editor, || false).keyboard_navigatable().style(
+                    move |s| {
+                        s.width(300.0).border(1.0).border_radius(6.0).border_color(
+                            config.get().color(LapceColor::LAPCE_BORDER),
+                        )
+                    },
+                ))
             } else if let SettingsValue::Dropdown(dropdown) = item.value {
                 let expanded = create_rw_signal(false);
                 let current_value = dropdown
@@ -645,7 +641,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     let field = field.clone();
                     let local_item_string = item_string.clone();
                     label(move || local_item_string.clone())
-                        .on_click(move |_| {
+                        .on_click_stop(move |_| {
                             current_value.set(item_string.clone());
                             if let Ok(value) = serde::Serialize::serialize(
                                 &item_string,
@@ -654,18 +650,18 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 LapceConfig::update_file(&kind, &field, value);
                             }
                             expanded.set(false);
-                            true
                         })
-                        .style(|s| s.text_ellipsis().padding_horiz(10.0))
-                        .hover_style(move |s| {
-                            s.cursor(CursorStyle::Pointer).background(
-                                *config
-                                    .get()
-                                    .get_color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
+                        .style(move |s| {
+                            s.text_ellipsis().padding_horiz(10.0).hover(|s| {
+                                s.cursor(CursorStyle::Pointer).background(
+                                    config
+                                        .get()
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                )
+                            })
                         })
                 };
-                container_box(
+                container(
                     stack((
                         stack((
                             label(move || current_value.get()).style(move |s| {
@@ -681,19 +677,16 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                     let config = config.get();
                                     let size = config.ui.icon_size() as f32;
                                     s.size(size, size).color(
-                                        *config.get_color(
-                                            LapceColor::LAPCE_ICON_ACTIVE,
-                                        ),
+                                        config.color(LapceColor::LAPCE_ICON_ACTIVE),
                                     )
                                 }),
                             )
                             .style(|s| s.padding_right(4.0)),
                         ))
-                        .on_click(move |_| {
+                        .on_click_stop(move |_| {
                             expanded.update(|expanded| {
                                 *expanded = !*expanded;
                             });
-                            true
                         })
                         .style(move |s| {
                             s.items_center()
@@ -704,16 +697,14 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 .border_radius(6.0)
                                 .apply_if(!expanded.get(), |s| {
                                     s.border_color(
-                                        *config
-                                            .get()
-                                            .get_color(LapceColor::LAPCE_BORDER),
+                                        config.get().color(LapceColor::LAPCE_BORDER),
                                     )
                                 })
                         }),
                         stack((
                             label(|| " ".to_string()),
                             scroll({
-                                list(
+                                dyn_stack(
                                     move || dropdown.items.clone(),
                                     |item| item.to_string(),
                                     view_fn,
@@ -727,25 +718,22 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                             .style(move |s| {
                                 let config = config.get();
                                 s.background(
-                                    *config.get_color(LapceColor::EDITOR_BACKGROUND),
+                                    config.color(LapceColor::EDITOR_BACKGROUND),
                                 )
                                 .width_pct(100.0)
                                 .max_height(300.0)
                                 .z_index(1)
                                 .border_top(1.0)
                                 .border_radius(6.0)
-                                .border_color(
-                                    *config.get_color(LapceColor::LAPCE_BORDER),
-                                )
+                                .border_color(config.color(LapceColor::LAPCE_BORDER))
                                 .apply_if(!expanded.get(), |s| s.hide())
                             }),
                         ))
                         .keyboard_navigatable()
-                        .on_event(EventListener::FocusLost, move |_| {
+                        .on_event_stop(EventListener::FocusLost, move |_| {
                             if expanded.get_untracked() {
                                 expanded.set(false);
                             }
-                            true
                         })
                         .style(move |s| {
                             s.absolute()
@@ -754,9 +742,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                                 .border(1.0)
                                 .border_radius(6.0)
                                 .border_color(
-                                    *config
-                                        .get()
-                                        .get_color(LapceColor::LAPCE_BORDER),
+                                    config.get().color(LapceColor::LAPCE_BORDER),
                                 )
                                 .apply_if(!expanded.get(), |s| {
                                     s.border_color(Color::TRANSPARENT)
@@ -766,17 +752,17 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     .style(move |s| s.width(250.0).line_height(1.8)),
                 )
             } else if item.header {
-                container_box(label(move || item.kind.clone()).style(move |s| {
+                container(label(move || item.kind.clone()).style(move |s| {
                     let config = config.get();
                     s.line_height(2.0)
                         .font_bold()
                         .width_pct(100.0)
                         .padding_horiz(10.0)
                         .font_size(config.ui.font_size() as f32 + 2.0)
-                        .background(*config.get_color(LapceColor::PANEL_BACKGROUND))
+                        .background(config.color(LapceColor::PANEL_BACKGROUND))
                 }))
             } else {
-                container_box(empty())
+                container(empty())
             }
         }
     };
@@ -818,18 +804,17 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                     }
                 });
 
-                container_box(
+                container(
                     stack((
                         checkbox(move || checked.get(), config),
                         label(|| " ".to_string()).style(|s| s.line_height(1.6)),
                     ))
                     .style(|s| s.items_center()),
                 )
-                .on_click(move |_| {
+                .on_click_stop(move |_| {
                     checked.update(|checked| {
                         *checked = !*checked;
                     });
-                    true
                 })
                 .style(|s| {
                     s.absolute()
@@ -838,7 +823,7 @@ fn settings_item_view(settings_data: SettingsData, item: SettingsItem) -> impl V
                         .items_start()
                 })
             } else {
-                container_box(empty()).style(|s| s.hide())
+                container(empty()).style(|s| s.hide())
             },
         )),
         view().style(move |s| s.apply_if(!item.header, |s| s.margin_top(6.0))),
@@ -868,10 +853,10 @@ pub fn checkbox(
     const CHECKBOX_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 16 16"><polygon points="5.19,11.83 0.18,7.44 1.82,5.56 4.81,8.17 10,1.25 12,2.75" /></svg>"#;
     let svg_str = move || if checked() { CHECKBOX_SVG } else { "" }.to_string();
 
-    svg(svg_str).base_style(move |s| {
+    svg(svg_str).style(move |s| {
         let config = config.get();
         let size = config.ui.font_size() as f32;
-        let color = *config.get_color(LapceColor::EDITOR_FOREGROUND);
+        let color = config.color(LapceColor::EDITOR_FOREGROUND);
 
         s.min_width(size)
             .size(size, size)
@@ -880,4 +865,331 @@ pub fn checkbox(
             .border(1.)
             .border_radius(2.)
     })
+}
+
+struct BTreeMapVirtualList(BTreeMap<String, String>);
+
+impl VirtualVector<(String, String)> for BTreeMapVirtualList {
+    fn total_len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn slice(
+        &mut self,
+        range: std::ops::Range<usize>,
+    ) -> impl Iterator<Item = (String, String)> {
+        Box::new(
+            self.0
+                .iter()
+                .enumerate()
+                .filter_map(|(index, (k, v))| {
+                    if range.contains(&index) {
+                        Some((k.to_string(), v.to_string()))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .into_iter(),
+        )
+    }
+}
+
+fn color_section_list(
+    kind: &str,
+    header: &str,
+    list: impl Fn() -> BTreeMap<String, String> + 'static,
+    max_width: Memo<f64>,
+    text_height: Memo<f64>,
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    common: Rc<CommonData>,
+) -> impl View {
+    let config = common.config;
+
+    let kind = kind.to_string();
+    stack((
+        text(header).style(|s| {
+            s.margin_top(10)
+                .margin_horiz(20)
+                .font_bold()
+                .line_height(2.0)
+        }),
+        virtual_stack(
+            VirtualDirection::Vertical,
+            VirtualItemSize::Fixed(Box::new(move || text_height.get() + 24.0)),
+            move || BTreeMapVirtualList(list()),
+            move |(key, _)| (key.to_owned()),
+            move |(key, value)| {
+                let cx = Scope::current();
+                let editor = EditorData::new_local(cx, editors, common.clone());
+                let doc = editor.doc();
+                doc.reload(Rope::from(value.clone()), true);
+
+                {
+                    let kind = kind.clone();
+                    let key = key.clone();
+                    let doc = doc.clone();
+                    create_effect(move |_| {
+                        let config = config.get();
+                        let current = doc.buffer.with_untracked(|b| b.to_string());
+
+                        let value = match kind.as_str() {
+                            "base" => config.color_theme.base.get(&key),
+                            "ui" => config.color_theme.ui.get(&key),
+                            "syntax" => config.color_theme.syntax.get(&key),
+                            _ => None,
+                        };
+
+                        if let Some(value) = value {
+                            if value != &current {
+                                doc.reload(Rope::from(value.to_string()), true);
+                            }
+                        }
+                    });
+                }
+
+                {
+                    let timer = create_rw_signal(TimerToken::INVALID);
+                    let kind = kind.clone();
+                    let field = key.clone();
+                    let doc = doc.clone();
+                    create_effect(move |last| {
+                        let rev = doc.buffer.with(|b| b.rev());
+                        if last.is_none() {
+                            return rev;
+                        }
+                        if last == Some(rev) {
+                            return rev;
+                        }
+                        let kind = kind.clone();
+                        let field = field.clone();
+                        let buffer = doc.buffer;
+                        let token =
+                            exec_after(Duration::from_millis(500), move |token| {
+                                if let Some(timer) = timer.try_get_untracked() {
+                                    if timer == token {
+                                        let value =
+                                            buffer.with_untracked(|b| b.to_string());
+
+                                        let config = config.get_untracked();
+                                        let default = match kind.as_str() {
+                                            "base" => config
+                                                .default_color_theme
+                                                .base
+                                                .get(&field),
+                                            "ui" => config
+                                                .default_color_theme
+                                                .ui
+                                                .get(&field),
+                                            "syntax" => config
+                                                .default_color_theme
+                                                .syntax
+                                                .get(&field),
+                                            _ => None,
+                                        };
+
+                                        if default != Some(&value) {
+                                            let value = serde::Serialize::serialize(
+                                                &value,
+                                                toml_edit::ser::ValueSerializer::new(
+                                                ),
+                                            )
+                                            .ok();
+
+                                            if let Some(value) = value {
+                                                LapceConfig::update_file(
+                                                    &format!("color-theme.{kind}"),
+                                                    &field,
+                                                    value,
+                                                );
+                                            }
+                                        } else {
+                                            LapceConfig::reset_setting(
+                                                &format!("color-theme.{kind}"),
+                                                &field,
+                                            );
+                                        }
+                                    }
+                                }
+                            });
+                        timer.set(token);
+
+                        rev
+                    });
+                }
+
+                let local_kind = kind.clone();
+                let local_key = key.clone();
+                stack((
+                    text(&key).style(move |s| {
+                        s.width(max_width.get()).margin_left(20).margin_right(10)
+                    }),
+                    text_input(editor, || false).keyboard_navigatable().style(
+                        move |s| {
+                            s.width(150.0)
+                                .margin_vert(6)
+                                .border(1)
+                                .border_radius(6)
+                                .border_color(
+                                    config.get().color(LapceColor::LAPCE_BORDER),
+                                )
+                        },
+                    ),
+                    empty().style(move |s| {
+                        let size = text_height.get() + 12.0;
+                        let config = config.get();
+                        let color = match local_kind.as_str() {
+                            "base" => config.color.base.get(&local_key),
+                            "ui" => config.color.ui.get(&local_key),
+                            "syntax" => config.color.syntax.get(&local_key),
+                            _ => None,
+                        };
+                        s.border(1)
+                            .border_radius(6)
+                            .size(size, size)
+                            .margin_left(10)
+                            .border_color(config.color(LapceColor::LAPCE_BORDER))
+                            .background(color.copied().unwrap_or_else(|| {
+                                config.color(LapceColor::EDITOR_FOREGROUND)
+                            }))
+                    }),
+                    {
+                        let kind = kind.clone();
+                        let key = key.clone();
+                        let local_key = key.clone();
+                        let local_kind = kind.clone();
+                        text("Reset")
+                            .on_click_stop(move |_| {
+                                LapceConfig::reset_setting(
+                                    &format!("color-theme.{local_kind}"),
+                                    &local_key,
+                                );
+                            })
+                            .style(move |s| {
+                                let config = config.get();
+                                let buffer = doc.buffer;
+                                let content = buffer.with(|b| b.to_string());
+
+                                let same = match kind.as_str() {
+                                    "base" => {
+                                        config.default_color_theme.base.get(&key)
+                                            == Some(&content)
+                                    }
+                                    "ui" => {
+                                        config.default_color_theme.ui.get(&key)
+                                            == Some(&content)
+                                    }
+                                    "syntax" => {
+                                        config.default_color_theme.syntax.get(&key)
+                                            == Some(&content)
+                                    }
+                                    _ => false,
+                                };
+
+                                s.margin_left(10)
+                                    .padding(6)
+                                    .cursor(CursorStyle::Pointer)
+                                    .border(1)
+                                    .border_radius(6)
+                                    .border_color(
+                                        config.color(LapceColor::LAPCE_BORDER),
+                                    )
+                                    .apply_if(same, |s| s.hide())
+                                    .active(|s| {
+                                        s.background(
+                                            config
+                                                .color(LapceColor::PANEL_BACKGROUND),
+                                        )
+                                    })
+                            })
+                    },
+                ))
+                .style(|s| s.items_center())
+            },
+        )
+        .style(|s| s.flex_col().padding_right(20)),
+    ))
+    .style(|s| s.flex_col())
+}
+
+pub fn theme_color_settings_view(
+    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    common: Rc<CommonData>,
+) -> impl View {
+    let config = common.config;
+
+    let text_height = create_memo(move |_| {
+        let mut text_layout = TextLayout::new();
+        let config = config.get();
+        let family: Vec<FamilyOwned> =
+            FamilyOwned::parse_list(&config.ui.font_family).collect();
+        let attrs = Attrs::new()
+            .family(&family)
+            .font_size(config.ui.font_size() as f32);
+        let attrs_list = AttrsList::new(attrs);
+        text_layout.set_text("W", attrs_list);
+        text_layout.size().height
+    });
+
+    let max_width = create_memo(move |_| {
+        let mut text_layout = TextLayout::new();
+        let config = config.get();
+        let family: Vec<FamilyOwned> =
+            FamilyOwned::parse_list(&config.ui.font_family).collect();
+        let attrs = Attrs::new()
+            .family(&family)
+            .font_size(config.ui.font_size() as f32);
+        let attrs_list = AttrsList::new(attrs);
+
+        let mut max_width = 0.0;
+        for key in config.color_theme.ui.keys() {
+            text_layout.set_text(key, attrs_list.clone());
+            let width = text_layout.size().width;
+            if width > max_width {
+                max_width = width;
+            }
+        }
+        for key in config.color_theme.syntax.keys() {
+            text_layout.set_text(key, attrs_list.clone());
+            let width = text_layout.size().width;
+            if width > max_width {
+                max_width = width;
+            }
+        }
+        max_width
+    });
+
+    scroll(
+        stack((
+            color_section_list(
+                "base",
+                "Base Colors",
+                move || config.with(|c| c.color_theme.base.key_values()),
+                max_width,
+                text_height,
+                editors,
+                common.clone(),
+            ),
+            color_section_list(
+                "syntax",
+                "Syntax Colors",
+                move || config.with(|c| c.color_theme.syntax.clone()),
+                max_width,
+                text_height,
+                editors,
+                common.clone(),
+            ),
+            color_section_list(
+                "ui",
+                "UI Colors",
+                move || config.with(|c| c.color_theme.ui.clone()),
+                max_width,
+                text_height,
+                editors,
+                common.clone(),
+            ),
+        ))
+        .style(|s| s.flex_col()),
+    )
+    .style(|s| s.absolute().size_full())
 }

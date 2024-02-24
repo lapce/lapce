@@ -1,15 +1,24 @@
-use std::{collections::HashMap, rc::Rc, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, rc::Rc, sync::Arc};
 
-use floem::reactive::{RwSignal, Scope};
+use floem::{
+    ext_event::create_ext_action,
+    reactive::{Memo, RwSignal, Scope},
+};
 use lapce_core::mode::Mode;
 use lapce_rpc::{
-    dap_types::{DapId, RunDebugConfig, StackFrame, Stopped, ThreadId},
+    dap_types::{
+        self, DapId, RunDebugConfig, StackFrame, Stopped, ThreadId, Variable,
+    },
+    proxy::ProxyResponse,
     terminal::{TermId, TerminalProfile},
 };
 
 use super::{data::TerminalData, tab::TerminalTabData};
 use crate::{
-    debug::{DapData, RunDebugData, RunDebugMode, RunDebugProcess},
+    debug::{
+        DapData, DapVariable, RunDebugData, RunDebugMode, RunDebugProcess,
+        ScopeOrVar,
+    },
     id::TerminalTabId,
     keypress::{EventRef, KeyPressData, KeyPressFocus},
     panel::kind::PanelKind,
@@ -28,6 +37,7 @@ pub struct TerminalPanelData {
     pub workspace: Arc<LapceWorkspace>,
     pub tab_info: RwSignal<TerminalTabInfo>,
     pub debug: RunDebugData,
+    pub breakline: Memo<Option<(usize, PathBuf)>>,
     pub common: Rc<CommonData>,
 }
 
@@ -52,13 +62,56 @@ impl TerminalPanelData {
         let tab_info = TerminalTabInfo { active: 0, tabs };
         let tab_info = cx.create_rw_signal(tab_info);
 
-        let debug = RunDebugData::new(cx);
+        let debug = RunDebugData::new(cx, common.breakpoints);
+
+        let breakline = {
+            let active_term = debug.active_term;
+            let daps = debug.daps;
+            cx.create_memo(move |_| {
+                let active_term = active_term.get();
+                let active_term = match active_term {
+                    Some(active_term) => active_term,
+                    None => return None,
+                };
+
+                let term = tab_info.with_untracked(|info| {
+                    for (_, tab) in &info.tabs {
+                        let terminal = tab.terminals.with_untracked(|terminals| {
+                            terminals
+                                .iter()
+                                .find(|(_, t)| t.term_id == active_term)
+                                .cloned()
+                        });
+                        if let Some(terminal) = terminal {
+                            return Some(terminal.1);
+                        }
+                    }
+                    None
+                });
+                let term = match term {
+                    Some(term) => term,
+                    None => return None,
+                };
+                let stopped = term
+                    .run_debug
+                    .with(|run_debug| run_debug.as_ref().map(|r| r.stopped))
+                    .unwrap_or(true);
+                if stopped {
+                    return None;
+                }
+
+                let daps = daps.get();
+                let dap = daps.values().find(|d| d.term_id == active_term);
+                dap.and_then(|dap| dap.breakline.get())
+            })
+        };
 
         Self {
             cx,
             workspace,
             tab_info,
             debug,
+            breakline,
             common,
         }
     }
@@ -293,14 +346,50 @@ impl TerminalPanelData {
         }
     }
 
+    pub fn launch_failed(&self, term_id: &TermId, error: &str) {
+        if let Some(terminal) = self.get_terminal(term_id) {
+            terminal.launch_error.set(Some(error.to_string()));
+        }
+    }
+
     pub fn terminal_stopped(&self, term_id: &TermId) {
         if let Some(terminal) = self.get_terminal(term_id) {
             if terminal.run_debug.with_untracked(|r| r.is_some()) {
-                terminal.run_debug.update(|run_debug| {
-                    if let Some(run_debug) = run_debug.as_mut() {
-                        run_debug.stopped = true
+                let was_prelaunch = terminal
+                    .run_debug
+                    .try_update(|run_debug| {
+                        if let Some(run_debug) = run_debug.as_mut() {
+                            if run_debug.is_prelaunch
+                                && run_debug.config.prelaunch.is_some()
+                            {
+                                run_debug.is_prelaunch = false;
+                                if run_debug.mode == RunDebugMode::Debug {
+                                    // set it to be stopped so that the dap can pick the same terminal session
+                                    run_debug.stopped = true;
+                                }
+                                Some(true)
+                            } else {
+                                run_debug.stopped = true;
+                                Some(false)
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+                if was_prelaunch == Some(true) {
+                    let run_debug = terminal.run_debug.get_untracked();
+                    if let Some(run_debug) = run_debug {
+                        if run_debug.mode == RunDebugMode::Debug {
+                            self.common.proxy.dap_start(
+                                run_debug.config,
+                                self.debug.source_breakpoints(),
+                            )
+                        } else {
+                            terminal.new_process(Some(run_debug));
+                        }
                     }
-                });
+                }
             } else {
                 self.close_terminal(term_id);
             }
@@ -355,6 +444,7 @@ impl TerminalPanelData {
 
                 let mut run_debug = run_debug;
                 run_debug.stopped = false;
+                run_debug.is_prelaunch = true;
                 let new_terminal = TerminalData::new(
                     terminal_tab.scope,
                     self.workspace.clone(),
@@ -401,19 +491,25 @@ impl TerminalPanelData {
         }
     }
 
-    fn update_debug_active_term(&self) {
+    pub fn update_debug_active_term(&self) {
         let tab = self.active_tab(false);
         let terminal = tab.and_then(|tab| tab.active_terminal(false));
         if let Some(terminal) = terminal {
             let term_id = terminal.term_id;
             let is_run_debug =
                 terminal.run_debug.with_untracked(|run| run.is_some());
+            let current_active = self.debug.active_term.get_untracked();
             if is_run_debug {
-                let current_active = self.debug.active_term.get_untracked();
                 if current_active != Some(term_id) {
                     self.debug.active_term.set(Some(term_id));
                 }
+            } else if let Some(active) = current_active {
+                if self.get_terminal(&active).is_none() {
+                    self.debug.active_term.set(None);
+                }
             }
+        } else {
+            self.debug.active_term.set(None);
         }
     }
 
@@ -492,6 +588,7 @@ impl TerminalPanelData {
             .daps
             .with_untracked(|daps| daps.get(dap_id).cloned());
         if let Some(dap) = dap {
+            dap.thread_id.set(None);
             dap.stopped.set(false);
         }
     }
@@ -501,14 +598,16 @@ impl TerminalPanelData {
         dap_id: &DapId,
         stopped: &Stopped,
         stack_frames: &HashMap<ThreadId, Vec<StackFrame>>,
+        variables: &[(dap_types::Scope, Vec<Variable>)],
     ) {
         let dap = self
             .debug
             .daps
             .with_untracked(|daps| daps.get(dap_id).cloned());
         if let Some(dap) = dap {
-            dap.stopped(self.cx, stopped, stack_frames);
+            dap.stopped(self.cx, stopped, stack_frames, variables);
         }
+        floem::action::focus_window();
     }
 
     pub fn dap_continue(&self, term_id: TermId) -> Option<()> {
@@ -539,6 +638,48 @@ impl TerminalPanelData {
         Some(())
     }
 
+    pub fn dap_step_over(&self, term_id: TermId) -> Option<()> {
+        let terminal = self.get_terminal(&term_id)?;
+        let dap_id = terminal
+            .run_debug
+            .with_untracked(|r| r.as_ref().map(|r| r.config.dap_id))?;
+        let thread_id = self.debug.daps.with_untracked(|daps| {
+            daps.get(&dap_id)
+                .and_then(|dap| dap.thread_id.get_untracked())
+        });
+        let thread_id = thread_id.unwrap_or_default();
+        self.common.proxy.dap_step_over(dap_id, thread_id);
+        Some(())
+    }
+
+    pub fn dap_step_into(&self, term_id: TermId) -> Option<()> {
+        let terminal = self.get_terminal(&term_id)?;
+        let dap_id = terminal
+            .run_debug
+            .with_untracked(|r| r.as_ref().map(|r| r.config.dap_id))?;
+        let thread_id = self.debug.daps.with_untracked(|daps| {
+            daps.get(&dap_id)
+                .and_then(|dap| dap.thread_id.get_untracked())
+        });
+        let thread_id = thread_id.unwrap_or_default();
+        self.common.proxy.dap_step_into(dap_id, thread_id);
+        Some(())
+    }
+
+    pub fn dap_step_out(&self, term_id: TermId) -> Option<()> {
+        let terminal = self.get_terminal(&term_id)?;
+        let dap_id = terminal
+            .run_debug
+            .with_untracked(|r| r.as_ref().map(|r| r.config.dap_id))?;
+        let thread_id = self.debug.daps.with_untracked(|daps| {
+            daps.get(&dap_id)
+                .and_then(|dap| dap.thread_id.get_untracked())
+        });
+        let thread_id = thread_id.unwrap_or_default();
+        self.common.proxy.dap_step_out(dap_id, thread_id);
+        Some(())
+    }
+
     pub fn get_active_dap(&self, tracked: bool) -> Option<DapData> {
         let active_term = if tracked {
             self.debug.active_term.get()?
@@ -566,6 +707,55 @@ impl TerminalPanelData {
             self.debug
                 .daps
                 .with_untracked(|daps| daps.get(&dap_id).cloned())
+        }
+    }
+
+    pub fn dap_frame_scopes(&self, dap_id: DapId, frame_id: usize) {
+        if let Some(dap) = self.debug.daps.get_untracked().get(&dap_id) {
+            let variables = dap.variables;
+            let send = create_ext_action(self.common.scope, move |result| {
+                if let Ok(ProxyResponse::DapGetScopesResponse { scopes }) = result {
+                    variables.update(|dap_var| {
+                        dap_var.children = scopes
+                            .iter()
+                            .enumerate()
+                            .map(|(i, (scope, vars))| DapVariable {
+                                item: ScopeOrVar::Scope(scope.to_owned()),
+                                parent: Vec::new(),
+                                expanded: i == 0,
+                                read: i == 0,
+                                children: vars
+                                    .iter()
+                                    .map(|var| DapVariable {
+                                        item: ScopeOrVar::Var(var.to_owned()),
+                                        parent: vec![scope.variables_reference],
+                                        expanded: false,
+                                        read: false,
+                                        children: Vec::new(),
+                                        children_expanded_count: 0,
+                                    })
+                                    .collect(),
+                                children_expanded_count: if i == 0 {
+                                    vars.len()
+                                } else {
+                                    0
+                                },
+                            })
+                            .collect();
+                        dap_var.children_expanded_count = dap_var
+                            .children
+                            .iter()
+                            .map(|v| v.children_expanded_count + 1)
+                            .sum::<usize>();
+                    });
+                }
+            });
+
+            self.common
+                .proxy
+                .dap_get_scopes(dap_id, frame_id, move |result| {
+                    send(result);
+                });
         }
     }
 }

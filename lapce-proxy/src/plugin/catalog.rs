@@ -9,14 +9,16 @@ use std::{
     thread,
 };
 
+use lapce_rpc::plugin::VoltInfo;
 use lapce_rpc::{
-    dap_types::{DapId, DapServer, SetBreakpointsResponse},
+    dap_types::{self, DapId, DapServer, SetBreakpointsResponse},
     plugin::{PluginId, VoltID, VoltMetadata},
     proxy::ProxyResponse,
     style::LineStyle,
     RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
+use lsp_types::request::Request;
 use lsp_types::{
     notification::DidOpenTextDocument, DidOpenTextDocumentParams, SemanticTokens,
     TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier,
@@ -26,7 +28,7 @@ use psp_types::Notification;
 use serde_json::Value;
 
 use super::{
-    dap::{DapClient, DapRpcHandler},
+    dap::{DapClient, DapRpcHandler, DebuggerData},
     psp::{ClonableCallback, PluginServerRpc, PluginServerRpcHandler, RpcCallback},
     wasi::{load_all_volts, start_volt},
     PluginCatalogNotification, PluginCatalogRpcHandler,
@@ -40,6 +42,7 @@ pub struct PluginCatalog {
     plugin_rpc: PluginCatalogRpcHandler,
     plugins: HashMap<PluginId, PluginServerRpcHandler>,
     daps: HashMap<DapId, DapRpcHandler>,
+    debuggers: HashMap<String, DebuggerData>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
     unactivated_volts: HashMap<VoltID, VoltMetadata>,
     open_files: HashMap<PathBuf, String>,
@@ -52,41 +55,13 @@ impl PluginCatalog {
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
-        {
-            thread::spawn(move || {
-                // let mut dap = DapClient::new(
-                //     workspace,
-                //     Url::parse("file:///opt/homebrew/opt/llvm@14/bin/lldb-vscode")
-                //         .unwrap(),
-                //     Vec::new(),
-                //     core_rpc,
-                // )
-                // .unwrap();
-                // let dap_rpc = dap.dap_rpc.clone();
-                // // let _ = dap.initialize();
-
-                // {
-                //     let dap_rpc = dap_rpc.clone();
-                //     thread::spawn(move || {
-                //         dap_rpc.mainloop(&mut dap);
-                //     });
-                // }
-
-                // std::thread::sleep(std::time::Duration::from_secs(1));
-                // let _ = dap_rpc.launch(serde_json::json!({
-                //     "program": "/Users/dz/lapce/target/debug/lapce",
-                //     "args": vec!["--wait", "--new"],
-                //     "runInTerminal": true,
-                // }));
-            });
-        }
-
         let plugin = Self {
             workspace,
             plugin_rpc: plugin_rpc.clone(),
             plugin_configurations,
             plugins: HashMap::new(),
             daps: HashMap::new(),
+            debuggers: HashMap::new(),
             unactivated_volts: HashMap::new(),
             open_files: HashMap::new(),
         };
@@ -198,6 +173,31 @@ impl PluginCatalog {
                 path.clone(),
                 check,
             );
+        }
+    }
+
+    pub fn shutdown_volt(
+        &mut self,
+        volt: VoltInfo,
+        f: Box<dyn ClonableCallback<Value, RpcError>>,
+    ) {
+        let id = volt.id();
+        for (plugin_id, plugin) in self.plugins.iter() {
+            if plugin.volt_id == id {
+                let f = dyn_clone::clone_box(&*f);
+                let plugin_id = *plugin_id;
+                plugin.server_request_async(
+                    lsp_types::request::Shutdown::METHOD,
+                    Value::Null,
+                    None,
+                    None,
+                    false,
+                    move |result| {
+                        f(plugin_id, result);
+                    },
+                );
+                plugin.shutdown();
+            }
         }
     }
 
@@ -363,6 +363,100 @@ impl PluginCatalog {
         }
     }
 
+    pub fn dap_variable(
+        &self,
+        dap_id: DapId,
+        reference: usize,
+        f: Box<dyn RpcCallback<Vec<dap_types::Variable>, RpcError>>,
+    ) {
+        if let Some(dap) = self.daps.get(&dap_id) {
+            dap.variables_async(
+                reference,
+                |result: Result<dap_types::VariablesResponse, RpcError>| {
+                    f.call(result.map(|resp| resp.variables))
+                },
+            );
+        } else {
+            f.call(Err(RpcError {
+                code: 0,
+                message: "plugin doesn't exist".to_string(),
+            }));
+        }
+    }
+
+    pub fn dap_get_scopes(
+        &self,
+        dap_id: DapId,
+        frame_id: usize,
+        f: Box<
+            dyn RpcCallback<
+                Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
+                RpcError,
+            >,
+        >,
+    ) {
+        if let Some(dap) = self.daps.get(&dap_id) {
+            let local_dap = dap.clone();
+            dap.scopes_async(
+                frame_id,
+                move |result: Result<dap_types::ScopesResponse, RpcError>| {
+                    match result {
+                        Ok(resp) => {
+                            let scopes = resp.scopes.clone();
+                            if let Some(scope) = resp.scopes.first() {
+                                let scope = scope.to_owned();
+                                thread::spawn(move || {
+                                    local_dap.variables_async(
+                                        scope.variables_reference,
+                                        move |result: Result<
+                                            dap_types::VariablesResponse,
+                                            RpcError,
+                                        >| {
+                                            let resp: Vec<(
+                                                dap_types::Scope,
+                                                Vec<dap_types::Variable>,
+                                            )> = scopes
+                                                .iter()
+                                                .enumerate()
+                                                .map(|(index, s)| {
+                                                    (
+                                                        s.clone(),
+                                                        if index == 0 {
+                                                            result
+                                                                .as_ref()
+                                                                .map(|resp| {
+                                                                    resp.variables
+                                                                        .clone()
+                                                                })
+                                                                .unwrap_or_default()
+                                                        } else {
+                                                            Vec::new()
+                                                        },
+                                                    )
+                                                })
+                                                .collect();
+                                            f.call(Ok(resp));
+                                        },
+                                    );
+                                });
+                            } else {
+                                f.call(Ok(Vec::new()));
+                            }
+                        }
+                        Err(e) => {
+                            f.call(Err(e));
+                        }
+                    }
+                },
+            );
+        } else {
+            f.call(Err(RpcError {
+                code: 0,
+                message: "plugin doesn't exist".to_string(),
+            }));
+        }
+    }
+
     pub fn handle_notification(&mut self, notification: PluginCatalogNotification) {
         use PluginCatalogNotification::*;
         match notification {
@@ -416,7 +510,7 @@ impl PluginCatalog {
                 let configurations =
                     self.plugin_configurations.get(&volt.name).cloned();
                 let catalog_rpc = self.plugin_rpc.clone();
-                let _ = catalog_rpc.stop_volt(volt.clone());
+                catalog_rpc.stop_volt(volt.clone());
                 thread::spawn(move || {
                     let _ =
                         install_volt(catalog_rpc, workspace, configurations, volt);
@@ -467,23 +561,28 @@ impl PluginCatalog {
             } => {
                 let workspace = self.workspace.clone();
                 let plugin_rpc = self.plugin_rpc.clone();
-                thread::spawn(move || {
-                    if let Ok(dap_rpc) = DapClient::start(
-                        DapServer {
-                            program: "/opt/homebrew/opt/llvm@14/bin/lldb-vscode"
-                                .to_string(),
-                            args: Vec::new(),
-                            cwd: workspace,
-                        },
-                        config.clone(),
-                        breakpoints,
-                        plugin_rpc.clone(),
-                    ) {
-                        let _ = plugin_rpc.dap_loaded(dap_rpc.clone());
+                if let Some(debugger) = config
+                    .ty
+                    .as_ref()
+                    .and_then(|ty| self.debuggers.get(ty).cloned())
+                {
+                    thread::spawn(move || {
+                        if let Ok(dap_rpc) = DapClient::start(
+                            DapServer {
+                                program: debugger.program,
+                                args: debugger.args.unwrap_or_default(),
+                                cwd: workspace,
+                            },
+                            config.clone(),
+                            breakpoints,
+                            plugin_rpc.clone(),
+                        ) {
+                            let _ = plugin_rpc.dap_loaded(dap_rpc.clone());
 
-                        let _ = dap_rpc.launch(&config);
-                    }
-                });
+                            let _ = dap_rpc.launch(&config);
+                        }
+                    });
+                }
             }
             DapProcessId {
                 dap_id,
@@ -509,6 +608,21 @@ impl PluginCatalog {
                     thread::spawn(move || {
                         let _ = dap.pause_thread(thread_id);
                     });
+                }
+            }
+            DapStepOver { dap_id, thread_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    dap.next(thread_id);
+                }
+            }
+            DapStepInto { dap_id, thread_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    dap.step_in(thread_id);
+                }
+            }
+            DapStepOut { dap_id, thread_id } => {
+                if let Some(dap) = self.daps.get(&dap_id).cloned() {
+                    dap.step_out(thread_id);
                 }
             }
             DapStop { dap_id } => {
@@ -552,6 +666,20 @@ impl PluginCatalog {
                         },
                     );
                 }
+            }
+            RegisterDebuggerType {
+                debugger_type,
+                program,
+                args,
+            } => {
+                self.debuggers.insert(
+                    debugger_type.clone(),
+                    DebuggerData {
+                        debugger_type,
+                        program,
+                        args,
+                    },
+                );
             }
             Shutdown => {
                 for (_, plugin) in self.plugins.iter() {

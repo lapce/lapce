@@ -122,9 +122,17 @@ impl KeyMapLoader {
                 .get("command")
                 .and_then(|c| c.as_str())
                 .map(|w| w.trim().to_string())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
         }))
     }
+}
+
+fn get_modes(toml_keymap: &toml_edit::Table) -> Modes {
+    toml_keymap
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .map(Modes::parse)
+        .unwrap_or_else(Modes::empty)
 }
 
 #[cfg(test)]
@@ -227,12 +235,4 @@ command = "goto_definition"
         let keypress = KeyPress::parse("Ctrl+MouseMiddle");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
     }
-}
-
-fn get_modes(toml_keymap: &toml_edit::Table) -> Modes {
-    toml_keymap
-        .get("mode")
-        .and_then(|v| v.as_str())
-        .map(Modes::parse)
-        .unwrap_or_else(Modes::empty)
 }

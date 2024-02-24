@@ -8,14 +8,15 @@
 
 use std::{
     cell::RefCell,
-    collections::{HashSet, VecDeque},
+    collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
     mem,
     path::Path,
     sync::{atomic::AtomicUsize, Arc},
 };
 
+use floem_editor_core::util::{matching_bracket_general, matching_pair_direction};
 use itertools::Itertools;
-use lapce_rpc::style::Style;
+use lapce_rpc::style::{LineStyle, Style};
 use lapce_xi_rope::{
     spans::{Spans, SpansBuilder},
     Interval, Rope,
@@ -31,14 +32,16 @@ use self::{
         HighlightConfiguration, HighlightEvent, HighlightIter, HighlightIterLayer,
         IncludedChildren, LocalScope,
     },
-    util::{matching_bracket_general, matching_pair_direction, RopeProvider},
+    util::RopeProvider,
 };
 use crate::{
-    language::LapceLanguage,
+    buffer::rope_text::RopeText,
+    language::{self, LapceLanguage},
     lens::{Lens, LensBuilder},
     style::SCOPES,
 };
 
+use crate::buffer::Buffer;
 pub mod edit;
 pub mod highlight;
 pub mod util;
@@ -66,6 +69,309 @@ pub enum Error {
     InvalidLanguage,
     #[error("Unknown error")]
     Unknown,
+}
+
+#[derive(Clone, Debug)]
+pub enum NodeType {
+    LeftParen,
+    RightParen,
+    LeftBracket,
+    RightBracket,
+    LeftCurly,
+    RightCurly,
+    Pair,
+    Code,
+    Dummy,
+}
+
+#[derive(Clone, Debug)]
+pub enum BracketParserMode {
+    Parsing,
+    NoParsing,
+}
+
+#[derive(Clone, Debug)]
+pub struct ASTNode {
+    pub tt: NodeType,
+    pub len: usize,
+    pub children: Vec<ASTNode>,
+    pub level: usize,
+}
+
+impl ASTNode {
+    pub fn new() -> Self {
+        Self {
+            tt: NodeType::Dummy,
+            len: 0,
+            children: vec![],
+            level: 0,
+        }
+    }
+
+    pub fn new_with_type(tt: NodeType, len: usize) -> Self {
+        Self {
+            tt,
+            len,
+            children: vec![],
+            level: 0,
+        }
+    }
+}
+
+impl Default for ASTNode {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BracketParser {
+    pub code: Vec<char>,
+    pub cur: usize,
+    pub ast: ASTNode,
+    bracket_set: HashMap<char, ASTNode>,
+    pub bracket_pos: HashMap<usize, Vec<LineStyle>>,
+    mode: BracketParserMode,
+    noparsing_token: Vec<char>,
+    pub active: bool,
+    pub limit: u64,
+}
+
+impl BracketParser {
+    pub fn new(code: String, active: bool, limit: u64) -> Self {
+        Self {
+            code: code.chars().collect(),
+            cur: 0,
+            ast: ASTNode::new(),
+            bracket_set: HashMap::from([
+                ('(', ASTNode::new_with_type(NodeType::LeftParen, 1)),
+                (')', ASTNode::new_with_type(NodeType::RightParen, 1)),
+                ('{', ASTNode::new_with_type(NodeType::LeftCurly, 1)),
+                ('}', ASTNode::new_with_type(NodeType::RightCurly, 1)),
+                ('[', ASTNode::new_with_type(NodeType::LeftBracket, 1)),
+                (']', ASTNode::new_with_type(NodeType::RightBracket, 1)),
+            ]),
+            bracket_pos: HashMap::new(),
+            mode: BracketParserMode::Parsing,
+            noparsing_token: vec!['\'', '"', '`'],
+            active,
+            limit,
+        }
+    }
+
+    /*pub fn enable(&self) {
+        *(self.active.borrow_mut()) = true;
+    }
+
+    pub fn disable(&self) {
+        *(self.active.borrow_mut()) = false;
+    }*/
+
+    pub fn update_code(
+        &mut self,
+        code: String,
+        buffer: &Buffer,
+        syntax: Option<Syntax>,
+    ) {
+        let palette = vec![
+            "bracket.color.1".to_string(),
+            "bracket.color.2".to_string(),
+            "bracket.color.3".to_string(),
+        ];
+        if self.active
+            && code
+                .chars()
+                .fold(0, |i, c| if c == '\n' { i + 1 } else { i })
+                < self.limit as usize
+        {
+            self.bracket_pos = HashMap::new();
+            if let Some(syntax) = syntax {
+                if let Some(layers) = syntax.layers {
+                    if let Some(tree) = layers.try_tree() {
+                        let mut walk_cursor = tree.walk();
+                        let mut bracket_pos: HashMap<usize, Vec<LineStyle>> =
+                            HashMap::new();
+                        language::walk_tree_bracket_ast(
+                            &mut walk_cursor,
+                            &mut 0,
+                            &mut 0,
+                            &mut bracket_pos,
+                            &palette,
+                        );
+                        self.bracket_pos = bracket_pos;
+                    }
+                }
+            } else {
+                self.code = code.chars().collect();
+                self.cur = 0;
+                self.parse();
+                let mut pos_vec = vec![];
+                Self::highlight_pos(
+                    &self.ast,
+                    &mut pos_vec,
+                    &mut 0usize,
+                    &mut 0usize,
+                    &palette,
+                );
+                if buffer.is_empty() {
+                    return;
+                }
+                for (offset, color) in pos_vec.iter() {
+                    let (line, col) = buffer.offset_to_line_col(*offset);
+                    let line_style = LineStyle {
+                        start: col,
+                        end: col + 1,
+                        style: Style {
+                            fg_color: Some(color.clone()),
+                        },
+                    };
+                    match self.bracket_pos.entry(line) {
+                        Entry::Vacant(v) => _ = v.insert(vec![line_style.clone()]),
+                        Entry::Occupied(mut o) => {
+                            o.get_mut().push(line_style.clone())
+                        }
+                    }
+                }
+            }
+        } else {
+            self.bracket_pos = HashMap::new();
+        }
+    }
+
+    fn is_left(c: &char) -> bool {
+        if *c == '(' || *c == '{' || *c == '[' {
+            return true;
+        }
+        false
+    }
+
+    fn parse(&mut self) {
+        let new_ast = &mut ASTNode::new();
+        self.parse_bracket(0, new_ast);
+        self.ast = new_ast.clone();
+        Self::patch_len(&mut self.ast);
+        self.cur = 0;
+    }
+
+    fn parse_bracket(&mut self, level: usize, parent_node: &mut ASTNode) {
+        let mut counter = 0usize;
+        while self.cur < self.code.len() {
+            if self.noparsing_token.contains(&self.code[self.cur]) {
+                if matches!(self.mode, BracketParserMode::Parsing) {
+                    self.mode = BracketParserMode::NoParsing;
+                } else {
+                    self.mode = BracketParserMode::Parsing;
+                }
+            }
+            if self.bracket_set.contains_key(&self.code[self.cur])
+                && matches!(self.mode, BracketParserMode::Parsing)
+            {
+                if Self::is_left(&self.code[self.cur]) {
+                    let code_node = ASTNode::new_with_type(NodeType::Code, counter);
+                    let left_node =
+                        self.bracket_set.get(&self.code[self.cur]).unwrap().clone();
+                    let mut pair_node =
+                        ASTNode::new_with_type(NodeType::Pair, counter + 1);
+                    pair_node.level = level;
+                    pair_node.children.push(code_node);
+                    pair_node.children.push(left_node);
+                    self.cur += 1;
+                    self.parse_bracket(level + 1, &mut pair_node);
+                    parent_node.children.push(pair_node.clone());
+                    counter = 0;
+                } else if level <= parent_node.level {
+                    let code_node = ASTNode::new_with_type(NodeType::Code, counter);
+                    let right_node =
+                        self.bracket_set.get(&self.code[self.cur]).unwrap().clone();
+                    parent_node.children.push(code_node);
+                    parent_node.children.push(right_node);
+                    let parent_len = parent_node.len;
+                    parent_node.len = parent_len + counter + 1;
+                    counter = 0;
+                    self.cur += 1;
+                } else {
+                    let code_node = ASTNode::new_with_type(NodeType::Code, counter);
+                    let right_node =
+                        self.bracket_set.get(&self.code[self.cur]).unwrap().clone();
+                    parent_node.children.push(code_node);
+                    parent_node.children.push(right_node);
+                    let parent_len = parent_node.len;
+                    parent_node.len = parent_len + counter + 1;
+                    self.cur += 1;
+                    return;
+                }
+            } else {
+                counter += self.code[self.cur].len_utf8();
+                self.cur += 1;
+            }
+        }
+    }
+
+    fn patch_len(ast: &mut ASTNode) {
+        if !ast.children.is_empty() {
+            let mut len = 0usize;
+            for n in ast.children.iter_mut() {
+                match n.tt {
+                    NodeType::LeftCurly => len += 1,
+                    NodeType::RightCurly => len += 1,
+                    NodeType::LeftParen => len += 1,
+                    NodeType::RightParen => len += 1,
+                    NodeType::LeftBracket => len += 1,
+                    NodeType::RightBracket => len += 1,
+                    NodeType::Code => len += n.len,
+                    NodeType::Pair => {
+                        Self::patch_len(n);
+                        len += n.len;
+                    }
+                    _ => break,
+                }
+            }
+            ast.len = len;
+        }
+    }
+
+    fn highlight_pos(
+        ast: &ASTNode,
+        pos_vec: &mut Vec<(usize, String)>,
+        index: &mut usize,
+        level: &mut usize,
+        palette: &Vec<String>,
+    ) {
+        if !ast.children.is_empty() {
+            for n in ast.children.iter() {
+                match n.tt {
+                    NodeType::LeftCurly
+                    | NodeType::LeftParen
+                    | NodeType::LeftBracket => {
+                        pos_vec
+                            .push((*index, palette[*level % palette.len()].clone()));
+                        *level += 1;
+                        *index += 1;
+                    }
+                    NodeType::RightCurly
+                    | NodeType::RightParen
+                    | NodeType::RightBracket => {
+                        let (new_level, overflow) = (*level).overflowing_sub(1);
+                        if overflow {
+                            pos_vec.push((*index, "bracket.unpaired".to_string()));
+                        } else {
+                            *level = new_level;
+                            pos_vec.push((
+                                *index,
+                                palette[*level % palette.len()].clone(),
+                            ));
+                        }
+                        *index += 1;
+                    }
+                    NodeType::Code => *index += n.len,
+                    NodeType::Pair => {
+                        Self::highlight_pos(n, pos_vec, index, level, palette)
+                    }
+                    _ => break,
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -823,6 +1129,11 @@ impl Syntax {
     }
 
     pub fn find_enclosing_pair(&self, offset: usize) -> Option<(usize, usize)> {
+        if self.language == LapceLanguage::Markdown {
+            // TODO: fix the issue that sometimes node.prev_sibling can stuck for markdown
+            return None;
+        }
+
         if offset >= self.text.len() {
             return None;
         }

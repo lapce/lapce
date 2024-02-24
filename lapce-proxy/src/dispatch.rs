@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs,
+    fs, io,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -13,7 +13,8 @@ use std::{
 use alacritty_terminal::{event::WindowSize, event_loop::Msg};
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
-use git2::{build::CheckoutBuilder, DiffOptions, Repository};
+use git2::ErrorCode::NotFound;
+use git2::{build::CheckoutBuilder, DiffOptions, Oid, Repository};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{sinks::UTF8, SearcherBuilder};
@@ -31,13 +32,15 @@ use lapce_rpc::{
     RequestId, RpcError,
 };
 use lapce_xi_rope::Rope;
-use lsp_types::{Position, Range, TextDocumentItem, Url};
+use lsp_types::{
+    MessageType, Position, Range, ShowMessageParams, TextDocumentItem, Url,
+};
 use parking_lot::Mutex;
 
 use crate::{
     buffer::{get_mod_time, load_file, Buffer},
-    plugin::{catalog::PluginCatalog, remove_volt, PluginCatalogRpcHandler},
-    terminal::Terminal,
+    plugin::{catalog::PluginCatalog, PluginCatalogRpcHandler},
+    terminal::{Terminal, TerminalSender},
     watcher::{FileWatcher, Notify, WatchToken},
 };
 
@@ -50,8 +53,7 @@ pub struct Dispatcher {
     core_rpc: CoreRpcHandler,
     catalog_rpc: PluginCatalogRpcHandler,
     buffers: HashMap<PathBuf, Buffer>,
-    #[allow(deprecated)]
-    terminals: HashMap<TermId, mio::channel::Sender<Msg>>,
+    terminals: HashMap<TermId, TerminalSender>,
     file_watcher: FileWatcher,
     window_id: usize,
     tab_id: usize,
@@ -136,8 +138,7 @@ impl ProxyHandler for Dispatcher {
             Shutdown {} => {
                 self.catalog_rpc.shutdown();
                 for (_, sender) in self.terminals.iter() {
-                    #[allow(deprecated)]
-                    let _ = sender.send(Msg::Shutdown);
+                    sender.send(Msg::Shutdown);
                 }
                 self.proxy_rpc.shutdown();
             }
@@ -157,7 +158,13 @@ impl ProxyHandler for Dispatcher {
                 let _ = self.catalog_rpc.update_plugin_configs(configs);
             }
             NewTerminal { term_id, profile } => {
-                let mut terminal = Terminal::new(term_id, profile, 50, 10);
+                let mut terminal = match Terminal::new(term_id, profile, 50, 10) {
+                    Ok(terminal) => terminal,
+                    Err(e) => {
+                        self.core_rpc.terminal_launch_failed(term_id, e.to_string());
+                        return;
+                    }
+                };
 
                 #[allow(unused)]
                 let mut child_id = None;
@@ -173,7 +180,9 @@ impl ProxyHandler for Dispatcher {
 
                 self.core_rpc.terminal_process_id(term_id, child_id);
                 let tx = terminal.tx.clone();
-                self.terminals.insert(term_id, tx);
+                let poller = terminal.poller.clone();
+                let sender = TerminalSender::new(tx, poller);
+                self.terminals.insert(term_id, sender);
                 let rpc = self.core_rpc.clone();
                 thread::spawn(move || {
                     terminal.run(rpc);
@@ -181,8 +190,7 @@ impl ProxyHandler for Dispatcher {
             }
             TerminalWrite { term_id, content } => {
                 if let Some(tx) = self.terminals.get(&term_id) {
-                    #[allow(deprecated)]
-                    let _ = tx.send(Msg::Input(content.into_bytes().into()));
+                    tx.send(Msg::Input(content.into_bytes().into()));
                 }
             }
             TerminalResize {
@@ -198,14 +206,12 @@ impl ProxyHandler for Dispatcher {
                         cell_height: 1,
                     };
 
-                    #[allow(deprecated)]
-                    let _ = tx.send(Msg::Resize(size));
+                    tx.send(Msg::Resize(size));
                 }
             }
             TerminalClose { term_id } => {
                 if let Some(tx) = self.terminals.remove(&term_id) {
-                    #[allow(deprecated)]
-                    let _ = tx.send(Msg::Shutdown);
+                    tx.send(Msg::Shutdown);
                 }
             }
             DapStart {
@@ -226,6 +232,15 @@ impl ProxyHandler for Dispatcher {
             }
             DapPause { dap_id, thread_id } => {
                 let _ = self.catalog_rpc.dap_pause(dap_id, thread_id);
+            }
+            DapStepOver { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_step_over(dap_id, thread_id);
+            }
+            DapStepInto { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_step_into(dap_id, thread_id);
+            }
+            DapStepOut { dap_id, thread_id } => {
+                let _ = self.catalog_rpc.dap_step_out(dap_id, thread_id);
             }
             DapStop { dap_id } => {
                 let _ = self.catalog_rpc.dap_stop(dap_id);
@@ -256,14 +271,10 @@ impl ProxyHandler for Dispatcher {
                 let _ = self.catalog_rpc.reload_volt(volt);
             }
             RemoveVolt { volt } => {
-                let catalog_rpc = self.catalog_rpc.clone();
-                let _ = catalog_rpc.stop_volt(volt.info());
-                thread::spawn(move || {
-                    let _ = remove_volt(catalog_rpc, volt);
-                });
+                self.catalog_rpc.remove_volt(volt);
             }
             DisableVolt { volt } => {
-                let _ = self.catalog_rpc.stop_volt(volt);
+                self.catalog_rpc.stop_volt(volt);
             }
             EnableVolt { volt } => {
                 let _ = self.catalog_rpc.enable_volt(volt);
@@ -272,7 +283,15 @@ impl ProxyHandler for Dispatcher {
                 if let Some(workspace) = self.workspace.as_ref() {
                     match git_commit(workspace, &message, diffs) {
                         Ok(()) => (),
-                        Err(e) => eprintln!("{e:?}"),
+                        Err(e) => {
+                            self.core_rpc.show_message(
+                                "Git Commit failure".to_owned(),
+                                ShowMessageParams {
+                                    typ: MessageType::ERROR,
+                                    message: e.to_string(),
+                                },
+                            );
+                        }
                     }
                 }
             }
@@ -509,6 +528,24 @@ impl ProxyHandler for Dispatcher {
                         proxy_rpc.handle_response(id, result);
                     });
             }
+            GetInlineCompletions {
+                path,
+                position,
+                trigger_kind,
+            } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.get_inline_completions(
+                    &path,
+                    position,
+                    trigger_kind,
+                    move |_, result| {
+                        let result = result.map(|completions| {
+                            ProxyResponse::GetInlineCompletions { completions }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
             GetSemanticTokens { path } => {
                 let buffer = self.buffers.get(&path).unwrap();
                 let text = buffer.rope.clone();
@@ -718,10 +755,14 @@ impl ProxyHandler for Dispatcher {
                     proxy_rpc.handle_response(id, result);
                 });
             }
-            Save { rev, path } => {
+            Save {
+                rev,
+                path,
+                create_parents,
+            } => {
                 let buffer = self.buffers.get_mut(&path).unwrap();
                 let result = buffer
-                    .save(rev)
+                    .save(rev, create_parents)
                     .map(|_r| {
                         self.catalog_rpc
                             .did_save_text_document(&path, buffer.rope.clone());
@@ -738,12 +779,13 @@ impl ProxyHandler for Dispatcher {
                 path,
                 rev,
                 content,
+                create_parents,
             } => {
                 let mut buffer = Buffer::new(buffer_id, path.clone());
                 buffer.rope = Rope::from(content);
                 buffer.rev = rev;
                 let result = buffer
-                    .save(rev)
+                    .save(rev, create_parents)
                     .map(|_| ProxyResponse::Success {})
                     .map_err(|e| RpcError {
                         code: 0,
@@ -822,18 +864,111 @@ impl ProxyHandler for Dispatcher {
                 // We first check if the destination already exists, because rename can overwrite it
                 // and that's not the default behavior we want for when a user renames a document.
                 let result = if to.exists() {
-                    Err(RpcError {
-                        code: 0,
-                        message: format!("{to:?} already exists"),
-                    })
+                    Err(format!("{} already exists", to.display()))
                 } else {
-                    std::fs::rename(from, to)
-                        .map(|_| ProxyResponse::Success {})
-                        .map_err(|e| RpcError {
-                            code: 0,
-                            message: e.to_string(),
-                        })
+                    Ok(())
                 };
+
+                let result = result.and_then(|_| {
+                    if let Some(parent) = to.parent() {
+                        fs::create_dir_all(parent).map_err(|e| {
+                            if let io::ErrorKind::AlreadyExists = e.kind() {
+                                format!(
+                                    "{} has a parent that is not a directory",
+                                    to.display()
+                                )
+                            } else {
+                                e.to_string()
+                            }
+                        })
+                    } else {
+                        Ok(())
+                    }
+                });
+
+                let result = result
+                    .and_then(|_| fs::rename(&from, &to).map_err(|e| e.to_string()));
+
+                let result = result
+                    .map(|_| {
+                        let to = to.canonicalize().unwrap_or(to);
+
+                        let (is_dir, is_file) = to
+                            .metadata()
+                            .map(|metadata| (metadata.is_dir(), metadata.is_file()))
+                            .unwrap_or((false, false));
+
+                        if is_dir {
+                            // Update all buffers in which a file the renamed directory is an
+                            // ancestor of is open to use the file's new path.
+                            // This could be written more nicely if `HashMap::extract_if` were
+                            // stable.
+                            let child_buffers: Vec<_> = self
+                                .buffers
+                                .keys()
+                                .filter_map(|path| {
+                                    path.strip_prefix(&from).ok().map(|suffix| {
+                                        (path.clone(), suffix.to_owned())
+                                    })
+                                })
+                                .collect();
+
+                            for (path, suffix) in child_buffers {
+                                if let Some(mut buffer) = self.buffers.remove(&path)
+                                {
+                                    let new_path = to.join(suffix);
+                                    buffer.path = new_path;
+
+                                    self.buffers.insert(buffer.path.clone(), buffer);
+                                }
+                            }
+                        } else if is_file {
+                            // If the renamed file is open in a buffer, update it to use the new
+                            // path.
+                            let buffer = self.buffers.remove(&from);
+
+                            if let Some(mut buffer) = buffer {
+                                buffer.path = to.clone();
+                                self.buffers.insert(to.clone(), buffer);
+                            }
+                        }
+
+                        ProxyResponse::CreatePathResponse { path: to }
+                    })
+                    .map_err(|message| RpcError { code: 0, message });
+
+                self.respond_rpc(id, result);
+            }
+            TestCreateAtPath { path } => {
+                // This performs a best effort test to see if an attempt to create an item at
+                // `path` or rename an item to `path` will succeed.
+                // Currently the only conditions that are tested are that `path` doesn't already
+                // exist and that `path` doesn't have a parent that exists and is not a directory.
+                let result = if path.exists() {
+                    Err(format!("{} already exists", path.display()))
+                } else {
+                    Ok(path)
+                };
+
+                let result = result
+                    .and_then(|path| {
+                        let parent_is_dir = path
+                            .ancestors()
+                            .skip(1)
+                            .find(|parent| parent.exists())
+                            .map_or(true, |parent| parent.is_dir());
+
+                        if parent_is_dir {
+                            Ok(ProxyResponse::Success {})
+                        } else {
+                            Err(format!(
+                                "{} has a parent that is not a directory",
+                                path.display()
+                            ))
+                        }
+                    })
+                    .map_err(|message| RpcError { code: 0, message });
+
                 self.respond_rpc(id, result);
             }
             GetSelectionRange { positions, path } => {
@@ -866,6 +1001,30 @@ impl ProxyHandler for Dispatcher {
                         proxy_rpc.handle_response(id, result);
                     },
                 );
+            }
+            DapVariable { dap_id, reference } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc
+                    .dap_variable(dap_id, reference, move |result| {
+                        proxy_rpc.handle_response(
+                            id,
+                            result.map(|resp| ProxyResponse::DapVariableResponse {
+                                varialbes: resp,
+                            }),
+                        );
+                    });
+            }
+            DapGetScopes { dap_id, frame_id } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc
+                    .dap_get_scopes(dap_id, frame_id, move |result| {
+                        proxy_rpc.handle_response(
+                            id,
+                            result.map(|resp| ProxyResponse::DapGetScopesResponse {
+                                scopes: resp,
+                            }),
+                        );
+                    });
             }
         }
     }
@@ -1053,18 +1212,35 @@ fn git_commit(
     index.write()?;
     let tree = index.write_tree()?;
     let tree = repo.find_tree(tree)?;
-    let signature = repo.signature()?;
-    let parent = repo.head()?.peel_to_commit()?;
 
-    repo.commit(
-        Some("HEAD"),
-        &signature,
-        &signature,
-        message,
-        &tree,
-        &[&parent],
-    )?;
-    Ok(())
+    match repo.signature() {
+        Ok(signature) => {
+            let parents = repo
+                .head()
+                .and_then(|head| Ok(vec![head.peel_to_commit()?]))
+                .unwrap_or(vec![]);
+            let parents_refs = parents.iter().collect::<Vec<_>>();
+
+            repo.commit(
+                Some("HEAD"),
+                &signature,
+                &signature,
+                message,
+                &tree,
+                &parents_refs,
+            )?;
+            Ok(())
+        }
+        Err(e) => match e.code() {
+            NotFound => Err(anyhow!(
+                "No user.name and/or user.email configured for this git repository."
+            )),
+            _ => Err(anyhow!(
+                "Error while creating commit's signature: {}",
+                e.message()
+            )),
+        },
+    }
 }
 
 fn git_checkout(workspace_path: &Path, reference: &str) -> Result<()> {
@@ -1141,8 +1317,10 @@ fn git_delta_format(
 
 fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
     let repo = Repository::discover(workspace_path).ok()?;
-    let head = repo.head().ok()?;
-    let name = head.shorthand()?.to_string();
+    let name = match repo.head() {
+        Ok(head) => head.shorthand()?.to_string(),
+        _ => "(No branch)".to_owned(),
+    };
 
     let mut branches = Vec::new();
     for branch in repo.branches(None).ok()? {
@@ -1173,18 +1351,21 @@ fn git_diff_new(workspace_path: &Path) -> Option<DiffInfo> {
             deltas.push(delta);
         }
     }
+
+    let oid = match repo.revparse_single("HEAD^{tree}") {
+        Ok(obj) => obj.id(),
+        _ => Oid::zero(),
+    };
+
     let cached_diff = repo
-        .diff_tree_to_index(
-            repo.find_tree(repo.revparse_single("HEAD^{tree}").ok()?.id())
-                .ok()
-                .as_ref(),
-            None,
-            None,
-        )
-        .ok()?;
-    for delta in cached_diff.deltas() {
-        if let Some(delta) = git_delta_format(workspace_path, &delta) {
-            deltas.push(delta);
+        .diff_tree_to_index(repo.find_tree(oid).ok().as_ref(), None, None)
+        .ok();
+
+    if let Some(cached_diff) = cached_diff {
+        for delta in cached_diff.deltas() {
+            if let Some(delta) = git_delta_format(workspace_path, &delta) {
+                deltas.push(delta);
+            }
         }
     }
     let mut renames = Vec::new();

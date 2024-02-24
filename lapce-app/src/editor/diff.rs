@@ -6,7 +6,9 @@ use floem::{
     reactive::{RwSignal, Scope},
     style::CursorStyle,
     view::View,
-    views::{clip, empty, label, list, stack, svg, Decorators},
+    views::{
+        clip, dyn_stack, editor::id::EditorId, empty, label, stack, svg, Decorators,
+    },
 };
 use lapce_core::buffer::{
     diff::{expand_diff_lines, rope_diff, DiffExpand, DiffLines},
@@ -18,8 +20,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     config::{color::LapceColor, icon::LapceIcons},
-    doc::{DocContent, Document},
-    id::{DiffEditorId, EditorId, EditorTabId},
+    doc::{Doc, DocContent},
+    id::{DiffEditorId, EditorTabId},
     main_split::MainSplitData,
     wave::wave_box,
     window_tab::CommonData,
@@ -58,11 +60,15 @@ impl DiffEditorInfo {
                     doc
                 }
                 DocContent::Local => {
-                    Rc::new(Document::new_local(cx, common.clone()))
+                    Rc::new(Doc::new_local(cx, data.editors, common.clone()))
                 }
                 DocContent::History(history) => {
-                    let doc =
-                        Document::new_hisotry(cx, content.clone(), common.clone());
+                    let doc = Doc::new_history(
+                        cx,
+                        content.clone(),
+                        data.editors,
+                        common.clone(),
+                    );
                     let doc = Rc::new(doc);
 
                     {
@@ -91,7 +97,12 @@ impl DiffEditorInfo {
                         id: BufferId::next(),
                         name: name.to_string(),
                     };
-                    let doc = Document::new_content(cx, doc_content, common.clone());
+                    let doc = Doc::new_content(
+                        cx,
+                        doc_content,
+                        data.editors,
+                        common.clone(),
+                    );
                     let doc = Rc::new(doc);
                     data.scratch_docs.update(|scratch_docs| {
                         scratch_docs.insert(name.to_string(), doc.clone());
@@ -128,6 +139,7 @@ pub struct DiffEditorData {
     pub scope: Scope,
     pub left: Rc<EditorData>,
     pub right: Rc<EditorData>,
+    pub confirmed: RwSignal<bool>,
     pub focus_right: RwSignal<bool>,
 }
 
@@ -136,29 +148,25 @@ impl DiffEditorData {
         cx: Scope,
         id: DiffEditorId,
         editor_tab_id: EditorTabId,
-        left_doc: Rc<Document>,
-        right_doc: Rc<Document>,
+        left_doc: Rc<Doc>,
+        right_doc: Rc<Doc>,
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
-        let left = EditorData::new(
-            cx,
-            None,
-            Some((editor_tab_id, id)),
-            EditorId::next(),
-            left_doc,
-            common.clone(),
-        );
-        let left = Rc::new(left);
-        let right = EditorData::new(
-            cx,
-            None,
-            Some((editor_tab_id, id)),
-            EditorId::next(),
-            right_doc,
-            common,
-        );
-        let right = Rc::new(right);
+        let confirmed = cx.create_rw_signal(false);
+
+        let [left, right] = [left_doc, right_doc].map(|doc| {
+            let editor_data = EditorData::new_doc(
+                cx,
+                doc,
+                None,
+                Some((editor_tab_id, id)),
+                Some(confirmed),
+                common.clone(),
+            );
+
+            Rc::new(editor_data)
+        });
 
         let data = Self {
             id,
@@ -166,6 +174,7 @@ impl DiffEditorData {
             scope: cx,
             left,
             right,
+            confirmed,
             focus_right: cx.create_rw_signal(true),
         };
 
@@ -176,14 +185,8 @@ impl DiffEditorData {
 
     pub fn diff_editor_info(&self) -> DiffEditorInfo {
         DiffEditorInfo {
-            left_content: self.left.view.doc.get_untracked().content.get_untracked(),
-            right_content: self
-                .right
-                .view
-                .doc
-                .get_untracked()
-                .content
-                .get_untracked(),
+            left_content: self.left.doc().content.get_untracked(),
+            right_content: self.right.doc().content.get_untracked(),
         }
     }
 
@@ -194,24 +197,27 @@ impl DiffEditorData {
         diff_editor_id: EditorId,
     ) -> Self {
         let cx = cx.create_child();
+        let confirmed = cx.create_rw_signal(true);
+
+        let [left, right] = [&self.left, &self.right].map(|editor_data| {
+            let editor_data = editor_data.copy(
+                cx,
+                None,
+                Some((editor_tab_id, diff_editor_id)),
+                Some(confirmed),
+            );
+
+            Rc::new(editor_data)
+        });
 
         let diff_editor = DiffEditorData {
             scope: cx,
             id: diff_editor_id,
             editor_tab_id: cx.create_rw_signal(editor_tab_id),
             focus_right: cx.create_rw_signal(true),
-            left: Rc::new(self.left.copy(
-                cx,
-                None,
-                Some((editor_tab_id, diff_editor_id)),
-                EditorId::next(),
-            )),
-            right: Rc::new(self.right.copy(
-                cx,
-                None,
-                Some((editor_tab_id, diff_editor_id)),
-                EditorId::next(),
-            )),
+            left,
+            right,
+            confirmed,
         };
 
         diff_editor.listen_diff_changes();
@@ -225,7 +231,7 @@ impl DiffEditorData {
         let left_doc_rev = {
             let left = left.clone();
             cx.create_memo(move |_| {
-                let doc = left.view.doc.get();
+                let doc = left.doc_signal().get();
                 (doc.content.get(), doc.buffer.with(|b| b.rev()))
             })
         };
@@ -234,23 +240,23 @@ impl DiffEditorData {
         let right_doc_rev = {
             let right = right.clone();
             cx.create_memo(move |_| {
-                let doc = right.view.doc.get();
+                let doc = right.doc_signal().get();
                 (doc.content.get(), doc.buffer.with(|b| b.rev()))
             })
         };
 
         cx.create_effect(move |_| {
             let (_, left_rev) = left_doc_rev.get();
-            let (left_editor_view, left_doc) = (left.view.kind, left.view.doc);
+            let (left_editor_view, left_doc) = (left.kind, left.doc());
             let (left_atomic_rev, left_rope) =
-                left_doc.get_untracked().buffer.with_untracked(|buffer| {
+                left_doc.buffer.with_untracked(|buffer| {
                     (buffer.atomic_rev(), buffer.text().clone())
                 });
 
             let (_, right_rev) = right_doc_rev.get();
-            let (right_editor_view, right_doc) = (right.view.kind, right.view.doc);
+            let (right_editor_view, right_doc) = (right.kind, right.doc());
             let (right_atomic_rev, right_rope) =
-                right_doc.get_untracked().buffer.with_untracked(|buffer| {
+                right_doc.buffer.with_untracked(|buffer| {
                     (buffer.atomic_rev(), buffer.text().clone())
                 });
 
@@ -308,9 +314,9 @@ pub fn diff_show_more_section_view(
     left_editor: Rc<EditorData>,
     right_editor: Rc<EditorData>,
 ) -> impl View {
-    let left_editor_view = left_editor.view.kind;
-    let right_editor_view = right_editor.view.kind;
-    let viewport = right_editor.viewport;
+    let left_editor_view = left_editor.kind;
+    let right_editor_view = right_editor.kind;
+    let viewport = right_editor.viewport();
     let config = right_editor.common.config;
 
     let each_fn = move || {
@@ -384,7 +390,7 @@ pub fn diff_show_more_section_view(
             wave_box().style(move |s| {
                 s.absolute()
                     .size_pct(100.0, 100.0)
-                    .color(*config.get().get_color(LapceColor::PANEL_BACKGROUND))
+                    .color(config.get().color(LapceColor::PANEL_BACKGROUND))
             }),
             label(move || format!("{} Hidden Lines", section.lines)),
             label(|| "|".to_string()).style(|s| s.margin_left(10.0)),
@@ -393,12 +399,12 @@ pub fn diff_show_more_section_view(
                     let config = config.get();
                     let size = config.ui.icon_size() as f32;
                     s.size(size, size)
-                        .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
+                        .color(config.color(LapceColor::EDITOR_FOREGROUND))
                 }),
                 label(|| "Expand All".to_string()).style(|s| s.margin_left(6.0)),
             ))
-            .on_event(EventListener::PointerDown, move |_| true)
-            .on_click(move |_event| {
+            .on_event_stop(EventListener::PointerDown, move |_| {})
+            .on_click_stop(move |_event| {
                 left_editor_view.update(|editor_view| {
                     if let EditorViewKind::Diff(diff_info) = editor_view {
                         expand_diff_lines(
@@ -419,10 +425,13 @@ pub fn diff_show_more_section_view(
                         );
                     }
                 });
-                true
             })
-            .style(|s| s.margin_left(10.0).height_pct(100.0).items_center())
-            .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+            .style(|s| {
+                s.margin_left(10.0)
+                    .height_pct(100.0)
+                    .items_center()
+                    .hover(|s| s.cursor(CursorStyle::Pointer))
+            }),
             label(|| "|".to_string()).style(|s| s.margin_left(10.0)),
             stack((
                 svg(move || config.get().ui_svg(LapceIcons::FOLD_UP)).style(
@@ -430,13 +439,13 @@ pub fn diff_show_more_section_view(
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
                         s.size(size, size)
-                            .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
+                            .color(config.color(LapceColor::EDITOR_FOREGROUND))
                     },
                 ),
                 label(|| "Expand Up".to_string()).style(|s| s.margin_left(6.0)),
             ))
-            .on_event(EventListener::PointerDown, move |_| true)
-            .on_click(move |_event| {
+            .on_event_stop(EventListener::PointerDown, move |_| {})
+            .on_click_stop(move |_event| {
                 left_editor_view.update(|editor_view| {
                     if let EditorViewKind::Diff(diff_info) = editor_view {
                         expand_diff_lines(
@@ -457,10 +466,13 @@ pub fn diff_show_more_section_view(
                         );
                     }
                 });
-                true
             })
-            .style(move |s| s.margin_left(10.0).height_pct(100.0).items_center())
-            .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+            .style(move |s| {
+                s.margin_left(10.0)
+                    .height_pct(100.0)
+                    .items_center()
+                    .hover(|s| s.cursor(CursorStyle::Pointer))
+            }),
             label(|| "|".to_string()).style(|s| s.margin_left(10.0)),
             stack((
                 svg(move || config.get().ui_svg(LapceIcons::FOLD_DOWN)).style(
@@ -468,13 +480,13 @@ pub fn diff_show_more_section_view(
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
                         s.size(size, size)
-                            .color(*config.get_color(LapceColor::EDITOR_FOREGROUND))
+                            .color(config.color(LapceColor::EDITOR_FOREGROUND))
                     },
                 ),
                 label(|| "Expand Down".to_string()).style(|s| s.margin_left(6.0)),
             ))
-            .on_event(EventListener::PointerDown, move |_| true)
-            .on_click(move |_event| {
+            .on_event_stop(EventListener::PointerDown, move |_| {})
+            .on_click_stop(move |_event| {
                 left_editor_view.update(|editor_view| {
                     if let EditorViewKind::Diff(diff_info) = editor_view {
                         expand_diff_lines(
@@ -495,10 +507,13 @@ pub fn diff_show_more_section_view(
                         );
                     }
                 });
-                true
             })
-            .style(move |s| s.margin_left(10.0).height_pct(100.0).items_center())
-            .hover_style(|s| s.cursor(CursorStyle::Pointer)),
+            .style(move |s| {
+                s.margin_left(10.0)
+                    .height_pct(100.0)
+                    .items_center()
+                    .hover(|s| s.cursor(CursorStyle::Pointer))
+            }),
         ))
         .style(move |s| {
             let config = config.get();
@@ -511,8 +526,8 @@ pub fn diff_show_more_section_view(
                     (section.visual_line * config.editor.line_height()) as f32
                         - viewport.get().y0 as f32,
                 )
+                .hover(|s| s.cursor(CursorStyle::Default))
         })
-        .hover_style(|s| s.cursor(CursorStyle::Default))
     };
 
     stack((
@@ -520,7 +535,7 @@ pub fn diff_show_more_section_view(
             s.height(config.get().editor.line_height() as f32 + 1.0)
         }),
         clip(
-            list(each_fn, key_fn, view_fn)
+            dyn_stack(each_fn, key_fn, view_fn)
                 .style(|s| s.flex_col().size_pct(100.0, 100.0)),
         )
         .style(|s| s.size_pct(100.0, 100.0)),

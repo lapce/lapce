@@ -12,11 +12,9 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
+use floem_editor_core::buffer::rope_text::{RopeText, RopeTextRef};
 use jsonrpc_lite::{Id, JsonRpc, Params};
-use lapce_core::{
-    buffer::rope_text::{RopeText, RopeTextRef},
-    encoding::offset_utf16_to_utf8,
-};
+use lapce_core::{encoding::offset_utf16_to_utf8, rope_text_pos::RopeTextPosition};
 use lapce_rpc::{
     core::CoreRpcHandler,
     plugin::{PluginId, VoltID},
@@ -33,10 +31,10 @@ use lsp_types::{
     request::{
         CodeActionRequest, CodeActionResolveRequest, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
-        HoverRequest, Initialize, InlayHintRequest, PrepareRenameRequest,
-        References, RegisterCapability, Rename, ResolveCompletionItem,
-        SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest,
-        WorkDoneProgressCreate, WorkspaceSymbol,
+        HoverRequest, Initialize, InlayHintRequest, InlineCompletionRequest,
+        PrepareRenameRequest, References, RegisterCapability, Rename,
+        ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest,
+        SignatureHelpRequest, WorkDoneProgressCreate, WorkspaceSymbolRequest,
     },
     CodeActionProviderCapability, DidChangeTextDocumentParams,
     DidSaveTextDocumentParams, DocumentSelector, HoverProviderCapability,
@@ -50,10 +48,11 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use psp_types::{
-    ExecuteProcess, ExecuteProcessParams, ExecuteProcessResult, Request,
-    SendLspNotification, SendLspNotificationParams, SendLspRequest,
-    SendLspRequestParams, SendLspRequestResult, StartLspServer,
-    StartLspServerParams, StartLspServerResult,
+    ExecuteProcess, ExecuteProcessParams, ExecuteProcessResult,
+    RegisterDebuggerType, RegisterDebuggerTypeParams, Request, SendLspNotification,
+    SendLspNotificationParams, SendLspRequest, SendLspRequestParams,
+    SendLspRequestResult, StartLspServer, StartLspServerParams,
+    StartLspServerResult,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -416,9 +415,11 @@ impl PluginServerRpcHandler {
     }
 
     pub fn shutdown(&self) {
+        // to kill lsp
         self.handle_rpc(PluginServerRpc::Handler(
             PluginHandlerNotification::Shutdown,
         ));
+        // to end PluginServerRpcHandler::mainloop
         self.handle_rpc(PluginServerRpc::Shutdown);
     }
 
@@ -759,10 +760,14 @@ impl PluginHostHandler {
             InlayHintRequest::METHOD => {
                 self.server_capabilities.inlay_hint_provider.is_some()
             }
+            InlineCompletionRequest::METHOD => self
+                .server_capabilities
+                .inline_completion_provider
+                .is_some(),
             DocumentSymbolRequest::METHOD => {
                 self.server_capabilities.document_symbol_provider.is_some()
             }
-            WorkspaceSymbol::METHOD => {
+            WorkspaceSymbolRequest::METHOD => {
                 self.server_capabilities.workspace_symbol_provider.is_some()
             }
             PrepareRenameRequest::METHOD => {
@@ -894,6 +899,16 @@ impl PluginHostHandler {
                     stdout: Some(output.stdout),
                     stderr: Some(output.stderr),
                 });
+            }
+            RegisterDebuggerType::METHOD => {
+                let params: RegisterDebuggerTypeParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                self.catalog_rpc.register_debugger_type(
+                    params.debugger_type,
+                    params.program,
+                    params.args,
+                );
+                resp.send_null();
             }
             StartLspServer::METHOD => {
                 let params: StartLspServerParams =

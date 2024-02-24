@@ -3,13 +3,36 @@
 ## Unreleased
 
 ### Features/Changes
+- [#2723](https://github.com/lapce/lapce/pull/2723): Line wrapping based on width (no column-based yet)
+- [#1277](https://github.com/lapce/lapce/pull/1277): Error message prompted on missing git user.email and/or user.name
+- [#2910](https://github.com/lapce/lapce/pull/2910): Files can be compared in the diff editor
+- [#2918](https://github.com/lapce/lapce/pull/2918): Allow searching the shortcuts overview by shortcut (e.g. "Ctrl+P") or when condition (e.g. "list_focus")
+- [#2955](https://github.com/lapce/lapce/pull/2955): Using glob patterns to hide files or directories in explorer
+
+### Bug Fixes
+- [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository
+
+## 0.3.1
+
+### Features/Changes
+
+### Bug Fixes
+- [#2754](https://github.com/lapce/lapce/pull/2754): Don't mark nonexistent files as read only (fix saving new files)
+- [#2819](https://github.com/lapce/lapce/issues/2819): `Save Without Formatting` doesn't save the file
+
+## 0.3.0
+
+### Features/Changes
 - [#2190](https://github.com/lapce/lapce/pull/2190): Rewrite with Floem UI
 - [#2425](https://github.com/lapce/lapce/pull/2425): Reimplement completion lens
 - [#2498](https://github.com/lapce/lapce/pull/2498): Show Lapce as an option when doing "Open With..." on Linux
 - [#2549](https://github.com/lapce/lapce/pull/2549): Implement multi-line vim-motion yank and delete (`3dd`, `2yy`, etc.)
 - [#2553](https://github.com/lapce/lapce/pull/2553): Implement search and replace
+- [#1809](https://github.com/lapce/lapce/pull/1809): Implement debug adapter protocol
 
 ### Bug Fixes
+
+- [#2650](https://github.com/lapce/lapce/pull/2650): Inform language servers that Lapce supports LSP diagnostics
 
 ## 0.2.8
 

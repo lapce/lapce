@@ -17,6 +17,7 @@ pub mod global_search;
 pub mod history;
 pub mod hover;
 pub mod id;
+pub mod inline_completion;
 pub mod keymap;
 pub mod keypress;
 pub mod listener;
@@ -41,3 +42,6 @@ pub mod web_link;
 pub mod window;
 pub mod window_tab;
 pub mod workspace;
+
+#[cfg(windows)]
+extern crate windows_sys as windows;
