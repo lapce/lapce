@@ -623,8 +623,8 @@ checksum = "0f0ea9b9476c7fad82841a8dbb380e2eae480c21910feba80725b46931ed8f02"
 dependencies = [
  "calloop",
  "rustix 0.38.20",
- "wayland-backend 0.3.2",
- "wayland-client 0.31.1",
+ "wayland-backend",
+ "wayland-client",
 ]
 
 [[package]]
@@ -1404,25 +1404,25 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 
 [[package]]
 name = "drm"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edf9159ef4bcecd0c5e4cbeb573b8d0037493403d542780dba5d840bbf9df56f"
+checksum = "97fb1b703ffbc7ebd216eba7900008049a56ace55580ecb2ee7fa801e8d8be87"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.4.0",
  "bytemuck",
  "drm-ffi",
  "drm-fourcc",
- "nix 0.26.4",
+ "nix 0.27.1",
 ]
 
 [[package]]
 name = "drm-ffi"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1352481b7b90e27a8a1bf8ef6b33cf18b98dba7c410e75c24bb3eef2f0d8d525"
+checksum = "ba7d1c19c4b6270e89d59fb27dc6d02a317c658a8a54e54781e1db9b5947595d"
 dependencies = [
  "drm-sys",
- "nix 0.26.4",
+ "nix 0.27.1",
 ]
 
 [[package]]
@@ -1433,12 +1433,9 @@ checksum = "0aafbcdb8afc29c1a7ee5fbe53b5d62f4565b35a042a662ca9fecd0b54dae6f4"
 
 [[package]]
 name = "drm-sys"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1369f1679d6b706d234c4c1e0613c415c2c74b598a09ad28080ba2474b72e42d"
-dependencies = [
- "libc",
-]
+checksum = "3a4f1c0468062a56cd5705f1e3b5409eb286d5596a2028ec8e947595d7e715ae"
 
 [[package]]
 name = "dyn-clone"
@@ -1785,8 +1782,8 @@ dependencies = [
  "unicode-segmentation",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wayland-backend 0.3.2",
- "wayland-client 0.31.1",
+ "wayland-backend",
+ "wayland-client",
  "wayland-protocols",
  "wayland-protocols-plasma",
  "web-sys",
@@ -3068,7 +3065,7 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width",
  "url",
- "windows-sys 0.48.0",
+ "windows-sys 0.36.1",
  "zip",
 ]
 
@@ -3411,15 +3408,6 @@ dependencies = [
 
 [[package]]
 name = "memmap2"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f49388d20533534cd19360ad3d6a7dadc885944aa802ba3995040c5ec11288c6"
-dependencies = [
- "libc",
-]
-
-[[package]]
-name = "memmap2"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "deaba38d7abf1d4cca21cc89e932e542ba2b9258664d2a9ef0e61512039c9375"
@@ -3612,7 +3600,17 @@ dependencies = [
  "cfg-if",
  "libc",
  "memoffset 0.7.1",
- "pin-utils",
+]
+
+[[package]]
+name = "nix"
+version = "0.27.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2eb04e9c688eff1c89d72b407f168cf79bb9e867a9d3323ed6c01519eb9cc053"
+dependencies = [
+ "bitflags 2.4.0",
+ "cfg-if",
+ "libc",
 ]
 
 [[package]]
@@ -4428,6 +4426,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "redox_syscall"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4722d768eff46b75989dd134e5c353f0d6296e5aaa3132e776cbdb56be7731aa"
+dependencies = [
+ "bitflags 1.3.2",
+]
+
+[[package]]
 name = "redox_users"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5058,13 +5065,13 @@ dependencies = [
  "memmap2 0.9.0",
  "rustix 0.38.20",
  "thiserror",
- "wayland-backend 0.3.2",
- "wayland-client 0.31.1",
+ "wayland-backend",
+ "wayland-client",
  "wayland-csd-frame",
  "wayland-cursor",
  "wayland-protocols",
  "wayland-protocols-wlr",
- "wayland-scanner 0.31.0",
+ "wayland-scanner",
  "xkeysym",
 ]
 
@@ -5076,7 +5083,7 @@ checksum = "0bb62b280ce5a5cba847669933a0948d00904cf83845c944eae96a4738cea1a6"
 dependencies = [
  "libc",
  "smithay-client-toolkit",
- "wayland-backend 0.3.2",
+ "wayland-backend",
 ]
 
 [[package]]
@@ -5110,9 +5117,9 @@ dependencies = [
 
 [[package]]
 name = "softbuffer"
-version = "0.3.1"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bd56fe5e6c6f1881aad2bd37acaef4ac4a3689c970dfcbd87a36a6e60210ec8"
+checksum = "826da2ead8e85d1b4ea579fae3d58ec10c81a77d61deab8918c4a4f7514b2948"
 dependencies = [
  "as-raw-xcb-connection",
  "bytemuck",
@@ -5120,21 +5127,20 @@ dependencies = [
  "cocoa",
  "core-graphics",
  "drm",
- "drm-sys",
  "fastrand 2.0.1",
  "foreign-types 0.5.0",
  "js-sys",
  "log",
- "memmap2 0.7.1",
- "nix 0.26.4",
+ "memmap2 0.9.0",
  "objc",
  "raw-window-handle 0.5.2",
- "redox_syscall 0.3.5",
+ "redox_syscall 0.4.1",
+ "rustix 0.38.20",
  "tiny-xlib",
  "wasm-bindgen",
- "wayland-backend 0.1.2",
- "wayland-client 0.30.2",
- "wayland-sys 0.30.1",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-sys",
  "web-sys",
  "windows-sys 0.48.0",
  "x11rb 0.12.0",
@@ -6758,21 +6764,6 @@ dependencies = [
 
 [[package]]
 name = "wayland-backend"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41b48e27457e8da3b2260ac60d0a94512f5cba36448679f3747c0865b7893ed8"
-dependencies = [
- "cc",
- "downcast-rs",
- "io-lifetimes 1.0.11",
- "nix 0.26.4",
- "scoped-tls",
- "smallvec",
- "wayland-sys 0.30.1",
-]
-
-[[package]]
-name = "wayland-backend"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19152ddd73f45f024ed4534d9ca2594e0ef252c1847695255dae47f34df9fbe4"
@@ -6782,19 +6773,7 @@ dependencies = [
  "nix 0.26.4",
  "scoped-tls",
  "smallvec",
- "wayland-sys 0.31.1",
-]
-
-[[package]]
-name = "wayland-client"
-version = "0.30.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "489c9654770f674fc7e266b3c579f4053d7551df0ceb392f153adb1f9ed06ac8"
-dependencies = [
- "bitflags 1.3.2",
- "nix 0.26.4",
- "wayland-backend 0.1.2",
- "wayland-scanner 0.30.1",
+ "wayland-sys",
 ]
 
 [[package]]
@@ -6805,8 +6784,8 @@ checksum = "1ca7d52347346f5473bf2f56705f360e8440873052e575e55890c4fa57843ed3"
 dependencies = [
  "bitflags 2.4.0",
  "nix 0.26.4",
- "wayland-backend 0.3.2",
- "wayland-scanner 0.31.0",
+ "wayland-backend",
+ "wayland-scanner",
 ]
 
 [[package]]
@@ -6817,7 +6796,7 @@ checksum = "625c5029dbd43d25e6aa9615e88b829a5cad13b2819c4ae129fdbb7c31ab4c7e"
 dependencies = [
  "bitflags 2.4.0",
  "cursor-icon",
- "wayland-backend 0.3.2",
+ "wayland-backend",
 ]
 
 [[package]]
@@ -6827,7 +6806,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a44aa20ae986659d6c77d64d808a046996a932aa763913864dc40c359ef7ad5b"
 dependencies = [
  "nix 0.26.4",
- "wayland-client 0.31.1",
+ "wayland-client",
  "xcursor",
 ]
 
@@ -6838,9 +6817,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e253d7107ba913923dc253967f35e8561a3c65f914543e46843c88ddd729e21c"
 dependencies = [
  "bitflags 2.4.0",
- "wayland-backend 0.3.2",
- "wayland-client 0.31.1",
- "wayland-scanner 0.31.0",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-scanner",
 ]
 
 [[package]]
@@ -6850,10 +6829,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23803551115ff9ea9bce586860c5c5a971e360825a0309264102a9495a5ff479"
 dependencies = [
  "bitflags 2.4.0",
- "wayland-backend 0.3.2",
- "wayland-client 0.31.1",
+ "wayland-backend",
+ "wayland-client",
  "wayland-protocols",
- "wayland-scanner 0.31.0",
+ "wayland-scanner",
 ]
 
 [[package]]
@@ -6863,21 +6842,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad1f61b76b6c2d8742e10f9ba5c3737f6530b4c243132c2a2ccc8aa96fe25cd6"
 dependencies = [
  "bitflags 2.4.0",
- "wayland-backend 0.3.2",
- "wayland-client 0.31.1",
+ "wayland-backend",
+ "wayland-client",
  "wayland-protocols",
- "wayland-scanner 0.31.0",
-]
-
-[[package]]
-name = "wayland-scanner"
-version = "0.30.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9b873b257fbc32ec909c0eb80dea312076a67014e65e245f5eb69a6b8ab330e"
-dependencies = [
- "proc-macro2",
- "quick-xml 0.28.2",
- "quote",
+ "wayland-scanner",
 ]
 
 [[package]]
@@ -6889,18 +6857,6 @@ dependencies = [
  "proc-macro2",
  "quick-xml 0.30.0",
  "quote",
-]
-
-[[package]]
-name = "wayland-sys"
-version = "0.30.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96b2a02ac608e07132978689a6f9bf4214949c85998c247abadd4f4129b1aa06"
-dependencies = [
- "dlib",
- "lazy_static",
- "log",
- "pkg-config",
 ]
 
 [[package]]
