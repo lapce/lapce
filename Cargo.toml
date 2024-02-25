@@ -38,7 +38,7 @@ authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 anyhow = "1.0"
 backtrace = "0.3"
 chrono = "0.4"
-clap = { version = "3.2.25", features = ["derive"] }
+clap = { version = "4.5.0", default-features = false, features = ["std", "help", "usage", "derive"] }
 crossbeam-channel = "0.5.11"
 directories = "4.0.1"
 flate2 = "1.0"
