@@ -60,13 +60,10 @@ EOF
 
 FROM build-prep AS build
 
-ARG PACKAGE_VERSION
-ENV PACKAGE_VERSION="${PACKAGE_VERSION}"
-
 ARG PACKAGE_NAME
 ENV PACKAGE_NAME="${PACKAGE_NAME}"
 
-ARG OUTPUT_DIR
+ARG OUTPUT_DIR="/output"
 ENV OUTPUT_DIR="${OUTPUT_DIR}"
 
 # in bullseye arm64 target does not link with lld so configure it to use ld instead

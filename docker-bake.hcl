@@ -1,17 +1,13 @@
 variable "RUST_VERSION" {
-  default = "1.75"
+  default = "1.76"
 }
 
 variable "PACKAGE_NAME" {
-  default = "lapce-nightly"
-}
-
-variable "PACKAGE_VERSION" {
-  default = "nightly"
+  default = RELEASE_TAG_NAME == "nightly" ? "lapce-nightly" : "lapce"
 }
 
 variable "RELEASE_TAG_NAME" {
-  default = ""
+
 }
 
 variable "XX_VERSION" {
@@ -19,18 +15,16 @@ variable "XX_VERSION" {
 }
 
 target "_common" {
-  output = ["target/"]
+  context   = "."
+  platforms = ["local"]
+  output    = ["target"]
   args = {
-    PACKAGE_NAME    = PACKAGE_NAME
-    PACKAGE_VERSION = PACKAGE_VERSION
+    PACKAGE_NAME     = PACKAGE_NAME
+    RELEASE_TAG_NAME = RELEASE_TAG_NAME
 
     RUST_VERSION = RUST_VERSION
 
-    RELEASE_TAG_NAME = RELEASE_TAG_NAME
-
     BUILDKIT_CONTEXT_KEEP_GIT_DIR = 1
-
-    OUTPUT_DIR = "/output"
   }
 }
 
@@ -55,25 +49,23 @@ group "default" {
 }
 
 target "binary" {
-  inherits  = ["_common"]
-  target    = "binary"
-  platforms = ["local"]
-  output    = ["target"]
+  inherits = ["_common"]
+  target   = "binary"
 }
 
 target "cross-binary" {
   inherits = ["binary", "_platforms"]
+  target   = "cross-binary"
 }
 
 target "package" {
-  inherits  = ["_common"]
-  target    = "package"
-  platforms = ["local"]
-  output    = ["target"]
+  inherits = ["_common"]
+  target   = "package"
 }
 
 target "cross-package" {
   inherits = ["package", "_platforms"]
+  target   = "cross-package"
 }
 
 // OS
@@ -93,10 +85,8 @@ variable "DPKG_FAMILY_PACKAGES" {
 }
 
 target "debian" {
-  inherits   = ["cross-package"]
+  inherits   = ["package"]
   name       = "${os_name}-${build.os_version}"
-  target     = "cross-package"
-  context    = "."
   dockerfile = "extra/linux/docker/${os_name}/Dockerfile"
   args = {
     DISTRIBUTION_NAME     = os_name
@@ -112,11 +102,13 @@ target "debian" {
   }
 }
 
+target "cross-debian" {
+  inherits = ["debian", "cross-package"]
+}
+
 target "ubuntu" {
-  inherits   = ["cross-package"]
+  inherits   = ["package"]
   name       = "${os_name}-${build.os_version}"
-  target     = "cross-package"
-  context    = "."
   dockerfile = "extra/linux/docker/${os_name}/Dockerfile"
   args = {
     DISTRIBUTION_NAME     = os_name
@@ -127,15 +119,17 @@ target "ubuntu" {
   matrix = {
     os_name = ["ubuntu"]
     build = [
-      { os_version = "bionic", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },           # 18.04
       { os_version = "focal", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },            # 20.04
       { os_version = "jammy", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = ["linux/amd64"] }, # 22.04
-      { os_version = "kinetic", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },          # 22.10
       { os_version = "lunar", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },            # 23.04
       { os_version = "mantic", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },           # 23.10
       { os_version = "noble", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },            # 24.04
     ]
   }
+}
+
+target "cross-ubuntu" {
+  inherits = ["ubuntu", "cross-package"]
 }
 
 variable "RHEL_FAMILY_PACKAGES" {
@@ -150,10 +144,8 @@ variable "RHEL_FAMILY_PACKAGES" {
 }
 
 target "fedora" {
-  inherits   = ["cross-package"]
+  inherits   = ["package"]
   name       = "${os_name}-${build.os_version}"
-  target     = "cross-package"
-  context    = "."
   dockerfile = "extra/linux/docker/${os_name}/Dockerfile"
   args = {
     XX_VERSION = "test"
@@ -169,4 +161,8 @@ target "fedora" {
       { os_version = "39", packages = distinct(concat(RHEL_FAMILY_PACKAGES, [])), platforms = null },
     ]
   }
+}
+
+target "cross-fedora" {
+  inherits = ["fedora", "cross-package"]
 }
