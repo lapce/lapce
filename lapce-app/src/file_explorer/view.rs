@@ -358,7 +358,12 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
             }
         },
     )
-    .style(|s| s.flex_col().align_items(AlignItems::Stretch).width_full())
+    .style(|s| {
+        s.flex_col()
+            .align_items(AlignItems::Stretch)
+            .width_full()
+            .height_full()
+    })
     .on_secondary_click_stop(move |_| {
         if let Naming::None = naming.get_untracked() {
             if let Some(path) = &secondary_click_data.common.workspace.path {
