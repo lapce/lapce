@@ -22,7 +22,7 @@ use lapce_core::{
     register::Clipboard,
 };
 use lapce_rpc::{
-    file::{FileNodeItem, RenameState},
+    file::{DuplicateState, FileNodeItem, Naming, NewNodeState, RenameState},
     proxy::ProxyResponse,
 };
 
@@ -45,8 +45,8 @@ enum RenamedPath {
 #[derive(Clone)]
 pub struct FileExplorerData {
     pub root: RwSignal<FileNodeItem>,
-    pub rename_state: RwSignal<RenameState>,
-    pub rename_editor_data: EditorData,
+    pub naming: RwSignal<Naming>,
+    pub naming_editor_data: EditorData,
     pub common: Rc<CommonData>,
     left_diff_path: RwSignal<Option<PathBuf>>,
 }
@@ -57,8 +57,7 @@ impl KeyPressFocus for FileExplorerData {
     }
 
     fn check_condition(&self, condition: Condition) -> bool {
-        self.rename_state
-            .with_untracked(RenameState::is_accepting_input)
+        self.naming.with_untracked(Naming::is_accepting_input)
             && condition == Condition::ModalFocus
     }
 
@@ -68,34 +67,29 @@ impl KeyPressFocus for FileExplorerData {
         count: Option<usize>,
         mods: ModifiersState,
     ) -> CommandExecuted {
-        if self
-            .rename_state
-            .with_untracked(RenameState::is_accepting_input)
-        {
+        if self.naming.with_untracked(Naming::is_accepting_input) {
             match command.kind {
                 CommandKind::Focus(FocusCommand::ModalClose) => {
-                    self.cancel_rename();
+                    self.cancel_naming();
                     CommandExecuted::Yes
                 }
                 CommandKind::Edit(EditCommand::InsertNewLine) => {
-                    self.finish_rename();
+                    self.finish_naming();
                     CommandExecuted::Yes
                 }
                 CommandKind::Edit(_) => {
                     let command_executed =
-                        self.rename_editor_data.run_command(command, count, mods);
+                        self.naming_editor_data.run_command(command, count, mods);
 
-                    if let RenamedPath::Renamed { new_path, .. } =
-                        self.renamed_path()
-                    {
+                    if let Some(new_path) = self.naming_path() {
                         self.common
                             .internal_command
-                            .send(InternalCommand::TestRenamePath { new_path });
+                            .send(InternalCommand::TestPathCreation { new_path });
                     }
 
                     command_executed
                 }
-                _ => self.rename_editor_data.run_command(command, count, mods),
+                _ => self.naming_editor_data.run_command(command, count, mods),
             }
         } else {
             CommandExecuted::No
@@ -103,16 +97,13 @@ impl KeyPressFocus for FileExplorerData {
     }
 
     fn receive_char(&self, c: &str) {
-        if self
-            .rename_state
-            .with_untracked(RenameState::is_accepting_input)
-        {
-            self.rename_editor_data.receive_char(c);
+        if self.naming.with_untracked(Naming::is_accepting_input) {
+            self.naming_editor_data.receive_char(c);
 
-            if let RenamedPath::Renamed { new_path, .. } = self.renamed_path() {
+            if let Some(new_path) = self.naming_path() {
                 self.common
                     .internal_command
-                    .send(InternalCommand::TestRenamePath { new_path });
+                    .send(InternalCommand::TestPathCreation { new_path });
             }
         }
     }
@@ -133,12 +124,12 @@ impl FileExplorerData {
             children: HashMap::new(),
             children_open_count: 0,
         });
-        let rename_state = cx.create_rw_signal(RenameState::NotRenaming);
-        let rename_editor_data = EditorData::new_local(cx, editors, common.clone());
+        let naming = cx.create_rw_signal(Naming::None);
+        let naming_editor_data = EditorData::new_local(cx, editors, common.clone());
         let data = Self {
             root,
-            rename_state,
-            rename_editor_data,
+            naming,
+            naming_editor_data,
             common,
             left_diff_path: cx.create_rw_signal(None),
         };
@@ -257,11 +248,7 @@ impl FileExplorerData {
         };
 
         // Ask the proxy for the directory information
-        self.common
-            .proxy
-            .read_dir(path.to_path_buf(), move |result| {
-                send(result);
-            });
+        self.common.proxy.read_dir(path.to_path_buf(), send);
     }
 
     /// Returns `true` if `path` exists in the file explorer tree and is a directory, `false`
@@ -272,15 +259,57 @@ impl FileExplorerData {
         })
     }
 
+    /// The current path that we're renaming to / creating or duplicating a node at.  
+    /// Note: returns `None` when renaming if the file name has not changed.
+    fn naming_path(&self) -> Option<PathBuf> {
+        self.naming.with_untracked(|naming| match naming {
+            Naming::None => None,
+            Naming::Renaming(_) => {
+                if let RenamedPath::Renamed { new_path, .. } = self.renamed_path() {
+                    Some(new_path)
+                } else {
+                    None
+                }
+            }
+            Naming::NewNode(state) => {
+                let relative_path = self.naming_editor_data.text();
+                let relative_path: Cow<OsStr> = match relative_path.slice_to_cow(..)
+                {
+                    Cow::Borrowed(path) => Cow::Borrowed(path.as_ref()),
+                    Cow::Owned(path) => Cow::Owned(path.into()),
+                };
+
+                let base_path = state.base_path();
+                Some(base_path.join(relative_path))
+            }
+            Naming::Duplicating(state) => {
+                let relative_path = self.naming_editor_data.text();
+                let relative_path: Cow<OsStr> = match relative_path.slice_to_cow(..)
+                {
+                    Cow::Borrowed(path) => Cow::Borrowed(path.as_ref()),
+                    Cow::Owned(path) => Cow::Owned(path.into()),
+                };
+
+                let new_path = state
+                    .path()
+                    .parent()
+                    .unwrap_or("".as_ref())
+                    .join(relative_path);
+
+                Some(new_path)
+            }
+        })
+    }
+
     /// If there is an in progress rename and the user has entered a path that differs from the
     /// current path, gets the current and new paths of the renamed node.
     fn renamed_path(&self) -> RenamedPath {
-        self.rename_state.with_untracked(|rename_state| {
-            if let Some(current_path) = rename_state.path() {
+        self.naming.with_untracked(|naming| {
+            if let Some(current_path) = naming.as_renaming().map(RenameState::path) {
                 let current_file_name = current_path.file_name().unwrap_or_default();
                 // `new_relative_path` is the new path relative to the parent directory, unless the
                 // user has entered an absolute path.
-                let new_relative_path = self.rename_editor_data.text();
+                let new_relative_path = self.naming_editor_data.text();
 
                 let new_relative_path: Cow<OsStr> =
                     match new_relative_path.slice_to_cow(..) {
@@ -307,27 +336,62 @@ impl FileExplorerData {
         })
     }
 
-    /// If a rename is in progress and the user has entered a path that differs from the current
-    /// path, sends a request to perform the rename.
-    pub fn finish_rename(&self) {
-        match self.renamed_path() {
-            RenamedPath::NotRenaming => (),
-            RenamedPath::NameUnchanged => self.cancel_rename(),
-            RenamedPath::Renamed {
-                current_path,
-                new_path,
-            } => self.common.internal_command.send(
-                InternalCommand::FinishRenamePath {
-                    current_path,
-                    new_path,
-                },
-            ),
+    /// If a naming is in progress and the user has entered a valid path, send the request to
+    /// actually perform the change.
+    pub fn finish_naming(&self) {
+        match self.naming.get_untracked() {
+            Naming::None => {}
+            Naming::Renaming(_) => {
+                let renamed_path = self.renamed_path();
+                match renamed_path {
+                    // Should not occur
+                    RenamedPath::NotRenaming => {}
+                    RenamedPath::NameUnchanged => {
+                        self.cancel_naming();
+                    }
+                    RenamedPath::Renamed {
+                        current_path,
+                        new_path,
+                    } => {
+                        self.common.internal_command.send(
+                            InternalCommand::FinishRenamePath {
+                                current_path,
+                                new_path,
+                            },
+                        );
+                    }
+                }
+            }
+            Naming::NewNode(state) => {
+                let Some(path) = self.naming_path() else {
+                    return;
+                };
+
+                self.common
+                    .internal_command
+                    .send(InternalCommand::FinishNewNode {
+                        is_dir: state.is_dir(),
+                        path,
+                    });
+            }
+            Naming::Duplicating(state) => {
+                let Some(path) = self.naming_path() else {
+                    return;
+                };
+
+                self.common.internal_command.send(
+                    InternalCommand::FinishDuplicate {
+                        source: state.path().to_owned(),
+                        path,
+                    },
+                );
+            }
         }
     }
 
-    /// Closes the rename text box without renaming the item.
-    pub fn cancel_rename(&self) {
-        self.rename_state.set(RenameState::NotRenaming);
+    /// Closes the naming text box without applying the effect.
+    pub fn cancel_naming(&self) {
+        self.naming.set(Naming::None);
     }
 
     pub fn click(&self, path: &Path) {
@@ -359,33 +423,67 @@ impl FileExplorerData {
         let left_diff_path = self.left_diff_path;
         // TODO: should we just pass is_dir into secondary click?
         let is_dir = self.is_dir(path);
-        let is_workspace = self
-            .common
-            .workspace
-            .path
-            .as_ref()
-            .map_or(false, |p| path == p);
+
+        let Some(workspace_path) = self.common.workspace.path.as_ref() else {
+            // There is no context menu if we are not in a workspace
+            return;
+        };
+
+        let is_workspace = path == workspace_path;
+
+        let base_path_a = if is_dir {
+            Some(path_a.clone())
+        } else {
+            path_a.parent().map(ToOwned::to_owned)
+        };
+        let base_path_a = base_path_a.as_ref().unwrap_or(workspace_path);
 
         let mut menu = Menu::new("");
 
-        let path = path_a.clone();
+        let base_path = base_path_a.clone();
         let data = self.clone();
+        let naming = self.naming;
         menu = menu.entry(MenuItem::new("New File").action(move || {
-            let path_b = path.clone();
-            data.read_dir_cb(&path, move |was_read| {
+            let base_path_b = &base_path;
+            let base_path = base_path.clone();
+            data.read_dir_cb(base_path_b, move |was_read| {
                 if !was_read {
                     tracing::warn!(
-                        "Failed to read directory, avoiding creating file: {:?}",
-                        path_b
+                        "Failed to read directory, avoiding creating node in: {:?}",
+                        base_path
                     );
                     return;
                 }
+
+                naming.set(Naming::NewNode(NewNodeState::Naming {
+                    base_path: base_path.clone(),
+                    is_dir: false,
+                    editor_needs_reset: true,
+                }));
             });
         }));
 
-        let path = path_a.clone();
+        let base_path = base_path_a.clone();
+        let data = self.clone();
+        let naming = self.naming;
         menu = menu.entry(MenuItem::new("New Directory").action(move || {
-            println!("New Folder");
+            let base_path_b = &base_path;
+            let base_path = base_path.clone();
+            data.read_dir_cb(base_path_b, move |was_read| {
+                if !was_read {
+                    tracing::warn!(
+                        "Failed to read directory, avoiding creating node in: {:?}",
+                        base_path
+                    );
+                    return;
+                }
+
+                naming.set(Naming::NewNode(NewNodeState::Naming {
+                    base_path: base_path.clone(),
+                    is_dir: true,
+                    editor_needs_reset: true,
+                }));
+            })
         }));
 
         menu = menu.separator();
@@ -420,7 +518,10 @@ impl FileExplorerData {
 
             let path = path_a.clone();
             menu = menu.entry(MenuItem::new("Duplicate").action(move || {
-                println!("Duplicate");
+                naming.set(Naming::Duplicating(DuplicateState::Naming {
+                    path: path.clone(),
+                    editor_needs_reset: true,
+                }));
             }));
 
             // TODO: it is common for shift+right click to make 'Move file to trash' an actual
