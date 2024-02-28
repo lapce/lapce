@@ -450,7 +450,6 @@ impl FileNodeItem {
             return current + self.children_open_count;
         }
 
-        let mut i = current;
         if current >= min {
             let kind = if let Naming::Renaming(r) = &naming {
                 if r.path == self.path {
@@ -472,6 +471,19 @@ impl FileNodeItem {
             });
         }
 
+        self.append_children_view_slice(view_items, naming, min, max, current, level)
+    }
+
+    /// Append the children of this item with the given level
+    pub fn append_children_view_slice(
+        &self,
+        view_items: &mut Vec<FileNodeViewData>,
+        naming: &Naming,
+        min: usize,
+        max: usize,
+        mut i: usize,
+        level: usize,
+    ) -> usize {
         let mut naming_extra = naming.extra_node(self.is_dir, level, &self.path);
 
         if !self.open {
@@ -531,6 +543,7 @@ impl FileNodeItem {
             }
         }
 
+        // If it has not been added yet, add it now.
         if i >= min {
             if let Some(node) = naming_extra {
                 view_items.push(node);
