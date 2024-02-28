@@ -1,18 +1,16 @@
 use floem::views::VirtualVector;
-use lapce_rpc::file::{FileNodeItem, FileNodeViewData};
-
-use lapce_rpc::file::RenameState;
+use lapce_rpc::file::{FileNodeItem, FileNodeViewData, Naming};
 
 pub struct FileNodeVirtualList {
     file_node_item: FileNodeItem,
-    rename_state: RenameState,
+    naming: Naming,
 }
 
 impl FileNodeVirtualList {
-    pub fn new(file_node_item: FileNodeItem, rename_state: RenameState) -> Self {
+    pub fn new(file_node_item: FileNodeItem, naming: Naming) -> Self {
         Self {
             file_node_item,
-            rename_state,
+            naming,
         }
     }
 }
@@ -26,23 +24,14 @@ impl VirtualVector<FileNodeViewData> for FileNodeVirtualList {
         &mut self,
         range: std::ops::Range<usize>,
     ) -> impl Iterator<Item = FileNodeViewData> {
+        let naming = &self.naming;
+        let root = &self.file_node_item;
+
         let min = range.start;
         let max = range.end;
-        let mut i = 0;
         let mut view_items = Vec::new();
-        for item in self.file_node_item.sorted_children() {
-            i = item.append_view_slice(
-                &mut view_items,
-                &self.rename_state,
-                min,
-                max,
-                i + 1,
-                0,
-            );
-            if i > max {
-                return view_items.into_iter();
-            }
-        }
+
+        root.append_children_view_slice(&mut view_items, naming, min, max, 0, 0);
 
         view_items.into_iter()
     }

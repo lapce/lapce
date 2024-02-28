@@ -1,7 +1,6 @@
 use std::{
     cmp::{Ord, Ordering, PartialOrd},
     collections::HashMap,
-    mem,
     path::{Path, PathBuf},
 };
 
@@ -48,183 +47,213 @@ impl PathObject {
     }
 }
 
-/// Stores the state of any in progress rename of a path.
-///
-/// The `editor_needs_reset` field is `true` if the rename editor should have its contents reset
-/// when the view function next runs.
-#[derive(Clone)]
-pub enum RenameState {
-    NotRenaming,
-    Renaming {
-        path: PathBuf,
-        editor_needs_reset: bool,
-    },
-    RenameRequestPending {
-        path: PathBuf,
-        editor_needs_reset: bool,
-    },
-    RenameErr {
-        path: PathBuf,
-        editor_needs_reset: bool,
-        err: String,
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum FileNodeViewKind {
+    /// An actual file/directory
+    Path(PathBuf),
+    /// We are renaming the file at this path
+    Renaming { path: PathBuf, err: Option<String> },
+    /// We are naming a new file/directory
+    Naming { err: Option<String> },
+    Duplicating {
+        /// The path that is being duplicated
+        source: PathBuf,
+        err: Option<String>,
     },
 }
+impl FileNodeViewKind {
+    pub fn path(&self) -> Option<&Path> {
+        match self {
+            Self::Path(path) => Some(path),
+            Self::Renaming { path, .. } => Some(path),
+            Self::Naming { .. } => None,
+            Self::Duplicating { source, .. } => Some(source),
+        }
+    }
+}
 
-impl RenameState {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NamingState {
+    /// Actively naming
+    Naming,
+    /// Application of the naming is pending
+    Pending,
+    /// There's an active error with the typed name
+    Err { err: String },
+}
+impl NamingState {
     pub fn is_accepting_input(&self) -> bool {
         match self {
-            Self::NotRenaming | Self::RenameRequestPending { .. } => false,
-            Self::Renaming { .. } | Self::RenameErr { .. } => true,
+            Self::Naming | Self::Err { .. } => true,
+            Self::Pending => false,
         }
     }
 
     pub fn is_err(&self) -> bool {
         match self {
-            Self::NotRenaming
-            | Self::Renaming { .. }
-            | Self::RenameRequestPending { .. } => false,
-            Self::RenameErr { .. } => true,
+            Self::Naming | Self::Pending => false,
+            Self::Err { .. } => true,
+        }
+    }
+
+    pub fn err(&self) -> Option<&str> {
+        match self {
+            Self::Err { err } => Some(err.as_str()),
+            _ => None,
         }
     }
 
     pub fn set_ok(&mut self) {
-        if let &mut Self::RenameErr {
-            ref mut path,
-            editor_needs_reset,
-            ..
-        } = self
-        {
-            let path = mem::take(path);
-
-            *self = Self::Renaming {
-                path,
-                editor_needs_reset,
-            };
-        }
+        *self = Self::Naming;
     }
 
     pub fn set_pending(&mut self) {
-        if let &mut Self::Renaming {
-            ref mut path,
-            editor_needs_reset,
-        }
-        | &mut Self::RenameErr {
-            ref mut path,
-            editor_needs_reset,
-            ..
-        } = self
-        {
-            let path = mem::take(path);
-
-            *self = Self::RenameRequestPending {
-                path,
-                editor_needs_reset,
-            };
-        }
+        *self = Self::Pending;
     }
 
     pub fn set_err(&mut self, err: String) {
-        if let &mut Self::Renaming {
-            ref mut path,
-            editor_needs_reset,
-        }
-        | &mut Self::RenameRequestPending {
-            ref mut path,
-            editor_needs_reset,
-        }
-        | &mut Self::RenameErr {
-            ref mut path,
-            editor_needs_reset,
-            ..
-        } = self
-        {
-            let path = mem::take(path);
-
-            *self = Self::RenameErr {
-                path,
-                editor_needs_reset,
-                err,
-            };
-        }
+        *self = Self::Err { err };
     }
+}
 
-    pub fn set_editor_needs_reset(&mut self, needs_reset: bool) {
-        if let Self::Renaming {
-            editor_needs_reset, ..
-        }
-        | Self::RenameRequestPending {
-            editor_needs_reset, ..
-        }
-        | Self::RenameErr {
-            editor_needs_reset, ..
-        } = self
-        {
-            *editor_needs_reset = needs_reset;
-        }
-    }
+/// Stores the state of any in progress rename of a path.
+///
+/// The `editor_needs_reset` field is `true` if the rename editor should have its contents reset
+/// when the view function next runs.
+#[derive(Debug, Clone)]
+pub struct Renaming {
+    pub state: NamingState,
+    /// Original file's path
+    pub path: PathBuf,
+    pub editor_needs_reset: bool,
+}
 
-    pub fn path(&self) -> Option<&Path> {
+#[derive(Debug, Clone)]
+pub struct NewNode {
+    pub state: NamingState,
+    /// If true, then we are creating a directory
+    pub is_dir: bool,
+    /// The folder that the file/directory is being created within
+    pub base_path: PathBuf,
+    pub editor_needs_reset: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct Duplicating {
+    pub state: NamingState,
+    /// Path to the item being duplicated
+    pub path: PathBuf,
+    pub editor_needs_reset: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum Naming {
+    None,
+    Renaming(Renaming),
+    NewNode(NewNode),
+    Duplicating(Duplicating),
+}
+impl Naming {
+    pub fn state(&self) -> Option<&NamingState> {
         match self {
-            Self::NotRenaming => None,
-            Self::Renaming { path, .. }
-            | Self::RenameRequestPending { path, .. }
-            | Self::RenameErr { path, .. } => Some(path),
+            Self::None => None,
+            Self::Renaming(rename) => Some(&rename.state),
+            Self::NewNode(state) => Some(&state.state),
+            Self::Duplicating(state) => Some(&state.state),
         }
+    }
+
+    pub fn state_mut(&mut self) -> Option<&mut NamingState> {
+        match self {
+            Self::None => None,
+            Self::Renaming(rename) => Some(&mut rename.state),
+            Self::NewNode(state) => Some(&mut state.state),
+            Self::Duplicating(state) => Some(&mut state.state),
+        }
+    }
+
+    pub fn is_accepting_input(&self) -> bool {
+        self.state().map_or(false, NamingState::is_accepting_input)
     }
 
     pub fn editor_needs_reset(&self) -> bool {
         match self {
-            Self::NotRenaming => false,
-            &Self::Renaming {
-                editor_needs_reset, ..
-            }
-            | &Self::RenameRequestPending {
-                editor_needs_reset, ..
-            }
-            | &Self::RenameErr {
-                editor_needs_reset, ..
-            } => editor_needs_reset,
+            Naming::None => false,
+            Naming::Renaming(rename) => rename.editor_needs_reset,
+            Naming::NewNode(state) => state.editor_needs_reset,
+            Naming::Duplicating(state) => state.editor_needs_reset,
         }
     }
-}
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum IsRenaming {
-    NotRenaming,
-    Renaming { err: Option<String> },
-}
+    pub fn set_editor_needs_reset(&mut self, needs_reset: bool) {
+        match self {
+            Naming::None => {}
+            Naming::Renaming(rename) => rename.editor_needs_reset = needs_reset,
+            Naming::NewNode(state) => state.editor_needs_reset = needs_reset,
+            Naming::Duplicating(state) => state.editor_needs_reset = needs_reset,
+        }
+    }
 
-impl IsRenaming {
-    fn is_node_renaming(rename_state: &RenameState, node_path: &Path) -> Self {
-        match rename_state {
-            RenameState::NotRenaming => Self::NotRenaming,
-            RenameState::Renaming { path, .. }
-            | RenameState::RenameRequestPending { path, .. } => {
-                if path == node_path {
-                    Self::Renaming { err: None }
-                } else {
-                    Self::NotRenaming
-                }
-            }
-            RenameState::RenameErr { path, err, .. } => {
-                if path == node_path {
-                    Self::Renaming {
-                        err: Some(err.clone()),
-                    }
-                } else {
-                    Self::NotRenaming
-                }
-            }
+    pub fn set_ok(&mut self) {
+        if let Some(state) = self.state_mut() {
+            state.set_ok();
+        }
+    }
+
+    pub fn set_pending(&mut self) {
+        if let Some(state) = self.state_mut() {
+            state.set_pending();
+        }
+    }
+
+    pub fn set_err(&mut self, err: String) {
+        if let Some(state) = self.state_mut() {
+            state.set_err(err);
+        }
+    }
+
+    pub fn as_renaming(&self) -> Option<&Renaming> {
+        match self {
+            Naming::Renaming(rename) => Some(rename),
+            _ => None,
+        }
+    }
+
+    /// The extra node that should be added after the node at `path`
+    pub fn extra_node(
+        &self,
+        is_dir: bool,
+        level: usize,
+        path: &Path,
+    ) -> Option<FileNodeViewData> {
+        match self {
+            Naming::NewNode(n) if n.base_path == path => Some(FileNodeViewData {
+                kind: FileNodeViewKind::Naming {
+                    err: n.state.err().map(ToString::to_string),
+                },
+                is_dir: n.is_dir,
+                open: false,
+                level: level + 1,
+            }),
+            Naming::Duplicating(d) if d.path == path => Some(FileNodeViewData {
+                kind: FileNodeViewKind::Duplicating {
+                    source: d.path.to_path_buf(),
+                    err: d.state.err().map(ToString::to_string),
+                },
+                is_dir,
+                open: false,
+                level: level + 1,
+            }),
+            _ => None,
         }
     }
 }
 
 #[derive(Debug)]
 pub struct FileNodeViewData {
-    pub path: PathBuf,
+    pub kind: FileNodeViewKind,
     pub is_dir: bool,
     pub open: bool,
-    pub is_renaming: IsRenaming,
     pub level: usize,
 }
 
@@ -232,9 +261,14 @@ pub struct FileNodeViewData {
 pub struct FileNodeItem {
     pub path: PathBuf,
     pub is_dir: bool,
+    /// Whether the directory's children have been read.  
+    /// Does nothing if not a directory.
     pub read: bool,
+    /// Whether the directory is open in the explorer view.
     pub open: bool,
     pub children: HashMap<PathBuf, FileNodeItem>,
+    /// The number of child (directories) that are open themselves  
+    /// Used for sizing of the explorer list
     pub children_open_count: usize,
 }
 
@@ -264,12 +298,16 @@ impl Ord for FileNodeItem {
 }
 
 impl FileNodeItem {
+    /// Collect the children, sorted by name.  
+    /// Note: this will be empty if the directory has not been read.
     pub fn sorted_children(&self) -> Vec<&FileNodeItem> {
         let mut children = self.children.values().collect::<Vec<&FileNodeItem>>();
         children.sort();
         children
     }
 
+    /// Collect the children, sorted by name.  
+    /// Note: this will be empty if the directory has not been read.
     pub fn sorted_children_mut(&mut self) -> Vec<&mut FileNodeItem> {
         let mut children = self
             .children
@@ -316,16 +354,20 @@ impl FileNodeItem {
         Some(ancestors.into_iter().rev())
     }
 
+    /// Recursively get the node at `path`.
     pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
         self.ancestors_rev(path)?
             .try_fold(self, |node, path| node.children.get(path))
     }
 
+    /// Recursively get the (mutable) node at `path`.
     pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
         self.ancestors_rev(path)?
             .try_fold(self, |node, path| node.children.get_mut(path))
     }
 
+    /// Remove a specific child from the node.  
+    /// The path is recursive and will remove the child from parent indicated by the path.
     pub fn remove_child(&mut self, path: &Path) -> Option<FileNodeItem> {
         let parent = path.parent()?;
         let node = self.get_file_node_mut(parent)?;
@@ -337,6 +379,7 @@ impl FileNodeItem {
         Some(node)
     }
 
+    /// Add a new (unread & unopened) child to the node.
     pub fn add_child(&mut self, path: &Path, is_dir: bool) -> Option<()> {
         let parent = path.parent()?;
         let node = self.get_file_node_mut(parent)?;
@@ -358,6 +401,8 @@ impl FileNodeItem {
         Some(())
     }
 
+    /// Set the children of the node.  
+    /// Note: this opens the node.
     pub fn set_item_children(
         &mut self,
         path: &Path,
@@ -398,7 +443,7 @@ impl FileNodeItem {
     pub fn append_view_slice(
         &self,
         view_items: &mut Vec<FileNodeViewData>,
-        rename_state: &RenameState,
+        naming: &Naming,
         min: usize,
         max: usize,
         current: usize,
@@ -411,32 +456,107 @@ impl FileNodeItem {
             return current + self.children_open_count;
         }
 
-        let mut i = current;
         if current >= min {
+            let kind = if let Naming::Renaming(r) = &naming {
+                if r.path == self.path {
+                    FileNodeViewKind::Renaming {
+                        path: self.path.clone(),
+                        err: r.state.err().map(ToString::to_string),
+                    }
+                } else {
+                    FileNodeViewKind::Path(self.path.clone())
+                }
+            } else {
+                FileNodeViewKind::Path(self.path.clone())
+            };
             view_items.push(FileNodeViewData {
-                path: self.path.clone(),
+                kind,
                 is_dir: self.is_dir,
                 open: self.open,
-                is_renaming: IsRenaming::is_node_renaming(rename_state, &self.path),
                 level,
             });
         }
 
-        if self.open {
-            for item in self.sorted_children() {
-                i = item.append_view_slice(
-                    view_items,
-                    rename_state,
-                    min,
-                    max,
-                    i + 1,
-                    level + 1,
-                );
-                if i > max {
-                    return i;
+        self.append_children_view_slice(view_items, naming, min, max, current, level)
+    }
+
+    /// Append the children of this item with the given level
+    pub fn append_children_view_slice(
+        &self,
+        view_items: &mut Vec<FileNodeViewData>,
+        naming: &Naming,
+        min: usize,
+        max: usize,
+        mut i: usize,
+        level: usize,
+    ) -> usize {
+        let mut naming_extra = naming.extra_node(self.is_dir, level, &self.path);
+
+        if !self.open {
+            // If the folder isn't open, then we just put it right at the top
+            if i >= min {
+                if let Some(naming_extra) = naming_extra {
+                    view_items.push(naming_extra);
+                    i += 1;
+                }
+            }
+            return i;
+        }
+
+        let naming_is_dir = naming_extra.as_ref().map(|n| n.is_dir).unwrap_or(false);
+        // Immediately put the naming entry first if it's a directory
+        if naming_is_dir {
+            if let Some(node) = naming_extra.take() {
+                // Actually add the node if it's within the range
+                if i >= min {
+                    view_items.push(node);
+                    i += 1;
                 }
             }
         }
+
+        let mut after_dirs = false;
+
+        for item in self.sorted_children() {
+            // If we're naming a file at the root, then wait until we've added the directories
+            // before adding the input node
+            if naming_extra.is_some()
+                && !naming_is_dir
+                && !item.is_dir
+                && !after_dirs
+            {
+                after_dirs = true;
+
+                // If we're creating a new file node, then we show it after the directories
+                // TODO(minor): should this be i >= min or i + 1 >= min?
+                if i >= min {
+                    if let Some(node) = naming_extra.take() {
+                        view_items.push(node);
+                        i += 1;
+                    }
+                }
+            }
+            i = item.append_view_slice(
+                view_items,
+                naming,
+                min,
+                max,
+                i + 1,
+                level + 1,
+            );
+            if i > max {
+                return i;
+            }
+        }
+
+        // If it has not been added yet, add it now.
+        if i >= min {
+            if let Some(node) = naming_extra {
+                view_items.push(node);
+                i += 1;
+            }
+        }
+
         i
     }
 }

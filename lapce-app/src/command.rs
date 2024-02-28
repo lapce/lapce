@@ -545,15 +545,22 @@ pub enum InternalCommand {
     OpenFileChanges {
         path: PathBuf,
     },
-    StartRenamePath {
-        path: PathBuf,
-    },
-    TestRenamePath {
+    ReloadFileExplorer,
+    /// Test whether a file/directory can be created at that path
+    TestPathCreation {
         new_path: PathBuf,
     },
     FinishRenamePath {
         current_path: PathBuf,
         new_path: PathBuf,
+    },
+    FinishNewNode {
+        is_dir: bool,
+        path: PathBuf,
+    },
+    FinishDuplicate {
+        source: PathBuf,
+        path: PathBuf,
     },
     GoToLocation {
         location: EditorLocation,

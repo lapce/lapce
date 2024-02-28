@@ -31,6 +31,7 @@ use lapce_core::{
 use crate::{
     config::{color::LapceColor, LapceConfig},
     editor::{DocSignal, EditorData},
+    keypress::KeyPressFocus,
 };
 
 prop_extracter! {
@@ -44,8 +45,24 @@ prop_extracter! {
     }
 }
 
+/// Create a basic single line text input while specifying the `key_focus`
+/// `e_data` is the editor data that this input is associated with.  
+/// `key_focus` is what receives the keydown events, leave as `None` to default to editor.  
+/// `is_focused` is a function that returns if the input is focused, used for certain events.
 pub fn text_input(
     e_data: EditorData,
+    is_focused: impl Fn() -> bool + 'static,
+) -> TextInput {
+    text_input_key_focus::<()>(e_data, None, is_focused)
+}
+
+/// Create a basic single line text input while specifying the `key_focus`
+/// `e_data` is the editor data that this input is associated with.  
+/// `key_focus` is what receives the keydown events, leave as `None` to default to editor.  
+/// `is_focused` is a function that returns if the input is focused, used for certain events.
+pub fn text_input_key_focus<T: KeyPressFocus + 'static>(
+    e_data: EditorData,
+    key_focus: Option<T>,
     is_focused: impl Fn() -> bool + 'static,
 ) -> TextInput {
     let id = Id::next();
@@ -168,7 +185,11 @@ pub fn text_input(
     .on_event(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             let keypress = keypress.get_untracked();
-            if keypress.key_down(key_event, &e_data) {
+            let key_focus = key_focus
+                .as_ref()
+                .map(|k| k as &dyn KeyPressFocus)
+                .unwrap_or(&e_data);
+            if keypress.key_down(key_event, key_focus) {
                 EventPropagation::Stop
             } else {
                 EventPropagation::Continue

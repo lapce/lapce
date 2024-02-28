@@ -27,7 +27,7 @@ use lapce_core::{
 use lapce_rpc::{
     core::CoreNotification,
     dap_types::RunDebugConfig,
-    file::{PathObject, RenameState},
+    file::{Naming, PathObject},
     proxy::{ProxyResponse, ProxyRpcHandler, ProxyStatus},
     source_control::FileDiff,
     terminal::TermId,
@@ -1313,25 +1313,20 @@ impl WindowTabData {
             InternalCommand::OpenFileChanges { path } => {
                 self.main_split.open_file_changes(path);
             }
-            InternalCommand::StartRenamePath { path } => {
-                self.file_explorer.rename_state.set(RenameState::Renaming {
-                    path,
-                    editor_needs_reset: true,
-                });
+            InternalCommand::ReloadFileExplorer => {
+                self.file_explorer.reload();
             }
-            InternalCommand::TestRenamePath { new_path } => {
-                let rename_state = self.file_explorer.rename_state;
+            InternalCommand::TestPathCreation { new_path } => {
+                let naming = self.file_explorer.naming;
 
                 let send = create_ext_action(
                     self.scope,
                     move |response: Result<ProxyResponse, RpcError>| match response {
                         Ok(_) => {
-                            rename_state.update(RenameState::set_ok);
+                            naming.update(Naming::set_ok);
                         }
                         Err(err) => {
-                            rename_state.update(|rename_state| {
-                                rename_state.set_err(err.message)
-                            });
+                            naming.update(|naming| naming.set_err(err.message));
                         }
                     },
                 );
@@ -1342,6 +1337,7 @@ impl WindowTabData {
                 current_path,
                 new_path,
             } => {
+                println!("FinishRenamePath");
                 let send_current_path = current_path.clone();
                 let send_new_path = new_path.clone();
                 let file_explorer = self.file_explorer.clone();
@@ -1351,6 +1347,7 @@ impl WindowTabData {
                     self.scope,
                     move |response: Result<ProxyResponse, RpcError>| match response {
                         Ok(response) => {
+                            println!("Got rename path response");
                             // Get the canonicalized new path from the proxy.
                             let new_path =
                                 if let ProxyResponse::CreatePathResponse { path } =
@@ -1400,22 +1397,79 @@ impl WindowTabData {
                             }
 
                             file_explorer.reload();
-                            file_explorer.rename_state.set(RenameState::NotRenaming);
+                            file_explorer.naming.set(Naming::None);
                         }
                         Err(err) => {
-                            file_explorer.rename_state.update(|rename_state| {
-                                rename_state.set_err(err.message)
-                            });
+                            file_explorer
+                                .naming
+                                .update(|naming| naming.set_err(err.message));
                         }
                     },
                 );
 
-                self.file_explorer
-                    .rename_state
-                    .update(RenameState::set_pending);
+                self.file_explorer.naming.update(Naming::set_pending);
                 self.common
                     .proxy
                     .rename_path(current_path.clone(), new_path, send);
+            }
+            InternalCommand::FinishNewNode { is_dir, path } => {
+                let file_explorer = self.file_explorer.clone();
+                let internal_command = self.common.internal_command;
+
+                let send = create_ext_action(
+                    self.scope,
+                    move |response: Result<ProxyResponse, RpcError>| {
+                        match response {
+                            Ok(response) => {
+                                file_explorer.reload();
+                                file_explorer.naming.set(Naming::None);
+
+                                // Open a new file in the editor
+                                if let ProxyResponse::CreatePathResponse { path } =
+                                    response
+                                {
+                                    if !is_dir {
+                                        internal_command.send(
+                                            InternalCommand::OpenFile { path },
+                                        );
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                file_explorer
+                                    .naming
+                                    .update(|naming| naming.set_err(err.message));
+                            }
+                        }
+                    },
+                );
+
+                self.file_explorer.naming.update(Naming::set_pending);
+                if is_dir {
+                    self.common.proxy.create_directory(path, send);
+                } else {
+                    self.common.proxy.create_file(path, send);
+                }
+            }
+            InternalCommand::FinishDuplicate { source, path } => {
+                let file_explorer = self.file_explorer.clone();
+
+                let send = create_ext_action(
+                    self.scope,
+                    move |response: Result<_, RpcError>| {
+                        if let Err(err) = response {
+                            file_explorer
+                                .naming
+                                .update(|naming| naming.set_err(err.message));
+                        } else {
+                            file_explorer.reload();
+                            file_explorer.naming.set(Naming::None);
+                        }
+                    },
+                );
+
+                self.file_explorer.naming.update(Naming::set_pending);
+                self.common.proxy.duplicate_path(source, path, send);
             }
             InternalCommand::GoToLocation { location } => {
                 self.main_split.go_to_location(location, None);

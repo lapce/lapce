@@ -58,6 +58,34 @@ pub trait KeyPressFocus {
 
     fn receive_char(&self, c: &str);
 }
+impl KeyPressFocus for () {
+    fn get_mode(&self) -> Mode {
+        Mode::Normal
+    }
+
+    fn check_condition(&self, _condition: Condition) -> bool {
+        false
+    }
+
+    fn run_command(
+        &self,
+        _command: &LapceCommand,
+        _count: Option<usize>,
+        _mods: ModifiersState,
+    ) -> CommandExecuted {
+        CommandExecuted::No
+    }
+
+    fn expect_char(&self) -> bool {
+        false
+    }
+
+    fn focus_only(&self) -> bool {
+        false
+    }
+
+    fn receive_char(&self, _c: &str) {}
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum EventRef<'a> {
@@ -134,7 +162,7 @@ impl KeyPressData {
         self.commands_without_keymap = Rc::new(commands_without_keymap);
     }
 
-    fn handle_count<T: KeyPressFocus>(
+    fn handle_count<T: KeyPressFocus + ?Sized>(
         &self,
         focus: &T,
         keypress: &KeyPress,
@@ -164,7 +192,7 @@ impl KeyPressData {
         false
     }
 
-    fn run_command<T: KeyPressFocus>(
+    fn run_command<T: KeyPressFocus + ?Sized>(
         &self,
         command: &str,
         count: Option<usize>,
@@ -198,7 +226,7 @@ impl KeyPressData {
         Some(keypress)
     }
 
-    pub fn key_down<'a, T: KeyPressFocus>(
+    pub fn key_down<'a, T: KeyPressFocus + ?Sized>(
         &self,
         event: impl Into<EventRef<'a>>,
         focus: &T,
@@ -314,7 +342,7 @@ impl KeyPressData {
         mods
     }
 
-    fn match_keymap<T: KeyPressFocus>(
+    fn match_keymap<T: KeyPressFocus + ?Sized>(
         &self,
         keypresses: &[KeyPress],
         check: &T,
@@ -365,8 +393,11 @@ impl KeyPressData {
         }
     }
 
-    fn check_condition<T: KeyPressFocus>(condition: &str, check: &T) -> bool {
-        fn check_one_condition<T: KeyPressFocus>(
+    fn check_condition<T: KeyPressFocus + ?Sized>(
+        condition: &str,
+        check: &T,
+    ) -> bool {
+        fn check_one_condition<T: KeyPressFocus + ?Sized>(
             condition: &str,
             check: &T,
         ) -> bool {

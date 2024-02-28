@@ -8,6 +8,7 @@
 - [#2910](https://github.com/lapce/lapce/pull/2910): Files can be compared in the diff editor
 - [#2918](https://github.com/lapce/lapce/pull/2918): Allow searching the shortcuts overview by shortcut (e.g. "Ctrl+P") or when condition (e.g. "list_focus")
 - [#2955](https://github.com/lapce/lapce/pull/2955): Using glob patterns to hide files or directories in explorer
+- [#3026](https://github.com/lapce/lapce/pull/3026): Add missing file explorer context menu entries
 
 ### Bug Fixes
 - [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository
