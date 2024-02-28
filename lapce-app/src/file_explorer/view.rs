@@ -169,8 +169,8 @@ fn file_node_input_view(data: FileExplorerData, err: Option<String>) -> Containe
 
     let naming_editor_data = data.naming_editor_data.clone();
     let text_input_file_explorer_data = data.clone();
-    let focus = data.common.focus.clone();
-    let config = data.common.config.clone();
+    let focus = data.common.focus;
+    let config = data.common.config;
 
     let is_focused = move || {
         focus.with_untracked(|focus| focus == &Focus::Panel(PanelKind::FileExplorer))
@@ -289,7 +289,7 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                             };
                             config.ui_svg(svg_str)
                         } else if let Some(path) = kind.path() {
-                            config.file_svg(&path).0
+                            config.file_svg(path).0
                         } else {
                             config.ui_svg(LapceIcons::FILE)
                         }
@@ -308,7 +308,7 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                                 s.apply_opt(
                                     kind_for_style
                                         .path()
-                                        .and_then(|p| config.file_svg(&p).1),
+                                        .and_then(|p| config.file_svg(p).1),
                                     Style::color,
                                 )
                             })

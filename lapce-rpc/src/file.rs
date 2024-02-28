@@ -195,15 +195,21 @@ impl Naming {
     }
 
     pub fn set_ok(&mut self) {
-        self.state_mut().map(NamingState::set_ok);
+        if let Some(state) = self.state_mut() {
+            state.set_ok();
+        }
     }
 
     pub fn set_pending(&mut self) {
-        self.state_mut().map(NamingState::set_pending);
+        if let Some(state) = self.state_mut() {
+            state.set_pending();
+        }
     }
 
     pub fn set_err(&mut self, err: String) {
-        self.state_mut().map(|state| state.set_err(err));
+        if let Some(state) = self.state_mut() {
+            state.set_err(err);
+        }
     }
 
     pub fn as_renaming(&self) -> Option<&Renaming> {
