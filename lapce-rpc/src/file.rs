@@ -1,7 +1,6 @@
 use std::{
     cmp::{Ord, Ordering, PartialOrd},
     collections::HashMap,
-    mem,
     path::{Path, PathBuf},
 };
 
@@ -48,558 +47,6 @@ impl PathObject {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum Naming {
-    /// Not naming anything
-    None,
-    Renaming(RenameState),
-    NewNode(NewNodeState),
-    Duplicating(DuplicateState),
-}
-impl Naming {
-    pub fn as_renaming(&self) -> Option<&RenameState> {
-        match self {
-            Naming::Renaming(state) => Some(state),
-            _ => None,
-        }
-    }
-
-    /// Change to error state, if doing any naming
-    pub fn set_err(&mut self, message: String) {
-        match self {
-            Naming::None => {}
-            Naming::Renaming(state) => state.set_err(message),
-            Naming::NewNode(state) => state.set_err(message),
-            Naming::Duplicating(state) => state.set_err(message),
-        }
-    }
-
-    pub fn set_ok(&mut self) {
-        match self {
-            Naming::None => {}
-            Naming::Renaming(state) => state.set_ok(),
-            Naming::NewNode(state) => state.set_ok(),
-            Naming::Duplicating(state) => state.set_ok(),
-        }
-    }
-
-    pub fn set_pending(&mut self) {
-        match self {
-            Naming::None => {}
-            Naming::Renaming(state) => state.set_pending(),
-            Naming::NewNode(state) => state.set_pending(),
-            Naming::Duplicating(state) => state.set_pending(),
-        }
-    }
-
-    pub fn is_accepting_input(&self) -> bool {
-        match self {
-            Naming::None => false,
-            Naming::Renaming(state) => state.is_accepting_input(),
-            Naming::NewNode(state) => state.is_accepting_input(),
-            Naming::Duplicating(state) => state.is_accepting_input(),
-        }
-    }
-
-    pub fn set_editor_needs_reset(&mut self, needs_reset: bool) {
-        match self {
-            Naming::None => {}
-            Naming::Renaming(state) => state.set_editor_needs_reset(needs_reset),
-            Naming::NewNode(state) => state.set_editor_needs_reset(needs_reset),
-            Naming::Duplicating(state) => state.set_editor_needs_reset(needs_reset),
-        }
-    }
-
-    pub fn editor_needs_reset(&self) -> bool {
-        match self {
-            Naming::None => false,
-            Naming::Renaming(rename) => rename.editor_needs_reset(),
-            Naming::NewNode(state) => state.editor_needs_reset(),
-            Naming::Duplicating(state) => state.editor_needs_reset(),
-        }
-    }
-
-    /// The extra node that should be added after the node at `path`
-    pub fn extra_node(
-        &self,
-        is_dir: bool,
-        level: usize,
-        path: &Path,
-    ) -> Option<FileNodeViewData> {
-        match self {
-            Naming::NewNode(state) if state.base_path() == path => {
-                Some(FileNodeViewData {
-                    kind: FileNodeViewKind::Naming {
-                        err: state.err().map(ToString::to_string),
-                    },
-                    is_dir: state.is_dir(),
-                    open: false,
-                    level: level + 1,
-                })
-            }
-            Naming::Duplicating(state) if state.path() == path => {
-                Some(FileNodeViewData {
-                    kind: FileNodeViewKind::Duplicating {
-                        source: state.path().to_path_buf(),
-                        err: state.err().map(ToString::to_string),
-                    },
-                    is_dir,
-                    open: false,
-                    level: level + 1,
-                })
-            }
-            _ => None,
-        }
-    }
-}
-
-/// Stores the state of any in progress rename of a path.
-///
-/// The `editor_needs_reset` field is `true` if the rename editor should have its contents reset
-/// when the view function next runs.
-#[derive(Debug, Clone)]
-pub enum RenameState {
-    Renaming {
-        /// Original path
-        path: PathBuf,
-        editor_needs_reset: bool,
-    },
-    RenameRequestPending {
-        /// Original path
-        path: PathBuf,
-        editor_needs_reset: bool,
-    },
-    RenameErr {
-        /// Original path
-        path: PathBuf,
-        editor_needs_reset: bool,
-        err: String,
-    },
-}
-
-impl RenameState {
-    pub fn is_accepting_input(&self) -> bool {
-        match self {
-            Self::RenameRequestPending { .. } => false,
-            Self::Renaming { .. } | Self::RenameErr { .. } => true,
-        }
-    }
-
-    pub fn is_err(&self) -> bool {
-        match self {
-            Self::Renaming { .. } | Self::RenameRequestPending { .. } => false,
-            Self::RenameErr { .. } => true,
-        }
-    }
-
-    pub fn err(&self) -> Option<&str> {
-        match self {
-            Self::RenameErr { err, .. } => Some(err.as_str()),
-            _ => None,
-        }
-    }
-
-    pub fn set_ok(&mut self) {
-        if let &mut Self::RenameErr {
-            ref mut path,
-            editor_needs_reset,
-            ..
-        } = self
-        {
-            let path = mem::take(path);
-
-            *self = Self::Renaming {
-                path,
-                editor_needs_reset,
-            };
-        }
-    }
-
-    pub fn set_pending(&mut self) {
-        if let &mut Self::Renaming {
-            ref mut path,
-            editor_needs_reset,
-        }
-        | &mut Self::RenameErr {
-            ref mut path,
-            editor_needs_reset,
-            ..
-        } = self
-        {
-            let path = mem::take(path);
-
-            *self = Self::RenameRequestPending {
-                path,
-                editor_needs_reset,
-            };
-        }
-    }
-
-    pub fn set_err(&mut self, err: String) {
-        match self {
-            Self::Renaming {
-                path,
-                editor_needs_reset,
-            }
-            | Self::RenameRequestPending {
-                path,
-                editor_needs_reset,
-            }
-            | Self::RenameErr {
-                path,
-                editor_needs_reset,
-                ..
-            } => {
-                let path = mem::take(path);
-
-                *self = Self::RenameErr {
-                    path,
-                    editor_needs_reset: *editor_needs_reset,
-                    err,
-                };
-            }
-        }
-    }
-
-    pub fn set_editor_needs_reset(&mut self, needs_reset: bool) {
-        match self {
-            Self::Renaming {
-                editor_needs_reset, ..
-            }
-            | Self::RenameRequestPending {
-                editor_needs_reset, ..
-            }
-            | Self::RenameErr {
-                editor_needs_reset, ..
-            } => {
-                *editor_needs_reset = needs_reset;
-            }
-        }
-    }
-
-    /// Get the path for the target file we're renaming
-    pub fn path(&self) -> &Path {
-        match self {
-            Self::Renaming { path, .. }
-            | Self::RenameRequestPending { path, .. }
-            | Self::RenameErr { path, .. } => path,
-        }
-    }
-
-    pub fn editor_needs_reset(&self) -> bool {
-        match self {
-            &Self::Renaming {
-                editor_needs_reset, ..
-            }
-            | &Self::RenameRequestPending {
-                editor_needs_reset, ..
-            }
-            | &Self::RenameErr {
-                editor_needs_reset, ..
-            } => editor_needs_reset,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum NewNodeState {
-    /// We are naming the uncreated node
-    Naming {
-        /// If true, then we are creating a directory
-        is_dir: bool,
-        /// The folder that the file/directory is being created within
-        base_path: PathBuf,
-        editor_needs_reset: bool,
-    },
-    /// We are waiting for the node to be created
-    CreationPending {
-        base_path: PathBuf,
-        is_dir: bool,
-        editor_needs_reset: bool,
-    },
-    /// There is or would be an error in creating the node there
-    Err {
-        base_path: PathBuf,
-        is_dir: bool,
-        editor_needs_reset: bool,
-        err: String,
-    },
-}
-impl NewNodeState {
-    pub fn is_dir(&self) -> bool {
-        match self {
-            Self::Naming { is_dir, .. }
-            | Self::CreationPending { is_dir, .. }
-            | Self::Err { is_dir, .. } => *is_dir,
-        }
-    }
-
-    pub fn is_accepting_input(&self) -> bool {
-        match self {
-            Self::Naming { .. } | Self::Err { .. } => true,
-            Self::CreationPending { .. } => false,
-        }
-    }
-
-    pub fn is_err(&self) -> bool {
-        match self {
-            Self::Naming { .. } | Self::CreationPending { .. } => false,
-            Self::Err { .. } => true,
-        }
-    }
-
-    pub fn err(&self) -> Option<&str> {
-        match self {
-            Self::Err { err, .. } => Some(err.as_str()),
-            _ => None,
-        }
-    }
-
-    pub fn set_ok(&mut self) {
-        if let &mut Self::Err {
-            ref mut base_path,
-            is_dir,
-            editor_needs_reset,
-            ..
-        } = self
-        {
-            let base_path = mem::take(base_path);
-
-            *self = Self::Naming {
-                is_dir,
-                base_path,
-                editor_needs_reset,
-            };
-        }
-    }
-
-    pub fn set_pending(&mut self) {
-        if let &mut Self::Naming {
-            ref mut base_path,
-            is_dir,
-            editor_needs_reset,
-        } = self
-        {
-            let base_path = mem::take(base_path);
-
-            *self = Self::CreationPending {
-                base_path,
-                is_dir,
-                editor_needs_reset,
-            };
-        }
-    }
-
-    pub fn set_err(&mut self, err: String) {
-        match self {
-            Self::Naming {
-                base_path,
-                is_dir,
-                editor_needs_reset,
-            }
-            | Self::CreationPending {
-                base_path,
-                is_dir,
-                editor_needs_reset,
-            }
-            | Self::Err {
-                base_path,
-                is_dir,
-                editor_needs_reset,
-                ..
-            } => {
-                let base_path = mem::take(base_path);
-
-                *self = Self::Err {
-                    base_path,
-                    is_dir: *is_dir,
-                    editor_needs_reset: *editor_needs_reset,
-                    err,
-                };
-            }
-        }
-    }
-
-    pub fn base_path(&self) -> &Path {
-        match self {
-            Self::Naming { base_path, .. }
-            | Self::CreationPending { base_path, .. }
-            | Self::Err { base_path, .. } => base_path,
-        }
-    }
-
-    pub fn set_editor_needs_reset(&mut self, needs_reset: bool) {
-        match self {
-            Self::Naming {
-                editor_needs_reset, ..
-            }
-            | Self::CreationPending {
-                editor_needs_reset, ..
-            }
-            | Self::Err {
-                editor_needs_reset, ..
-            } => {
-                *editor_needs_reset = needs_reset;
-            }
-        }
-    }
-
-    pub fn editor_needs_reset(&self) -> bool {
-        match self {
-            &Self::Naming {
-                editor_needs_reset, ..
-            }
-            | &Self::CreationPending {
-                editor_needs_reset, ..
-            }
-            | &Self::Err {
-                editor_needs_reset, ..
-            } => editor_needs_reset,
-        }
-    }
-}
-
-/// State for duplicating a file/directory in the same folder
-#[derive(Debug, Clone)]
-pub enum DuplicateState {
-    /// We are naming the uncreated node
-    Naming {
-        /// Path to the item being duplicated
-        path: PathBuf,
-        editor_needs_reset: bool,
-    },
-    /// We are waiting for the node to be created
-    CreationPending {
-        /// Path to the item being duplicated
-        path: PathBuf,
-        editor_needs_reset: bool,
-    },
-    /// There is or would be an error in creating the node there
-    Err {
-        /// Path to the item being duplicated
-        path: PathBuf,
-        editor_needs_reset: bool,
-        err: String,
-    },
-}
-impl DuplicateState {
-    pub fn is_accepting_input(&self) -> bool {
-        match self {
-            Self::Naming { .. } | Self::Err { .. } => true,
-            Self::CreationPending { .. } => false,
-        }
-    }
-
-    pub fn is_err(&self) -> bool {
-        match self {
-            Self::Naming { .. } | Self::CreationPending { .. } => false,
-            Self::Err { .. } => true,
-        }
-    }
-
-    pub fn err(&self) -> Option<&str> {
-        match self {
-            Self::Err { err, .. } => Some(err.as_str()),
-            _ => None,
-        }
-    }
-
-    pub fn set_ok(&mut self) {
-        if let &mut Self::Err {
-            ref mut path,
-            editor_needs_reset,
-            ..
-        } = self
-        {
-            let path = mem::take(path);
-
-            *self = Self::Naming {
-                path,
-                editor_needs_reset,
-            };
-        }
-    }
-
-    pub fn set_pending(&mut self) {
-        if let &mut Self::Naming {
-            ref mut path,
-            editor_needs_reset,
-        } = self
-        {
-            let path = mem::take(path);
-
-            *self = Self::CreationPending {
-                path,
-                editor_needs_reset,
-            };
-        }
-    }
-
-    pub fn set_err(&mut self, err: String) {
-        match self {
-            Self::Naming {
-                path,
-                editor_needs_reset,
-            }
-            | Self::CreationPending {
-                path,
-                editor_needs_reset,
-            }
-            | Self::Err {
-                path,
-                editor_needs_reset,
-                ..
-            } => {
-                let path = mem::take(path);
-
-                *self = Self::Err {
-                    path,
-                    editor_needs_reset: *editor_needs_reset,
-                    err,
-                };
-            }
-        }
-    }
-
-    pub fn path(&self) -> &Path {
-        match self {
-            Self::Naming { path, .. }
-            | Self::CreationPending { path, .. }
-            | Self::Err { path, .. } => path,
-        }
-    }
-
-    pub fn set_editor_needs_reset(&mut self, needs_reset: bool) {
-        match self {
-            Self::Naming {
-                editor_needs_reset, ..
-            }
-            | Self::CreationPending {
-                editor_needs_reset, ..
-            }
-            | Self::Err {
-                editor_needs_reset, ..
-            } => {
-                *editor_needs_reset = needs_reset;
-            }
-        }
-    }
-
-    pub fn editor_needs_reset(&self) -> bool {
-        match self {
-            &Self::Naming {
-                editor_needs_reset, ..
-            }
-            | &Self::CreationPending {
-                editor_needs_reset, ..
-            }
-            | &Self::Err {
-                editor_needs_reset, ..
-            } => editor_needs_reset,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FileNodeViewKind {
     /// An actual file/directory
@@ -617,10 +64,181 @@ pub enum FileNodeViewKind {
 impl FileNodeViewKind {
     pub fn path(&self) -> Option<&Path> {
         match self {
-            Self::Path(path)
-            | Self::Renaming { path, .. }
-            | Self::Duplicating { source: path, .. } => Some(path),
+            Self::Path(path) => Some(path),
+            Self::Renaming { path, .. } => Some(path),
             Self::Naming { .. } => None,
+            Self::Duplicating { source, .. } => Some(source),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NamingState {
+    /// Actively naming
+    Naming,
+    /// Application of the naming is pending
+    Pending,
+    /// There's an active error with the typed name
+    Err { err: String },
+}
+impl NamingState {
+    pub fn is_accepting_input(&self) -> bool {
+        match self {
+            Self::Naming | Self::Err { .. } => true,
+            Self::Pending => false,
+        }
+    }
+
+    pub fn is_err(&self) -> bool {
+        match self {
+            Self::Naming | Self::Pending => false,
+            Self::Err { .. } => true,
+        }
+    }
+
+    pub fn err(&self) -> Option<&str> {
+        match self {
+            Self::Err { err } => Some(err.as_str()),
+            _ => None,
+        }
+    }
+
+    pub fn set_ok(&mut self) {
+        *self = Self::Naming;
+    }
+
+    pub fn set_pending(&mut self) {
+        *self = Self::Pending;
+    }
+
+    pub fn set_err(&mut self, err: String) {
+        *self = Self::Err { err };
+    }
+}
+
+/// Stores the state of any in progress rename of a path.
+///
+/// The `editor_needs_reset` field is `true` if the rename editor should have its contents reset
+/// when the view function next runs.
+#[derive(Debug, Clone)]
+pub struct Renaming {
+    pub state: NamingState,
+    /// Original file's path
+    pub path: PathBuf,
+    pub editor_needs_reset: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewNode {
+    pub state: NamingState,
+    /// If true, then we are creating a directory
+    pub is_dir: bool,
+    /// The folder that the file/directory is being created within
+    pub base_path: PathBuf,
+    pub editor_needs_reset: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct Duplicating {
+    pub state: NamingState,
+    /// Path to the item being duplicated
+    pub path: PathBuf,
+    pub editor_needs_reset: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum Naming {
+    None,
+    Renaming(Renaming),
+    NewNode(NewNode),
+    Duplicating(Duplicating),
+}
+impl Naming {
+    pub fn state(&self) -> Option<&NamingState> {
+        match self {
+            Self::None => None,
+            Self::Renaming(rename) => Some(&rename.state),
+            Self::NewNode(state) => Some(&state.state),
+            Self::Duplicating(state) => Some(&state.state),
+        }
+    }
+
+    pub fn state_mut(&mut self) -> Option<&mut NamingState> {
+        match self {
+            Self::None => None,
+            Self::Renaming(rename) => Some(&mut rename.state),
+            Self::NewNode(state) => Some(&mut state.state),
+            Self::Duplicating(state) => Some(&mut state.state),
+        }
+    }
+
+    pub fn is_accepting_input(&self) -> bool {
+        self.state().map_or(false, NamingState::is_accepting_input)
+    }
+
+    pub fn editor_needs_reset(&self) -> bool {
+        match self {
+            Naming::None => false,
+            Naming::Renaming(rename) => rename.editor_needs_reset,
+            Naming::NewNode(state) => state.editor_needs_reset,
+            Naming::Duplicating(state) => state.editor_needs_reset,
+        }
+    }
+
+    pub fn set_editor_needs_reset(&mut self, needs_reset: bool) {
+        match self {
+            Naming::None => {}
+            Naming::Renaming(rename) => rename.editor_needs_reset = needs_reset,
+            Naming::NewNode(state) => state.editor_needs_reset = needs_reset,
+            Naming::Duplicating(state) => state.editor_needs_reset = needs_reset,
+        }
+    }
+
+    pub fn set_ok(&mut self) {
+        self.state_mut().map(NamingState::set_ok);
+    }
+
+    pub fn set_pending(&mut self) {
+        self.state_mut().map(NamingState::set_pending);
+    }
+
+    pub fn set_err(&mut self, err: String) {
+        self.state_mut().map(|state| state.set_err(err));
+    }
+
+    pub fn as_renaming(&self) -> Option<&Renaming> {
+        match self {
+            Naming::Renaming(rename) => Some(rename),
+            _ => None,
+        }
+    }
+
+    /// The extra node that should be added after the node at `path`
+    pub fn extra_node(
+        &self,
+        is_dir: bool,
+        level: usize,
+        path: &Path,
+    ) -> Option<FileNodeViewData> {
+        match self {
+            Naming::NewNode(n) if n.base_path == path => Some(FileNodeViewData {
+                kind: FileNodeViewKind::Naming {
+                    err: n.state.err().map(ToString::to_string),
+                },
+                is_dir: n.is_dir,
+                open: false,
+                level: level + 1,
+            }),
+            Naming::Duplicating(d) if d.path == path => Some(FileNodeViewData {
+                kind: FileNodeViewKind::Duplicating {
+                    source: d.path.to_path_buf(),
+                    err: d.state.err().map(ToString::to_string),
+                },
+                is_dir,
+                open: false,
+                level: level + 1,
+            }),
+            _ => None,
         }
     }
 }
@@ -834,11 +452,11 @@ impl FileNodeItem {
 
         let mut i = current;
         if current >= min {
-            let kind = if let Naming::Renaming(state) = &naming {
-                if state.path() == self.path {
+            let kind = if let Naming::Renaming(r) = &naming {
+                if r.path == self.path {
                     FileNodeViewKind::Renaming {
                         path: self.path.clone(),
-                        err: state.err().map(ToString::to_string),
+                        err: r.state.err().map(ToString::to_string),
                     }
                 } else {
                     FileNodeViewKind::Path(self.path.clone())

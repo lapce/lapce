@@ -546,9 +546,6 @@ pub enum InternalCommand {
         path: PathBuf,
     },
     ReloadFileExplorer,
-    StartRenamePath {
-        path: PathBuf,
-    },
     /// Test whether a file/directory can be created at that path
     TestPathCreation {
         new_path: PathBuf,

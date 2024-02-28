@@ -22,7 +22,7 @@ use lapce_core::{
     register::Clipboard,
 };
 use lapce_rpc::{
-    file::{DuplicateState, FileNodeItem, Naming, NewNodeState, RenameState},
+    file::{Duplicating, FileNodeItem, Naming, NamingState, NewNode, Renaming},
     proxy::ProxyResponse,
 };
 
@@ -271,7 +271,7 @@ impl FileExplorerData {
                     None
                 }
             }
-            Naming::NewNode(state) => {
+            Naming::NewNode(n) => {
                 let relative_path = self.naming_editor_data.text();
                 let relative_path: Cow<OsStr> = match relative_path.slice_to_cow(..)
                 {
@@ -279,10 +279,9 @@ impl FileExplorerData {
                     Cow::Owned(path) => Cow::Owned(path.into()),
                 };
 
-                let base_path = state.base_path();
-                Some(base_path.join(relative_path))
+                Some(n.base_path.join(relative_path))
             }
-            Naming::Duplicating(state) => {
+            Naming::Duplicating(d) => {
                 let relative_path = self.naming_editor_data.text();
                 let relative_path: Cow<OsStr> = match relative_path.slice_to_cow(..)
                 {
@@ -290,11 +289,8 @@ impl FileExplorerData {
                     Cow::Owned(path) => Cow::Owned(path.into()),
                 };
 
-                let new_path = state
-                    .path()
-                    .parent()
-                    .unwrap_or("".as_ref())
-                    .join(relative_path);
+                let new_path =
+                    d.path.parent().unwrap_or("".as_ref()).join(relative_path);
 
                 Some(new_path)
             }
@@ -305,7 +301,7 @@ impl FileExplorerData {
     /// current path, gets the current and new paths of the renamed node.
     fn renamed_path(&self) -> RenamedPath {
         self.naming.with_untracked(|naming| {
-            if let Some(current_path) = naming.as_renaming().map(RenameState::path) {
+            if let Some(current_path) = naming.as_renaming().map(|x| &x.path) {
                 let current_file_name = current_path.file_name().unwrap_or_default();
                 // `new_relative_path` is the new path relative to the parent directory, unless the
                 // user has entered an absolute path.
@@ -362,7 +358,7 @@ impl FileExplorerData {
                     }
                 }
             }
-            Naming::NewNode(state) => {
+            Naming::NewNode(n) => {
                 let Some(path) = self.naming_path() else {
                     return;
                 };
@@ -370,18 +366,18 @@ impl FileExplorerData {
                 self.common
                     .internal_command
                     .send(InternalCommand::FinishNewNode {
-                        is_dir: state.is_dir(),
+                        is_dir: n.is_dir,
                         path,
                     });
             }
-            Naming::Duplicating(state) => {
+            Naming::Duplicating(d) => {
                 let Some(path) = self.naming_path() else {
                     return;
                 };
 
                 self.common.internal_command.send(
                     InternalCommand::FinishDuplicate {
-                        source: state.path().to_owned(),
+                        source: d.path.to_owned(),
                         path,
                     },
                 );
@@ -455,7 +451,8 @@ impl FileExplorerData {
                     return;
                 }
 
-                naming.set(Naming::NewNode(NewNodeState::Naming {
+                naming.set(Naming::NewNode(NewNode {
+                    state: NamingState::Naming,
                     base_path: base_path.clone(),
                     is_dir: false,
                     editor_needs_reset: true,
@@ -478,7 +475,8 @@ impl FileExplorerData {
                     return;
                 }
 
-                naming.set(Naming::NewNode(NewNodeState::Naming {
+                naming.set(Naming::NewNode(NewNode {
+                    state: NamingState::Naming,
                     base_path: base_path.clone(),
                     is_dir: true,
                     editor_needs_reset: true,
@@ -510,15 +508,18 @@ impl FileExplorerData {
 
         if !is_workspace {
             let path = path_a.clone();
-            let internal_command = common.internal_command;
             menu = menu.entry(MenuItem::new("Rename").action(move || {
-                internal_command
-                    .send(InternalCommand::StartRenamePath { path: path.clone() });
+                naming.set(Naming::Renaming(Renaming {
+                    state: NamingState::Naming,
+                    path: path.clone(),
+                    editor_needs_reset: true,
+                }));
             }));
 
             let path = path_a.clone();
             menu = menu.entry(MenuItem::new("Duplicate").action(move || {
-                naming.set(Naming::Duplicating(DuplicateState::Naming {
+                naming.set(Naming::Duplicating(Duplicating {
+                    state: NamingState::Naming,
                     path: path.clone(),
                     editor_needs_reset: true,
                 }));

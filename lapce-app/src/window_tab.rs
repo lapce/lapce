@@ -27,7 +27,7 @@ use lapce_core::{
 use lapce_rpc::{
     core::CoreNotification,
     dap_types::RunDebugConfig,
-    file::{Naming, PathObject, RenameState},
+    file::{Naming, PathObject},
     proxy::{ProxyResponse, ProxyRpcHandler, ProxyStatus},
     source_control::FileDiff,
     terminal::TermId,
@@ -1316,14 +1316,6 @@ impl WindowTabData {
             InternalCommand::ReloadFileExplorer => {
                 self.file_explorer.reload();
             }
-            InternalCommand::StartRenamePath { path } => {
-                self.file_explorer.naming.set(Naming::Renaming(
-                    RenameState::Renaming {
-                        path,
-                        editor_needs_reset: true,
-                    },
-                ));
-            }
             InternalCommand::TestPathCreation { new_path } => {
                 let naming = self.file_explorer.naming;
 
@@ -1423,7 +1415,6 @@ impl WindowTabData {
             InternalCommand::FinishNewNode { is_dir, path } => {
                 let file_explorer = self.file_explorer.clone();
                 let internal_command = self.common.internal_command;
-                // let main_split = self.main_split.clone();
 
                 let send = create_ext_action(
                     self.scope,
@@ -1441,16 +1432,6 @@ impl WindowTabData {
                                         internal_command.send(
                                             InternalCommand::OpenFile { path },
                                         );
-                                        // main_split.jump_to_location(
-                                        //     EditorLocation {
-                                        //         path,
-                                        //         position: None,
-                                        //         scroll_offset: None,
-                                        //         ignore_unconfirmed: false,
-                                        //         same_editor_tab: false,
-                                        //     },
-                                        //     None,
-                                        // );
                                     }
                                 }
                             }
