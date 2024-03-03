@@ -47,6 +47,7 @@ pub struct WindowCommonData {
     pub cursor_blink_timer: RwSignal<TimerToken>,
     // the value to be update by curosr blinking
     pub hide_cursor: RwSignal<bool>,
+    pub app_view_id: RwSignal<floem::id::Id>,
 }
 
 /// `WindowData` is the application model for a top-level window.
@@ -80,6 +81,7 @@ pub struct WindowData {
 impl WindowData {
     pub fn new(
         window_id: WindowId,
+        app_view_id: RwSignal<floem::id::Id>,
         info: WindowInfo,
         window_scale: RwSignal<f64>,
         latest_release: ReadSignal<Arc<Option<ReleaseInfo>>>,
@@ -113,6 +115,7 @@ impl WindowData {
             ime_allowed,
             cursor_blink_timer,
             hide_cursor,
+            app_view_id,
         });
 
         for w in info.tabs.workspaces {

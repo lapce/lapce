@@ -1882,10 +1882,11 @@ fn find_view(
     replace_focus: RwSignal<bool>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
-    let config = find_editor.common.config;
-    let find_visual = find_editor.common.find.visual;
+    let common = find_editor.common.clone();
+    let config = common.config;
+    let find_visual = common.find.visual;
     let replace_doc = replace_editor.doc_signal();
-    let focus = find_editor.common.focus;
+    let focus = common.focus;
 
     let find_pos = create_memo(move |_| {
         let visual = find_visual.get();
@@ -2036,6 +2037,9 @@ fn find_view(
                 .flex_col()
         })
         .on_event_stop(EventListener::PointerDown, move |_| {
+            // Shift the editor tab focus to the editor the find search is attached to
+            // So that if you have two tabs open side-by-side (and thus two find views),
+            // clicking on one will shift the focus to the editor it's attached to
             let editor = editor.get_untracked();
             if let Some(editor_tab_id) = editor.editor_tab_id.get_untracked() {
                 editor
@@ -2044,6 +2048,15 @@ fn find_view(
                     .send(InternalCommand::FocusEditorTab { editor_tab_id });
             }
             focus.set(Focus::Workbench);
+            // Request focus on the app view, as our current method of dispatching pointer events
+            // is from the app_view to the actual editor. That's also why this stops the pointer
+            // event is stopped here, as otherwise our default handling would make it go through to
+            // the editor.
+            common
+                .window_common
+                .app_view_id
+                .get_untracked()
+                .request_focus();
         }),
     )
     .style(move |s| {
