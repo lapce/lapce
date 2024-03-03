@@ -420,8 +420,10 @@ impl AppData {
     }
 
     fn app_view(&self, window_id: WindowId, info: WindowInfo) -> impl View {
+        let app_view_id = create_rw_signal(floem::id::Id::next());
         let window_data = WindowData::new(
             window_id,
+            app_view_id,
             info,
             self.window_scale,
             self.latest_release.read_only(),
@@ -521,6 +523,8 @@ impl AppData {
             ))
             .style(|s| s.flex_col().size_full());
         let view_id = view.id();
+        app_view_id.set(view_id);
+
         view.window_scale(move || window_scale.get())
             .keyboard_navigatable()
             .on_event(EventListener::KeyDown, move |event| {

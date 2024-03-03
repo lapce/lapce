@@ -12,6 +12,7 @@
 
 ### Bug Fixes
 - [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository
+- [#3031](https://github.com/lapce/lapce/pull/3031): Fix find not receiving inputs when clicked
 
 ## 0.3.1
 
