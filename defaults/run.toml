@@ -16,7 +16,7 @@ program = ""
 # current working directory, optional
 # cwd = "${workspace}"
 
-# enviroment variables, optional
+# environment variables, optional
 # [configs.env]
 # VAR1 = "VAL1"
 # VAR2 = "VAL2"

@@ -317,7 +317,7 @@ impl FileNodeItem {
         children
     }
 
-    /// Returns an iterator over the ancestors of `path`, starting with the first decendant of `prefix`.
+    /// Returns an iterator over the ancestors of `path`, starting with the first descendant of `prefix`.
     ///
     /// # Example:
     /// (ignored because the function is private but I promise this passes)

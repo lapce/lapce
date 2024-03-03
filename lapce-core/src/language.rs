@@ -99,7 +99,7 @@ struct TreeSitterProperties {
     query: Option<&'static str>,
     /// Lists of tree-sitter node types that control how code lenses are built.
     /// The first is a list of nodes that should be traversed and included in
-    /// the lens, along with thier children. The second is a list of nodes that
+    /// the lens, along with their children. The second is a list of nodes that
     /// should be excluded from the lens, though they will still be traversed.
     /// See `walk_tree` for more details.
     ///
