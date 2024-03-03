@@ -1065,7 +1065,7 @@ fn editor_tab_content(
                         editor_data,
                     ))
                 } else {
-                    container(text("emtpy editor"))
+                    container(text("empty editor"))
                 }
             }
             EditorTabChild::DiffEditor(diff_editor_id) => {
@@ -1177,7 +1177,7 @@ fn editor_tab_content(
                         diff_editor_scope.dispose();
                     })
                 } else {
-                    container(text("emtpy diff editor"))
+                    container(text("empty diff editor"))
                 }
             }
             EditorTabChild::Settings(_) => {
@@ -1692,7 +1692,7 @@ fn split_list(
                             dragging,
                         ))
                     } else {
-                        container(text("emtpy editor tab"))
+                        container(text("empty editor tab"))
                     }
                 }
                 SplitContent::Split(split_id) => {
@@ -1706,7 +1706,7 @@ fn split_list(
                             dragging,
                         )
                     } else {
-                        container(text("emtpy split"))
+                        container(text("empty split"))
                     }
                 }
             };
@@ -3557,7 +3557,7 @@ fn load_shell_env() {
         Ok(output) => String::from_utf8(output.stdout).unwrap_or_default(),
 
         Err(_) => {
-            // sliently ignoring since logger is not yet available
+            // silently ignoring since logger is not yet available
             return;
         }
     };

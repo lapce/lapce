@@ -1066,7 +1066,7 @@ impl PluginHostHandler {
                 self.catalog_rpc.core_rpc.log_message(message);
             }
             _ => {
-                eprintln!("host notificaton {method} not handled");
+                eprintln!("host notification {method} not handled");
             }
         }
         Ok(())
