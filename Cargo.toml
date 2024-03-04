@@ -46,7 +46,7 @@ globset = "0.4.14"
 hashbrown = { version = "0.14.0", features = ["serde"] }
 im = { version = "15.0.0", features = ["serde"] }
 include_dir = "0.6.2"
-indexmap = { version = "2.0", features = ["serde"] }
+indexmap = { version = "2.2", features = ["serde"] }
 interprocess = "1.2.1"
 itertools = "0.10.1"
 notify = { version = "5.2.0", features = ["serde"] }
