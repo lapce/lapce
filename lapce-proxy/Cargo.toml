@@ -50,7 +50,7 @@ polling = "3.0.0"
 libc = "0.2"
 
 # git
-git2 = { version = "0.18.1", features = ["vendored-openssl"] }
+git2 = { version = "0.18.2", features = ["vendored-openssl"] }
 
 # deleting files
 trash = "3.0.6"
