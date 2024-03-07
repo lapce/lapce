@@ -4,7 +4,7 @@ use std::{
 };
 
 use floem::{
-    reactive::{create_memo, ReadSignal, RwSignal},
+    reactive::{create_memo, Memo, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Display},
     view::View,
     views::{dyn_stack, label, stack, svg, Decorators},
@@ -17,6 +17,7 @@ use crate::{
     app::clickable_icon,
     command::LapceWorkbenchCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    editor::EditorData,
     listener::Listener,
     palette::kind::PaletteKind,
     panel::{kind::PanelKind, position::PanelContainerPosition},
@@ -290,7 +291,7 @@ pub fn status(
         }),
         stack({
             let palette_clone = palette.clone();
-            let cursor_info = label(move || {
+            let cursor_info = status_text(config, editor, move || {
                 if let Some(editor) = editor.get() {
                     let mut status = String::new();
                     let cursor = editor.cursor().get();
@@ -323,34 +324,21 @@ pub fn status(
             })
             .on_click_stop(move |_| {
                 palette_clone.run(PaletteKind::Line);
-            })
-            .style(move |s| {
-                let config = config.get();
-                s.display(
-                    if editor
-                        .get()
-                        .map(|editor| {
-                            editor.doc_signal().get().content.with(|c| c.is_file())
-                        })
-                        .unwrap_or(false)
-                    {
-                        Display::Flex
-                    } else {
-                        Display::None
-                    },
-                )
-                .height_pct(100.0)
-                .padding_horiz(10.0)
-                .items_center()
-                .color(config.color(LapceColor::STATUS_FOREGROUND))
-                .hover(|s| {
-                    s.cursor(CursorStyle::Pointer).background(
-                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
-                })
             });
             let palette_clone = palette.clone();
-            let language_info = label(move || {
+            let line_ending_info = status_text(config, editor, move || {
+                if let Some(editor) = editor.get() {
+                    let doc = editor.doc_signal().get();
+                    doc.buffer.with(|b| b.line_ending()).as_str()
+                } else {
+                    ""
+                }
+            })
+            .on_click_stop(move |_| {
+                palette_clone.run(PaletteKind::LineEnding);
+            });
+            let palette_clone = palette.clone();
+            let language_info = status_text(config, editor, move || {
                 if let Some(editor) = editor.get() {
                     let doc = editor.doc_signal().get();
                     doc.syntax().with(|s| s.language.name())
@@ -360,33 +348,8 @@ pub fn status(
             })
             .on_click_stop(move |_| {
                 palette_clone.run(PaletteKind::Language);
-            })
-            .style(move |s| {
-                let config = config.get();
-                s.display(
-                    if editor
-                        .get()
-                        .map(|editor| {
-                            editor.doc_signal().get().content.with(|c| c.is_file())
-                        })
-                        .unwrap_or(false)
-                    {
-                        Display::Flex
-                    } else {
-                        Display::None
-                    },
-                )
-                .height_pct(100.0)
-                .padding_horiz(10.0)
-                .items_center()
-                .color(config.color(LapceColor::STATUS_FOREGROUND))
-                .hover(|s| {
-                    s.cursor(CursorStyle::Pointer).background(
-                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
-                })
             });
-            (cursor_info, language_info)
+            (cursor_info, line_ending_info, language_info)
         })
         .style(|s| {
             s.height_pct(100.0)
@@ -435,4 +398,33 @@ fn progress_view(
             })
         },
     )
+}
+
+fn status_text<S: std::fmt::Display + 'static>(
+    config: ReadSignal<Arc<LapceConfig>>,
+    editor: Memo<Option<Rc<EditorData>>>,
+    text: impl Fn() -> S + 'static,
+) -> impl View {
+    label(text).style(move |s| {
+        let config = config.get();
+        let display = if editor
+            .get()
+            .map(|editor| editor.doc_signal().get().content.with(|c| c.is_file()))
+            .unwrap_or(false)
+        {
+            Display::Flex
+        } else {
+            Display::None
+        };
+
+        s.display(display)
+            .height_full()
+            .padding_horiz(10.0)
+            .items_center()
+            .color(config.color(LapceColor::STATUS_FOREGROUND))
+            .hover(|s| {
+                s.cursor(CursorStyle::Pointer)
+                    .background(config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
+            })
+    })
 }

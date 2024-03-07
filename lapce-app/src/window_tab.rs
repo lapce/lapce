@@ -1013,6 +1013,9 @@ impl WindowTabData {
             ChangeFileLanguage => {
                 self.palette.run(PaletteKind::Language);
             }
+            ChangeFileLineEnding => {
+                self.palette.run(PaletteKind::LineEnding);
+            }
             DiffFiles => self.palette.run(PaletteKind::DiffFiles),
 
             // ==== Running / Debugging ====

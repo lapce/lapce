@@ -2021,34 +2021,43 @@ impl EditorData {
         }
 
         let config = self.common.config.get_untracked();
-        if let DocContent::File { path, .. } = content {
-            let format_on_save = allow_formatting && config.editor.format_on_save;
-            if format_on_save {
-                let editor = self.clone();
-                let send = create_ext_action(self.scope, move |result| {
-                    if let Ok(Ok(ProxyResponse::GetDocumentFormatting { edits })) =
-                        result
-                    {
-                        let current_rev = editor.doc().rev();
-                        if current_rev == rev {
-                            editor.do_text_edit(&edits);
-                        }
-                    }
-                    editor.do_save(after_action);
-                });
+        let DocContent::File { path, .. } = content else {
+            return;
+        };
 
-                let (tx, rx) = crossbeam_channel::bounded(1);
-                let proxy = self.common.proxy.clone();
-                std::thread::spawn(move || {
-                    proxy.get_document_formatting(path, move |result| {
-                        let _ = tx.send(result);
-                    });
-                    let result = rx.recv_timeout(std::time::Duration::from_secs(1));
-                    send(result);
+        // If we are disallowing formatting (such as due to a manual save without formatting),
+        // then we skip normalizing line endings as a common reason for that is large files.
+        // (but if the save is typical, even if config format_on_save is false, we normalize)
+        if allow_formatting && config.editor.normalize_line_endings {
+            self.run_edit_command(&EditCommand::NormalizeLineEndings);
+        }
+
+        let format_on_save = allow_formatting && config.editor.format_on_save;
+        if format_on_save {
+            let editor = self.clone();
+            let send = create_ext_action(self.scope, move |result| {
+                if let Ok(Ok(ProxyResponse::GetDocumentFormatting { edits })) =
+                    result
+                {
+                    let current_rev = editor.doc().rev();
+                    if current_rev == rev {
+                        editor.do_text_edit(&edits);
+                    }
+                }
+                editor.do_save(after_action);
+            });
+
+            let (tx, rx) = crossbeam_channel::bounded(1);
+            let proxy = self.common.proxy.clone();
+            std::thread::spawn(move || {
+                proxy.get_document_formatting(path, move |result| {
+                    let _ = tx.send(result);
                 });
-            } else {
-                self.do_save(after_action);
-            }
+                let result = rx.recv_timeout(std::time::Duration::from_secs(1));
+                send(result);
+            });
+        } else {
+            self.do_save(after_action);
         }
     }
 

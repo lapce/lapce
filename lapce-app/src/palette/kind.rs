@@ -19,6 +19,7 @@ pub enum PaletteKind {
     ColorTheme,
     IconTheme,
     Language,
+    LineEnding,
     SCMReferences,
     TerminalProfile,
     DiffFiles,
@@ -43,6 +44,7 @@ impl PaletteKind {
             | PaletteKind::ColorTheme
             | PaletteKind::IconTheme
             | PaletteKind::Language
+            | PaletteKind::LineEnding
             | PaletteKind::SCMReferences
             | PaletteKind::DiffFiles => "",
             #[cfg(windows)]
@@ -88,6 +90,9 @@ impl PaletteKind {
             PaletteKind::ColorTheme => Some(LapceWorkbenchCommand::ChangeColorTheme),
             PaletteKind::IconTheme => Some(LapceWorkbenchCommand::ChangeIconTheme),
             PaletteKind::Language => Some(LapceWorkbenchCommand::ChangeFileLanguage),
+            PaletteKind::LineEnding => {
+                Some(LapceWorkbenchCommand::ChangeFileLineEnding)
+            }
             PaletteKind::SCMReferences => {
                 Some(LapceWorkbenchCommand::PaletteSCMReferences)
             }
@@ -118,6 +123,7 @@ impl PaletteKind {
             | PaletteKind::ColorTheme
             | PaletteKind::IconTheme
             | PaletteKind::Language
+            | PaletteKind::LineEnding
             | PaletteKind::SCMReferences
             | PaletteKind::DiffFiles => input,
             PaletteKind::PaletteHelp

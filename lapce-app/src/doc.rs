@@ -44,6 +44,7 @@ use lapce_core::{
     editor::{Action, EditConf, EditType},
     indent::IndentStyle,
     language::LapceLanguage,
+    line_ending::LineEnding,
     mode::MotionMode,
     register::Register,
     rope_text_pos::RopeTextPosition,
@@ -648,6 +649,13 @@ impl Doc {
     /// Get the buffer's current revision. This is used to track whether the buffer has changed.
     pub fn rev(&self) -> u64 {
         self.buffer.with_untracked(|b| b.rev())
+    }
+
+    /// Get the buffer's line-ending.  
+    /// Note: this may not be the same as what the actual line endings in the file are, rather this
+    /// is what the line-ending is set to (and what it will be saved as).
+    pub fn line_ending(&self) -> LineEnding {
+        self.buffer.with_untracked(|b| b.line_ending())
     }
 
     fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {

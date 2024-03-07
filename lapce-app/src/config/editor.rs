@@ -126,6 +126,11 @@ pub struct EditorConfig {
     )]
     pub format_on_save: bool,
 
+    #[field_names(
+        desc = "Whether newlines should be automatically converted to the current line ending"
+    )]
+    pub normalize_line_endings: bool,
+
     #[field_names(desc = "If matching brackets are highlighted")]
     pub highlight_matching_brackets: bool,
 

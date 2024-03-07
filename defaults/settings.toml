@@ -34,6 +34,7 @@ highlight-selection-occurrences = true
 highlight-scope-lines = false
 autosave-interval = 0
 format-on-autosave = true
+normalize-line-endings = true
 enable-inlay-hints = true
 inlay-hint-font-family = ""
 inlay-hint-font-size = 0
