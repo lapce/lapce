@@ -5,7 +5,7 @@ use floem::{
         kurbo::{Point, Rect},
         Color,
     },
-    prop_extracter,
+    prop_extractor,
     reactive::create_effect,
     style::{FontFamily, FontSize, LineHeight, Style, TextColor},
     taffy::prelude::NodeId,
@@ -13,8 +13,8 @@ use floem::{
     Renderer,
 };
 
-prop_extracter! {
-    Extracter {
+prop_extractor! {
+    Extractor {
         color: TextColor,
         font_size: FontSize,
         font_family: FontFamily,
@@ -76,7 +76,7 @@ pub struct FocusText {
     available_text: Option<String>,
     available_width: Option<f32>,
     available_text_layout: Option<TextLayout>,
-    style: Extracter,
+    style: Extractor,
 }
 
 impl FocusText {

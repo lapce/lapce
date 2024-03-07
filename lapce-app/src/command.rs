@@ -470,6 +470,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Change current file language")]
     ChangeFileLanguage,
 
+    #[strum(serialize = "change_file_line_ending")]
+    #[strum(message = "Change current file line ending")]
+    ChangeFileLineEnding,
+
     #[strum(serialize = "next_editor_tab")]
     #[strum(message = "Next Editor Tab")]
     NextEditorTab,

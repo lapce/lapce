@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use lapce_core::line_ending::LineEnding;
 use lapce_rpc::dap_types::RunDebugConfig;
 use lsp_types::{Range, SymbolKind};
 
@@ -72,6 +73,9 @@ pub enum PaletteItemContent {
     },
     Language {
         name: String,
+    },
+    LineEnding {
+        kind: LineEnding,
     },
     SCMReference {
         name: String,

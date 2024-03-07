@@ -20,7 +20,8 @@ use floem::{
 use itertools::Itertools;
 use lapce_core::{
     buffer::rope_text::RopeText, command::FocusCommand, language::LapceLanguage,
-    mode::Mode, movement::Movement, selection::Selection, syntax::Syntax,
+    line_ending::LineEnding, mode::Mode, movement::Movement, selection::Selection,
+    syntax::Syntax,
 };
 use lapce_rpc::proxy::ProxyResponse;
 use lapce_xi_rope::Rope;
@@ -386,6 +387,9 @@ impl PaletteData {
             }
             PaletteKind::Language => {
                 self.get_languages();
+            }
+            PaletteKind::LineEnding => {
+                self.get_line_endings();
             }
             PaletteKind::SCMReferences => {
                 self.get_scm_references();
@@ -962,6 +966,24 @@ impl PaletteData {
         self.items.set(items);
     }
 
+    fn get_line_endings(&self) {
+        let items = [LineEnding::Lf, LineEnding::CrLf]
+            .iter()
+            .map(|l| PaletteItem {
+                content: PaletteItemContent::LineEnding { kind: *l },
+                filter_text: l.as_str().to_string(),
+                score: 0,
+                indices: Vec::new(),
+            })
+            .collect();
+        if let Some(editor) = self.main_split.active_editor.get_untracked() {
+            let doc = editor.doc();
+            let line_ending = doc.line_ending();
+            self.preselect_matching(&items, line_ending.as_str());
+        }
+        self.items.set(items);
+    }
+
     fn get_scm_references(&self) {
         let branches = self.source_control.branches.get_untracked();
         let tags = self.source_control.tags.get_untracked();
@@ -1217,6 +1239,17 @@ impl PaletteData {
                     }
                     doc.trigger_syntax_change(None);
                 }
+                PaletteItemContent::LineEnding { kind } => {
+                    let Some(editor) = self.main_split.active_editor.get_untracked()
+                    else {
+                        return;
+                    };
+                    let doc = editor.doc();
+
+                    doc.buffer.update(|buffer| {
+                        buffer.set_line_ending(*kind);
+                    });
+                }
                 PaletteItemContent::SCMReference { name } => {
                     self.common
                         .lapce_command
@@ -1297,6 +1330,7 @@ impl PaletteData {
                 #[cfg(windows)]
                 PaletteItemContent::WslHost { .. } => {}
                 PaletteItemContent::Language { .. } => {}
+                PaletteItemContent::LineEnding { .. } => {}
                 PaletteItemContent::Reference { location, .. } => {
                     self.has_preview.set(true);
                     let (doc, new_doc) =

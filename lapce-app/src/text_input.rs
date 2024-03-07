@@ -10,7 +10,7 @@ use floem::{
         kurbo::{Line, Point, Rect, Size, Vec2},
         Color,
     },
-    prop_extracter,
+    prop_extractor,
     reactive::{create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal},
     style::{
         CursorStyle, FontFamily, FontSize, FontStyle, FontWeight, LineHeight,
@@ -34,8 +34,8 @@ use crate::{
     keypress::KeyPressFocus,
 };
 
-prop_extracter! {
-    Extracter {
+prop_extractor! {
+    Extractor {
         color: TextColor,
         font_size: FontSize,
         font_family: FontFamily,
@@ -261,7 +261,7 @@ pub struct TextInput {
     on_cursor_pos: Option<Box<dyn Fn(Point)>>,
     hide_cursor: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
-    style: Extracter,
+    style: Extractor,
 }
 
 impl TextInput {
