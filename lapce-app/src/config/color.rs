@@ -138,6 +138,9 @@ impl LapceColor {
     pub const DEBUG_BREAKPOINT: &'static str = "debug.breakpoint";
     pub const DEBUG_BREAKPOINT_HOVER: &'static str = "debug.breakpoint.hover";
 
+    pub const TOOLTIP_BACKGROUND: &'static str = "tooltip.background";
+    pub const TOOLTIP_FOREGROUND: &'static str = "tooltip.foreground";
+
     pub const PANEL_BACKGROUND: &'static str = "panel.background";
     pub const PANEL_FOREGROUND: &'static str = "panel.foreground";
     pub const PANEL_FOREGROUND_DIM: &'static str = "panel.foreground.dim";

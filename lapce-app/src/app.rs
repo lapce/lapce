@@ -29,10 +29,10 @@ use floem::{
         Style,
     },
     unit::PxPctAuto,
-    view::View,
+    view::{View, Widget},
     views::{
         clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
-        empty, label, rich_text, scroll::scroll, stack, svg, tab, text,
+        empty, label, rich_text, scroll::scroll, stack, svg, tab, text, tooltip,
         virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
     window::{ResizeDirection, WindowConfig, WindowId},
@@ -662,6 +662,7 @@ fn editor_tab_header(
                 },
                 || false,
                 || false,
+                || "Close",
                 config,
             )
             .on_event_stop(EventListener::PointerDown, |_| {})
@@ -882,6 +883,7 @@ fn editor_tab_header(
                         },
                         || false,
                         || false,
+                        || "Previous Tab",
                         config,
                     )
                     .style(|s| s.margin_horiz(6.0).margin_vert(7.0)),
@@ -893,6 +895,7 @@ fn editor_tab_header(
                         },
                         || false,
                         || false,
+                        || "Next Tab",
                         config,
                     )
                     .style(|s| s.margin_right(6.0)),
@@ -973,6 +976,7 @@ fn editor_tab_header(
                         },
                         || false,
                         || false,
+                        || "Split Horizontally",
                         config,
                     )
                     .style(|s| s.margin_left(6.0)),
@@ -987,6 +991,7 @@ fn editor_tab_header(
                         },
                         || false,
                         || false,
+                        || "Close All",
                         config,
                     )
                     .style(|s| s.margin_horiz(6.0)),
@@ -1813,53 +1818,88 @@ fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
     })
 }
 
-pub fn clickable_icon(
+pub fn clickable_icon<S: std::fmt::Display + 'static>(
     icon: impl Fn() -> &'static str + 'static,
     on_click: impl Fn() + 'static,
     active_fn: impl Fn() -> bool + 'static + Copy,
     disabled_fn: impl Fn() -> bool + 'static + Copy,
+    tooltip_: impl Fn() -> S + 'static + Clone,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    container(
+    tooltip_label(
+        config,
         container(
-            svg(move || config.get().ui_svg(icon()))
-                .style(move |s| {
-                    let config = config.get();
-                    let size = config.ui.icon_size() as f32;
-                    s.size(size, size)
-                        .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
-                        .disabled(|s| {
-                            s.color(config.color(LapceColor::LAPCE_ICON_INACTIVE))
+            container(
+                svg(move || config.get().ui_svg(icon()))
+                    .style(move |s| {
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32;
+                        s.size(size, size)
+                            .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                            .disabled(|s| {
+                                s.color(
+                                    config.color(LapceColor::LAPCE_ICON_INACTIVE),
+                                )
                                 .cursor(CursorStyle::Default)
-                        })
-                })
-                .disabled(disabled_fn),
-        )
-        .on_click_stop(move |_| {
-            on_click();
-        })
-        .disabled(disabled_fn)
-        .style(move |s| {
-            let config = config.get();
-            s.padding(4.0)
-                .border_radius(6.0)
-                .border(1.0)
-                .border_color(Color::TRANSPARENT)
-                .apply_if(active_fn(), |s| {
-                    s.border_color(config.color(LapceColor::EDITOR_CARET))
-                })
-                .hover(|s| {
-                    s.cursor(CursorStyle::Pointer).background(
-                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                    )
-                })
-                .active(|s| {
-                    s.background(
-                        config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
-                    )
-                })
-        }),
+                            })
+                    })
+                    .disabled(disabled_fn),
+            )
+            .on_click_stop(move |_| {
+                on_click();
+            })
+            .disabled(disabled_fn)
+            .style(move |s| {
+                let config = config.get();
+                s.padding(4.0)
+                    .border_radius(6.0)
+                    .border(1.0)
+                    .border_color(Color::TRANSPARENT)
+                    .apply_if(active_fn(), |s| {
+                        s.border_color(config.color(LapceColor::EDITOR_CARET))
+                    })
+                    .hover(|s| {
+                        s.cursor(CursorStyle::Pointer).background(
+                            config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                        )
+                    })
+                    .active(|s| {
+                        s.background(
+                            config
+                                .color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                        )
+                    })
+            }),
+        ),
+        tooltip_,
     )
+}
+
+/// A tooltip with a label inside.  
+/// When styling an element that has the tooltip, it will style the child rather than the tooltip
+/// label.
+pub fn tooltip_label<S: std::fmt::Display + 'static, V: View + 'static>(
+    config: ReadSignal<Arc<LapceConfig>>,
+    child: V,
+    text: impl Fn() -> S + 'static + Clone,
+) -> impl View {
+    tooltip(child, move || tooltip_tip(config, label(text.clone())))
+}
+
+fn tooltip_tip<V: View + 'static>(
+    config: ReadSignal<Arc<LapceConfig>>,
+    child: V,
+) -> impl Widget {
+    container(child).style(move |s| {
+        let config = config.get();
+        s.padding_horiz(5.0)
+            .padding_vert(1.0)
+            .font_family(config.ui.font_family.clone())
+            .color(config.color(LapceColor::TOOLTIP_FOREGROUND))
+            .background(config.color(LapceColor::TOOLTIP_BACKGROUND))
+            .margin_left(10.0)
+            .margin_top(4.0)
+    })
 }
 
 fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
@@ -2565,6 +2605,7 @@ fn window_message_view(
                     },
                     || false,
                     || false,
+                    || "Close",
                     config,
                 )
                 .style(|s| s.margin_left(6.0)),
@@ -3054,6 +3095,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                                 },
                                 || false,
                                 || false,
+                                || "Close",
                                 config.read_only(),
                             )
                             .style(|s| s.margin_horiz(6.0))
@@ -3210,6 +3252,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
             },
             || false,
             || false,
+            || "New Workspace Tab",
             config.read_only(),
         ))
         .on_resize(move |rect| {

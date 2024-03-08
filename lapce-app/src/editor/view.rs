@@ -1794,6 +1794,7 @@ fn search_editor_view(
             },
             move || case_matching.get() == CaseMatching::Exact,
             || false,
+            || "Case Sensitive",
             config,
         )
         .style(|s| s.padding_vert(4.0)),
@@ -1806,6 +1807,7 @@ fn search_editor_view(
             },
             move || whole_word.get(),
             || false,
+            || "Whole Word",
             config,
         )
         .style(|s| s.padding_left(6.0)),
@@ -1818,6 +1820,7 @@ fn search_editor_view(
             },
             move || is_regex.get(),
             || false,
+            || "Use Regex",
             config,
         )
         .style(|s| s.padding_horiz(6.0)),
@@ -1923,6 +1926,7 @@ fn find_view(
                     },
                     move || false,
                     || false,
+                    || "Toggle Replace",
                     config,
                 )
                 .style(|s| s.padding_horiz(6.0)),
@@ -1950,6 +1954,7 @@ fn find_view(
                     },
                     move || false,
                     || false,
+                    || "Previous Match",
                     config,
                 )
                 .style(|s| s.padding_left(6.0)),
@@ -1962,6 +1967,7 @@ fn find_view(
                     },
                     move || false,
                     || false,
+                    || "Next Match",
                     config,
                 )
                 .style(|s| s.padding_left(6.0)),
@@ -1972,6 +1978,7 @@ fn find_view(
                     },
                     move || false,
                     || false,
+                    || "Close",
                     config,
                 )
                 .style(|s| s.padding_horiz(6.0)),
@@ -2001,6 +2008,7 @@ fn find_view(
                     },
                     move || false,
                     || false,
+                    || "Replace Next",
                     config,
                 )
                 .style(|s| s.padding_left(6.0)),
@@ -2015,6 +2023,7 @@ fn find_view(
                     },
                     move || false,
                     || false,
+                    || "Replace All",
                     config,
                 )
                 .style(|s| s.padding_left(6.0)),

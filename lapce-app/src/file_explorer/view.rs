@@ -411,6 +411,7 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                 },
                 || false,
                 || false,
+                || "Close",
                 config,
             )
             .on_event_stop(EventListener::PointerEnter, move |_| {

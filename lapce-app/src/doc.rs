@@ -633,13 +633,13 @@ impl Doc {
         // TODO(minor): We could avoid this potential allocation since most apply_delta callers are actually using a Vec
         // which we could reuse.
         // We use a smallvec because there is unlikely to be more than a couple of deltas
-        let edits = deltas
+        let edits: SmallVec<[SyntaxEdit; 3]> = deltas
             .iter()
             .map(|(before_text, delta, _)| {
                 SyntaxEdit::from_delta(before_text, delta.clone())
             })
             .collect();
-        self.on_update(Some(edits));
+        self.on_update(Some(edits.as_slice()));
     }
 
     pub fn is_pristine(&self) -> bool {
@@ -658,7 +658,7 @@ impl Doc {
         self.buffer.with_untracked(|b| b.line_ending())
     }
 
-    fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
+    fn on_update(&self, edits: Option<&[SyntaxEdit]>) {
         batch(|| {
             self.clear_code_actions();
             self.clear_style_cache();
@@ -747,12 +747,12 @@ impl Doc {
         });
     }
 
-    pub fn trigger_syntax_change(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
+    pub fn trigger_syntax_change(&self, edits: Option<&[SyntaxEdit]>) {
         let (rev, text) =
             self.buffer.with_untracked(|b| (b.rev(), b.text().clone()));
 
         self.syntax.update(|syntax| {
-            syntax.parse(rev, text, edits.as_deref());
+            syntax.parse(rev, text, edits);
         });
     }
 
@@ -1288,7 +1288,7 @@ impl Doc {
         });
     }
 
-    pub fn save(&self, after_action: impl Fn() + 'static) {
+    pub fn save(&self, after_action: impl FnOnce() + 'static) {
         let content = self.content.get_untracked();
         if let DocContent::File { path, .. } = content {
             let rev = self.rev();

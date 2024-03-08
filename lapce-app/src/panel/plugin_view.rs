@@ -153,6 +153,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                         || {},
                         || false,
                         || false,
+                        || "Options",
                         config,
                     )
                     .style(|s| s.padding_left(6.0))
