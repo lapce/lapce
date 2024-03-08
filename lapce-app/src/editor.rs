@@ -1995,14 +1995,14 @@ impl EditorData {
         }
     }
 
-    fn do_save(&self, after_action: impl Fn() + 'static) {
+    fn do_save(&self, after_action: impl FnOnce() + 'static) {
         self.doc().save(after_action);
     }
 
     pub fn save(
         &self,
         allow_formatting: bool,
-        after_action: impl Fn() + 'static + Copy,
+        after_action: impl FnOnce() + 'static,
     ) {
         let doc = self.doc();
         let rev = doc.rev();

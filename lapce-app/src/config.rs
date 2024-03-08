@@ -207,7 +207,7 @@ impl LapceConfig {
 
     fn default_lapce_config() -> LapceConfig {
         let mut default_lapce_config: LapceConfig =
-            DEFAULT_CONFIG.clone().try_deserialize().unwrap();
+            DEFAULT_CONFIG.clone().try_deserialize().expect("Failed to deserialize default config, this likely indicates a missing or misnamed field in settings.toml");
         default_lapce_config.resolve_colors(None);
         default_lapce_config
     }
