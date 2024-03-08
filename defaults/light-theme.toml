@@ -157,6 +157,9 @@ yellow = "#C18401"
 "source_control.removed" = "#FF5266CC"
 "source_control.modified" = "#0184BCCC"
 
+"tooltip.background" = "#D6D6D6"
+"tooltip.foreground" = "$black"
+
 "palette.background" = "#EAEAEB"
 "palette.foreground" = "$black"
 "palette.current.background" = "#DBDBDC"

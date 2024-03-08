@@ -354,14 +354,16 @@ fn panel_picker(
         |p| *p,
         move |p| {
             let window_tab_data = window_tab_data.clone();
-            let icon = match p {
-                PanelKind::Terminal => LapceIcons::TERMINAL,
-                PanelKind::FileExplorer => LapceIcons::FILE_EXPLORER,
-                PanelKind::SourceControl => LapceIcons::SCM,
-                PanelKind::Plugin => LapceIcons::EXTENSIONS,
-                PanelKind::Search => LapceIcons::SEARCH,
-                PanelKind::Problem => LapceIcons::PROBLEM,
-                PanelKind::Debug => LapceIcons::DEBUG_ALT,
+            let (icon, tooltip) = match p {
+                PanelKind::Terminal => (LapceIcons::TERMINAL, "Terminal"),
+                PanelKind::FileExplorer => {
+                    (LapceIcons::FILE_EXPLORER, "File Explorer")
+                }
+                PanelKind::SourceControl => (LapceIcons::SCM, "Source Control"),
+                PanelKind::Plugin => (LapceIcons::EXTENSIONS, "Plugins"),
+                PanelKind::Search => (LapceIcons::SEARCH, "Search"),
+                PanelKind::Problem => (LapceIcons::PROBLEM, "Problems"),
+                PanelKind::Debug => (LapceIcons::DEBUG_ALT, "Debug"),
             };
             let is_active = {
                 let window_tab_data = window_tab_data.clone();
@@ -384,6 +386,7 @@ fn panel_picker(
                     },
                     || false,
                     || false,
+                    move || tooltip,
                     config,
                 )
                 .draggable()

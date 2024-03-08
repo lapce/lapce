@@ -57,6 +57,7 @@ pub fn global_search_panel(
                     },
                     move || case_matching.get() == CaseMatching::Exact,
                     || false,
+                    || "Case Sensitive",
                     config,
                 )
                 .style(|s| s.padding_vert(4.0)),
@@ -69,6 +70,7 @@ pub fn global_search_panel(
                     },
                     move || whole_word.get(),
                     || false,
+                    || "Whole Word",
                     config,
                 )
                 .style(|s| s.padding_left(6.0)),
@@ -81,6 +83,7 @@ pub fn global_search_panel(
                     },
                     move || is_regex.get(),
                     || false,
+                    || "Use Regex",
                     config,
                 )
                 .style(|s| s.padding_left(6.0)),

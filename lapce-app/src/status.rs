@@ -230,6 +230,7 @@ pub fn status(
                     },
                     || false,
                     || false,
+                    || "Toggle Left Panel",
                     config,
                 )
             },
@@ -256,6 +257,7 @@ pub fn status(
                     },
                     || false,
                     || false,
+                    || "Toggle Bottom Panel",
                     config,
                 )
             },
@@ -280,6 +282,7 @@ pub fn status(
                     },
                     || false,
                     || false,
+                    || "Toggle Right Panel",
                     config,
                 )
             },

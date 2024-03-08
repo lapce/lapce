@@ -136,6 +136,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                 },
                                 || false,
                                 || false,
+                                || "Close",
                                 config,
                             )
                             .style(|s| s.margin_horiz(6.0)),
@@ -218,6 +219,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
             },
             || false,
             || false,
+            || "New Terminal",
             config,
         ))
         .on_resize(move |rect| {

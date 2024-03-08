@@ -50,13 +50,20 @@ fn left(
             },
         ))
         .style(move |s| s.margin_horiz(10.0).apply_if(is_macos, |s| s.hide())),
-        clickable_icon(|| LapceIcons::MENU, move || {}, || false, || false, config)
-            .popout_menu(move || window_menu(lapce_command, workbench_command))
-            .style(move |s| {
-                s.margin_left(4.0)
-                    .margin_right(6.0)
-                    .apply_if(is_macos, |s| s.hide())
-            }),
+        clickable_icon(
+            || LapceIcons::MENU,
+            move || {},
+            || false,
+            || false,
+            || "Menu",
+            config,
+        )
+        .popout_menu(move || window_menu(lapce_command, workbench_command))
+        .style(move |s| {
+            s.margin_left(4.0)
+                .margin_right(6.0)
+                .apply_if(is_macos, |s| s.hide())
+        }),
         container(svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(
             move |s| {
                 let config = config.get();
@@ -155,6 +162,7 @@ fn middle(
             },
             || false,
             move || !can_jump_backward.get(),
+            || "Jump Backward",
             config,
         )
         .style(move |s| s.margin_horiz(6.0))
@@ -167,6 +175,7 @@ fn middle(
             },
             || false,
             move || !can_jump_forward.get(),
+            || "Jump Forward",
             config,
         )
         .style(move |s| s.margin_right(6.0))
@@ -178,6 +187,7 @@ fn middle(
             move || {},
             || false,
             || false,
+            || "Open Folder / Recent Workspace",
             config,
         )
         .popout_menu(move || {
@@ -255,6 +265,7 @@ fn middle(
                 },
                 || false,
                 || false,
+                || "Run and Debug",
                 config,
             )
             .style(move |s| s.margin_horiz(6.0)),
@@ -308,6 +319,7 @@ fn right(
                 || {},
                 || false,
                 || false,
+                || "Settings",
                 config,
             )
             .popout_menu(move || {
@@ -455,6 +467,7 @@ pub fn window_controls_view(
             },
             || false,
             || false,
+            || "Minimize",
             config,
         )
         .style(|s| s.margin_right(16.0).margin_left(10.0)),
@@ -473,6 +486,7 @@ pub fn window_controls_view(
             },
             || false,
             || false,
+            || "Maximize",
             config,
         )
         .style(|s| s.margin_right(16.0)),
@@ -483,6 +497,7 @@ pub fn window_controls_view(
             },
             || false,
             || false,
+            || "Close Window",
             config,
         )
         .style(|s| s.margin_right(6.0)),
