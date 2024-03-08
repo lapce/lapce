@@ -525,6 +525,8 @@ impl AppData {
         let view_id = view.id();
         app_view_id.set(view_id);
 
+        view_id.request_focus();
+
         view.window_scale(move || window_scale.get())
             .keyboard_navigatable()
             .on_event(EventListener::KeyDown, move |event| {
