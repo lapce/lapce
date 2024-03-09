@@ -238,28 +238,6 @@ when = "!inline_completion_visible && !search_focus && !modal_focus && !list_foc
 mode = "i"
 
 [[keymaps]]
-key = "ctrl+b"
-command = "left"
-mode = "i"
-
-[[keymaps]]
-key = "ctrl+f"
-command = "right"
-mode = "i"
-
-[[keymaps]]
-key = "ctrl+p"
-command = "up"
-when = "!list_focus"
-mode = "i"
-
-[[keymaps]]
-key = "ctrl+n"
-command = "down"
-when = "!list_focus"
-mode = "i"
-
-[[keymaps]]
 key = "right"
 command = "right"
 mode = "inv"

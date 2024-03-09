@@ -276,6 +276,28 @@ key = "Ctrl+End"
 command = "document_end"
 
 [[keymaps]]
+key = "ctrl+b"
+command = "left"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+f"
+command = "right"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+p"
+command = "up"
+when = "!list_focus"
+mode = "n"
+
+[[keymaps]]
+key = "ctrl+n"
+command = "down"
+when = "!list_focus"
+mode = "n"
+
+[[keymaps]]
 key = "ctrl+shift+o"
 command = "palette.symbol"
 
