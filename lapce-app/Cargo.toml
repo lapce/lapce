@@ -43,7 +43,6 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-appender.workspace = true
 url.workspace = true
-
 pulldown-cmark = "0.9.1"
 Inflector = "0.11.4"
 open = "5.0.1"
@@ -53,8 +52,6 @@ sled = "0.34.7"
 bytemuck = "1.14.3"
 tokio = { version = "1.36", features = ["full"] }
 futures = "0.3.26"
-floem = { git = "https://github.com/lapce/floem", rev = "764857c98dfdc2beb10966636da4cf79b677a089", features = ["serde"] }
-# floem = { path = "../../workspaces/floem", features = ["serde"] }
 config = { version = "0.13.2", default-features = false, features = ["toml"] }
 structdesc = { git = "https://github.com/lapce/structdesc" }
 base64 = "0.21.7"
@@ -62,16 +59,18 @@ sha2 = "0.10.8"
 zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_os="macos")'.dependencies]
+floem = { git = "https://github.com/lapce/floem", rev = "764857c98dfdc2beb10966636da4cf79b677a089", features = ["serde"] }
 fs_extra = "1.2.0"
 dmg = "0.1.1"
 
-[target.'cfg(windows)'.dependencies.windows-sys]
-workspace = true
-features = [
-    "Win32_Foundation",
-    "Win32_System_Threading",
-    "Win32_UI_WindowsAndMessaging",
-]
+[target.'cfg(target_os="windows")'.dependencies]
+windows-sys = { workspace = true, features = [ "Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging", ] }
+floem = { git = "https://github.com/lapce/floem", rev = "764857c98dfdc2beb10966636da4cf79b677a089", features = ["serde"] }
+
+[target.'cfg(target_os="linux")'.dependencies]
+async-task = "4.7.0"
+blocking = "1.5.1"
+floem = { git = "https://github.com/lapce/floem", rev = "764857c98dfdc2beb10966636da4cf79b677a089", default-features = false, features = ["editor","rfd-async-std","serde"] }
 
 [features]
 default = ["all-languages", "updater"]
