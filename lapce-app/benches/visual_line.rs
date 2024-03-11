@@ -29,8 +29,8 @@ struct TLProv<'a> {
     has_multiline_phantom: bool,
 }
 impl<'a> TextLayoutProvider for TLProv<'a> {
-    fn text(&self) -> &Rope {
-        self.text
+    fn text(&self) -> Rope {
+        self.text.clone()
     }
 
     // An implementation relatively close to the actual new text layout impl but simplified.
