@@ -1505,7 +1505,12 @@ impl Document for Doc {
     }
 }
 impl DocumentPhantom for Doc {
-    fn phantom_text(&self, line: usize) -> PhantomTextLine {
+    fn phantom_text(
+        &self,
+        _: EditorId,
+        _: &dyn Styling,
+        line: usize,
+    ) -> PhantomTextLine {
         let config = &self.common.config.get_untracked();
 
         let (start_offset, end_offset) = self.buffer.with_untracked(|buffer| {
@@ -1673,7 +1678,7 @@ impl DocumentPhantom for Doc {
         PhantomTextLine { text }
     }
 
-    fn has_multiline_phantom(&self) -> bool {
+    fn has_multiline_phantom(&self, _: EditorId, _: &dyn Styling) -> bool {
         // TODO: actually check
         true
     }
@@ -1729,12 +1734,13 @@ pub struct DocStyling {
 impl DocStyling {
     fn apply_colorization(
         &self,
+        edid: EditorId,
         line: usize,
         attrs: &Attrs,
         attrs_list: &mut AttrsList,
     ) {
         let config = self.config.get_untracked();
-        let phantom_text = self.doc.phantom_text(line);
+        let phantom_text = self.doc.phantom_text(edid, self, line);
         if let Some(bracket_styles) = self.doc.parser.borrow().bracket_pos.get(&line)
         {
             for bracket_style in bracket_styles.iter() {
@@ -1754,18 +1760,19 @@ impl Styling for DocStyling {
         self.config.with_untracked(|config| config.id)
     }
 
-    fn font_size(&self, _line: usize) -> usize {
+    fn font_size(&self, _: EditorId, _line: usize) -> usize {
         self.config
             .with_untracked(|config| config.editor.font_size())
     }
 
-    fn line_height(&self, _line: usize) -> f32 {
+    fn line_height(&self, _: EditorId, _line: usize) -> f32 {
         self.config
             .with_untracked(|config| config.editor.line_height()) as f32
     }
 
     fn font_family(
         &self,
+        _: EditorId,
         _line: usize,
     ) -> std::borrow::Cow<[floem::cosmic_text::FamilyOwned]> {
         // TODO: cache this
@@ -1774,15 +1781,15 @@ impl Styling for DocStyling {
         }))
     }
 
-    fn weight(&self, _line: usize) -> floem::cosmic_text::Weight {
+    fn weight(&self, _: EditorId, _line: usize) -> floem::cosmic_text::Weight {
         floem::cosmic_text::Weight::NORMAL
     }
 
-    fn italic_style(&self, _line: usize) -> floem::cosmic_text::Style {
+    fn italic_style(&self, _: EditorId, _line: usize) -> floem::cosmic_text::Style {
         floem::cosmic_text::Style::Normal
     }
 
-    fn stretch(&self, _line: usize) -> floem::cosmic_text::Stretch {
+    fn stretch(&self, _: EditorId, _line: usize) -> floem::cosmic_text::Stretch {
         floem::cosmic_text::Stretch::Normal
     }
 
@@ -1790,7 +1797,7 @@ impl Styling for DocStyling {
         self.doc.buffer.with_untracked(|b| b.indent_style())
     }
 
-    fn indent_line(&self, line: usize, line_content: &str) -> usize {
+    fn indent_line(&self, _: EditorId, line: usize, line_content: &str) -> usize {
         if line_content.trim().is_empty() {
             let text = self.doc.rope_text();
             let offset = text.offset_of_line(line);
@@ -1804,26 +1811,27 @@ impl Styling for DocStyling {
         line
     }
 
-    fn tab_width(&self, _line: usize) -> usize {
+    fn tab_width(&self, _: EditorId, _line: usize) -> usize {
         self.config.with_untracked(|config| config.editor.tab_width)
     }
 
-    fn atomic_soft_tabs(&self, _line: usize) -> bool {
+    fn atomic_soft_tabs(&self, _: EditorId, _line: usize) -> bool {
         self.config
             .with_untracked(|config| config.editor.atomic_soft_tabs)
     }
 
     fn apply_attr_styles(
         &self,
+        edid: EditorId,
         line: usize,
         default: Attrs,
         attrs_list: &mut AttrsList,
     ) {
         let config = self.doc.common.config.get_untracked();
 
-        self.apply_colorization(line, &default, attrs_list);
+        self.apply_colorization(edid, line, &default, attrs_list);
 
-        let phantom_text = self.doc.phantom_text(line);
+        let phantom_text = self.doc.phantom_text(edid, self, line);
         for line_style in self.doc.line_style(line).iter() {
             if let Some(fg_color) = line_style.style.fg_color.as_ref() {
                 if let Some(fg_color) = config.style_color(fg_color) {
@@ -1835,7 +1843,7 @@ impl Styling for DocStyling {
         }
     }
 
-    fn wrap(&self) -> WrapMethod {
+    fn wrap(&self, _: EditorId) -> WrapMethod {
         let wrap_style = self
             .config
             .with_untracked(|config| config.editor.wrap_style);
@@ -1851,19 +1859,24 @@ impl Styling for DocStyling {
         }
     }
 
-    fn render_whitespace(&self) -> RenderWhitespace {
+    fn render_whitespace(&self, _: EditorId) -> RenderWhitespace {
         self.config
             .with_untracked(|config| config.editor.render_whitespace)
     }
 
-    fn apply_layout_styles(&self, line: usize, layout_line: &mut TextLayoutLine) {
+    fn apply_layout_styles(
+        &self,
+        edid: EditorId,
+        line: usize,
+        layout_line: &mut TextLayoutLine,
+    ) {
         let doc = &self.doc;
         let config = doc.common.config.get_untracked();
 
         layout_line.extra_style.clear();
         let layout = &layout_line.text;
 
-        let phantom_text = doc.phantom_text(line);
+        let phantom_text = doc.phantom_text(edid, self, line);
 
         let phantom_styles = phantom_text
             .offset_size_iter()
@@ -1969,7 +1982,7 @@ impl Styling for DocStyling {
         });
     }
 
-    fn color(&self, color: EditorColor) -> Color {
+    fn color(&self, _: EditorId, color: EditorColor) -> Color {
         let name = match color {
             EditorColor::Scrollbar => LapceColor::LAPCE_SCROLL_BAR,
             EditorColor::DropdownShadow => LapceColor::LAPCE_DROPDOWN_SHADOW,
@@ -1980,8 +1993,8 @@ impl Styling for DocStyling {
         self.config.with_untracked(|config| config.color(name))
     }
 
-    fn paint_caret(&self, editor: &Editor, _line: usize) -> bool {
-        let Some(e_data) = self.doc.editor_data(editor.id()) else {
+    fn paint_caret(&self, edid: EditorId, _line: usize) -> bool {
+        let Some(e_data) = self.doc.editor_data(edid) else {
             return true;
         };
 
