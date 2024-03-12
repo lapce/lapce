@@ -76,11 +76,8 @@ pub fn file_explorer_panel(
         .style(|s| s.width_pct(100.0).flex_col().height(150.0)),
         stack((
             panel_header("File Explorer".to_string(), config),
-            container(
-                scroll(new_file_node_view(data))
-                    .style(|s| s.absolute().size_pct(100.0, 100.0)),
-            )
-            .style(|s| s.size_pct(100.0, 100.0).line_height(1.6)),
+            container(new_file_node_view(data).style(|s| s.absolute()))
+                .style(|s| s.size_pct(100.0, 100.0).line_height(1.6)),
         ))
         .style(|s| s.width_pct(100.0).height_pct(100.0).flex_col()),
     ))
@@ -237,133 +234,135 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
 
     let secondary_click_data = data.clone();
 
-    virtual_stack(
-        VirtualDirection::Vertical,
-        VirtualItemSize::Fixed(Box::new(move || ui_line_height.get())),
-        move || FileNodeVirtualList::new(root.get(), data.naming.get()),
-        move |node| (node.kind.clone(), node.is_dir, node.open, node.level),
-        move |node| {
-            let level = node.level;
-            let data = data.clone();
-            let click_data = data.clone();
-            let double_click_data = data.clone();
-            let secondary_click_data = data.clone();
-            let aux_click_data = data.clone();
-            let kind = node.kind.clone();
-            let open = node.open;
-            let is_dir = node.is_dir;
+    scroll(
+        virtual_stack(
+            VirtualDirection::Vertical,
+            VirtualItemSize::Fixed(Box::new(move || ui_line_height.get())),
+            move || FileNodeVirtualList::new(root.get(), data.naming.get()),
+            move |node| (node.kind.clone(), node.is_dir, node.open, node.level),
+            move |node| {
+                let level = node.level;
+                let data = data.clone();
+                let click_data = data.clone();
+                let double_click_data = data.clone();
+                let secondary_click_data = data.clone();
+                let aux_click_data = data.clone();
+                let kind = node.kind.clone();
+                let open = node.open;
+                let is_dir = node.is_dir;
 
-            let view = stack((
-                svg(move || {
-                    let config = config.get();
-                    let svg_str = match open {
-                        true => LapceIcons::ITEM_OPENED,
-                        false => LapceIcons::ITEM_CLOSED,
-                    };
-                    config.ui_svg(svg_str)
-                })
-                .style(move |s| {
-                    let config = config.get();
-                    let size = config.ui.icon_size() as f32;
-
-                    let color = if is_dir {
-                        config.color(LapceColor::LAPCE_ICON_ACTIVE)
-                    } else {
-                        Color::TRANSPARENT
-                    };
-                    s.size(size, size)
-                        .flex_shrink(0.0)
-                        .margin_left(10.0)
-                        .color(color)
-                }),
-                {
-                    let kind = kind.clone();
-                    let kind_for_style = kind.clone();
-                    // TODO: use the current naming input as the path for the file svg
+                let view = stack((
                     svg(move || {
                         let config = config.get();
-                        if is_dir {
-                            let svg_str = match open {
-                                true => LapceIcons::DIRECTORY_OPENED,
-                                false => LapceIcons::DIRECTORY_CLOSED,
-                            };
-                            config.ui_svg(svg_str)
-                        } else if let Some(path) = kind.path() {
-                            config.file_svg(path).0
-                        } else {
-                            config.ui_svg(LapceIcons::FILE)
-                        }
+                        let svg_str = match open {
+                            true => LapceIcons::ITEM_OPENED,
+                            false => LapceIcons::ITEM_CLOSED,
+                        };
+                        config.ui_svg(svg_str)
                     })
                     .style(move |s| {
                         let config = config.get();
                         let size = config.ui.icon_size() as f32;
 
+                        let color = if is_dir {
+                            config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                        } else {
+                            Color::TRANSPARENT
+                        };
                         s.size(size, size)
                             .flex_shrink(0.0)
-                            .margin_horiz(6.0)
-                            .apply_if(is_dir, |s| {
-                                s.color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
-                            })
-                            .apply_if(!is_dir, |s| {
-                                s.apply_opt(
-                                    kind_for_style
-                                        .path()
-                                        .and_then(|p| config.file_svg(p).1),
-                                    Style::color,
-                                )
-                            })
-                    })
-                },
-                file_node_text_view(data, node),
-            ))
-            .style(move |s| {
-                s.padding_right(5.0)
-                    .padding_left((level * 10) as f32)
-                    .align_items(AlignItems::Center)
-                    .hover(|s| {
-                        s.background(
-                            config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                        )
-                        .cursor(CursorStyle::Pointer)
-                    })
-            });
-
-            // Only handle click events if we are not naming the file node
-            if let FileNodeViewKind::Path(path) = kind {
-                let click_path = path.clone();
-                let double_click_path = path.clone();
-                let secondary_click_path = path.clone();
-                let aux_click_path = path;
-                view.on_click_stop(move |_| {
-                    click_data.click(&click_path);
-                })
-                .on_double_click(move |_| {
-                    double_click_data.double_click(&double_click_path)
-                })
-                .on_secondary_click_stop(move |_| {
-                    secondary_click_data.secondary_click(&secondary_click_path);
-                })
-                .on_event_stop(
-                    EventListener::PointerDown,
-                    move |event| {
-                        if let Event::PointerDown(pointer_event) = event {
-                            if pointer_event.button.is_auxiliary() {
-                                aux_click_data.middle_click(&aux_click_path);
+                            .margin_left(10.0)
+                            .color(color)
+                    }),
+                    {
+                        let kind = kind.clone();
+                        let kind_for_style = kind.clone();
+                        // TODO: use the current naming input as the path for the file svg
+                        svg(move || {
+                            let config = config.get();
+                            if is_dir {
+                                let svg_str = match open {
+                                    true => LapceIcons::DIRECTORY_OPENED,
+                                    false => LapceIcons::DIRECTORY_CLOSED,
+                                };
+                                config.ui_svg(svg_str)
+                            } else if let Some(path) = kind.path() {
+                                config.file_svg(path).0
+                            } else {
+                                config.ui_svg(LapceIcons::FILE)
                             }
-                        }
+                        })
+                        .style(move |s| {
+                            let config = config.get();
+                            let size = config.ui.icon_size() as f32;
+
+                            s.size(size, size)
+                                .flex_shrink(0.0)
+                                .margin_horiz(6.0)
+                                .apply_if(is_dir, |s| {
+                                    s.color(
+                                        config.color(LapceColor::LAPCE_ICON_ACTIVE),
+                                    )
+                                })
+                                .apply_if(!is_dir, |s| {
+                                    s.apply_opt(
+                                        kind_for_style
+                                            .path()
+                                            .and_then(|p| config.file_svg(p).1),
+                                        Style::color,
+                                    )
+                                })
+                        })
                     },
-                )
-            } else {
-                view
-            }
-        },
+                    file_node_text_view(data, node),
+                ))
+                .style(move |s| {
+                    s.padding_right(5.0)
+                        .padding_left((level * 10) as f32)
+                        .align_items(AlignItems::Center)
+                        .hover(|s| {
+                            s.background(
+                                config
+                                    .get()
+                                    .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                            )
+                            .cursor(CursorStyle::Pointer)
+                        })
+                });
+
+                // Only handle click events if we are not naming the file node
+                if let FileNodeViewKind::Path(path) = kind {
+                    let click_path = path.clone();
+                    let double_click_path = path.clone();
+                    let secondary_click_path = path.clone();
+                    let aux_click_path = path;
+                    view.on_click_stop(move |_| {
+                        click_data.click(&click_path);
+                    })
+                    .on_double_click(move |_| {
+                        double_click_data.double_click(&double_click_path)
+                    })
+                    .on_secondary_click_stop(move |_| {
+                        secondary_click_data.secondary_click(&secondary_click_path);
+                    })
+                    .on_event_stop(
+                        EventListener::PointerDown,
+                        move |event| {
+                            if let Event::PointerDown(pointer_event) = event {
+                                if pointer_event.button.is_auxiliary() {
+                                    aux_click_data.middle_click(&aux_click_path);
+                                }
+                            }
+                        },
+                    )
+                } else {
+                    view
+                }
+            },
+        )
+        .style(|s| s.flex_col().align_items(AlignItems::Stretch).width_full()),
     )
-    .style(|s| {
-        s.flex_col()
-            .align_items(AlignItems::Stretch)
-            .width_full()
-            .height_full()
-    })
+    .style(|s| s.size_full())
     .on_secondary_click_stop(move |_| {
         if let Naming::None = naming.get_untracked() {
             if let Some(path) = &secondary_click_data.common.workspace.path {
