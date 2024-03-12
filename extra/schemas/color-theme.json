@@ -41,41 +41,8 @@
         },
         "Base": {
             "type": "object",
-            "additionalProperties": false,
-            "properties": {
-                "white": {
-                    "type": "string"
-                },
-                "black": {
-                    "type": "string"
-                },
-                "grey": {
-                    "type": "string"
-                },
-                "blue": {
-                    "type": "string"
-                },
-                "red": {
-                    "type": "string"
-                },
-                "yellow": {
-                    "type": "string"
-                },
-                "orange": {
-                    "type": "string"
-                },
-                "green": {
-                    "type": "string"
-                },
-                "purple": {
-                    "type": "string"
-                },
-                "cyan": {
-                    "type": "string"
-                },
-                "magenta": {
-                    "type": "string"
-                }
+            "additionalProperties": {
+                "type": "string"
             },
             "required": [],
             "title": "Base"
@@ -181,6 +148,18 @@
                     "type": "string"
                 },
                 "tag": {
+                    "type": "string"
+                },
+                "bracket.color.1": {
+                    "type": "string"
+                },
+                "bracket.color.2": {
+                    "type": "string"
+                },
+                "bracket.color.3": {
+                    "type": "string"
+                },
+                "bracket.unpaired": {
                     "type": "string"
                 }
             },

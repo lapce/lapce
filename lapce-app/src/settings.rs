@@ -1040,8 +1040,8 @@ fn color_section_list(
                         let config = config.get();
                         let color = match local_kind.as_str() {
                             "base" => config.color.base.get(&local_key),
-                            "ui" => config.color.ui.get(&local_key),
-                            "syntax" => config.color.syntax.get(&local_key),
+                            "ui" => config.color.ui.get(&local_key).copied(),
+                            "syntax" => config.color.syntax.get(&local_key).copied(),
                             _ => None,
                         };
                         s.border(1)
@@ -1049,7 +1049,7 @@ fn color_section_list(
                             .size(size, size)
                             .margin_left(10)
                             .border_color(config.color(LapceColor::LAPCE_BORDER))
-                            .background(color.copied().unwrap_or_else(|| {
+                            .background(color.unwrap_or_else(|| {
                                 config.color(LapceColor::EDITOR_FOREGROUND)
                             }))
                     }),

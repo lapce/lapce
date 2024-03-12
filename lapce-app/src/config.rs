@@ -358,7 +358,7 @@ impl LapceConfig {
         self.color.base = self
             .color_theme
             .base
-            .resolve(default_config.map(|c| &c.color.base));
+            .resolve(default_config.map(|c| &c.color_theme.base));
         self.color.ui = self
             .color_theme
             .resolve_ui_color(&self.color.base, default_config.map(|c| &c.color.ui));
