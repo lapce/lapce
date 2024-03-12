@@ -208,6 +208,8 @@ pub enum LapceLanguage {
     Jsx,
     #[strum(message = "Julia")]
     Julia,
+    #[strum(message = "Just")]
+    Just,
     #[strum(message = "Kotlin")]
     Kotlin,
     #[strum(message = "LaTeX")]
@@ -862,6 +864,23 @@ const LANGUAGES: &[SyntaxProperties] = &[
             language: None,
             grammar: None,
             query: None,
+            code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
+            sticky_headers: &[],
+        }),
+    },
+    SyntaxProperties {
+        id: LapceLanguage::Just,
+
+        indent: "\t",
+        files: &["justfile", "JUSTFILE", "Justfile"],
+        extensions: &["just", "justfile", "JUSTFILE", "Justfile"],
+
+        comment: comment_properties!("#"),
+
+        tree_sitter: Some(TreeSitterProperties {
+            language: Some(tree_sitter_just::language),
+            grammar: Some("just"),
+            query: Some("just"),
             code_lens: (DEFAULT_CODE_LENS_LIST, DEFAULT_CODE_LENS_IGNORE_LIST),
             sticky_headers: &[],
         }),
