@@ -6,6 +6,8 @@ use std::{
 use floem::peniko::Color;
 use serde::{Deserialize, Serialize};
 
+use super::color::LoadThemeError;
+
 #[derive(Debug, Clone, Default)]
 pub enum ThemeColorPreference {
     #[default]
@@ -15,64 +17,16 @@ pub enum ThemeColorPreference {
     HighContrastLight,
 }
 
-#[derive(Debug, Clone)]
-pub struct ThemeBaseColor {
-    pub white: Color,
-    pub black: Color,
-    pub grey: Color,
-    pub blue: Color,
-    pub red: Color,
-    pub yellow: Color,
-    pub orange: Color,
-    pub green: Color,
-    pub purple: Color,
-    pub cyan: Color,
-    pub magenta: Color,
-}
-
-impl Default for ThemeBaseColor {
-    fn default() -> Self {
-        Self {
-            white: Color::rgb8(0, 0, 0),
-            black: Color::rgb8(0, 0, 0),
-            grey: Color::rgb8(0, 0, 0),
-            blue: Color::rgb8(0, 0, 0),
-            red: Color::rgb8(0, 0, 0),
-            yellow: Color::rgb8(0, 0, 0),
-            orange: Color::rgb8(0, 0, 0),
-            green: Color::rgb8(0, 0, 0),
-            purple: Color::rgb8(0, 0, 0),
-            cyan: Color::rgb8(0, 0, 0),
-            magenta: Color::rgb8(0, 0, 0),
-        }
-    }
-}
-
+/// Holds all the resolved theme variables
+#[derive(Debug, Clone, Default)]
+pub struct ThemeBaseColor(HashMap<String, Color>);
 impl ThemeBaseColor {
-    pub fn get(&self, name: &str) -> Option<&Color> {
-        Some(match name {
-            "white" => &self.white,
-            "black" => &self.black,
-            "grey" => &self.grey,
-            "blue" => &self.blue,
-            "red" => &self.red,
-            "yellow" => &self.yellow,
-            "orange" => &self.orange,
-            "green" => &self.green,
-            "purple" => &self.purple,
-            "cyan" => &self.cyan,
-            "magenta" => &self.magenta,
-            _ => return None,
-        })
-    }
-
-    pub fn keys(&self) -> [&'static str; 11] {
-        [
-            "white", "black", "grey", "blue", "red", "yellow", "orange", "green",
-            "purple", "cyan", "magenta",
-        ]
+    pub fn get(&self, name: &str) -> Option<Color> {
+        self.0.get(name).map(ToOwned::to_owned)
     }
 }
+
+pub const THEME_RECURSION_LIMIT: usize = 6;
 
 #[derive(Debug, Clone, Default)]
 pub struct ThemeColor {
@@ -83,70 +37,90 @@ pub struct ThemeColor {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct ThemeBaseConfig {
-    pub white: String,
-    pub black: String,
-    pub grey: String,
-    pub blue: String,
-    pub red: String,
-    pub yellow: String,
-    pub orange: String,
-    pub green: String,
-    pub purple: String,
-    pub cyan: String,
-    pub magenta: String,
-}
+pub struct ThemeBaseConfig(BTreeMap<String, String>);
 
 impl ThemeBaseConfig {
-    pub fn resolve(&self, default: Option<&ThemeBaseColor>) -> ThemeBaseColor {
+    /// Resolve the variables in this theme base config into the actual colors.  
+    /// The basic idea is just: `"field`: some value` does:
+    /// - If the value does not start with `$`, then it is a color and we return it
+    /// - If the value starts with `$` then it is a variable
+    ///   - Look it up in the current theme
+    ///   - If not found, look it up in the default theme
+    ///   - If not found, return `Color::HOT_PINK` as a fallback
+    ///
+    /// Note that this applies even if the default theme colors have a variable.  
+    /// This allows the default theme to have, for example, a `$uibg` variable that the current
+    /// them can override so that if there's ever a new ui element using that variable, the theme
+    /// does not have to be updated.
+    pub fn resolve(&self, default: Option<&ThemeBaseConfig>) -> ThemeBaseColor {
         let default = default.cloned().unwrap_or_default();
-        ThemeBaseColor {
-            white: Color::parse(&self.white).unwrap_or(default.white),
-            black: Color::parse(&self.black).unwrap_or(default.black),
-            grey: Color::parse(&self.grey).unwrap_or(default.grey),
-            blue: Color::parse(&self.blue).unwrap_or(default.blue),
-            red: Color::parse(&self.red).unwrap_or(default.red),
-            yellow: Color::parse(&self.yellow).unwrap_or(default.yellow),
-            orange: Color::parse(&self.orange).unwrap_or(default.orange),
-            green: Color::parse(&self.green).unwrap_or(default.green),
-            purple: Color::parse(&self.purple).unwrap_or(default.purple),
-            cyan: Color::parse(&self.cyan).unwrap_or(default.cyan),
-            magenta: Color::parse(&self.magenta).unwrap_or(default.magenta),
+
+        let mut base = ThemeBaseColor(HashMap::new());
+
+        // We resolve all the variables to their values
+        for (key, value) in self.0.iter() {
+            match self.resolve_variable(&default, key, value, 0) {
+                Ok(Some(color)) => {
+                    let color = Color::parse(color)
+                        .unwrap_or_else(|| {
+                            tracing::warn!(
+                                "Failed to parse color theme variable for ({key}: {value})"
+                            );
+                            Color::HOT_PINK
+                        });
+                    base.0.insert(key.to_string(), color);
+                }
+                Ok(None) => {
+                    tracing::warn!(
+                        "Failed to resolve color theme variable for ({key}: {value})"
+                    );
+                }
+                Err(err) => {
+                    tracing::error!(
+                        "Failed to resolve color theme variable ({key}: {value}): {err}"
+                    );
+                }
+            }
         }
+
+        base
     }
 
+    fn resolve_variable<'a>(
+        &'a self,
+        defaults: &'a ThemeBaseConfig,
+        key: &str,
+        value: &'a str,
+        i: usize,
+    ) -> Result<Option<&'a str>, LoadThemeError> {
+        let Some(value) = value.strip_prefix('$') else {
+            return Ok(Some(value));
+        };
+
+        if i > THEME_RECURSION_LIMIT {
+            return Err(LoadThemeError::RecursionLimitReached {
+                variable_name: key.to_string(),
+            });
+        }
+
+        let target =
+            self.get(value)
+                .or_else(|| defaults.get(value))
+                .ok_or_else(|| LoadThemeError::VariableNotFound {
+                    variable_name: key.to_string(),
+                })?;
+
+        self.resolve_variable(defaults, value, target, i + 1)
+    }
+
+    // Note: this returns an `&String` just to make it consistent with hashmap lookups that are
+    // also used via ui/syntax
     pub fn get(&self, name: &str) -> Option<&String> {
-        Some(match name {
-            "white" => &self.white,
-            "black" => &self.black,
-            "grey" => &self.grey,
-            "blue" => &self.blue,
-            "red" => &self.red,
-            "yellow" => &self.yellow,
-            "orange" => &self.orange,
-            "green" => &self.green,
-            "purple" => &self.purple,
-            "cyan" => &self.cyan,
-            "magenta" => &self.magenta,
-            _ => return None,
-        })
+        self.0.get(name)
     }
 
     pub fn key_values(&self) -> BTreeMap<String, String> {
-        [
-            ("white".to_string(), self.white.clone()),
-            ("black".to_string(), self.black.clone()),
-            ("grey".to_string(), self.grey.clone()),
-            ("blue".to_string(), self.blue.clone()),
-            ("red".to_string(), self.red.clone()),
-            ("yellow".to_string(), self.yellow.clone()),
-            ("orange".to_string(), self.orange.clone()),
-            ("green".to_string(), self.green.clone()),
-            ("purple".to_string(), self.purple.clone()),
-            ("cyan".to_string(), self.cyan.clone()),
-            ("magenta".to_string(), self.magenta.clone()),
-        ]
-        .into()
+        self.0.clone()
     }
 }
 
@@ -172,7 +146,7 @@ impl ColorThemeConfig {
             .iter()
             .map(|(name, hex)| {
                 let color = if let Some(stripped) = hex.strip_prefix('$') {
-                    base.get(stripped).cloned()
+                    base.get(stripped)
                 } else {
                     Color::parse(hex)
                 };

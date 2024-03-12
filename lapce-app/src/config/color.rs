@@ -11,6 +11,10 @@ pub enum LoadThemeError {
         themes_folder: PathBuf,
         theme_name: String,
     },
+    #[error("recursion limit reached for {variable_name}")]
+    RecursionLimitReached { variable_name: String },
+    #[error("variable {variable_name} not found")]
+    VariableNotFound { variable_name: String },
     #[error("There was an error reading the theme file")]
     Read(std::io::Error),
 }
