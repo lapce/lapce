@@ -92,6 +92,7 @@ all-languages = [
     "lapce-core/lang-markdown",
     "lapce-core/lang-python",
     "lapce-core/lang-rust",
+    "lapce-core/lang-slint",
     "lapce-core/lang-toml",
     "lapce-core/lang-yaml",
 ]
