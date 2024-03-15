@@ -200,6 +200,9 @@ magenta = "#C678DD"
 "source_control.removed" = "#FF5266CC"
 "source_control.modified" = "#0184BCCC"
 
+"tooltip.background" = "#4B4D51"
+"tooltip.foreground" = "$white"
+
 "palette.background" = "#21252B"
 "palette.foreground" = "$white"
 "palette.current.background" = "#2C313A"
