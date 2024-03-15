@@ -45,6 +45,7 @@ impl ProxyData {
 pub fn new_proxy(
     workspace: Arc<LapceWorkspace>,
     disabled_volts: Vec<VoltID>,
+    extra_plugin_paths: Vec<PathBuf>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
     term_tx: Sender<(TermId, TermEvent)>,
 ) -> ProxyData {
@@ -61,6 +62,7 @@ pub fn new_proxy(
             proxy_rpc.initialize(
                 workspace.path.clone(),
                 disabled_volts,
+                extra_plugin_paths,
                 plugin_configurations,
                 1,
                 1,

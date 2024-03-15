@@ -44,16 +44,11 @@ pub struct TerminalPanelData {
 impl TerminalPanelData {
     pub fn new(
         workspace: Arc<LapceWorkspace>,
-        run_debug: Option<RunDebugProcess>,
         profile: Option<TerminalProfile>,
         common: Rc<CommonData>,
     ) -> Self {
-        let terminal_tab = TerminalTabData::new(
-            workspace.clone(),
-            run_debug,
-            profile,
-            common.clone(),
-        );
+        let terminal_tab =
+            TerminalTabData::new(workspace.clone(), profile, common.clone());
 
         let cx = common.scope;
 
@@ -142,7 +137,7 @@ impl TerminalPanelData {
         keypress: &KeyPressData,
     ) -> bool {
         if self.tab_info.with_untracked(|info| info.tabs.is_empty()) {
-            self.new_tab(None, None);
+            self.new_tab(None);
         }
 
         let tab = self.active_tab(false);
@@ -164,12 +159,18 @@ impl TerminalPanelData {
         }
     }
 
-    pub fn new_tab(
+    pub fn new_tab(&self, profile: Option<TerminalProfile>) {
+        self.new_tab_run_debug(None, profile);
+    }
+
+    /// Create a new terminal tab with the given run debug process.  
+    /// Errors if expanding out the run debug process failed.
+    pub fn new_tab_run_debug(
         &self,
         run_debug: Option<RunDebugProcess>,
         profile: Option<TerminalProfile>,
     ) -> TerminalTabData {
-        let terminal_tab = TerminalTabData::new(
+        let terminal_tab = TerminalTabData::new_run_debug(
             self.workspace.clone(),
             run_debug,
             profile,
@@ -280,7 +281,6 @@ impl TerminalPanelData {
             let terminal_data = TerminalData::new(
                 tab.scope,
                 self.workspace.clone(),
-                None,
                 None,
                 self.common.clone(),
             );
@@ -445,7 +445,7 @@ impl TerminalPanelData {
                 let mut run_debug = run_debug;
                 run_debug.stopped = false;
                 run_debug.is_prelaunch = true;
-                let new_terminal = TerminalData::new(
+                let new_terminal = TerminalData::new_run_debug(
                     terminal_tab.scope,
                     self.workspace.clone(),
                     Some(run_debug),

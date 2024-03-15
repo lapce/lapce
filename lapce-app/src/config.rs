@@ -98,15 +98,20 @@ pub struct LapceConfig {
 }
 
 impl LapceConfig {
-    pub fn load(workspace: &LapceWorkspace, disabled_volts: &[VoltID]) -> Self {
+    pub fn load(
+        workspace: &LapceWorkspace,
+        disabled_volts: &[VoltID],
+        extra_plugin_paths: &[PathBuf],
+    ) -> Self {
         let config = Self::merge_config(workspace, None, None);
         let mut lapce_config: LapceConfig = config
             .try_deserialize()
             .unwrap_or_else(|_| DEFAULT_LAPCE_CONFIG.clone());
 
         lapce_config.available_color_themes =
-            Self::load_color_themes(disabled_volts);
-        lapce_config.available_icon_themes = Self::load_icon_themes(disabled_volts);
+            Self::load_color_themes(disabled_volts, extra_plugin_paths);
+        lapce_config.available_icon_themes =
+            Self::load_icon_themes(disabled_volts, extra_plugin_paths);
         lapce_config.resolve_theme(workspace);
 
         lapce_config.color_theme_list = lapce_config
@@ -275,10 +280,13 @@ impl LapceConfig {
 
     fn load_color_themes(
         disabled_volts: &[VoltID],
+        extra_plugin_paths: &[PathBuf],
     ) -> HashMap<String, (String, config::Config)> {
         let mut themes = Self::load_local_themes().unwrap_or_default();
 
-        for (key, theme) in Self::load_plugin_color_themes(disabled_volts) {
+        for (key, theme) in
+            Self::load_plugin_color_themes(disabled_volts, extra_plugin_paths)
+        {
             themes.insert(key, theme);
         }
 
@@ -419,11 +427,12 @@ impl LapceConfig {
 
     fn load_icon_themes(
         disabled_volts: &[VoltID],
+        extra_plugin_paths: &[PathBuf],
     ) -> HashMap<String, (String, config::Config, Option<PathBuf>)> {
         let mut themes = HashMap::new();
 
         for (key, (name, theme, path)) in
-            Self::load_plugin_icon_themes(disabled_volts)
+            Self::load_plugin_icon_themes(disabled_volts, extra_plugin_paths)
         {
             themes.insert(key, (name, theme, Some(path)));
         }
@@ -447,9 +456,10 @@ impl LapceConfig {
 
     fn load_plugin_color_themes(
         disabled_volts: &[VoltID],
+        extra_plugin_paths: &[PathBuf],
     ) -> HashMap<String, (String, config::Config)> {
         let mut themes: HashMap<String, (String, config::Config)> = HashMap::new();
-        for meta in find_all_volts() {
+        for meta in find_all_volts(extra_plugin_paths) {
             if disabled_volts.contains(&meta.id()) {
                 continue;
             }
@@ -468,10 +478,11 @@ impl LapceConfig {
 
     fn load_plugin_icon_themes(
         disabled_volts: &[VoltID],
+        extra_plugin_paths: &[PathBuf],
     ) -> HashMap<String, (String, config::Config, PathBuf)> {
         let mut themes: HashMap<String, (String, config::Config, PathBuf)> =
             HashMap::new();
-        for meta in find_all_volts() {
+        for meta in find_all_volts(extra_plugin_paths) {
             if disabled_volts.contains(&meta.id()) {
                 continue;
             }

@@ -3,6 +3,7 @@ use std::os::windows::process::CommandExt;
 use std::{
     io::{BufReader, Read, Write},
     ops::Range,
+    path::PathBuf,
     process::Stdio,
     rc::Rc,
     sync::{atomic::AtomicU64, Arc},
@@ -108,6 +109,13 @@ struct Cli {
     #[clap(short, long, action)]
     wait: bool,
 
+    /// Path(s) to plugins to load.  
+    /// This is primarily used for plugin development to make it easier to test changes to the
+    /// plugin without needing to copy the plugin to the plugins directory.  
+    /// This will cause any plugin with the same author & name to not run.
+    #[clap(long, action)]
+    plugin_path: Vec<PathBuf>,
+
     /// Paths to file(s) and/or folder(s) to open.
     /// When path is a file (that exists or not),
     /// it accepts `path:line:column` syntax
@@ -143,11 +151,14 @@ pub struct AppData {
     pub watcher: Arc<notify::RecommendedWatcher>,
     pub tracing_handle: Handle<Targets>,
     pub config: RwSignal<Arc<LapceConfig>>,
+    /// Paths to extra plugins to load
+    pub plugin_paths: Arc<Vec<PathBuf>>,
 }
 
 impl AppData {
     pub fn reload_config(&self) {
-        let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
+        let config =
+            LapceConfig::load(&LapceWorkspace::default(), &[], &self.plugin_paths);
         self.config.set(Arc::new(config));
         let windows = self.windows.get_untracked();
         for (_, window) in windows {
@@ -427,6 +438,7 @@ impl AppData {
             info,
             self.window_scale,
             self.latest_release.read_only(),
+            self.plugin_paths.clone(),
             self.app_command,
         );
         self.windows.update(|windows| {
@@ -3450,6 +3462,8 @@ pub fn launch() {
         return;
     }
 
+    // If the cli is not requesting a new window, and we're not developing a plugin, we try to open
+    // in the existing Lapce process
     if !cli.new {
         if let Ok(socket) = get_socket() {
             if let Err(e) = try_open_in_existing_process(socket, &cli.paths) {
@@ -3486,6 +3500,8 @@ pub fn launch() {
     let latest_release = scope.create_rw_signal(Arc::new(None));
     let app_command = Listener::new_empty(scope);
 
+    let plugin_paths = Arc::new(cli.plugin_path);
+
     let (tx, rx) = crossbeam_channel::bounded(1);
     let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx)).unwrap();
     if let Some(path) = LapceConfig::settings_file() {
@@ -3502,7 +3518,7 @@ pub fn launch() {
     }
 
     let windows = scope.create_rw_signal(im::HashMap::new());
-    let config = LapceConfig::load(&LapceWorkspace::default(), &[]);
+    let config = LapceConfig::load(&LapceWorkspace::default(), &[], &plugin_paths);
     let config = scope.create_rw_signal(Arc::new(config));
     let app_data = AppData {
         windows,
@@ -3514,6 +3530,7 @@ pub fn launch() {
         app_command,
         tracing_handle: reload_handle,
         config,
+        plugin_paths,
     };
 
     let app = app_data.create_windows(db.clone(), cli.paths);

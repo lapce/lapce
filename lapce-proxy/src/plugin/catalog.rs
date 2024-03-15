@@ -52,6 +52,7 @@ impl PluginCatalog {
     pub fn new(
         workspace: Option<PathBuf>,
         disabled_volts: Vec<VoltID>,
+        extra_plugin_paths: Vec<PathBuf>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
@@ -67,7 +68,7 @@ impl PluginCatalog {
         };
 
         thread::spawn(move || {
-            load_all_volts(plugin_rpc, disabled_volts);
+            load_all_volts(plugin_rpc, &extra_plugin_paths, disabled_volts);
         });
 
         plugin

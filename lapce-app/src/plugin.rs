@@ -172,6 +172,9 @@ impl PluginData {
 
         {
             let plugin = plugin.clone();
+            let extra_plugin_paths =
+                plugin.common.window_common.extra_plugin_paths.clone();
+
             let send = create_ext_action(
                 cx,
                 move |volts: Vec<(Option<Vec<u8>>, VoltMetadata)>| {
@@ -181,7 +184,7 @@ impl PluginData {
                 },
             );
             std::thread::spawn(move || {
-                let volts = find_all_volts();
+                let volts = find_all_volts(&extra_plugin_paths);
                 let volts = volts
                     .into_iter()
                     .filter_map(|meta| {
