@@ -20,7 +20,7 @@ fn try_all_equal_value<T: PartialEq, I: IntoIterator<Item = Option<T>>>(
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "kebab-case", default)]
 pub struct IconThemeConfig {
     #[serde(skip)]
     pub path: PathBuf,

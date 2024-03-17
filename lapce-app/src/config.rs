@@ -50,6 +50,21 @@ static DEFAULT_CONFIG: Lazy<config::Config> = Lazy::new(LapceConfig::default_con
 static DEFAULT_LAPCE_CONFIG: Lazy<LapceConfig> =
     Lazy::new(LapceConfig::default_lapce_config);
 
+// static DEFAULT_DARK_THEME_CONFIG = Lazy
+/// The default theme is the dark theme.
+static DEFAULT_DARK_THEME_COLOR_CONFIG: Lazy<ColorThemeConfig> = Lazy::new(|| {
+    let (_, theme) =
+        LapceConfig::load_color_theme_from_str(DEFAULT_DARK_THEME).unwrap();
+    theme.get::<ColorThemeConfig>("color-theme")
+    .expect("Failed to load default dark theme. This is likely due to a missing or misnamed field in dark-theme.toml")
+});
+static DEFAULT_ICON_THEME_CONFIG: Lazy<IconThemeConfig> = Lazy::new(|| {
+    let (_, theme) =
+        LapceConfig::load_icon_theme_from_str(DEFAULT_ICON_THEME).unwrap();
+    theme.get::<IconThemeConfig>("icon-theme")
+    .expect("Failed to load default icon theme. This is likely due to a missing or misnamed field in icon-theme.toml")
+});
+
 /// Used for creating a `DropdownData` for a setting
 #[derive(Debug, Clone)]
 pub struct DropdownInfo {
@@ -67,14 +82,12 @@ pub struct LapceConfig {
     pub ui: UIConfig,
     pub editor: EditorConfig,
     pub terminal: TerminalConfig,
+    #[serde(default)]
     pub color_theme: ColorThemeConfig,
+    #[serde(default)]
     pub icon_theme: IconThemeConfig,
     #[serde(flatten)]
     pub plugins: HashMap<String, HashMap<String, serde_json::Value>>,
-    #[serde(skip)]
-    pub default_color_theme: ColorThemeConfig,
-    #[serde(skip)]
-    pub default_icon_theme: IconThemeConfig,
     #[serde(skip)]
     pub color: ThemeColor,
     #[serde(skip)]
@@ -213,6 +226,8 @@ impl LapceConfig {
     fn default_lapce_config() -> LapceConfig {
         let mut default_lapce_config: LapceConfig =
             DEFAULT_CONFIG.clone().try_deserialize().expect("Failed to deserialize default config, this likely indicates a missing or misnamed field in settings.toml");
+        default_lapce_config.color_theme = DEFAULT_DARK_THEME_COLOR_CONFIG.clone();
+        default_lapce_config.icon_theme = DEFAULT_ICON_THEME_CONFIG.clone();
         default_lapce_config.resolve_colors(None);
         default_lapce_config
     }
@@ -273,8 +288,6 @@ impl LapceConfig {
             }
         }
         self.resolve_colors(Some(&default_lapce_config));
-        self.default_color_theme = default_lapce_config.color_theme.clone();
-        self.default_icon_theme = default_lapce_config.icon_theme.clone();
         self.update_id();
     }
 
@@ -298,6 +311,10 @@ impl LapceConfig {
         themes.insert(name.to_lowercase(), (name, theme));
 
         themes
+    }
+
+    pub fn default_color_theme(&self) -> &ColorThemeConfig {
+        &DEFAULT_DARK_THEME_COLOR_CONFIG
     }
 
     /// Set the active color theme.
@@ -415,6 +432,8 @@ impl LapceConfig {
         Some((name.to_lowercase(), (name, config)))
     }
 
+    /// Load the given theme by its contents.  
+    /// Returns `(name, theme fields)`
     fn load_color_theme_from_str(s: &str) -> Option<(String, config::Config)> {
         let config = config::Config::builder()
             .add_source(config::File::from_str(s, config::FileFormat::Toml))
@@ -563,7 +582,7 @@ impl LapceConfig {
         });
 
         svg.unwrap_or_else(|| {
-            let name = self.default_icon_theme.ui.get(icon).unwrap();
+            let name = DEFAULT_ICON_THEME_CONFIG.ui.get(icon).unwrap();
             self.svg_store.write().get_default_svg(name)
         })
     }

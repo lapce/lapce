@@ -125,7 +125,7 @@ impl ThemeBaseConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "kebab-case", default)]
 pub struct ColorThemeConfig {
     #[serde(skip)]
     pub path: PathBuf,

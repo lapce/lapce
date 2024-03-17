@@ -974,15 +974,15 @@ fn color_section_list(
                                         let config = config.get_untracked();
                                         let default = match kind.as_str() {
                                             "base" => config
-                                                .default_color_theme
+                                                .default_color_theme()
                                                 .base
                                                 .get(&field),
                                             "ui" => config
-                                                .default_color_theme
+                                                .default_color_theme()
                                                 .ui
                                                 .get(&field),
                                             "syntax" => config
-                                                .default_color_theme
+                                                .default_color_theme()
                                                 .syntax
                                                 .get(&field),
                                             _ => None,
@@ -1072,15 +1072,15 @@ fn color_section_list(
 
                                 let same = match kind.as_str() {
                                     "base" => {
-                                        config.default_color_theme.base.get(&key)
+                                        config.default_color_theme().base.get(&key)
                                             == Some(&content)
                                     }
                                     "ui" => {
-                                        config.default_color_theme.ui.get(&key)
+                                        config.default_color_theme().ui.get(&key)
                                             == Some(&content)
                                     }
                                     "syntax" => {
-                                        config.default_color_theme.syntax.get(&key)
+                                        config.default_color_theme().syntax.get(&key)
                                             == Some(&content)
                                     }
                                     _ => false,
