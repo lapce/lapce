@@ -66,6 +66,7 @@ impl ProxyHandler for Dispatcher {
             Initialize {
                 workspace,
                 disabled_volts,
+                extra_plugin_paths,
                 plugin_configurations,
                 window_id,
                 tab_id,
@@ -89,6 +90,7 @@ impl ProxyHandler for Dispatcher {
                     let mut plugin = PluginCatalog::new(
                         workspace,
                         disabled_volts,
+                        extra_plugin_paths,
                         plugin_configurations,
                         plugin_rpc.clone(),
                     );

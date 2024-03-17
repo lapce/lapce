@@ -271,7 +271,11 @@ impl WindowTabData {
             info
         };
 
-        let config = LapceConfig::load(&workspace, &all_disabled_volts);
+        let config = LapceConfig::load(
+            &workspace,
+            &all_disabled_volts,
+            &window_common.extra_plugin_paths,
+        );
         let lapce_command = Listener::new_empty(cx);
         let workbench_command = Listener::new_empty(cx);
         let internal_command = Listener::new_empty(cx);
@@ -291,6 +295,7 @@ impl WindowTabData {
         let proxy = new_proxy(
             workspace.clone(),
             all_disabled_volts,
+            window_common.extra_plugin_paths.as_ref().clone(),
             config.plugins.clone(),
             term_tx.clone(),
         );
@@ -430,7 +435,7 @@ impl WindowTabData {
             });
 
         let terminal =
-            TerminalPanelData::new(workspace.clone(), None, None, common.clone());
+            TerminalPanelData::new(workspace.clone(), None, common.clone());
         if let Some(workspace_info) = workspace_info.as_ref() {
             terminal.debug.breakpoints.set(
                 workspace_info
@@ -573,7 +578,11 @@ impl WindowTabData {
         let mut all_disabled_volts = disabled_volts;
         all_disabled_volts.extend(workspace_disabled_volts);
 
-        let config = LapceConfig::load(&self.workspace, &all_disabled_volts);
+        let config = LapceConfig::load(
+            &self.workspace,
+            &all_disabled_volts,
+            &self.common.window_common.extra_plugin_paths,
+        );
         self.common.keypress.update(|keypress| {
             keypress.update_keymaps(&config);
         });
@@ -915,7 +924,6 @@ impl WindowTabData {
             // ==== Terminal ====
             NewTerminalTab => {
                 self.terminal.new_tab(
-                    None,
                     self.common
                         .config
                         .get_untracked()
@@ -1340,7 +1348,6 @@ impl WindowTabData {
                 current_path,
                 new_path,
             } => {
-                println!("FinishRenamePath");
                 let send_current_path = current_path.clone();
                 let send_new_path = new_path.clone();
                 let file_explorer = self.file_explorer.clone();
@@ -1350,7 +1357,6 @@ impl WindowTabData {
                     self.scope,
                     move |response: Result<ProxyResponse, RpcError>| match response {
                         Ok(response) => {
-                            println!("Got rename path response");
                             // Get the canonicalized new path from the proxy.
                             let new_path =
                                 if let ProxyResponse::CreatePathResponse { path } =
@@ -1533,7 +1539,7 @@ impl WindowTabData {
                     .save_jump_location(path, offset, scroll_offset);
             }
             InternalCommand::NewTerminal { profile } => {
-                self.terminal.new_tab(None, profile);
+                self.terminal.new_tab(profile);
             }
             InternalCommand::SplitTerminal { term_id } => {
                 self.terminal.split(term_id);
@@ -2254,7 +2260,7 @@ impl WindowTabData {
                 .tab_info
                 .with_untracked(|info| info.tabs.is_empty())
         {
-            self.terminal.new_tab(None, None);
+            self.terminal.new_tab(None);
         }
         self.panel.show_panel(&kind);
         if kind == PanelKind::Search
@@ -2316,7 +2322,7 @@ impl WindowTabData {
 
             terminal.term_id
         } else {
-            let new_terminal_tab = self.terminal.new_tab(
+            let new_terminal_tab = self.terminal.new_tab_run_debug(
                 Some(RunDebugProcess {
                     mode: *mode,
                     config: config.clone(),
