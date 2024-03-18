@@ -54,7 +54,7 @@ pub struct TerminalView {
     internal_command: Listener<InternalCommand>,
     workspace: Arc<LapceWorkspace>,
 }
-
+#[allow(clippy::too_many_arguments)]
 pub fn terminal_view(
     term_id: TermId,
     raw: ReadSignal<Arc<RwLock<RawTerminal>>>,
