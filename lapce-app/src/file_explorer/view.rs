@@ -22,7 +22,7 @@ use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons},
     editor_tab::{EditorTabChild, EditorTabData},
-    panel::{kind::PanelKind, position::PanelPosition, view::panel_header},
+    panel::{kind::PanelKind, position::PanelPosition, view::PanelBuilder},
     plugin::PluginData,
     text_input::text_input_key_focus,
     window_tab::{Focus, WindowTabData},
@@ -67,24 +67,19 @@ pub fn file_explorer_panel(
 ) -> impl View {
     let config = window_tab_data.common.config;
     let data = window_tab_data.file_explorer.clone();
-    stack((
-        stack((
-            panel_header("Open Editors".to_string(), config),
+    PanelBuilder::new(config, position)
+        .add_height(
+            "Open Editors",
+            150.0,
             container(open_editors_view(window_tab_data.clone()))
-                .style(|s| s.size_pct(100.0, 100.0)),
-        ))
-        .style(|s| s.width_pct(100.0).flex_col().height(150.0)),
-        stack((
-            panel_header("File Explorer".to_string(), config),
+                .style(|s| s.size_full()),
+        )
+        .add(
+            "File Explorer",
             container(new_file_node_view(data).style(|s| s.absolute()))
-                .style(|s| s.size_pct(100.0, 100.0).line_height(1.6)),
-        ))
-        .style(|s| s.width_pct(100.0).height_pct(100.0).flex_col()),
-    ))
-    .style(move |s| {
-        s.width_pct(100.0)
-            .apply_if(!position.is_bottom(), |s: Style| s.flex_col())
-    })
+                .style(|s| s.size_full().line_height(1.6)),
+        )
+        .build()
 }
 
 /// Initialize the file explorer's naming (renaming, creating, etc.) editor with the given path.

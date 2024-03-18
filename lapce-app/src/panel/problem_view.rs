@@ -9,7 +9,7 @@ use floem::{
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 
-use super::{position::PanelPosition, view::panel_header};
+use super::{position::PanelPosition, view::PanelBuilder};
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
@@ -27,30 +27,21 @@ pub fn problem_panel(
 ) -> impl View {
     let config = window_tab_data.common.config;
     let is_bottom = position.is_bottom();
-    stack((
-        stack((
-            panel_header("Errors".to_string(), config),
+    PanelBuilder::new(config, position)
+        .add_style(
+            "Errors",
             problem_section(window_tab_data.clone(), DiagnosticSeverity::ERROR),
-        ))
-        .style(move |s| {
-            let config = config.get();
-            s.flex_col()
-                .flex_basis(0.0)
-                .flex_grow(1.0)
-                .border_color(config.color(LapceColor::LAPCE_BORDER))
-                .apply_if(is_bottom, |s| s.border_right(1.0))
-                .apply_if(!is_bottom, |s| s.border_bottom(1.0))
-        }),
-        stack((
-            panel_header("Warnings".to_string(), config),
-            problem_section(window_tab_data, DiagnosticSeverity::WARNING),
-        ))
-        .style(|s| s.flex_col().flex_basis(0.0).flex_grow(1.0)),
-    ))
-    .style(move |s| {
-        s.size_pct(100.0, 100.0)
-            .apply_if(!is_bottom, |s| s.flex_col())
-    })
+            move |s| {
+                s.border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                    .apply_if(is_bottom, |s| s.border_right(1.0))
+                    .apply_if(!is_bottom, |s| s.border_bottom(1.0))
+            },
+        )
+        .add(
+            "Warnings",
+            problem_section(window_tab_data.clone(), DiagnosticSeverity::WARNING),
+        )
+        .build()
 }
 
 fn problem_section(

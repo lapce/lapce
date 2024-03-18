@@ -17,7 +17,7 @@ use lapce_rpc::{
     terminal::TermId,
 };
 
-use super::{position::PanelPosition, view::panel_header};
+use super::{position::PanelPosition, view::PanelBuilder};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
@@ -38,35 +38,23 @@ pub fn debug_panel(
     let terminal = window_tab_data.terminal.clone();
     let internal_command = window_tab_data.common.internal_command;
 
-    stack((
-        {
-            let terminal = terminal.clone();
-            stack((
-                panel_header("Processes".to_string(), config),
-                debug_processes(terminal, config),
-            ))
-            .style(|s| s.width_pct(100.0).flex_col().height(150.0))
-        },
-        stack((
-            panel_header("Variables".to_string(), config),
-            variables_view(window_tab_data.clone()),
-        ))
-        .style(|s| s.width_pct(100.0).flex_grow(1.0).flex_basis(0.0).flex_col()),
-        stack((
-            panel_header("Stack Frames".to_string(), config),
-            debug_stack_traces(terminal, internal_command, config),
-        ))
-        .style(|s| s.width_pct(100.0).flex_grow(1.0).flex_basis(0.0).flex_col()),
-        stack((
-            panel_header("Breakpoints".to_string(), config),
+    PanelBuilder::new(config, position)
+        .add_height(
+            "Processes",
+            150.0,
+            debug_processes(terminal.clone(), config),
+        )
+        .add("Variables", variables_view(window_tab_data.clone()))
+        .add(
+            "Stack Frames",
+            debug_stack_traces(terminal.clone(), internal_command, config),
+        )
+        .add_height(
+            "Breakpoints",
+            150.0,
             breakpoints_view(window_tab_data.clone()),
-        ))
-        .style(|s| s.width_pct(100.0).flex_col().height(150.0)),
-    ))
-    .style(move |s| {
-        s.width_pct(100.0)
-            .apply_if(!position.is_bottom(), |s| s.flex_col())
-    })
+        )
+        .build()
 }
 
 fn debug_process_icons(
