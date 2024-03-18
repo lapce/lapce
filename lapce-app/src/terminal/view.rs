@@ -1,23 +1,32 @@
 use std::sync::Arc;
 
+use alacritty_terminal::term::search::RegexSearch;
 use alacritty_terminal::{
     grid::Dimensions,
     term::{cell::Flags, test::TermSize},
 };
+use floem::context::EventCx;
+use floem::event::Event;
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
     peniko::kurbo::{Point, Rect, Size},
     reactive::{create_effect, ReadSignal, RwSignal},
     view::{AnyWidget, View, ViewData, Widget},
-    Renderer,
+    EventPropagation, Renderer,
 };
 use lapce_core::mode::Mode;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
+use lsp_types::Position;
 use parking_lot::RwLock;
 use unicode_width::UnicodeWidthChar;
 
 use super::{panel::TerminalPanelData, raw::RawTerminal};
+use crate::command::InternalCommand;
+use crate::editor::location::{EditorLocation, EditorPosition};
+use crate::listener::Listener;
+use crate::terminal::raw::visible_regex_match_iter;
+use crate::workspace::LapceWorkspace;
 use crate::{
     config::{color::LapceColor, LapceConfig},
     debug::RunDebugProcess,
@@ -42,6 +51,8 @@ pub struct TerminalView {
     run_config: ReadSignal<Option<RunDebugProcess>>,
     proxy: ProxyRpcHandler,
     launch_error: RwSignal<Option<String>>,
+    internal_command: Listener<InternalCommand>,
+    workspace: Arc<LapceWorkspace>,
 }
 
 pub fn terminal_view(
@@ -51,6 +62,8 @@ pub fn terminal_view(
     run_config: ReadSignal<Option<RunDebugProcess>>,
     terminal_panel_data: TerminalPanelData,
     launch_error: RwSignal<Option<String>>,
+    internal_command: Listener<InternalCommand>,
+    workspace: Arc<LapceWorkspace>,
 ) -> TerminalView {
     let id = Id::next();
 
@@ -102,6 +115,8 @@ pub fn terminal_view(
         size: Size::ZERO,
         is_focused: false,
         launch_error,
+        internal_command,
+        workspace,
     }
 }
 
@@ -156,6 +171,68 @@ impl Widget for TerminalView {
 
     fn view_data_mut(&mut self) -> &mut ViewData {
         &mut self.data
+    }
+
+    fn event(
+        &mut self,
+        _cx: &mut EventCx,
+        _id_path: Option<&[Id]>,
+        event: Event,
+    ) -> EventPropagation {
+        if let Event::PointerDown(_e) = event {
+            {
+                // let mut search =
+                //     RegexSearch::new("[\\w\\?]+\\.rs:\\d+:\\d+").unwrap();
+                let Ok(mut search) = RegexSearch::new("[\\w\\\\?]+\\.rs:\\d+:\\d+")
+                else {
+                    return EventPropagation::Stop;
+                };
+                let raw_origin = self.raw.read();
+                let col = (_e.pos.x / self.char_size().width) as usize;
+                let line_no = _e.pos.y as i32
+                    / (self.config.get().terminal_line_height() as i32);
+
+                let position = alacritty_terminal::index::Point::new(
+                    alacritty_terminal::index::Line(line_no),
+                    alacritty_terminal::index::Column(col),
+                );
+                if let Some(hy) =
+                    visible_regex_match_iter(&raw_origin.term, &mut search)
+                        .find(|x| x.contains(&position))
+                {
+                    let hyperlink =
+                        raw_origin.term.bounds_to_string(*hy.start(), *hy.end());
+                    let content: Vec<&str> = hyperlink.split(':').collect();
+                    let (Some(file), Some(line_str), Some(col_str)) =
+                        (content.first(), content.get(1), content.get(2))
+                    else {
+                        return EventPropagation::Stop;
+                    };
+                    let (Ok(line), Ok(col)) =
+                        (line_str.parse::<u32>(), col_str.parse::<u32>())
+                    else {
+                        return EventPropagation::Stop;
+                    };
+                    let Some(parent_path) = &self.workspace.path else {
+                        return EventPropagation::Stop;
+                    };
+                    self.internal_command.send(InternalCommand::JumpToLocation {
+                        location: EditorLocation {
+                            path: parent_path.join(file),
+                            position: Some(EditorPosition::Position(Position::new(
+                                line, col,
+                            ))),
+                            scroll_offset: None,
+                            ignore_unconfirmed: false,
+                            same_editor_tab: false,
+                        },
+                    })
+                };
+            }
+            EventPropagation::Stop
+        } else {
+            EventPropagation::Continue
+        }
     }
 
     fn update(
