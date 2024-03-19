@@ -65,6 +65,9 @@ name = "Lapce Codicons"
 
 "dropdown.arrow" = "chevron-down.svg"
 
+"panel.fold-down" = "chevron-down.svg"
+"panel.fold-up" = "chevron-up.svg"
+
 "location.forward" = "arrow-right.svg"
 "location.backward" = "arrow-left.svg"
 

@@ -11,13 +11,15 @@ use floem::{
     views::{
         container, dyn_stack,
         editor::view::{cursor_caret, LineRegion},
-        label, scroll, stack, svg, Decorators,
+        label, scroll, stack, svg, text, Decorators,
     },
 };
 use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;
 
-use super::{kind::PanelKind, position::PanelPosition, view::panel_header};
+use super::{
+    kind::PanelKind, position::PanelPosition, view::foldable_panel_section,
+};
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
     config::{color::LapceColor, icon::LapceIcons},
@@ -175,10 +177,11 @@ pub fn source_control_panel(
             },
         ))
         .style(|s| s.flex_col().width_pct(100.0).padding(10.0)),
-        stack((
-            panel_header("Changes".to_string(), config),
+        foldable_panel_section(
+            text("Changes"),
             file_diffs_view(source_control),
-        ))
+            config,
+        )
         .style(|s| s.flex_col().size_pct(100.0, 100.0)),
     ))
     .on_event_stop(EventListener::PointerDown, move |_| {

@@ -4,9 +4,14 @@ use floem::{
     event::{Event, EventListener},
     kurbo::{Point, Size},
     reactive::{create_rw_signal, ReadSignal, RwSignal},
-    style::CursorStyle,
-    view::View,
-    views::{container, dyn_stack, empty, label, stack, tab, Decorators},
+    style::{CursorStyle, Style},
+    taffy::AlignItems,
+    unit::PxPctAuto,
+    view::{AnyView, View},
+    views::{
+        container, dyn_stack, empty, h_stack, label, stack, stack_from_iter, tab,
+        text, Decorators,
+    },
     EventPropagation,
 };
 
@@ -21,11 +26,154 @@ use super::{
     terminal_view::terminal_panel,
 };
 use crate::{
-    app::clickable_icon,
+    app::{clickable_icon, clickable_icon_base},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     file_explorer::view::file_explorer_panel,
     window_tab::{DragContent, WindowTabData},
 };
+
+pub fn foldable_panel_section(
+    header: impl View + 'static,
+    child: impl View + 'static,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    let open = create_rw_signal(true);
+    foldable_panel_section_s(header, child, open, config)
+}
+
+fn foldable_panel_section_s(
+    header: impl View + 'static,
+    child: impl View + 'static,
+    open: RwSignal<bool>,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    stack((
+        h_stack((
+            clickable_icon_base(
+                move || {
+                    if open.get() {
+                        LapceIcons::PANEL_FOLD_DOWN
+                    } else {
+                        LapceIcons::PANEL_FOLD_UP
+                    }
+                },
+                move || {
+                    open.update(|open| *open = !*open);
+                },
+                || false,
+                || false,
+                config,
+            ),
+            header.style(|s| s.align_items(AlignItems::Center).padding_left(3.0)),
+        ))
+        .style(move |s| {
+            s.padding_horiz(10.0)
+                .padding_vert(6.0)
+                .width_pct(100.0)
+                .background(config.get().color(LapceColor::EDITOR_BACKGROUND))
+        }),
+        child.style(move |s| s.apply_if(!open.get(), |s| s.hide())),
+    ))
+}
+
+/// A builder for creating a foldable panel out of sections
+pub struct PanelBuilder {
+    views: Vec<AnyView>,
+    config: ReadSignal<Arc<LapceConfig>>,
+    position: PanelPosition,
+}
+impl PanelBuilder {
+    pub fn new(
+        config: ReadSignal<Arc<LapceConfig>>,
+        position: PanelPosition,
+    ) -> Self {
+        Self {
+            views: Vec::new(),
+            config,
+            position,
+        }
+    }
+
+    fn add_general(
+        mut self,
+        name: &'static str,
+        height: Option<PxPctAuto>,
+        view: impl View + 'static,
+        style: impl Fn(Style) -> Style + 'static,
+    ) -> Self {
+        let position = self.position;
+        let open = create_rw_signal(true);
+        let view = foldable_panel_section_s(text(name), view, open, self.config)
+            .style(move |s| {
+                let s = s.width_full().flex_col();
+                // Use the manual height if given, otherwise if we're open behave flex,
+                // otherwise, do nothing so that there's no height
+                let s = if open.get() {
+                    if let Some(height) = height {
+                        s.height(height)
+                    } else {
+                        s.flex_grow(1.0).flex_basis(0.0)
+                    }
+                } else if position.is_bottom() {
+                    s.flex_grow(0.3).flex_basis(0.0)
+                } else {
+                    s
+                };
+
+                style(s)
+            });
+        self.views.push(view.any());
+        self
+    }
+
+    /// Add a view to the panel
+    pub fn add(self, name: &'static str, view: impl View + 'static) -> Self {
+        self.add_general(name, None, view, std::convert::identity)
+    }
+
+    /// Add a view to the panel with a custom style applied to the overall header+section-content
+    pub fn add_style(
+        self,
+        name: &'static str,
+        view: impl View + 'static,
+        style: impl Fn(Style) -> Style + 'static,
+    ) -> Self {
+        self.add_general(name, None, view, style)
+    }
+
+    /// Add a view to the panel with a custom height that is only used when the panel is open
+    pub fn add_height(
+        self,
+        name: &'static str,
+        height: impl Into<PxPctAuto>,
+        view: impl View + 'static,
+    ) -> Self {
+        self.add_general(name, Some(height.into()), view, std::convert::identity)
+    }
+
+    /// Add a view to the panel with a custom height that is only used when the panel is open
+    pub fn add_height_pct(
+        self,
+        name: &'static str,
+        height: f64,
+        view: impl View + 'static,
+    ) -> Self {
+        self.add_general(
+            name,
+            Some(PxPctAuto::Pct(height)),
+            view,
+            std::convert::identity,
+        )
+    }
+
+    /// Build the panel into a view
+    pub fn build(self) -> impl View {
+        stack_from_iter(self.views).style(move |s| {
+            s.width_full()
+                .apply_if(!self.position.is_bottom(), |s| s.flex_col())
+        })
+    }
+}
 
 pub fn panel_container_view(
     window_tab_data: Rc<WindowTabData>,

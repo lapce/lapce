@@ -12,6 +12,7 @@
 - [#3047](https://github.com/lapce/lapce/pull/3047): Add support for different CrLf/Lf line endings per-file
 - [#3053](https://github.com/lapce/lapce/pull/3053): Add tooltips to various places
 - [#3069](https://github.com/lapce/lapce/pull/3069): Allow color variables for themes
+- [#3086](https://github.com/lapce/lapce/pull/3086): Add folding to panels
 
 ### Bug Fixes
 - [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository
