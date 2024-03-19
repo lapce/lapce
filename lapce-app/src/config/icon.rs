@@ -62,6 +62,9 @@ impl LapceIcons {
 
     pub const DROPDOWN_ARROW: &'static str = "dropdown.arrow";
 
+    pub const PANEL_FOLD_UP: &'static str = "panel.fold-up";
+    pub const PANEL_FOLD_DOWN: &'static str = "panel.fold-down";
+
     pub const LOCATION_BACKWARD: &'static str = "location.backward";
     pub const LOCATION_FORWARD: &'static str = "location.forward";
 

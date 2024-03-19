@@ -1835,57 +1835,64 @@ fn main_split(window_tab_data: Rc<WindowTabData>) -> impl View {
 pub fn clickable_icon<S: std::fmt::Display + 'static>(
     icon: impl Fn() -> &'static str + 'static,
     on_click: impl Fn() + 'static,
-    active_fn: impl Fn() -> bool + 'static + Copy,
+    active_fn: impl Fn() -> bool + 'static,
     disabled_fn: impl Fn() -> bool + 'static + Copy,
     tooltip_: impl Fn() -> S + 'static + Clone,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     tooltip_label(
         config,
-        container(
-            container(
-                svg(move || config.get().ui_svg(icon()))
-                    .style(move |s| {
-                        let config = config.get();
-                        let size = config.ui.icon_size() as f32;
-                        s.size(size, size)
-                            .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
-                            .disabled(|s| {
-                                s.color(
-                                    config.color(LapceColor::LAPCE_ICON_INACTIVE),
-                                )
-                                .cursor(CursorStyle::Default)
-                            })
-                    })
-                    .disabled(disabled_fn),
-            )
-            .on_click_stop(move |_| {
-                on_click();
-            })
-            .disabled(disabled_fn)
-            .style(move |s| {
-                let config = config.get();
-                s.padding(4.0)
-                    .border_radius(6.0)
-                    .border(1.0)
-                    .border_color(Color::TRANSPARENT)
-                    .apply_if(active_fn(), |s| {
-                        s.border_color(config.color(LapceColor::EDITOR_CARET))
-                    })
-                    .hover(|s| {
-                        s.cursor(CursorStyle::Pointer).background(
-                            config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                        )
-                    })
-                    .active(|s| {
-                        s.background(
-                            config
-                                .color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
-                        )
-                    })
-            }),
-        ),
+        clickable_icon_base(icon, on_click, active_fn, disabled_fn, config),
         tooltip_,
+    )
+}
+
+pub fn clickable_icon_base(
+    icon: impl Fn() -> &'static str + 'static,
+    on_click: impl Fn() + 'static,
+    active_fn: impl Fn() -> bool + 'static,
+    disabled_fn: impl Fn() -> bool + 'static + Copy,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    container(
+        container(
+            svg(move || config.get().ui_svg(icon()))
+                .style(move |s| {
+                    let config = config.get();
+                    let size = config.ui.icon_size() as f32;
+                    s.size(size, size)
+                        .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                        .disabled(|s| {
+                            s.color(config.color(LapceColor::LAPCE_ICON_INACTIVE))
+                                .cursor(CursorStyle::Default)
+                        })
+                })
+                .disabled(disabled_fn),
+        )
+        .on_click_stop(move |_| {
+            on_click();
+        })
+        .disabled(disabled_fn)
+        .style(move |s| {
+            let config = config.get();
+            s.padding(4.0)
+                .border_radius(6.0)
+                .border(1.0)
+                .border_color(Color::TRANSPARENT)
+                .apply_if(active_fn(), |s| {
+                    s.border_color(config.color(LapceColor::EDITOR_CARET))
+                })
+                .hover(|s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
+                .active(|s| {
+                    s.background(
+                        config.color(LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND),
+                    )
+                })
+        }),
     )
 }
 
