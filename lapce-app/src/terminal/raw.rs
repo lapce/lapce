@@ -1,3 +1,6 @@
+use alacritty_terminal::grid::Dimensions;
+use alacritty_terminal::index::{Column, Direction, Line, Point};
+use alacritty_terminal::term::search::{Match, RegexIter, RegexSearch};
 use alacritty_terminal::{ansi, event::EventListener, term::test::TermSize, Term};
 use crossbeam_channel::Sender;
 use lapce_proxy::terminal::TermConfig;
@@ -69,3 +72,21 @@ impl RawTerminal {
         }
     }
 }
+
+pub fn visible_regex_match_iter<'a, EventProxy>(
+    term: &'a Term<EventProxy>,
+    regex: &'a mut RegexSearch,
+) -> impl Iterator<Item = Match> + 'a {
+    let viewport_start = Line(-(term.grid().display_offset() as i32));
+    let viewport_end = viewport_start + term.bottommost_line();
+    let mut start = term.line_search_left(Point::new(viewport_start, Column(0)));
+    let mut end = term.line_search_right(Point::new(viewport_end, Column(0)));
+    start.line = start.line.max(viewport_start - MAX_SEARCH_LINES);
+    end.line = end.line.min(viewport_end + MAX_SEARCH_LINES);
+
+    RegexIter::new(start, end, Direction::Right, term, regex)
+        .skip_while(move |rm| rm.end().line < viewport_start)
+        .take_while(move |rm| rm.start().line <= viewport_end)
+}
+/// todo:should be improved
+pub const MAX_SEARCH_LINES: usize = 100;

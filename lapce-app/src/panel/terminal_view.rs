@@ -253,6 +253,8 @@ fn terminal_tab_split(
     terminal_tab_data: TerminalTabData,
 ) -> impl View {
     let config = terminal_panel_data.common.config;
+    let internal_command = terminal_panel_data.common.internal_command;
+    let workspace = terminal_panel_data.workspace.clone();
     let active = terminal_tab_data.active;
     let terminal_tab_scope = terminal_tab_data.scope;
     dyn_stack(
@@ -277,6 +279,8 @@ fn terminal_tab_split(
                     terminal.run_debug.read_only(),
                     terminal_panel_data,
                     terminal.launch_error,
+                    internal_command,
+                    workspace.clone(),
                 )
                 .on_event_cont(EventListener::PointerDown, move |_| {
                     active.set(index.get_untracked());
