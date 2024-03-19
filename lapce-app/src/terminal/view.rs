@@ -142,6 +142,38 @@ impl TerminalView {
         let height = (self.size.height / line_height).floor() as usize;
         (width.max(1), height.max(1))
     }
+
+    fn click(&self, pos: Point) -> Option<()> {
+        let mut search = RegexSearch::new("[\\w\\\\?]+\\.rs:\\d+:\\d+").ok()?;
+        let raw_origin = self.raw.read();
+        let col = (pos.x / self.char_size().width) as usize;
+        let line_no =
+            pos.y as i32 / (self.config.get().terminal_line_height() as i32);
+
+        let position = alacritty_terminal::index::Point::new(
+            alacritty_terminal::index::Line(line_no),
+            alacritty_terminal::index::Column(col),
+        );
+        let hy = visible_regex_match_iter(&raw_origin.term, &mut search)
+            .find(|x| x.contains(&position))?;
+        let hyperlink = raw_origin.term.bounds_to_string(*hy.start(), *hy.end());
+        let content: Vec<&str> = hyperlink.split(':').collect();
+        let (file, line_str, col_str) =
+            (content.first()?, content.get(1)?, content.get(2)?);
+        let (line, col) =
+            (line_str.parse::<u32>().ok()?, col_str.parse::<u32>().ok()?);
+        let parent_path = self.workspace.path.as_ref()?;
+        self.internal_command.send(InternalCommand::JumpToLocation {
+            location: EditorLocation {
+                path: parent_path.join(file),
+                position: Some(EditorPosition::Position(Position::new(line, col))),
+                scroll_offset: None,
+                ignore_unconfirmed: false,
+                same_editor_tab: false,
+            },
+        });
+        None
+    }
 }
 
 impl Drop for TerminalView {
@@ -179,56 +211,8 @@ impl Widget for TerminalView {
         _id_path: Option<&[Id]>,
         event: Event,
     ) -> EventPropagation {
-        if let Event::PointerDown(_e) = event {
-            {
-                // let mut search =
-                //     RegexSearch::new("[\\w\\?]+\\.rs:\\d+:\\d+").unwrap();
-                let Ok(mut search) = RegexSearch::new("[\\w\\\\?]+\\.rs:\\d+:\\d+")
-                else {
-                    return EventPropagation::Stop;
-                };
-                let raw_origin = self.raw.read();
-                let col = (_e.pos.x / self.char_size().width) as usize;
-                let line_no = _e.pos.y as i32
-                    / (self.config.get().terminal_line_height() as i32);
-
-                let position = alacritty_terminal::index::Point::new(
-                    alacritty_terminal::index::Line(line_no),
-                    alacritty_terminal::index::Column(col),
-                );
-                if let Some(hy) =
-                    visible_regex_match_iter(&raw_origin.term, &mut search)
-                        .find(|x| x.contains(&position))
-                {
-                    let hyperlink =
-                        raw_origin.term.bounds_to_string(*hy.start(), *hy.end());
-                    let content: Vec<&str> = hyperlink.split(':').collect();
-                    let (Some(file), Some(line_str), Some(col_str)) =
-                        (content.first(), content.get(1), content.get(2))
-                    else {
-                        return EventPropagation::Stop;
-                    };
-                    let (Ok(line), Ok(col)) =
-                        (line_str.parse::<u32>(), col_str.parse::<u32>())
-                    else {
-                        return EventPropagation::Stop;
-                    };
-                    let Some(parent_path) = &self.workspace.path else {
-                        return EventPropagation::Stop;
-                    };
-                    self.internal_command.send(InternalCommand::JumpToLocation {
-                        location: EditorLocation {
-                            path: parent_path.join(file),
-                            position: Some(EditorPosition::Position(Position::new(
-                                line, col,
-                            ))),
-                            scroll_offset: None,
-                            ignore_unconfirmed: false,
-                            same_editor_tab: false,
-                        },
-                    })
-                };
-            }
+        if let Event::PointerDown(e) = event {
+            self.click(e.pos);
             EventPropagation::Stop
         } else {
             EventPropagation::Continue
