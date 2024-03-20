@@ -18,7 +18,7 @@ home/YOURNAME/lapse/target/release/lapce
 ```
 
 2.3  Create a symbolic link:
-   - Open a terminal and run the following command to create a symbolic link from the executable to the chosen directory:
+- Open a terminal and run the following command to create a symbolic link from the executable to the chosen directory:
      ```bash
      ln -s home/YOURNAME/lapse/target/release/lapce ~/.local/bin/
      ```
@@ -29,12 +29,12 @@ home/YOURNAME/lapse/target/release/lapce
      ```
 
 2.5  Refresh the shell:
-   - Run the following command to reload the shell configuration:
+- Run the following command to reload the shell configuration:
      ```
      source ~/.bashrc
      ```
 
-2.6  Now you can call "lapce ." or "lapce --version" from cli
+- Now you can call "lapce ." or "lapce --version" from cli
 
 #### Fedora
 2.1  install dependencies
@@ -62,7 +62,7 @@ mkdir -p ~/.local/bin
 ```
 
 2.3  Create a symbolic link:
-   - Open a terminal and run the following command to create a symbolic link from the executable to the chosen directory:
+- Open a terminal and run the following command to create a symbolic link from the executable to the chosen directory:
      ```bash
      ln -s home/YOURNAME/lapse/target/release/lapce ~/.local/bin/lapce
      ```
@@ -73,12 +73,12 @@ mkdir -p ~/.local/bin
      ```
 
 2.5  Refresh the shell:
-   - Run the following command to reload the shell configuration:
+- Run the following command to reload the shell configuration:
      ```
      source ~/.bashrc
      ```
 
-Now you can call "lapce ." or "lapce --version" from cli
+- Now you can call "lapce ." or "lapce --version" from cli
 
 #### Void Linux
 ```sh
