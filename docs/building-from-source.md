@@ -14,18 +14,18 @@ sudo apt install clang libxkbcommon-x11-dev pkg-config libvulkan-dev libwayland-
 2.2  Follow instructions below to set path to lapce, where path to 
 lapce is like: 
 ```
-home/YOURNAME/lapse/target/release/lapce
+home/YOURNAME/lapce/target/release/lapce
 ```
 
 2.3  Create a symbolic link:
 - Open a terminal and run the following command to create a symbolic link from the executable to the chosen directory:
      ```bash
-     ln -s home/YOURNAME/lapse/target/release/lapce ~/.local/bin/
+     ln -s home/YOURNAME/lapce/target/release/lapce ~/.local/bin/
      ```
 
 2.4 Add the directory to PATH (if necessary):
      ```bash
-     export PATH="home/YOURNAME/lapse/target/release/lapce:$PATH"
+     export PATH="home/YOURNAME/lapce/target/release/lapce:$PATH"
      ```
 
 2.5  Refresh the shell:
@@ -45,7 +45,7 @@ sudo dnf install clang libxkbcommon-x11-devel libxcb-devel vulkan-loader-devel w
 Follow instructions below to set path to lapce, where path to 
 lapce is like: 
 ```
-home/YOURNAME/lapse/target/release/lapce
+home/YOURNAME/lapce/target/release/lapce
 ```
 
 2.1  Install Pearl (from official fedora source) to avoid a build-fail
@@ -64,7 +64,7 @@ mkdir -p ~/.local/bin
 2.3  Create a symbolic link:
 - Open a terminal and run the following command to create a symbolic link from the executable to the chosen directory:
      ```bash
-     ln -s home/YOURNAME/lapse/target/release/lapce ~/.local/bin/lapce
+     ln -s home/YOURNAME/lapce/target/release/lapce ~/.local/bin/lapce
      ```
 
 2.4  Add the directory to PATH (if necessary):
