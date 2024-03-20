@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
-use alacritty_terminal::term::search::RegexSearch;
+use alacritty_terminal::term::search::{Match, RegexSearch};
 use alacritty_terminal::{
     grid::Dimensions,
     term::{cell::Flags, test::TermSize},
 };
 use floem::context::EventCx;
 use floem::event::Event;
+use floem::kurbo::Line;
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
@@ -53,6 +54,7 @@ pub struct TerminalView {
     launch_error: RwSignal<Option<String>>,
     internal_command: Listener<InternalCommand>,
     workspace: Arc<LapceWorkspace>,
+    hyper_matches: Vec<Match>,
 }
 #[allow(clippy::too_many_arguments)]
 pub fn terminal_view(
@@ -117,6 +119,7 @@ pub fn terminal_view(
         launch_error,
         internal_command,
         workspace,
+        hyper_matches: vec![],
     }
 }
 
@@ -144,7 +147,6 @@ impl TerminalView {
     }
 
     fn click(&self, pos: Point) -> Option<()> {
-        let mut search = RegexSearch::new("[\\w\\\\?]+\\.rs:\\d+:\\d+").ok()?;
         let raw_origin = self.raw.read();
         let col = (pos.x / self.char_size().width) as usize;
         let line_no =
@@ -154,8 +156,7 @@ impl TerminalView {
             alacritty_terminal::index::Line(line_no),
             alacritty_terminal::index::Column(col),
         );
-        let hy = visible_regex_match_iter(&raw_origin.term, &mut search)
-            .find(|x| x.contains(&position))?;
+        let hy = self.hyper_matches.iter().find(|x| x.contains(&position))?;
         let hyperlink = raw_origin.term.bounds_to_string(*hy.start(), *hy.end());
         let content: Vec<&str> = hyperlink.split(':').collect();
         let (file, line_str, col_str) =
@@ -212,11 +213,11 @@ impl Widget for TerminalView {
         event: Event,
     ) -> EventPropagation {
         if let Event::PointerDown(e) = event {
-            self.click(e.pos);
-            EventPropagation::Stop
-        } else {
-            EventPropagation::Continue
+            if self.click(e.pos).is_some() {
+                return EventPropagation::Stop;
+            }
         }
+        EventPropagation::Continue
     }
 
     fn update(
@@ -298,6 +299,9 @@ impl Widget for TerminalView {
         let term = &raw.term;
         let content = term.renderable_content();
 
+        let mut search = RegexSearch::new("[\\w\\\\?]+\\.rs:\\d+:\\d+").unwrap();
+        self.hyper_matches = visible_regex_match_iter(term, &mut search).collect();
+
         if let Some(selection) = content.selection.as_ref() {
             let start_line = selection.start.line.0 + content.display_offset as i32;
             let start_line = if start_line < 0 {
@@ -373,6 +377,20 @@ impl Widget for TerminalView {
                     .to_rect()
                     .with_origin(Point::new(x, y));
                 cx.fill(&rect, bg, 0.0);
+            }
+            // let pos = Point::new(x, y + (line_height - char_size.height) / 2.0);
+            if self.hyper_matches.iter().any(|x| x.contains(&point)) {
+                let underline_y = point.line.0 as f64 * line_height
+                    + content.display_offset as f64
+                    + line_height;
+                let undline = Line::new(
+                    Point::new(point.column.0 as f64 * char_width, underline_y),
+                    Point::new(
+                        point.column.0 as f64 * char_width + char_width,
+                        underline_y,
+                    ),
+                );
+                cx.stroke(&undline, fg, 1.0);
             }
 
             if cursor_point == &point {
