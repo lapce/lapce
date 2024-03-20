@@ -53,7 +53,6 @@ home/YOURNAME/lapse/target/release/lapce
 https://developer.fedoraproject.org/tech/languages/perl/perl-installation.html
 ```bash
 $ sudo dnf install perl-core
-mkdir -p ~/.local/bin
 ```
 
 
