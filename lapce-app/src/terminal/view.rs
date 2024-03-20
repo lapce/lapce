@@ -379,12 +379,7 @@ impl Widget for TerminalView {
                 cx.fill(&rect, bg, 0.0);
             }
             // let pos = Point::new(x, y + (line_height - char_size.height) / 2.0);
-            if self
-                .hyper_matches
-                .iter()
-                .find(|x| x.contains(&point))
-                .is_some()
-            {
+            if self.hyper_matches.iter().any(|x| x.contains(&point)) {
                 let underline_y = point.line.0 as f64 * line_height
                     + content.display_offset as f64
                     + line_height;
