@@ -1,8 +1,10 @@
 [package]
 name = "lapce-app"
+license.workspace = true
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 alacritty_terminal.workspace = true
