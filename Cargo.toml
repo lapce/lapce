@@ -1,10 +1,10 @@
 [package]
 name = "lapce"
-version = "0.3.1"
-authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
-edition = "2021"
-license = "Apache-2.0"
-rust-version = "1.65"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
 default-run = "lapce"
 
 [dependencies]
@@ -30,7 +30,8 @@ members = [
 [workspace.package]
 version = "0.3.1"
 edition = "2021"
-rust-version = "1.64"
+rust-version = "1.75"
+license = "Apache-2.0"
 homepage = "https://lapce.dev"
 authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
 
