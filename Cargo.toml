@@ -1,14 +1,14 @@
 [package]
-name = "lapce"
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
-rust-version.workspace = true
-default-run = "lapce"
+name         = "lapce"
+version      = { workspace = true }
+authors      = { workspace = true }
+edition      = { workspace = true }
+license      = { workspace = true }
+rust-version = { workspace = true }
+default-run  = "lapce"
 
 [dependencies]
-lapce-app = { path = "./lapce-app" }
+lapce-app   = { path = "./lapce-app" }
 lapce-proxy = { path = "./lapce-proxy" }
 
 [[bin]]
@@ -20,60 +20,55 @@ name = "lapce-proxy"
 path = "lapce-proxy/src/bin/lapce-proxy.rs"
 
 [workspace]
-members = [
-  "lapce-app",
-  "lapce-proxy",
-  "lapce-rpc",
-  "lapce-core",
-]
+members = ["lapce-app", "lapce-proxy", "lapce-rpc", "lapce-core"]
 
 [workspace.package]
-version = "0.3.1"
-edition = "2021"
+version      = "0.3.1"
+edition      = "2021"
 rust-version = "1.75"
-license = "Apache-2.0"
-homepage = "https://lapce.dev"
-authors = ["Dongdong Zhou <dzhou121@gmail.com>"]
+license      = "Apache-2.0"
+homepage     = "https://lapce.dev"
+authors      = ["Dongdong Zhou <dzhou121@gmail.com>"]
 
 [workspace.dependencies]
-anyhow = "1.0"
-backtrace = "0.3"
-chrono = "0.4"
-clap = { version = "4.5.0", default-features = false, features = ["std", "help", "usage", "derive"] }
-crossbeam-channel = "0.5.11"
-directories = "4.0.1"
-flate2 = "1.0"
-globset = "0.4.14"
-hashbrown = { version = "0.14.0", features = ["serde"] }
-im = { version = "15.0.0", features = ["serde"] }
-include_dir = "0.6.2"
-indexmap = { version = "2.0", features = ["serde"] }
-interprocess = "1.2.1"
-itertools = "0.10.1"
-notify = { version = "5.2.0", features = ["serde"] }
-once_cell = "1.19"
-parking_lot = { version = "0.11.0", features = ["deadlock_detection"] }
-rayon = "1.8.0"
-regex = "1.10.2"
-reqwest = { version = "0.11", features = ["blocking", "json", "socks"] }
-serde = "1.0"
-serde_json = "1.0"
-smallvec = "1.13.1"
-strum = "0.21.0" # follow same version as system-deps in lockfile
-strum_macros = "0.21.1" # ditto
-tar = "0.4"
-thiserror = "1.0"
-toml = { version = "*" }
-toml_edit = { version = "0.20.2", features = ["serde"] }
-url = { version = "2.5.0" }
+anyhow            = { version = "1.0" }
+backtrace         = { version = "0.3" }
+chrono            = { version = "0.4" }
+clap              = { version = "4.5.0", default-features = false, features = ["std", "help", "usage", "derive"] }
+crossbeam-channel = { version = "0.5.11" }
+directories       = { version = "4.0.1" }
+flate2            = { version = "1.0" }
+globset           = { version = "0.4.14" }
+hashbrown         = { version = "0.14.0", features = ["serde"] }
+im                = { version = "15.0.0", features = ["serde"] }
+include_dir       = { version = "0.6.2" }
+indexmap          = { version = "2.0", features = ["serde"] }
+interprocess      = { version = "1.2.1" }
+itertools         = { version = "0.10.1" }
+notify            = { version = "5.2.0", features = ["serde"] }
+once_cell         = { version = "1.19" }
+parking_lot       = { version = "0.11.0", features = ["deadlock_detection"] }
+rayon             = { version = "1.8.0" }
+regex             = { version = "1.10.2" }
+reqwest           = { version = "0.11", features = ["blocking", "json", "socks"] }
+serde             = { version = "1.0" }
+serde_json        = { verison = "1.0" }
+smallvec          = { version = "1.13.1" }
+strum             = { version = "0.21.0" }
+strum_macros      = { version = "0.21.1" }
+tar               = { version = "0.4" }
+thiserror         = { version = "1.0" }
+toml              = { version = "*" }
+toml_edit         = { version = "0.20.2", features = ["serde"] }
+url               = { version = "2.5.0" }
 
-lsp-types = { version = "0.94.1", features = ["proposed"] } # not following semver, so should be locked to patch version updates only
+lsp-types = { version = "0.94.1", features = ["proposed"] }                                                  # not following semver, so should be locked to patch version updates only
 psp-types = { git = "https://github.com/lapce/psp-types", rev = "f7fea28f59e7b2d6faa1034a21679ad49b3524ad" }
 
 lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
 
-lapce-core = { path = "./lapce-core" }
-lapce-rpc = { path = "./lapce-rpc" }
+lapce-core  = { path = "./lapce-core" }
+lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
 floem-editor-core = { git = "https://github.com/lapce/floem", rev = "40ab0df2ba86651a811607d6ffc9d5ccce9befe1", features = ["serde"] }
@@ -84,18 +79,18 @@ floem-editor-core = { git = "https://github.com/lapce/floem", rev = "40ab0df2ba8
 lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "3031a76c4452f46ed265eb0154d6bb1d10ddb9f6" }
 
 [workspace.dependencies.tracing]
-git = "https://github.com/tokio-rs/tracing"
-rev = "c14525e1610db88986f849d46bd3e9795878b012"
+git     = "https://github.com/tokio-rs/tracing"
+rev     = "c14525e1610db88986f849d46bd3e9795878b012"
 package = "tracing"
 
 [workspace.dependencies.tracing-subscriber]
-git = "https://github.com/tokio-rs/tracing"
-rev = "c14525e1610db88986f849d46bd3e9795878b012"
+git     = "https://github.com/tokio-rs/tracing"
+rev     = "c14525e1610db88986f849d46bd3e9795878b012"
 package = "tracing-subscriber"
 
 [workspace.dependencies.tracing-appender]
-git = "https://github.com/tokio-rs/tracing"
-rev = "c14525e1610db88986f849d46bd3e9795878b012"
+git     = "https://github.com/tokio-rs/tracing"
+rev     = "c14525e1610db88986f849d46bd3e9795878b012"
 package = "tracing-appender"
 
 [workspace.dependencies.alacritty_terminal]
@@ -103,12 +98,12 @@ git = "https://github.com/alacritty/alacritty"
 rev = "6071a7bf35cfd99be8ba70f479f188b7370cda6f"
 
 [workspace.dependencies.windows-sys]
-version = "0"
+version  = "0"
 features = ["Win32_Foundation"]
 
 [profile.release-lto]
-inherits = "release"
-lto = true
+inherits      = "release"
+lto           = true
 codegen-units = 1
 
 # A profile which compiles all (non-workspace) dependencies in release mode

@@ -1,25 +1,24 @@
 [package]
-name = "lapce-rpc"
-description = "Data formats between lapce components"
-license.workspace = true
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
-rust-version.workspace = true
+name         = "lapce-rpc"
+description  = "Data formats between lapce components"
+license      = { workspace = true }
+version      = { workspace = true }
+authors      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
 
 [dependencies]
-anyhow.workspace = true
-crossbeam-channel.workspace = true
-indexmap.workspace = true
-parking_lot.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-tracing.workspace = true
-url.workspace = true
+anyhow            = { workspace = true }
+crossbeam-channel = { workspace = true }
+indexmap          = { workspace = true }
+parking_lot       = { workspace = true }
+serde             = { workspace = true }
+serde_json        = { workspace = true }
+tracing           = { workspace = true }
+url               = { workspace = true }
 
-lsp-types.workspace = true
-
-lapce-xi-rope.workspace = true
+lsp-types     = { workspace = true }
+lapce-xi-rope = { workspace = true }
 
 [dependencies.human-sort]
 git = "https://github.com/dragazo/human-sort"

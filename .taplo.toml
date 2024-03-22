@@ -1,0 +1,13 @@
+include = ["**/*.toml"]
+exclude = ["lapce-proxy/src/**"]
+
+[[rule]]
+include = ["**/Cargo.toml", ".taplo.toml", "Cargo.toml"]
+
+[rule.formatting]
+align_entries        = true
+align_comments       = true
+array_trailing_comma = true
+trailing_newline     = true
+column_width         = 100
+inline_table_expand  = false

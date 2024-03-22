@@ -1,84 +1,85 @@
 [package]
-name = "lapce-app"
-license.workspace = true
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
-rust-version.workspace = true
+name         = "lapce-app"
+license      = { workspace = true }
+version      = { workspace = true }
+authors      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
 
 [dependencies]
-alacritty_terminal.workspace = true
-anyhow.workspace = true
-backtrace.workspace = true
-chrono.workspace = true
-clap.workspace = true
-crossbeam-channel.workspace = true
-directories.workspace = true
-flate2.workspace = true
-globset.workspace = true
-im.workspace = true
-include_dir.workspace = true
-indexmap.workspace = true
-interprocess.workspace = true
-itertools.workspace = true
-lapce-core.workspace = true
-lapce-proxy.workspace = true
-lapce-rpc.workspace = true
-lapce-xi-rope.workspace = true
-lsp-types.workspace = true
-notify.workspace = true
-once_cell.workspace = true
-parking_lot.workspace = true
-rayon.workspace = true
-reqwest.workspace = true
-smallvec.workspace = true
-strum.workspace = true
-strum_macros.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-regex.workspace = true
-tar.workspace = true
-thiserror.workspace = true
-toml.workspace = true
-toml_edit.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-tracing-appender.workspace = true
-url.workspace = true
+alacritty_terminal = { workspace = true }
+anyhow             = { workspace = true }
+backtrace          = { workspace = true }
+chrono             = { workspace = true }
+clap               = { workspace = true }
+crossbeam-channel  = { workspace = true }
+directories        = { workspace = true }
+flate2             = { workspace = true }
+globset            = { workspace = true }
+im                 = { workspace = true }
+include_dir        = { workspace = true }
+indexmap           = { workspace = true }
+interprocess       = { workspace = true }
+itertools          = { workspace = true }
+lapce-core         = { workspace = true }
+lapce-proxy        = { workspace = true }
+lapce-rpc          = { workspace = true }
+lapce-xi-rope      = { workspace = true }
+lsp-types          = { workspace = true }
+notify             = { workspace = true }
+once_cell          = { workspace = true }
+parking_lot        = { workspace = true }
+rayon              = { workspace = true }
+reqwest            = { workspace = true }
+smallvec           = { workspace = true }
+strum              = { workspace = true }
+strum_macros       = { workspace = true }
+serde              = { workspace = true }
+serde_json         = { workspace = true }
+regex              = { workspace = true }
+tar                = { workspace = true }
+thiserror          = { workspace = true }
+toml               = { workspace = true }
+toml_edit          = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender   = { workspace = true }
+url                = { workspace = true }
 
 pulldown-cmark = "0.9.1"
-Inflector = "0.11.4"
-open = "5.0.1"
-unicode-width = "0.1.11"
-nucleo = "0.2.0"
-sled = "0.34.7"
-bytemuck = "1.14.3"
-tokio = { version = "1.36", features = ["full"] }
-futures = "0.3.26"
-floem = { git = "https://github.com/lapce/floem", rev = "40ab0df2ba86651a811607d6ffc9d5ccce9befe1", default-features = true, features = ["editor", "serde"]}
-# floem = { path = "../../workspaces/floem", features = ["serde"] }
-config = { version = "0.13.2", default-features = false, features = ["toml"] }
-structdesc = { git = "https://github.com/lapce/structdesc" }
-base64 = "0.21.7"
-sha2 = "0.10.8"
-zip = { version = "0.6.6", default-features = false, features = ["deflate"] }
+Inflector      = "0.11.4"
+open           = "5.0.1"
+unicode-width  = "0.1.11"
+nucleo         = "0.2.0"
+sled           = "0.34.7"
+bytemuck       = "1.14.3"
+tokio          = { version = "1.36", features = ["full"] }
+futures        = "0.3.26"
+config         = { version = "0.13.2", default-features = false, features = ["toml"] }
+structdesc     = { git = "https://github.com/lapce/structdesc" }
+base64         = "0.21.7"
+sha2           = "0.10.8"
+zip            = { version = "0.6.6", default-features = false, features = ["deflate"] }
+
+[dependencies.floem]
+# path = "../../workspaces/floem"
+git              = "https://github.com/lapce/floem"
+rev              = "40ab0df2ba86651a811607d6ffc9d5ccce9befe1"
+default-features = true
+features         = ["editor", "serde"]
 
 [target.'cfg(target_os="macos")'.dependencies]
 fs_extra = "1.2.0"
-dmg = "0.1.1"
+dmg      = "0.1.1"
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 workspace = true
-features = [
-    "Win32_Foundation",
-    "Win32_System_Threading",
-    "Win32_UI_WindowsAndMessaging",
-]
+features  = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"]
 
 [features]
-default = ["all-languages", "updater"]
+default  = ["all-languages", "updater"]
 portable = ["lapce-core/portable"]
-updater = []
+updater  = []
 
 # To build lapce with only some of the supported languages, for example:
 #
@@ -86,21 +87,21 @@ updater = []
 #     --features lang-rust,lang-toml,lang-markdown,lang-json
 #
 all-languages = [
-    "lapce-core/lang-bash",
-    "lapce-core/lang-c",
-    "lapce-core/lang-cpp",
-    "lapce-core/lang-javascript",
-    "lapce-core/lang-json",
-    "lapce-core/lang-markdown",
-    "lapce-core/lang-python",
-    "lapce-core/lang-rust",
-    "lapce-core/lang-toml",
-    "lapce-core/lang-yaml",
+  "lapce-core/lang-bash",
+  "lapce-core/lang-c",
+  "lapce-core/lang-cpp",
+  "lapce-core/lang-javascript",
+  "lapce-core/lang-json",
+  "lapce-core/lang-markdown",
+  "lapce-core/lang-python",
+  "lapce-core/lang-rust",
+  "lapce-core/lang-toml",
+  "lapce-core/lang-yaml",
 ]
 
 [dev-dependencies]
 criterion = "0.5"
 
 [[bench]]
-name = "visual_line"
+name    = "visual_line"
 harness = false
