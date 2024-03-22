@@ -1,10 +1,11 @@
 [package]
 name = "lapce-rpc"
 description = "Data formats between lapce components"
-license = "Apache-2.0"
+license.workspace = true
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true

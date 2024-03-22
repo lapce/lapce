@@ -76,13 +76,11 @@ impl TerminalConfig {
     pub fn get_default_profile(
         &self,
     ) -> Option<lapce_rpc::terminal::TerminalProfile> {
-        let Some(profile) = self.profiles.get(
+        let profile = self.profiles.get(
             self.default_profile
                 .get(&std::env::consts::OS.to_string())
                 .unwrap_or(&String::from("default")),
-        ) else {
-            return None;
-        };
+        )?;
         let workdir = if let Some(workdir) = &profile.workdir {
             url::Url::parse(&workdir.display().to_string()).ok()
         } else {

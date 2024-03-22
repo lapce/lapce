@@ -239,6 +239,7 @@ fn download_remote(
             let mut proxy_script = std::fs::OpenOptions::new()
                 .create(true)
                 .write(true)
+                .truncate(true)
                 .open(&local_proxy_script)?;
             proxy_script.write_all(WINDOWS_PROXY_SCRIPT)?;
 
