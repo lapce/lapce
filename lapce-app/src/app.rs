@@ -1943,7 +1943,7 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
                     main_split_width.set(width);
                 }
             })
-            .style(|s| s.flex_col().size_full())
+            .style(|s| s.flex_col().flex_grow(1.0))
         },
         panel_container_view(window_tab_data.clone(), PanelContainerPosition::Right),
         window_message_view(window_tab_data.messages, window_tab_data.common.config),
