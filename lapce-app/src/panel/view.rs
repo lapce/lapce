@@ -152,6 +152,18 @@ impl PanelBuilder {
     }
 
     /// Add a view to the panel with a custom height that is only used when the panel is open
+    /// and a custom style applied to the overall header+section-content
+    pub fn add_height_style(
+        self,
+        name: &'static str,
+        height: impl Into<PxPctAuto>,
+        view: impl View + 'static,
+        style: impl Fn(Style) -> Style + 'static,
+    ) -> Self {
+        self.add_general(name, Some(height.into()), view, style)
+    }
+
+    /// Add a view to the panel with a custom height that is only used when the panel is open
     pub fn add_height_pct(
         self,
         name: &'static str,
