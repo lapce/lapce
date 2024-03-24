@@ -1679,9 +1679,9 @@ dependencies = [
 
 [[package]]
 name = "fixedbitset"
-version = "0.2.0"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
+checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
 
 [[package]]
 name = "flate2"
@@ -3074,7 +3074,7 @@ dependencies = [
  "nucleo",
  "once_cell",
  "open",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.1",
  "pulldown-cmark",
  "rayon",
  "regex",
@@ -3165,7 +3165,7 @@ dependencies = [
  "notify",
  "objc",
  "once_cell",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.1",
  "polling",
  "psp-types",
  "regex",
@@ -3198,7 +3198,7 @@ dependencies = [
  "indexmap 2.0.2",
  "lapce-xi-rope",
  "lsp-types",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.1",
  "serde",
  "serde_json",
  "tracing 0.2.0",
@@ -4014,14 +4014,11 @@ version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d76e8e1493bcac0d2766c42737f34458f1c8c50c0d23bcb24ea953affb273216"
 dependencies = [
- "backtrace",
  "cfg-if",
  "instant",
  "libc",
- "petgraph",
  "redox_syscall 0.2.16",
  "smallvec",
- "thread-id",
  "winapi",
 ]
 
@@ -4031,10 +4028,13 @@ version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09a279cbf25cb0757810394fbc1e359949b59e348145c643a939a525692e6929"
 dependencies = [
+ "backtrace",
  "cfg-if",
  "libc",
+ "petgraph",
  "redox_syscall 0.2.16",
  "smallvec",
+ "thread-id",
  "windows-sys 0.36.1",
 ]
 
@@ -4058,12 +4058,12 @@ checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
 name = "petgraph"
-version = "0.5.1"
+version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "467d164a6de56270bd7c4d070df81d07beace25012d5103ced4e9ff08d6afdb7"
+checksum = "e1d3afd2628e69da2be385eb6f2fd57c8ac7977ceeff6dc166ff1657b0e386a9"
 dependencies = [
  "fixedbitset",
- "indexmap 1.9.3",
+ "indexmap 2.0.2",
 ]
 
 [[package]]
