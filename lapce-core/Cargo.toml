@@ -1,66 +1,63 @@
 [package]
-name = "lapce-core"
-license.workspace = true
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
-rust-version.workspace = true
+name         = "lapce-core"
+license      = { workspace = true }
+version      = { workspace = true }
+authors      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
 
 [dependencies]
-anyhow.workspace = true
-directories.workspace = true
-itertools.workspace = true
-once_cell.workspace = true
-strum.workspace = true
-strum_macros.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
-include_dir.workspace = true
+anyhow       = { workspace = true }
+directories  = { workspace = true }
+itertools    = { workspace = true }
+once_cell    = { workspace = true }
+strum        = { workspace = true }
+strum_macros = { workspace = true }
+thiserror    = { workspace = true }
+tracing      = { workspace = true }
+include_dir  = { workspace = true }
 
-lsp-types.workspace = true
+lsp-types         = { workspace = true }
+lapce-xi-rope     = { workspace = true }
+lapce-rpc         = { workspace = true }
+floem-editor-core = { workspace = true }
 
-lapce-xi-rope.workspace = true
-
-lapce-rpc.workspace = true
-
-floem-editor-core.workspace = true
-
-libloading = "0.7.3"
-slotmap = "1.0"
-arc-swap = "1.6.0"
+libloading  = "0.7.3"
+slotmap     = "1.0"
+arc-swap    = "1.6.0"
 tree-sitter = "0.20.10"
 
 # please keep below dependencies and features sorted just like LANGUAGES in language.rs
 
-tree-sitter-bash = { git = "https://github.com/tree-sitter/tree-sitter-bash", rev = "4488aa41406547e478636a4fcfd24f5bbc3f2f74", optional = true }
-tree-sitter-c = { version = "0.20.8", optional = true }
-tree-sitter-cpp = { version = "0.20.5", optional = true }
+tree-sitter-bash       = { git = "https://github.com/tree-sitter/tree-sitter-bash", rev = "4488aa41406547e478636a4fcfd24f5bbc3f2f74", optional = true }
+tree-sitter-c          = { version = "0.20.8", optional = true }
+tree-sitter-cpp        = { version = "0.20.5", optional = true }
 tree-sitter-javascript = { version = "0.20.3", optional = true }
 # new version cannot be published on crates.io - https://github.com/tree-sitter/tree-sitter-json/issues/21
 # tree-sitter-json = { version = "0.19.0", optional = true }
-tree-sitter-json = { git = "https://github.com/tree-sitter/tree-sitter-json.git", rev = "11e2cc12d9b267766fb11a06e52952792fd8e3f0", optional = true }
-tree-sitter-md = { git = "https://github.com/MDeiml/tree-sitter-markdown.git", rev = "272e080bca0efd19a06a7f4252d746417224959e", optional = true }
+tree-sitter-json   = { git = "https://github.com/tree-sitter/tree-sitter-json.git", rev = "11e2cc12d9b267766fb11a06e52952792fd8e3f0", optional = true }
+tree-sitter-md     = { git = "https://github.com/MDeiml/tree-sitter-markdown.git", rev = "272e080bca0efd19a06a7f4252d746417224959e", optional = true }
 tree-sitter-python = { version = "0.20.4", optional = true }
-tree-sitter-rust = { version = "0.20.4", optional = true }
-tree-sitter-toml = { version = "0.20.0", optional = true }
-tree-sitter-yaml = { git = "https://github.com/panekj/tree-sitter-yaml", rev = "80c8d76847f03e772c5c524cf29bafb56858a8d1", optional = true }
+tree-sitter-rust   = { version = "0.20.4", optional = true }
+tree-sitter-toml   = { version = "0.20.0", optional = true }
+tree-sitter-yaml   = { git = "https://github.com/panekj/tree-sitter-yaml", rev = "80c8d76847f03e772c5c524cf29bafb56858a8d1", optional = true }
 
 [features]
-default = []
+default  = []
 portable = []
 # See lapce-ui/Cargo.toml for how to choose the languages.  See also
 # src/language.rs for how to add new languages.  The feature names should follow
 # the tree-sitter crate names.
-lang-bash = ["dep:tree-sitter-bash"]
-lang-c = ["dep:tree-sitter-c"]
-lang-cpp = ["dep:tree-sitter-cpp"]
+lang-bash       = ["dep:tree-sitter-bash"]
+lang-c          = ["dep:tree-sitter-c"]
+lang-cpp        = ["dep:tree-sitter-cpp"]
 lang-javascript = ["dep:tree-sitter-javascript"]
-lang-json = ["dep:tree-sitter-json"]
-lang-markdown = ["dep:tree-sitter-md"]
-lang-python = ["dep:tree-sitter-python"]
-lang-rust = ["dep:tree-sitter-rust"]
-lang-toml = ["dep:tree-sitter-toml"]
-lang-yaml = ["dep:tree-sitter-yaml"]
+lang-json       = ["dep:tree-sitter-json"]
+lang-markdown   = ["dep:tree-sitter-md"]
+lang-python     = ["dep:tree-sitter-python"]
+lang-rust       = ["dep:tree-sitter-rust"]
+lang-toml       = ["dep:tree-sitter-toml"]
+lang-yaml       = ["dep:tree-sitter-yaml"]
 
 [build-dependencies]
 anyhow.workspace = true
