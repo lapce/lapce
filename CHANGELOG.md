@@ -13,6 +13,7 @@
 - [#3053](https://github.com/lapce/lapce/pull/3053): Add tooltips to various places
 - [#3069](https://github.com/lapce/lapce/pull/3069): Allow color variables for themes
 - [#3086](https://github.com/lapce/lapce/pull/3086): Add folding to panels
+- [#3095](https://github.com/lapce/lapce/pull/3095): Add option to hide the Open Editors section in the explorer
 
 ### Bug Fixes
 - [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository

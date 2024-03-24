@@ -51,6 +51,9 @@ pub struct UIConfig {
 
     #[field_names(desc = "Set position of the close button in editor tabs")]
     pub tab_close_button: TabCloseButton,
+
+    #[field_names(desc = "Display the Open Editors section in the explorer")]
+    pub open_editors_visible: bool,
 }
 
 #[derive(
