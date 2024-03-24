@@ -1,10 +1,10 @@
-use std::{path::Path, rc::Rc};
+use std::{path::Path, rc::Rc, sync::Arc};
 
 use floem::{
     cosmic_text::Style as FontStyle,
     event::{Event, EventListener},
     peniko::Color,
-    reactive::{create_rw_signal, RwSignal},
+    reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Position, Style},
     view::View,
     views::{
@@ -13,17 +13,21 @@ use floem::{
     },
 };
 use lapce_core::selection::Selection;
-use lapce_rpc::file::{FileNodeViewData, FileNodeViewKind, Naming};
+use lapce_rpc::{
+    file::{FileNodeViewData, FileNodeViewKind, Naming},
+    source_control::FileDiffKind,
+};
 use lapce_xi_rope::Rope;
 
 use super::{data::FileExplorerData, node::FileNodeVirtualList};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
-    config::{color::LapceColor, icon::LapceIcons},
+    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     editor_tab::{EditorTabChild, EditorTabData},
     panel::{kind::PanelKind, position::PanelPosition, view::PanelBuilder},
     plugin::PluginData,
+    source_control::SourceControlData,
     text_input::text_input_key_focus,
     window_tab::{Focus, WindowTabData},
 };
@@ -67,6 +71,7 @@ pub fn file_explorer_panel(
 ) -> impl View {
     let config = window_tab_data.common.config;
     let data = window_tab_data.file_explorer.clone();
+    let source_control = window_tab_data.source_control.clone();
     PanelBuilder::new(config, position)
         .add_height_style(
             "Open Editors",
@@ -77,8 +82,10 @@ pub fn file_explorer_panel(
         )
         .add(
             "File Explorer",
-            container(new_file_node_view(data).style(|s| s.absolute()))
-                .style(|s| s.size_full().line_height(1.6)),
+            container(
+                new_file_node_view(data, source_control).style(|s| s.absolute()),
+            )
+            .style(|s| s.size_full().line_height(1.6)),
         )
         .build()
 }
@@ -118,38 +125,83 @@ fn initialize_naming_editor(
         .update(|naming| naming.set_editor_needs_reset(false));
 }
 
-fn file_node_text_view(data: FileExplorerData, node: FileNodeViewData) -> impl View {
+fn file_node_text_color(
+    config: ReadSignal<Arc<LapceConfig>>,
+    node: FileNodeViewData,
+    source_control: SourceControlData,
+) -> Color {
+    let diff = source_control.file_diffs.with(|file_diffs| {
+        let FileNodeViewKind::Path(path) = &node.kind else {
+            return None;
+        };
+
+        if node.is_dir {
+            file_diffs
+                .keys()
+                .find(|p| p.as_path().starts_with(path))
+                .map(|_| FileDiffKind::Modified)
+        } else {
+            file_diffs.get(path).map(|(diff, _)| diff.kind())
+        }
+    });
+
+    let color = match diff {
+        Some(FileDiffKind::Modified | FileDiffKind::Renamed) => {
+            LapceColor::SOURCE_CONTROL_MODIFIED
+        }
+        Some(FileDiffKind::Added) => LapceColor::SOURCE_CONTROL_ADDED,
+        Some(FileDiffKind::Deleted) => LapceColor::SOURCE_CONTROL_REMOVED,
+        None => LapceColor::PANEL_FOREGROUND,
+    };
+
+    config.get().color(color)
+}
+
+fn file_node_text_view(
+    data: FileExplorerData,
+    node: FileNodeViewData,
+    source_control: SourceControlData,
+) -> impl View {
+    let config = data.common.config;
     let ui_line_height = data.common.ui_line_height;
 
-    let view = match node.kind {
+    let view = match node.kind.clone() {
         FileNodeViewKind::Path(path) => container(
             label(move || {
                 path.file_name()
                     .map(|f| f.to_string_lossy().to_string())
                     .unwrap_or_default()
             })
-            .style(move |s| s.flex_grow(1.0).height(ui_line_height.get())),
+            .style(move |s| {
+                s.flex_grow(1.0).height(ui_line_height.get()).color(
+                    file_node_text_color(
+                        config,
+                        node.clone(),
+                        source_control.clone(),
+                    ),
+                )
+            }),
         ),
         FileNodeViewKind::Renaming { path, err } => {
             if data.naming.with_untracked(Naming::editor_needs_reset) {
                 initialize_naming_editor_with_path(&data, &path);
             }
 
-            file_node_input_view(data, err)
+            file_node_input_view(data, err.clone())
         }
         FileNodeViewKind::Naming { err } => {
             if data.naming.with_untracked(Naming::editor_needs_reset) {
                 initialize_naming_editor(&data, "", None);
             }
 
-            file_node_input_view(data, err)
+            file_node_input_view(data, err.clone())
         }
         FileNodeViewKind::Duplicating { source, err } => {
             if data.naming.with_untracked(Naming::editor_needs_reset) {
                 initialize_naming_editor_with_path(&data, &source);
             }
 
-            file_node_input_view(data, err)
+            file_node_input_view(data, err.clone())
         }
     };
 
@@ -222,7 +274,10 @@ fn file_node_input_view(data: FileExplorerData, err: Option<String>) -> Containe
     }
 }
 
-fn new_file_node_view(data: FileExplorerData) -> impl View {
+fn new_file_node_view(
+    data: FileExplorerData,
+    source_control: SourceControlData,
+) -> impl View {
     let root = data.root;
     let ui_line_height = data.common.ui_line_height;
     let config = data.common.config;
@@ -310,7 +365,7 @@ fn new_file_node_view(data: FileExplorerData) -> impl View {
                                 })
                         })
                     },
-                    file_node_text_view(data, node),
+                    file_node_text_view(data, node, source_control.clone()),
                 ))
                 .style(move |s| {
                     s.padding_right(5.0)

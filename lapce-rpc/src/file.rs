@@ -249,7 +249,7 @@ impl Naming {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FileNodeViewData {
     pub kind: FileNodeViewKind,
     pub is_dir: bool,

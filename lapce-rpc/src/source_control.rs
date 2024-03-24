@@ -27,4 +27,21 @@ impl FileDiff {
             | FileDiff::Renamed(_, p) => p,
         }
     }
+
+    pub fn kind(&self) -> FileDiffKind {
+        match self {
+            FileDiff::Modified(_) => FileDiffKind::Modified,
+            FileDiff::Added(_) => FileDiffKind::Added,
+            FileDiff::Deleted(_) => FileDiffKind::Deleted,
+            FileDiff::Renamed(_, _) => FileDiffKind::Renamed,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileDiffKind {
+    Modified,
+    Added,
+    Deleted,
+    Renamed,
 }
