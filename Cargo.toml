@@ -52,7 +52,7 @@ rayon             = { version = "1.8.0" }
 regex             = { version = "1.10.2" }
 reqwest           = { version = "0.11", features = ["blocking", "json", "socks"] }
 serde             = { version = "1.0" }
-serde_json        = { verison = "1.0" }
+serde_json        = { version = "1.0" }
 smallvec          = { version = "1.13.1" }
 strum             = { version = "0.21.0" }
 strum_macros      = { version = "0.21.1" }
