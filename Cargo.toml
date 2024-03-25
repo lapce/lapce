@@ -47,7 +47,7 @@ interprocess      = { version = "1.2.1" }
 itertools         = { version = "0.10.1" }
 notify            = { version = "5.2.0", features = ["serde"] }
 once_cell         = { version = "1.19" }
-parking_lot       = { version = "0.11.0", features = ["deadlock_detection"] }
+parking_lot       = { version = "0.12.0" }
 rayon             = { version = "1.8.0" }
 regex             = { version = "1.10.2" }
 reqwest           = { version = "0.11", features = ["blocking", "json", "socks"] }
@@ -77,6 +77,7 @@ floem-editor-core = { git = "https://github.com/lapce/floem", rev = "eba11fbdea8
 [patch.crates-io]
 # Temporarily patch lsp-types with a version that supports inline-completion
 lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "3031a76c4452f46ed265eb0154d6bb1d10ddb9f6" }
+regalloc2 = { rev = "5d79e12d0a93b10fc181f4da409b4671dd365228", git = "https://github.com/bytecodealliance/regalloc2" }
 
 [workspace.dependencies.tracing]
 git     = "https://github.com/tokio-rs/tracing"

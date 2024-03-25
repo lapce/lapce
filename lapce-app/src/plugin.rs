@@ -287,7 +287,7 @@ impl PluginData {
     pub fn volt_removed(&self, volt: &VoltInfo) {
         let id = volt.id();
         self.installed.update(|installed| {
-            installed.remove(&id);
+            installed.swap_remove(&id);
         });
 
         if self.disabled.with_untracked(|d| d.contains(&id)) {
