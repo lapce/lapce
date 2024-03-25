@@ -1860,27 +1860,55 @@ impl WindowTabData {
             CoreNotification::ShowMessage { title, message } => {
                 self.show_message(title, message);
             }
-            CoreNotification::Log { level, message } => {
-                match level.as_str() {
-                    "TRACE" => {
-                        tracing::trace!(message);
+            CoreNotification::Log {
+                level,
+                message,
+                target,
+            } => {
+                use lapce_rpc::core::LogLevel;
+                use tracing_log::log::{log, Level};
+
+                let target = target.clone().unwrap_or(String::from("unknown"));
+
+                match level {
+                    LogLevel::Trace => {
+                        log!(target: &target, Level::Trace, "{}", message);
                     }
-                    "DEBUG" => {
-                        tracing::debug!(message);
+                    LogLevel::Debug => {
+                        log!(target: &target, Level::Debug, "{}", message);
                     }
-                    "INFO" => {
-                        tracing::info!(message);
+                    LogLevel::Info => {
+                        log!(target: &target, Level::Info, "{}", message);
                     }
-                    "WARN" => {
-                        tracing::warn!(message);
+                    LogLevel::Warn => {
+                        log!(target: &target, Level::Warn, "{}", message);
                     }
-                    "ERROR" => {
-                        tracing::error!(message);
+                    LogLevel::Error => {
+                        log!(target: &target, Level::Error, "{}", message);
                     }
-                    _ => {
-                        tracing::debug!(message);
+                }
+            }
+            CoreNotification::LogMessage { message, target } => {
+                use lsp_types::MessageType;
+                use tracing_log::log::{log, Level};
+                match message.typ {
+                    MessageType::ERROR => {
+                        log!(target: target, Level::Error, "{}", message.message)
                     }
-                };
+                    MessageType::WARNING => {
+                        log!(target: target, Level::Warn, "{}", message.message)
+                    }
+                    MessageType::INFO => {
+                        log!(target: target, Level::Info, "{}", message.message)
+                    }
+                    MessageType::DEBUG => {
+                        log!(target: target, Level::Debug, "{}", message.message)
+                    }
+                    MessageType::LOG => {
+                        log!(target: target, Level::Debug, "{}", message.message)
+                    }
+                    _ => {}
+                }
             }
             CoreNotification::WorkspaceFileChange => {
                 self.file_explorer.reload();

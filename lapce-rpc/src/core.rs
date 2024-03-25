@@ -71,6 +71,7 @@ pub enum CoreNotification {
     },
     LogMessage {
         message: LogMessageParams,
+        target: String,
     },
     HomeDir {
         path: PathBuf,
@@ -113,8 +114,9 @@ pub enum CoreNotification {
         config: RunDebugConfig,
     },
     Log {
-        level: String,
+        level: LogLevel,
         message: String,
+        target: Option<String>,
     },
     DapStopped {
         dap_id: DapId,
@@ -288,10 +290,11 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::RunInTerminal { config });
     }
 
-    pub fn log(&self, level: tracing::Level, message: String) {
+    pub fn log(&self, level: LogLevel, message: String, target: Option<String>) {
         self.notification(CoreNotification::Log {
-            level: level.as_str().to_string(),
+            level,
             message,
+            target,
         });
     }
 
@@ -307,8 +310,8 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::ShowMessage { title, message });
     }
 
-    pub fn log_message(&self, message: LogMessageParams) {
-        self.notification(CoreNotification::LogMessage { message });
+    pub fn log_message(&self, message: LogMessageParams, target: String) {
+        self.notification(CoreNotification::LogMessage { message, target });
     }
 
     pub fn terminal_process_id(&self, term_id: TermId, process_id: Option<u32>) {
@@ -371,4 +374,13 @@ impl Default for CoreRpcHandler {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum LogLevel {
+    Info = 0,
+    Warn = 1,
+    Error = 2,
+    Debug = 3,
+    Trace = 4,
 }

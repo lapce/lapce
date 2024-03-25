@@ -499,9 +499,10 @@ pub fn start_volt(
             }
         }
     })?;
+    let plugin_meta = meta.clone();
     linker.func_wrap("lapce", "host_handle_stderr", move || {
         if let Ok(msg) = wasi_read_string(&stderr) {
-            eprintln!("got stderr from plugin: {msg}");
+            tracing_log::log::log!(target: &format!("lapce_proxy::plugin::wasi::{}::{}", plugin_meta.author, plugin_meta.name), tracing_log::log::Level::Debug, "{msg}");
         }
     })?;
     linker.module(&mut store, "", &module)?;

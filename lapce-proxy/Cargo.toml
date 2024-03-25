@@ -29,6 +29,7 @@ tar                = { workspace = true }
 toml               = { workspace = true }
 toml_edit          = { workspace = true }
 tracing            = { workspace = true }
+tracing-log        = { workspace = true }
 url                = { workspace = true }
 
 lsp-types = { workspace = true }

@@ -1014,11 +1014,12 @@ impl PluginHostHandler {
             // TODO: remove this after the next release and once we convert all the existing plugins to use the request.
             StartLspServer::METHOD => {
                 self.core_rpc.log(
-                    tracing::Level::WARN,
+                    lapce_rpc::core::LogLevel::Warn,
                     format!(
                         "[{}] Usage of startLspServer as a notification is deprecated.",
                         self.volt_display_name
                     ),
+                    Some(format!("lapce_proxy::plugin::psp::{}::{}::StartLspServer", self.volt_id.author, self.volt_id.name)),
                 );
 
                 let params: StartLspServerParams =
@@ -1063,10 +1064,23 @@ impl PluginHostHandler {
             LogMessage::METHOD => {
                 let message: LogMessageParams =
                     serde_json::from_value(serde_json::to_value(params)?)?;
-                self.catalog_rpc.core_rpc.log_message(message);
+                self.catalog_rpc.core_rpc.log_message(
+                    message,
+                    format!(
+                        "lapce_proxy::plugin::psp::{}::{}::LogMessage",
+                        self.volt_id.author, self.volt_id.name
+                    ),
+                );
             }
             _ => {
-                eprintln!("host notification {method} not handled");
+                self.core_rpc.log(
+                    lapce_rpc::core::LogLevel::Warn,
+                    format!("host notification {method} not handled"),
+                    Some(format!(
+                        "lapce_proxy::plugin::psp::{}::{}::{method}",
+                        self.volt_id.author, self.volt_id.name
+                    )),
+                );
             }
         }
         Ok(())
@@ -1194,8 +1208,12 @@ impl PluginHostHandler {
         if let Some(info) = self.spawned_lsp.get_mut(&plugin_id) {
             let Some(resp) = info.resp.take() else {
                 self.core_rpc.log(
-                    tracing::Level::WARN,
+                    lapce_rpc::core::LogLevel::Warn,
                     "Spawned lsp initialized twice?".to_string(),
+                    Some(format!(
+                        "{}::{}::handle_spawned_plugin_loaded",
+                        self.volt_id.author, self.volt_id.name
+                    )),
                 );
                 return;
             };

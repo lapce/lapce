@@ -15,6 +15,7 @@ use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use serde::Deserialize;
 use strum::VariantNames;
+use tracing::error;
 
 use self::{
     color::LapceColor,
@@ -117,9 +118,13 @@ impl LapceConfig {
         extra_plugin_paths: &[PathBuf],
     ) -> Self {
         let config = Self::merge_config(workspace, None, None);
-        let mut lapce_config: LapceConfig = config
-            .try_deserialize()
-            .unwrap_or_else(|_| DEFAULT_LAPCE_CONFIG.clone());
+        let mut lapce_config: LapceConfig = match config.try_deserialize() {
+            Ok(config) => config,
+            Err(error) => {
+                error!("Failed to deserialize configuration file: {error}");
+                DEFAULT_LAPCE_CONFIG.clone()
+            }
+        };
 
         lapce_config.available_color_themes =
             Self::load_color_themes(disabled_volts, extra_plugin_paths);

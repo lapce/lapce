@@ -135,8 +135,9 @@ impl DapClient {
                                 DapEvent::Initialized(None),
                             ));
                             plugin_rpc.core_rpc.log(
-                                tracing::Level::ERROR,
+                                lapce_rpc::core::LogLevel::Error,
                                 format!("dap server {program} stopped!"),
+                                None,
                             );
 
                             dap_rpc.disconnected();
