@@ -1,5 +1,8 @@
 use std::sync::Arc;
+use std::time::SystemTime;
 
+use alacritty_terminal::index::Side;
+use alacritty_terminal::selection::{Selection, SelectionType};
 use alacritty_terminal::term::search::{Match, RegexSearch};
 use alacritty_terminal::{
     grid::Dimensions,
@@ -8,6 +11,7 @@ use alacritty_terminal::{
 use floem::context::EventCx;
 use floem::event::Event;
 use floem::kurbo::Line;
+use floem::pointer::PointerInputEvent;
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
@@ -20,6 +24,7 @@ use lapce_core::mode::Mode;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 use lsp_types::Position;
 use parking_lot::RwLock;
+use tracing::debug;
 use unicode_width::UnicodeWidthChar;
 
 use super::{panel::TerminalPanelData, raw::RawTerminal};
@@ -34,6 +39,9 @@ use crate::{
     panel::kind::PanelKind,
     window_tab::Focus,
 };
+
+/// Threshold used for double_click/triple_click.
+const CLICK_THRESHOLD: u128 = 400;
 
 enum TerminalViewState {
     Config,
@@ -55,6 +63,8 @@ pub struct TerminalView {
     internal_command: Listener<InternalCommand>,
     workspace: Arc<LapceWorkspace>,
     hyper_matches: Vec<Match>,
+    previous_mouse_action: MouseAction,
+    current_mouse_action: MouseAction,
 }
 #[allow(clippy::too_many_arguments)]
 pub fn terminal_view(
@@ -120,6 +130,8 @@ pub fn terminal_view(
         internal_command,
         workspace,
         hyper_matches: vec![],
+        previous_mouse_action: Default::default(),
+        current_mouse_action: Default::default(),
     }
 }
 
@@ -175,6 +187,108 @@ impl TerminalView {
         });
         None
     }
+
+    fn update_mouse_action_by_down(&mut self, mouse: PointerInputEvent) {
+        let mut next_action = MouseAction::None;
+        match self.current_mouse_action {
+            MouseAction::None => {
+                if mouse.button.is_primary() {
+                    next_action = MouseAction::LeftDown { pos: mouse.pos };
+                }
+            }
+            MouseAction::LeftDown { .. } => {}
+            MouseAction::LeftOnce { pos, time } => {
+                let during_mills =
+                    time.elapsed().map(|x| x.as_millis()).unwrap_or(u128::MAX);
+                match (
+                    mouse.button.is_primary(),
+                    mouse.pos == pos,
+                    during_mills < CLICK_THRESHOLD,
+                ) {
+                    (true, true, true) => {
+                        next_action = MouseAction::LeftOnceAndDown { pos, time };
+                    }
+                    (true, _, _) => {
+                        next_action = MouseAction::LeftDown { pos: mouse.pos };
+                    }
+                    _ => {}
+                }
+            }
+            MouseAction::LeftSelect { .. } => {
+                next_action = MouseAction::LeftDown { pos: mouse.pos };
+            }
+            MouseAction::LeftOnceAndDown { .. } => {}
+            MouseAction::LeftDouble { .. } => {
+                next_action = MouseAction::LeftDown { pos: mouse.pos };
+            }
+        }
+        self.previous_mouse_action = self.current_mouse_action;
+        self.current_mouse_action = next_action;
+    }
+    fn update_mouse_action_by_up(&mut self, mouse: PointerInputEvent) {
+        let mut next_action = MouseAction::None;
+        match self.current_mouse_action {
+            MouseAction::None => {}
+            MouseAction::LeftDown { pos } => {
+                match (mouse.button.is_primary(), mouse.pos == pos) {
+                    (true, true) => {
+                        next_action = MouseAction::LeftOnce {
+                            pos,
+                            time: SystemTime::now(),
+                        }
+                    }
+                    (true, false) => {
+                        next_action = MouseAction::LeftSelect {
+                            start_pos: pos,
+                            end_pos: mouse.pos,
+                        };
+                    }
+                    _ => {}
+                }
+            }
+            MouseAction::LeftOnce { .. } => {}
+            MouseAction::LeftSelect { .. } => {}
+            MouseAction::LeftOnceAndDown { pos, time } => {
+                let during_mills =
+                    time.elapsed().map(|x| x.as_millis()).unwrap_or(10000);
+                match (
+                    mouse.button.is_primary(),
+                    mouse.pos == pos,
+                    during_mills < 200,
+                ) {
+                    (true, true, true) => {
+                        next_action = MouseAction::LeftDouble { pos };
+                    }
+                    (true, true, false) => {
+                        next_action = MouseAction::LeftOnce {
+                            pos: mouse.pos,
+                            time: SystemTime::now(),
+                        };
+                    }
+                    (true, false, _) => {
+                        next_action = MouseAction::LeftSelect {
+                            start_pos: pos,
+                            end_pos: mouse.pos,
+                        };
+                    }
+                    _ => {}
+                }
+            }
+            MouseAction::LeftDouble { .. } => {}
+        }
+        self.previous_mouse_action = self.current_mouse_action;
+        self.current_mouse_action = next_action;
+    }
+
+    fn get_terminal_point(&self, pos: Point) -> alacritty_terminal::index::Point {
+        let col = (pos.x / self.char_size().width) as usize;
+        let line_no =
+            pos.y as i32 / (self.config.get().terminal_line_height() as i32);
+        alacritty_terminal::index::Point::new(
+            alacritty_terminal::index::Line(line_no),
+            alacritty_terminal::index::Column(col),
+        )
+    }
 }
 
 impl Drop for TerminalView {
@@ -212,10 +326,47 @@ impl Widget for TerminalView {
         _id_path: Option<&[Id]>,
         event: Event,
     ) -> EventPropagation {
-        if let Event::PointerDown(e) = event {
-            if self.click(e.pos).is_some() {
-                return EventPropagation::Stop;
+        match event {
+            Event::PointerDown(e) => {
+                self.update_mouse_action_by_down(e);
+                if let MouseAction::LeftSelect { .. } = self.previous_mouse_action {
+                    self.raw.write().term.selection = None;
+                    _cx.app_state_mut().request_paint(self.data.id());
+                }
             }
+            Event::PointerUp(e) => {
+                self.update_mouse_action_by_up(e);
+                debug!(
+                    "{:?} {:?}",
+                    self.previous_mouse_action, self.current_mouse_action
+                );
+                match self.current_mouse_action {
+                    MouseAction::LeftOnce { pos, .. } => {
+                        if self.click(pos).is_some() {
+                            return EventPropagation::Stop;
+                        }
+                    }
+                    MouseAction::LeftSelect { start_pos, end_pos } => {
+                        let mut selection = Selection::new(
+                            SelectionType::Simple,
+                            self.get_terminal_point(start_pos),
+                            Side::Left,
+                        );
+                        selection
+                            .update(self.get_terminal_point(end_pos), Side::Right);
+                        selection.include_all();
+                        self.raw.write().term.selection = Some(selection);
+                        _cx.app_state_mut().request_paint(self.data.id());
+                    }
+                    MouseAction::LeftDouble { pos } => {
+                        if self.click(pos).is_some() {
+                            return EventPropagation::Stop;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
         }
         EventPropagation::Continue
     }
@@ -499,4 +650,28 @@ impl Widget for TerminalView {
         //     }
         // }
     }
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+enum MouseAction {
+    #[default]
+    None,
+    LeftDown {
+        pos: Point,
+    },
+    LeftOnce {
+        pos: Point,
+        time: SystemTime,
+    },
+    LeftSelect {
+        start_pos: Point,
+        end_pos: Point,
+    },
+    LeftOnceAndDown {
+        pos: Point,
+        time: SystemTime,
+    },
+    LeftDouble {
+        pos: Point,
+    },
 }
