@@ -2423,7 +2423,7 @@ impl WindowTabData {
                 }
                 lsp_types::WorkDoneProgress::End(_) => {
                     self.progresses.update(|p| {
-                        p.remove(&token);
+                        p.swap_remove(&token);
                     });
                 }
             },
