@@ -43,7 +43,7 @@ floem-editor-core = { workspace = true }
 # proxy specific dependencies
 
 zstd          = "0.11.2" # follow same version wasmtime-cache in lockfile
-dyn-clone     = "1.0.16"
+dyn-clone     = "1.0.17"
 walkdir       = "2.4.0"
 locale_config = "0.3.0"
 jsonrpc-lite  = "0.6.0"
