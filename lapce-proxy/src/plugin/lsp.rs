@@ -223,6 +223,7 @@ impl LspClient {
 
         let local_server_rpc = server_rpc.clone();
         let core_rpc = plugin_rpc.core_rpc.clone();
+        let volt_id_closure = volt_id.clone();
         thread::spawn(move || {
             let mut reader = Box::new(BufReader::new(stdout));
             loop {
@@ -237,8 +238,12 @@ impl LspClient {
                     }
                     Err(_err) => {
                         core_rpc.log(
-                            tracing::Level::ERROR,
+                            lapce_rpc::core::LogLevel::Error,
                             format!("lsp server {server} stopped!"),
+                            Some(format!(
+                                "lapce_proxy::plugin::lsp::{}::{}::stopped",
+                                volt_id_closure.author, volt_id_closure.name
+                            )),
                         );
                         return;
                     }
@@ -247,6 +252,7 @@ impl LspClient {
         });
 
         let core_rpc = plugin_rpc.core_rpc.clone();
+        let volt_id_closure = volt_id.clone();
         thread::spawn(move || {
             let mut reader = Box::new(BufReader::new(stderr));
             loop {
@@ -257,8 +263,12 @@ impl LspClient {
                             return;
                         }
                         core_rpc.log(
-                            tracing::Level::ERROR,
-                            format!("lsp server stderr: {}", line.trim_end()),
+                            lapce_rpc::core::LogLevel::Trace,
+                            line.trim_end().to_string(),
+                            Some(format!(
+                                "lapce_proxy::plugin::lsp::{}::{}::stderr",
+                                volt_id_closure.author, volt_id_closure.name
+                            )),
                         );
                     }
                     Err(_) => {

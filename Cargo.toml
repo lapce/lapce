@@ -62,7 +62,7 @@ toml              = { version = "*" }
 toml_edit         = { version = "0.20.2", features = ["serde"] }
 url               = { version = "2.5.0" }
 
-lsp-types = { version = "0.94.1", features = ["proposed"] }                                                  # not following semver, so should be locked to patch version updates only
+lsp-types = { version = "0.95.1", features = ["proposed"] }                                                  # not following semver, so should be locked to patch version updates only
 psp-types = { git = "https://github.com/lapce/psp-types", rev = "f7fea28f59e7b2d6faa1034a21679ad49b3524ad" }
 
 lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
@@ -76,22 +76,28 @@ floem-editor-core = { git = "https://github.com/lapce/floem", rev = "eba11fbdea8
 
 [patch.crates-io]
 # Temporarily patch lsp-types with a version that supports inline-completion
-lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "3031a76c4452f46ed265eb0154d6bb1d10ddb9f6" }
+lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "feaa1e2ec80975c9dadd400a238ceacf071058e6" }
 regalloc2 = { rev = "5d79e12d0a93b10fc181f4da409b4671dd365228", git = "https://github.com/bytecodealliance/regalloc2" }
+
 
 [workspace.dependencies.tracing]
 git     = "https://github.com/tokio-rs/tracing"
-rev     = "c14525e1610db88986f849d46bd3e9795878b012"
+rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing"
+
+[workspace.dependencies.tracing-log]
+git     = "https://github.com/tokio-rs/tracing"
+rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
+package = "tracing-log"
 
 [workspace.dependencies.tracing-subscriber]
 git     = "https://github.com/tokio-rs/tracing"
-rev     = "c14525e1610db88986f849d46bd3e9795878b012"
+rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing-subscriber"
 
 [workspace.dependencies.tracing-appender]
 git     = "https://github.com/tokio-rs/tracing"
-rev     = "c14525e1610db88986f849d46bd3e9795878b012"
+rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing-appender"
 
 [workspace.dependencies.alacritty_terminal]
