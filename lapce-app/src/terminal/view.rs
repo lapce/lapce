@@ -12,6 +12,8 @@ use floem::context::EventCx;
 use floem::event::Event;
 use floem::kurbo::Line;
 use floem::pointer::PointerInputEvent;
+use floem::views::editor::core::register::Clipboard;
+use floem::views::editor::text::SystemClipboard;
 use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
     id::Id,
@@ -24,7 +26,6 @@ use lapce_core::mode::Mode;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 use lsp_types::Position;
 use parking_lot::RwLock;
-use tracing::debug;
 use unicode_width::UnicodeWidthChar;
 
 use super::{panel::TerminalPanelData, raw::RawTerminal};
@@ -160,14 +161,7 @@ impl TerminalView {
 
     fn click(&self, pos: Point) -> Option<()> {
         let raw_origin = self.raw.read();
-        let col = (pos.x / self.char_size().width) as usize;
-        let line_no =
-            pos.y as i32 / (self.config.get().terminal_line_height() as i32);
-
-        let position = alacritty_terminal::index::Point::new(
-            alacritty_terminal::index::Line(line_no),
-            alacritty_terminal::index::Column(col),
-        );
+        let position = self.get_terminal_point(pos);
         let hy = self.hyper_matches.iter().find(|x| x.contains(&position))?;
         let hyperlink = raw_origin.term.bounds_to_string(*hy.start(), *hy.end());
         let content: Vec<&str> = hyperlink.split(':').collect();
@@ -191,12 +185,16 @@ impl TerminalView {
     fn update_mouse_action_by_down(&mut self, mouse: PointerInputEvent) {
         let mut next_action = MouseAction::None;
         match self.current_mouse_action {
-            MouseAction::None => {
+            MouseAction::None
+            | MouseAction::LeftDouble { .. }
+            | MouseAction::LeftSelect { .. }
+            | MouseAction::RightOnce { .. } => {
                 if mouse.button.is_primary() {
                     next_action = MouseAction::LeftDown { pos: mouse.pos };
+                } else if mouse.button.is_secondary() {
+                    next_action = MouseAction::RightDown { pos: mouse.pos };
                 }
             }
-            MouseAction::LeftDown { .. } => {}
             MouseAction::LeftOnce { pos, time } => {
                 let during_mills =
                     time.elapsed().map(|x| x.as_millis()).unwrap_or(u128::MAX);
@@ -214,15 +212,10 @@ impl TerminalView {
                     _ => {}
                 }
             }
-            MouseAction::LeftSelect { .. } => {
-                next_action = MouseAction::LeftDown { pos: mouse.pos };
-            }
-            MouseAction::LeftOnceAndDown { .. } => {}
-            MouseAction::LeftDouble { .. } => {
-                next_action = MouseAction::LeftDown { pos: mouse.pos };
-            }
+            MouseAction::LeftOnceAndDown { .. }
+            | MouseAction::LeftDown { .. }
+            | MouseAction::RightDown { .. } => {}
         }
-        self.previous_mouse_action = self.current_mouse_action;
         self.current_mouse_action = next_action;
     }
     fn update_mouse_action_by_up(&mut self, mouse: PointerInputEvent) {
@@ -250,11 +243,11 @@ impl TerminalView {
             MouseAction::LeftSelect { .. } => {}
             MouseAction::LeftOnceAndDown { pos, time } => {
                 let during_mills =
-                    time.elapsed().map(|x| x.as_millis()).unwrap_or(10000);
+                    time.elapsed().map(|x| x.as_millis()).unwrap_or(u128::MAX);
                 match (
                     mouse.button.is_primary(),
                     mouse.pos == pos,
-                    during_mills < 200,
+                    during_mills < CLICK_THRESHOLD,
                 ) {
                     (true, true, true) => {
                         next_action = MouseAction::LeftDouble { pos };
@@ -275,6 +268,12 @@ impl TerminalView {
                 }
             }
             MouseAction::LeftDouble { .. } => {}
+            MouseAction::RightDown { pos } => {
+                if mouse.button.is_secondary() && mouse.pos == pos {
+                    next_action = MouseAction::RightOnce { pos };
+                }
+            }
+            MouseAction::RightOnce { .. } => {}
         }
         self.previous_mouse_action = self.current_mouse_action;
         self.current_mouse_action = next_action;
@@ -329,19 +328,13 @@ impl Widget for TerminalView {
         match event {
             Event::PointerDown(e) => {
                 self.update_mouse_action_by_down(e);
-                if let MouseAction::LeftSelect { .. } = self.previous_mouse_action {
-                    self.raw.write().term.selection = None;
-                    _cx.app_state_mut().request_paint(self.data.id());
-                }
             }
             Event::PointerUp(e) => {
                 self.update_mouse_action_by_up(e);
-                debug!(
-                    "{:?} {:?}",
-                    self.previous_mouse_action, self.current_mouse_action
-                );
+                let mut clear_selection = false;
                 match self.current_mouse_action {
                     MouseAction::LeftOnce { pos, .. } => {
+                        clear_selection = true;
                         if self.click(pos).is_some() {
                             return EventPropagation::Stop;
                         }
@@ -359,11 +352,50 @@ impl Widget for TerminalView {
                         _cx.app_state_mut().request_paint(self.data.id());
                     }
                     MouseAction::LeftDouble { pos } => {
-                        if self.click(pos).is_some() {
-                            return EventPropagation::Stop;
+                        let position = self.get_terminal_point(pos);
+                        let mut raw = self.raw.write();
+                        let start_point = raw.term.semantic_search_left(position);
+                        let end_point = raw.term.semantic_search_right(position);
+
+                        let mut selection = Selection::new(
+                            SelectionType::Simple,
+                            start_point,
+                            Side::Left,
+                        );
+                        selection.update(end_point, Side::Right);
+                        selection.include_all();
+                        raw.term.selection = Some(selection);
+                        _cx.app_state_mut().request_paint(self.data.id());
+                    }
+                    MouseAction::RightOnce { pos } => {
+                        let position = self.get_terminal_point(pos);
+                        let raw = self.raw.read();
+                        if raw
+                            .term
+                            .selection
+                            .as_ref()
+                            .and_then(|x| x.to_range(&raw.term))
+                            .map(|x| x.contains(position))
+                            .unwrap_or_default()
+                        {
+                            let start_point =
+                                raw.term.semantic_search_left(position);
+                            let end_point = raw.term.semantic_search_right(position);
+                            let mut clipboard = SystemClipboard::new();
+                            let content =
+                                raw.term.bounds_to_string(start_point, end_point);
+                            clipboard.put_string(content);
+                        } else {
+                            clear_selection = true;
                         }
                     }
-                    _ => {}
+                    _ => {
+                        clear_selection = true;
+                    }
+                }
+                if clear_selection {
+                    self.raw.write().term.selection = None;
+                    _cx.app_state_mut().request_paint(self.data.id());
                 }
             }
             _ => {}
@@ -529,7 +561,6 @@ impl Widget for TerminalView {
                     .with_origin(Point::new(x, y));
                 cx.fill(&rect, bg, 0.0);
             }
-            // let pos = Point::new(x, y + (line_height - char_size.height) / 2.0);
             if self.hyper_matches.iter().any(|x| x.contains(&point)) {
                 let underline_y = point.line.0 as f64 * line_height
                     + content.display_offset as f64
@@ -672,6 +703,12 @@ enum MouseAction {
         time: SystemTime,
     },
     LeftDouble {
+        pos: Point,
+    },
+    RightDown {
+        pos: Point,
+    },
+    RightOnce {
         pos: Point,
     },
 }
