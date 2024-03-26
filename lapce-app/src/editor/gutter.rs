@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use floem::{
     context::PaintCx,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
@@ -17,11 +15,11 @@ use super::{view::changes_colors_screen, EditorData};
 pub struct EditorGutterView {
     id: Id,
     data: ViewData,
-    editor: Rc<EditorData>,
+    editor: EditorData,
     width: f64,
 }
 
-pub fn editor_gutter_view(editor: Rc<EditorData>) -> EditorGutterView {
+pub fn editor_gutter_view(editor: EditorData) -> EditorGutterView {
     let id = Id::next();
 
     EditorGutterView {

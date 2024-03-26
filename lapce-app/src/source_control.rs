@@ -3,7 +3,6 @@ use std::{path::PathBuf, rc::Rc};
 use floem::{
     keyboard::ModifiersState,
     reactive::{RwSignal, Scope},
-    views::editor::id::EditorId,
 };
 use indexmap::IndexMap;
 use lapce_core::mode::Mode;
@@ -13,6 +12,7 @@ use crate::{
     command::{CommandExecuted, CommandKind},
     editor::EditorData,
     keypress::{condition::Condition, KeyPressFocus},
+    main_split::Editors,
     window_tab::CommonData,
 };
 
@@ -23,7 +23,7 @@ pub struct SourceControlData {
     pub branch: RwSignal<String>,
     pub branches: RwSignal<im::Vector<String>>,
     pub tags: RwSignal<im::Vector<String>>,
-    pub editor: Rc<EditorData>,
+    pub editor: EditorData,
     pub common: Rc<CommonData>,
 }
 
@@ -61,17 +61,13 @@ impl KeyPressFocus for SourceControlData {
 }
 
 impl SourceControlData {
-    pub fn new(
-        cx: Scope,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-        common: Rc<CommonData>,
-    ) -> Self {
+    pub fn new(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Self {
         Self {
             file_diffs: cx.create_rw_signal(IndexMap::new()),
             branch: cx.create_rw_signal("".to_string()),
             branches: cx.create_rw_signal(im::Vector::new()),
             tags: cx.create_rw_signal(im::Vector::new()),
-            editor: Rc::new(EditorData::new_local(cx, editors, common.clone())),
+            editor: EditorData::new_local(cx, editors, common.clone()),
             common,
         }
     }

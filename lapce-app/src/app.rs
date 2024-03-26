@@ -712,11 +712,9 @@ fn editor_tab_header(
         };
 
         let confirmed = match local_child {
-            EditorTabChild::Editor(editor_id) => editors.with_untracked(|editors| {
-                editors
-                    .get(&editor_id)
-                    .map(|editor_data| editor_data.confirmed)
-            }),
+            EditorTabChild::Editor(editor_id) => {
+                editors.editor_untracked(editor_id).map(|e| e.confirmed)
+            }
             EditorTabChild::DiffEditor(diff_editor_id) => diff_editors
                 .with_untracked(|diff_editors| {
                     diff_editors
@@ -1057,9 +1055,7 @@ fn editor_tab_content(
         let common = common.clone();
         let child = match child {
             EditorTabChild::Editor(editor_id) => {
-                let editor_data = editors
-                    .with_untracked(|editors| editors.get(&editor_id).cloned());
-                if let Some(editor_data) = editor_data {
+                if let Some(editor_data) = editors.editor_untracked(editor_id) {
                     let editor_scope = editor_data.scope;
                     let editor_tab_id = editor_data.editor_tab_id;
                     let is_active = move |tracked: bool| {
@@ -1195,8 +1191,8 @@ fn editor_tab_content(
                                 s.height_full().flex_grow(1.0).flex_basis(0.0)
                             }),
                             diff_show_more_section_view(
-                                diff_editor_data.left.clone(),
-                                diff_editor_data.right.clone(),
+                                &diff_editor_data.left,
+                                &diff_editor_data.right,
                             ),
                         ))
                         .style(|s| s.size_full()),

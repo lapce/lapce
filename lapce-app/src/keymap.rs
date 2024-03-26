@@ -9,8 +9,8 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, dyn_stack, editor::id::EditorId, label, scroll, stack, text,
-        virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
+        container, dyn_stack, label, scroll, stack, text, virtual_stack, Decorators,
+        VirtualDirection, VirtualItemSize,
     },
 };
 use lapce_core::mode::Modes;
@@ -20,6 +20,7 @@ use crate::{
     config::{color::LapceColor, LapceConfig},
     editor::EditorData,
     keypress::{keymap::KeyMap, KeyPress, KeyPressData},
+    main_split::Editors,
     text_input::text_input,
     window_tab::CommonData,
 };
@@ -31,10 +32,7 @@ pub struct KeymapPicker {
     keys: RwSignal<Vec<(KeyPress, bool)>>,
 }
 
-pub fn keymap_view(
-    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-    common: Rc<CommonData>,
-) -> impl View {
+pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
     let config = common.config;
     let keypress = common.keypress;
     let ui_line_height_memo = common.ui_line_height;

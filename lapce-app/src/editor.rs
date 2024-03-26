@@ -60,7 +60,7 @@ use crate::{
     id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
     keypress::{condition::Condition, KeyPressFocus},
-    main_split::{MainSplitData, SplitDirection, SplitMoveDirection},
+    main_split::{Editors, MainSplitData, SplitDirection, SplitMoveDirection},
     markdown::{
         from_marked_string, from_plaintext, parse_markdown, MarkdownContent,
     },
@@ -98,7 +98,7 @@ impl EditorInfo {
         &self,
         data: MainSplitData,
         editor_tab_id: EditorTabId,
-    ) -> Rc<EditorData> {
+    ) -> EditorData {
         let editor_data = match &self.content {
             DocContent::File { path, .. } => {
                 let (doc, new_doc) = data.get_doc(path.clone());
@@ -165,10 +165,9 @@ impl EditorInfo {
                 )
             }
         };
-        let editor_data = Rc::new(editor_data);
-        data.editors.update(|editors| {
-            editors.insert(editor_data.id(), editor_data.clone());
-        });
+
+        data.editors.insert(editor_data.clone());
+
         editor_data
     }
 }
@@ -187,6 +186,7 @@ impl EditorViewKind {
 
 pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 
+/// Shares data between cloned instances as long as the signals aren't swapped out.
 #[derive(Clone)]
 pub struct EditorData {
     pub scope: Scope,
@@ -235,24 +235,24 @@ impl EditorData {
         }
     }
 
-    pub fn new_local(
-        cx: Scope,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-        common: Rc<CommonData>,
-    ) -> Self {
+    pub fn new_local(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Self {
         Self::new_local_id(cx, EditorId::next(), editors, common)
     }
 
     pub fn new_local_id(
         cx: Scope,
         editor_id: EditorId,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        editors: Editors,
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
         let doc = Rc::new(Doc::new_local(cx, editors, common.clone()));
         let editor = doc.create_editor(cx, editor_id);
-        Self::new(cx, editor, None, None, None, common)
+        let editor = Self::new(cx, editor, None, None, None, common);
+
+        // editors.update(|editors| editors.insert(editor.id(), editor.clone()));
+
+        editor
     }
 
     pub fn new_doc(

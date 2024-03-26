@@ -137,8 +137,8 @@ pub struct DiffEditorData {
     pub id: DiffEditorId,
     pub editor_tab_id: RwSignal<EditorTabId>,
     pub scope: Scope,
-    pub left: Rc<EditorData>,
-    pub right: Rc<EditorData>,
+    pub left: EditorData,
+    pub right: EditorData,
     pub confirmed: RwSignal<bool>,
     pub focus_right: RwSignal<bool>,
 }
@@ -156,16 +156,14 @@ impl DiffEditorData {
         let confirmed = cx.create_rw_signal(false);
 
         let [left, right] = [left_doc, right_doc].map(|doc| {
-            let editor_data = EditorData::new_doc(
+            EditorData::new_doc(
                 cx,
                 doc,
                 None,
                 Some((editor_tab_id, id)),
                 Some(confirmed),
                 common.clone(),
-            );
-
-            Rc::new(editor_data)
+            )
         });
 
         let data = Self {
@@ -200,14 +198,12 @@ impl DiffEditorData {
         let confirmed = cx.create_rw_signal(true);
 
         let [left, right] = [&self.left, &self.right].map(|editor_data| {
-            let editor_data = editor_data.copy(
+            editor_data.copy(
                 cx,
                 None,
                 Some((editor_tab_id, diff_editor_id)),
                 Some(confirmed),
-            );
-
-            Rc::new(editor_data)
+            )
         });
 
         let diff_editor = DiffEditorData {
@@ -311,8 +307,8 @@ struct DiffShowMoreSection {
 }
 
 pub fn diff_show_more_section_view(
-    left_editor: Rc<EditorData>,
-    right_editor: Rc<EditorData>,
+    left_editor: &EditorData,
+    right_editor: &EditorData,
 ) -> impl View {
     let left_editor_view = left_editor.kind;
     let right_editor_view = right_editor.kind;

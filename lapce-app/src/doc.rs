@@ -76,6 +76,7 @@ use crate::{
     find::{Find, FindProgress, FindResult},
     history::DocumentHistory,
     keypress::KeyPressFocus,
+    main_split::Editors,
     panel::kind::PanelKind,
     window_tab::{CommonData, Focus},
     workspace::LapceWorkspace,
@@ -195,7 +196,7 @@ pub struct Doc {
     /// The diagnostics for the document
     pub diagnostics: DiagnosticData,
 
-    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    editors: Editors,
     pub common: Rc<CommonData>,
 }
 impl Doc {
@@ -203,7 +204,7 @@ impl Doc {
         cx: Scope,
         path: PathBuf,
         diagnostics: DiagnosticData,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        editors: Editors,
         common: Rc<CommonData>,
     ) -> Self {
         let syntax = Syntax::init(&path);
@@ -243,18 +244,14 @@ impl Doc {
         }
     }
 
-    pub fn new_local(
-        cx: Scope,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-        common: Rc<CommonData>,
-    ) -> Doc {
+    pub fn new_local(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Doc {
         Self::new_content(cx, DocContent::Local, editors, common)
     }
 
     pub fn new_content(
         cx: Scope,
         content: DocContent,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        editors: Editors,
         common: Rc<CommonData>,
     ) -> Doc {
         let cx = cx.create_child();
@@ -297,7 +294,7 @@ impl Doc {
     pub fn new_history(
         cx: Scope,
         content: DocContent,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        editors: Editors,
         common: Rc<CommonData>,
     ) -> Doc {
         let config = common.config.get_untracked();
@@ -420,9 +417,8 @@ impl Doc {
         editor
     }
 
-    fn editor_data(&self, id: EditorId) -> Option<Rc<EditorData>> {
-        self.editors
-            .with_untracked(|editors| editors.get(&id).cloned())
+    fn editor_data(&self, id: EditorId) -> Option<EditorData> {
+        self.editors.editor_untracked(id)
     }
 
     pub fn syntax(&self) -> ReadSignal<Syntax> {
@@ -1987,6 +1983,8 @@ impl Styling for DocStyling {
             EditorColor::Scrollbar => LapceColor::LAPCE_SCROLL_BAR,
             EditorColor::DropdownShadow => LapceColor::LAPCE_DROPDOWN_SHADOW,
             EditorColor::PreeditUnderline => LapceColor::EDITOR_FOREGROUND,
+            EditorColor::Foreground => return Color::WHITE,
+            EditorColor::Background => return Color::BLACK,
             _ => color.into(),
         };
 

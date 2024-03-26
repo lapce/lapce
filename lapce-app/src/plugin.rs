@@ -17,8 +17,8 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, dyn_container, dyn_stack, editor::id::EditorId, empty, img,
-        label, rich_text, scroll, stack, svg, text, Decorators,
+        container, dyn_container, dyn_stack, empty, img, label, rich_text, scroll,
+        stack, svg, text, Decorators,
     },
 };
 use indexmap::IndexMap;
@@ -34,6 +34,7 @@ use crate::{
     db::LapceDb,
     editor::EditorData,
     keypress::{condition::Condition, KeyPressFocus},
+    main_split::Editors,
     markdown::{parse_markdown, MarkdownContent},
     panel::plugin_view::VOLT_DEFAULT_PNG,
     web_link::web_link,
@@ -145,7 +146,7 @@ impl PluginData {
         cx: Scope,
         disabled: HashSet<VoltID>,
         workspace_disabled: HashSet<VoltID>,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        editors: Editors,
         common: Rc<CommonData>,
     ) -> Self {
         let installed = cx.create_rw_signal(IndexMap::new());

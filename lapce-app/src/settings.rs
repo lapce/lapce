@@ -15,7 +15,6 @@ use floem::{
     },
     style::CursorStyle,
     view::View,
-    views::editor::id::EditorId,
     views::{
         container, dyn_stack, empty, label, scroll, stack, svg, text, virtual_stack,
         Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
@@ -36,6 +35,7 @@ use crate::{
     },
     editor::EditorData,
     keypress::KeyPressFocus,
+    main_split::Editors,
     plugin::InstalledVoltData,
     text_input::text_input,
     window_tab::CommonData,
@@ -308,7 +308,7 @@ impl SettingsData {
 
 pub fn settings_view(
     installed_plugins: RwSignal<IndexMap<VoltID, InstalledVoltData>>,
-    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    editors: Editors,
     common: Rc<CommonData>,
 ) -> impl View {
     let config = common.config;
@@ -526,7 +526,7 @@ pub fn settings_view(
 }
 
 fn settings_item_view(
-    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    editors: Editors,
     settings_data: SettingsData,
     item: SettingsItem,
 ) -> impl View {
@@ -901,7 +901,7 @@ fn color_section_list(
     list: impl Fn() -> BTreeMap<String, String> + 'static,
     max_width: Memo<f64>,
     text_height: Memo<f64>,
-    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    editors: Editors,
     common: Rc<CommonData>,
 ) -> impl View {
     let config = common.config;
@@ -1113,7 +1113,7 @@ fn color_section_list(
 }
 
 pub fn theme_color_settings_view(
-    editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+    editors: Editors,
     common: Rc<CommonData>,
 ) -> impl View {
     let config = common.config;

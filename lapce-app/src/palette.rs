@@ -91,7 +91,7 @@ pub struct PaletteData {
     pub input: RwSignal<PaletteInput>,
     kind: RwSignal<PaletteKind>,
     pub input_editor: EditorData,
-    pub preview_editor: Rc<EditorData>,
+    pub preview_editor: EditorData,
     pub has_preview: RwSignal<bool>,
     pub keypress: ReadSignal<KeyPressData>,
     /// Listened on for which entry in the palette has been clicked
@@ -128,7 +128,6 @@ impl PaletteData {
             EditorData::new_local(cx, main_split.editors, common.clone());
         let preview_editor =
             EditorData::new_local(cx, main_split.editors, common.clone());
-        let preview_editor = Rc::new(preview_editor);
         let has_preview = cx.create_rw_signal(false);
         let run_id = cx.create_rw_signal(0);
         let run_id_counter = Arc::new(AtomicU64::new(0));
