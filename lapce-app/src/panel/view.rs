@@ -63,6 +63,7 @@ fn foldable_panel_section_s(
                 || false,
                 || false,
                 config,
+                false,
             ),
             header.style(|s| s.align_items(AlignItems::Center).padding_left(3.0)),
         ))
@@ -548,6 +549,7 @@ fn panel_picker(
                     || false,
                     move || tooltip,
                     config,
+                    false,
                 )
                 .draggable()
                 .on_event_stop(EventListener::DragStart, move |_| {

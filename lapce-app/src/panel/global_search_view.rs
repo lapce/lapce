@@ -59,6 +59,7 @@ pub fn global_search_panel(
                     || false,
                     || "Case Sensitive",
                     config,
+                    true,
                 )
                 .style(|s| s.padding_vert(4.0)),
                 clickable_icon(
@@ -72,6 +73,7 @@ pub fn global_search_panel(
                     || false,
                     || "Whole Word",
                     config,
+                    true,
                 )
                 .style(|s| s.padding_left(6.0)),
                 clickable_icon(
@@ -85,6 +87,7 @@ pub fn global_search_panel(
                     || false,
                     || "Use Regex",
                     config,
+                    true,
                 )
                 .style(|s| s.padding_left(6.0)),
             ))

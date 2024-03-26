@@ -1796,6 +1796,7 @@ fn search_editor_view(
             || false,
             || "Case Sensitive",
             config,
+            true,
         )
         .style(|s| s.padding_vert(4.0)),
         clickable_icon(
@@ -1809,6 +1810,7 @@ fn search_editor_view(
             || false,
             || "Whole Word",
             config,
+            true,
         )
         .style(|s| s.padding_left(6.0)),
         clickable_icon(
@@ -1822,6 +1824,7 @@ fn search_editor_view(
             || false,
             || "Use Regex",
             config,
+            true,
         )
         .style(|s| s.padding_horiz(6.0)),
     ))
@@ -1928,6 +1931,7 @@ fn find_view(
                     || false,
                     || "Toggle Replace",
                     config,
+                    true,
                 )
                 .style(|s| s.padding_horiz(6.0)),
                 search_editor_view(
@@ -1956,6 +1960,7 @@ fn find_view(
                     || false,
                     || "Previous Match",
                     config,
+                    true,
                 )
                 .style(|s| s.padding_left(6.0)),
                 clickable_icon(
@@ -1969,6 +1974,7 @@ fn find_view(
                     || false,
                     || "Next Match",
                     config,
+                    true,
                 )
                 .style(|s| s.padding_left(6.0)),
                 clickable_icon(
@@ -1980,6 +1986,7 @@ fn find_view(
                     || false,
                     || "Close",
                     config,
+                    true,
                 )
                 .style(|s| s.padding_horiz(6.0)),
             ))
@@ -2010,6 +2017,7 @@ fn find_view(
                     || false,
                     || "Replace Next",
                     config,
+                    true,
                 )
                 .style(|s| s.padding_left(6.0)),
                 clickable_icon(
@@ -2025,6 +2033,7 @@ fn find_view(
                     || false,
                     || "Replace All",
                     config,
+                    true,
                 )
                 .style(|s| s.padding_left(6.0)),
             ))

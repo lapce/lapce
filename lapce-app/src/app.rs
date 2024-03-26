@@ -678,6 +678,7 @@ fn editor_tab_header(
                 || false,
                 || "Close",
                 config,
+                true,
             )
             .on_event_stop(EventListener::PointerDown, |_| {})
             .on_event_stop(EventListener::PointerEnter, move |_| {
@@ -899,6 +900,7 @@ fn editor_tab_header(
                         || false,
                         || "Previous Tab",
                         config,
+                        true,
                     )
                     .style(|s| s.margin_horiz(6.0).margin_vert(7.0)),
                     clickable_icon(
@@ -911,6 +913,7 @@ fn editor_tab_header(
                         || false,
                         || "Next Tab",
                         config,
+                        true,
                     )
                     .style(|s| s.margin_right(6.0)),
                 ))
@@ -992,6 +995,7 @@ fn editor_tab_header(
                         || false,
                         || "Split Horizontally",
                         config,
+                        true,
                     )
                     .style(|s| s.margin_left(6.0)),
                     clickable_icon(
@@ -1007,6 +1011,7 @@ fn editor_tab_header(
                         || false,
                         || "Close All",
                         config,
+                        true,
                     )
                     .style(|s| s.margin_horiz(6.0)),
                 ))
@@ -1839,10 +1844,18 @@ pub fn clickable_icon<S: std::fmt::Display + 'static>(
     disabled_fn: impl Fn() -> bool + 'static + Copy,
     tooltip_: impl Fn() -> S + 'static + Clone,
     config: ReadSignal<Arc<LapceConfig>>,
+    event_propagation: bool,
 ) -> impl View {
     tooltip_label(
         config,
-        clickable_icon_base(icon, on_click, active_fn, disabled_fn, config),
+        clickable_icon_base(
+            icon,
+            on_click,
+            active_fn,
+            disabled_fn,
+            config,
+            event_propagation,
+        ),
         tooltip_,
     )
 }
@@ -1853,7 +1866,9 @@ pub fn clickable_icon_base(
     active_fn: impl Fn() -> bool + 'static,
     disabled_fn: impl Fn() -> bool + 'static + Copy,
     config: ReadSignal<Arc<LapceConfig>>,
+    event_propagation: bool,
 ) -> impl View {
+    let pointer_down = create_rw_signal(false);
     container(
         container(
             svg(move || config.get().ui_svg(icon()))
@@ -1869,8 +1884,20 @@ pub fn clickable_icon_base(
                 })
                 .disabled(disabled_fn),
         )
-        .on_click_stop(move |_| {
-            on_click();
+        .on_event(EventListener::PointerDown, move |_| {
+            pointer_down.set(true);
+            EventPropagation::Continue
+        })
+        .on_event(EventListener::PointerUp, move |_| {
+            if pointer_down.get() {
+                on_click();
+            }
+            pointer_down.set(false);
+            if event_propagation {
+                EventPropagation::Continue
+            } else {
+                EventPropagation::Stop
+            }
         })
         .disabled(disabled_fn)
         .style(move |s| {
@@ -2628,6 +2655,7 @@ fn window_message_view(
                     || false,
                     || "Close",
                     config,
+                    true,
                 )
                 .style(|s| s.margin_left(6.0)),
             ))
@@ -3118,6 +3146,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                                 || false,
                                 || "Close",
                                 config.read_only(),
+                                true,
                             )
                             .style(|s| s.margin_horiz(6.0))
                         },
@@ -3275,6 +3304,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
             || false,
             || "New Workspace Tab",
             config.read_only(),
+            true,
         ))
         .on_resize(move |rect| {
             let current = add_icon_width.get_untracked();
