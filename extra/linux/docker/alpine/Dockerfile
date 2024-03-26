@@ -7,21 +7,12 @@ ARG XX_IMAGE=ghcr.io/panekj/xx
 ARG XX_VERSION=master
 
 FROM --platform=$BUILDPLATFORM ${XX_IMAGE}:${XX_VERSION} AS xx
-FROM --platform=$BUILDPLATFORM ubuntu:${DISTRIBUTION_VERSION} AS build-base
+FROM --platform=$BUILDPLATFORM rust:${RUST_VERSION}-alpine${DISTRIBUTION_VERSION} AS build-base
 COPY --from=xx / /
 
 SHELL [ "/bin/bash", "-c" ]
 
 ENV DEBIAN_FRONTEND=noninteractive
-
-RUN \
-<<EOF
-#!/usr/bin/env bash
-set -euxo pipefail
-
-rm -f /etc/apt/apt.conf.d/docker-clean
-echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
-EOF
 
 # install host dependencies
 ARG DISTRIBUTION_PACKAGES
@@ -29,27 +20,12 @@ RUN \
   --mount=type=cache,target=/var/cache/apt,sharing=private \
   --mount=type=cache,target=/var/lib/apt,sharing=private \
 <<EOF
-#!/usr/bin/env bash
-set -euxo pipefail
 
-apt-get update -y
-apt-get install -y \
-  bash clang lld llvm file cmake pkg-config curl git dpkg-dev \
+apk update -y
+apk install -y \
+  bash clang lld llvm file cmake pkg-config dpkg-dev \
   ${DISTRIBUTION_PACKAGES}
 EOF
-
-ENV CARGO_HOME="/cargo"
-ENV RUSTUP_HOME="/rustup"
-
-RUN \
-<<EOF
-#!/usr/bin/env bash
-set -euxo pipefail
-
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-EOF
-
-ENV PATH="${CARGO_HOME}/bin:${PATH}"
 
 WORKDIR /source
 COPY --link . .
@@ -57,9 +33,7 @@ COPY --link . .
 FROM build-base AS build-prep
 
 ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL='sparse'
-ENV CARGO_TARGET_DIR='/target'
-ENV CARGO_NET_GIT_FETCH_WITH_CLI="true"
-
+ENV CARGO_TARGET_DIR='/root/.cache/rust'
 RUN \
     --mount=type=cache,target=/cargo/git/db,sharing=locked \
     --mount=type=cache,target=/cargo/registry/cache,sharing=locked \
@@ -97,7 +71,11 @@ ENV PACKAGE_NAME="${PACKAGE_NAME}"
 ARG OUTPUT_DIR
 ENV OUTPUT_DIR="${OUTPUT_DIR}"
 
+# in bullseye arm64 target does not link with lld so configure it to use ld instead
+# RUN [ ! -f /etc/alpine-release ] && xx-info is-cross && [ "$(xx-info arch)" = "arm64" ] && XX_CC_PREFER_LINKER=ld xx-clang --setup-target-triple || true
+
 ARG CARGO_BUILD_INCREMENTAL='false'
+ENV CARGO_TARGET_DIR='/root/.cache/rust'
 
 ENV CC='xx-clang'
 ENV CXX='xx-clang++'
@@ -153,10 +131,7 @@ cp '/source/extra/linux/dev.lapce.lapce.desktop' './usr/share/applications/dev.l
 cp '/source/extra/linux/dev.lapce.lapce.metainfo.xml' './usr/share/metainfo/dev.lapce.lapce.metainfo.xml'
 cp '/source/extra/images/logo.png' './usr/share/pixmaps/dev.lapce.lapce.png'
 
-cp '/target/lapce' './usr/bin/'
-
-# single binary
-cp /target/lapce /output/lapce
+mv '/target/lapce' './usr/bin/'
 
 if [[ "${PACKAGE_NAME}" == "lapce" ]]; then
   conflicts="lapce-nightly"

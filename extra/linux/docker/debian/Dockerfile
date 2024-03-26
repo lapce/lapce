@@ -2,9 +2,11 @@
 
 ARG DISTRIBUTION_VERSION
 ARG RUST_VERSION
-ARG XX_VERSION=latest
 
-FROM --platform=$BUILDPLATFORM tonistiigi/xx:${XX_VERSION} AS xx
+ARG XX_IMAGE=ghcr.io/panekj/xx
+ARG XX_VERSION=master
+
+FROM --platform=$BUILDPLATFORM ${XX_IMAGE}:${XX_VERSION} AS xx
 FROM --platform=$BUILDPLATFORM rust:${RUST_VERSION}-${DISTRIBUTION_VERSION} AS build-base
 COPY --from=xx / /
 

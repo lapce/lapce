@@ -1,11 +1,14 @@
+name: Build
 on:
   push:
     branches:
       - master
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-
-name: CI
+    paths:
+      - Cargo.toml
+      - Cargo.lock
+      - lapce-*/*
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
@@ -13,7 +16,6 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
   build:
