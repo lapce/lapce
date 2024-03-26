@@ -69,6 +69,7 @@ pub fn status(
 
     let progresses = window_tab_data.progresses;
     let mode = create_memo(move |_| window_tab_data.mode());
+    let pointer_down = floem::reactive::create_rw_signal(false);
 
     stack((
         stack((
@@ -146,9 +147,20 @@ pub fn status(
                     )
                 })
             })
-            .on_click_stop(move |_| {
-                workbench_command.send(LapceWorkbenchCommand::PaletteSCMReferences);
-            }),
+            .on_event_cont(floem::event::EventListener::PointerDown, move |_| {
+                pointer_down.set(true);
+            })
+            .on_event(
+                floem::event::EventListener::PointerUp,
+                move |_| {
+                    if pointer_down.get() {
+                        workbench_command
+                            .send(LapceWorkbenchCommand::PaletteSCMReferences);
+                    }
+                    pointer_down.set(false);
+                    floem::EventPropagation::Continue
+                },
+            ),
             {
                 let panel = panel.clone();
                 stack((
@@ -232,6 +244,7 @@ pub fn status(
                     || false,
                     || "Toggle Left Panel",
                     config,
+                    false,
                 )
             },
             {
@@ -259,6 +272,7 @@ pub fn status(
                     || false,
                     || "Toggle Bottom Panel",
                     config,
+                    false,
                 )
             },
             {
@@ -284,6 +298,7 @@ pub fn status(
                     || false,
                     || "Toggle Right Panel",
                     config,
+                    false,
                 )
             },
         ))

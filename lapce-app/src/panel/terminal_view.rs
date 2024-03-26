@@ -138,6 +138,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                 || false,
                                 || "Close",
                                 config,
+                                true,
                             )
                             .style(|s| s.margin_horiz(6.0)),
                             empty().style(move |s| {
@@ -221,6 +222,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
             || false,
             || "New Terminal",
             config,
+            true,
         ))
         .on_resize(move |rect| {
             let width = rect.size().width;

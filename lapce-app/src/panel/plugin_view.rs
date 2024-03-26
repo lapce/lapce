@@ -143,6 +143,7 @@ fn installed_view(plugin: PluginData) -> impl View {
                         || false,
                         || "Options",
                         config,
+                        true,
                     )
                     .style(|s| s.padding_left(6.0))
                     .popout_menu(move || {
