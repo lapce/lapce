@@ -116,6 +116,14 @@ pub fn lapce_internal_commands() -> IndexMap<String, LapceCommand> {
         commands.insert(c.to_string(), command);
     }
 
+    for c in ScrollCommand::iter() {
+        let command = LapceCommand {
+            kind: CommandKind::Scroll(c.clone()),
+            data: None,
+        };
+        commands.insert(c.to_string(), command);
+    }
+
     for c in FocusCommand::iter() {
         let command = LapceCommand {
             kind: CommandKind::Focus(c.clone()),
