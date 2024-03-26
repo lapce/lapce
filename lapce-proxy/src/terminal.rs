@@ -8,10 +8,9 @@ use std::{
 };
 
 use alacritty_terminal::{
-    config::Program,
     event::{OnResize, WindowSize},
     event_loop::Msg,
-    tty::{self, setup_env, EventedPty, EventedReadWrite},
+    tty::{self, setup_env, EventedPty, EventedReadWrite, Options, Shell},
 };
 use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender};
@@ -33,8 +32,6 @@ const PTY_CHILD_EVENT_TOKEN: usize = 1;
 const PTY_READ_WRITE_TOKEN: usize = 2;
 #[cfg(target_os = "windows")]
 const PTY_CHILD_EVENT_TOKEN: usize = 1;
-
-pub type TermConfig = alacritty_terminal::config::Config;
 
 pub struct TerminalSender {
     tx: Sender<Msg>,
@@ -67,17 +64,16 @@ impl Terminal {
         width: usize,
         height: usize,
     ) -> Result<Terminal> {
-        let poll = polling::Poller::new().expect("create Poll").into();
-        let mut config = TermConfig::default();
+        let poll = polling::Poller::new()?.into();
 
-        config.pty_config.working_directory = Terminal::workdir(&profile);
-        config.pty_config.shell = Terminal::program(&profile);
+        let options = Options {
+            shell: Terminal::program(&profile),
+            working_directory: Terminal::workdir(&profile),
+            hold: false,
+            env: profile.environment.unwrap_or_default(),
+        };
 
-        if let Some(env) = profile.environment {
-            config.env = env;
-        }
-
-        setup_env(&config);
+        setup_env();
 
         #[cfg(target_os = "macos")]
         set_locale_environment();
@@ -88,7 +84,7 @@ impl Terminal {
             cell_width: 1,
             cell_height: 1,
         };
-        let pty = alacritty_terminal::tty::new(&config.pty_config, size, 0)?;
+        let pty = alacritty_terminal::tty::new(&options, size, 0)?;
 
         let (tx, rx) = crossbeam_channel::unbounded();
 
@@ -135,7 +131,7 @@ impl Terminal {
             for event in events.iter() {
                 match event.key {
                     PTY_CHILD_EVENT_TOKEN => {
-                        if let Some(tty::ChildEvent::Exited) =
+                        if let Some(tty::ChildEvent::Exited(_)) =
                             self.pty.next_child_event()
                         {
                             break 'event_loop;
@@ -281,15 +277,12 @@ impl Terminal {
         BaseDirs::new().map(|d| PathBuf::from(d.home_dir()))
     }
 
-    fn program(profile: &TerminalProfile) -> Option<Program> {
+    fn program(profile: &TerminalProfile) -> Option<Shell> {
         if let Some(command) = &profile.command {
             if let Some(arguments) = &profile.arguments {
-                Some(Program::WithArgs {
-                    program: command.to_owned(),
-                    args: arguments.to_owned(),
-                })
+                Some(Shell::new(command.to_owned(), arguments.to_owned()))
             } else {
-                Some(Program::Just(command.to_owned()))
+                Some(Shell::new(command.to_owned(), Vec::new()))
             }
         } else {
             None

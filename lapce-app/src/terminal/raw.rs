@@ -1,9 +1,10 @@
 use alacritty_terminal::grid::Dimensions;
 use alacritty_terminal::index::{Column, Direction, Line, Point};
 use alacritty_terminal::term::search::{Match, RegexIter, RegexSearch};
-use alacritty_terminal::{ansi, event::EventListener, term::test::TermSize, Term};
+use alacritty_terminal::{
+    event::EventListener, term::test::TermSize, vte::ansi, Term,
+};
 use crossbeam_channel::Sender;
-use lapce_proxy::terminal::TermConfig;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
 
 use super::event::TermNotification;
@@ -48,7 +49,7 @@ impl RawTerminal {
         proxy: ProxyRpcHandler,
         term_notification_tx: Sender<TermNotification>,
     ) -> Self {
-        let config = TermConfig::default();
+        let config = alacritty_terminal::term::Config::default();
         let event_proxy = EventProxy {
             term_id,
             proxy,
@@ -56,7 +57,7 @@ impl RawTerminal {
         };
 
         let size = TermSize::new(50, 30);
-        let term = Term::new(&config, &size, event_proxy);
+        let term = Term::new(config, &size, event_proxy);
         let parser = ansi::Processor::new();
 
         Self {

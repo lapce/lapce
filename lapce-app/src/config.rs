@@ -696,37 +696,37 @@ impl LapceConfig {
 
     pub fn terminal_get_color(
         &self,
-        color: &alacritty_terminal::ansi::Color,
+        color: &alacritty_terminal::vte::ansi::Color,
         colors: &alacritty_terminal::term::color::Colors,
     ) -> Color {
         match color {
-            alacritty_terminal::ansi::Color::Named(color) => {
+            alacritty_terminal::vte::ansi::Color::Named(color) => {
                 self.terminal_get_named_color(color)
             }
-            alacritty_terminal::ansi::Color::Spec(rgb) => {
+            alacritty_terminal::vte::ansi::Color::Spec(rgb) => {
                 Color::rgb8(rgb.r, rgb.g, rgb.b)
             }
-            alacritty_terminal::ansi::Color::Indexed(index) => {
+            alacritty_terminal::vte::ansi::Color::Indexed(index) => {
                 if let Some(rgb) = colors[*index as usize] {
                     return Color::rgb8(rgb.r, rgb.g, rgb.b);
                 }
-                const NAMED_COLORS: [alacritty_terminal::ansi::NamedColor; 16] = [
-                    alacritty_terminal::ansi::NamedColor::Black,
-                    alacritty_terminal::ansi::NamedColor::Red,
-                    alacritty_terminal::ansi::NamedColor::Green,
-                    alacritty_terminal::ansi::NamedColor::Yellow,
-                    alacritty_terminal::ansi::NamedColor::Blue,
-                    alacritty_terminal::ansi::NamedColor::Magenta,
-                    alacritty_terminal::ansi::NamedColor::Cyan,
-                    alacritty_terminal::ansi::NamedColor::White,
-                    alacritty_terminal::ansi::NamedColor::BrightBlack,
-                    alacritty_terminal::ansi::NamedColor::BrightRed,
-                    alacritty_terminal::ansi::NamedColor::BrightGreen,
-                    alacritty_terminal::ansi::NamedColor::BrightYellow,
-                    alacritty_terminal::ansi::NamedColor::BrightBlue,
-                    alacritty_terminal::ansi::NamedColor::BrightMagenta,
-                    alacritty_terminal::ansi::NamedColor::BrightCyan,
-                    alacritty_terminal::ansi::NamedColor::BrightWhite,
+                const NAMED_COLORS: [alacritty_terminal::vte::ansi::NamedColor; 16] = [
+                    alacritty_terminal::vte::ansi::NamedColor::Black,
+                    alacritty_terminal::vte::ansi::NamedColor::Red,
+                    alacritty_terminal::vte::ansi::NamedColor::Green,
+                    alacritty_terminal::vte::ansi::NamedColor::Yellow,
+                    alacritty_terminal::vte::ansi::NamedColor::Blue,
+                    alacritty_terminal::vte::ansi::NamedColor::Magenta,
+                    alacritty_terminal::vte::ansi::NamedColor::Cyan,
+                    alacritty_terminal::vte::ansi::NamedColor::White,
+                    alacritty_terminal::vte::ansi::NamedColor::BrightBlack,
+                    alacritty_terminal::vte::ansi::NamedColor::BrightRed,
+                    alacritty_terminal::vte::ansi::NamedColor::BrightGreen,
+                    alacritty_terminal::vte::ansi::NamedColor::BrightYellow,
+                    alacritty_terminal::vte::ansi::NamedColor::BrightBlue,
+                    alacritty_terminal::vte::ansi::NamedColor::BrightMagenta,
+                    alacritty_terminal::vte::ansi::NamedColor::BrightCyan,
+                    alacritty_terminal::vte::ansi::NamedColor::BrightWhite,
                 ];
                 if (*index as usize) < NAMED_COLORS.len() {
                     self.terminal_get_named_color(&NAMED_COLORS[*index as usize])
@@ -739,94 +739,94 @@ impl LapceConfig {
 
     fn terminal_get_named_color(
         &self,
-        color: &alacritty_terminal::ansi::NamedColor,
+        color: &alacritty_terminal::vte::ansi::NamedColor,
     ) -> Color {
         let (color, alpha) = match color {
-            alacritty_terminal::ansi::NamedColor::Cursor => {
+            alacritty_terminal::vte::ansi::NamedColor::Cursor => {
                 (LapceColor::TERMINAL_CURSOR, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::Foreground => {
+            alacritty_terminal::vte::ansi::NamedColor::Foreground => {
                 (LapceColor::TERMINAL_FOREGROUND, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::Background => {
+            alacritty_terminal::vte::ansi::NamedColor::Background => {
                 (LapceColor::TERMINAL_BACKGROUND, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::Blue => {
+            alacritty_terminal::vte::ansi::NamedColor::Blue => {
                 (LapceColor::TERMINAL_BLUE, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::Green => {
+            alacritty_terminal::vte::ansi::NamedColor::Green => {
                 (LapceColor::TERMINAL_GREEN, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::Yellow => {
+            alacritty_terminal::vte::ansi::NamedColor::Yellow => {
                 (LapceColor::TERMINAL_YELLOW, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::Red => {
+            alacritty_terminal::vte::ansi::NamedColor::Red => {
                 (LapceColor::TERMINAL_RED, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::White => {
+            alacritty_terminal::vte::ansi::NamedColor::White => {
                 (LapceColor::TERMINAL_WHITE, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::Black => {
+            alacritty_terminal::vte::ansi::NamedColor::Black => {
                 (LapceColor::TERMINAL_BLACK, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::Cyan => {
+            alacritty_terminal::vte::ansi::NamedColor::Cyan => {
                 (LapceColor::TERMINAL_CYAN, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::Magenta => {
+            alacritty_terminal::vte::ansi::NamedColor::Magenta => {
                 (LapceColor::TERMINAL_MAGENTA, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::BrightBlue => {
+            alacritty_terminal::vte::ansi::NamedColor::BrightBlue => {
                 (LapceColor::TERMINAL_BRIGHT_BLUE, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::BrightGreen => {
+            alacritty_terminal::vte::ansi::NamedColor::BrightGreen => {
                 (LapceColor::TERMINAL_BRIGHT_GREEN, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::BrightYellow => {
+            alacritty_terminal::vte::ansi::NamedColor::BrightYellow => {
                 (LapceColor::TERMINAL_BRIGHT_YELLOW, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::BrightRed => {
+            alacritty_terminal::vte::ansi::NamedColor::BrightRed => {
                 (LapceColor::TERMINAL_BRIGHT_RED, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::BrightWhite => {
+            alacritty_terminal::vte::ansi::NamedColor::BrightWhite => {
                 (LapceColor::TERMINAL_BRIGHT_WHITE, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::BrightBlack => {
+            alacritty_terminal::vte::ansi::NamedColor::BrightBlack => {
                 (LapceColor::TERMINAL_BRIGHT_BLACK, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::BrightCyan => {
+            alacritty_terminal::vte::ansi::NamedColor::BrightCyan => {
                 (LapceColor::TERMINAL_BRIGHT_CYAN, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::BrightMagenta => {
+            alacritty_terminal::vte::ansi::NamedColor::BrightMagenta => {
                 (LapceColor::TERMINAL_BRIGHT_MAGENTA, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::BrightForeground => {
+            alacritty_terminal::vte::ansi::NamedColor::BrightForeground => {
                 (LapceColor::TERMINAL_FOREGROUND, 1.0)
             }
-            alacritty_terminal::ansi::NamedColor::DimBlack => {
+            alacritty_terminal::vte::ansi::NamedColor::DimBlack => {
                 (LapceColor::TERMINAL_BLACK, 0.66)
             }
-            alacritty_terminal::ansi::NamedColor::DimRed => {
+            alacritty_terminal::vte::ansi::NamedColor::DimRed => {
                 (LapceColor::TERMINAL_RED, 0.66)
             }
-            alacritty_terminal::ansi::NamedColor::DimGreen => {
+            alacritty_terminal::vte::ansi::NamedColor::DimGreen => {
                 (LapceColor::TERMINAL_GREEN, 0.66)
             }
-            alacritty_terminal::ansi::NamedColor::DimYellow => {
+            alacritty_terminal::vte::ansi::NamedColor::DimYellow => {
                 (LapceColor::TERMINAL_YELLOW, 0.66)
             }
-            alacritty_terminal::ansi::NamedColor::DimBlue => {
+            alacritty_terminal::vte::ansi::NamedColor::DimBlue => {
                 (LapceColor::TERMINAL_BLUE, 0.66)
             }
-            alacritty_terminal::ansi::NamedColor::DimMagenta => {
+            alacritty_terminal::vte::ansi::NamedColor::DimMagenta => {
                 (LapceColor::TERMINAL_MAGENTA, 0.66)
             }
-            alacritty_terminal::ansi::NamedColor::DimCyan => {
+            alacritty_terminal::vte::ansi::NamedColor::DimCyan => {
                 (LapceColor::TERMINAL_CYAN, 0.66)
             }
-            alacritty_terminal::ansi::NamedColor::DimWhite => {
+            alacritty_terminal::vte::ansi::NamedColor::DimWhite => {
                 (LapceColor::TERMINAL_WHITE, 0.66)
             }
-            alacritty_terminal::ansi::NamedColor::DimForeground => {
+            alacritty_terminal::vte::ansi::NamedColor::DimForeground => {
                 (LapceColor::TERMINAL_FOREGROUND, 0.66)
             }
         };
