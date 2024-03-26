@@ -146,10 +146,11 @@ fn listen_local_socket(proxy_rpc: ProxyRpcHandler) -> Result<()> {
         let proxy_rpc = proxy_rpc.clone();
         thread::spawn(move || -> Result<()> {
             loop {
-                let msg: ProxyMessage = lapce_rpc::stdio::read_msg(&mut reader)?;
-                if let RpcMessage::Notification(ProxyNotification::OpenPaths {
-                    paths,
-                }) = msg
+                let msg: Option<ProxyMessage> =
+                    lapce_rpc::stdio::read_msg(&mut reader)?;
+                if let Some(RpcMessage::Notification(
+                    ProxyNotification::OpenPaths { paths },
+                )) = msg
                 {
                     proxy_rpc.notification(ProxyNotification::OpenPaths { paths });
                 }

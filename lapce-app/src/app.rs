@@ -3721,9 +3721,10 @@ fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
         std::thread::spawn(move || -> Result<()> {
             let mut reader = BufReader::new(stream);
             loop {
-                let msg: CoreMessage = lapce_rpc::stdio::read_msg(&mut reader)?;
+                let msg: Option<CoreMessage> =
+                    lapce_rpc::stdio::read_msg(&mut reader)?;
 
-                if let RpcMessage::Notification(msg) = msg {
+                if let Some(RpcMessage::Notification(msg)) = msg {
                     tx.send(msg)?;
                 } else {
                     trace!("Unhandled message: {msg:?}");

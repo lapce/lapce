@@ -34,8 +34,9 @@ pub fn stdio_transport<W, R, Req1, Notif1, Resp1, Req2, Notif2, Resp2>(
     });
     thread::spawn(move || -> Result<()> {
         loop {
-            let msg = read_msg(&mut reader)?;
-            reader_sender.send(msg)?;
+            if let Some(msg) = read_msg(&mut reader)? {
+                reader_sender.send(msg)?;
+            }
         }
     });
 }
@@ -80,7 +81,7 @@ where
 
 pub fn read_msg<R, Req, Notif, Resp>(
     inp: &mut R,
-) -> io::Result<RpcMessage<Req, Notif, Resp>>
+) -> io::Result<Option<RpcMessage<Req, Notif, Resp>>>
 where
     R: BufRead,
     Req: DeserializeOwned,
@@ -89,7 +90,23 @@ where
 {
     let mut buf = String::new();
     let _s = inp.read_line(&mut buf)?;
-    let value: Value = serde_json::from_str(&buf)?;
+
+    match parse_msg(&buf) {
+        Ok(msg) => Ok(Some(msg)),
+        Err(e) => {
+            tracing::error!("receive rpc from stdio error: {e:#}");
+            Ok(None)
+        }
+    }
+}
+
+fn parse_msg<Req, Notif, Resp>(buf: &str) -> io::Result<RpcMessage<Req, Notif, Resp>>
+where
+    Req: DeserializeOwned,
+    Notif: DeserializeOwned,
+    Resp: DeserializeOwned,
+{
+    let value: Value = serde_json::from_str(buf)?;
     let object = RpcObject(value);
     let is_response = object.is_response();
     let msg = if is_response {
