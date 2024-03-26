@@ -321,8 +321,8 @@ jobs:
         uses: lando/notarize-action@v2
         with:
           product-path: "./target/release-lto/macos/Lapce-macos.dmg"
-          appstore-connect-username: ${{ secrets.NOTARIZATION_USERNAME }}
-          appstore-connect-password: ${{ secrets.NOTARIZATION_PASSWORD }}
+          appstore-connect-username: ${{ secrets.NOTARIZE_USERNAME }}
+          appstore-connect-password: ${{ secrets.NOTARIZE_PASSWORD }}
           appstore-connect-team-id: CYSGAZFR8D
           primary-bundle-id: "io.lapce"
           
