@@ -336,6 +336,7 @@ jobs:
 
   publish:
     needs: [linux, linux-musl, debian, windows, macos]
+    if: ${{ always() && github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     env:
       GH_REPO: ${{ github.repository }}
