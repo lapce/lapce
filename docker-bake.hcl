@@ -1,5 +1,5 @@
 variable "RUST_VERSION" {
-  default = "1.75"
+  default = "1"
 }
 
 variable "PACKAGE_NAME" {
@@ -15,7 +15,7 @@ variable "RELEASE_TAG_NAME" {
 }
 
 variable "XX_VERSION" {
-  default = "latest"
+  default = "master"
 }
 
 target "_common" {
@@ -101,13 +101,13 @@ target "debian" {
   args = {
     DISTRIBUTION_NAME     = os_name
     DISTRIBUTION_VERSION  = build.os_version
-    DISTRIBUTION_PACKAGES = join(" ", build.packages)
+    DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, DPKG_FAMILY_PACKAGES))
   }
   matrix = {
     os_name = ["debian"]
     build = [
-      { os_version = "bullseye", packages = DPKG_FAMILY_PACKAGES },
-      { os_version = "bookworm", packages = DPKG_FAMILY_PACKAGES },
+      { packages = null, os_version = "bullseye" }, # 11
+      { packages = null, os_version = "bookworm" }, # 12
     ]
   }
 }
@@ -121,19 +121,19 @@ target "ubuntu" {
   args = {
     DISTRIBUTION_NAME     = os_name
     DISTRIBUTION_VERSION  = build.os_version
-    DISTRIBUTION_PACKAGES = join(" ", build.packages)
+    DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, DPKG_FAMILY_PACKAGES))
   }
   platforms = coalesce(build.platforms, platforms)
   matrix = {
     os_name = ["ubuntu"]
     build = [
-      { os_version = "bionic", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },           # 18.04
-      { os_version = "focal", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },            # 20.04
-      { os_version = "jammy", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = ["linux/amd64"] }, # 22.04
-      { os_version = "kinetic", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },          # 22.10
-      { os_version = "lunar", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },            # 23.04
-      { os_version = "mantic", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },           # 23.10
-      { os_version = "noble", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },            # 24.04
+      { packages = null, platforms = null,            os_version = "bionic"  }, # 18.04
+      { packages = null, platforms = null,            os_version = "focal"   }, # 20.04
+      { packages = null, platforms = ["linux/amd64"], os_version = "jammy"   }, # 22.04
+      { packages = null, platforms = null,            os_version = "kinetic" }, # 22.10
+      { packages = null, platforms = null,            os_version = "lunar"   }, # 23.04
+      { packages = null, platforms = null,            os_version = "mantic"  }, # 23.10
+      { packages = null, platforms = null,            os_version = "noble"   }, # 24.04
     ]
   }
 }
@@ -160,13 +160,14 @@ target "fedora" {
 
     DISTRIBUTION_NAME     = os_name
     DISTRIBUTION_VERSION  = build.os_version
-    DISTRIBUTION_PACKAGES = join(" ", build.packages)
+    DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, RHEL_FAMILY_PACKAGES))
   }
   platforms = coalesce(build.platforms, platforms)
   matrix = {
     os_name = ["fedora"]
     build = [
-      { os_version = "39", packages = distinct(concat(RHEL_FAMILY_PACKAGES, [])), platforms = null },
+      { os_version = "39",      packages = null, platforms = null },
+      { os_version = "rawhide", packages = null, platforms = null },
     ]
   }
 }
