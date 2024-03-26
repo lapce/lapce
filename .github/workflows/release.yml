@@ -317,9 +317,15 @@ jobs:
           gzip -c ./target/x86_64-apple-darwin/release-lto/lapce-proxy > ./target/release-lto/macos/lapce-proxy-darwin-x86_64.gz
           gzip -c ./target/aarch64-apple-darwin/release-lto/lapce-proxy > ./target/release-lto/macos/lapce-proxy-darwin-aarch64.gz
 
-      - name: "Notarize Release Build"
-        run: |
-          npx notarize-cli --file ./target/release-lto/macos/Lapce-macos.dmg --bundle-id io.lapce --asc-provider CYSGAZFR8D
+      - name: Notarize Release Build
+        uses: lando/notarize-action@v2
+        with:
+          product-path: "./target/release-lto/macos/Lapce-macos.dmg"
+          appstore-connect-username: ${{ secrets.NOTARIZATION_USERNAME }}
+          appstore-connect-password: ${{ secrets.NOTARIZATION_PASSWORD }}
+          appstore-connect-team-id: CYSGAZFR8D
+          primary-bundle-id: "io.lapce"
+          
 
       - name: "Staple Release Build"
         uses: lapce/xcode-staple@062485d6eeafe841c18a412f012e80f49e23c517
