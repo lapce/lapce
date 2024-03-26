@@ -284,14 +284,28 @@ impl EditorData {
 
         let confirmed = confirmed.unwrap_or_else(|| cx.create_rw_signal(true));
 
-        Self::new_doc(
+        let editor = Self::new_doc(
             cx,
             self.doc(),
             editor_tab_id,
             diff_editor_id,
             Some(confirmed),
             self.common.clone(),
-        )
+        );
+        editor.editor.cursor.set(self.editor.cursor.get_untracked());
+        editor
+            .editor
+            .viewport
+            .set(self.editor.viewport.get_untracked());
+        editor.editor.scroll_to.set(Some(
+            self.editor.viewport.get_untracked().origin().to_vec2(),
+        ));
+        editor
+            .editor
+            .last_movement
+            .set(self.editor.last_movement.get_untracked());
+
+        editor
     }
 
     pub fn id(&self) -> EditorId {
@@ -2005,7 +2019,6 @@ impl EditorData {
         after_action: impl FnOnce() + 'static,
     ) {
         let doc = self.doc();
-        let rev = doc.rev();
         let is_pristine = doc.is_pristine();
         let content = doc.content.get_untracked();
 
@@ -2032,6 +2045,7 @@ impl EditorData {
             self.run_edit_command(&EditCommand::NormalizeLineEndings);
         }
 
+        let rev = doc.rev();
         let format_on_save = allow_formatting && config.editor.format_on_save;
         if format_on_save {
             let editor = self.clone();
