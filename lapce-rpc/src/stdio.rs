@@ -89,9 +89,10 @@ where
     Resp: DeserializeOwned,
 {
     let mut buf = String::new();
-    let _s = inp.read_line(&mut buf)?;
+    let _ = inp.read_line(&mut buf)?;
+    let value: Value = serde_json::from_str(&buf)?;
 
-    match parse_msg(&buf) {
+    match parse_value(value) {
         Ok(msg) => Ok(Some(msg)),
         Err(e) => {
             tracing::error!("receive rpc from stdio error: {e:#}");
@@ -100,13 +101,14 @@ where
     }
 }
 
-fn parse_msg<Req, Notif, Resp>(buf: &str) -> io::Result<RpcMessage<Req, Notif, Resp>>
+fn parse_value<Req, Notif, Resp>(
+    value: Value,
+) -> io::Result<RpcMessage<Req, Notif, Resp>>
 where
     Req: DeserializeOwned,
     Notif: DeserializeOwned,
     Resp: DeserializeOwned,
 {
-    let value: Value = serde_json::from_str(buf)?;
     let object = RpcObject(value);
     let is_response = object.is_response();
     let msg = if is_response {
