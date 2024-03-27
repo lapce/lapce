@@ -12,7 +12,7 @@ use floem::{
     keyboard::ModifiersState,
     menu::{Menu, MenuItem},
     reactive::{RwSignal, Scope},
-    views::editor::{id::EditorId, text::SystemClipboard},
+    views::editor::text::SystemClipboard,
     EventPropagation,
 };
 use globset::Glob;
@@ -30,6 +30,7 @@ use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand, LapceCommand},
     editor::EditorData,
     keypress::{condition::Condition, KeyPressFocus},
+    main_split::Editors,
     window_tab::CommonData,
 };
 
@@ -110,11 +111,7 @@ impl KeyPressFocus for FileExplorerData {
 }
 
 impl FileExplorerData {
-    pub fn new(
-        cx: Scope,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-        common: Rc<CommonData>,
-    ) -> Self {
+    pub fn new(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Self {
         let path = common.workspace.path.clone().unwrap_or_default();
         let root = cx.create_rw_signal(FileNodeItem {
             path: path.clone(),
@@ -125,7 +122,7 @@ impl FileExplorerData {
             children_open_count: 0,
         });
         let naming = cx.create_rw_signal(Naming::None);
-        let naming_editor_data = EditorData::new_local(cx, editors, common.clone());
+        let naming_editor_data = editors.make_local(cx, common.clone());
         let data = Self {
             root,
             naming,

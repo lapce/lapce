@@ -60,7 +60,7 @@ use crate::{
     id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
     keypress::{condition::Condition, KeyPressFocus},
-    main_split::{MainSplitData, SplitDirection, SplitMoveDirection},
+    main_split::{Editors, MainSplitData, SplitDirection, SplitMoveDirection},
     markdown::{
         from_marked_string, from_plaintext, parse_markdown, MarkdownContent,
     },
@@ -98,19 +98,21 @@ impl EditorInfo {
         &self,
         data: MainSplitData,
         editor_tab_id: EditorTabId,
-    ) -> Rc<EditorData> {
-        let editor_data = match &self.content {
+    ) -> EditorId {
+        let editors = &data.editors;
+        let common = data.common.clone();
+        match &self.content {
             DocContent::File { path, .. } => {
                 let (doc, new_doc) = data.get_doc(path.clone());
-                let editor_data = EditorData::new_doc(
+                let editor = editors.make_from_doc(
                     data.scope,
                     doc,
                     Some(editor_tab_id),
                     None,
                     None,
-                    data.common,
+                    common,
                 );
-                editor_data.go_to_location(
+                editor.go_to_location(
                     EditorLocation {
                         path: path.clone(),
                         position: Some(EditorPosition::Offset(self.offset)),
@@ -124,14 +126,11 @@ impl EditorInfo {
                     new_doc,
                     None,
                 );
-                editor_data
+
+                editor.id()
             }
-            DocContent::Local => {
-                EditorData::new_local(data.scope, data.editors, data.common)
-            }
-            DocContent::History(_) => {
-                EditorData::new_local(data.scope, data.editors, data.common)
-            }
+            DocContent::Local => editors.new_local(data.scope, common),
+            DocContent::History(_) => editors.new_local(data.scope, common),
             DocContent::Scratch { name, .. } => {
                 let doc = data
                     .scratch_docs
@@ -155,21 +154,16 @@ impl EditorInfo {
                     })
                     .unwrap();
 
-                EditorData::new_doc(
+                editors.new_from_doc(
                     data.scope,
                     doc,
                     Some(editor_tab_id),
                     None,
                     None,
-                    data.common,
+                    common,
                 )
             }
-        };
-        let editor_data = Rc::new(editor_data);
-        data.editors.update(|editors| {
-            editors.insert(editor_data.id(), editor_data.clone());
-        });
-        editor_data
+        }
     }
 }
 
@@ -187,6 +181,7 @@ impl EditorViewKind {
 
 pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 
+/// Shares data between cloned instances as long as the signals aren't swapped out.
 #[derive(Clone)]
 pub struct EditorData {
     pub scope: Scope,
@@ -235,18 +230,20 @@ impl EditorData {
         }
     }
 
-    pub fn new_local(
-        cx: Scope,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
-        common: Rc<CommonData>,
-    ) -> Self {
+    /// Create a new local editor.  
+    /// You should prefer calling [`Editors::make_local`] / [`Editors::new_local`] instead to
+    /// register the editor.
+    pub fn new_local(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Self {
         Self::new_local_id(cx, EditorId::next(), editors, common)
     }
 
+    /// Create a new local editor with the given id.  
+    /// You should prefer calling [`Editors::make_local`] / [`Editors::new_local`] instead to
+    /// register the editor.
     pub fn new_local_id(
         cx: Scope,
         editor_id: EditorId,
-        editors: RwSignal<im::HashMap<EditorId, Rc<EditorData>>>,
+        editors: Editors,
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
@@ -255,6 +252,8 @@ impl EditorData {
         Self::new(cx, editor, None, None, None, common)
     }
 
+    /// Create a new editor with a specific doc.  
+    /// You should prefer calling [`Editors::new_editor_doc`] / [`Editors::make_from_doc`] instead.
     pub fn new_doc(
         cx: Scope,
         doc: Rc<Doc>,
@@ -273,6 +272,7 @@ impl EditorData {
         self.editor.update_doc(doc, Some(style));
     }
 
+    /// Create a new editor using the same underlying [`Doc`]  
     pub fn copy(
         &self,
         cx: Scope,

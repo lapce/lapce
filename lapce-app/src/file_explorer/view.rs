@@ -28,7 +28,7 @@ use crate::{
     panel::{kind::PanelKind, position::PanelPosition, view::PanelBuilder},
     plugin::PluginData,
     source_control::SourceControlData,
-    text_input::text_input_key_focus,
+    text_input::TextInputBuilder,
     window_tab::{Focus, WindowTabData},
 };
 
@@ -220,24 +220,23 @@ fn file_node_input_view(data: FileExplorerData, err: Option<String>) -> Containe
     let is_focused = move || {
         focus.with_untracked(|focus| focus == &Focus::Panel(PanelKind::FileExplorer))
     };
-    let text_input_view = text_input_key_focus(
-        naming_editor_data.clone(),
-        Some(text_input_file_explorer_data),
-        is_focused,
-    )
-    .on_event_stop(EventListener::FocusLost, move |_| {
-        data.finish_naming();
-        data.naming.set(Naming::None);
-    })
-    .style(move |s| {
-        s.width_full()
-            .height(ui_line_height.get())
-            .padding(0.0)
-            .margin(0.0)
-            .border_radius(6.0)
-            .border(1.0)
-            .border_color(config.get().color(LapceColor::LAPCE_BORDER))
-    });
+    let text_input_view = TextInputBuilder::new()
+        .is_focused(is_focused)
+        .key_focus(text_input_file_explorer_data)
+        .build_editor(naming_editor_data.clone())
+        .on_event_stop(EventListener::FocusLost, move |_| {
+            data.finish_naming();
+            data.naming.set(Naming::None);
+        })
+        .style(move |s| {
+            s.width_full()
+                .height(ui_line_height.get())
+                .padding(0.0)
+                .margin(0.0)
+                .border_radius(6.0)
+                .border(1.0)
+                .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+        });
 
     let text_input_id = text_input_view.id();
     text_input_id.request_focus();

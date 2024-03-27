@@ -20,7 +20,7 @@ use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons},
     plugin::{AvailableVoltData, InstalledVoltData, PluginData, VoltIcon},
-    text_input::text_input,
+    text_input::TextInputBuilder,
     window_tab::{Focus, WindowTabData},
 };
 
@@ -319,7 +319,9 @@ fn available_view(plugin: PluginData) -> impl View {
     stack((
         container({
             scroll(
-                text_input(editor, is_focused)
+                TextInputBuilder::new()
+                    .is_focused(is_focused)
+                    .build_editor(editor.clone())
                     .on_cursor_pos(move |point| {
                         cursor_x.set(point.x);
                     })

@@ -707,7 +707,7 @@ impl WindowTabData {
             }
 
             SaveAll => {
-                self.main_split.editors.with_untracked(|editors| {
+                self.main_split.editors.with_editors_untracked(|editors| {
                     let mut paths = HashSet::new();
                     for (_, editor_data) in editors.iter() {
                         let doc = editor_data.doc();
@@ -1373,7 +1373,7 @@ impl WindowTabData {
                             // file the renamed directory is an ancestor of is open to use the
                             // file's new path.
                             let renamed_editors_content: Vec<_> = editors
-                                .with_untracked(|editors| {
+                                .with_editors_untracked(|editors| {
                                     editors
                                         .values()
                                         .map(|editor| editor.doc().content)
@@ -1726,11 +1726,9 @@ impl WindowTabData {
                 });
 
                 let completion = self.common.completion.get_untracked();
-                let editor_data = completion.latest_editor_id.and_then(|id| {
-                    self.main_split
-                        .editors
-                        .with_untracked(|tabs| tabs.get(&id).cloned())
-                });
+                let editor_data = completion
+                    .latest_editor_id
+                    .and_then(|id| self.main_split.editors.editor_untracked(id));
                 if let Some(editor_data) = editor_data {
                     let cursor_offset =
                         editor_data.cursor().with_untracked(|c| c.offset());
@@ -1986,10 +1984,7 @@ impl WindowTabData {
         }
 
         let editor_id = self.common.hover.editor_id.get_untracked();
-        let editor_data = self
-            .main_split
-            .editors
-            .with(|editors| editors.get(&editor_id).cloned())?;
+        let editor_data = self.main_split.editors.editor(editor_id)?;
 
         let (window_origin, viewport, editor) = (
             editor_data.window_origin(),

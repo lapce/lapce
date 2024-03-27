@@ -21,7 +21,7 @@ use crate::{
     focus_text::focus_text,
     global_search::{GlobalSearchData, SearchMatchData},
     listener::Listener,
-    text_input::text_input,
+    text_input::TextInputBuilder,
     window_tab::{Focus, WindowTabData},
     workspace::LapceWorkspace,
 };
@@ -45,7 +45,10 @@ pub fn global_search_panel(
     stack((
         container(
             stack((
-                text_input(editor, is_focused).style(|s| s.width_pct(100.0)),
+                TextInputBuilder::new()
+                    .is_focused(is_focused)
+                    .build_editor(editor.clone())
+                    .style(|s| s.width_pct(100.0)),
                 clickable_icon(
                     || LapceIcons::SEARCH_CASE_SENSITIVE,
                     move || {
