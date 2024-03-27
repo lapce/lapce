@@ -22,7 +22,7 @@ use crate::{
     config::{color::LapceColor, icon::LapceIcons},
     doc::{Doc, DocContent},
     id::{DiffEditorId, EditorTabId},
-    main_split::MainSplitData,
+    main_split::{Editors, MainSplitData},
     wave::wave_box,
     window_tab::CommonData,
 };
@@ -121,6 +121,7 @@ impl DiffEditorInfo {
             editor_tab_id,
             left_doc,
             right_doc,
+            data.editors,
             data.common.clone(),
         );
 
@@ -150,13 +151,15 @@ impl DiffEditorData {
         editor_tab_id: EditorTabId,
         left_doc: Rc<Doc>,
         right_doc: Rc<Doc>,
+        editors: Editors,
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
         let confirmed = cx.create_rw_signal(false);
 
+        // TODO: ensure that left/right are cleaned up
         let [left, right] = [left_doc, right_doc].map(|doc| {
-            EditorData::new_doc(
+            editors.make_from_doc(
                 cx,
                 doc,
                 None,
@@ -193,17 +196,21 @@ impl DiffEditorData {
         cx: Scope,
         editor_tab_id: EditorTabId,
         diff_editor_id: EditorId,
+        editors: Editors,
     ) -> Self {
         let cx = cx.create_child();
         let confirmed = cx.create_rw_signal(true);
 
         let [left, right] = [&self.left, &self.right].map(|editor_data| {
-            editor_data.copy(
-                cx,
-                None,
-                Some((editor_tab_id, diff_editor_id)),
-                Some(confirmed),
-            )
+            editors
+                .make_copy(
+                    editor_data.id(),
+                    cx,
+                    None,
+                    Some((editor_tab_id, diff_editor_id)),
+                    Some(confirmed),
+                )
+                .unwrap()
         });
 
         let diff_editor = DiffEditorData {

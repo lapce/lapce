@@ -67,7 +67,7 @@ impl SourceControlData {
             branch: cx.create_rw_signal("".to_string()),
             branches: cx.create_rw_signal(im::Vector::new()),
             tags: cx.create_rw_signal(im::Vector::new()),
-            editor: EditorData::new_local(cx, editors, common.clone()),
+            editor: editors.make_local(cx, common.clone()),
             common,
         }
     }

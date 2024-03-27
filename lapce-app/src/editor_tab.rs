@@ -50,8 +50,8 @@ impl EditorTabChildInfo {
     ) -> EditorTabChild {
         match &self {
             EditorTabChildInfo::Editor(editor_info) => {
-                let editor_data = editor_info.to_data(data, editor_tab_id);
-                EditorTabChild::Editor(editor_data.id())
+                let editor_id = editor_info.to_data(data, editor_tab_id);
+                EditorTabChild::Editor(editor_id)
             }
             EditorTabChildInfo::DiffEditor(diff_editor_info) => {
                 let diff_editor_data = diff_editor_info.to_data(data, editor_tab_id);

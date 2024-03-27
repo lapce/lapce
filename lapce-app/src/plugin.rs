@@ -155,7 +155,7 @@ impl PluginData {
             volts: cx.create_rw_signal(IndexMap::new()),
             total: cx.create_rw_signal(0),
             query_id: cx.create_rw_signal(0),
-            query_editor: EditorData::new_local(cx, editors, common.clone()),
+            query_editor: editors.make_local(cx, common.clone()),
         };
         let disabled = cx.create_rw_signal(disabled);
         let workspace_disabled = cx.create_rw_signal(workspace_disabled);

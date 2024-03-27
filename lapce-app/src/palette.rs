@@ -124,10 +124,8 @@ impl PaletteData {
             kind: PaletteKind::File,
         });
         let kind = cx.create_rw_signal(PaletteKind::File);
-        let input_editor =
-            EditorData::new_local(cx, main_split.editors, common.clone());
-        let preview_editor =
-            EditorData::new_local(cx, main_split.editors, common.clone());
+        let input_editor = main_split.editors.make_local(cx, common.clone());
+        let preview_editor = main_split.editors.make_local(cx, common.clone());
         let has_preview = cx.create_rw_signal(false);
         let run_id = cx.create_rw_signal(0);
         let run_id_counter = Arc::new(AtomicU64::new(0));

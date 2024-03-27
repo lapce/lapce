@@ -252,6 +252,88 @@ impl Editors {
         });
     }
 
+    pub fn new_local(&self, cx: Scope, common: Rc<CommonData>) -> EditorId {
+        let editor = EditorData::new_local(cx, *self, common);
+
+        self.insert(editor)
+    }
+
+    /// Equivalent to [`Self::new_local`], but immediately gets the created editor.
+    pub fn make_local(&self, cx: Scope, common: Rc<CommonData>) -> EditorData {
+        let id = self.new_local(cx, common);
+        self.editor_untracked(id).unwrap()
+    }
+
+    pub fn new_from_doc(
+        &self,
+        cx: Scope,
+        doc: Rc<Doc>,
+        editor_tab_id: Option<EditorTabId>,
+        diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
+        confirmed: Option<RwSignal<bool>>,
+        common: Rc<CommonData>,
+    ) -> EditorId {
+        let editor = EditorData::new_doc(
+            cx,
+            doc,
+            editor_tab_id,
+            diff_editor_id,
+            confirmed,
+            common,
+        );
+
+        self.insert(editor)
+    }
+
+    /// Equivalent to [`Self::new_editor_doc`], but immediately gets the created editor.
+    pub fn make_from_doc(
+        &self,
+        cx: Scope,
+        doc: Rc<Doc>,
+        editor_tab_id: Option<EditorTabId>,
+        diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
+        confirmed: Option<RwSignal<bool>>,
+        common: Rc<CommonData>,
+    ) -> EditorData {
+        let id = self.new_from_doc(
+            cx,
+            doc,
+            editor_tab_id,
+            diff_editor_id,
+            confirmed,
+            common,
+        );
+        self.editor_untracked(id).unwrap()
+    }
+
+    /// Copy an existing editor which is inserted into [`Editors`]
+    pub fn copy(
+        &self,
+        editor_id: EditorId,
+        cx: Scope,
+        editor_tab_id: Option<EditorTabId>,
+        diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
+        confirmed: Option<RwSignal<bool>>,
+    ) -> Option<EditorId> {
+        let editor = self.editor_untracked(editor_id)?;
+        let new_editor = editor.copy(cx, editor_tab_id, diff_editor_id, confirmed);
+
+        Some(self.insert(new_editor))
+    }
+
+    pub fn make_copy(
+        &self,
+        editor_id: EditorId,
+        cx: Scope,
+        editor_tab_id: Option<EditorTabId>,
+        diff_editor_id: Option<(EditorTabId, DiffEditorId)>,
+        confirmed: Option<RwSignal<bool>>,
+    ) -> Option<EditorData> {
+        let editor_id =
+            self.copy(editor_id, cx, editor_tab_id, diff_editor_id, confirmed)?;
+        Some(self.editor_untracked(editor_id)?)
+    }
+
     pub fn remove(&self, id: EditorId) -> Option<EditorData> {
         self.0.try_update(|editors| editors.remove(&id)).unwrap()
     }
@@ -322,8 +404,8 @@ impl MainSplitData {
         let locations = cx.create_rw_signal(im::Vector::new());
         let current_location = cx.create_rw_signal(0);
         let diagnostics = cx.create_rw_signal(im::HashMap::new());
-        let find_editor = EditorData::new_local(cx, editors, common.clone());
-        let replace_editor = EditorData::new_local(cx, editors, common.clone());
+        let find_editor = editors.make_local(cx, common.clone());
+        let replace_editor = editors.make_local(cx, common.clone());
 
         let active_editor = cx.create_memo(move |_| -> Option<EditorData> {
             let active_editor_tab = active_editor_tab.get()?;
@@ -914,7 +996,7 @@ impl MainSplitData {
             |editor_tab_id: EditorTabId, source: &EditorTabChildSource| match source
             {
                 EditorTabChildSource::Editor { doc, .. } => {
-                    let editor = EditorData::new_doc(
+                    let editor_id = editors.new_from_doc(
                         self.scope,
                         doc.clone(),
                         Some(editor_tab_id),
@@ -923,7 +1005,7 @@ impl MainSplitData {
                         self.common.clone(),
                     );
 
-                    EditorTabChild::Editor(self.editors.insert(editor))
+                    EditorTabChild::Editor(editor_id)
                 }
                 EditorTabChildSource::NewFileEditor => {
                     let name = self.get_name_for_new_file();
@@ -941,7 +1023,7 @@ impl MainSplitData {
                     self.scratch_docs.update(|scratch_docs| {
                         scratch_docs.insert(name, doc.clone());
                     });
-                    let editor = EditorData::new_doc(
+                    let editor_id = editors.new_from_doc(
                         self.scope,
                         doc,
                         Some(editor_tab_id),
@@ -950,7 +1032,7 @@ impl MainSplitData {
                         self.common.clone(),
                     );
 
-                    EditorTabChild::Editor(self.editors.insert(editor))
+                    EditorTabChild::Editor(editor_id)
                 }
                 EditorTabChildSource::Settings => {
                     EditorTabChild::Settings(SettingsId::next())
@@ -972,6 +1054,7 @@ impl MainSplitData {
                         editor_tab_id,
                         left.clone(),
                         right.clone(),
+                        editors.clone(),
                         self.common.clone(),
                     );
                     self.diff_editors.update(|diff_editors| {
@@ -1415,22 +1498,22 @@ impl MainSplitData {
 
         let new_child = match child {
             EditorTabChild::Editor(editor_id) => {
-                let editor = self.editors.editor_untracked(*editor_id)?.copy(
-                    cx,
-                    Some(editor_tab_id),
-                    None,
-                    None,
-                );
+                let editor_id = self
+                    .editors
+                    .copy(*editor_id, cx, Some(editor_tab_id), None, None)
+                    .unwrap();
 
-                EditorTabChild::Editor(self.editors.insert(editor))
+                EditorTabChild::Editor(editor_id)
             }
             EditorTabChild::DiffEditor(diff_editor_id) => {
                 let new_diff_editor_id = DiffEditorId::next();
-                let diff_editor = self
-                    .diff_editors
-                    .get_untracked()
-                    .get(diff_editor_id)?
-                    .copy(cx, editor_tab_id, new_diff_editor_id);
+                let diff_editor =
+                    self.diff_editors.get_untracked().get(diff_editor_id)?.copy(
+                        cx,
+                        editor_tab_id,
+                        new_diff_editor_id,
+                        self.editors.clone(),
+                    );
                 self.diff_editors.update(|diff_editors| {
                     diff_editors.insert(new_diff_editor_id, diff_editor);
                 });
@@ -1884,6 +1967,7 @@ impl MainSplitData {
                         let editor_id = editor.id();
                         let save_action = Rc::new(move || {
                             internal_command.send(InternalCommand::HideAlert);
+                            let editors = editors.clone();
                             editor.save(false, move || {
                                 if let Some(editor) =
                                     editors.editor_untracked(editor_id)

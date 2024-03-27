@@ -18,10 +18,9 @@ use lapce_core::mode::Modes;
 use crate::{
     command::LapceCommand,
     config::{color::LapceColor, LapceConfig},
-    editor::EditorData,
     keypress::{keymap::KeyMap, KeyPress, KeyPressData},
     main_split::Editors,
-    text_input::text_input,
+    text_input::TextInputBuilder,
     window_tab::CommonData,
 };
 
@@ -45,8 +44,8 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
     };
 
     let cx = Scope::current();
-    let editor = EditorData::new_local(cx, editors, common.clone());
-    let doc = editor.doc_signal();
+    let text_input_view = TextInputBuilder::new().build(cx, editors, common.clone());
+    let doc = text_input_view.doc_signal();
 
     let items = move || {
         let doc = doc.get();
@@ -279,7 +278,7 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
 
     stack((
         container(
-            text_input(editor, || false)
+            text_input_view
                 .placeholder(|| "Search Key Bindings".to_string())
                 .keyboard_navigatable()
                 .style(move |s| {

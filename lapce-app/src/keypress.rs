@@ -86,6 +86,36 @@ impl KeyPressFocus for () {
 
     fn receive_char(&self, _c: &str) {}
 }
+impl KeyPressFocus for Box<dyn KeyPressFocus> {
+    fn get_mode(&self) -> Mode {
+        (**self).get_mode()
+    }
+
+    fn check_condition(&self, condition: Condition) -> bool {
+        (**self).check_condition(condition)
+    }
+
+    fn run_command(
+        &self,
+        command: &LapceCommand,
+        count: Option<usize>,
+        mods: ModifiersState,
+    ) -> CommandExecuted {
+        (**self).run_command(command, count, mods)
+    }
+
+    fn expect_char(&self) -> bool {
+        (**self).expect_char()
+    }
+
+    fn focus_only(&self) -> bool {
+        (**self).focus_only()
+    }
+
+    fn receive_char(&self, c: &str) {
+        (**self).receive_char(c)
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum EventRef<'a> {

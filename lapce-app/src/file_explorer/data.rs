@@ -122,7 +122,7 @@ impl FileExplorerData {
             children_open_count: 0,
         });
         let naming = cx.create_rw_signal(Naming::None);
-        let naming_editor_data = EditorData::new_local(cx, editors, common.clone());
+        let naming_editor_data = editors.make_local(cx, common.clone());
         let data = Self {
             root,
             naming,

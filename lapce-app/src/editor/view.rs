@@ -45,7 +45,7 @@ use crate::{
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     debug::LapceBreakpoint,
     doc::DocContent,
-    text_input::text_input,
+    text_input::TextInputBuilder,
     window_tab::{Focus, WindowTabData},
     workspace::LapceWorkspace,
 };
@@ -1772,17 +1772,19 @@ fn search_editor_view(
     let visual = find_editor.common.find.visual;
 
     stack((
-        text_input(find_editor, move || {
-            is_active(true)
-                && visual.get()
-                && find_focus.get()
-                && !replace_focus.get()
-        })
-        .on_event_cont(EventListener::PointerDown, move |_| {
-            find_focus.set(true);
-            replace_focus.set(false);
-        })
-        .style(|s| s.width_pct(100.0)),
+        TextInputBuilder::new()
+            .is_focused(move || {
+                is_active(true)
+                    && visual.get()
+                    && find_focus.get()
+                    && !replace_focus.get()
+            })
+            .build_editor(find_editor)
+            .on_event_cont(EventListener::PointerDown, move |_| {
+                find_focus.set(true);
+                replace_focus.set(false);
+            })
+            .style(|s| s.width_pct(100.0)),
         clickable_icon(
             || LapceIcons::SEARCH_CASE_SENSITIVE,
             move || {
@@ -1850,18 +1852,20 @@ fn replace_editor_view(
     let visual = replace_editor.common.find.visual;
 
     stack((
-        text_input(replace_editor, move || {
-            is_active(true)
-                && visual.get()
-                && find_focus.get()
-                && replace_active.get()
-                && replace_focus.get()
-        })
-        .on_event_cont(EventListener::PointerDown, move |_| {
-            find_focus.set(true);
-            replace_focus.set(true);
-        })
-        .style(|s| s.width_pct(100.0)),
+        TextInputBuilder::new()
+            .is_focused(move || {
+                is_active(true)
+                    && visual.get()
+                    && find_focus.get()
+                    && replace_active.get()
+                    && replace_focus.get()
+            })
+            .build_editor(replace_editor)
+            .on_event_cont(EventListener::PointerDown, move |_| {
+                find_focus.set(true);
+                replace_focus.set(true);
+            })
+            .style(|s| s.width_pct(100.0)),
         empty().style(move |s| {
             let config = config.get();
             let size = config.ui.icon_size() as f32 + 10.0;

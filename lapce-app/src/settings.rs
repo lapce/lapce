@@ -33,11 +33,10 @@ use crate::{
         color::LapceColor, core::CoreConfig, editor::EditorConfig, icon::LapceIcons,
         terminal::TerminalConfig, ui::UIConfig, DropdownInfo, LapceConfig,
     },
-    editor::EditorData,
     keypress::KeyPressFocus,
     main_split::Editors,
     plugin::InstalledVoltData,
-    text_input::text_input,
+    text_input::TextInputBuilder,
     window_tab::CommonData,
 };
 
@@ -318,7 +317,7 @@ pub fn settings_view(
     let view_settings_data = settings_data.clone();
     let plugin_kinds = settings_data.plugin_kinds;
 
-    let search_editor = EditorData::new_local(cx, editors, common);
+    let search_editor = editors.make_local(cx, common);
     let doc = search_editor.doc_signal();
 
     let items = settings_data.items.clone();
@@ -471,7 +470,8 @@ pub fn settings_view(
         }),
         stack((
             container({
-                text_input(search_editor, || false)
+                TextInputBuilder::new()
+                    .build_editor(search_editor)
                     .placeholder(|| "Search Settings".to_string())
                     .keyboard_navigatable()
                     .style(move |s| {
@@ -554,15 +554,17 @@ fn settings_item_view(
         move || {
             let cx = Scope::current();
             if let Some(editor_value) = editor_value {
-                let editor =
-                    EditorData::new_local(cx, editors, settings_data.common);
-                let doc = editor.doc();
-                doc.reload(Rope::from(editor_value), true);
+                let text_input_view = TextInputBuilder::new()
+                    .value(editor_value)
+                    .build(cx, editors, settings_data.common);
+
+                let doc = text_input_view.doc_signal();
 
                 let kind = item.kind.clone();
                 let field = item.field.clone();
                 let item_value = item.value.clone();
                 create_effect(move |last| {
+                    let doc = doc.get_untracked();
                     let rev = doc.buffer.with(|b| b.rev());
                     if last.is_none() {
                         return rev;
@@ -617,13 +619,12 @@ fn settings_item_view(
                     rev
                 });
 
-                container(text_input(editor, || false).keyboard_navigatable().style(
-                    move |s| {
-                        s.width(300.0).border(1.0).border_radius(6.0).border_color(
-                            config.get().color(LapceColor::LAPCE_BORDER),
-                        )
-                    },
-                ))
+                container(text_input_view.keyboard_navigatable().style(move |s| {
+                    s.width(300.0)
+                        .border(1.0)
+                        .border_radius(6.0)
+                        .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                }))
             } else if let SettingsValue::Dropdown(dropdown) = item.value {
                 let expanded = create_rw_signal(false);
                 let current_value = dropdown
@@ -921,15 +922,17 @@ fn color_section_list(
             move |(key, _)| (key.to_owned()),
             move |(key, value)| {
                 let cx = Scope::current();
-                let editor = EditorData::new_local(cx, editors, common.clone());
-                let doc = editor.doc();
-                doc.reload(Rope::from(value.clone()), true);
+                let text_input_view = TextInputBuilder::new()
+                    .value(value.clone())
+                    .build(cx, editors, common.clone());
+                let doc = text_input_view.doc_signal();
 
                 {
                     let kind = kind.clone();
                     let key = key.clone();
-                    let doc = doc.clone();
+                    let doc = text_input_view.doc_signal();
                     create_effect(move |_| {
+                        let doc = doc.get_untracked();
                         let config = config.get();
                         let current = doc.buffer.with_untracked(|b| b.to_string());
 
@@ -952,8 +955,9 @@ fn color_section_list(
                     let timer = create_rw_signal(TimerToken::INVALID);
                     let kind = kind.clone();
                     let field = key.clone();
-                    let doc = doc.clone();
                     create_effect(move |last| {
+                        let doc = doc.get_untracked();
+
                         let rev = doc.buffer.with(|b| b.rev());
                         if last.is_none() {
                             return rev;
@@ -1024,17 +1028,15 @@ fn color_section_list(
                     text(&key).style(move |s| {
                         s.width(max_width.get()).margin_left(20).margin_right(10)
                     }),
-                    text_input(editor, || false).keyboard_navigatable().style(
-                        move |s| {
-                            s.width(150.0)
-                                .margin_vert(6)
-                                .border(1)
-                                .border_radius(6)
-                                .border_color(
-                                    config.get().color(LapceColor::LAPCE_BORDER),
-                                )
-                        },
-                    ),
+                    text_input_view.keyboard_navigatable().style(move |s| {
+                        s.width(150.0)
+                            .margin_vert(6)
+                            .border(1)
+                            .border_radius(6)
+                            .border_color(
+                                config.get().color(LapceColor::LAPCE_BORDER),
+                            )
+                    }),
                     empty().style(move |s| {
                         let size = text_height.get() + 12.0;
                         let config = config.get();
@@ -1066,6 +1068,7 @@ fn color_section_list(
                                 );
                             })
                             .style(move |s| {
+                                let doc = doc.get_untracked();
                                 let config = config.get();
                                 let buffer = doc.buffer;
                                 let content = buffer.with(|b| b.to_string());

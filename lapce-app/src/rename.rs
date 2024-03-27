@@ -73,7 +73,7 @@ impl RenameData {
         let position = cx.create_rw_signal(Position::default());
         let layout_rect = cx.create_rw_signal(Rect::ZERO);
         let path = cx.create_rw_signal(PathBuf::new());
-        let editor = EditorData::new_local(cx, editors, common.clone());
+        let editor = editors.make_local(cx, common.clone());
         Self {
             active,
             editor,

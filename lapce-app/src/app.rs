@@ -89,7 +89,7 @@ use crate::{
     plugin::{plugin_info_view, PluginData},
     settings::{settings_view, theme_color_settings_view},
     status::status,
-    text_input::text_input,
+    text_input::TextInputBuilder,
     title::{title, window_controls_view},
     update::ReleaseInfo,
     window::{TabsInfo, WindowData, WindowInfo},
@@ -1195,7 +1195,7 @@ fn editor_tab_content(
                                 &diff_editor_data.right,
                             ),
                         ))
-                        .style(|s| s.size_full()),
+                        .style(|s: Style| s.size_full()),
                     )
                     .on_cleanup(move || {
                         diff_editor_scope.dispose();
@@ -2383,7 +2383,9 @@ fn palette_input(window_tab_data: Rc<WindowTabData>) -> impl View {
     let focus = window_tab_data.common.focus;
     let is_focused = move || focus.get() == Focus::Palette;
 
-    let input = text_input(editor, is_focused)
+    let input = TextInputBuilder::new()
+        .is_focused(is_focused)
+        .build_editor(editor)
         .placeholder(move || window_tab_data.palette.placeholder_text().to_owned())
         .style(|s| s.width_full());
 
@@ -2970,7 +2972,10 @@ fn rename(window_tab_data: Rc<WindowTabData>) -> impl View {
 
     container(
         container(
-            text_input(editor, move || active.get()).style(|s| s.width(150.0)),
+            TextInputBuilder::new()
+                .is_focused(move || active.get())
+                .build_editor(editor)
+                .style(|s| s.width(150.0)),
         )
         .style(move |s| {
             let config = config.get();

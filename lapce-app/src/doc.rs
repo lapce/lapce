@@ -1983,8 +1983,6 @@ impl Styling for DocStyling {
             EditorColor::Scrollbar => LapceColor::LAPCE_SCROLL_BAR,
             EditorColor::DropdownShadow => LapceColor::LAPCE_DROPDOWN_SHADOW,
             EditorColor::PreeditUnderline => LapceColor::EDITOR_FOREGROUND,
-            EditorColor::Foreground => return Color::WHITE,
-            EditorColor::Background => return Color::BLACK,
             _ => color.into(),
         };
 
