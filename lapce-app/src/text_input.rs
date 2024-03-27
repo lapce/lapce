@@ -58,9 +58,15 @@ pub struct TextInputBuilder {
     // TODO: it'd be nice to not need to box this
     key_focus: Option<Box<dyn KeyPressFocus>>,
     value: Option<Rope>,
-
     keyboard_focus: RwSignal<bool>,
 }
+
+impl Default for TextInputBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TextInputBuilder {
     pub fn new() -> Self {
         Self {

@@ -18,7 +18,10 @@ use lapce_core::mode::Modes;
 use crate::{
     command::LapceCommand,
     config::{color::LapceColor, LapceConfig},
-    keypress::{keymap::KeyMap, KeyPress, KeyPressData},
+    keypress::{
+        keymap::{KeyMap, KeyMapPress},
+        KeyPressData,
+    },
     main_split::Editors,
     text_input::TextInputBuilder,
     window_tab::CommonData,
