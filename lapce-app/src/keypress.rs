@@ -12,12 +12,17 @@ use floem::{
     pointer::PointerInputEvent,
     reactive::{RwSignal, Scope},
 };
+use floem_winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::mode::{Mode, Modes};
 use tracing::{debug, error};
 
-use self::{key::KeyInput, keymap::KeyMap, loader::KeyMapLoader};
+use self::{
+    key::KeyInput,
+    keymap::{KeyMap, KeyMapPress},
+    loader::KeyMapLoader,
+};
 use crate::{
     command::{lapce_internal_commands, CommandExecuted, CommandKind, LapceCommand},
     config::LapceConfig,
@@ -140,7 +145,7 @@ pub struct KeyPressData {
     count: RwSignal<Option<usize>>,
     pending_keypress: RwSignal<Vec<KeyPress>>,
     pub commands: Rc<IndexMap<String, LapceCommand>>,
-    pub keymaps: Rc<IndexMap<Vec<KeyPress>, Vec<KeyMap>>>,
+    pub keymaps: Rc<IndexMap<Vec<KeyMapPress>, Vec<KeyMap>>>,
     pub command_keymaps: Rc<IndexMap<String, Vec<KeyMap>>>,
     pub commands_with_keymap: Rc<Vec<KeyMap>>,
     pub commands_without_keymap: Rc<Vec<LapceCommand>>,
@@ -209,7 +214,11 @@ impl KeyPressData {
             return false;
         }
 
-        if let KeyInput::Keyboard(Key::Character(c), _key_code) = &keypress.key {
+        if let KeyInput::Keyboard {
+            logical: Key::Character(c),
+            ..
+        } = &keypress.key
+        {
             if let Ok(n) = c.parse::<usize>() {
                 if self.count.with_untracked(|count| count.is_some()) || n > 0 {
                     self.count
@@ -242,10 +251,11 @@ impl KeyPressData {
 
         let keypress = match event {
             EventRef::Keyboard(ev) => KeyPress {
-                key: KeyInput::Keyboard(
-                    ev.key.logical_key.clone(),
-                    ev.key.physical_key,
-                ),
+                key: KeyInput::Keyboard {
+                    logical: ev.key.logical_key.to_owned(),
+                    physical: ev.key.physical_key,
+                    key_without_modifiers: ev.key.key_without_modifiers(),
+                },
                 mods: Self::get_key_modifiers(ev),
             },
             EventRef::Pointer(ev) => KeyPress {
@@ -340,16 +350,16 @@ impl KeyPressData {
             mods.set(ModifiersState::SHIFT, false);
         }
         if mods.is_empty() {
-            if let KeyInput::Keyboard(Key::Character(c), _key_code) = &keypress.key {
-                focus.receive_char(c);
-                self.count.set(None);
-                return true;
-            } else if let KeyInput::Keyboard(Key::Named(NamedKey::Space), _) =
-                &keypress.key
-            {
-                focus.receive_char(" ");
-                self.count.set(None);
-                return true;
+            if let KeyInput::Keyboard { logical, .. } = &keypress.key {
+                if let Key::Character(c) = logical {
+                    focus.receive_char(c);
+                    self.count.set(None);
+                    return true;
+                } else if let Key::Named(NamedKey::Space) = logical {
+                    focus.receive_char(" ");
+                    self.count.set(None);
+                    return true;
+                }
             }
         }
 
@@ -377,8 +387,8 @@ impl KeyPressData {
         keypresses: &[KeyPress],
         check: &T,
     ) -> KeymapMatch {
-        let keypresses: Vec<KeyPress> =
-            keypresses.iter().map(KeyPress::to_lowercase).collect();
+        let keypresses: Vec<KeyMapPress> =
+            keypresses.iter().map(|k| k.keymap_press()).collect();
         let matches: Vec<_> = self
             .keymaps
             .get(&keypresses)
@@ -468,7 +478,7 @@ impl KeyPressData {
     fn get_keymaps(
         config: &LapceConfig,
     ) -> Result<(
-        IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
+        IndexMap<Vec<KeyMapPress>, Vec<KeyMap>>,
         IndexMap<String, Vec<KeyMap>>,
     )> {
         let is_modal = config.core.modal;
@@ -515,7 +525,7 @@ impl KeyPressData {
             .cloned()
     }
 
-    pub fn update_file(keymap: &KeyMap, keys: &[KeyPress]) -> Option<()> {
+    pub fn update_file(keymap: &KeyMap, keys: &[KeyMapPress]) -> Option<()> {
         let mut array = Self::get_file_array().unwrap_or_default();
         let index = array.iter().position(|value| {
             Some(keymap.command.as_str())
@@ -527,7 +537,7 @@ impl KeyPressData {
                     == value
                         .get("key")
                         .and_then(|v| v.as_str())
-                        .map(KeyPress::parse)
+                        .map(KeyMapPress::parse)
         });
 
         if let Some(index) = index {

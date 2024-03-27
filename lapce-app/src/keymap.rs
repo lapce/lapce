@@ -18,7 +18,10 @@ use lapce_core::mode::Modes;
 use crate::{
     command::LapceCommand,
     config::{color::LapceColor, LapceConfig},
-    keypress::{keymap::KeyMap, KeyPress, KeyPressData},
+    keypress::{
+        keymap::{KeyMap, KeyMapPress},
+        KeyPressData,
+    },
     main_split::Editors,
     text_input::TextInputBuilder,
     window_tab::CommonData,
@@ -28,7 +31,7 @@ use crate::{
 pub struct KeymapPicker {
     cmd: RwSignal<Option<LapceCommand>>,
     keymap: RwSignal<Option<KeyMap>>,
-    keys: RwSignal<Vec<(KeyPress, bool)>>,
+    keys: RwSignal<Vec<(KeyMapPress, bool)>>,
 }
 
 pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
@@ -142,7 +145,7 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
                                     keymap
                                         .key
                                         .iter()
-                                        .map(|key| key.label().trim().to_string())
+                                        .map(|key| key.label())
                                         .filter(|l| !l.is_empty())
                                         .collect::<Vec<String>>()
                                 })
@@ -395,7 +398,7 @@ fn keyboard_picker_view(
                         .keys
                         .get()
                         .iter()
-                        .map(|(key, _)| key.label().trim().to_string())
+                        .map(|(key, _)| key.label())
                         .filter(|l| !l.is_empty())
                         .enumerate()
                         .collect::<Vec<(usize, String)>>()
@@ -458,7 +461,7 @@ fn keyboard_picker_view(
                                 &keys
                                     .iter()
                                     .map(|(key, _)| key.clone())
-                                    .collect::<Vec<KeyPress>>(),
+                                    .collect::<Vec<KeyMapPress>>(),
                             );
                         }
                     }),
@@ -513,6 +516,7 @@ fn keyboard_picker_view(
     .on_event_stop(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             if let Some(keypress) = KeyPressData::keypress(key_event) {
+                let keypress = keypress.keymap_press();
                 picker.keys.update(|keys| {
                     if let Some((last_key, last_key_confirmed)) = keys.last() {
                         if !*last_key_confirmed && last_key.is_modifiers() {

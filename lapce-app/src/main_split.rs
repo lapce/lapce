@@ -331,7 +331,7 @@ impl Editors {
     ) -> Option<EditorData> {
         let editor_id =
             self.copy(editor_id, cx, editor_tab_id, diff_editor_id, confirmed)?;
-        Some(self.editor_untracked(editor_id)?)
+        self.editor_untracked(editor_id)
     }
 
     pub fn remove(&self, id: EditorId) -> Option<EditorData> {
@@ -1054,7 +1054,7 @@ impl MainSplitData {
                         editor_tab_id,
                         left.clone(),
                         right.clone(),
-                        editors.clone(),
+                        editors,
                         self.common.clone(),
                     );
                     self.diff_editors.update(|diff_editors| {
@@ -1507,13 +1507,11 @@ impl MainSplitData {
             }
             EditorTabChild::DiffEditor(diff_editor_id) => {
                 let new_diff_editor_id = DiffEditorId::next();
-                let diff_editor =
-                    self.diff_editors.get_untracked().get(diff_editor_id)?.copy(
-                        cx,
-                        editor_tab_id,
-                        new_diff_editor_id,
-                        self.editors.clone(),
-                    );
+                let diff_editor = self
+                    .diff_editors
+                    .get_untracked()
+                    .get(diff_editor_id)?
+                    .copy(cx, editor_tab_id, new_diff_editor_id, self.editors);
                 self.diff_editors.update(|diff_editors| {
                     diff_editors.insert(new_diff_editor_id, diff_editor);
                 });
@@ -1967,7 +1965,6 @@ impl MainSplitData {
                         let editor_id = editor.id();
                         let save_action = Rc::new(move || {
                             internal_command.send(InternalCommand::HideAlert);
-                            let editors = editors.clone();
                             editor.save(false, move || {
                                 if let Some(editor) =
                                     editors.editor_untracked(editor_id)

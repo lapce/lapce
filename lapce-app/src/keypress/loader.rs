@@ -3,10 +3,10 @@ use indexmap::IndexMap;
 use lapce_core::mode::Modes;
 use tracing::{debug, error};
 
-use super::{keymap::KeyMap, press::KeyPress};
+use super::keymap::{KeyMap, KeyMapPress};
 
 pub struct KeyMapLoader {
-    keymaps: IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
+    keymaps: IndexMap<Vec<KeyMapPress>, Vec<KeyMap>>,
     command_keymaps: IndexMap<String, Vec<KeyMap>>,
 }
 
@@ -80,7 +80,7 @@ impl KeyMapLoader {
     pub fn finalize(
         self,
     ) -> (
-        IndexMap<Vec<KeyPress>, Vec<KeyMap>>,
+        IndexMap<Vec<KeyMapPress>, Vec<KeyMap>>,
         IndexMap<String, Vec<KeyMap>>,
     ) {
         let Self {
@@ -112,7 +112,7 @@ impl KeyMapLoader {
         }
 
         Ok(Some(KeyMap {
-            key: KeyPress::parse(key),
+            key: KeyMapPress::parse(key),
             modes,
             when: toml_keymap
                 .get("when")
@@ -190,49 +190,49 @@ command = "goto_definition"
         let (keymaps, _) = loader.finalize();
 
         // Lower case modifiers
-        let keypress = KeyPress::parse("ctrl+w");
+        let keypress = KeyMapPress::parse("ctrl+w");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 4);
 
-        let keypress = KeyPress::parse("ctrl+w l");
+        let keypress = KeyMapPress::parse("ctrl+w l");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 2);
 
-        let keypress = KeyPress::parse("ctrl+w h");
+        let keypress = KeyMapPress::parse("ctrl+w h");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
-        let keypress = KeyPress::parse("ctrl+w l l");
+        let keypress = KeyMapPress::parse("ctrl+w l l");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
-        let keypress = KeyPress::parse("end");
+        let keypress = KeyMapPress::parse("end");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
         // Upper case modifiers
-        let keypress = KeyPress::parse("Ctrl+w");
+        let keypress = KeyMapPress::parse("Ctrl+w");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 4);
 
-        let keypress = KeyPress::parse("Ctrl+w l");
+        let keypress = KeyMapPress::parse("Ctrl+w l");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 2);
 
-        let keypress = KeyPress::parse("Ctrl+w h");
+        let keypress = KeyMapPress::parse("Ctrl+w h");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
-        let keypress = KeyPress::parse("Ctrl+w l l");
+        let keypress = KeyMapPress::parse("Ctrl+w l l");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
-        let keypress = KeyPress::parse("End");
+        let keypress = KeyMapPress::parse("End");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
         // No modifier
-        let keypress = KeyPress::parse("shift+i");
+        let keypress = KeyMapPress::parse("shift+i");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
         // Mouse keys
-        let keypress = KeyPress::parse("MouseForward");
+        let keypress = KeyMapPress::parse("MouseForward");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
-        let keypress = KeyPress::parse("mousebackward");
+        let keypress = KeyMapPress::parse("mousebackward");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
 
-        let keypress = KeyPress::parse("Ctrl+MouseMiddle");
+        let keypress = KeyMapPress::parse("Ctrl+MouseMiddle");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
     }
 }
