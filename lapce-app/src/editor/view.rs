@@ -45,7 +45,7 @@ use crate::{
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     debug::LapceBreakpoint,
     doc::DocContent,
-    text_input::text_input,
+    text_input::TextInputBuilder,
     window_tab::{Focus, WindowTabData},
     workspace::LapceWorkspace,
 };
@@ -58,7 +58,7 @@ struct StickyHeaderInfo {
 
 pub struct EditorView {
     data: ViewData,
-    editor: Rc<EditorData>,
+    editor: EditorData,
     is_active: Memo<bool>,
     inner_node: Option<NodeId>,
     viewport: RwSignal<Rect>,
@@ -67,7 +67,7 @@ pub struct EditorView {
 }
 
 pub fn editor_view(
-    e_data: Rc<EditorData>,
+    e_data: EditorData,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> EditorView {
@@ -1131,7 +1131,7 @@ pub fn editor_container_view(
     window_tab_data: Rc<WindowTabData>,
     workspace: Arc<LapceWorkspace>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
-    editor: RwSignal<Rc<EditorData>>,
+    editor: RwSignal<EditorData>,
 ) -> impl View {
     let (editor_id, find_focus, sticky_header_height, editor_view, config) = editor
         .with_untracked(|editor| {
@@ -1197,7 +1197,7 @@ pub fn editor_container_view(
         .style(|s| s.size_pct(100.0, 100.0)),
     ))
     .on_cleanup(move || {
-        if editors.with_untracked(|editors| editors.contains_key(&editor_id)) {
+        if editors.contains_untracked(editor_id) {
             // editor still exist, so it might be moved to a different editor tab
             return;
         }
@@ -1224,7 +1224,7 @@ pub fn editor_container_view(
 
 fn editor_gutter(
     window_tab_data: Rc<WindowTabData>,
-    e_data: RwSignal<Rc<EditorData>>,
+    e_data: RwSignal<EditorData>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
     let breakpoints = window_tab_data.terminal.debug.breakpoints;
@@ -1526,7 +1526,7 @@ fn editor_gutter(
 
 fn editor_breadcrumbs(
     workspace: Arc<LapceWorkspace>,
-    e_data: Rc<EditorData>,
+    e_data: EditorData,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
     let doc = e_data.doc_signal();
@@ -1638,7 +1638,7 @@ fn editor_breadcrumbs(
 }
 
 fn editor_content(
-    e_data: RwSignal<Rc<EditorData>>,
+    e_data: RwSignal<EditorData>,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> impl View {
@@ -1772,17 +1772,19 @@ fn search_editor_view(
     let visual = find_editor.common.find.visual;
 
     stack((
-        text_input(find_editor, move || {
-            is_active(true)
-                && visual.get()
-                && find_focus.get()
-                && !replace_focus.get()
-        })
-        .on_event_cont(EventListener::PointerDown, move |_| {
-            find_focus.set(true);
-            replace_focus.set(false);
-        })
-        .style(|s| s.width_pct(100.0)),
+        TextInputBuilder::new()
+            .is_focused(move || {
+                is_active(true)
+                    && visual.get()
+                    && find_focus.get()
+                    && !replace_focus.get()
+            })
+            .build_editor(find_editor)
+            .on_event_cont(EventListener::PointerDown, move |_| {
+                find_focus.set(true);
+                replace_focus.set(false);
+            })
+            .style(|s| s.width_pct(100.0)),
         clickable_icon(
             || LapceIcons::SEARCH_CASE_SENSITIVE,
             move || {
@@ -1850,18 +1852,20 @@ fn replace_editor_view(
     let visual = replace_editor.common.find.visual;
 
     stack((
-        text_input(replace_editor, move || {
-            is_active(true)
-                && visual.get()
-                && find_focus.get()
-                && replace_active.get()
-                && replace_focus.get()
-        })
-        .on_event_cont(EventListener::PointerDown, move |_| {
-            find_focus.set(true);
-            replace_focus.set(true);
-        })
-        .style(|s| s.width_pct(100.0)),
+        TextInputBuilder::new()
+            .is_focused(move || {
+                is_active(true)
+                    && visual.get()
+                    && find_focus.get()
+                    && replace_active.get()
+                    && replace_focus.get()
+            })
+            .build_editor(replace_editor)
+            .on_event_cont(EventListener::PointerDown, move |_| {
+                find_focus.set(true);
+                replace_focus.set(true);
+            })
+            .style(|s| s.width_pct(100.0)),
         empty().style(move |s| {
             let config = config.get();
             let size = config.ui.icon_size() as f32 + 10.0;
@@ -1880,7 +1884,7 @@ fn replace_editor_view(
 }
 
 fn find_view(
-    editor: RwSignal<Rc<EditorData>>,
+    editor: RwSignal<EditorData>,
     find_editor: EditorData,
     find_focus: RwSignal<bool>,
     replace_editor: EditorData,

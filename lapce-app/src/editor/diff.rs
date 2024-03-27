@@ -22,7 +22,7 @@ use crate::{
     config::{color::LapceColor, icon::LapceIcons},
     doc::{Doc, DocContent},
     id::{DiffEditorId, EditorTabId},
-    main_split::MainSplitData,
+    main_split::{Editors, MainSplitData},
     wave::wave_box,
     window_tab::CommonData,
 };
@@ -121,6 +121,7 @@ impl DiffEditorInfo {
             editor_tab_id,
             left_doc,
             right_doc,
+            data.editors,
             data.common.clone(),
         );
 
@@ -137,8 +138,8 @@ pub struct DiffEditorData {
     pub id: DiffEditorId,
     pub editor_tab_id: RwSignal<EditorTabId>,
     pub scope: Scope,
-    pub left: Rc<EditorData>,
-    pub right: Rc<EditorData>,
+    pub left: EditorData,
+    pub right: EditorData,
     pub confirmed: RwSignal<bool>,
     pub focus_right: RwSignal<bool>,
 }
@@ -150,22 +151,22 @@ impl DiffEditorData {
         editor_tab_id: EditorTabId,
         left_doc: Rc<Doc>,
         right_doc: Rc<Doc>,
+        editors: Editors,
         common: Rc<CommonData>,
     ) -> Self {
         let cx = cx.create_child();
         let confirmed = cx.create_rw_signal(false);
 
+        // TODO: ensure that left/right are cleaned up
         let [left, right] = [left_doc, right_doc].map(|doc| {
-            let editor_data = EditorData::new_doc(
+            editors.make_from_doc(
                 cx,
                 doc,
                 None,
                 Some((editor_tab_id, id)),
                 Some(confirmed),
                 common.clone(),
-            );
-
-            Rc::new(editor_data)
+            )
         });
 
         let data = Self {
@@ -195,19 +196,21 @@ impl DiffEditorData {
         cx: Scope,
         editor_tab_id: EditorTabId,
         diff_editor_id: EditorId,
+        editors: Editors,
     ) -> Self {
         let cx = cx.create_child();
         let confirmed = cx.create_rw_signal(true);
 
         let [left, right] = [&self.left, &self.right].map(|editor_data| {
-            let editor_data = editor_data.copy(
-                cx,
-                None,
-                Some((editor_tab_id, diff_editor_id)),
-                Some(confirmed),
-            );
-
-            Rc::new(editor_data)
+            editors
+                .make_copy(
+                    editor_data.id(),
+                    cx,
+                    None,
+                    Some((editor_tab_id, diff_editor_id)),
+                    Some(confirmed),
+                )
+                .unwrap()
         });
 
         let diff_editor = DiffEditorData {
@@ -311,8 +314,8 @@ struct DiffShowMoreSection {
 }
 
 pub fn diff_show_more_section_view(
-    left_editor: Rc<EditorData>,
-    right_editor: Rc<EditorData>,
+    left_editor: &EditorData,
+    right_editor: &EditorData,
 ) -> impl View {
     let left_editor_view = left_editor.kind;
     let right_editor_view = right_editor.kind;

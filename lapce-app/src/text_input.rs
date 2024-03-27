@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
@@ -11,7 +11,10 @@ use floem::{
         Color,
     },
     prop_extractor,
-    reactive::{create_effect, create_memo, create_rw_signal, ReadSignal, RwSignal},
+    reactive::{
+        create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
+        Scope,
+    },
     style::{
         CursorStyle, FontFamily, FontSize, FontStyle, FontWeight, LineHeight,
         PaddingLeft, Style, TextColor,
@@ -27,11 +30,15 @@ use lapce_core::{
     cursor::{Cursor, CursorMode},
     selection::Selection,
 };
+use lapce_xi_rope::Rope;
 
 use crate::{
     config::{color::LapceColor, LapceConfig},
+    doc::Doc,
     editor::{DocSignal, EditorData},
     keypress::KeyPressFocus,
+    main_split::Editors,
+    window_tab::CommonData,
 };
 
 prop_extractor! {
@@ -45,25 +52,86 @@ prop_extractor! {
     }
 }
 
-/// Create a basic single line text input while specifying the `key_focus`
-/// `e_data` is the editor data that this input is associated with.  
-/// `key_focus` is what receives the keydown events, leave as `None` to default to editor.  
-/// `is_focused` is a function that returns if the input is focused, used for certain events.
-pub fn text_input(
-    e_data: EditorData,
-    is_focused: impl Fn() -> bool + 'static,
-) -> TextInput {
-    text_input_key_focus::<()>(e_data, None, is_focused)
+/// Builder for creating a [`TextInput`] easily.
+pub struct TextInputBuilder {
+    is_focused: Option<Memo<bool>>,
+    // TODO: it'd be nice to not need to box this
+    key_focus: Option<Box<dyn KeyPressFocus>>,
+    value: Option<Rope>,
+
+    keyboard_focus: RwSignal<bool>,
+}
+impl TextInputBuilder {
+    pub fn new() -> Self {
+        Self {
+            is_focused: None,
+            key_focus: None,
+            value: None,
+            keyboard_focus: create_rw_signal(false),
+        }
+    }
+
+    pub fn is_focused(mut self, is_focused: impl Fn() -> bool + 'static) -> Self {
+        let keyboard_focus = self.keyboard_focus;
+        self.is_focused =
+            Some(create_memo(move |_| is_focused() || keyboard_focus.get()));
+        self
+    }
+
+    /// Initialize with a specific value.  
+    /// If this is set it will apply the value via reloading the editor's doc as pristine.
+    pub fn value(mut self, value: impl Into<Rope>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+
+    pub fn key_focus(mut self, key_focus: impl KeyPressFocus + 'static) -> Self {
+        self.key_focus = Some(Box::new(key_focus));
+        self
+    }
+
+    pub fn build(
+        self,
+        cx: Scope,
+        editors: Editors,
+        common: Rc<CommonData>,
+    ) -> TextInput {
+        let editor = editors.make_local(cx, common);
+        let id = editor.id();
+
+        self.build_editor(editor).on_cleanup(move || {
+            editors.remove(id);
+        })
+    }
+
+    /// Build the text input with a specific editor.  
+    /// This function does *not* perform add/cleanup the editor to/from [`Editors`]
+    pub fn build_editor(self, editor: EditorData) -> TextInput {
+        let keyboard_focus = self.keyboard_focus;
+        let is_focused = if let Some(is_focused) = self.is_focused {
+            is_focused
+        } else {
+            create_memo(move |_| keyboard_focus.get())
+        };
+
+        if let Some(value) = self.value {
+            editor.doc().reload(value, true);
+        }
+
+        text_input_full(editor, self.key_focus, is_focused, keyboard_focus)
+    }
 }
 
-/// Create a basic single line text input while specifying the `key_focus`
+/// Create a basic single line text input  
 /// `e_data` is the editor data that this input is associated with.  
+/// `supplied_editor`
 /// `key_focus` is what receives the keydown events, leave as `None` to default to editor.  
 /// `is_focused` is a function that returns if the input is focused, used for certain events.
-pub fn text_input_key_focus<T: KeyPressFocus + 'static>(
+fn text_input_full<T: KeyPressFocus + 'static>(
     e_data: EditorData,
     key_focus: Option<T>,
-    is_focused: impl Fn() -> bool + 'static,
+    is_focused: Memo<bool>,
+    keyboard_focus: RwSignal<bool>,
 ) -> TextInput {
     let id = Id::next();
 
@@ -73,8 +141,6 @@ pub fn text_input_key_focus<T: KeyPressFocus + 'static>(
     let keypress = e_data.common.keypress;
     let window_origin = create_rw_signal(Point::ZERO);
     let cursor_line = create_rw_signal(Line::new(Point::ZERO, Point::ZERO));
-    let keyboard_focus = create_rw_signal(false);
-    let is_focused = create_memo(move |_| is_focused() || keyboard_focus.get());
     let local_editor = e_data.clone();
     let editor = local_editor.editor.clone();
 
@@ -157,8 +223,7 @@ pub fn text_input_key_focus<T: KeyPressFocus + 'static>(
         cursor_line,
         placeholder: "".to_string(),
         placeholder_text_layout: None,
-        cursor,
-        doc,
+        editor: e_data.clone(),
         cursor_pos: Point::ZERO,
         on_cursor_pos: None,
         hide_cursor: editor.cursor_info.hidden,
@@ -246,8 +311,7 @@ pub struct TextInput {
     content: String,
     offset: usize,
     preedit_range: Option<(usize, usize)>,
-    doc: DocSignal,
-    cursor: RwSignal<Cursor>,
+    editor: EditorData,
     focus: bool,
     text_node: Option<NodeId>,
     text_layout: RwSignal<Option<TextLayout>>,
@@ -277,6 +341,22 @@ impl TextInput {
     pub fn on_cursor_pos(mut self, cursor_pos: impl Fn(Point) + 'static) -> Self {
         self.on_cursor_pos = Some(Box::new(cursor_pos));
         self
+    }
+
+    pub fn editor(&self) -> EditorData {
+        self.editor.clone()
+    }
+
+    pub fn doc_signal(&self) -> DocSignal {
+        self.editor.doc_signal()
+    }
+
+    pub fn doc(&self) -> Rc<Doc> {
+        self.editor.doc()
+    }
+
+    pub fn cursor(&self) -> RwSignal<Cursor> {
+        self.editor.cursor()
     }
 
     fn set_text_layout(&mut self) {
@@ -508,7 +588,7 @@ impl Widget for TextInput {
             text_layout.with_untracked(|text_layout| {
                 let text_layout = text_layout.as_ref().unwrap();
 
-                let offset = self.cursor.get_untracked().offset();
+                let offset = self.cursor().get_untracked().offset();
                 let cursor_point = text_layout.hit_position(offset).point;
                 if cursor_point != self.cursor_pos {
                     self.cursor_pos = cursor_point;
@@ -561,7 +641,7 @@ impl Widget for TextInput {
         self.layout_rect = size
             .to_rect()
             .with_origin(Point::new(location.x as f64, location.y as f64));
-        let offset = self.cursor.with_untracked(|c| c.offset());
+        let offset = self.cursor().with_untracked(|c| c.offset());
         let cursor_line = self.text_layout.with_untracked(|text_layout| {
             let hit_position = text_layout.as_ref().unwrap().hit_position(offset);
             let point = Point::new(location.x as f64, location.y as f64)
@@ -595,21 +675,20 @@ impl Widget for TextInput {
         match event {
             Event::PointerDown(pointer) => {
                 let offset = self.hit_index(cx, pointer.pos);
-                self.cursor.update(|cursor| {
+                self.cursor().update(|cursor| {
                     cursor.set_insert(Selection::caret(offset));
                 });
                 if pointer.button.is_primary() && pointer.count == 2 {
                     let offset = self.hit_index(cx, pointer.pos);
                     let (start, end) = self
-                        .doc
-                        .get_untracked()
+                        .doc()
                         .buffer
                         .with_untracked(|buffer| buffer.select_word(offset));
-                    self.cursor.update(|cursor| {
+                    self.cursor().update(|cursor| {
                         cursor.set_insert(Selection::region(start, end));
                     });
                 } else if pointer.button.is_primary() && pointer.count == 3 {
-                    self.cursor.update(|cursor| {
+                    self.cursor().update(|cursor| {
                         cursor.set_insert(Selection::region(0, self.content.len()));
                     });
                 }
@@ -618,7 +697,7 @@ impl Widget for TextInput {
             Event::PointerMove(pointer) => {
                 if cx.is_active(self.id) {
                     let offset = self.hit_index(cx, pointer.pos);
-                    self.cursor.update(|cursor| {
+                    self.cursor().update(|cursor| {
                         cursor.set_offset(offset, true, false);
                     });
                 }
@@ -651,7 +730,7 @@ impl Widget for TextInput {
             let height = text_layout.size().height;
             let config = self.config.get_untracked();
 
-            let cursor = self.cursor.get_untracked();
+            let cursor = self.cursor().get_untracked();
 
             if let CursorMode::Insert(selection) = &cursor.mode {
                 for region in selection.regions() {
