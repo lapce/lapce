@@ -3,7 +3,7 @@ use std::fmt::Display;
 use floem::keyboard::{Key, KeyCode, ModifiersState, PhysicalKey};
 use tracing::warn;
 
-use super::key::KeyInput;
+use super::{key::KeyInput, keymap::KeyMapPress};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KeyPress {
@@ -13,15 +13,26 @@ pub struct KeyPress {
 
 impl KeyPress {
     pub fn to_lowercase(&self) -> Self {
-        let key = match &self.key {
-            KeyInput::Keyboard(Key::Character(c), key_code) => KeyInput::Keyboard(
-                Key::Character(c.to_lowercase().into()),
-                *key_code,
-            ),
-            _ => self.key.clone(),
-        };
+        // let key = match &self.key {
+        //     // KeyInput::Keyboard(Key::Character(c), key_code) => KeyInput::Keyboard(
+        //     //     Key::Character(c.to_lowercase().into()),
+        //     //     *key_code,
+        //     // ),
+        //     KeyInput::Keyboard { physical, logical, key_without_modifiers } => {
+        //         if let Key::Character(c) = logical {}
+
+        //     }
+        //     _ => self.key.clone(),
+        // };
         Self {
-            key,
+            key: self.key.clone(),
+            mods: self.mods,
+        }
+    }
+
+    pub fn keymap_press(&self) -> KeyMapPress {
+        KeyMapPress {
+            key: self.key.keymap_key(),
             mods: self.mods,
         }
     }
@@ -30,7 +41,11 @@ impl KeyPress {
         let mut mods = self.mods;
         mods.set(ModifiersState::SHIFT, false);
         if mods.is_empty() {
-            if let KeyInput::Keyboard(Key::Character(_c), _) = &self.key {
+            if let KeyInput::Keyboard {
+                logical: Key::Character(_),
+                ..
+            } = &self.key
+            {
                 return true;
             }
         }
@@ -38,9 +53,9 @@ impl KeyPress {
     }
 
     pub fn is_modifiers(&self) -> bool {
-        if let KeyInput::Keyboard(_, scancode) = &self.key {
+        if let KeyInput::Keyboard { physical, .. } = &self.key {
             matches!(
-                scancode,
+                physical,
                 PhysicalKey::Code(KeyCode::Meta)
                     | PhysicalKey::Code(KeyCode::SuperLeft)
                     | PhysicalKey::Code(KeyCode::SuperRight)

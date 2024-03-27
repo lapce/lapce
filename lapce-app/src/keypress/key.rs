@@ -4,15 +4,75 @@ use std::{
     str::FromStr,
 };
 
-use floem::keyboard::{Key, KeyCode, NativeKey, PhysicalKey};
+use floem::{
+    keyboard::{Key, KeyCode, NamedKey, NativeKey, PhysicalKey},
+    pointer::PointerButton,
+};
+
+use super::keymap::KeyMapKey;
 
 #[derive(Clone, Debug, Eq)]
 pub(crate) enum KeyInput {
-    Keyboard(floem::keyboard::Key, floem::keyboard::PhysicalKey),
+    Keyboard {
+        physical: PhysicalKey,
+        logical: Key,
+        key_without_modifiers: Key,
+    },
     Pointer(floem::pointer::PointerButton),
 }
 
 impl KeyInput {
+    pub fn keymap_key(&self) -> KeyMapKey {
+        match self {
+            KeyInput::Pointer(b) => KeyMapKey::Pointer(*b),
+            KeyInput::Keyboard {
+                physical,
+                key_without_modifiers,
+                ..
+            } => match key_without_modifiers {
+                Key::Named(_) => {
+                    KeyMapKey::Logical(key_without_modifiers.to_owned())
+                }
+                Key::Character(c) => {
+                    if c == " " {
+                        KeyMapKey::Logical(Key::Named(NamedKey::Space))
+                    } else if c.len() == 1 && c.is_ascii() {
+                        KeyMapKey::Logical(Key::Character(c.to_lowercase().into()))
+                    } else {
+                        KeyMapKey::Physical(*physical)
+                    }
+                }
+                Key::Unidentified(_) => KeyMapKey::Physical(*physical),
+                Key::Dead(_) => KeyMapKey::Physical(*physical),
+            },
+        }
+    }
+
+    fn keymap_str(&self) -> String {
+        match self {
+            KeyInput::Keyboard {
+                physical,
+                logical,
+                key_without_modifiers,
+            } => {
+                if let Key::Character(c) = key_without_modifiers {
+                    if c.len() == 1 && c.is_ascii() {
+                        return c.to_lowercase();
+                    }
+                }
+                return physical_to_str(physical).to_lowercase();
+            }
+            KeyInput::Pointer(pointer) => match pointer {
+                PointerButton::Primary => "MouseMiddle".to_string(),
+                PointerButton::Secondary => "MouseUnimplemented".to_string(),
+                PointerButton::Auxiliary => "MouseUnimplemented".to_string(),
+                PointerButton::X1 => "MouseBackward".to_string(),
+                PointerButton::X2 => "MouseForward".to_string(),
+                PointerButton::None => "MouseUnimplemented".to_string(),
+            },
+        }
+    }
+
     fn keyboard_from_str(s: &str) -> Option<(Key, PhysicalKey)> {
         // Checks if it is a character key
         fn is_key_string(s: &str) -> bool {
@@ -749,7 +809,7 @@ impl Display for KeyInput {
         use floem::pointer::PointerButton as B;
 
         match self {
-            Self::Keyboard(_key, key_code) => match key_code {
+            Self::Keyboard { physical, .. } => match physical {
                 PhysicalKey::Unidentified(_) => f.write_str("Unidentified"),
                 PhysicalKey::Code(KeyCode::Backquote) => f.write_str("`"),
                 PhysicalKey::Code(KeyCode::Backslash) => f.write_str("\\"),
@@ -1043,7 +1103,11 @@ impl FromStr for KeyInput {
         let s = s.to_lowercase();
 
         KeyInput::keyboard_from_str(&s)
-            .map(|key| KeyInput::Keyboard(key.0, key.1))
+            .map(|key| KeyInput::Keyboard {
+                logical: key.0.clone(),
+                physical: key.1,
+                key_without_modifiers: key.0,
+            })
             .or_else(|| KeyInput::mouse_from_str(&s).map(KeyInput::Pointer))
             .ok_or(())
     }
@@ -1052,7 +1116,7 @@ impl FromStr for KeyInput {
 impl Hash for KeyInput {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            Self::Keyboard(_key, key_code) => key_code.hash(state),
+            Self::Keyboard { physical, .. } => physical.hash(state),
             // TODO: Implement `Hash` for `druid::MouseButton`
             Self::Pointer(btn) => (*btn as u8).hash(state),
         }
@@ -1063,11 +1127,230 @@ impl PartialEq for KeyInput {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (
-                KeyInput::Keyboard(_key_a, key_code_a),
-                KeyInput::Keyboard(_key_b, key_code_b),
-            ) => key_code_a.eq(key_code_b),
+                KeyInput::Keyboard {
+                    physical: physical_a,
+                    ..
+                },
+                KeyInput::Keyboard {
+                    physical: physical_b,
+                    ..
+                },
+            ) => physical_a.eq(physical_b),
             (KeyInput::Pointer(a), KeyInput::Pointer(b)) => a.eq(b),
             _ => false,
         }
+    }
+}
+
+fn physical_to_str(physical: &PhysicalKey) -> &str {
+    match physical {
+        PhysicalKey::Unidentified(_) => "Unidentified",
+        PhysicalKey::Code(KeyCode::Backquote) => "`",
+        PhysicalKey::Code(KeyCode::Backslash) => "\\",
+        PhysicalKey::Code(KeyCode::BracketLeft) => "[",
+        PhysicalKey::Code(KeyCode::BracketRight) => "]",
+        PhysicalKey::Code(KeyCode::Comma) => ",",
+        PhysicalKey::Code(KeyCode::Digit0) => "0",
+        PhysicalKey::Code(KeyCode::Digit1) => "1",
+        PhysicalKey::Code(KeyCode::Digit2) => "2",
+        PhysicalKey::Code(KeyCode::Digit3) => "3",
+        PhysicalKey::Code(KeyCode::Digit4) => "4",
+        PhysicalKey::Code(KeyCode::Digit5) => "5",
+        PhysicalKey::Code(KeyCode::Digit6) => "6",
+        PhysicalKey::Code(KeyCode::Digit7) => "7",
+        PhysicalKey::Code(KeyCode::Digit8) => "8",
+        PhysicalKey::Code(KeyCode::Digit9) => "9",
+        PhysicalKey::Code(KeyCode::Equal) => "=",
+        PhysicalKey::Code(KeyCode::IntlBackslash) => "<",
+        PhysicalKey::Code(KeyCode::IntlRo) => "IntlRo",
+        PhysicalKey::Code(KeyCode::IntlYen) => "IntlYen",
+        PhysicalKey::Code(KeyCode::KeyA) => "A",
+        PhysicalKey::Code(KeyCode::KeyB) => "B",
+        PhysicalKey::Code(KeyCode::KeyC) => "C",
+        PhysicalKey::Code(KeyCode::KeyD) => "D",
+        PhysicalKey::Code(KeyCode::KeyE) => "E",
+        PhysicalKey::Code(KeyCode::KeyF) => "F",
+        PhysicalKey::Code(KeyCode::KeyG) => "G",
+        PhysicalKey::Code(KeyCode::KeyH) => "H",
+        PhysicalKey::Code(KeyCode::KeyI) => "I",
+        PhysicalKey::Code(KeyCode::KeyJ) => "J",
+        PhysicalKey::Code(KeyCode::KeyK) => "K",
+        PhysicalKey::Code(KeyCode::KeyL) => "L",
+        PhysicalKey::Code(KeyCode::KeyM) => "M",
+        PhysicalKey::Code(KeyCode::KeyN) => "N",
+        PhysicalKey::Code(KeyCode::KeyO) => "O",
+        PhysicalKey::Code(KeyCode::KeyP) => "P",
+        PhysicalKey::Code(KeyCode::KeyQ) => "Q",
+        PhysicalKey::Code(KeyCode::KeyR) => "R",
+        PhysicalKey::Code(KeyCode::KeyS) => "S",
+        PhysicalKey::Code(KeyCode::KeyT) => "T",
+        PhysicalKey::Code(KeyCode::KeyU) => "U",
+        PhysicalKey::Code(KeyCode::KeyV) => "V",
+        PhysicalKey::Code(KeyCode::KeyW) => "W",
+        PhysicalKey::Code(KeyCode::KeyX) => "X",
+        PhysicalKey::Code(KeyCode::KeyY) => "Y",
+        PhysicalKey::Code(KeyCode::KeyZ) => "Z",
+        PhysicalKey::Code(KeyCode::Minus) => "-",
+        PhysicalKey::Code(KeyCode::Period) => ".",
+        PhysicalKey::Code(KeyCode::Quote) => "'",
+        PhysicalKey::Code(KeyCode::Semicolon) => ";",
+        PhysicalKey::Code(KeyCode::Slash) => "/",
+        PhysicalKey::Code(KeyCode::AltLeft) => "Alt",
+        PhysicalKey::Code(KeyCode::AltRight) => "Alt",
+        PhysicalKey::Code(KeyCode::Backspace) => "backspace",
+        PhysicalKey::Code(KeyCode::CapsLock) => "CapsLock",
+        PhysicalKey::Code(KeyCode::ContextMenu) => "ContextMenu",
+        PhysicalKey::Code(KeyCode::ControlLeft) => "Ctrl",
+        PhysicalKey::Code(KeyCode::ControlRight) => "Ctrl",
+        PhysicalKey::Code(KeyCode::Enter) => "Enter",
+        PhysicalKey::Code(KeyCode::SuperLeft) => match std::env::consts::OS {
+            "macos" => "Cmd",
+            "windows" => "Win",
+            _ => "Meta",
+        },
+        PhysicalKey::Code(KeyCode::SuperRight) => match std::env::consts::OS {
+            "macos" => "Cmd",
+            "windows" => "Win",
+            _ => "Meta",
+        },
+        PhysicalKey::Code(KeyCode::ShiftLeft) => "Shift",
+        PhysicalKey::Code(KeyCode::ShiftRight) => "Shift",
+        PhysicalKey::Code(KeyCode::Space) => "Space",
+        PhysicalKey::Code(KeyCode::Tab) => "Tab",
+        PhysicalKey::Code(KeyCode::Convert) => "Convert",
+        PhysicalKey::Code(KeyCode::KanaMode) => "KanaMode",
+        PhysicalKey::Code(KeyCode::Lang1) => "Lang1",
+        PhysicalKey::Code(KeyCode::Lang2) => "Lang2",
+        PhysicalKey::Code(KeyCode::Lang3) => "Lang3",
+        PhysicalKey::Code(KeyCode::Lang4) => "Lang4",
+        PhysicalKey::Code(KeyCode::Lang5) => "Lang5",
+        PhysicalKey::Code(KeyCode::NonConvert) => "NonConvert",
+        PhysicalKey::Code(KeyCode::Delete) => "Delete",
+        PhysicalKey::Code(KeyCode::End) => "End",
+        PhysicalKey::Code(KeyCode::Help) => "Help",
+        PhysicalKey::Code(KeyCode::Home) => "Home",
+        PhysicalKey::Code(KeyCode::Insert) => "Insert",
+        PhysicalKey::Code(KeyCode::PageDown) => "PageDown",
+        PhysicalKey::Code(KeyCode::PageUp) => "PageUp",
+        PhysicalKey::Code(KeyCode::ArrowDown) => "Down",
+        PhysicalKey::Code(KeyCode::ArrowLeft) => "Left",
+        PhysicalKey::Code(KeyCode::ArrowRight) => "Right",
+        PhysicalKey::Code(KeyCode::ArrowUp) => "Up",
+        PhysicalKey::Code(KeyCode::NumLock) => "NumLock",
+        PhysicalKey::Code(KeyCode::Numpad0) => "Numpad0",
+        PhysicalKey::Code(KeyCode::Numpad1) => "Numpad1",
+        PhysicalKey::Code(KeyCode::Numpad2) => "Numpad2",
+        PhysicalKey::Code(KeyCode::Numpad3) => "Numpad3",
+        PhysicalKey::Code(KeyCode::Numpad4) => "Numpad4",
+        PhysicalKey::Code(KeyCode::Numpad5) => "Numpad5",
+        PhysicalKey::Code(KeyCode::Numpad6) => "Numpad6",
+        PhysicalKey::Code(KeyCode::Numpad7) => "Numpad7",
+        PhysicalKey::Code(KeyCode::Numpad8) => "Numpad8",
+        PhysicalKey::Code(KeyCode::Numpad9) => "Numpad9",
+        PhysicalKey::Code(KeyCode::NumpadAdd) => "NumpadAdd",
+        PhysicalKey::Code(KeyCode::NumpadBackspace) => "NumpadBackspace",
+        PhysicalKey::Code(KeyCode::NumpadClear) => "NumpadClear",
+        PhysicalKey::Code(KeyCode::NumpadClearEntry) => "NumpadClearEntry",
+        PhysicalKey::Code(KeyCode::NumpadComma) => "NumpadComma",
+        PhysicalKey::Code(KeyCode::NumpadDecimal) => "NumpadDecimal",
+        PhysicalKey::Code(KeyCode::NumpadDivide) => "NumpadDivide",
+        PhysicalKey::Code(KeyCode::NumpadEnter) => "NumpadEnter",
+        PhysicalKey::Code(KeyCode::NumpadEqual) => "NumpadEqual",
+        PhysicalKey::Code(KeyCode::NumpadHash) => "NumpadHash",
+        PhysicalKey::Code(KeyCode::NumpadMemoryAdd) => "NumpadMemoryAdd",
+        PhysicalKey::Code(KeyCode::NumpadMemoryClear) => "NumpadMemoryClear",
+        PhysicalKey::Code(KeyCode::NumpadMemoryRecall) => "NumpadMemoryRecall",
+        PhysicalKey::Code(KeyCode::NumpadMemoryStore) => "NumpadMemoryStore",
+        PhysicalKey::Code(KeyCode::NumpadMemorySubtract) => "NumpadMemorySubtract",
+        PhysicalKey::Code(KeyCode::NumpadMultiply) => "NumpadMultiply",
+        PhysicalKey::Code(KeyCode::NumpadParenLeft) => "NumpadParenLeft",
+        PhysicalKey::Code(KeyCode::NumpadParenRight) => "NumpadParenRight",
+        PhysicalKey::Code(KeyCode::NumpadStar) => "NumpadStar",
+        PhysicalKey::Code(KeyCode::NumpadSubtract) => "NumpadSubtract",
+        PhysicalKey::Code(KeyCode::Escape) => "Escape",
+        PhysicalKey::Code(KeyCode::Fn) => "Fn",
+        PhysicalKey::Code(KeyCode::FnLock) => "FnLock",
+        PhysicalKey::Code(KeyCode::PrintScreen) => "PrintScreen",
+        PhysicalKey::Code(KeyCode::ScrollLock) => "ScrollLock",
+        PhysicalKey::Code(KeyCode::Pause) => "Pause",
+        PhysicalKey::Code(KeyCode::BrowserBack) => "BrowserBack",
+        PhysicalKey::Code(KeyCode::BrowserFavorites) => "BrowserFavorites",
+        PhysicalKey::Code(KeyCode::BrowserForward) => "BrowserForward",
+        PhysicalKey::Code(KeyCode::BrowserHome) => "BrowserHome",
+        PhysicalKey::Code(KeyCode::BrowserRefresh) => "BrowserRefresh",
+        PhysicalKey::Code(KeyCode::BrowserSearch) => "BrowserSearch",
+        PhysicalKey::Code(KeyCode::BrowserStop) => "BrowserStop",
+        PhysicalKey::Code(KeyCode::Eject) => "Eject",
+        PhysicalKey::Code(KeyCode::LaunchApp1) => "LaunchApp1",
+        PhysicalKey::Code(KeyCode::LaunchApp2) => "LaunchApp2",
+        PhysicalKey::Code(KeyCode::LaunchMail) => "LaunchMail",
+        PhysicalKey::Code(KeyCode::MediaPlayPause) => "MediaPlayPause",
+        PhysicalKey::Code(KeyCode::MediaSelect) => "MediaSelect",
+        PhysicalKey::Code(KeyCode::MediaStop) => "MediaStop",
+        PhysicalKey::Code(KeyCode::MediaTrackNext) => "MediaTrackNext",
+        PhysicalKey::Code(KeyCode::MediaTrackPrevious) => "MediaTrackPrevious",
+        PhysicalKey::Code(KeyCode::Power) => "Power",
+        PhysicalKey::Code(KeyCode::Sleep) => "Sleep",
+        PhysicalKey::Code(KeyCode::AudioVolumeDown) => "AudioVolumeDown",
+        PhysicalKey::Code(KeyCode::AudioVolumeMute) => "AudioVolumeMute",
+        PhysicalKey::Code(KeyCode::AudioVolumeUp) => "AudioVolumeUp",
+        PhysicalKey::Code(KeyCode::WakeUp) => "WakeUp",
+        PhysicalKey::Code(KeyCode::Meta) => match std::env::consts::OS {
+            "macos" => "Cmd",
+            "windows" => "Win",
+            _ => "Meta",
+        },
+        PhysicalKey::Code(KeyCode::Hyper) => "Hyper",
+        PhysicalKey::Code(KeyCode::Turbo) => "Turbo",
+        PhysicalKey::Code(KeyCode::Abort) => "Abort",
+        PhysicalKey::Code(KeyCode::Resume) => "Resume",
+        PhysicalKey::Code(KeyCode::Suspend) => "Suspend",
+        PhysicalKey::Code(KeyCode::Again) => "Again",
+        PhysicalKey::Code(KeyCode::Copy) => "Copy",
+        PhysicalKey::Code(KeyCode::Cut) => "Cut",
+        PhysicalKey::Code(KeyCode::Find) => "Find",
+        PhysicalKey::Code(KeyCode::Open) => "Open",
+        PhysicalKey::Code(KeyCode::Paste) => "Paste",
+        PhysicalKey::Code(KeyCode::Props) => "Props",
+        PhysicalKey::Code(KeyCode::Select) => "Select",
+        PhysicalKey::Code(KeyCode::Undo) => "Undo",
+        PhysicalKey::Code(KeyCode::Hiragana) => "Hiragana",
+        PhysicalKey::Code(KeyCode::Katakana) => "Katakana",
+        PhysicalKey::Code(KeyCode::F1) => "F1",
+        PhysicalKey::Code(KeyCode::F2) => "F2",
+        PhysicalKey::Code(KeyCode::F3) => "F3",
+        PhysicalKey::Code(KeyCode::F4) => "F4",
+        PhysicalKey::Code(KeyCode::F5) => "F5",
+        PhysicalKey::Code(KeyCode::F6) => "F6",
+        PhysicalKey::Code(KeyCode::F7) => "F7",
+        PhysicalKey::Code(KeyCode::F8) => "F8",
+        PhysicalKey::Code(KeyCode::F9) => "F9",
+        PhysicalKey::Code(KeyCode::F10) => "F10",
+        PhysicalKey::Code(KeyCode::F11) => "F11",
+        PhysicalKey::Code(KeyCode::F12) => "F12",
+        PhysicalKey::Code(KeyCode::F13) => "F13",
+        PhysicalKey::Code(KeyCode::F14) => "F14",
+        PhysicalKey::Code(KeyCode::F15) => "F15",
+        PhysicalKey::Code(KeyCode::F16) => "F16",
+        PhysicalKey::Code(KeyCode::F17) => "F17",
+        PhysicalKey::Code(KeyCode::F18) => "F18",
+        PhysicalKey::Code(KeyCode::F19) => "F19",
+        PhysicalKey::Code(KeyCode::F20) => "F20",
+        PhysicalKey::Code(KeyCode::F21) => "F21",
+        PhysicalKey::Code(KeyCode::F22) => "F22",
+        PhysicalKey::Code(KeyCode::F23) => "F23",
+        PhysicalKey::Code(KeyCode::F24) => "F24",
+        PhysicalKey::Code(KeyCode::F25) => "F25",
+        PhysicalKey::Code(KeyCode::F26) => "F26",
+        PhysicalKey::Code(KeyCode::F27) => "F27",
+        PhysicalKey::Code(KeyCode::F28) => "F28",
+        PhysicalKey::Code(KeyCode::F29) => "F29",
+        PhysicalKey::Code(KeyCode::F30) => "F30",
+        PhysicalKey::Code(KeyCode::F31) => "F31",
+        PhysicalKey::Code(KeyCode::F32) => "F32",
+        PhysicalKey::Code(KeyCode::F33) => "F33",
+        PhysicalKey::Code(KeyCode::F34) => "F34",
+        PhysicalKey::Code(KeyCode::F35) => "F35",
+        _ => "Unidentified",
     }
 }

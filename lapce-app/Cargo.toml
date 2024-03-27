@@ -63,9 +63,9 @@ sha2           = "0.10.8"
 zip            = { version = "0.6.6", default-features = false, features = ["deflate"] }
 
 [dependencies.floem]
-# path = "../../workspaces/floem"
-git              = "https://github.com/lapce/floem"
-rev              = "eba11fbdea84bfac0b90da5f26e1045597e897a4"
+path = "../../workspaces/floem"
+# git              = "https://github.com/lapce/floem"
+# rev              = "eba11fbdea84bfac0b90da5f26e1045597e897a4"
 default-features = true
 features         = ["editor", "serde"]
 

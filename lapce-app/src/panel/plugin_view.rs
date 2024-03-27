@@ -7,8 +7,10 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, dyn_container, img, label, scroll, stack, svg, virtual_stack,
-        Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
+        container, dyn_container, img, label,
+        scroll::{scroll, HideBar},
+        stack, svg, virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
+        VirtualVector,
     },
 };
 use indexmap::IndexMap;
@@ -327,7 +329,6 @@ fn available_view(plugin: PluginData) -> impl View {
                         s.padding_vert(4.0).padding_horiz(10.0).min_width_pct(100.0)
                     }),
             )
-            .hide_bar(|| true)
             .ensure_visible(move || {
                 Size::new(20.0, 0.0)
                     .to_rect()
@@ -345,6 +346,7 @@ fn available_view(plugin: PluginData) -> impl View {
                     .border(1.0)
                     .border_radius(6.0)
                     .border_color(config.color(LapceColor::LAPCE_BORDER))
+                    .set(HideBar, true)
             })
         })
         .style(|s| s.padding(10.0).width_pct(100.0)),

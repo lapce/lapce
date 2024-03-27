@@ -19,7 +19,10 @@ use crate::{
     command::LapceCommand,
     config::{color::LapceColor, LapceConfig},
     editor::EditorData,
-    keypress::{keymap::KeyMap, KeyPress, KeyPressData},
+    keypress::{
+        keymap::{KeyMap, KeyMapPress},
+        KeyPress, KeyPressData,
+    },
     text_input::text_input,
     window_tab::CommonData,
 };
@@ -28,7 +31,7 @@ use crate::{
 pub struct KeymapPicker {
     cmd: RwSignal<Option<LapceCommand>>,
     keymap: RwSignal<Option<KeyMap>>,
-    keys: RwSignal<Vec<(KeyPress, bool)>>,
+    keys: RwSignal<Vec<(KeyMapPress, bool)>>,
 }
 
 pub fn keymap_view(
@@ -516,6 +519,7 @@ fn keyboard_picker_view(
     .on_event_stop(EventListener::KeyDown, move |event| {
         if let Event::KeyDown(key_event) = event {
             if let Some(keypress) = KeyPressData::keypress(key_event) {
+                let keypress = keypress.keymap_press();
                 picker.keys.update(|keys| {
                     if let Some((last_key, last_key_confirmed)) = keys.last() {
                         if !*last_key_confirmed && last_key.is_modifiers() {
