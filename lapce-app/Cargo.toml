@@ -61,11 +61,12 @@ structdesc     = { git = "https://github.com/lapce/structdesc" }
 base64         = "0.21.7"
 sha2           = "0.10.8"
 zip            = { version = "0.6.6", default-features = false, features = ["deflate"] }
+floem-winit    = { version = "0.29.4", features = ["rwh_05"] }
 
 [dependencies.floem]
-path = "../../workspaces/floem"
-# git              = "https://github.com/lapce/floem"
-# rev              = "eba11fbdea84bfac0b90da5f26e1045597e897a4"
+# path = "../../workspaces/floem"
+git              = "https://github.com/lapce/floem"
+rev              = "eba11fbdea84bfac0b90da5f26e1045597e897a4"
 default-features = true
 features         = ["editor", "serde"]
 

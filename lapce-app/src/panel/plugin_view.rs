@@ -7,10 +7,8 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, dyn_container, img, label,
-        scroll::{scroll, HideBar},
-        stack, svg, virtual_stack, Decorators, VirtualDirection, VirtualItemSize,
-        VirtualVector,
+        container, dyn_container, img, label, scroll::scroll, stack, svg,
+        virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
     },
 };
 use indexmap::IndexMap;
@@ -334,6 +332,7 @@ fn available_view(plugin: PluginData) -> impl View {
                     .to_rect()
                     .with_origin(Point::new(cursor_x.get(), 0.0))
             })
+            .hide_bar(|| true)
             .on_event_cont(EventListener::PointerDown, move |_| {
                 focus.set(Focus::Panel(PanelKind::Plugin));
             })
@@ -346,7 +345,6 @@ fn available_view(plugin: PluginData) -> impl View {
                     .border(1.0)
                     .border_radius(6.0)
                     .border_color(config.color(LapceColor::LAPCE_BORDER))
-                    .set(HideBar, true)
             })
         })
         .style(|s| s.padding(10.0).width_pct(100.0)),

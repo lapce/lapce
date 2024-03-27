@@ -21,7 +21,7 @@ use crate::{
     editor::EditorData,
     keypress::{
         keymap::{KeyMap, KeyMapPress},
-        KeyPress, KeyPressData,
+        KeyPressData,
     },
     text_input::text_input,
     window_tab::CommonData,
@@ -148,7 +148,7 @@ pub fn keymap_view(
                                     keymap
                                         .key
                                         .iter()
-                                        .map(|key| key.label().trim().to_string())
+                                        .map(|key| key.label())
                                         .filter(|l| !l.is_empty())
                                         .collect::<Vec<String>>()
                                 })
@@ -401,7 +401,7 @@ fn keyboard_picker_view(
                         .keys
                         .get()
                         .iter()
-                        .map(|(key, _)| key.label().trim().to_string())
+                        .map(|(key, _)| key.label())
                         .filter(|l| !l.is_empty())
                         .enumerate()
                         .collect::<Vec<(usize, String)>>()
@@ -464,7 +464,7 @@ fn keyboard_picker_view(
                                 &keys
                                     .iter()
                                     .map(|(key, _)| key.clone())
-                                    .collect::<Vec<KeyPress>>(),
+                                    .collect::<Vec<KeyMapPress>>(),
                             );
                         }
                     }),

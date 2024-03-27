@@ -3,10 +3,7 @@ use indexmap::IndexMap;
 use lapce_core::mode::Modes;
 use tracing::{debug, error};
 
-use super::{
-    keymap::{KeyMap, KeyMapPress},
-    press::KeyPress,
-};
+use super::keymap::{KeyMap, KeyMapPress};
 
 pub struct KeyMapLoader {
     keymaps: IndexMap<Vec<KeyMapPress>, Vec<KeyMap>>,

@@ -8,12 +8,11 @@ use std::{path::PathBuf, rc::Rc, str::FromStr};
 
 use anyhow::Result;
 use floem::{
-    keyboard::{
-        Key, KeyEvent, KeyEventExtModifierSupplement, ModifiersState, NamedKey,
-    },
+    keyboard::{Key, KeyEvent, ModifiersState, NamedKey},
     pointer::PointerInputEvent,
     reactive::{RwSignal, Scope},
 };
+use floem_winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::mode::{Mode, Modes};
@@ -496,7 +495,7 @@ impl KeyPressData {
             .cloned()
     }
 
-    pub fn update_file(keymap: &KeyMap, keys: &[KeyPress]) -> Option<()> {
+    pub fn update_file(keymap: &KeyMap, keys: &[KeyMapPress]) -> Option<()> {
         let mut array = Self::get_file_array().unwrap_or_default();
         let index = array.iter().position(|value| {
             Some(keymap.command.as_str())
