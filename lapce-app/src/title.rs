@@ -86,6 +86,18 @@ fn left(
                     workbench_command.send(LapceWorkbenchCommand::ConnectSshHost);
                 }),
             );
+            if !is_local
+                && proxy_status.get().is_some_and(|p| {
+                    matches!(p, ProxyStatus::Connecting | ProxyStatus::Connected)
+                })
+            {
+                menu = menu.entry(MenuItem::new("Disconnect remote").action(
+                    move || {
+                        workbench_command
+                            .send(LapceWorkbenchCommand::DisconnectRemote);
+                    },
+                ));
+            }
             #[cfg(windows)]
             {
                 menu = menu.entry(MenuItem::new("Connect to WSL Host").action(
