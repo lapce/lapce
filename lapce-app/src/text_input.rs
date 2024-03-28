@@ -35,7 +35,7 @@ use lapce_xi_rope::Rope;
 use crate::{
     config::{color::LapceColor, LapceConfig},
     doc::Doc,
-    editor::{DocSignal, EditorData},
+    editor::{view::editor_style, DocSignal, EditorData},
     keypress::KeyPressFocus,
     main_split::Editors,
     window_tab::CommonData,
@@ -235,8 +235,9 @@ fn text_input_full<T: KeyPressFocus + 'static>(
         hide_cursor: editor.cursor_info.hidden,
         style: Default::default(),
     }
-    .style(|s| {
-        s.cursor(CursorStyle::Text)
+    .style(move |s| {
+        editor_style(config, doc, s)
+            .cursor(CursorStyle::Text)
             .padding_horiz(10.0)
             .padding_vert(6.0)
     })

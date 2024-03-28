@@ -22,7 +22,7 @@ use floem::{
         view::{
             DiffSection, DiffSectionKind, LineInfo, ScreenLines, ScreenLinesBase,
         },
-        visual_line::{Lines, TextLayoutProvider, VLine, VLineInfo},
+        visual_line::{ConfigId, Lines, TextLayoutProvider, VLine, VLineInfo},
         Editor,
     },
 };
@@ -378,11 +378,8 @@ impl EditorData {
     fn run_edit_command(&self, cmd: &EditCommand) -> CommandExecuted {
         let doc = self.doc();
         let text = self.editor.rope_text();
-        let modal = self
-            .common
-            .config
-            .with_untracked(|config| config.core.modal)
-            && !doc.content.with_untracked(|content| content.is_local());
+        let is_local = doc.content.with_untracked(|content| content.is_local());
+        let modal = self.editor.es.with_untracked(|s| s.modal()) && !is_local;
         let smart_tab = self
             .common
             .config
@@ -2833,6 +2830,7 @@ pub(crate) fn compute_screen_lines(
     doc: &Doc,
     lines: &Lines,
     text_prov: impl TextLayoutProvider + Clone,
+    config_id: ConfigId,
 ) -> ScreenLines {
     // TODO: this should probably be a get since we need to depend on line-height
     let config = config.get();
@@ -2885,7 +2883,7 @@ pub(crate) fn compute_screen_lines(
                 .iter_rvlines_init(
                     text_prov,
                     cache_rev,
-                    config.id,
+                    config_id,
                     min_info.rvline,
                     false,
                 )
@@ -3083,7 +3081,7 @@ pub(crate) fn compute_screen_lines(
                             .iter_rvlines_init(
                                 &text_prov,
                                 cache_rev,
-                                config.id,
+                                config_id,
                                 start_rvline,
                                 false,
                             )

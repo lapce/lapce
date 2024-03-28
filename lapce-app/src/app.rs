@@ -33,8 +33,10 @@ use floem::{
     view::{View, Widget},
     views::{
         clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
-        empty, label, rich_text, scroll::scroll, stack, svg, tab, text, tooltip,
-        virtual_stack, Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
+        empty, label, rich_text,
+        scroll::{scroll, HideBar, VerticalScrollAsHorizontal},
+        stack, svg, tab, text, tooltip, virtual_stack, Decorators, VirtualDirection,
+        VirtualItemSize, VirtualVector,
     },
     window::{ResizeDirection, WindowConfig, WindowId},
     EventPropagation,
@@ -941,10 +943,10 @@ fn editor_tab_header(
                     .with_untracked(|editor_tab| editor_tab.children[active].1)
                     .get_untracked()
             })
-            .hide_bar(|| true)
-            .vertical_scroll_as_horizontal(|| true)
             .style(|s| {
-                s.position(Position::Absolute)
+                s.set(HideBar, true)
+                    .set(VerticalScrollAsHorizontal, true)
+                    .position(Position::Absolute)
                     .height_full()
                     .max_width_full()
             })

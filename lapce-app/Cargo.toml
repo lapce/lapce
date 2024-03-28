@@ -66,7 +66,7 @@ floem-winit    = { version = "0.29.4", features = ["rwh_05"] }
 [dependencies.floem]
 # path = "../../workspaces/floem"
 git              = "https://github.com/lapce/floem"
-rev              = "eba11fbdea84bfac0b90da5f26e1045597e897a4"
+rev              = "fbd5f4db12db93b3fcbe047df6f6cc054e8ff634"
 default-features = true
 features         = ["editor", "serde"]
 
