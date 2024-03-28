@@ -11,6 +11,7 @@ use crate::config::LOGO;
 const CODICONS_ICONS_DIR: Dir = include_dir!("../icons/codicons");
 const LAPCE_ICONS_DIR: Dir = include_dir!("../icons/lapce");
 
+#[derive(Debug, Clone)]
 pub struct SvgStore {
     svgs: HashMap<String, String>,
     svgs_on_disk: HashMap<PathBuf, Option<String>>,

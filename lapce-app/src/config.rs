@@ -74,7 +74,7 @@ pub struct DropdownInfo {
     pub items: im::Vector<String>,
 }
 
-#[derive(Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct LapceConfig {
     #[serde(skip)]
@@ -346,11 +346,13 @@ impl LapceConfig {
     /// If the color was not able to be found in either theme, which may be indicative that
     /// it is misspelled or needs to be added to the base-theme.
     pub fn color(&self, name: &str) -> Color {
-        *self
-            .color
-            .ui
-            .get(name)
-            .unwrap_or_else(|| panic!("Key not found: {name}"))
+        match self.color.ui.get(name) {
+            Some(c) => *c,
+            None => {
+                error!("Failed to find key: {name}");
+                Color::HOT_PINK
+            }
+        }
     }
 
     /// Retrieve a color value whose key starts with "style."

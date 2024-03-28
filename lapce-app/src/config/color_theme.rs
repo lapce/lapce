@@ -157,6 +157,8 @@ impl ColorThemeConfig {
                     })
                     .unwrap_or(Color::rgb8(0, 0, 0));
 
+                tracing::debug!("name: {name}, hex: {hex}, color: {color:?}");
+
                 (name.to_string(), color)
             })
             .collect()

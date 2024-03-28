@@ -2,7 +2,7 @@ use std::{cmp, path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
-    context::PaintCx,
+    context::{PaintCx, StyleCx},
     event::{Event, EventListener},
     id::Id,
     keyboard::ModifiersState,
@@ -13,36 +13,43 @@ use floem::{
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
     },
-    style::{CursorStyle, Style},
+    style::{CursorStyle, Style, TextColor},
     taffy::prelude::NodeId,
     view::{AnyWidget, View, ViewData, Widget},
     views::{
         clip, container, dyn_stack,
         editor::{
+            text::WrapMethod,
             view::{
-                cursor_caret, DiffSectionKind, EditorView as FloemEditorView,
-                LineRegion, ScreenLines,
+                cursor_caret, CaretColor, CurrentLineColor, DiffSectionKind,
+                EditorView as FloemEditorView, EditorViewClass, EditorViewStyle,
+                IndentGuideColor, IndentStyleProp, LineRegion, ScreenLines,
+                SelectionColor, VisibleWhitespaceColor,
             },
             visual_line::{RVLine, VLine},
-            Editor,
+            CursorSurroundingLines, Editor, Modal, ModalRelativeLine, PhantomColor,
+            PlaceholderColor, PreeditUnderlineColor, RenderWhitespaceProp,
+            ScrollBeyondLastLine, ShowIndentGuide, SmartTab, WrapProp,
         },
-        empty, label, scroll, stack, svg, Decorators,
+        empty, label,
+        scroll::{scroll, HideBar},
+        stack, svg, Decorators,
     },
     EventPropagation, Renderer,
 };
 use itertools::Itertools;
 use lapce_core::{
-    buffer::{diff::DiffLines, rope_text::RopeText},
+    buffer::{diff::DiffLines, rope_text::RopeText, Buffer},
     cursor::{CursorAffinity, CursorMode},
 };
 use lapce_rpc::dap_types::{DapId, SourceBreakpoint};
 use lapce_xi_rope::find::CaseMatching;
 
-use super::{gutter::editor_gutter_view, EditorData};
+use super::{gutter::editor_gutter_view, DocSignal, EditorData};
 use crate::{
     app::clickable_icon,
     command::InternalCommand,
-    config::{color::LapceColor, icon::LapceIcons, LapceConfig},
+    config::{color::LapceColor, editor::WrapStyle, icon::LapceIcons, LapceConfig},
     debug::LapceBreakpoint,
     doc::DocContent,
     text_input::TextInputBuilder,
@@ -56,6 +63,71 @@ struct StickyHeaderInfo {
     y_diff: f64,
 }
 
+fn editor_wrap(config: &LapceConfig) -> WrapMethod {
+    /// Minimum width that we'll allow the view to be wrapped at.
+    const MIN_WRAPPED_WIDTH: f32 = 100.0;
+
+    match config.editor.wrap_style {
+        WrapStyle::None => WrapMethod::None,
+        WrapStyle::EditorWidth => WrapMethod::EditorWidth,
+        WrapStyle::WrapWidth => WrapMethod::WrapWidth {
+            width: (config.editor.wrap_width as f32).max(MIN_WRAPPED_WIDTH),
+        },
+    }
+}
+
+pub fn editor_style(
+    config: ReadSignal<Arc<LapceConfig>>,
+    doc: DocSignal,
+    s: Style,
+) -> Style {
+    let config = config.get();
+    let doc = doc.get();
+    // s.class(EditorViewClass, |s| {
+
+    s.set(
+        IndentStyleProp,
+        doc.buffer.with_untracked(Buffer::indent_style),
+    )
+    .set(CaretColor, config.color(LapceColor::EDITOR_CARET))
+    .set(SelectionColor, config.color(LapceColor::EDITOR_SELECTION))
+    .set(
+        CurrentLineColor,
+        config.color(LapceColor::EDITOR_CURRENT_LINE),
+    )
+    .set(
+        VisibleWhitespaceColor,
+        config.color(LapceColor::EDITOR_VISIBLE_WHITESPACE),
+    )
+    .set(
+        IndentGuideColor,
+        config.color(LapceColor::EDITOR_INDENT_GUIDE),
+    )
+    .set(ScrollBeyondLastLine, config.editor.scroll_beyond_last_line)
+    // })
+    .color(config.color(LapceColor::EDITOR_FOREGROUND))
+    .set(TextColor, config.color(LapceColor::EDITOR_FOREGROUND))
+    .set(PhantomColor, config.color(LapceColor::EDITOR_DIM))
+    .set(PlaceholderColor, config.color(LapceColor::EDITOR_DIM))
+    .set(
+        PreeditUnderlineColor,
+        config.color(LapceColor::EDITOR_FOREGROUND),
+    )
+    .set(ShowIndentGuide, config.editor.show_indent_guide)
+    .set(Modal, config.core.modal)
+    .set(
+        ModalRelativeLine,
+        config.editor.modal_mode_relative_line_numbers,
+    )
+    .set(SmartTab, config.editor.smart_tab)
+    .set(WrapProp, editor_wrap(&config))
+    .set(
+        CursorSurroundingLines,
+        config.editor.cursor_surrounding_lines,
+    )
+    .set(RenderWhitespaceProp, config.editor.render_whitespace)
+}
+
 pub struct EditorView {
     data: ViewData,
     editor: EditorData,
@@ -64,6 +136,7 @@ pub struct EditorView {
     viewport: RwSignal<Rect>,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     sticky_header_info: StickyHeaderInfo,
+    editor_view_style: EditorViewStyle,
 }
 
 pub fn editor_view(
@@ -174,6 +247,7 @@ pub fn editor_view(
         }
     });
 
+    let doc = e_data.doc_signal();
     EditorView {
         data: ViewData::new(id),
         editor: e_data,
@@ -186,6 +260,7 @@ pub fn editor_view(
             last_sticky_should_scroll: false,
             y_diff: 0.0,
         },
+        editor_view_style: Default::default(),
     }
     .on_event(EventListener::ImePreedit, move |event| {
         if !is_active.get_untracked() {
@@ -213,6 +288,8 @@ pub fn editor_view(
         }
         EventPropagation::Stop
     })
+    .class(EditorViewClass)
+    .style(move |s| editor_style(config, doc, s))
 }
 
 impl EditorView {
@@ -329,6 +406,7 @@ impl EditorView {
         cx: &mut PaintCx,
         is_local: bool,
         screen_lines: &ScreenLines,
+        editor_style: &EditorViewStyle,
     ) {
         let e_data = self.editor.clone();
         let ed = e_data.editor.clone();
@@ -342,7 +420,7 @@ impl EditorView {
         let is_active =
             self.is_active.get_untracked() && !find_focus.get_untracked();
 
-        let current_line_color = config.color(LapceColor::EDITOR_CURRENT_LINE);
+        let current_line_color = editor_style.current_line();
 
         let breakline = self.debug_breakline.get_untracked().and_then(
             |(breakline, breakline_path)| {
@@ -380,29 +458,37 @@ impl EditorView {
                 CursorMode::Visual { .. } => false,
             };
 
-            // Highlight the current line
-            if !is_local && highlight_current_line {
-                for (_, end) in cursor.regions_iter() {
-                    // TODO: unsure if this is correct for wrapping lines
-                    let rvline = ed.rvline_of_offset(end, cursor.affinity);
+            if let Some(current_line_color) = current_line_color {
+                // Highlight the current line
+                if !is_local && highlight_current_line {
+                    for (_, end) in cursor.regions_iter() {
+                        // TODO: unsure if this is correct for wrapping lines
+                        let rvline = ed.rvline_of_offset(end, cursor.affinity);
 
-                    if let Some(info) = screen_lines
-                        .info(rvline)
-                        .filter(|_| Some(rvline.line) != breakline)
-                    {
-                        let rect = Rect::from_origin_size(
-                            (viewport.x0, info.vline_y),
-                            (viewport.width(), line_height),
-                        );
+                        if let Some(info) = screen_lines
+                            .info(rvline)
+                            .filter(|_| Some(rvline.line) != breakline)
+                        {
+                            let rect = Rect::from_origin_size(
+                                (viewport.x0, info.vline_y),
+                                (viewport.width(), line_height),
+                            );
 
-                        cx.fill(&rect, current_line_color, 0.0);
+                            cx.fill(&rect, current_line_color, 0.0);
+                        }
                     }
                 }
             }
 
-            FloemEditorView::paint_selection(cx, &ed, screen_lines);
+            FloemEditorView::paint_selection(cx, &ed, screen_lines, editor_style);
 
-            FloemEditorView::paint_cursor_caret(cx, &ed, is_active, screen_lines);
+            FloemEditorView::paint_cursor_caret(
+                cx,
+                &ed,
+                is_active,
+                screen_lines,
+                editor_style,
+            );
         });
     }
 
@@ -629,7 +715,17 @@ impl EditorView {
             return;
         }
 
-        FloemEditorView::paint_scroll_bar(cx, &self.editor.editor, viewport);
+        cx.fill(
+            &Rect::ZERO
+                .with_size(Size::new(1.0, viewport.height()))
+                .with_origin(Point::new(
+                    viewport.x0 + viewport.width() - BAR_WIDTH,
+                    viewport.y0,
+                ))
+                .inflate(0.0, 10.0),
+            config.color(LapceColor::LAPCE_SCROLL_BAR),
+            0.0,
+        );
 
         if !self.editor.kind.get_untracked().is_normal() {
             return;
@@ -929,6 +1025,27 @@ impl Widget for EditorView {
         &mut self.data
     }
 
+    fn style(&mut self, cx: &mut StyleCx<'_>) {
+        if self.editor_view_style.read(cx) {
+            cx.app_state_mut().request_paint(self.id());
+        }
+
+        let editor = &self.editor.editor;
+        if editor.es.try_update(|s| s.read(cx)).unwrap() {
+            editor.floem_style_id.update(|val| *val += 1);
+            cx.app_state_mut().request_paint(self.id());
+        }
+
+        self.for_each_child_mut(&mut |child| {
+            cx.style_view(child);
+            false
+        });
+    }
+
+    fn debug_name(&self) -> std::borrow::Cow<'static, str> {
+        "Editor View".into()
+    }
+
     fn update(
         &mut self,
         cx: &mut floem::context::UpdateCx,
@@ -950,10 +1067,14 @@ impl Widget for EditorView {
             }
 
             let e_data = &self.editor;
+            let editor = &e_data.editor;
+
+            let parent_size = editor.parent_size.get_untracked();
+
             let screen_lines = e_data.screen_lines().get_untracked();
             for (line, _) in screen_lines.iter_lines_y() {
                 // fill in text layout cache so that max width is correct.
-                e_data.editor.text_layout(line);
+                editor.text_layout(line);
             }
 
             let inner_node = self.inner_node.unwrap();
@@ -961,10 +1082,22 @@ impl Widget for EditorView {
             let config = self.editor.common.config.get_untracked();
             let line_height = config.editor.line_height() as f64;
 
-            let width = e_data.editor.max_line_width() + 20.0;
-            let height = line_height * e_data.editor.last_vline().get() as f64;
+            let width = editor.max_line_width().max(parent_size.width());
+            let last_line_height =
+                line_height * (editor.last_vline().get() + 1) as f64;
+            let height = last_line_height.max(parent_size.height());
 
-            let style = Style::new().width(width).height(height).to_taffy_style();
+            let margin_bottom = if self.editor_view_style.scroll_beyond_last_line() {
+                parent_size.height().min(last_line_height) - line_height
+            } else {
+                0.0
+            };
+
+            let style = Style::new()
+                .width(width)
+                .height(height)
+                .margin_bottom(margin_bottom)
+                .to_taffy_style();
             cx.set_style(inner_node, style);
 
             vec![inner_node]
@@ -975,9 +1108,16 @@ impl Widget for EditorView {
         &mut self,
         cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
+        let editor = &self.editor.editor;
         let viewport = cx.current_viewport();
         if self.viewport.with_untracked(|v| v != &viewport) {
             self.viewport.set(viewport);
+        }
+        let parent_size = cx
+            .app_state_mut()
+            .get_layout_rect(self.id().parent().unwrap());
+        if editor.parent_size.with_untracked(|ps| ps != &parent_size) {
+            editor.parent_size.set(parent_size);
         }
         None
     }
@@ -999,7 +1139,7 @@ impl Widget for EditorView {
         // I expect that most/all of the paint functions could restrict themselves to only what is
         // within the active screen lines without issue.
         let screen_lines = ed.screen_lines.get_untracked();
-        self.paint_cursor(cx, is_local, &screen_lines);
+        self.paint_cursor(cx, is_local, &screen_lines, &self.editor_view_style);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
         let screen_lines = ed.screen_lines.get_untracked();
@@ -1007,7 +1147,13 @@ impl Widget for EditorView {
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
-        FloemEditorView::paint_text(cx, ed, viewport, &screen_lines);
+        FloemEditorView::paint_text(
+            cx,
+            ed,
+            viewport,
+            &screen_lines,
+            &self.editor_view_style,
+        );
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);
@@ -1153,11 +1299,9 @@ pub fn editor_container_view(
     let replace_focus = main_split.common.find.replace_focus;
     let debug_breakline = window_tab_data.terminal.breakline;
 
-    let editor_rect = create_rw_signal(Rect::ZERO);
-
     stack((
         editor_breadcrumbs(workspace, editor.get_untracked(), config),
-        container(
+        clip(
             stack((
                 editor_gutter(window_tab_data.clone(), editor, is_active),
                 container(editor_content(editor, debug_breakline, is_active))
@@ -1189,9 +1333,6 @@ pub fn editor_container_view(
                     is_active,
                 ),
             ))
-            .on_resize(move |rect| {
-                editor_rect.set(rect);
-            })
             .style(|s| s.absolute().size_pct(100.0, 100.0)),
         )
         .style(|s| s.size_pct(100.0, 100.0)),
@@ -1618,9 +1759,9 @@ fn editor_breadcrumbs(
             doc.track();
             Some(Point::new(3000.0, 0.0))
         })
-        .hide_bar(|| true)
         .style(move |s| {
-            s.absolute()
+            s.set(HideBar, true)
+                .absolute()
                 .size_pct(100.0, 100.0)
                 .border_bottom(1.0)
                 .border_color(config.get().color(LapceColor::LAPCE_BORDER))
@@ -1666,17 +1807,18 @@ fn editor_content(
         let editor_content_view =
             editor_view(e_data.get_untracked(), debug_breakline, is_active).style(
                 move |s| {
-                    let config = config.get();
-                    let padding_bottom = if config.editor.scroll_beyond_last_line {
-                        viewport.get().height() as f32
-                            - config.editor.line_height() as f32
-                    } else {
-                        0.0
-                    };
-                    s.absolute()
-                        .padding_bottom(padding_bottom)
-                        .cursor(CursorStyle::Text)
-                        .min_size_pct(100.0, 100.0)
+                    // let config = config.get();
+                    s.absolute().cursor(CursorStyle::Text)
+                    // let padding_bottom = if config.editor.scroll_beyond_last_line {
+                    //     viewport.get().height() as f32
+                    //         - config.editor.line_height() as f32
+                    // } else {
+                    //     0.0
+                    // };
+                    // s.absolute()
+                    //     .padding_bottom(padding_bottom)
+                    //     .cursor(CursorStyle::Text)
+                    //     .min_size_pct(100.0, 100.0)
                 },
             );
         let id = editor_content_view.id();
@@ -1748,10 +1890,12 @@ fn editor_content(
         if jump_to_middle {
             rect.inflate(0.0, viewport.height() / 2.0)
         } else {
+            let cursor_surrounding_lines =
+                e_data.editor.es.with(|s| s.cursor_surrounding_lines());
             let mut rect = rect;
-            rect.y0 -= (config.editor.cursor_surrounding_lines * line_height) as f64
+            rect.y0 -= (cursor_surrounding_lines * line_height) as f64
                 + sticky_header_height.get_untracked();
-            rect.y1 += (config.editor.cursor_surrounding_lines * line_height) as f64;
+            rect.y1 += (cursor_surrounding_lines * line_height) as f64;
             rect
         }
     })
