@@ -19,6 +19,14 @@ use crate::{
     workspace::{LapceWorkspace, WorkspaceInfo},
 };
 
+const APP: &str = "app";
+const WINDOW: &str = "window";
+const WORKSPACE_INFO: &str = "workspace_info";
+const WORKSPACE_FILES: &str = "workspace_files";
+const PANEL_ORDERS: &str = "panel_orders";
+const DISABLED_VOLTS: &str = "disabled_volts";
+const RECENT_WORKSPACES: &str = "recent_workspaces";
+
 pub enum SaveEvent {
     App(AppInfo),
     Workspace(LapceWorkspace, WorkspaceInfo),
@@ -31,24 +39,26 @@ pub enum SaveEvent {
 
 #[derive(Clone)]
 pub struct LapceDb {
+    folder: PathBuf,
+    workspace_folder: PathBuf,
     save_tx: Sender<SaveEvent>,
-    sled_db: Option<sled::Db>,
 }
 
 impl LapceDb {
     pub fn new() -> Result<Self> {
-        let path = Directory::config_directory()
+        let folder = Directory::config_directory()
             .ok_or_else(|| anyhow!("can't get config directory"))?
-            .join("lapce.db");
+            .join("db");
+        let workspace_folder = folder.join("workspaces");
+        let _ = std::fs::create_dir_all(&workspace_folder);
+
         let (save_tx, save_rx) = unbounded();
 
-        let sled_db = sled::Config::default()
-            .path(path)
-            .flush_every_ms(None)
-            .open()
-            .ok();
-
-        let db = Self { save_tx, sled_db };
+        let db = Self {
+            save_tx,
+            workspace_folder,
+            folder,
+        };
         let local_db = db.clone();
         std::thread::spawn(move || -> Result<()> {
             loop {
@@ -82,19 +92,9 @@ impl LapceDb {
         Ok(db)
     }
 
-    fn get_db(&self) -> Result<&sled::Db> {
-        self.sled_db
-            .as_ref()
-            .ok_or_else(|| anyhow!("didn't open sled db"))
-    }
-
     pub fn get_disabled_volts(&self) -> Result<Vec<VoltID>> {
-        let sled_db = self.get_db()?;
-        let volts = sled_db
-            .get("disabled_volts")?
-            .ok_or_else(|| anyhow!("can't find disable volts"))?;
-        let volts = std::str::from_utf8(&volts)?;
-        let volts: Vec<VoltID> = serde_json::from_str(volts)?;
+        let volts = std::fs::read_to_string(self.folder.join(DISABLED_VOLTS))?;
+        let volts: Vec<VoltID> = serde_json::from_str(&volts)?;
         Ok(volts)
     }
 
@@ -113,10 +113,8 @@ impl LapceDb {
     }
 
     pub fn insert_disabled_volts(&self, volts: Vec<VoltID>) -> Result<()> {
-        let sled_db = self.get_db()?;
-        let volts = serde_json::to_string(&volts)?;
-        sled_db.insert(b"disabled_volts", volts.as_str())?;
-        sled_db.flush()?;
+        let volts = serde_json::to_string_pretty(&volts)?;
+        std::fs::write(self.folder.join(DISABLED_VOLTS), volts)?;
         Ok(())
     }
 
@@ -125,10 +123,13 @@ impl LapceDb {
         workspace: Arc<LapceWorkspace>,
         volts: Vec<VoltID>,
     ) -> Result<()> {
-        let sled_db = self.get_db()?;
-        let volts = serde_json::to_string(&volts)?;
-        sled_db.insert(format!("disabled_volts:{workspace}"), volts.as_str())?;
-        sled_db.flush()?;
+        let folder = self
+            .workspace_folder
+            .join(workspace_folder_name(&workspace));
+        let _ = std::fs::create_dir_all(&folder);
+
+        let volts = serde_json::to_string_pretty(&volts)?;
+        std::fs::write(folder.join(DISABLED_VOLTS), volts)?;
         Ok(())
     }
 
@@ -136,22 +137,16 @@ impl LapceDb {
         &self,
         workspace: &LapceWorkspace,
     ) -> Result<Vec<VoltID>> {
-        let sled_db = self.get_db()?;
-        let volts = sled_db
-            .get(format!("disabled_volts:{workspace}"))?
-            .ok_or_else(|| anyhow!("can't find disable volts"))?;
-        let volts = std::str::from_utf8(&volts)?;
-        let volts: Vec<VoltID> = serde_json::from_str(volts)?;
+        let folder = self.workspace_folder.join(workspace_folder_name(workspace));
+        let volts = std::fs::read_to_string(folder.join(DISABLED_VOLTS))?;
+        let volts: Vec<VoltID> = serde_json::from_str(&volts)?;
         Ok(volts)
     }
 
     pub fn recent_workspaces(&self) -> Result<Vec<LapceWorkspace>> {
-        let sled_db = self.get_db()?;
-        let workspaces = sled_db
-            .get("recent_workspaces")?
-            .ok_or_else(|| anyhow!("can't find disable volts"))?;
-        let workspaces = std::str::from_utf8(&workspaces)?;
-        let workspaces: Vec<LapceWorkspace> = serde_json::from_str(workspaces)?;
+        let workspaces =
+            std::fs::read_to_string(self.folder.join(RECENT_WORKSPACES))?;
+        let workspaces: Vec<LapceWorkspace> = serde_json::from_str(&workspaces)?;
         Ok(workspaces)
     }
 
@@ -164,18 +159,7 @@ impl LapceDb {
         Ok(())
     }
 
-    fn insert_doc(&self, info: &DocInfo) -> Result<()> {
-        let key = format!("{}:{}", info.workspace, info.path.to_str().unwrap_or(""));
-        let info = serde_json::to_string(info)?;
-        let sled_db = self.get_db()?;
-        sled_db.insert(key.as_str(), info.as_str())?;
-        sled_db.flush()?;
-        Ok(())
-    }
-
     fn insert_recent_workspace(&self, workspace: LapceWorkspace) -> Result<()> {
-        let sled_db = self.get_db()?;
-
         let mut workspaces = self.recent_workspaces().unwrap_or_default();
 
         let mut exits = false;
@@ -198,26 +182,10 @@ impl LapceDb {
             workspaces.push(workspace);
         }
         workspaces.sort_by_key(|w| -(w.last_open as i64));
-        let workspaces = serde_json::to_string(&workspaces)?;
-
-        sled_db.insert("recent_workspaces", workspaces.as_str())?;
-        sled_db.flush()?;
+        let workspaces = serde_json::to_string_pretty(&workspaces)?;
+        std::fs::write(self.folder.join(RECENT_WORKSPACES), workspaces)?;
 
         Ok(())
-    }
-
-    pub fn get_workspace_info(
-        &self,
-        workspace: &LapceWorkspace,
-    ) -> Result<WorkspaceInfo> {
-        let workspace = workspace.to_string();
-        let sled_db = self.get_db()?;
-        let info = sled_db
-            .get(workspace)?
-            .ok_or_else(|| anyhow!("can't find workspace info"))?;
-        let info = std::str::from_utf8(&info)?;
-        let info: WorkspaceInfo = serde_json::from_str(info)?;
-        Ok(info)
     }
 
     pub fn save_window_tab(&self, data: Rc<WindowTabData>) -> Result<()> {
@@ -231,16 +199,28 @@ impl LapceDb {
         Ok(())
     }
 
+    pub fn get_workspace_info(
+        &self,
+        workspace: &LapceWorkspace,
+    ) -> Result<WorkspaceInfo> {
+        let info = std::fs::read_to_string(
+            self.workspace_folder
+                .join(workspace_folder_name(workspace))
+                .join(WORKSPACE_INFO),
+        )?;
+        let info: WorkspaceInfo = serde_json::from_str(&info)?;
+        Ok(info)
+    }
+
     fn insert_workspace(
         &self,
         workspace: &LapceWorkspace,
         info: &WorkspaceInfo,
     ) -> Result<()> {
-        let workspace = workspace.to_string();
-        let workspace_info = serde_json::to_string(info)?;
-        let sled_db = self.get_db()?;
-        sled_db.insert(workspace.as_str(), workspace_info.as_str())?;
-        sled_db.flush()?;
+        let folder = self.workspace_folder.join(workspace_folder_name(workspace));
+        let _ = std::fs::create_dir_all(&folder);
+        let workspace_info = serde_json::to_string_pretty(info)?;
+        std::fs::write(folder.join(WORKSPACE_INFO), workspace_info)?;
         Ok(())
     }
 
@@ -266,10 +246,8 @@ impl LapceDb {
     }
 
     pub fn insert_app_info(&self, info: AppInfo) -> Result<()> {
-        let info = serde_json::to_string(&info)?;
-        let sled_db = self.get_db()?;
-        sled_db.insert("app", info.as_str())?;
-        sled_db.flush()?;
+        let info = serde_json::to_string_pretty(&info)?;
+        std::fs::write(self.folder.join(APP), info)?;
         Ok(())
     }
 
@@ -288,20 +266,13 @@ impl LapceDb {
                 .map(|(_, window_data)| window_data.info())
                 .collect(),
         };
-        let info = serde_json::to_string(&info)?;
-        let sled_db = self.get_db()?;
-        sled_db.insert("app", info.as_str())?;
-        sled_db.flush()?;
+        self.insert_app_info(info)?;
         Ok(())
     }
 
     pub fn get_app(&self) -> Result<AppInfo> {
-        let sled_db = self.get_db()?;
-        let info = sled_db
-            .get("app")?
-            .ok_or_else(|| anyhow!("can't find app info"))?;
-        let info = std::str::from_utf8(&info)?;
-        let mut info: AppInfo = serde_json::from_str(info)?;
+        let info = std::fs::read_to_string(self.folder.join(APP))?;
+        let mut info: AppInfo = serde_json::from_str(&info)?;
         for window in info.windows.iter_mut() {
             if window.size.width < 10.0 {
                 window.size.width = 800.0;
@@ -314,12 +285,8 @@ impl LapceDb {
     }
 
     pub fn get_window(&self) -> Result<WindowInfo> {
-        let sled_db = self.get_db()?;
-        let info = sled_db
-            .get("window")?
-            .ok_or_else(|| anyhow!("can't find app info"))?;
-        let info = std::str::from_utf8(&info)?;
-        let mut info: WindowInfo = serde_json::from_str(info)?;
+        let info = std::fs::read_to_string(self.folder.join(WINDOW))?;
+        let mut info: WindowInfo = serde_json::from_str(&info)?;
         if info.size.width < 10.0 {
             info.size.width = 800.0;
         }
@@ -341,10 +308,8 @@ impl LapceDb {
             let _ = self.insert_window_tab(window_tab);
         }
         let info = data.info();
-        let info = serde_json::to_string(&info)?;
-        let sled_db = self.get_db()?;
-        sled_db.insert("window", info.as_str())?;
-        sled_db.flush()?;
+        let info = serde_json::to_string_pretty(&info)?;
+        std::fs::write(self.folder.join(WINDOW), info)?;
         Ok(())
     }
 
@@ -359,12 +324,8 @@ impl LapceDb {
     }
 
     pub fn get_panel_orders(&self) -> Result<PanelOrder> {
-        let sled_db = self.get_db()?;
-        let panel_orders = sled_db
-            .get("panel_orders")?
-            .ok_or_else(|| anyhow!("can't find panel orders"))?;
-        let panel_orders = std::str::from_utf8(&panel_orders)?;
-        let mut panel_orders: PanelOrder = serde_json::from_str(panel_orders)?;
+        let panel_orders = std::fs::read_to_string(self.folder.join(PANEL_ORDERS))?;
+        let mut panel_orders: PanelOrder = serde_json::from_str(&panel_orders)?;
 
         use strum::IntoEnumIterator;
         for kind in PanelKind::iter() {
@@ -382,10 +343,8 @@ impl LapceDb {
     }
 
     fn insert_panel_orders(&self, order: &PanelOrder) -> Result<()> {
-        let info = serde_json::to_string(order)?;
-        let sled_db = self.get_db()?;
-        sled_db.insert("panel_orders", info.as_str())?;
-        sled_db.flush()?;
+        let info = serde_json::to_string_pretty(order)?;
+        std::fs::write(self.folder.join(PANEL_ORDERS), info)?;
         Ok(())
     }
 
@@ -405,18 +364,40 @@ impl LapceDb {
         let _ = self.save_tx.send(SaveEvent::Doc(info));
     }
 
+    fn insert_doc(&self, info: &DocInfo) -> Result<()> {
+        let folder = self
+            .workspace_folder
+            .join(workspace_folder_name(&info.workspace))
+            .join(WORKSPACE_FILES);
+        let _ = std::fs::create_dir_all(&folder);
+        let contents = serde_json::to_string_pretty(info)?;
+        std::fs::write(folder.join(doc_path_name(&info.path)), contents)?;
+        Ok(())
+    }
+
     pub fn get_doc_info(
         &self,
         workspace: &LapceWorkspace,
         path: &Path,
     ) -> Result<DocInfo> {
-        let key = format!("{}:{}", workspace, path.to_str().unwrap_or(""));
-        let sled_db = self.get_db()?;
-        let info = sled_db
-            .get(key.as_str())?
-            .ok_or_else(|| anyhow!("can't find workspace info"))?;
-        let info = std::str::from_utf8(&info)?;
-        let info: DocInfo = serde_json::from_str(info)?;
+        let folder = self
+            .workspace_folder
+            .join(workspace_folder_name(workspace))
+            .join(WORKSPACE_FILES);
+        let info = std::fs::read_to_string(folder.join(doc_path_name(path)))?;
+        let info: DocInfo = serde_json::from_str(&info)?;
         Ok(info)
     }
+}
+
+fn workspace_folder_name(workspace: &LapceWorkspace) -> String {
+    url::form_urlencoded::Serializer::new(String::new())
+        .append_key_only(&workspace.to_string())
+        .finish()
+}
+
+fn doc_path_name(path: &Path) -> String {
+    url::form_urlencoded::Serializer::new(String::new())
+        .append_key_only(&path.to_string_lossy())
+        .finish()
 }

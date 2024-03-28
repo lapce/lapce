@@ -2000,16 +2000,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fs2"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
-dependencies = [
- "libc",
- "winapi",
-]
-
-[[package]]
 name = "fs_extra"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3034,7 +3024,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "sled",
  "smallvec",
  "structdesc",
  "strum",
@@ -4856,19 +4845,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f92a496fb766b417c996b9c5e57daf2f7ad3b0bebe1ccfca4856390e3d3bb67"
 dependencies = [
  "autocfg",
-]
-
-[[package]]
-name = "sled"
-version = "0.34.7"
-source = "git+https://github.com/spacejam/sled?rev=005c023ca94d424d8e630125e4c21320ed160031#005c023ca94d424d8e630125e4c21320ed160031"
-dependencies = [
- "crc32fast",
- "fs2",
- "im",
- "libc",
- "log",
- "parking_lot",
 ]
 
 [[package]]
