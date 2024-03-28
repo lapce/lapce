@@ -8,7 +8,7 @@ use floem::{
         layout::TextLayoutLine,
         phantom_text::PhantomTextLine,
         visual_line::{
-            FontSizeCacheId, LineFontSizeProvider, Lines, ResolvedWrap,
+            ConfigId, FontSizeCacheId, LineFontSizeProvider, Lines, ResolvedWrap,
             TextLayoutProvider, VLine,
         },
     },
@@ -167,7 +167,7 @@ fn make_lines_ph(
     lines.set_wrap(wrap);
 
     if init {
-        lines.init_all(0, 0, &text, true);
+        lines.init_all(0, ConfigId::new(0, 0), &text, true);
     }
 
     (text, lines)
