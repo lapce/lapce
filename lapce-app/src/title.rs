@@ -13,7 +13,7 @@ use lapce_core::meta;
 use lapce_rpc::proxy::ProxyStatus;
 
 use crate::{
-    app::{clickable_icon, window_menu},
+    app::{clickable_icon, not_clickable_icon, window_menu},
     command::{LapceCommand, LapceWorkbenchCommand, WindowCommand},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     listener::Listener,
@@ -50,14 +50,12 @@ fn left(
             },
         ))
         .style(move |s| s.margin_horiz(10.0).apply_if(is_macos, |s| s.hide())),
-        clickable_icon(
+        not_clickable_icon(
             || LapceIcons::MENU,
-            move || {},
             || false,
             || false,
             || "Menu",
             config,
-            false,
         )
         .popout_menu(move || window_menu(lapce_command, workbench_command))
         .style(move |s| {
@@ -177,7 +175,6 @@ fn middle(
             move || !can_jump_backward.get(),
             || "Jump Backward",
             config,
-            true,
         )
         .style(move |s| s.margin_horiz(6.0))
     };
@@ -191,20 +188,17 @@ fn middle(
             move || !can_jump_forward.get(),
             || "Jump Forward",
             config,
-            true,
         )
         .style(move |s| s.margin_right(6.0))
     };
 
     let open_folder = move || {
-        clickable_icon(
+        not_clickable_icon(
             || LapceIcons::PALETTE_MENU,
-            move || {},
             || false,
             || false,
             || "Open Folder / Recent Workspace",
             config,
-            true,
         )
         .popout_menu(move || {
             Menu::new("")
@@ -283,7 +277,6 @@ fn middle(
                 || false,
                 || "Run and Debug",
                 config,
-                true,
             )
             .style(move |s| s.margin_horiz(6.0)),
             drag_window_area(empty())
@@ -331,14 +324,12 @@ fn right(
         drag_window_area(empty())
             .style(|s| s.height_pct(100.0).flex_basis(0.0).flex_grow(1.0)),
         stack((
-            clickable_icon(
+            not_clickable_icon(
                 || LapceIcons::SETTINGS,
-                || {},
                 || false,
                 || false,
                 || "Settings",
                 config,
-                true,
             )
             .popout_menu(move || {
                 Menu::new("")
@@ -487,7 +478,6 @@ pub fn window_controls_view(
             || false,
             || "Minimize",
             config,
-            true,
         )
         .style(|s| s.margin_right(16.0).margin_left(10.0)),
         clickable_icon(
@@ -507,7 +497,6 @@ pub fn window_controls_view(
             || false,
             || "Maximize",
             config,
-            true,
         )
         .style(|s| s.margin_right(16.0)),
         clickable_icon(
@@ -519,7 +508,6 @@ pub fn window_controls_view(
             || false,
             || "Close Window",
             config,
-            true,
         )
         .style(|s| s.margin_right(6.0)),
     ))

@@ -18,7 +18,7 @@ use lapce_rpc::plugin::{VoltID, VoltInfo};
 
 use super::{kind::PanelKind, position::PanelPosition, view::PanelBuilder};
 use crate::{
-    app::clickable_icon,
+    app::not_clickable_icon,
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons},
     plugin::{AvailableVoltData, InstalledVoltData, PluginData, VoltIcon},
@@ -138,14 +138,12 @@ fn installed_view(plugin: PluginData) -> impl View {
                             .flex_basis(0.0)
                             .min_width(0.0)
                     }),
-                    clickable_icon(
+                    not_clickable_icon(
                         || LapceIcons::SETTINGS,
-                        || {},
                         || false,
                         || false,
                         || "Options",
                         config,
-                        true,
                     )
                     .style(|s| s.padding_left(6.0))
                     .popout_menu(move || {
