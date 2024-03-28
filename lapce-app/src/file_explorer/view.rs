@@ -462,7 +462,6 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                 || false,
                 || "Close",
                 config,
-                true,
             )
             .on_event_stop(EventListener::PointerEnter, move |_| {
                 hovered.set(true);

@@ -85,7 +85,6 @@ fn debug_process_icons(
                     || false,
                     || "Restart",
                     config,
-                    true,
                 )
                 .style(|s| s.margin_horiz(4.0))
             },
@@ -100,7 +99,6 @@ fn debug_process_icons(
                     move || stopped,
                     || "Stop",
                     config,
-                    true,
                 )
                 .style(|s| s.margin_right(4.0))
             },
@@ -115,7 +113,6 @@ fn debug_process_icons(
                     || false,
                     || "Close",
                     config,
-                    true,
                 )
                 .style(|s| s.margin_right(4.0))
             },
@@ -132,7 +129,6 @@ fn debug_process_icons(
                     move || !paused() || stopped,
                     || "Continue",
                     config,
-                    true,
                 )
                 .style(|s| s.margin_horiz(6.0))
             },
@@ -147,7 +143,6 @@ fn debug_process_icons(
                     move || paused() || stopped,
                     || "Pause",
                     config,
-                    true,
                 )
                 .style(|s| s.margin_right(4.0))
             },
@@ -162,7 +157,6 @@ fn debug_process_icons(
                     move || !paused() || stopped,
                     || "Step Over",
                     config,
-                    true,
                 )
                 .style(|s| s.margin_right(4.0))
             },
@@ -177,7 +171,6 @@ fn debug_process_icons(
                     move || !paused() || stopped,
                     || "Step Into",
                     config,
-                    true,
                 )
                 .style(|s| s.margin_right(4.0))
             },
@@ -192,7 +185,6 @@ fn debug_process_icons(
                     move || !paused() || stopped,
                     || "Step Out",
                     config,
-                    true,
                 )
                 .style(|s| s.margin_right(4.0))
             },
@@ -207,7 +199,6 @@ fn debug_process_icons(
                     || false,
                     || "Restart",
                     config,
-                    true,
                 )
                 .style(|s| s.margin_right(4.0))
             },
@@ -222,7 +213,6 @@ fn debug_process_icons(
                     move || stopped,
                     || "Stop",
                     config,
-                    true,
                 )
                 .style(|s| s.margin_right(4.0))
             },
@@ -237,7 +227,6 @@ fn debug_process_icons(
                     || false,
                     || "Close",
                     config,
-                    true,
                 )
                 .style(|s| s.margin_right(4.0))
             },
@@ -680,7 +669,6 @@ fn breakpoints_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                             || false,
                             || "Remove",
                             config,
-                            true,
                         )
                         .on_event_stop(EventListener::PointerDown, |_| {}),
                         checkbox(move || breakpoint.active, config)
