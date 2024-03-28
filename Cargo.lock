@@ -2998,7 +2998,6 @@ dependencies = [
  "dmg",
  "flate2",
  "floem",
- "floem-winit",
  "fs_extra",
  "futures",
  "globset",

@@ -8,11 +8,12 @@ use std::{path::PathBuf, rc::Rc, str::FromStr};
 
 use anyhow::Result;
 use floem::{
-    keyboard::{Key, KeyEvent, ModifiersState, NamedKey},
+    keyboard::{
+        Key, KeyEvent, KeyEventExtModifierSupplement, ModifiersState, NamedKey,
+    },
     pointer::PointerInputEvent,
     reactive::{RwSignal, Scope},
 };
-use floem_winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::mode::{Mode, Modes};
