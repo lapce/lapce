@@ -111,9 +111,15 @@ impl KeyMapPress {
     pub fn parse(key: &str) -> Vec<Self> {
         key.split(' ')
             .filter_map(|k| {
-                let (modifiers, key) = match k.rsplit_once('+') {
-                    Some(pair) => pair,
-                    None => ("", k),
+                let (modifiers, key) = if k == "+" {
+                    ("", "+")
+                } else if let Some(remaining) = k.strip_suffix("++") {
+                    (remaining, "+")
+                } else {
+                    match k.rsplit_once('+') {
+                        Some(pair) => pair,
+                        None => ("", k),
+                    }
                 };
 
                 let key = match key.parse().ok() {

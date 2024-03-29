@@ -137,6 +137,10 @@ fn get_modes(toml_keymap: &toml_edit::Table) -> Modes {
 
 #[cfg(test)]
 mod tests {
+    use floem::keyboard::Key;
+
+    use crate::keypress::keymap::KeyMapKey;
+
     use super::*;
 
     #[test]
@@ -234,5 +238,17 @@ command = "goto_definition"
 
         let keypress = KeyMapPress::parse("Ctrl+MouseMiddle");
         assert_eq!(keymaps.get(&keypress).unwrap().len(), 1);
+
+        let keypress = KeyMapPress::parse("Ctrl++");
+        assert_eq!(
+            keypress[0].key,
+            KeyMapKey::Logical(Key::Character("+".into()))
+        );
+
+        let keypress = KeyMapPress::parse("+");
+        assert_eq!(
+            keypress[0].key,
+            KeyMapKey::Logical(Key::Character("+".into()))
+        );
     }
 }
