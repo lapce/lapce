@@ -3147,20 +3147,16 @@ fn parse_hover_resp(
                 config,
             ),
         },
-        HoverContents::Array(array) => {
-            let entries = array
-                .into_iter()
-                .map(|t| from_marked_string(t, config))
-                .rev();
-
-            // TODO: It'd be nice to avoid this vec
-            itertools::Itertools::intersperse(
-                entries,
-                vec![MarkdownContent::Separator],
-            )
-            .flatten()
-            .collect()
-        }
+        HoverContents::Array(array) => array
+            .into_iter()
+            .map(|t| from_marked_string(t, config))
+            .rev()
+            .reduce(|mut contents, more| {
+                contents.push(MarkdownContent::Separator);
+                contents.extend(more);
+                contents
+            })
+            .unwrap_or_default(),
         HoverContents::Markup(content) => match content.kind {
             MarkupKind::PlainText => from_plaintext(&content.value, 1.5, config),
             MarkupKind::Markdown => parse_markdown(&content.value, 1.5, config),
