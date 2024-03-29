@@ -13,7 +13,7 @@ use floem::{
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
     },
-    style::{CursorStyle, Style, TextColor},
+    style::{CursorColor, CursorStyle, Style, TextColor},
     taffy::prelude::NodeId,
     view::{AnyWidget, View, ViewData, Widget},
     views::{
@@ -21,15 +21,15 @@ use floem::{
         editor::{
             text::WrapMethod,
             view::{
-                cursor_caret, CaretColor, CurrentLineColor, DiffSectionKind,
-                EditorView as FloemEditorView, EditorViewClass, EditorViewStyle,
-                IndentGuideColor, IndentStyleProp, LineRegion, ScreenLines,
-                SelectionColor, VisibleWhitespaceColor,
+                cursor_caret, DiffSectionKind, EditorView as FloemEditorView,
+                EditorViewClass, LineRegion, ScreenLines,
             },
             visual_line::{RVLine, VLine},
-            CursorSurroundingLines, Editor, Modal, ModalRelativeLine, PhantomColor,
-            PlaceholderColor, PreeditUnderlineColor, RenderWhitespaceProp,
-            ScrollBeyondLastLine, ShowIndentGuide, SmartTab, WrapProp,
+            CurrentLineColor, CursorSurroundingLines, Editor, EditorStyle,
+            IndentGuideColor, IndentStyleProp, Modal, ModalRelativeLine,
+            PhantomColor, PlaceholderColor, PreeditUnderlineColor,
+            RenderWhitespaceProp, ScrollBeyondLastLine, SelectionColor,
+            ShowIndentGuide, SmartTab, VisibleWhitespaceColor, WrapProp,
         },
         empty, label,
         scroll::{scroll, HideBar},
@@ -83,13 +83,12 @@ pub fn editor_style(
 ) -> Style {
     let config = config.get();
     let doc = doc.get();
-    // s.class(EditorViewClass, |s| {
 
     s.set(
         IndentStyleProp,
         doc.buffer.with_untracked(Buffer::indent_style),
     )
-    .set(CaretColor, config.color(LapceColor::EDITOR_CARET))
+    .set(CursorColor, config.color(LapceColor::EDITOR_CARET))
     .set(SelectionColor, config.color(LapceColor::EDITOR_SELECTION))
     .set(
         CurrentLineColor,
@@ -104,7 +103,6 @@ pub fn editor_style(
         config.color(LapceColor::EDITOR_INDENT_GUIDE),
     )
     .set(ScrollBeyondLastLine, config.editor.scroll_beyond_last_line)
-    // })
     .color(config.color(LapceColor::EDITOR_FOREGROUND))
     .set(TextColor, config.color(LapceColor::EDITOR_FOREGROUND))
     .set(PhantomColor, config.color(LapceColor::EDITOR_DIM))
@@ -136,7 +134,6 @@ pub struct EditorView {
     viewport: RwSignal<Rect>,
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     sticky_header_info: StickyHeaderInfo,
-    editor_view_style: EditorViewStyle,
 }
 
 pub fn editor_view(
@@ -260,7 +257,6 @@ pub fn editor_view(
             last_sticky_should_scroll: false,
             y_diff: 0.0,
         },
-        editor_view_style: Default::default(),
     }
     .on_event(EventListener::ImePreedit, move |event| {
         if !is_active.get_untracked() {
@@ -406,7 +402,6 @@ impl EditorView {
         cx: &mut PaintCx,
         is_local: bool,
         screen_lines: &ScreenLines,
-        editor_style: &EditorViewStyle,
     ) {
         let e_data = self.editor.clone();
         let ed = e_data.editor.clone();
@@ -420,7 +415,7 @@ impl EditorView {
         let is_active =
             self.is_active.get_untracked() && !find_focus.get_untracked();
 
-        let current_line_color = editor_style.current_line();
+        let current_line_color = ed.es.with_untracked(EditorStyle::current_line);
 
         let breakline = self.debug_breakline.get_untracked().and_then(
             |(breakline, breakline_path)| {
@@ -480,15 +475,9 @@ impl EditorView {
                 }
             }
 
-            FloemEditorView::paint_selection(cx, &ed, screen_lines, editor_style);
+            FloemEditorView::paint_selection(cx, &ed, screen_lines);
 
-            FloemEditorView::paint_cursor_caret(
-                cx,
-                &ed,
-                is_active,
-                screen_lines,
-                editor_style,
-            );
+            FloemEditorView::paint_cursor_caret(cx, &ed, is_active, screen_lines);
         });
     }
 
@@ -1026,20 +1015,11 @@ impl Widget for EditorView {
     }
 
     fn style(&mut self, cx: &mut StyleCx<'_>) {
-        if self.editor_view_style.read(cx) {
-            cx.app_state_mut().request_paint(self.id());
-        }
-
         let editor = &self.editor.editor;
         if editor.es.try_update(|s| s.read(cx)).unwrap() {
             editor.floem_style_id.update(|val| *val += 1);
             cx.app_state_mut().request_paint(self.id());
         }
-
-        self.for_each_child_mut(&mut |child| {
-            cx.style_view(child);
-            false
-        });
     }
 
     fn debug_name(&self) -> std::borrow::Cow<'static, str> {
@@ -1087,7 +1067,10 @@ impl Widget for EditorView {
                 line_height * (editor.last_vline().get() + 1) as f64;
             let height = last_line_height.max(parent_size.height());
 
-            let margin_bottom = if self.editor_view_style.scroll_beyond_last_line() {
+            let margin_bottom = if editor
+                .es
+                .with_untracked(EditorStyle::scroll_beyond_last_line)
+            {
                 parent_size.height().min(last_line_height) - line_height
             } else {
                 0.0
@@ -1139,7 +1122,7 @@ impl Widget for EditorView {
         // I expect that most/all of the paint functions could restrict themselves to only what is
         // within the active screen lines without issue.
         let screen_lines = ed.screen_lines.get_untracked();
-        self.paint_cursor(cx, is_local, &screen_lines, &self.editor_view_style);
+        self.paint_cursor(cx, is_local, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
         let screen_lines = ed.screen_lines.get_untracked();
@@ -1147,13 +1130,7 @@ impl Widget for EditorView {
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
-        FloemEditorView::paint_text(
-            cx,
-            ed,
-            viewport,
-            &screen_lines,
-            &self.editor_view_style,
-        );
+        FloemEditorView::paint_text(cx, ed, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);
@@ -1301,41 +1278,38 @@ pub fn editor_container_view(
 
     stack((
         editor_breadcrumbs(workspace, editor.get_untracked(), config),
-        clip(
-            stack((
-                editor_gutter(window_tab_data.clone(), editor, is_active),
-                container(editor_content(editor, debug_breakline, is_active))
-                    .style(move |s| s.size_pct(100.0, 100.0)),
-                empty().style(move |s| {
-                    let config = config.get();
-                    s.absolute()
-                        .width_pct(100.0)
-                        .height(sticky_header_height.get() as f32)
-                        // .box_shadow_blur(5.0)
-                        // .border_bottom(1.0)
-                        // .border_color(
-                        //     config.get_color(LapceColor::LAPCE_BORDER),
-                        // )
-                        .apply_if(
-                            !config.editor.sticky_header
-                                || sticky_header_height.get() == 0.0
-                                || !editor_view.get().is_normal(),
-                            |s| s.hide(),
-                        )
-                }),
-                find_view(
-                    editor,
-                    find_editor,
-                    find_focus,
-                    replace_editor,
-                    replace_active,
-                    replace_focus,
-                    is_active,
-                ),
-            ))
-            .style(|s| s.absolute().size_pct(100.0, 100.0)),
-        )
-        .style(|s| s.size_pct(100.0, 100.0)),
+        stack((
+            editor_gutter(window_tab_data.clone(), editor, is_active),
+            container(editor_content(editor, debug_breakline, is_active))
+                .style(move |s| s.size_pct(100.0, 100.0)),
+            empty().style(move |s| {
+                let config = config.get();
+                s.absolute()
+                    .width_pct(100.0)
+                    .height(sticky_header_height.get() as f32)
+                    // .box_shadow_blur(5.0)
+                    // .border_bottom(1.0)
+                    // .border_color(
+                    //     config.get_color(LapceColor::LAPCE_BORDER),
+                    // )
+                    .apply_if(
+                        !config.editor.sticky_header
+                            || sticky_header_height.get() == 0.0
+                            || !editor_view.get().is_normal(),
+                        |s| s.hide(),
+                    )
+            }),
+            find_view(
+                editor,
+                find_editor,
+                find_focus,
+                replace_editor,
+                replace_active,
+                replace_focus,
+                is_active,
+            ),
+        ))
+        .style(|s| s.absolute().size_pct(100.0, 100.0)),
     ))
     .on_cleanup(move || {
         if editors.contains_untracked(editor_id) {
@@ -1791,6 +1765,7 @@ fn editor_content(
         viewport,
         sticky_header_height,
         config,
+        editor,
     ) = e_data.with_untracked(|editor| {
         (
             editor.cursor().read_only(),
@@ -1800,29 +1775,26 @@ fn editor_content(
             editor.viewport(),
             editor.sticky_header_height,
             editor.common.config,
+            editor.editor.clone(),
         )
     });
 
     scroll({
         let editor_content_view =
-            editor_view(e_data.get_untracked(), debug_breakline, is_active).style(
-                move |s| {
-                    // let config = config.get();
-                    s.absolute().cursor(CursorStyle::Text)
-                    // let padding_bottom = if config.editor.scroll_beyond_last_line {
-                    //     viewport.get().height() as f32
-                    //         - config.editor.line_height() as f32
-                    // } else {
-                    //     0.0
-                    // };
-                    // s.absolute()
-                    //     .padding_bottom(padding_bottom)
-                    //     .cursor(CursorStyle::Text)
-                    //     .min_size_pct(100.0, 100.0)
-                },
-            );
+            editor_view(e_data.get_untracked(), debug_breakline, is_active)
+                .style(move |s| s.absolute().cursor(CursorStyle::Text));
+
         let id = editor_content_view.id();
+        editor.editor_view_id.set(Some(id));
+
+        let editor2 = editor.clone();
         editor_content_view
+            .on_event_cont(EventListener::FocusGained, move |_| {
+                editor.editor_view_focused.notify();
+            })
+            .on_event_cont(EventListener::FocusLost, move |_| {
+                editor2.editor_view_focus_lost.notify();
+            })
             .on_event_cont(EventListener::PointerDown, move |event| {
                 if let Event::PointerDown(pointer_event) = event {
                     id.request_active();
