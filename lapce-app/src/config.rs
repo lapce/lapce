@@ -51,7 +51,16 @@ static DEFAULT_CONFIG: Lazy<config::Config> = Lazy::new(LapceConfig::default_con
 static DEFAULT_LAPCE_CONFIG: Lazy<LapceConfig> =
     Lazy::new(LapceConfig::default_lapce_config);
 
-// static DEFAULT_DARK_THEME_CONFIG = Lazy
+static DEFAULT_DARK_THEME_CONFIG: Lazy<config::Config> = Lazy::new(|| {
+    config::Config::builder()
+        .add_source(config::File::from_str(
+            DEFAULT_DARK_THEME,
+            config::FileFormat::Toml,
+        ))
+        .build()
+        .unwrap()
+});
+
 /// The default theme is the dark theme.
 static DEFAULT_DARK_THEME_COLOR_CONFIG: Lazy<ColorThemeConfig> = Lazy::new(|| {
     let (_, theme) =
@@ -166,9 +175,13 @@ impl LapceConfig {
         icon_theme_config: Option<config::Config>,
     ) -> config::Config {
         let mut config = DEFAULT_CONFIG.clone();
+
         if let Some(theme) = color_theme_config {
+            // TODO: use different color theme basis if the theme declares its color preference
+            // differently
             config = config::Config::builder()
                 .add_source(config.clone())
+                .add_source(DEFAULT_DARK_THEME_CONFIG.clone())
                 .add_source(theme)
                 .build()
                 .unwrap_or_else(|_| config.clone());
@@ -238,21 +251,7 @@ impl LapceConfig {
     }
 
     fn resolve_theme(&mut self, workspace: &LapceWorkspace) {
-        let mut default_lapce_config = DEFAULT_LAPCE_CONFIG.clone();
-        if let Some((_, color_theme_config)) = self
-            .available_color_themes
-            .get(&self.core.color_theme.to_lowercase())
-        {
-            if let Ok(mut theme_lapce_config) = config::Config::builder()
-                .add_source(DEFAULT_CONFIG.clone())
-                .add_source(color_theme_config.clone())
-                .build()
-                .and_then(|theme| theme.try_deserialize::<LapceConfig>())
-            {
-                theme_lapce_config.resolve_colors(Some(&default_lapce_config));
-                default_lapce_config = theme_lapce_config;
-            }
-        }
+        let default_lapce_config = DEFAULT_LAPCE_CONFIG.clone();
 
         let color_theme_config = self
             .available_color_themes
