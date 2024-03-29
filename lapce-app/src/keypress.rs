@@ -545,9 +545,7 @@ impl KeyPressData {
             if !keys.is_empty() {
                 array.get_mut(index)?.insert(
                     "key",
-                    toml_edit::value(toml_edit::Value::from(
-                        keys.iter().map(|k| k.to_string()).join(" "),
-                    )),
+                    toml_edit::value(toml_edit::Value::from(keys.iter().join(" "))),
                 );
             } else {
                 array.remove(index);
@@ -576,9 +574,7 @@ impl KeyPressData {
             if !keys.is_empty() {
                 table.insert(
                     "key",
-                    toml_edit::value(toml_edit::Value::from(
-                        keys.iter().map(|k| k.to_string()).join(" "),
-                    )),
+                    toml_edit::value(toml_edit::Value::from(keys.iter().join(" "))),
                 );
                 array.push(table.clone());
             }
@@ -587,7 +583,7 @@ impl KeyPressData {
                 table.insert(
                     "key",
                     toml_edit::value(toml_edit::Value::from(
-                        keymap.key.iter().map(|k| k.to_string()).join(" "),
+                        keymap.key.iter().join(" "),
                     )),
                 );
                 table.insert(
