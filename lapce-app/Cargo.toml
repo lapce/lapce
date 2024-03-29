@@ -54,7 +54,7 @@ unicode-width  = "0.1.11"
 nucleo         = "0.2.0"
 bytemuck       = "1.14.3"
 tokio          = { version = "1.36", features = ["full"] }
-futures        = "0.3.26"
+futures        = "0.3.30"
 config         = { version = "=0.13.4", default-features = false, features = ["toml"] }
 structdesc     = { git = "https://github.com/lapce/structdesc" }
 base64         = "0.21.7"
