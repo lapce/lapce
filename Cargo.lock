@@ -966,12 +966,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cov-mark"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ffa3d3e0138386cd4361f63537765cac7ee40698028844635a54495a92f67f3"
-
-[[package]]
 name = "cpp_demangle"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3609,9 +3603,9 @@ dependencies = [
 
 [[package]]
 name = "nucleo"
-version = "0.2.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ccab936f2c8ad271bb31430944d98d358f74153566ea323265497f5639b11b6"
+checksum = "6350a138d8860658523a7593cbf6813999d17a099371d14f70c5c905b37593e9"
 dependencies = [
  "nucleo-matcher",
  "parking_lot",
@@ -3620,11 +3614,10 @@ dependencies = [
 
 [[package]]
 name = "nucleo-matcher"
-version = "0.2.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b702b402fe286162d1f00b552a046ce74365d2ac473a2607ff36ba650f9bd57"
+checksum = "bf33f538733d1a5a3494b836ba913207f14d9d4a1d3cd67030c5061bdd2cac85"
 dependencies = [
- "cov-mark",
  "memchr",
  "unicode-segmentation",
 ]
