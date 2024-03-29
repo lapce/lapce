@@ -157,8 +157,6 @@ impl ColorThemeConfig {
                     })
                     .unwrap_or(Color::rgb8(0, 0, 0));
 
-                tracing::debug!("name: {name}, hex: {hex}, color: {color:?}");
-
                 (name.to_string(), color)
             })
             .collect()
@@ -178,5 +176,87 @@ impl ColorThemeConfig {
         default: Option<&HashMap<String, Color>>,
     ) -> HashMap<String, Color> {
         Self::resolve_color(&self.syntax, base, default)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use config::Config;
+    use floem::peniko::Color;
+
+    use crate::{config::LapceConfig, workspace::LapceWorkspace};
+
+    #[test]
+    fn test_resolve() {
+        // Mimicking load
+        let workspace = LapceWorkspace::default();
+
+        let config = LapceConfig::merge_config(&workspace, None, None);
+        let mut lapce_config: LapceConfig = config.try_deserialize().unwrap();
+
+        let test_theme_str = r##"
+[color-theme]
+name = "test"
+color-preference = "dark"
+
+[ui]
+
+[color-theme.base]
+"blah" = "#ff00ff"
+"text" = "#000000"
+
+[color-theme.syntax]
+
+[color-theme.ui]
+"lapce.error" = "#ffffff"
+"editor.background" = "$blah"
+"##;
+        println!("Test theme: {test_theme_str}");
+        let test_theme_cfg = Config::builder()
+            .add_source(config::File::from_str(
+                test_theme_str,
+                config::FileFormat::Toml,
+            ))
+            .build()
+            .unwrap();
+
+        lapce_config.available_color_themes =
+            [("test".to_string(), ("test".to_string(), test_theme_cfg))]
+                .into_iter()
+                .collect();
+        // lapce_config.available_icon_themes = Some(vec![]);
+        lapce_config.core.color_theme = "test".to_string();
+
+        lapce_config.resolve_theme(&workspace);
+
+        println!("Hot Pink: {:?}", Color::HOT_PINK);
+        // test basic override
+        assert_eq!(
+            lapce_config.color("lapce.error"),
+            Color::WHITE,
+            "Failed to get basic theme override"
+        );
+        // test that it falls through to the dark theme for unspecified color
+        assert_eq!(
+            lapce_config.color("lapce.warn"),
+            Color::rgb8(0xE5, 0xC0, 0x7B),
+            "Failed to get from fallback dark theme"
+        ); // $yellow
+           // test that our custom variable worked
+        assert_eq!(
+            lapce_config.color("editor.background"),
+            Color::rgb8(0xFF, 0x00, 0xFF),
+            "Failed to get from custom variable"
+        );
+        // test that for text it now uses our redeclared variable
+        assert_eq!(
+            lapce_config.color("editor.foreground"),
+            Color::BLACK,
+            "Failed to get from custom variable circle back around"
+        );
+
+        // don't bother filling color/icon theme list
+        // don't bother with wrap style list
+        // don't bother with terminal colors
     }
 }
