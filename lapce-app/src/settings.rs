@@ -487,12 +487,8 @@ pub fn settings_view(
             .style(|s| s.padding_horiz(50.0).padding_vert(20.0)),
             container({
                 scroll({
-                    virtual_stack(
-                        VirtualDirection::Vertical,
-                        VirtualItemSize::Fn(Box::new(|item: &SettingsItem| {
-                            item.size.get().height.max(50.0)
-                        })),
-                        move || settings_data.clone(),
+                    dyn_stack(
+                        move || filtered_items_signal.get(),
                         |item| (item.kind.clone(), item.name.clone()),
                         move |item| {
                             settings_item_view(
