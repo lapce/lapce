@@ -48,7 +48,7 @@ The most popular place for Lapce developers and users is on the [Discord server]
 
 Or, join the discussion on [Reddit](https://www.reddit.com/r/lapce/) where we are just getting started.
 
-There is also a [Matrix Space](https://matrix.to/#/#lapce-editor:matrix.org), which is linked to the content from the Discord server.
+We used to have a [Matrix Space](https://matrix.to/#/#lapce-editor:matrix.org), which was linked to the content from the Discord server, but we like our walled gardens too much so now everything is on Discord. Yay!
 
 ## License
 
