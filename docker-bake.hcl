@@ -21,21 +21,13 @@ target "_common" {
     RELEASE_TAG_NAME = RELEASE_TAG_NAME
     RUST_VERSION     = RUST_VERSION
     XX_VERSION       = XX_VERSION
-    OPENSSL_STATIC   = OPENSSL_STATIC
-
-    BUILDKIT_CONTEXT_KEEP_GIT_DIR = 1
   }
 }
 
 variable "platforms" {
   default = [
     "linux/amd64",
-    // "linux/arm/v6",
-    // "linux/arm/v7",
     "linux/arm64",
-    // "linux/ppc64le",
-    // "linux/riscv64",
-    // "linux/s390x",
   ]
 }
 
@@ -108,13 +100,13 @@ target "debian" {
   args = {
     DISTRIBUTION_NAME     = os_name
     DISTRIBUTION_VERSION  = build.os_version
-    DISTRIBUTION_PACKAGES = join(" ", build.packages)
+    DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, DPKG_FAMILY_PACKAGES))
   }
   matrix = {
     os_name = ["debian"]
     build = [
-      { os_version = "bullseye", packages = DPKG_FAMILY_PACKAGES },
-      { os_version = "bookworm", packages = DPKG_FAMILY_PACKAGES },
+      { packages = null, os_version = "bullseye" }, # 11
+      { packages = null, os_version = "bookworm" }, # 12
     ]
   }
 }
@@ -130,17 +122,19 @@ target "ubuntu" {
   args = {
     DISTRIBUTION_NAME     = os_name
     DISTRIBUTION_VERSION  = build.os_version
-    DISTRIBUTION_PACKAGES = join(" ", build.packages)
+    DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, DPKG_FAMILY_PACKAGES))
   }
   platforms = coalesce(build.platforms, platforms)
   matrix = {
     os_name = ["ubuntu"]
     build = [
-      { os_version = "focal", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },            # 20.04
-      { os_version = "jammy", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = ["linux/amd64"] }, # 22.04
-      { os_version = "lunar", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },            # 23.04
-      { os_version = "mantic", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },           # 23.10
-      { os_version = "noble", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },            # 24.04
+      { packages = null, platforms = null,            os_version = "bionic"  }, # 18.04
+      { packages = null, platforms = null,            os_version = "focal"   }, # 20.04
+      { packages = null, platforms = ["linux/amd64"], os_version = "jammy"   }, # 22.04
+      { packages = null, platforms = null,            os_version = "kinetic" }, # 22.10
+      { packages = null, platforms = null,            os_version = "lunar"   }, # 23.04
+      { packages = null, platforms = null,            os_version = "mantic"  }, # 23.10
+      { packages = null, platforms = null,            os_version = "noble"   }, # 24.04
     ]
   }
 }
@@ -169,13 +163,14 @@ target "fedora" {
 
     DISTRIBUTION_NAME     = os_name
     DISTRIBUTION_VERSION  = build.os_version
-    DISTRIBUTION_PACKAGES = join(" ", build.packages)
+    DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, RHEL_FAMILY_PACKAGES))
   }
   platforms = coalesce(build.platforms, platforms)
   matrix = {
     os_name = ["fedora"]
     build = [
-      { os_version = "39", packages = distinct(concat(RHEL_FAMILY_PACKAGES, [])), platforms = null },
+      { os_version = "39",      packages = null, platforms = null },
+      { os_version = "rawhide", packages = null, platforms = null },
     ]
   }
 }
@@ -213,13 +208,13 @@ target "alpine" {
   args = {
     DISTRIBUTION_NAME     = os_name
     DISTRIBUTION_VERSION  = build.os_version
-    DISTRIBUTION_PACKAGES = join(" ", build.packages)
+    DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, APK_FAMILY_PACKAGES))
   }
   platforms = coalesce(build.platforms, platforms)
   matrix = {
     os_name = ["alpine"]
     build = [
-      { os_version = "3.18", packages = distinct(concat(APK_FAMILY_PACKAGES, [])), platforms = null },
+      { os_version = "3.18" },
     ]
   }
 }
