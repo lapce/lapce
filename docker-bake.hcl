@@ -1,48 +1,33 @@
 variable "RUST_VERSION" {
-  default = "1.75"
-}
-
-variable "PACKAGE_NAME" {
-  default = "lapce-nightly"
-}
-
-variable "PACKAGE_VERSION" {
-  default = "nightly"
-}
-
-variable "RELEASE_TAG_NAME" {
-  default = ""
+  default = "1.76"
 }
 
 variable "XX_VERSION" {
-  default = "latest"
+  default = "master"
 }
 
+variable "PACKAGE_NAME" {
+  default = RELEASE_TAG_NAME == "nightly" ? "lapce-nightly" : "lapce"
+}
+
+variable "RELEASE_TAG_NAME" {}
+
 target "_common" {
-  output = ["target/"]
+  context   = "."
+  platforms = ["local"]
+  output    = ["target"]
   args = {
-    PACKAGE_NAME    = PACKAGE_NAME
-    PACKAGE_VERSION = PACKAGE_VERSION
-
-    RUST_VERSION = RUST_VERSION
-
+    PACKAGE_NAME     = PACKAGE_NAME
     RELEASE_TAG_NAME = RELEASE_TAG_NAME
-
-    BUILDKIT_CONTEXT_KEEP_GIT_DIR = 1
-
-    OUTPUT_DIR = "/output"
+    RUST_VERSION     = RUST_VERSION
+    XX_VERSION       = XX_VERSION
   }
 }
 
 variable "platforms" {
   default = [
     "linux/amd64",
-    // "linux/arm/v6",
-    // "linux/arm/v7",
     "linux/arm64",
-    // "linux/ppc64le",
-    // "linux/riscv64",
-    // "linux/s390x",
   ]
 }
 
@@ -55,25 +40,41 @@ group "default" {
 }
 
 target "binary" {
-  inherits  = ["_common"]
-  target    = "binary"
-  platforms = ["local"]
-  output    = ["target"]
+  inherits = ["_common"]
+  target   = "binary"
+  args = {
+    ZSTD_SYS_USE_PKG_CONFIG = "1"
+    LIBGIT2_STATIC          = "1"
+    LIBSSH2_STATIC          = "1"
+    LIBZ_SYS_STATIC         = "1"
+    OPENSSL_STATIC          = "1"
+    OPENSSL_NO_VENDOR       = "0"
+    PKG_CONFIG_ALL_STATIC   = "1"
+  }
 }
 
 target "cross-binary" {
   inherits = ["binary", "_platforms"]
+  target   = "cross-binary"
 }
 
 target "package" {
-  inherits  = ["_common"]
-  target    = "package"
-  platforms = ["local"]
-  output    = ["target"]
+  inherits = ["_common"]
+  target   = "package"
+  args = {
+    ZSTD_SYS_USE_PKG_CONFIG = "1"
+    LIBGIT2_STATIC          = "0"
+    LIBSSH2_STATIC          = "0"
+    LIBZ_SYS_STATIC         = "0"
+    OPENSSL_STATIC          = "0"
+    OPENSSL_NO_VENDOR       = "1"
+    PKG_CONFIG_ALL_STATIC   = "0"
+  }
 }
 
 target "cross-package" {
   inherits = ["package", "_platforms"]
+  target   = "cross-package"
 }
 
 // OS
@@ -93,49 +94,58 @@ variable "DPKG_FAMILY_PACKAGES" {
 }
 
 target "debian" {
-  inherits   = ["cross-package"]
-  name       = "${os_name}-${build.os_version}"
-  target     = "cross-package"
-  context    = "."
+  inherits   = [build.type]
+  name       = "${os_name}-${build.os_version}-${build.type}"
   dockerfile = "extra/linux/docker/${os_name}/Dockerfile"
   args = {
     DISTRIBUTION_NAME     = os_name
     DISTRIBUTION_VERSION  = build.os_version
-    DISTRIBUTION_PACKAGES = join(" ", build.packages)
+    DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, DPKG_FAMILY_PACKAGES))
   }
+  platforms = coalesce(build.platforms, platforms)
   matrix = {
     os_name = ["debian"]
     build = [
-      { os_version = "bullseye", packages = DPKG_FAMILY_PACKAGES },
-      { os_version = "bookworm", packages = DPKG_FAMILY_PACKAGES },
+      { packages = null, platforms = null, type = "package", os_version = "bullseye" }, # 11
+      { packages = null, platforms = null, type = "package", os_version = "bookworm" }, # 12
     ]
   }
 }
 
+target "cross-debian" {
+  inherits = ["debian", "cross-package"]
+}
+
 target "ubuntu" {
-  inherits   = ["cross-package"]
-  name       = "${os_name}-${build.os_version}"
-  target     = "cross-package"
-  context    = "."
+  inherits   = [build.type]
+  name       = "${os_name}-${build.os_version}-${build.type}"
   dockerfile = "extra/linux/docker/${os_name}/Dockerfile"
   args = {
     DISTRIBUTION_NAME     = os_name
     DISTRIBUTION_VERSION  = build.os_version
-    DISTRIBUTION_PACKAGES = join(" ", build.packages)
+    DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, DPKG_FAMILY_PACKAGES))
   }
   platforms = coalesce(build.platforms, platforms)
   matrix = {
     os_name = ["ubuntu"]
     build = [
-      { os_version = "bionic", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },           # 18.04
-      { os_version = "focal", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },            # 20.04
-      { os_version = "jammy", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = ["linux/amd64"] }, # 22.04
-      { os_version = "kinetic", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },          # 22.10
-      { os_version = "lunar", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },            # 23.04
-      { os_version = "mantic", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },           # 23.10
-      { os_version = "noble", packages = distinct(concat(DPKG_FAMILY_PACKAGES, [])), platforms = null },            # 24.04
+      { packages = null, platforms = null, type = "package", os_version = "bionic"  }, # 18.04
+      { packages = null, platforms = null, type = "package", os_version = "focal"   }, # 20.04
+      { packages = null, platforms = null, type = "package", os_version = "jammy"   }, # 22.04
+      { packages = null, platforms = null, type = "package", os_version = "kinetic" }, # 22.10
+      { packages = null, platforms = null, type = "package", os_version = "lunar"   }, # 23.04
+      { packages = null, platforms = null, type = "package", os_version = "mantic"  }, # 23.10
+      { packages = null, platforms = null, type = "package", os_version = "noble"   }, # 24.04
+      # static binary, it looks ugly to define the target this way
+      # but I don't have a better way to make it more friendly on CLI side without
+      # more terrible code-wise way to implement it
+      { packages = null, platforms = null, type = "binary", os_version = "focal"   }, # 20.04
     ]
   }
+}
+
+target "cross-ubuntu" {
+  inherits = ["ubuntu", "cross-package"]
 }
 
 variable "RHEL_FAMILY_PACKAGES" {
@@ -150,23 +160,72 @@ variable "RHEL_FAMILY_PACKAGES" {
 }
 
 target "fedora" {
-  inherits   = ["cross-package"]
+  inherits   = ["package"]
   name       = "${os_name}-${build.os_version}"
-  target     = "cross-package"
-  context    = "."
   dockerfile = "extra/linux/docker/${os_name}/Dockerfile"
   args = {
     XX_VERSION = "test"
 
     DISTRIBUTION_NAME     = os_name
     DISTRIBUTION_VERSION  = build.os_version
-    DISTRIBUTION_PACKAGES = join(" ", build.packages)
+    DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, RHEL_FAMILY_PACKAGES))
   }
   platforms = coalesce(build.platforms, platforms)
   matrix = {
     os_name = ["fedora"]
     build = [
-      { os_version = "39", packages = distinct(concat(RHEL_FAMILY_PACKAGES, [])), platforms = null },
+      { os_version = "39",      packages = null, platforms = null },
+      { os_version = "40",      packages = null, platforms = null },
+      { os_version = "41",      packages = null, platforms = null },
+      { os_version = "rawhide", packages = null, platforms = null },
     ]
   }
+}
+
+target "cross-fedora" {
+  inherits = ["fedora", "cross-package"]
+}
+
+variable "APK_FAMILY_PACKAGES" {
+  default = [
+    "make",
+    "clang",
+    "git",
+    "lld",
+    "build-base",
+    "rustup",
+    "openssl-libs-static",
+    "libssh2-static",
+    "libgit2-static",
+    "fontconfig-static",
+    "freetype-static",
+    "zlib-static",
+    "gcc",
+    "zstd-static",
+    "libxcb-static",
+    "libxkbcommon-static",
+    "vulkan-loader-dev",
+  ]
+}
+
+target "alpine" {
+  inherits   = ["binary"]
+  name       = format("${os_name}-%s", replace(build.os_version, ".", "-"))
+  dockerfile = "extra/linux/docker/${os_name}/Dockerfile"
+  args = {
+    DISTRIBUTION_NAME     = os_name
+    DISTRIBUTION_VERSION  = build.os_version
+    DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, APK_FAMILY_PACKAGES))
+  }
+  platforms = coalesce(build.platforms, platforms)
+  matrix = {
+    os_name = ["alpine"]
+    build = [
+      { os_version = "3.18", packages = null, platforms = null },
+    ]
+  }
+}
+
+target "cross-alpine" {
+  inherits = ["alpine-3-18", "cross-binary"]
 }

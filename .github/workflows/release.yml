@@ -16,10 +16,13 @@ on:
       # trigger release workflow only if this file changed
       - .github/workflows/release.yml
 
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   CARGO_TERM_COLOR: always
-  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
   tagname:
@@ -113,7 +116,7 @@ jobs:
       - name: Build deb packages
         run: |
           docker buildx create --driver=docker-container --use
-          docker buildx bake --pull ubuntu-focal --set ubuntu-focal.target=binary
+          docker buildx bake --pull ubuntu-focal-binary
 
       - name: Gzip
         run: |
@@ -144,7 +147,7 @@ jobs:
             ./vendor.tar.gz
           retention-days: 1
 
-  debian:
+  deb:
     runs-on: ubuntu-latest
     needs: tagname
     env:
@@ -152,43 +155,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        distro: [debian]
-        os_version: [bookworm, bullseye]
+        include:
+          - os-name: debian
+            os-version: bookworm
+          - os-name: debian
+            os-version: bullseye
+          - os-name: ubuntu
+            os-version: focal
+          - os-name: ubuntu
+            os-version: jammy
+          - os-name: ubuntu
+            os-version: lunar
+          - os-name: ubuntu
+            os-version: mantic
+          # - os-name: ubuntu
+          #   os-version: noble
     steps:
       - uses: actions/checkout@v4
-      - name: Build deb packages
-        run: |
-          docker buildx create --driver=docker-container --use
-          docker buildx bake --pull ${{ matrix.distro }}-${{ matrix.os_version }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: lapce-${{ matrix.distro }}-${{ matrix.os_version }}
-          path: |
-            ./target/linux_*/*
-          retention-days: 1
 
-  ubuntu:
-    runs-on: ubuntu-latest
-    needs: tagname
-    env:
-      RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
-    strategy:
-      fail-fast: false
-      matrix:
-        distro: [ubuntu]
-        os_version:
-          - focal
-          - jammy
-          - noble
-    steps:
-      - uses: actions/checkout@v4
       - name: Build deb packages
         run: |
           docker buildx create --driver=docker-container --use
-          docker buildx bake --pull ${{ matrix.distro }}-${{ matrix.os_version }}
+          docker buildx bake --pull ${{ matrix.os-name }}-${{ matrix.os-version }}-package
+
       - uses: actions/upload-artifact@v4
         with:
-          name: lapce-${{ matrix.distro }}-${{ matrix.os_version }}
+          name: lapce-${{ matrix.os-name }}-${{ matrix.os-version }}
           path: |
             ./target/linux_*/*
           retention-days: 1
@@ -341,7 +333,12 @@ jobs:
           retention-days: 1
 
   publish:
-    needs: [linux, linux-musl, debian, windows, macos]
+    needs:
+      - linux
+      - linux-musl
+      - deb
+      - windows
+      - macos
     runs-on: ubuntu-latest
     env:
       GH_REPO: ${{ github.repository }}
