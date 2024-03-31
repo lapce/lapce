@@ -214,7 +214,7 @@ target "alpine" {
   matrix = {
     os_name = ["alpine"]
     build = [
-      { os_version = "3.18" },
+      { os_version = "3.18", packages = null, platforms = null },
     ]
   }
 }
