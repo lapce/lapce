@@ -94,19 +94,20 @@ variable "DPKG_FAMILY_PACKAGES" {
 }
 
 target "debian" {
-  inherits   = ["package"]
-  name       = "${os_name}-${build.os_version}"
+  inherits   = [build.type]
+  name       = "${os_name}-${build.os_version}-${build.type}"
   dockerfile = "extra/linux/docker/${os_name}/Dockerfile"
   args = {
     DISTRIBUTION_NAME     = os_name
     DISTRIBUTION_VERSION  = build.os_version
     DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, DPKG_FAMILY_PACKAGES))
   }
+  platforms = coalesce(build.platforms, platforms)
   matrix = {
     os_name = ["debian"]
     build = [
-      { packages = null, os_version = "bullseye" }, # 11
-      { packages = null, os_version = "bookworm" }, # 12
+      { packages = null, platforms = null, type = "package", os_version = "bullseye" }, # 11
+      { packages = null, platforms = null, type = "package", os_version = "bookworm" }, # 12
     ]
   }
 }
