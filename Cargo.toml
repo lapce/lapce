@@ -44,7 +44,7 @@ im                = { version = "15.0.0", features = ["serde"] }
 include_dir       = { version = "0.6.2" }
 indexmap          = { version = "2.0", features = ["serde"] }
 interprocess      = { version = "1.2.1" }
-itertools         = { version = "0.10.1" }
+itertools         = { version = "0.12.1" }
 notify            = { version = "5.2.0", features = ["serde"] }
 once_cell         = { version = "1.19" }
 parking_lot       = { version = "0.12.0" }
@@ -54,8 +54,8 @@ reqwest           = { version = "0.11", features = ["blocking", "json", "socks"]
 serde             = { version = "1.0" }
 serde_json        = { version = "1.0" }
 smallvec          = { version = "1.13.1" }
-strum             = { version = "0.21.0" }
-strum_macros      = { version = "0.21.1" }
+strum             = { version = "0.26.2" }
+strum_macros      = { version = "0.26.2" }
 tar               = { version = "0.4" }
 thiserror         = { version = "1.0" }
 toml              = { version = "*" }
@@ -71,7 +71,7 @@ lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
-floem-editor-core = { git = "https://github.com/lapce/floem", rev = "c111930619b6d0d0cfa6762910141daddd8d5aba", features = ["serde"] }
+floem-editor-core = { git = "https://github.com/lapce/floem", rev = "fd84d905acc28dbbf5976f21450d4cca2dca9d09", features = ["serde"] }
 # floem-editor-core = { path = "../workspaces/floem/editor-core/", features = ["serde"] }
 
 [patch.crates-io]
@@ -125,3 +125,4 @@ opt-level = 3
 
 [profile.fastdev]
 inherits = "dev"
+
