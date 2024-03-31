@@ -155,8 +155,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os-name: []
-        os-version: []
         include:
           - os-name: debian
             os-version: bookworm
