@@ -2,17 +2,15 @@ variable "RUST_VERSION" {
   default = "1.76"
 }
 
+variable "XX_VERSION" {
+  default = "master"
+}
+
 variable "PACKAGE_NAME" {
   default = RELEASE_TAG_NAME == "nightly" ? "lapce-nightly" : "lapce"
 }
 
-variable "RELEASE_TAG_NAME" {
-
-}
-
-variable "XX_VERSION" {
-  default = "latest"
-}
+variable "RELEASE_TAG_NAME" {}
 
 target "_common" {
   context   = "."
@@ -21,8 +19,9 @@ target "_common" {
   args = {
     PACKAGE_NAME     = PACKAGE_NAME
     RELEASE_TAG_NAME = RELEASE_TAG_NAME
-
-    RUST_VERSION = RUST_VERSION
+    RUST_VERSION     = RUST_VERSION
+    XX_VERSION       = XX_VERSION
+    OPENSSL_STATIC   = OPENSSL_STATIC
 
     BUILDKIT_CONTEXT_KEEP_GIT_DIR = 1
   }
@@ -51,6 +50,15 @@ group "default" {
 target "binary" {
   inherits = ["_common"]
   target   = "binary"
+  args = {
+    ZSTD_SYS_USE_PKG_CONFIG = "1"
+    LIBGIT2_STATIC          = "1"
+    LIBSSH2_STATIC          = "1"
+    LIBZ_SYS_STATIC         = "1"
+    OPENSSL_STATIC          = "1"
+    OPENSSL_NO_VENDOR       = "0"
+    PKG_CONFIG_ALL_STATIC   = "1"
+  }
 }
 
 target "cross-binary" {
@@ -61,6 +69,15 @@ target "cross-binary" {
 target "package" {
   inherits = ["_common"]
   target   = "package"
+  args = {
+    ZSTD_SYS_USE_PKG_CONFIG = "1"
+    LIBGIT2_STATIC          = "0"
+    LIBSSH2_STATIC          = "0"
+    LIBZ_SYS_STATIC         = "0"
+    OPENSSL_STATIC          = "0"
+    OPENSSL_NO_VENDOR       = "1"
+    PKG_CONFIG_ALL_STATIC   = "0"
+  }
 }
 
 target "cross-package" {
@@ -165,4 +182,48 @@ target "fedora" {
 
 target "cross-fedora" {
   inherits = ["fedora", "cross-package"]
+}
+
+variable "APK_FAMILY_PACKAGES" {
+  default = [
+    "make",
+    "clang",
+    "git",
+    "lld",
+    "build-base",
+    "rustup",
+    "openssl-libs-static",
+    "libssh2-static",
+    "libgit2-static",
+    "fontconfig-static",
+    "freetype-static",
+    "zlib-static",
+    "gcc",
+    "zstd-static",
+    "libxcb-static",
+    "libxkbcommon-static",
+    "vulkan-loader-dev",
+  ]
+}
+
+target "alpine" {
+  inherits   = ["binary"]
+  name       = format("${os_name}-%s", replace(build.os_version, ".", "-"))
+  dockerfile = "extra/linux/docker/${os_name}/Dockerfile"
+  args = {
+    DISTRIBUTION_NAME     = os_name
+    DISTRIBUTION_VERSION  = build.os_version
+    DISTRIBUTION_PACKAGES = join(" ", build.packages)
+  }
+  platforms = coalesce(build.platforms, platforms)
+  matrix = {
+    os_name = ["alpine"]
+    build = [
+      { os_version = "3.18", packages = distinct(concat(APK_FAMILY_PACKAGES, [])), platforms = null },
+    ]
+  }
+}
+
+target "cross-alpine" {
+  inherits = ["alpine-3-18", "cross-binary"]
 }

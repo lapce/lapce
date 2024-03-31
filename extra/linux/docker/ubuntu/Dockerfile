@@ -2,7 +2,7 @@
 
 ARG DISTRIBUTION_VERSION
 ARG RUST_VERSION
-ARG XX_VERSION=latest
+ARG XX_VERSION
 
 FROM --platform=$BUILDPLATFORM tonistiigi/xx:${XX_VERSION} AS xx
 FROM --platform=$BUILDPLATFORM ubuntu:${DISTRIBUTION_VERSION} AS build-base
@@ -31,6 +31,7 @@ RUN \
 set -euxo pipefail
 
 apt-get update -y
+apt-get upgrade -y
 apt-get install -y \
   bash clang lld llvm file cmake pkg-config curl git dpkg-dev \
   ${DISTRIBUTION_PACKAGES}
@@ -54,9 +55,7 @@ COPY --link . .
 
 FROM build-base AS build-prep
 
-ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL='sparse'
 ENV CARGO_TARGET_DIR='/target'
-ENV CARGO_NET_GIT_FETCH_WITH_CLI="true"
 
 RUN \
     --mount=type=cache,target=/cargo/git/db,sharing=locked \
@@ -87,24 +86,23 @@ EOF
 FROM build-prep AS build
 
 ARG PACKAGE_NAME
-ENV PACKAGE_NAME="${PACKAGE_NAME}"
 
 ARG OUTPUT_DIR="/output"
-ENV OUTPUT_DIR="${OUTPUT_DIR}"
 
 ARG CARGO_BUILD_INCREMENTAL='false'
 
 ENV CC='xx-clang'
 ENV CXX='xx-clang++'
 
-ENV OPENSSL_NO_VENDOR="1"
-ENV ZSTD_SYS_USE_PKG_CONFIG="1"
-
-ARG OPENSSL_STATIC="0"
-ENV OPENSSL_STATIC="${OPENSSL_STATIC}"
+ARG ZSTD_SYS_USE_PKG_CONFIG
+ARG LIBGIT2_STATIC
+ARG LIBSSH2_STATIC
+ARG LIBZ_SYS_STATIC
+ARG OPENSSL_STATIC
+ARG OPENSSL_NO_VENDOR
+ARG PKG_CONFIG_ALL_STATIC
 
 ARG RELEASE_TAG_NAME
-ENV RELEASE_TAG_NAME="${RELEASE_TAG_NAME}"
 
 RUN \
     --mount=type=cache,target=/cargo/git/db,sharing=locked \
