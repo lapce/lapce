@@ -105,9 +105,9 @@ ARG PKG_CONFIG_ALL_STATIC
 ARG RELEASE_TAG_NAME
 
 RUN \
-    --mount=type=cache,target=/cargo/git/db,sharing=locked \
-    --mount=type=cache,target=/cargo/registry/cache,sharing=locked \
-    --mount=type=cache,target=/cargo/registry/index,sharing=locked \
+    --mount=type=cache,target=/cargo/git/db,sharing=shared,readonly \
+    --mount=type=cache,target=/cargo/registry/cache,sharing=shared,readonly \
+    --mount=type=cache,target=/cargo/registry/index,sharing=shared,readonly \
     --mount=type=cache,target=/root/.cache,sharing=private \
 <<EOF
 #!/usr/bin/env bash
@@ -119,6 +119,8 @@ xx-clang --wrap
 export RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=/usr/bin/ld.lld"
 export PKG_CONFIG="$(xx-clang --print-prog-name=pkg-config)"
 export CARGO_BUILD_TARGET="$(xx-cargo --print-target-triple)"
+
+env
 
 xx-cargo build \
   --frozen \

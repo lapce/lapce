@@ -116,8 +116,8 @@ target "cross-debian" {
 }
 
 target "ubuntu" {
-  inherits   = ["package"]
-  name       = "${os_name}-${build.os_version}"
+  inherits   = [build.type]
+  name       = "${os_name}-${build.os_version}-${build.type}"
   dockerfile = "extra/linux/docker/${os_name}/Dockerfile"
   args = {
     DISTRIBUTION_NAME     = os_name
@@ -128,13 +128,17 @@ target "ubuntu" {
   matrix = {
     os_name = ["ubuntu"]
     build = [
-      { packages = null, platforms = null,            os_version = "bionic"  }, # 18.04
-      { packages = null, platforms = null,            os_version = "focal"   }, # 20.04
-      { packages = null, platforms = ["linux/amd64"], os_version = "jammy"   }, # 22.04
-      { packages = null, platforms = null,            os_version = "kinetic" }, # 22.10
-      { packages = null, platforms = null,            os_version = "lunar"   }, # 23.04
-      { packages = null, platforms = null,            os_version = "mantic"  }, # 23.10
-      { packages = null, platforms = null,            os_version = "noble"   }, # 24.04
+      { packages = null, platforms = null, type = "package", os_version = "bionic"  }, # 18.04
+      { packages = null, platforms = null, type = "package", os_version = "focal"   }, # 20.04
+      { packages = null, platforms = null, type = "package", os_version = "jammy"   }, # 22.04
+      { packages = null, platforms = null, type = "package", os_version = "kinetic" }, # 22.10
+      { packages = null, platforms = null, type = "package", os_version = "lunar"   }, # 23.04
+      { packages = null, platforms = null, type = "package", os_version = "mantic"  }, # 23.10
+      { packages = null, platforms = null, type = "package", os_version = "noble"   }, # 24.04
+      # static binary, it looks ugly to define the target this way
+      # but I don't have a better way to make it more friendly on CLI side without
+      # more terrible code-wise way to implement it
+      { packages = null, platforms = null, type = "binary", os_version = "focal"   }, # 20.04
     ]
   }
 }
@@ -170,6 +174,8 @@ target "fedora" {
     os_name = ["fedora"]
     build = [
       { os_version = "39",      packages = null, platforms = null },
+      { os_version = "40",      packages = null, platforms = null },
+      { os_version = "41",      packages = null, platforms = null },
       { os_version = "rawhide", packages = null, platforms = null },
     ]
   }
