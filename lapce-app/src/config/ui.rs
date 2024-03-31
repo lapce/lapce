@@ -67,7 +67,7 @@ pub struct UIConfig {
     Eq,
     PartialOrd,
     Ord,
-    strum_macros::EnumVariantNames,
+    strum_macros::VariantNames,
 )]
 pub enum TabCloseButton {
     Left,

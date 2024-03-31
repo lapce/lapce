@@ -6,7 +6,7 @@ use std::{
 
 use lapce_rpc::style::{LineStyle, Style};
 use once_cell::sync::Lazy;
-use strum_macros::{AsRefStr, AsStaticStr, Display, EnumMessage, EnumString};
+use strum_macros::{AsRefStr, Display, EnumMessage, EnumString, IntoStaticStr};
 use tracing::{debug, error};
 use tree_sitter::{Point, TreeCursor};
 
@@ -144,7 +144,7 @@ struct CommentProperties {
     Debug,
     Display,
     AsRefStr,
-    AsStaticStr,
+    IntoStaticStr,
     EnumString,
     EnumMessage,
     Default,
@@ -1583,8 +1583,7 @@ impl LapceLanguage {
     }
 
     pub fn name(&self) -> &'static str {
-        strum::EnumMessage::get_message(self)
-            .unwrap_or(strum::AsStaticRef::as_static(self))
+        strum::EnumMessage::get_message(self).unwrap_or(self.into())
     }
 
     fn tree_sitter(&self) -> Option<TreeSitterProperties> {
