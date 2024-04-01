@@ -5,7 +5,7 @@ use floem::{
     context::{PaintCx, StyleCx},
     event::{Event, EventListener},
     id::Id,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     peniko::{
         kurbo::{Line, Point, Rect, Size},
         Color,
@@ -2068,9 +2068,7 @@ fn find_view(
                 clickable_icon(
                     || LapceIcons::SEARCH_BACKWARD,
                     move || {
-                        editor
-                            .get_untracked()
-                            .search_backward(ModifiersState::empty());
+                        editor.get_untracked().search_backward(Modifiers::empty());
                     },
                     move || false,
                     || false,
@@ -2081,9 +2079,7 @@ fn find_view(
                 clickable_icon(
                     || LapceIcons::SEARCH_FORWARD,
                     move || {
-                        editor
-                            .get_untracked()
-                            .search_forward(ModifiersState::empty());
+                        editor.get_untracked().search_forward(Modifiers::empty());
                     },
                     move || false,
                     || false,

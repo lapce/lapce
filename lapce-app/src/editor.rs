@@ -9,7 +9,7 @@ use std::{
 use floem::{
     action::{exec_after, show_context_menu, TimerToken},
     ext_event::create_ext_action,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     kurbo::{Point, Rect, Vec2},
     menu::{Menu, MenuItem},
     pointer::{PointerButton, PointerInputEvent, PointerMoveEvent},
@@ -610,7 +610,7 @@ impl EditorData {
         &self,
         movement: &lapce_core::movement::Movement,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         if movement.is_jump()
             && movement != &self.editor.last_movement.get_untracked()
@@ -642,7 +642,7 @@ impl EditorData {
                 &mut cursor,
                 movement,
                 count.unwrap_or(1),
-                mods.shift_key(),
+                mods.shift(),
                 register,
             )
         });
@@ -672,7 +672,7 @@ impl EditorData {
         &self,
         cmd: &ScrollCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         let prev_completion_index = self
             .common
@@ -717,7 +717,7 @@ impl EditorData {
         &self,
         cmd: &FocusCommand,
         _count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         // TODO(minor): Evaluate whether we should split this into subenums,
         // such as actions specific to the actual editor pane, movement, and list movement.
@@ -1100,7 +1100,7 @@ impl EditorData {
                     new_index + line_start_offset,
                 ),
                 None,
-                ModifiersState::empty(),
+                Modifiers::empty(),
             );
         }
     }
@@ -1244,7 +1244,7 @@ impl EditorData {
         );
     }
 
-    fn scroll(&self, down: bool, count: usize, mods: ModifiersState) {
+    fn scroll(&self, down: bool, count: usize, mods: Modifiers) {
         self.editor.scroll(
             self.sticky_header_height.get_untracked(),
             down,
@@ -2102,7 +2102,7 @@ impl EditorData {
         }
     }
 
-    fn search_whole_word_forward(&self, mods: ModifiersState) {
+    fn search_whole_word_forward(&self, mods: Modifiers) {
         let offset = self.cursor().with_untracked(|c| c.offset());
         let (word, buffer) = self.doc().buffer.with_untracked(|buffer| {
             let (start, end) = buffer.select_word(offset);
@@ -2122,7 +2122,7 @@ impl EditorData {
         }
     }
 
-    fn search_forward(&self, mods: ModifiersState) {
+    fn search_forward(&self, mods: Modifiers) {
         let offset = self.cursor().with_untracked(|c| c.offset());
         let text = self
             .doc()
@@ -2139,7 +2139,7 @@ impl EditorData {
         }
     }
 
-    fn search_backward(&self, mods: ModifiersState) {
+    fn search_backward(&self, mods: Modifiers) {
         let offset = self.cursor().with_untracked(|c| c.offset());
         let text = self
             .doc()
@@ -2407,7 +2407,7 @@ impl EditorData {
             && self.cursor().with_untracked(|c| c.offset()) != offset
         {
             self.cursor().update(|cursor| {
-                cursor.set_offset(offset, true, pointer_event.modifiers.alt_key())
+                cursor.set_offset(offset, true, pointer_event.modifiers.alt())
             });
         }
         if self.common.hover.active.get_untracked() {
@@ -2608,7 +2608,7 @@ impl KeyPressFocus for EditorData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         if self.common.find.visual.get_untracked() && self.find_focus.get_untracked()
         {

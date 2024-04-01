@@ -8,7 +8,7 @@ use floem::{
     action::save_as,
     ext_event::create_ext_action,
     file::{FileDialogOptions, FileInfo},
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{Memo, RwSignal, Scope},
     views::editor::id::EditorId,
@@ -1972,7 +1972,7 @@ impl MainSplitData {
                                     editor.clone().run_focus_command(
                                         &FocusCommand::SplitClose,
                                         None,
-                                        ModifiersState::empty(),
+                                        Modifiers::empty(),
                                     );
                                 }
                             });

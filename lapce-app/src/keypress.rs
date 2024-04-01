@@ -8,9 +8,7 @@ use std::{path::PathBuf, rc::Rc, str::FromStr};
 
 use anyhow::Result;
 use floem::{
-    keyboard::{
-        Key, KeyEvent, KeyEventExtModifierSupplement, ModifiersState, NamedKey,
-    },
+    keyboard::{Key, KeyEvent, KeyEventExtModifierSupplement, Modifiers, NamedKey},
     pointer::PointerInputEvent,
     reactive::{RwSignal, Scope},
 };
@@ -51,7 +49,7 @@ pub trait KeyPressFocus {
         &self,
         command: &LapceCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted;
 
     fn expect_char(&self) -> bool {
@@ -77,7 +75,7 @@ impl KeyPressFocus for () {
         &self,
         _command: &LapceCommand,
         _count: Option<usize>,
-        _mods: ModifiersState,
+        _mods: Modifiers,
     ) -> CommandExecuted {
         CommandExecuted::No
     }
@@ -105,7 +103,7 @@ impl KeyPressFocus for Box<dyn KeyPressFocus> {
         &self,
         command: &LapceCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         (**self).run_command(command, count, mods)
     }
@@ -236,7 +234,7 @@ impl KeyPressData {
         &self,
         command: &str,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
         focus: &T,
     ) -> CommandExecuted {
         if let Some(cmd) = self.commands.get(command) {
@@ -324,7 +322,7 @@ impl KeyPressData {
                 });
                 if focus.get_mode() == Mode::Insert {
                     let mut keypress = keypress.clone();
-                    keypress.mods.set(ModifiersState::SHIFT, false);
+                    keypress.mods.set(Modifiers::SHIFT, false);
                     if let KeymapMatch::Full(command) =
                         self.match_keymap(&[keypress], focus)
                     {
@@ -343,12 +341,13 @@ impl KeyPressData {
 
         #[cfg(target_os = "macos")]
         {
-            mods.set(ModifiersState::SHIFT, false);
-            mods.set(ModifiersState::ALT, false);
+            mods.set(Modifiers::SHIFT, false);
+            mods.set(Modifiers::ALT, false);
         }
         #[cfg(not(target_os = "macos"))]
         {
-            mods.set(ModifiersState::SHIFT, false);
+            mods.set(Modifiers::SHIFT, false);
+            mods.set(Modifiers::ALTGR, false);
         }
         if mods.is_empty() {
             if let KeyInput::Keyboard { logical, .. } = &keypress.key {
@@ -367,16 +366,15 @@ impl KeyPressData {
         false
     }
 
-    fn get_key_modifiers(key_event: &KeyEvent) -> ModifiersState {
+    fn get_key_modifiers(key_event: &KeyEvent) -> Modifiers {
         let mut mods = key_event.modifiers;
 
         match &key_event.key.logical_key {
-            Key::Named(NamedKey::Shift) => mods.set(ModifiersState::SHIFT, false),
-            Key::Named(NamedKey::Alt) => mods.set(ModifiersState::ALT, false),
-            Key::Named(NamedKey::Meta) => mods.set(ModifiersState::SUPER, false),
-            Key::Named(NamedKey::Control) => {
-                mods.set(ModifiersState::CONTROL, false)
-            }
+            Key::Named(NamedKey::Shift) => mods.set(Modifiers::SHIFT, false),
+            Key::Named(NamedKey::Alt) => mods.set(Modifiers::ALT, false),
+            Key::Named(NamedKey::Meta) => mods.set(Modifiers::META, false),
+            Key::Named(NamedKey::Control) => mods.set(Modifiers::CONTROL, false),
+            Key::Named(NamedKey::AltGraph) => mods.set(Modifiers::ALTGR, false),
             _ => (),
         }
 

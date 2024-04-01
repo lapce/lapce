@@ -1,7 +1,7 @@
 use std::{path::PathBuf, rc::Rc};
 
 use floem::{
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     reactive::{RwSignal, Scope},
 };
 use indexmap::IndexMap;
@@ -43,7 +43,7 @@ impl KeyPressFocus for SourceControlData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Edit(_)
