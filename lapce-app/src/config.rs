@@ -933,6 +933,16 @@ impl LapceConfig {
         key: &str,
         value: toml_edit::Value,
     ) -> Option<()> {
+        // TODO: This is a hack to fix the fact that terminal default profile is saved in a
+        // different manner than other fields. As it is per-operating-system.
+        // Thus we have to instead set the terminal.default-profile.{OS}
+        // It would be better to not need a special hack.
+        let (parent, key) = if parent == "terminal" && key == "default-profile" {
+            ("terminal.default-profile", std::env::consts::OS)
+        } else {
+            (parent, key)
+        };
+
         let mut main_table = Self::get_file_table().unwrap_or_default();
 
         // Find the container table
