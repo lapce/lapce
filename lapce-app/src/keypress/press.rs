@@ -1,11 +1,11 @@
-use floem::keyboard::ModifiersState;
+use floem::keyboard::Modifiers;
 
 use super::{key::KeyInput, keymap::KeyMapPress};
 
 #[derive(Clone, Debug)]
 pub struct KeyPress {
     pub(super) key: KeyInput,
-    pub(super) mods: ModifiersState,
+    pub(super) mods: Modifiers,
 }
 
 impl KeyPress {

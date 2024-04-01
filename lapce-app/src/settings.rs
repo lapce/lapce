@@ -4,7 +4,7 @@ use floem::{
     action::{exec_after, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     event::EventListener,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     peniko::{
         kurbo::{Point, Rect, Size},
         Color,
@@ -107,7 +107,7 @@ impl KeyPressFocus for SettingsData {
         &self,
         _command: &crate::command::LapceCommand,
         _count: Option<usize>,
-        _mods: ModifiersState,
+        _mods: Modifiers,
     ) -> crate::command::CommandExecuted {
         CommandExecuted::No
     }

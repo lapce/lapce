@@ -9,7 +9,7 @@ use alacritty_terminal::{
 };
 use anyhow::anyhow;
 use floem::{
-    keyboard::{Key, KeyEvent, ModifiersState, NamedKey},
+    keyboard::{Key, KeyEvent, Modifiers, NamedKey},
     reactive::{RwSignal, Scope},
     views::editor::text::SystemClipboard,
 };
@@ -65,7 +65,7 @@ impl KeyPressFocus for TerminalData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        _mods: ModifiersState,
+        _mods: Modifiers,
     ) -> crate::command::CommandExecuted {
         self.common.view_id.get_untracked().request_paint();
         let config = self.common.config.get_untracked();
@@ -442,15 +442,15 @@ impl TerminalData {
         // Generates a `Modifiers` value to check against.
         macro_rules! modifiers {
             (ctrl) => {
-                ModifiersState::CONTROL
+                Modifiers::CONTROL
             };
 
             (alt) => {
-                ModifiersState::ALT
+                Modifiers::ALT
             };
 
             (shift) => {
-                ModifiersState::SHIFT
+                Modifiers::SHIFT
             };
 
             ($mod:ident $(| $($mods:ident)|+)?) => {
@@ -524,7 +524,7 @@ impl TerminalData {
 
         match key.key.logical_key {
             Key::Character(ref c) => {
-                if key.modifiers == ModifiersState::CONTROL {
+                if key.modifiers == Modifiers::CONTROL {
                     // Convert the character into its index (into a control character).
                     // In essence, this turns `ctrl+h` into `^h`
                     let str = match c.as_str() {
@@ -569,9 +569,9 @@ impl TerminalData {
                 }
             }
             Key::Named(NamedKey::Backspace) => {
-                Some(if key.modifiers.control_key() {
+                Some(if key.modifiers.control() {
                     "\x08" // backspace
-                } else if key.modifiers.alt_key() {
+                } else if key.modifiers.alt() {
                     "\x1b\x7f"
                 } else {
                     "\x7f"

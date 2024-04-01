@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use floem::{
     event::EventListener,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     reactive::{RwSignal, Scope},
     style::{CursorStyle, Display, Position},
     view::View,
@@ -68,7 +68,7 @@ impl KeyPressFocus for AboutData {
         &self,
         command: &crate::command::LapceCommand,
         _count: Option<usize>,
-        _mods: ModifiersState,
+        _mods: Modifiers,
     ) -> crate::command::CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}

@@ -13,7 +13,7 @@ use floem::{
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
     file::FileDialogOptions,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     kurbo::Size,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
@@ -190,7 +190,7 @@ impl KeyPressFocus for WindowTabData {
         &self,
         command: &LapceCommand,
         _count: Option<usize>,
-        _mods: ModifiersState,
+        _mods: Modifiers,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(cmd) => {
@@ -599,12 +599,11 @@ impl WindowTabData {
             | CommandKind::Edit(_)
             | CommandKind::Move(_) => {
                 if self.palette.status.get_untracked() != PaletteStatus::Inactive {
-                    self.palette
-                        .run_command(&cmd, None, ModifiersState::empty());
+                    self.palette.run_command(&cmd, None, Modifiers::empty());
                 } else if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {
-                    editor_data.run_command(&cmd, None, ModifiersState::empty());
+                    editor_data.run_command(&cmd, None, Modifiers::empty());
                 } else {
                     // TODO: dispatch to current focused view?
                 }

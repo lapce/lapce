@@ -1,7 +1,7 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use floem::{
-    keyboard::ModifiersState, peniko::kurbo::Vec2, views::editor::command::Command,
+    keyboard::Modifiers, peniko::kurbo::Vec2, views::editor::command::Command,
 };
 use indexmap::IndexMap;
 use lapce_core::command::{
@@ -655,12 +655,12 @@ pub enum InternalCommand {
     FindEditorCommand {
         command: LapceCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     },
     ReplaceEditorCommand {
         command: LapceCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     },
     FocusEditorTab {
         editor_tab_id: EditorTabId,

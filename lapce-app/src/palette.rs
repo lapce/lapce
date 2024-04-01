@@ -14,7 +14,7 @@ use anyhow::Result;
 use crossbeam_channel::{Receiver, Sender, TryRecvError};
 use floem::{
     ext_event::{create_ext_action, create_signal_from_channel},
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     reactive::{use_context, ReadSignal, RwSignal, Scope},
 };
 use itertools::Itertools;
@@ -1605,7 +1605,7 @@ impl KeyPressFocus for PaletteData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}

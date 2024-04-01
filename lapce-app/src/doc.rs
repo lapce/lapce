@@ -13,7 +13,7 @@ use floem::{
     action::exec_after,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     ext_event::create_ext_action,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     peniko::Color,
     reactive::{batch, ReadSignal, RwSignal, Scope},
     views::editor::{
@@ -1420,7 +1420,7 @@ impl Document for Doc {
         ed: &Editor,
         cmd: &Command,
         count: Option<usize>,
-        modifiers: ModifiersState,
+        modifiers: Modifiers,
     ) -> CommandExecuted {
         let Some(editor_data) = self.editor_data(ed.id()) else {
             return CommandExecuted::No;

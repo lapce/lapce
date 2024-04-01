@@ -8,7 +8,7 @@ use anyhow::Result;
 use floem::{
     action::show_context_menu,
     ext_event::create_ext_action,
-    keyboard::ModifiersState,
+    keyboard::Modifiers,
     kurbo::Rect,
     menu::{Menu, MenuItem},
     reactive::{
@@ -117,7 +117,7 @@ impl KeyPressFocus for PluginData {
         &self,
         command: &crate::command::LapceCommand,
         count: Option<usize>,
-        mods: ModifiersState,
+        mods: Modifiers,
     ) -> CommandExecuted {
         match &command.kind {
             CommandKind::Workbench(_) => {}
