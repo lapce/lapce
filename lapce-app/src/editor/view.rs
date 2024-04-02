@@ -1278,38 +1278,41 @@ pub fn editor_container_view(
 
     stack((
         editor_breadcrumbs(workspace, editor.get_untracked(), config),
-        stack((
-            editor_gutter(window_tab_data.clone(), editor, is_active),
-            container(editor_content(editor, debug_breakline, is_active))
-                .style(move |s| s.size_pct(100.0, 100.0)),
-            empty().style(move |s| {
-                let config = config.get();
-                s.absolute()
-                    .width_pct(100.0)
-                    .height(sticky_header_height.get() as f32)
-                    // .box_shadow_blur(5.0)
-                    // .border_bottom(1.0)
-                    // .border_color(
-                    //     config.get_color(LapceColor::LAPCE_BORDER),
-                    // )
-                    .apply_if(
-                        !config.editor.sticky_header
-                            || sticky_header_height.get() == 0.0
-                            || !editor_view.get().is_normal(),
-                        |s| s.hide(),
-                    )
-            }),
-            find_view(
-                editor,
-                find_editor,
-                find_focus,
-                replace_editor,
-                replace_active,
-                replace_focus,
-                is_active,
-            ),
-        ))
-        .style(|s| s.absolute().size_pct(100.0, 100.0)),
+        container(
+            stack((
+                editor_gutter(window_tab_data.clone(), editor, is_active),
+                container(editor_content(editor, debug_breakline, is_active))
+                    .style(move |s| s.size_pct(100.0, 100.0)),
+                empty().style(move |s| {
+                    let config = config.get();
+                    s.absolute()
+                        .width_pct(100.0)
+                        .height(sticky_header_height.get() as f32)
+                        // .box_shadow_blur(5.0)
+                        // .border_bottom(1.0)
+                        // .border_color(
+                        //     config.get_color(LapceColor::LAPCE_BORDER),
+                        // )
+                        .apply_if(
+                            !config.editor.sticky_header
+                                || sticky_header_height.get() == 0.0
+                                || !editor_view.get().is_normal(),
+                            |s| s.hide(),
+                        )
+                }),
+                find_view(
+                    editor,
+                    find_editor,
+                    find_focus,
+                    replace_editor,
+                    replace_active,
+                    replace_focus,
+                    is_active,
+                ),
+            ))
+            .style(|s| s.absolute().size_full()),
+        )
+        .style(|s| s.width_full().flex_basis(0).flex_grow(1.0)),
     ))
     .on_cleanup(move || {
         if editors.contains_untracked(editor_id) {
@@ -1334,7 +1337,7 @@ pub fn editor_container_view(
             }
         }
     })
-    .style(|s| s.flex_col().size_pct(100.0, 100.0))
+    .style(|s| s.flex_col().absolute().size_pct(100.0, 100.0))
 }
 
 fn editor_gutter(

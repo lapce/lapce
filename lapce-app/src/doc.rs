@@ -346,20 +346,20 @@ impl Doc {
     /// appropriately to create the [`EditorData`] and such.
     pub fn create_editor(self: &Rc<Doc>, cx: Scope, id: EditorId) -> Editor {
         let common = &self.common;
-        let config = common.config;
+        let config = common.config.get_untracked();
+        let modal = config.core.modal;
 
         let register = common.register;
         // TODO: we could have these Rcs created once and stored somewhere, maybe on
         // common, to avoid recreating them everytime.
         let cursor_info = CursorInfo {
-            blink_interval: Rc::new(move || {
-                config.get_untracked().editor.blink_interval()
-            }),
+            blink_interval: Rc::new(move || config.editor.blink_interval()),
             blink_timer: common.window_common.cursor_blink_timer,
             hidden: common.window_common.hide_cursor,
             should_blink: Rc::new(should_blink(common.focus, common.keyboard_focus)),
         };
-        let mut editor = Editor::new_direct(cx, id, self.clone(), self.styling());
+        let mut editor =
+            Editor::new_direct(cx, id, self.clone(), self.styling(), modal);
 
         editor.register = register;
         editor.cursor_info = cursor_info;
