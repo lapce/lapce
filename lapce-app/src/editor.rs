@@ -248,7 +248,7 @@ impl EditorData {
     ) -> Self {
         let cx = cx.create_child();
         let doc = Rc::new(Doc::new_local(cx, editors, common.clone()));
-        let editor = doc.create_editor(cx, editor_id);
+        let editor = doc.create_editor(cx, editor_id, true);
         Self::new(cx, editor, None, None, None, common)
     }
 
@@ -262,7 +262,7 @@ impl EditorData {
         confirmed: Option<RwSignal<bool>>,
         common: Rc<CommonData>,
     ) -> Self {
-        let editor = doc.create_editor(cx, EditorId::next());
+        let editor = doc.create_editor(cx, EditorId::next(), false);
         Self::new(cx, editor, editor_tab_id, diff_editor_id, confirmed, common)
     }
 
