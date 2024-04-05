@@ -499,7 +499,7 @@ impl KeyPressData {
         if let Some(path) = Self::file() {
             if let Ok(content) = std::fs::read_to_string(&path) {
                 if let Err(err) = loader.load_from_str(&content, is_modal) {
-                    tracing::error!("Failed to load from {path:?}: {err}");
+                    tracing::warn!("Failed to load from {path:?}: {err}");
                 }
             }
         }
