@@ -35,7 +35,7 @@ tree-sitter-cpp        = { version = "0.20.5", optional = true }
 tree-sitter-javascript = { version = "0.20.4", optional = true }
 tree-sitter-json       = { version = "0.20.2", optional = true }
 tree-sitter-md         = { git = "https://github.com/MDeiml/tree-sitter-markdown.git", rev = "272e080bca0efd19a06a7f4252d746417224959e", optional = true }
-tree-sitter-python     = { version = "0.20.4", optional = true }
+tree-sitter-python     = { version = "0.21.0", optional = true }
 tree-sitter-rust       = { version = "0.20.4", optional = true }
 tree-sitter-toml       = { version = "0.20.0", optional = true }
 tree-sitter-yaml       = { git = "https://github.com/panekj/tree-sitter-yaml", rev = "80c8d76847f03e772c5c524cf29bafb56858a8d1", optional = true }
