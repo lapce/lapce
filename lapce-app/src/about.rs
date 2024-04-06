@@ -156,7 +156,7 @@ pub fn about_popup(window_tab_data: Rc<WindowTabData>) -> impl View {
             )
             .style(|s| s.margin_top(10.0)),
             web_link(
-                || "tree-sitter queries (MPL-2.0)".to_string(),
+                || "Helix editor tree-sitter queries (MPL-2.0)".to_string(),
                 || AboutUri::HELIX.to_string(),
                 move || config.get().color(LapceColor::EDITOR_LINK),
                 internal_command,
