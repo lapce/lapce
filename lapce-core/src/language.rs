@@ -1706,13 +1706,13 @@ impl LapceLanguage {
         }
 
         if let Some(file) =
-            DEFAULT_QUERIES.get_file(format!("{query_name}/highlights.scm"))
+            DEFAULT_QUERIES.get_file(format!("helix/{query_name}/highlights.scm"))
         {
             if let Some(contents) = file.contents_utf8() {
                 return (
                     contents.to_string(),
                     DEFAULT_QUERIES
-                        .get_file(format!("{query_name}/injections.scm"))
+                        .get_file(format!("helix/{query_name}/injections.scm"))
                         .and_then(|f| f.contents_utf8())
                         .unwrap_or("")
                         .to_string(),

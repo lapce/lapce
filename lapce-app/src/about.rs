@@ -26,6 +26,7 @@ impl AboutUri {
     const MATRIX: &'static str = "https://matrix.to/#/#lapce-editor:matrix.org";
     const DISCORD: &'static str = "https://discord.gg/n8tGJ6Rn6D";
     const CODICONS: &'static str = "https://github.com/microsoft/vscode-codicons";
+    const HELIX: &'static str = "https://github.com/helix-editor/helix/blob/97afd67fca0b505600e5fbba7ca59f06a4eec3ff/LICENSE";
 }
 
 #[derive(Clone)]
@@ -154,6 +155,12 @@ pub fn about_popup(window_tab_data: Rc<WindowTabData>) -> impl View {
                 internal_command,
             )
             .style(|s| s.margin_top(10.0)),
+            web_link(
+                || "tree-sitter queries (MPL-2.0)".to_string(),
+                || AboutUri::HELIX.to_string(),
+                move || config.get().color(LapceColor::EDITOR_LINK),
+                internal_command,
+            )
         ))
         .style(|s| s.flex_col().items_center())
     })
