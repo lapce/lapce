@@ -160,7 +160,7 @@ pub fn about_popup(window_tab_data: Rc<WindowTabData>) -> impl View {
                 || AboutUri::HELIX.to_string(),
                 move || config.get().color(LapceColor::EDITOR_LINK),
                 internal_command,
-            )
+            ),
         ))
         .style(|s| s.flex_col().items_center())
     })
