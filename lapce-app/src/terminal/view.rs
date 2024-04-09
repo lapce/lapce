@@ -4,13 +4,14 @@ use std::time::SystemTime;
 use alacritty_terminal::index::Side;
 use alacritty_terminal::selection::{Selection, SelectionType};
 use alacritty_terminal::term::search::{Match, RegexSearch};
+use alacritty_terminal::term::RenderableContent;
 use alacritty_terminal::{
     grid::Dimensions,
     term::{cell::Flags, test::TermSize},
 };
-use floem::context::EventCx;
+use floem::context::{EventCx, PaintCx};
 use floem::event::Event;
-use floem::kurbo::Line;
+use floem::peniko::Color;
 use floem::pointer::PointerInputEvent;
 use floem::views::editor::core::register::Clipboard;
 use floem::views::editor::text::SystemClipboard;
@@ -50,6 +51,14 @@ enum TerminalViewState {
     Raw(Arc<RwLock<RawTerminal>>),
 }
 
+struct TerminalLineContent<'a> {
+    y: f64,
+    bg: Vec<(usize, usize, Color)>,
+    underline: Vec<(usize, usize, Color, f64)>,
+    chars: Vec<(char, Attrs<'a>, f64, f64)>,
+    cursor: Option<(char, f64)>,
+}
+
 pub struct TerminalView {
     data: ViewData,
     term_id: TermId,
@@ -67,6 +76,7 @@ pub struct TerminalView {
     previous_mouse_action: MouseAction,
     current_mouse_action: MouseAction,
 }
+
 #[allow(clippy::too_many_arguments)]
 pub fn terminal_view(
     term_id: TermId,
@@ -287,6 +297,185 @@ impl TerminalView {
             alacritty_terminal::index::Line(line_no),
             alacritty_terminal::index::Column(col),
         )
+    }
+
+    fn paint_content(
+        &self,
+        cx: &mut PaintCx,
+        content: RenderableContent,
+        line_height: f64,
+        char_size: Size,
+        config: &LapceConfig,
+    ) {
+        let term_bg = config.color(LapceColor::TERMINAL_BACKGROUND);
+        let term_fg = config.color(LapceColor::TERMINAL_FOREGROUND);
+
+        let font_size = config.terminal_font_size();
+        let font_family = config.terminal_font_family();
+        let family: Vec<FamilyOwned> =
+            FamilyOwned::parse_list(font_family).collect();
+        let attrs = Attrs::new().family(&family).font_size(font_size as f32);
+
+        let char_width = char_size.width;
+
+        let cursor_point = &content.cursor.point;
+
+        let mut line_content = TerminalLineContent {
+            y: 0.0,
+            bg: Vec::new(),
+            underline: Vec::new(),
+            chars: Vec::new(),
+            cursor: None,
+        };
+        for item in content.display_iter {
+            let point = item.point;
+            let cell = item.cell;
+            let inverse = cell.flags.contains(Flags::INVERSE);
+
+            let x = point.column.0 as f64 * char_width;
+            let y =
+                (point.line.0 as f64 + content.display_offset as f64) * line_height;
+            let char_y = y + (line_height - char_size.height) / 2.0;
+            let underline_y = (point.line.0 as f64 + content.display_offset as f64)
+                * line_height
+                + line_height;
+            if y != line_content.y {
+                self.paint_line_content(
+                    cx,
+                    &line_content,
+                    line_height,
+                    char_width,
+                    config,
+                );
+                line_content.y = y;
+                line_content.bg.clear();
+                line_content.underline.clear();
+                line_content.chars.clear();
+                line_content.cursor = None;
+            }
+
+            let mut bg = config.terminal_get_color(&cell.bg, content.colors);
+            let mut fg = config.terminal_get_color(&cell.fg, content.colors);
+            if cell.flags.contains(Flags::DIM)
+                || cell.flags.contains(Flags::DIM_BOLD)
+            {
+                fg = fg.with_alpha_factor(0.66);
+            }
+
+            if inverse {
+                std::mem::swap(&mut fg, &mut bg);
+            }
+
+            if term_bg != bg {
+                let mut extend = false;
+                if let Some((_, end, color)) = line_content.bg.last_mut() {
+                    if color == &bg && *end == point.column.0 {
+                        *end += 1;
+                        extend = true;
+                    }
+                }
+                if !extend {
+                    line_content
+                        .bg
+                        .push((point.column.0, point.column.0 + 1, bg));
+                }
+            }
+
+            if self.hyper_matches.iter().any(|x| x.contains(&point)) {
+                let mut extend = false;
+                if let Some((_, end, _, _)) = line_content.underline.last_mut() {
+                    if *end == point.column.0 {
+                        *end += 1;
+                        extend = true;
+                    }
+                }
+                if !extend {
+                    line_content.underline.push((
+                        point.column.0,
+                        point.column.0 + 1,
+                        term_fg,
+                        underline_y,
+                    ));
+                }
+            }
+
+            if cursor_point == &point {
+                line_content.cursor = Some((cell.c, x));
+            }
+
+            let bold = cell.flags.contains(Flags::BOLD)
+                || cell.flags.contains(Flags::DIM_BOLD);
+
+            if &point == cursor_point && self.is_focused {
+                fg = term_bg;
+            }
+
+            if cell.c != ' ' && cell.c != '\t' {
+                let mut attrs = attrs.color(fg);
+                if bold {
+                    attrs = attrs.weight(Weight::BOLD);
+                }
+                line_content.chars.push((cell.c, attrs, x, char_y));
+            }
+        }
+        self.paint_line_content(cx, &line_content, line_height, char_width, config);
+    }
+
+    fn paint_line_content(
+        &self,
+        cx: &mut PaintCx,
+        line_content: &TerminalLineContent,
+        line_height: f64,
+        char_width: f64,
+        config: &LapceConfig,
+    ) {
+        for (start, end, bg) in &line_content.bg {
+            let rect = Size::new(
+                char_width * (end.saturating_sub(*start) as f64),
+                line_height,
+            )
+            .to_rect()
+            .with_origin(Point::new(*start as f64 * char_width, line_content.y));
+            cx.fill(&rect, bg, 0.0);
+        }
+
+        for (start, end, fg, y) in &line_content.underline {
+            let rect =
+                Size::new(char_width * (end.saturating_sub(*start) as f64), 1.0)
+                    .to_rect()
+                    .with_origin(Point::new(*start as f64 * char_width, y - 1.0));
+            cx.fill(&rect, fg, 0.0);
+        }
+
+        if let Some((c, x)) = line_content.cursor {
+            let rect =
+                Size::new(char_width * c.width().unwrap_or(1) as f64, line_height)
+                    .to_rect()
+                    .with_origin(Point::new(x, line_content.y));
+            let mode = self.mode.get_untracked();
+            let cursor_color = if mode == Mode::Terminal {
+                if self.run_config.with_untracked(|run_config| {
+                    run_config.as_ref().map(|r| r.stopped).unwrap_or(false)
+                }) {
+                    config.color(LapceColor::LAPCE_ERROR)
+                } else {
+                    config.color(LapceColor::TERMINAL_CURSOR)
+                }
+            } else {
+                config.color(LapceColor::EDITOR_CARET)
+            };
+            if self.is_focused {
+                cx.fill(&rect, cursor_color, 0.0);
+            } else {
+                cx.stroke(&rect, cursor_color, 1.0);
+            }
+        }
+
+        for (char, attr, x, y) in &line_content.chars {
+            let mut text_layout = TextLayout::new();
+            text_layout.set_text(&char.to_string(), AttrsList::new(*attr));
+            cx.draw_text(&text_layout, Point::new(*x, *y));
+        }
     }
 }
 
@@ -530,99 +719,7 @@ impl Widget for TerminalView {
             );
         }
 
-        let cursor_point = &content.cursor.point;
-
-        let term_bg = config.color(LapceColor::TERMINAL_BACKGROUND);
-        let mut text_layout = TextLayout::new();
-        for item in content.display_iter {
-            let point = item.point;
-            let cell = item.cell;
-            let inverse = cell.flags.contains(Flags::INVERSE);
-
-            let x = point.column.0 as f64 * char_width;
-            let y =
-                (point.line.0 as f64 + content.display_offset as f64) * line_height;
-
-            let mut bg = config.terminal_get_color(&cell.bg, content.colors);
-            let mut fg = config.terminal_get_color(&cell.fg, content.colors);
-            if cell.flags.contains(Flags::DIM)
-                || cell.flags.contains(Flags::DIM_BOLD)
-            {
-                fg = fg.with_alpha_factor(0.66);
-            }
-
-            if inverse {
-                std::mem::swap(&mut fg, &mut bg);
-            }
-
-            if term_bg != bg {
-                let rect = Size::new(char_width, line_height)
-                    .to_rect()
-                    .with_origin(Point::new(x, y));
-                cx.fill(&rect, bg, 0.0);
-            }
-            if self.hyper_matches.iter().any(|x| x.contains(&point)) {
-                let underline_y = point.line.0 as f64 * line_height
-                    + content.display_offset as f64
-                    + line_height;
-                let undline = Line::new(
-                    Point::new(point.column.0 as f64 * char_width, underline_y),
-                    Point::new(
-                        point.column.0 as f64 * char_width + char_width,
-                        underline_y,
-                    ),
-                );
-                cx.stroke(&undline, fg, 1.0);
-            }
-
-            if cursor_point == &point {
-                let rect = Size::new(
-                    char_width * cell.c.width().unwrap_or(1) as f64,
-                    line_height,
-                )
-                .to_rect()
-                .with_origin(Point::new(
-                    cursor_point.column.0 as f64 * char_width,
-                    (cursor_point.line.0 as f64 + content.display_offset as f64)
-                        * line_height,
-                ));
-                let cursor_color = if mode == Mode::Terminal {
-                    if self.run_config.with_untracked(|run_config| {
-                        run_config.as_ref().map(|r| r.stopped).unwrap_or(false)
-                    }) {
-                        config.color(LapceColor::LAPCE_ERROR)
-                    } else {
-                        config.color(LapceColor::TERMINAL_CURSOR)
-                    }
-                } else {
-                    config.color(LapceColor::EDITOR_CARET)
-                };
-                if self.is_focused {
-                    cx.fill(&rect, cursor_color, 0.0);
-                } else {
-                    cx.stroke(&rect, cursor_color, 1.0);
-                }
-            }
-
-            let bold = cell.flags.contains(Flags::BOLD)
-                || cell.flags.contains(Flags::DIM_BOLD);
-
-            if &point == cursor_point && self.is_focused {
-                fg = term_bg;
-            }
-
-            if cell.c != ' ' && cell.c != '\t' {
-                let mut attrs = attrs.color(fg);
-                if bold {
-                    attrs = attrs.weight(Weight::BOLD);
-                }
-                text_layout.set_text(&cell.c.to_string(), AttrsList::new(attrs));
-                cx.draw_text(
-                    &text_layout,
-                    Point::new(x, y + (line_height - char_size.height) / 2.0),
-                );
-            }
-        }
+        self.paint_content(cx, content, line_height, char_size, &config);
         // if data.find.visual {
         //     if let Some(search_string) = data.find.search_string.as_ref() {
         //         if let Ok(dfas) = RegexSearch::new(&regex::escape(search_string)) {
