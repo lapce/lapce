@@ -1491,6 +1491,7 @@ impl PaletteData {
         let pattern = nucleo::pattern::Pattern::parse(
             input,
             nucleo::pattern::CaseMatching::Ignore,
+            nucleo::pattern::Normalization::Smart,
         );
 
         // NOTE: We collect into a Vec to sort as we are hitting a worst-case behavior in

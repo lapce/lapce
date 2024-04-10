@@ -185,6 +185,7 @@ impl CompletionData {
                 let pattern = nucleo::pattern::Pattern::parse(
                     &self.input,
                     nucleo::pattern::CaseMatching::Ignore,
+                    nucleo::pattern::Normalization::Smart,
                 );
                 self.all_items()
                     .iter()
