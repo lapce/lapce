@@ -66,7 +66,7 @@ pub fn parse_markdown(
             }
             Event::End(end_tag) => {
                 if let Some((start_offset, tag)) = tag_stack.pop() {
-                    if end_tag != tag {
+                    if end_tag != tag.to_end() {
                         tracing::warn!("Mismatched markdown tag");
                         continue;
                     }
@@ -104,7 +104,12 @@ pub fn parse_markdown(
                             );
                             builder_dirty = true;
                         }
-                        Tag::Image(_link_type, dest, title) => {
+                        Tag::Image {
+                            link_type: _,
+                            dest_url: dest,
+                            title,
+                            id: _,
+                        } => {
                             // TODO: Are there any link types that would change how the
                             // image is rendered?
 
@@ -178,6 +183,7 @@ pub fn parse_markdown(
             Event::Rule => {}
             Event::FootnoteReference(_text) => {}
             Event::TaskListMarker(_text) => {}
+            Event::InlineHtml(_) => {} // TODO(panekj): Implement
         }
     }
 
@@ -198,7 +204,12 @@ fn attribute_for_tag<'a>(
 ) -> Option<Attrs<'a>> {
     use pulldown_cmark::HeadingLevel;
     match tag {
-        Tag::Heading(level, _, _) => {
+        Tag::Heading {
+            level,
+            id: _,
+            classes: _,
+            attrs: _,
+        } => {
             // The size calculations are based on the em values given at
             // https://drafts.csswg.org/css2/#html-stylesheet
             let font_scale = match level {
@@ -225,7 +236,12 @@ fn attribute_for_tag<'a>(
         Tag::Emphasis => Some(default_attrs.style(Style::Italic)),
         Tag::Strong => Some(default_attrs.weight(Weight::BOLD)),
         // TODO: Strikethrough support
-        Tag::Link(_link_type, _target, _title) => {
+        Tag::Link {
+            link_type: _,
+            dest_url: _,
+            title: _,
+            id: _,
+        } => {
             // TODO: Link support
             Some(default_attrs.color(config.color(LapceColor::EDITOR_LINK)))
         }
@@ -238,14 +254,14 @@ fn attribute_for_tag<'a>(
 fn should_add_newline_after_tag(tag: &Tag) -> bool {
     !matches!(
         tag,
-        Tag::Emphasis | Tag::Strong | Tag::Strikethrough | Tag::Link(..)
+        Tag::Emphasis | Tag::Strong | Tag::Strikethrough | Tag::Link { .. }
     )
 }
 
 /// Whether it should skip the text node after a specific tag  
 /// For example, images are skipped because it emits their title as a separate text node.  
 fn should_skip_text_in_tag(tag: &Tag) -> bool {
-    matches!(tag, Tag::Image(..))
+    matches!(tag, Tag::Image { .. })
 }
 
 fn md_language_to_lapce_language(lang: &str) -> Option<LapceLanguage> {
