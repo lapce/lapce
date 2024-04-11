@@ -30,12 +30,12 @@ cd ~/lapce
 ```
 
 ```sh
-cargo build --release
+cargo install --path . --bin lapce --profile release-lto --locked
 ```
 
 > If you use a different distribution, and are having trouble finding appropriate dependencies, let us know in an issue!
 
-Once Lapce is compiled, the executable will be available in `target/release/lapce`.
+Once Lapce is compiled, the executable will be available in `$HOME/.cargo/bin/lapce` and should be available in `PATH` automatically.
 
 ## Building using Docker or Podman
 
