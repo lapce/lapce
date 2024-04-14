@@ -20,6 +20,7 @@
 - [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository
 - [#3031](https://github.com/lapce/lapce/pull/3031): Fix find not receiving inputs when clicked
 - [#3142](https://github.com/lapce/lapce/pull/3142): Fix terminal default profile saving incorrectly
+- [#3158](https://github.com/lapce/lapce/pull/3158): Fix ShowHover command for showing hover with keybind
 
 ## 0.3.1
 
