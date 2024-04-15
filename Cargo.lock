@@ -3014,7 +3014,7 @@ dependencies = [
  "itertools 0.12.1",
  "lapce-rpc",
  "lapce-xi-rope",
- "libloading 0.7.4",
+ "libloading 0.8.1",
  "lsp-types",
  "once_cell",
  "slotmap",
