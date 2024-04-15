@@ -612,6 +612,7 @@ impl EditorData {
         count: Option<usize>,
         mods: Modifiers,
     ) -> CommandExecuted {
+        self.common.hover.active.set(false);
         if movement.is_jump()
             && movement != &self.editor.last_movement.get_untracked()
         {
@@ -1045,6 +1046,12 @@ impl EditorData {
             }
             FocusCommand::InlineCompletionInvoke => {
                 self.update_inline_completion(InlineCompletionTriggerKind::Invoked);
+            }
+            FocusCommand::ShowHover => {
+                let start_offset = self.doc().buffer.with_untracked(|b| {
+                    b.prev_code_boundary(self.cursor().get_untracked().offset())
+                });
+                self.update_hover(start_offset);
             }
             _ => {}
         }
