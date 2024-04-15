@@ -62,7 +62,7 @@ zip            = { version = "0.6.6", default-features = false, features = ["def
 [dependencies.floem]
 # path = "../../workspaces/floem"
 git              = "https://github.com/lapce/floem"
-rev              = "690e98a084e175e0ad56b696c8e5df6c99e179e2"
+rev              = "816ae0c59a521070bcbea510ca1cd8ff9f2be764"
 default-features = true
 features         = ["editor", "serde", "default-image-formats", "rfd-async-std"]
 
