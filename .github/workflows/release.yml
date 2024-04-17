@@ -70,14 +70,12 @@ jobs:
       - name: Build
         run: cargo build --frozen --profile release-lto
 
-      - name: Install WiX
-        run: nuget install WiX -Version 3.14.1
-
       - name: Crate msi installer
         run: |
-          ./WiX.*/tools/candle.exe -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
+          candle.exe -arch "x64" -ext WixUIExtension -ext WixUtilExtension \
             -out "./lapce.wixobj" "extra/windows/wix/lapce.wxs"
-          ./WiX.*/tools/light.exe -ext WixUIExtension -ext WixUtilExtension \
+
+          light.exe -ext WixUIExtension -ext WixUtilExtension \
             -out "./Lapce-windows.msi" -sice:ICE61 -sice:ICE91 \
             "./lapce.wixobj"
 
