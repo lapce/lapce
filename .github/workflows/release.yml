@@ -71,7 +71,7 @@ jobs:
         run: cargo build --frozen --profile release-lto
 
       - name: Install WiX
-        run: nuget install WiX -Version 3.11.2
+        run: nuget install WiX -Version 3.14.1
 
       - name: Crate msi installer
         run: |
