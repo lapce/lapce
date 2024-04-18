@@ -74,6 +74,12 @@ windows = "default"
 [terminal.profiles]
 default = {}
 
+# [terminal.profiles.example]
+# command     = "cargo"
+# arguments   = ["run"]
+# environemnt = { "KEY" = "VALUE" }
+# workdir     = "/home/user"
+
 [ui]
 font-family = ""
 font-size = 13
