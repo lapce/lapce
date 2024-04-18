@@ -559,22 +559,22 @@ impl Widget for TerminalView {
                     MouseAction::RightOnce { pos } => {
                         let position = self.get_terminal_point(pos);
                         let raw = self.raw.read();
-                        if raw
+                        if let Some(selection) = &raw
                             .term
                             .selection
                             .as_ref()
                             .and_then(|x| x.to_range(&raw.term))
-                            .map(|x| x.contains(position))
-                            .unwrap_or_default()
                         {
-                            let start_point =
-                                raw.term.semantic_search_left(position);
-                            let end_point = raw.term.semantic_search_right(position);
-                            let mut clipboard = SystemClipboard::new();
-                            let content =
-                                raw.term.bounds_to_string(start_point, end_point);
-                            clipboard.put_string(content);
-                        } else {
+                            if selection.contains(position) {
+                                let mut clipboard = SystemClipboard::new();
+                                let content = raw.term.bounds_to_string(
+                                    selection.start,
+                                    selection.end,
+                                );
+                                if !content.is_empty() {
+                                    clipboard.put_string(content);
+                                }
+                            }
                             clear_selection = true;
                         }
                     }
