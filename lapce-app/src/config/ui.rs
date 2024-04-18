@@ -34,7 +34,7 @@ pub struct UIConfig {
     drop_shadow_width: usize,
 
     #[field_names(desc = "Controls the width of the preview editor")]
-    preview_editor_width: usize,
+    pub preview_editor_width: usize,
 
     #[field_names(
         desc = "Set the hover font family. If empty, it uses the UI font family"

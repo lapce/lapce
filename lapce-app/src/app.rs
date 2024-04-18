@@ -2570,7 +2570,7 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
         .on_event_stop(EventListener::PointerDown, move |_| {})
         .style(move |s| {
             let config = config.get();
-            s.width(500.0)
+            s.width(config.ui.preview_editor_width as f64)
                 .max_width_full()
                 .max_height(if has_preview.get() {
                     PxPctAuto::Auto

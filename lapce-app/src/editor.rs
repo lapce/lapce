@@ -1956,14 +1956,11 @@ impl EditorData {
             // what code actions are available (such as fixes for the diagnostics).
             let diagnostics = doc
                 .diagnostics()
-                .diagnostics
+                .diagnostics_span
                 .get_untracked()
-                .iter()
-                .map(|x| &x.diagnostic)
-                .filter(|x| {
-                    x.range.start.line <= position.line
-                        && x.range.end.line >= position.line
-                })
+                .iter_chunks(offset..offset)
+                .filter(|(iv, _diag)| iv.start <= offset && iv.end >= offset)
+                .map(|(_iv, diag)| diag)
                 .cloned()
                 .collect();
 

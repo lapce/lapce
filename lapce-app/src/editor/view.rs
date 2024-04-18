@@ -1049,7 +1049,7 @@ impl Widget for EditorView {
             let e_data = &self.editor;
             let editor = &e_data.editor;
 
-            let parent_size = editor.parent_size.get_untracked();
+            let viewport_size = self.viewport.get_untracked().size();
 
             let screen_lines = e_data.screen_lines().get_untracked();
             for (line, _) in screen_lines.iter_lines_y() {
@@ -1062,16 +1062,16 @@ impl Widget for EditorView {
             let config = self.editor.common.config.get_untracked();
             let line_height = config.editor.line_height() as f64;
 
-            let width = editor.max_line_width().max(parent_size.width());
+            let width = editor.max_line_width().max(viewport_size.width);
             let last_line_height =
                 line_height * (editor.last_vline().get() + 1) as f64;
-            let height = last_line_height.max(parent_size.height());
+            let height = last_line_height.max(viewport_size.height);
 
             let margin_bottom = if editor
                 .es
                 .with_untracked(EditorStyle::scroll_beyond_last_line)
             {
-                parent_size.height().min(last_line_height) - line_height
+                viewport_size.height.min(last_line_height) - line_height
             } else {
                 0.0
             };
@@ -1091,16 +1091,9 @@ impl Widget for EditorView {
         &mut self,
         cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
-        let editor = &self.editor.editor;
         let viewport = cx.current_viewport();
         if self.viewport.with_untracked(|v| v != &viewport) {
             self.viewport.set(viewport);
-        }
-        let parent_size = cx
-            .app_state_mut()
-            .get_layout_rect(self.id().parent().unwrap());
-        if editor.parent_size.with_untracked(|ps| ps != &parent_size) {
-            editor.parent_size.set(parent_size);
         }
         None
     }
@@ -1784,8 +1777,9 @@ fn editor_content(
 
     scroll({
         let editor_content_view =
-            editor_view(e_data.get_untracked(), debug_breakline, is_active)
-                .style(move |s| s.absolute().cursor(CursorStyle::Text));
+            editor_view(e_data.get_untracked(), debug_breakline, is_active).style(
+                move |s| s.absolute().min_size_full().cursor(CursorStyle::Text),
+            );
 
         let id = editor_content_view.id();
         editor.editor_view_id.set(Some(id));

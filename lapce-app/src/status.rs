@@ -42,7 +42,7 @@ pub fn status(
         let mut warnings = 0;
         for (_, diagnostics) in diagnostics.get().iter() {
             for diagnostic in diagnostics.diagnostics.get().iter() {
-                if let Some(severity) = diagnostic.diagnostic.severity {
+                if let Some(severity) = diagnostic.severity {
                     match severity {
                         DiagnosticSeverity::ERROR => errors += 1,
                         DiagnosticSeverity::WARNING => warnings += 1,

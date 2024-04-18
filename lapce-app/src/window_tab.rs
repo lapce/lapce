@@ -33,7 +33,7 @@ use lapce_rpc::{
     terminal::TermId,
     RpcError,
 };
-use lsp_types::{ProgressParams, ProgressToken, ShowMessageParams};
+use lsp_types::{Diagnostic, ProgressParams, ProgressToken, ShowMessageParams};
 use serde_json::Value;
 use tracing::{debug, error};
 
@@ -49,7 +49,7 @@ use crate::{
     config::LapceConfig,
     db::LapceDb,
     debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
-    doc::{DocContent, EditorDiagnostic},
+    doc::DocContent,
     editor::location::{EditorLocation, EditorPosition},
     editor_tab::EditorTabChild,
     file_explorer::data::FileExplorerData,
@@ -1737,14 +1737,11 @@ impl WindowTabData {
             }
             CoreNotification::PublishDiagnostics { diagnostics } => {
                 let path = path_from_url(&diagnostics.uri);
-                let diagnostics: im::Vector<EditorDiagnostic> = diagnostics
+                let diagnostics: im::Vector<Diagnostic> = diagnostics
                     .diagnostics
-                    .iter()
-                    .map(|d| EditorDiagnostic {
-                        range: (0, 0),
-                        diagnostic: d.clone(),
-                    })
-                    .sorted_by_key(|d| d.diagnostic.range.start)
+                    .clone()
+                    .into_iter()
+                    .sorted_by_key(|d| d.range.start)
                     .collect();
 
                 self.main_split

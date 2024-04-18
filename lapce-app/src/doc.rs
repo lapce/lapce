@@ -81,12 +81,13 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct DiagnosticData {
     pub expanded: RwSignal<bool>,
-    pub diagnostics: RwSignal<im::Vector<EditorDiagnostic>>,
+    pub diagnostics: RwSignal<im::Vector<Diagnostic>>,
+    pub diagnostics_span: RwSignal<Spans<Diagnostic>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EditorDiagnostic {
-    pub range: (usize, usize),
+    pub range: Option<(usize, usize)>,
     pub diagnostic: Diagnostic,
 }
 
@@ -268,6 +269,7 @@ impl Doc {
             diagnostics: DiagnosticData {
                 expanded: cx.create_rw_signal(true),
                 diagnostics: cx.create_rw_signal(im::Vector::new()),
+                diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
             },
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
@@ -315,6 +317,7 @@ impl Doc {
             diagnostics: DiagnosticData {
                 expanded: cx.create_rw_signal(true),
                 diagnostics: cx.create_rw_signal(im::Vector::new()),
+                diagnostics_span: cx.create_rw_signal(SpansBuilder::new(0).build()),
             },
             completion_lens: cx.create_rw_signal(None),
             completion_pos: cx.create_rw_signal((0, 0)),
@@ -614,16 +617,16 @@ impl Doc {
 
     fn on_update(&self, edits: Option<&[SyntaxEdit]>) {
         batch(|| {
-            self.clear_code_actions();
-            self.clear_style_cache();
             self.trigger_syntax_change(edits);
             self.clear_sticky_headers_cache();
             self.trigger_head_change();
             self.check_auto_save();
-            self.get_semantic_styles();
             self.get_inlay_hints();
             self.find_result.reset();
+            self.get_semantic_styles();
             self.do_bracket_colorization();
+            self.clear_code_actions();
+            self.clear_style_cache();
         });
     }
 
@@ -882,87 +885,30 @@ impl Doc {
         {
             return;
         }
-        self.diagnostics.diagnostics.update(|diagnostics| {
-            for diagnostic in diagnostics.iter_mut() {
-                let mut transformer = Transformer::new(delta);
-                let (start, end) = diagnostic.range;
-                let (new_start, new_end) = (
-                    transformer.transform(start, false),
-                    transformer.transform(end, true),
-                );
 
-                let (new_start_pos, new_end_pos) = self.buffer.with_untracked(|b| {
-                    (
-                        b.offset_to_position(new_start),
-                        b.offset_to_position(new_end),
-                    )
-                });
-
-                diagnostic.range = (new_start, new_end);
-
-                diagnostic.diagnostic.range.start = new_start_pos;
-                diagnostic.diagnostic.range.end = new_end_pos;
-            }
+        self.diagnostics.diagnostics_span.update(|diagnostics| {
+            diagnostics.apply_shape(delta);
         });
     }
 
     /// init diagnostics offset ranges from lsp positions
     pub fn init_diagnostics(&self) {
+        let len = self.buffer.with_untracked(|b| b.len());
+        let diagnostics = self.diagnostics.diagnostics.get_untracked();
+
+        let span = self.buffer.with_untracked(|buffer| {
+            let mut span = SpansBuilder::new(len);
+            for diag in diagnostics.iter() {
+                let start = buffer.offset_of_position(&diag.range.start);
+                let end = buffer.offset_of_position(&diag.range.end);
+                span.add_span(Interval::new(start, end), diag.to_owned());
+            }
+            span.build()
+        });
+        self.diagnostics.diagnostics_span.set(span);
+
         self.clear_text_cache();
         self.clear_code_actions();
-        self.diagnostics.diagnostics.update(|diagnostics| {
-            for diagnostic in diagnostics.iter_mut() {
-                let (start, end) = self.buffer.with_untracked(|buffer| {
-                    (
-                        buffer
-                            .offset_of_position(&diagnostic.diagnostic.range.start),
-                        buffer.offset_of_position(&diagnostic.diagnostic.range.end),
-                    )
-                });
-                diagnostic.range = (start, end);
-            }
-        });
-    }
-
-    /// Iterate over the editor diagnostics on a line
-    fn iter_diagnostics(
-        &self,
-        line: usize,
-    ) -> impl Iterator<Item = EditorDiagnostic> + '_ {
-        self.common
-            .config
-            .get_untracked()
-            .editor
-            .enable_completion_lens
-            .then_some(())
-            .map(|_| self.diagnostics.diagnostics.get_untracked())
-            .into_iter()
-            .flatten()
-            .filter(move |diag| {
-                diag.diagnostic.range.end.line as usize == line
-                    && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
-            })
-    }
-
-    /// Get the max severity of the diagnostics o na line.  
-    /// This is used to determine the color given to the background of the line
-    fn max_diag_severity(&self, line: usize) -> Option<DiagnosticSeverity> {
-        let mut max_severity = None;
-        for diag in self.iter_diagnostics(line) {
-            match (diag.diagnostic.severity, max_severity) {
-                (Some(severity), Some(max)) => {
-                    if severity < max {
-                        max_severity = Some(severity);
-                    }
-                }
-                (Some(severity), None) => {
-                    max_severity = Some(severity);
-                }
-                _ => {}
-            }
-        }
-
-        max_severity
     }
 
     /// Get the current completion lens text
@@ -1515,55 +1461,71 @@ impl DocumentPhantom for Doc {
         // If error lens is enabled, and the diagnostics field is filled, then get the diagnostics
         // that end on this line which have a severity worse than HINT and convert them into
         // PhantomText instances
-        let diag_text = config
-            .editor
-            .enable_error_lens
-            .then_some(())
-            .map(|_| self.diagnostics.diagnostics.get_untracked())
-            .into_iter()
-            .flatten()
-            .filter(|diag| {
-                diag.diagnostic.range.end.line as usize == line
-                    && diag.diagnostic.severity < Some(DiagnosticSeverity::HINT)
-            })
-            .map(|diag| {
-                let col = self.buffer.with_untracked(|buffer| {
-                    buffer.offset_of_line(line + 1) - buffer.offset_of_line(line)
-                });
-                let fg = {
-                    let severity = diag
-                        .diagnostic
-                        .severity
-                        .unwrap_or(DiagnosticSeverity::WARNING);
-                    let theme_prop = if severity == DiagnosticSeverity::ERROR {
-                        LapceColor::ERROR_LENS_ERROR_FOREGROUND
-                    } else if severity == DiagnosticSeverity::WARNING {
-                        LapceColor::ERROR_LENS_WARNING_FOREGROUND
-                    } else {
-                        // information + hint (if we keep that) + things without a severity
-                        LapceColor::ERROR_LENS_OTHER_FOREGROUND
-                    };
 
-                    config.color(theme_prop)
-                };
+        let mut diag_text: SmallVec<[PhantomText; 6]> =
+            self.buffer.with_untracked(|buffer| {
+                config
+                    .editor
+                    .enable_error_lens
+                    .then_some(())
+                    .map(|_| self.diagnostics.diagnostics_span.get_untracked())
+                    .map(|diags| {
+                        diags
+                            .iter_chunks(start_offset..end_offset)
+                            .filter_map(|(iv, diag)| {
+                                let end = iv.end();
+                                let end_line = buffer.line_of_offset(end);
+                                if end_line == line
+                                    && diag.severity < Some(DiagnosticSeverity::HINT)
+                                {
+                                    let fg = {
+                                        let severity = diag
+                                            .severity
+                                            .unwrap_or(DiagnosticSeverity::WARNING);
+                                        let theme_prop = if severity
+                                            == DiagnosticSeverity::ERROR
+                                        {
+                                            LapceColor::ERROR_LENS_ERROR_FOREGROUND
+                                        } else if severity
+                                            == DiagnosticSeverity::WARNING
+                                        {
+                                            LapceColor::ERROR_LENS_WARNING_FOREGROUND
+                                        } else {
+                                            // information + hint (if we keep that) + things without a severity
+                                            LapceColor::ERROR_LENS_OTHER_FOREGROUND
+                                        };
 
-                let text = if config.editor.error_lens_multiline {
-                    format!("    {}", diag.diagnostic.message)
-                } else {
-                    format!("    {}", diag.diagnostic.message.lines().join(" "))
-                };
-                PhantomText {
-                    kind: PhantomTextKind::Diagnostic,
-                    col,
-                    text,
-                    fg: Some(fg),
-                    font_size: Some(config.editor.error_lens_font_size()),
-                    // font_family: Some(config.editor.error_lens_font_family()),
-                    bg: None,
-                    under_line: None,
-                }
+                                        config.color(theme_prop)
+                                    };
+
+                                    let text = if config.editor.error_lens_multiline
+                                    {
+                                        format!("    {}", diag.message)
+                                    } else {
+                                        format!(
+                                            "    {}",
+                                            diag.message.lines().join(" ")
+                                        )
+                                    };
+                                    Some(PhantomText {
+                                        kind: PhantomTextKind::Diagnostic,
+                                        col: end_offset - start_offset,
+                                        text,
+                                        fg: Some(fg),
+                                        font_size: Some(
+                                            config.editor.error_lens_font_size(),
+                                        ),
+                                        bg: None,
+                                        under_line: None,
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<SmallVec<[PhantomText; 6]>>()
+                    })
+                    .unwrap_or_default()
             });
-        let mut diag_text: SmallVec<[PhantomText; 6]> = diag_text.collect();
 
         text.append(&mut diag_text);
 
@@ -1826,8 +1788,65 @@ impl Styling for DocStyling {
             });
         layout_line.extra_style.extend(phantom_styles);
 
+        let (start_offset, end_offset) = doc.buffer.with_untracked(|buffer| {
+            (buffer.offset_of_line(line), buffer.offset_of_line(line + 1))
+        });
+
+        let mut max_severity: Option<DiagnosticSeverity> = None;
+        doc.diagnostics.diagnostics_span.with_untracked(|diags| {
+            diags
+                .iter_chunks(start_offset..end_offset)
+                .for_each(|(iv, diag)| {
+                    let start = iv.start();
+                    let end = iv.end();
+
+                    if start <= end_offset
+                        && end >= start_offset
+                        && diag.severity < Some(DiagnosticSeverity::HINT)
+                    {
+                        let start = if start > start_offset {
+                            start - start_offset
+                        } else {
+                            0
+                        };
+                        let end = end - start_offset;
+                        let start = phantom_text.col_after(start, true);
+                        let end = phantom_text.col_after(end, false);
+
+                        match (diag.severity, max_severity) {
+                            (Some(severity), Some(max)) => {
+                                if severity < max {
+                                    max_severity = Some(severity);
+                                }
+                            }
+                            (Some(severity), None) => {
+                                max_severity = Some(severity);
+                            }
+                            _ => {}
+                        }
+
+                        let color_name = match diag.severity {
+                            Some(DiagnosticSeverity::ERROR) => {
+                                LapceColor::LAPCE_ERROR
+                            }
+                            _ => LapceColor::LAPCE_WARN,
+                        };
+                        let color = config.color(color_name);
+                        let styles = extra_styles_for_range(
+                            layout,
+                            start,
+                            end,
+                            None,
+                            None,
+                            Some(color),
+                        );
+                        layout_line.extra_style.extend(styles);
+                    }
+                });
+        });
+
         // Add the styling for the diagnostic severity, if applicable
-        if let Some(max_severity) = doc.max_diag_severity(line) {
+        if let Some(max_severity) = max_severity {
             let theme_prop = if max_severity == DiagnosticSeverity::ERROR {
                 LapceColor::ERROR_LENS_ERROR_BACKGROUND
             } else if max_severity == DiagnosticSeverity::WARNING {
@@ -1857,59 +1876,6 @@ impl Styling for DocStyling {
                 wave_line: None,
             });
         }
-
-        doc.diagnostics.diagnostics.with_untracked(|diags| {
-            doc.buffer.with_untracked(|buffer| {
-                for diag in diags {
-                    if diag.diagnostic.range.start.line as usize <= line
-                        && line <= diag.diagnostic.range.end.line as usize
-                    {
-                        let start = if diag.diagnostic.range.start.line as usize
-                            == line
-                        {
-                            let (_, col) = buffer.offset_to_line_col(diag.range.0);
-                            col
-                        } else {
-                            let offset =
-                                buffer.first_non_blank_character_on_line(line);
-                            let (_, col) = buffer.offset_to_line_col(offset);
-                            col
-                        };
-                        let start = phantom_text.col_after(start, true);
-
-                        let end = if diag.diagnostic.range.end.line as usize == line
-                        {
-                            let (_, col) = buffer.offset_to_line_col(diag.range.1);
-                            col
-                        } else {
-                            buffer.line_end_col(line, true)
-                        };
-                        let end = phantom_text.col_after(end, false);
-
-                        // let x0 = text_layout.hit_position(start).point.x;
-                        // let x1 = text_layout.hit_position(end).point.x;
-                        let color_name = match diag.diagnostic.severity {
-                            Some(DiagnosticSeverity::ERROR) => {
-                                LapceColor::LAPCE_ERROR
-                            }
-                            _ => LapceColor::LAPCE_WARN,
-                        };
-                        let color = config.color(color_name);
-
-                        let styles = extra_styles_for_range(
-                            layout,
-                            start,
-                            end,
-                            None,
-                            None,
-                            Some(color),
-                        );
-
-                        layout_line.extra_style.extend(styles);
-                    }
-                }
-            })
-        });
     }
 
     fn paint_caret(&self, edid: EditorId, _line: usize) -> bool {
