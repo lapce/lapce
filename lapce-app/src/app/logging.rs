@@ -68,11 +68,10 @@ pub(super) fn panic_hook() {
         let thread = thread.name().unwrap_or("main");
         let backtrace = backtrace::Backtrace::new();
 
-        let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
-            s
-        } else {
-            "<unknown>"
-        };
+        let payload = info
+            .payload()
+            .downcast_ref::<&str>()
+            .unwrap_or(&"<unknown>");
 
         match info.location() {
             Some(loc) => {

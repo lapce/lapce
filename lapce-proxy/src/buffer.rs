@@ -8,12 +8,14 @@ use std::{
     time::SystemTime,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
+use encoding_rs::Encoding;
 use floem_editor_core::buffer::rope_text::CharIndicesJoin;
 use lapce_core::encoding::offset_utf8_to_utf16;
 use lapce_rpc::buffer::BufferId;
 use lapce_xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 use lsp_types::*;
+use tracing::{trace, warn};
 
 #[derive(Clone)]
 pub struct Buffer {
@@ -24,24 +26,35 @@ pub struct Buffer {
     pub path: PathBuf,
     pub rev: u64,
     pub mod_time: Option<SystemTime>,
+    pub encoding: String,
 }
+
+pub const ENCODING_UTF8: &str = "UTF-8";
 
 impl Buffer {
     pub fn new(id: BufferId, path: PathBuf) -> Buffer {
-        let (s, read_only) = match load_file(&path) {
-            Ok(s) => (s, false),
+        let (content, encoding, read_only) = match load_file(&path) {
+            Ok((string, encoding)) => (string, encoding, false),
             Err(err) => match err.downcast_ref::<std::io::Error>() {
                 Some(err) => match err.kind() {
-                    std::io::ErrorKind::PermissionDenied => {
-                        ("Permission Denied".to_string(), true)
+                    std::io::ErrorKind::PermissionDenied => (
+                        "Permission Denied".to_string(),
+                        ENCODING_UTF8.to_owned(),
+                        true,
+                    ),
+                    std::io::ErrorKind::NotFound => {
+                        ("".to_string(), ENCODING_UTF8.to_owned(), false)
                     }
-                    std::io::ErrorKind::NotFound => ("".to_string(), false),
-                    _ => ("Not Supported".to_string(), true),
+                    _ => {
+                        ("Not Supported".to_string(), ENCODING_UTF8.to_owned(), true)
+                    }
                 },
-                None => ("Not Supported".to_string(), true),
+                None => {
+                    ("Not Supported".to_string(), ENCODING_UTF8.to_owned(), true)
+                }
             },
         };
-        let rope = Rope::from(s);
+        let rope = Rope::from(content);
         let rev = u64::from(!rope.is_empty());
         let language_id = language_id_from_path(&path).unwrap_or("");
         let mod_time = get_mod_time(&path);
@@ -53,6 +66,7 @@ impl Buffer {
             language_id,
             rev,
             mod_time,
+            encoding,
         }
     }
 
@@ -95,8 +109,44 @@ impl Buffer {
             .write(true)
             .truncate(true)
             .open(&path)?;
-        for chunk in self.rope.iter_chunks(..self.rope.len()) {
-            f.write_all(chunk.as_bytes())?;
+
+        match self.encoding.as_str() {
+            "UTF-8" => {
+                for chunk in self.rope.iter_chunks(..self.rope.len()) {
+                    f.write_all(chunk.as_bytes())?;
+                }
+            }
+            v => {
+                use encoding_rs::CoderResult;
+
+                let Some(enc) = Encoding::for_label(v.as_bytes()) else {
+                    bail!("Failed to obtain valid encoding to use for saving file");
+                };
+                let mut encoder = enc.new_encoder();
+
+                let mut buf = vec![];
+                let mut last = false;
+                let mut i = 0;
+                for chunk in self.rope.iter_chunks(..self.rope.len()) {
+                    i += chunk.len();
+                    if i >= self.rope.len() {
+                        last = true
+                    }
+                    let (result, units, replaced) =
+                        encoder.encode_from_utf8_to_vec(chunk, &mut buf, last);
+                    trace!("{units} processed");
+                    if replaced {
+                        warn!("replacement occured in `{chunk}`");
+                    }
+                    match result {
+                        CoderResult::InputEmpty => match last {
+                            true => f.write_all(buf.as_slice())?,
+                            false => continue,
+                        },
+                        CoderResult::OutputFull => f.write_all(buf.as_slice())?,
+                    }
+                }
+            }
         }
 
         self.mod_time = get_mod_time(&path);
@@ -181,22 +231,49 @@ impl Buffer {
     }
 }
 
-pub fn load_file(path: &Path) -> Result<String> {
+pub fn load_file(path: &Path) -> Result<(String, String)> {
     read_path_to_string(path)
 }
 
-pub fn read_path_to_string<P: AsRef<Path>>(path: P) -> Result<String> {
+pub fn read_path_to_string<P: AsRef<Path>>(path: P) -> Result<(String, String)> {
     let path = path.as_ref();
+    let mut encoding = ENCODING_UTF8.to_string();
 
     let mut file = File::open(path)?;
     // Read the file in as bytes
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
 
+    let mut contents = String::new();
     // Parse the file contents as utf8
-    let contents = String::from_utf8(buffer)?;
+    match String::from_utf8(buffer.clone()) {
+        Ok(s) => {
+            contents = s;
+        }
+        Err(e) => {
+            tracing::error!("Failed to decode from `utf-8`: {e}");
 
-    Ok(contents.to_string())
+            use charset_normalizer_rs as chardet;
+            use encoding_rs_io::DecodeReaderBytesBuilder;
+
+            let mut enc_reader = DecodeReaderBytesBuilder::new();
+
+            let chardet = chardet::from_bytes(&buffer, None);
+
+            if let Some(charset) = chardet.get_best() {
+                let enc = charset.encoding();
+                tracing::info!("Detected encoding: {enc}");
+                enc_reader.encoding(Encoding::for_label(enc.as_bytes()));
+                enc.clone_into(&mut encoding);
+            };
+
+            let mut decoder = enc_reader.build(buffer.as_slice());
+
+            decoder.read_to_string(&mut contents)?;
+        }
+    };
+
+    Ok((contents.to_owned(), encoding))
 }
 
 pub fn language_id_from_path(path: &Path) -> Option<&'static str> {
