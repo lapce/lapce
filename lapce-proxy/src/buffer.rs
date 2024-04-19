@@ -35,13 +35,21 @@ impl Buffer {
             Ok((string, encoding)) => (string, encoding, false),
             Err(err) => match err.downcast_ref::<std::io::Error>() {
                 Some(err) => match err.kind() {
-                    std::io::ErrorKind::PermissionDenied => {
-                        ("Permission Denied".to_string(), ENCODING_UTF8.to_owned(), true)
+                    std::io::ErrorKind::PermissionDenied => (
+                        "Permission Denied".to_string(),
+                        ENCODING_UTF8.to_owned(),
+                        true,
+                    ),
+                    std::io::ErrorKind::NotFound => {
+                        ("".to_string(), ENCODING_UTF8.to_owned(), false)
                     }
-                    std::io::ErrorKind::NotFound => ("".to_string(), ENCODING_UTF8.to_owned(), false),
-                    _ => ("Not Supported".to_string(), ENCODING_UTF8.to_owned(), true),
+                    _ => {
+                        ("Not Supported".to_string(), ENCODING_UTF8.to_owned(), true)
+                    }
                 },
-                None => ("Not Supported".to_string(), ENCODING_UTF8.to_owned(), true),
+                None => {
+                    ("Not Supported".to_string(), ENCODING_UTF8.to_owned(), true)
+                }
             },
         };
         let rope = Rope::from(content);
@@ -203,7 +211,7 @@ pub fn read_path_to_string<P: AsRef<Path>>(path: P) -> Result<(String, String)> 
     match String::from_utf8(buffer.clone()) {
         Ok(s) => {
             contents = s;
-        },
+        }
         Err(e) => {
             tracing::error!("Failed to decode from `utf-8`: {e}");
 

@@ -353,7 +353,11 @@ impl ProxyHandler for Dispatcher {
                 self.buffers.insert(path, buffer);
                 self.respond_rpc(
                     id,
-                    Ok(ProxyResponse::NewBufferResponse { content, read_only, encoding }),
+                    Ok(ProxyResponse::NewBufferResponse {
+                        content,
+                        read_only,
+                        encoding,
+                    }),
                 );
             }
             BufferHead { path } => {
