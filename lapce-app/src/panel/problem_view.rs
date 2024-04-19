@@ -9,7 +9,7 @@ use floem::{
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 
-use super::{position::PanelPosition, view::PanelBuilder};
+use super::{data::PanelSection, position::PanelPosition, view::PanelBuilder};
 use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
@@ -31,6 +31,7 @@ pub fn problem_panel(
         .add_style(
             "Errors",
             problem_section(window_tab_data.clone(), DiagnosticSeverity::ERROR),
+            window_tab_data.panel.section_open(PanelSection::Error),
             move |s| {
                 s.border_color(config.get().color(LapceColor::LAPCE_BORDER))
                     .apply_if(is_bottom, |s| s.border_right(1.0))
@@ -40,6 +41,7 @@ pub fn problem_panel(
         .add(
             "Warnings",
             problem_section(window_tab_data.clone(), DiagnosticSeverity::WARNING),
+            window_tab_data.panel.section_open(PanelSection::Warn),
         )
         .build()
 }

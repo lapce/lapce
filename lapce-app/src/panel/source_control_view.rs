@@ -18,7 +18,8 @@ use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;
 
 use super::{
-    kind::PanelKind, position::PanelPosition, view::foldable_panel_section,
+    data::PanelSection, kind::PanelKind, position::PanelPosition,
+    view::foldable_panel_section,
 };
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
@@ -65,8 +66,7 @@ pub fn source_control_panel(
                             editor.get_untracked(),
                             debug_breakline,
                             is_active,
-                        )
-                        .style(|s| s.min_size_pct(100.0, 100.0)),
+                        ),
                         label(|| "Commit Message".to_string()).style(move |s| {
                             let config = config.get();
                             s.absolute()
@@ -180,6 +180,7 @@ pub fn source_control_panel(
         foldable_panel_section(
             text("Changes"),
             file_diffs_view(source_control),
+            window_tab_data.panel.section_open(PanelSection::Changes),
             config,
         )
         .style(|s| s.flex_col().size_pct(100.0, 100.0)),

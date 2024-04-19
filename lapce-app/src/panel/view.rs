@@ -35,15 +35,6 @@ use crate::{
 pub fn foldable_panel_section(
     header: impl View + 'static,
     child: impl View + 'static,
-    config: ReadSignal<Arc<LapceConfig>>,
-) -> impl View {
-    let open = create_rw_signal(true);
-    foldable_panel_section_s(header, child, open, config)
-}
-
-fn foldable_panel_section_s(
-    header: impl View + 'static,
-    child: impl View + 'static,
     open: RwSignal<bool>,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
@@ -57,9 +48,7 @@ fn foldable_panel_section_s(
                         LapceIcons::PANEL_FOLD_UP
                     }
                 },
-                Some(move || {
-                    open.update(|open| *open = !*open);
-                }),
+                None::<Box<dyn Fn()>>,
                 || false,
                 || false,
                 config,
@@ -70,7 +59,11 @@ fn foldable_panel_section_s(
             s.padding_horiz(10.0)
                 .padding_vert(6.0)
                 .width_pct(100.0)
+                .cursor(CursorStyle::Pointer)
                 .background(config.get().color(LapceColor::EDITOR_BACKGROUND))
+        })
+        .on_click_stop(move |_| {
+            open.update(|open| *open = !*open);
         }),
         child.style(move |s| s.apply_if(!open.get(), |s| s.hide())),
     ))
@@ -99,11 +92,11 @@ impl PanelBuilder {
         name: &'static str,
         height: Option<PxPctAuto>,
         view: impl View + 'static,
+        open: RwSignal<bool>,
         style: impl Fn(Style) -> Style + 'static,
     ) -> Self {
         let position = self.position;
-        let open = create_rw_signal(true);
-        let view = foldable_panel_section_s(text(name), view, open, self.config)
+        let view = foldable_panel_section(text(name), view, open, self.config)
             .style(move |s| {
                 let s = s.width_full().flex_col();
                 // Use the manual height if given, otherwise if we're open behave flex,
@@ -127,8 +120,13 @@ impl PanelBuilder {
     }
 
     /// Add a view to the panel
-    pub fn add(self, name: &'static str, view: impl View + 'static) -> Self {
-        self.add_general(name, None, view, std::convert::identity)
+    pub fn add(
+        self,
+        name: &'static str,
+        view: impl View + 'static,
+        open: RwSignal<bool>,
+    ) -> Self {
+        self.add_general(name, None, view, open, std::convert::identity)
     }
 
     /// Add a view to the panel with a custom style applied to the overall header+section-content
@@ -136,9 +134,10 @@ impl PanelBuilder {
         self,
         name: &'static str,
         view: impl View + 'static,
+        open: RwSignal<bool>,
         style: impl Fn(Style) -> Style + 'static,
     ) -> Self {
-        self.add_general(name, None, view, style)
+        self.add_general(name, None, view, open, style)
     }
 
     /// Add a view to the panel with a custom height that is only used when the panel is open
@@ -147,8 +146,15 @@ impl PanelBuilder {
         name: &'static str,
         height: impl Into<PxPctAuto>,
         view: impl View + 'static,
+        open: RwSignal<bool>,
     ) -> Self {
-        self.add_general(name, Some(height.into()), view, std::convert::identity)
+        self.add_general(
+            name,
+            Some(height.into()),
+            view,
+            open,
+            std::convert::identity,
+        )
     }
 
     /// Add a view to the panel with a custom height that is only used when the panel is open
@@ -158,9 +164,10 @@ impl PanelBuilder {
         name: &'static str,
         height: impl Into<PxPctAuto>,
         view: impl View + 'static,
+        open: RwSignal<bool>,
         style: impl Fn(Style) -> Style + 'static,
     ) -> Self {
-        self.add_general(name, Some(height.into()), view, style)
+        self.add_general(name, Some(height.into()), view, open, style)
     }
 
     /// Add a view to the panel with a custom height that is only used when the panel is open
@@ -169,11 +176,13 @@ impl PanelBuilder {
         name: &'static str,
         height: f64,
         view: impl View + 'static,
+        open: RwSignal<bool>,
     ) -> Self {
         self.add_general(
             name,
             Some(PxPctAuto::Pct(height)),
             view,
+            open,
             std::convert::identity,
         )
     }

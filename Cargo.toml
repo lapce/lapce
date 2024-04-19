@@ -71,7 +71,7 @@ lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
-floem-editor-core = { git = "https://github.com/lapce/floem", rev = "1477931896d14a9dafbfc8159e7a52a9d8e1d8b8", features = ["serde"] }
+floem-editor-core = { git = "https://github.com/lapce/floem", rev = "88838b55475142e7212c875664130e71cf01a82b", features = ["serde"] }
 # floem-editor-core = { path = "../workspaces/floem/editor-core/", features = ["serde"] }
 
 [patch.crates-io]

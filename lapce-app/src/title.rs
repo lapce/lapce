@@ -13,7 +13,7 @@ use lapce_core::meta;
 use lapce_rpc::proxy::ProxyStatus;
 
 use crate::{
-    app::{clickable_icon, not_clickable_icon, window_menu},
+    app::{clickable_icon, not_clickable_icon, tooltip_label, window_menu},
     command::{LapceCommand, LapceWorkbenchCommand, WindowCommand},
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     listener::Listener,
@@ -63,20 +63,24 @@ fn left(
                 .margin_right(6.0)
                 .apply_if(is_macos, |s| s.hide())
         }),
-        container(svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(
-            move |s| {
-                let config = config.get();
-                let size = (config.ui.icon_size() as f32 + 2.0).min(30.0);
-                s.size(size, size).color(if is_local {
-                    config.color(LapceColor::LAPCE_ICON_ACTIVE)
-                } else {
-                    match proxy_status.get() {
-                        Some(_) => Color::WHITE,
-                        None => config.color(LapceColor::LAPCE_ICON_ACTIVE),
-                    }
-                })
-            },
-        ))
+        tooltip_label(
+            config,
+            container(svg(move || config.get().ui_svg(LapceIcons::REMOTE)).style(
+                move |s| {
+                    let config = config.get();
+                    let size = (config.ui.icon_size() as f32 + 2.0).min(30.0);
+                    s.size(size, size).color(if is_local {
+                        config.color(LapceColor::LAPCE_ICON_ACTIVE)
+                    } else {
+                        match proxy_status.get() {
+                            Some(_) => Color::WHITE,
+                            None => config.color(LapceColor::LAPCE_ICON_ACTIVE),
+                        }
+                    })
+                },
+            )),
+            || "Connect to Remote",
+        )
         .popout_menu(move || {
             #[allow(unused_mut)]
             let mut menu = Menu::new("").entry(

@@ -5,7 +5,10 @@ use std::{
     ops::Range,
     path::{Path, PathBuf},
     rc::Rc,
-    sync::{atomic, Arc},
+    sync::{
+        atomic::{self, AtomicUsize},
+        Arc,
+    },
     time::Duration,
 };
 
@@ -436,7 +439,7 @@ impl Doc {
                 self.parser.borrow_mut().update_code(
                     code,
                     &self.buffer.get_untracked(),
-                    Some(syntax.clone()),
+                    Some(syntax),
                 );
             } else {
                 self.parser.borrow_mut().update_code(
@@ -596,7 +599,7 @@ impl Doc {
                 SyntaxEdit::from_delta(before_text, delta.clone())
             })
             .collect();
-        self.on_update(Some(edits.as_slice()));
+        self.on_update(Some(edits));
     }
 
     pub fn is_pristine(&self) -> bool {
@@ -615,10 +618,9 @@ impl Doc {
         self.buffer.with_untracked(|b| b.line_ending())
     }
 
-    fn on_update(&self, edits: Option<&[SyntaxEdit]>) {
+    fn on_update(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
         batch(|| {
             self.trigger_syntax_change(edits);
-            self.clear_sticky_headers_cache();
             self.trigger_head_change();
             self.check_auto_save();
             self.get_inlay_hints();
@@ -631,21 +633,23 @@ impl Doc {
     }
 
     fn do_bracket_colorization(&self) {
-        self.syntax.with_untracked(|syntax| {
-            if syntax.styles.is_some() {
-                self.parser.borrow_mut().update_code(
-                    self.buffer.get_untracked().to_string(),
-                    &self.buffer.get_untracked(),
-                    Some(syntax.clone()),
-                );
-            } else {
-                self.parser.borrow_mut().update_code(
-                    self.buffer.get_untracked().to_string(),
-                    &self.buffer.get_untracked(),
-                    None,
-                );
-            }
-        })
+        if self.parser.borrow().active {
+            self.syntax.with_untracked(|syntax| {
+                if syntax.rev == self.rev() && syntax.styles.is_some() {
+                    self.parser.borrow_mut().update_code(
+                        self.buffer.get_untracked().to_string(),
+                        &self.buffer.get_untracked(),
+                        Some(syntax),
+                    );
+                } else {
+                    self.parser.borrow_mut().update_code(
+                        self.buffer.get_untracked().to_string(),
+                        &self.buffer.get_untracked(),
+                        None,
+                    );
+                }
+            })
+        }
     }
 
     fn check_auto_save(&self) {
@@ -704,12 +708,28 @@ impl Doc {
         });
     }
 
-    pub fn trigger_syntax_change(&self, edits: Option<&[SyntaxEdit]>) {
+    pub fn trigger_syntax_change(&self, edits: Option<SmallVec<[SyntaxEdit; 3]>>) {
         let (rev, text) =
             self.buffer.with_untracked(|b| (b.rev(), b.text().clone()));
 
+        let doc = self.clone();
+        let send = create_ext_action(self.scope, move |syntax| {
+            if doc.buffer.with_untracked(|b| b.rev()) == rev {
+                doc.syntax.set(syntax);
+                doc.do_bracket_colorization();
+                doc.clear_style_cache();
+                doc.clear_sticky_headers_cache();
+            }
+        });
+
         self.syntax.update(|syntax| {
-            syntax.parse(rev, text, edits);
+            syntax.cancel_flag.store(1, atomic::Ordering::Relaxed);
+            syntax.cancel_flag = Arc::new(AtomicUsize::new(0));
+        });
+        let mut syntax = self.syntax.get_untracked();
+        rayon::spawn(move || {
+            syntax.parse(rev, text, edits.as_deref());
+            send(syntax);
         });
     }
 
@@ -1281,9 +1301,11 @@ impl Doc {
     /// Uses a language aware algorithm if syntax support is available for the current language,
     /// else falls back to a language unaware algorithm.
     pub fn find_enclosing_brackets(&self, offset: usize) -> Option<(usize, usize)> {
+        let rev = self.rev();
         self.syntax
             .with_untracked(|syntax| {
-                (!syntax.text.is_empty()).then(|| syntax.find_enclosing_pair(offset))
+                (!syntax.text.is_empty() && syntax.rev == rev)
+                    .then(|| syntax.find_enclosing_pair(offset))
             })
             // If syntax.text is empty, either the buffer is empty or we don't have syntax support
             // for the current language.

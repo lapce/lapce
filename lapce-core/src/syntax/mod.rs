@@ -171,7 +171,7 @@ impl BracketParser {
         &mut self,
         code: String,
         buffer: &Buffer,
-        syntax: Option<Syntax>,
+        syntax: Option<&Syntax>,
     ) {
         let palette = vec![
             "bracket.color.1".to_string(),
@@ -186,7 +186,7 @@ impl BracketParser {
         {
             self.bracket_pos = HashMap::new();
             if let Some(syntax) = syntax {
-                if let Some(layers) = syntax.layers {
+                if let Some(layers) = &syntax.layers {
                     if let Some(tree) = layers.try_tree() {
                         let mut walk_cursor = tree.walk();
                         let mut bracket_pos: HashMap<usize, Vec<LineStyle>> =
@@ -386,10 +386,6 @@ pub struct LanguageLayer {
 }
 
 impl LanguageLayer {
-    pub fn tree(&self) -> &Tree {
-        self.tree.as_ref().unwrap()
-    }
-
     pub fn try_tree(&self) -> Option<&Tree> {
         self.tree.as_ref()
     }
@@ -399,6 +395,7 @@ impl LanguageLayer {
         parser: &mut Parser,
         source: &Rope,
         had_edits: bool,
+        cancellation_flag: &AtomicUsize,
     ) -> Result<(), Error> {
         parser.set_included_ranges(&self.ranges).unwrap();
 
@@ -406,7 +403,7 @@ impl LanguageLayer {
             .set_language(self.config.language)
             .map_err(|_| Error::InvalidLanguage)?;
 
-        // unsafe { syntax.parser.set_cancellation_flag(cancellation_flag) };
+        unsafe { parser.set_cancellation_flag(Some(cancellation_flag)) };
         let tree = parser
             .parse_with(
                 &mut |byte, _| {
@@ -423,7 +420,6 @@ impl LanguageLayer {
                 had_edits.then_some(()).and(self.tree.as_ref()),
             )
             .ok_or(Error::Cancelled)?;
-        // unsafe { ts_parser.parser.set_cancellation_flag(None) };
         self.tree = Some(tree);
         Ok(())
     }
@@ -461,8 +457,9 @@ impl SyntaxLayers {
 
         let mut syntax = SyntaxLayers { root, layers };
 
+        let cancel_flag = AtomicUsize::new(0);
         if let Some(source) = source {
-            let _ = syntax.update(0, 0, source, None);
+            let _ = syntax.update(0, 0, source, None, &cancel_flag);
         }
 
         syntax
@@ -474,6 +471,7 @@ impl SyntaxLayers {
         new_rev: u64,
         source: &Rope,
         syntax_edits: Option<&[SyntaxEdit]>,
+        cancellation_flag: &AtomicUsize,
     ) -> Result<(), Error> {
         let mut queue = VecDeque::new();
         queue.push_back(self.root);
@@ -606,116 +604,118 @@ impl SyntaxLayers {
                 }
 
                 // Re-parse the tree.
-                layer.parse(&mut ts_parser.parser, source, had_edits)?;
+                layer.parse(&mut ts_parser.parser, source, had_edits, cancellation_flag)?;
                 layer.rev = new_rev;
 
                 // Switch to an immutable borrow.
                 let layer = &self.layers[layer_id];
 
                 // Process injections.
-                let matches = cursor.matches(
-                    &layer.config.injections_query,
-                    layer.tree().root_node(),
-                    RopeProvider(source),
-                );
-                let mut injections = Vec::new();
-                for mat in matches {
-                    let (language_name, content_node, included_children) = injection_for_match(
-                        &layer.config,
-                        &layer.config.injections_query,
-                        &mat,
-                        source,
-                    );
-
-                    // Explicitly remove this match so that none of its other captures will remain
-                    // in the stream of captures.
-                    mat.remove();
-
-                    // If a language is found with the given name, then add a new language layer
-                    // to the highlighted document.
-                    if let (Some(language_name), Some(content_node)) = (language_name, content_node)
-                    {
-                        if let Ok(config) = (injection_callback)(&language_name) {
-                            let ranges =
-                                intersect_ranges(&layer.ranges, &[content_node], included_children);
-
-                            if !ranges.is_empty() {
-                                injections.push((config, ranges));
-                            }
-                        }
-                    }
-                }
-
-                // Process combined injections.
-                if let Some(combined_injections_query) = &layer.config.combined_injections_query {
-                    let mut injections_by_pattern_index =
-                        vec![
-                            (None, Vec::new(), IncludedChildren::default());
-                            combined_injections_query.pattern_count()
-                        ];
+                if let Some(tree) = layer.try_tree() {
                     let matches = cursor.matches(
-                        combined_injections_query,
-                        layer.tree().root_node(),
+                        &layer.config.injections_query,
+                        tree.root_node(),
                         RopeProvider(source),
                     );
+                    let mut injections = Vec::new();
                     for mat in matches {
-                        let entry = &mut injections_by_pattern_index[mat.pattern_index];
                         let (language_name, content_node, included_children) = injection_for_match(
                             &layer.config,
-                            combined_injections_query,
+                            &layer.config.injections_query,
                             &mat,
                             source,
                         );
-                        if language_name.is_some() {
-                            entry.0 = language_name;
-                        }
-                        if let Some(content_node) = content_node {
-                            entry.1.push(content_node);
-                        }
-                        entry.2 = included_children;
-                    }
-                    for (lang_name, content_nodes, included_children) in injections_by_pattern_index
-                    {
-                        if let (Some(lang_name), false) = (lang_name, content_nodes.is_empty()) {
-                            if let Ok(config) = (injection_callback)(&lang_name) {
-                                let ranges = intersect_ranges(
-                                    &layer.ranges,
-                                    &content_nodes,
-                                    included_children,
-                                );
+
+                        // Explicitly remove this match so that none of its other captures will remain
+                        // in the stream of captures.
+                        mat.remove();
+
+                        // If a language is found with the given name, then add a new language layer
+                        // to the highlighted document.
+                        if let (Some(language_name), Some(content_node)) = (language_name, content_node)
+                        {
+                            if let Ok(config) = (injection_callback)(&language_name) {
+                                let ranges =
+                                    intersect_ranges(&layer.ranges, &[content_node], included_children);
+
                                 if !ranges.is_empty() {
                                     injections.push((config, ranges));
                                 }
                             }
                         }
                     }
-                }
 
-                let depth = layer.depth + 1;
-                // TODO: can't inline this since matches borrows self.layers
-                for (config, ranges) in injections {
-                    // Find an existing layer
-                    let layer = self
-                        .layers
-                        .iter_mut()
-                        .find(|(_, layer)| {
-                            layer.depth == depth && // TODO: track parent id instead
-                            layer.config.language == config.language && layer.ranges == ranges
-                        })
-                        .map(|(id, _layer)| id);
+                    // Process combined injections.
+                    if let Some(combined_injections_query) = &layer.config.combined_injections_query {
+                        let mut injections_by_pattern_index =
+                            vec![
+                                (None, Vec::new(), IncludedChildren::default());
+                                combined_injections_query.pattern_count()
+                            ];
+                        let matches = cursor.matches(
+                            combined_injections_query,
+                            tree.root_node(),
+                            RopeProvider(source),
+                        );
+                        for mat in matches {
+                            let entry = &mut injections_by_pattern_index[mat.pattern_index];
+                            let (language_name, content_node, included_children) = injection_for_match(
+                                &layer.config,
+                                combined_injections_query,
+                                &mat,
+                                source,
+                            );
+                            if language_name.is_some() {
+                                entry.0 = language_name;
+                            }
+                            if let Some(content_node) = content_node {
+                                entry.1.push(content_node);
+                            }
+                            entry.2 = included_children;
+                        }
+                        for (lang_name, content_nodes, included_children) in injections_by_pattern_index
+                        {
+                            if let (Some(lang_name), false) = (lang_name, content_nodes.is_empty()) {
+                                if let Ok(config) = (injection_callback)(&lang_name) {
+                                    let ranges = intersect_ranges(
+                                        &layer.ranges,
+                                        &content_nodes,
+                                        included_children,
+                                    );
+                                    if !ranges.is_empty() {
+                                        injections.push((config, ranges));
+                                    }
+                                }
+                            }
+                        }
+                    }
 
-                    // ...or insert a new one.
-                    let layer_id = layer.unwrap_or_else(|| {
-                        self.layers.insert(LanguageLayer {
-                            tree: None,
-                            config,
-                            depth,
-                            ranges,
-                            rev: 0,
-                        })
-                    });
+                    let depth = layer.depth + 1;
+                    // TODO: can't inline this since matches borrows self.layers
+                    for (config, ranges) in injections {
+                        // Find an existing layer
+                        let layer = self
+                            .layers
+                            .iter_mut()
+                            .find(|(_, layer)| {
+                                layer.depth == depth && // TODO: track parent id instead
+                                layer.config.language == config.language && layer.ranges == ranges
+                            })
+                            .map(|(id, _layer)| id);
 
-                    queue.push_back(layer_id);
+                        // ...or insert a new one.
+                        let layer_id = layer.unwrap_or_else(|| {
+                            self.layers.insert(LanguageLayer {
+                                tree: None,
+                                config,
+                                depth,
+                                ranges,
+                                rev: 0,
+                            })
+                        });
+
+                        queue.push_back(layer_id);
+                    }
                 }
 
                 // TODO: pre-process local scopes at this time, rather than highlight?
@@ -730,10 +730,6 @@ impl SyntaxLayers {
 
             Ok(())
         })
-    }
-
-    pub fn tree(&self) -> &Tree {
-        self.layers[self.root].tree()
     }
 
     pub fn try_tree(&self) -> Option<&Tree> {
@@ -772,7 +768,7 @@ impl SyntaxLayers {
                 let mut captures = cursor_ref
                     .captures(
                         &layer.config.query,
-                        layer.tree().root_node(),
+                        layer.try_tree()?.root_node(),
                         RopeProvider(source),
                     )
                     .peekable();
@@ -841,6 +837,7 @@ pub struct Syntax {
     pub line_height: usize,
     pub lens_height: usize,
     pub styles: Option<Spans<Style>>,
+    pub cancel_flag: Arc<AtomicUsize>,
 }
 
 impl std::fmt::Debug for Syntax {
@@ -879,6 +876,7 @@ impl Syntax {
             lens_height: 0,
             normal_lines: Vec::new(),
             styles: None,
+            cancel_flag: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -893,7 +891,8 @@ impl Syntax {
             None => return,
         };
         let edits = edits.filter(|edits| new_rev == self.rev + edits.len() as u64);
-        let _ = layers.update(self.rev, new_rev, &new_text, edits);
+        let _ =
+            layers.update(self.rev, new_rev, &new_text, edits, &self.cancel_flag);
         let tree = layers.try_tree();
 
         let styles = if tree.is_some() {
@@ -903,7 +902,11 @@ impl Syntax {
 
             // TODO: Should we be ignoring highlight errors via flattening them?
             for highlight in layers
-                .highlight_iter(&new_text, Some(0..new_text.len()), None)
+                .highlight_iter(
+                    &new_text,
+                    Some(0..new_text.len()),
+                    Some(&self.cancel_flag),
+                )
                 .flatten()
             {
                 match highlight {

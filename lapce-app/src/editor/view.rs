@@ -1062,14 +1062,27 @@ impl Widget for EditorView {
             let config = self.editor.common.config.get_untracked();
             let line_height = config.editor.line_height() as f64;
 
-            let width = editor.max_line_width().max(viewport_size.width);
+            let is_local = e_data.doc().content.with_untracked(|c| c.is_local());
+
+            let width = editor.max_line_width() + 10.0;
+            let width = if !is_local {
+                width.max(viewport_size.width)
+            } else {
+                width
+            };
             let last_line_height =
                 line_height * (editor.last_vline().get() + 1) as f64;
-            let height = last_line_height.max(viewport_size.height);
+            let height = last_line_height.max(line_height);
+            let height = if !is_local {
+                height.max(viewport_size.height)
+            } else {
+                height
+            };
 
-            let margin_bottom = if editor
-                .es
-                .with_untracked(EditorStyle::scroll_beyond_last_line)
+            let margin_bottom = if !is_local
+                && editor
+                    .es
+                    .with_untracked(EditorStyle::scroll_beyond_last_line)
             {
                 viewport_size.height.min(last_line_height) - line_height
             } else {

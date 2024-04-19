@@ -138,7 +138,7 @@ dim-text = "#5C6370"
 "source_control.removed" = "#FF5266CC"
 "source_control.modified" = "#0184BCCC"
 
-"tooltip.background" = "#4B4D51"
+"tooltip.background" = "$primary-background"
 "tooltip.foreground" = "$text"
 
 "palette.background" = "$secondary-background"

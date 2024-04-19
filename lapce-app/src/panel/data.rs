@@ -37,6 +37,21 @@ pub fn default_panel_order() -> PanelOrder {
     order
 }
 
+#[derive(Clone, Copy, Serialize, Deserialize, Hash, PartialEq, Eq)]
+pub enum PanelSection {
+    OpenEditor,
+    FileExplorer,
+    Error,
+    Warn,
+    Changes,
+    Installed,
+    Available,
+    Process,
+    Variable,
+    StackFrame,
+    Breakpoint,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PanelSize {
     pub left: f64,
@@ -52,6 +67,7 @@ pub struct PanelInfo {
     pub panels: PanelOrder,
     pub styles: im::HashMap<PanelPosition, PanelStyle>,
     pub size: PanelSize,
+    pub sections: im::HashMap<PanelSection, bool>,
 }
 
 #[derive(Clone)]
@@ -60,6 +76,7 @@ pub struct PanelData {
     pub styles: RwSignal<im::HashMap<PanelPosition, PanelStyle>>,
     pub size: RwSignal<PanelSize>,
     pub available_size: Memo<Size>,
+    pub sections: RwSignal<im::HashMap<PanelSection, RwSignal<bool>>>,
     pub common: Rc<CommonData>,
 }
 
@@ -68,6 +85,7 @@ impl PanelData {
         cx: Scope,
         panels: im::HashMap<PanelPosition, im::Vector<PanelKind>>,
         available_size: Memo<Size>,
+        sections: im::HashMap<PanelSection, bool>,
         common: Rc<CommonData>,
     ) -> Self {
         let panels = cx.create_rw_signal(panels);
@@ -130,12 +148,19 @@ impl PanelData {
             right: 250.0,
             right_split: 0.5,
         });
+        let sections = cx.create_rw_signal(
+            sections
+                .into_iter()
+                .map(|(key, value)| (key, cx.create_rw_signal(value)))
+                .collect(),
+        );
 
         Self {
             panels,
             styles,
             size,
             available_size,
+            sections,
             common,
         }
     }
@@ -145,6 +170,12 @@ impl PanelData {
             panels: self.panels.get_untracked(),
             styles: self.styles.get_untracked(),
             size: self.size.get_untracked(),
+            sections: self
+                .sections
+                .get_untracked()
+                .into_iter()
+                .map(|(key, value)| (key, value.get_untracked()))
+                .collect(),
         }
     }
 
@@ -388,6 +419,21 @@ impl PanelData {
 
         let db: Arc<LapceDb> = use_context().unwrap();
         db.save_panel_orders(self.panels.get_untracked());
+    }
+
+    pub fn section_open(&self, section: PanelSection) -> RwSignal<bool> {
+        let open = self
+            .sections
+            .with_untracked(|sections| sections.get(&section).cloned());
+        if let Some(open) = open {
+            return open;
+        }
+
+        let open = self.common.scope.create_rw_signal(true);
+        self.sections.update(|sections| {
+            sections.insert(section, open);
+        });
+        open
     }
 }
 

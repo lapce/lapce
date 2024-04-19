@@ -1936,12 +1936,18 @@ fn tooltip_tip<V: View + 'static>(
 ) -> impl Widget {
     container(child).style(move |s| {
         let config = config.get();
-        s.padding_horiz(5.0)
-            .padding_vert(1.0)
+        s.padding_horiz(10.0)
+            .padding_vert(5.0)
+            .font_size(config.ui.font_size() as f32)
             .font_family(config.ui.font_family.clone())
             .color(config.color(LapceColor::TOOLTIP_FOREGROUND))
             .background(config.color(LapceColor::TOOLTIP_BACKGROUND))
-            .margin_left(10.0)
+            .border(1)
+            .border_radius(6)
+            .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .box_shadow_blur(3.0)
+            .box_shadow_color(config.color(LapceColor::LAPCE_DROPDOWN_SHADOW))
+            .margin_left(0.0)
             .margin_top(4.0)
     })
 }

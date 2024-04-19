@@ -16,7 +16,9 @@ use floem::{
 use indexmap::IndexMap;
 use lapce_rpc::plugin::{VoltID, VoltInfo};
 
-use super::{kind::PanelKind, position::PanelPosition, view::PanelBuilder};
+use super::{
+    data::PanelSection, kind::PanelKind, position::PanelPosition, view::PanelBuilder,
+};
 use crate::{
     app::not_clickable_icon,
     command::InternalCommand,
@@ -68,8 +70,16 @@ pub fn plugin_panel(
     let plugin = window_tab_data.plugin.clone();
 
     PanelBuilder::new(config, position)
-        .add("Installed", installed_view(plugin.clone()))
-        .add("Available", available_view(plugin.clone()))
+        .add(
+            "Installed",
+            installed_view(plugin.clone()),
+            window_tab_data.panel.section_open(PanelSection::Installed),
+        )
+        .add(
+            "Available",
+            available_view(plugin.clone()),
+            window_tab_data.panel.section_open(PanelSection::Available),
+        )
         .build()
 }
 

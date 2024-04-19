@@ -25,7 +25,10 @@ use crate::{
     command::InternalCommand,
     config::{color::LapceColor, icon::LapceIcons, LapceConfig},
     editor_tab::{EditorTabChild, EditorTabData},
-    panel::{kind::PanelKind, position::PanelPosition, view::PanelBuilder},
+    panel::{
+        data::PanelSection, kind::PanelKind, position::PanelPosition,
+        view::PanelBuilder,
+    },
     plugin::PluginData,
     source_control::SourceControlData,
     text_input::TextInputBuilder,
@@ -78,6 +81,7 @@ pub fn file_explorer_panel(
             150.0,
             container(open_editors_view(window_tab_data.clone()))
                 .style(|s| s.size_full()),
+            window_tab_data.panel.section_open(PanelSection::OpenEditor),
             move |s| s.apply_if(!config.get().ui.open_editors_visible, Style::hide),
         )
         .add(
@@ -86,6 +90,9 @@ pub fn file_explorer_panel(
                 new_file_node_view(data, source_control).style(|s| s.absolute()),
             )
             .style(|s| s.size_full().line_height(1.6)),
+            window_tab_data
+                .panel
+                .section_open(PanelSection::FileExplorer),
         )
         .build()
 }

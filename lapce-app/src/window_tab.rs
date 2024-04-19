@@ -424,6 +424,13 @@ impl WindowTabData {
                     styles: cx.create_rw_signal(i.panel.styles.clone()),
                     size: cx.create_rw_signal(i.panel.size.clone()),
                     available_size: panel_available_size,
+                    sections: cx.create_rw_signal(
+                        i.panel
+                            .sections
+                            .iter()
+                            .map(|(key, value)| (*key, cx.create_rw_signal(*value)))
+                            .collect(),
+                    ),
                     common: common.clone(),
                 }
             })
@@ -431,7 +438,13 @@ impl WindowTabData {
                 let panel_order = db
                     .get_panel_orders()
                     .unwrap_or_else(|_| default_panel_order());
-                PanelData::new(cx, panel_order, panel_available_size, common.clone())
+                PanelData::new(
+                    cx,
+                    panel_order,
+                    panel_available_size,
+                    im::HashMap::new(),
+                    common.clone(),
+                )
             });
 
         let terminal =
