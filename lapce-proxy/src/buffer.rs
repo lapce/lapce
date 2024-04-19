@@ -24,24 +24,27 @@ pub struct Buffer {
     pub path: PathBuf,
     pub rev: u64,
     pub mod_time: Option<SystemTime>,
+    pub encoding: String,
 }
+
+pub const ENCODING_UTF8: &str = "UTF-8";
 
 impl Buffer {
     pub fn new(id: BufferId, path: PathBuf) -> Buffer {
-        let (s, read_only) = match load_file(&path) {
-            Ok(s) => (s, false),
+        let (content, encoding, read_only) = match load_file(&path) {
+            Ok((string, encoding)) => (string, encoding, false),
             Err(err) => match err.downcast_ref::<std::io::Error>() {
                 Some(err) => match err.kind() {
                     std::io::ErrorKind::PermissionDenied => {
-                        ("Permission Denied".to_string(), true)
+                        ("Permission Denied".to_string(), ENCODING_UTF8.to_owned(), true)
                     }
-                    std::io::ErrorKind::NotFound => ("".to_string(), false),
-                    _ => ("Not Supported".to_string(), true),
+                    std::io::ErrorKind::NotFound => ("".to_string(), ENCODING_UTF8.to_owned(), false),
+                    _ => ("Not Supported".to_string(), ENCODING_UTF8.to_owned(), true),
                 },
-                None => ("Not Supported".to_string(), true),
+                None => ("Not Supported".to_string(), ENCODING_UTF8.to_owned(), true),
             },
         };
-        let rope = Rope::from(s);
+        let rope = Rope::from(content);
         let rev = u64::from(!rope.is_empty());
         let language_id = language_id_from_path(&path).unwrap_or("");
         let mod_time = get_mod_time(&path);
@@ -53,6 +56,7 @@ impl Buffer {
             language_id,
             rev,
             mod_time,
+            encoding,
         }
     }
 
@@ -181,22 +185,50 @@ impl Buffer {
     }
 }
 
-pub fn load_file(path: &Path) -> Result<String> {
+pub fn load_file(path: &Path) -> Result<(String, String)> {
     read_path_to_string(path)
 }
 
-pub fn read_path_to_string<P: AsRef<Path>>(path: P) -> Result<String> {
+pub fn read_path_to_string<P: AsRef<Path>>(path: P) -> Result<(String, String)> {
     let path = path.as_ref();
+    let mut encoding = ENCODING_UTF8.to_string();
 
     let mut file = File::open(path)?;
     // Read the file in as bytes
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer)?;
 
+    let mut contents = String::new();
     // Parse the file contents as utf8
-    let contents = String::from_utf8(buffer)?;
+    match String::from_utf8(buffer.clone()) {
+        Ok(s) => {
+            contents = s;
+        },
+        Err(e) => {
+            tracing::error!("Failed to decode from `utf-8`: {e}");
 
-    Ok(contents.to_string())
+            use charset_normalizer_rs as chardet;
+            use encoding_rs::Encoding;
+            use encoding_rs_io::DecodeReaderBytesBuilder;
+
+            let mut enc_reader = DecodeReaderBytesBuilder::new();
+
+            let chardet = chardet::from_bytes(&buffer, None);
+
+            if let Some(charset) = chardet.get_best() {
+                let enc = charset.encoding();
+                tracing::info!("Detected encoding: {enc}");
+                enc_reader.encoding(Encoding::for_label(enc.as_bytes()));
+                encoding = enc.to_owned();
+            };
+
+            let mut decoder = enc_reader.build(buffer.as_slice());
+
+            decoder.read_to_string(&mut contents)?;
+        }
+    };
+
+    Ok((contents.to_owned(), encoding))
 }
 
 pub fn language_id_from_path(path: &Path) -> Option<&'static str> {

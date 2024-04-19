@@ -364,7 +364,15 @@ pub fn status(
             .on_click_stop(move |_| {
                 palette_clone.run(PaletteKind::Language);
             });
-            (cursor_info, line_ending_info, language_info)
+            let encoding_info = status_text(config, editor, move || {
+                if let Some(editor) = editor.get() {
+                    let doc = editor.doc_signal().get();
+                    doc.encoding.get()
+                } else {
+                    "unknown".to_string()
+                }
+            });
+            (cursor_info, line_ending_info, encoding_info, language_info)
         })
         .style(|s| {
             s.height_pct(100.0)
