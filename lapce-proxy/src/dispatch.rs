@@ -117,7 +117,7 @@ impl ProxyHandler for Dispatcher {
                     if get_mod_time(&buffer.path) == buffer.mod_time {
                         return;
                     }
-                    if let Ok(content) = load_file(&buffer.path) {
+                    if let Ok((content, _)) = load_file(&buffer.path) {
                         self.core_rpc.open_file_changed(path, content);
                     }
                 }
@@ -342,6 +342,7 @@ impl ProxyHandler for Dispatcher {
             NewBuffer { buffer_id, path } => {
                 let buffer = Buffer::new(buffer_id, path.clone());
                 let content = buffer.rope.to_string();
+                let encoding = buffer.encoding.clone();
                 let read_only = buffer.read_only;
                 self.catalog_rpc.did_open_document(
                     &path,
@@ -353,7 +354,11 @@ impl ProxyHandler for Dispatcher {
                 self.buffers.insert(path, buffer);
                 self.respond_rpc(
                     id,
-                    Ok(ProxyResponse::NewBufferResponse { content, read_only }),
+                    Ok(ProxyResponse::NewBufferResponse {
+                        content,
+                        read_only,
+                        encoding,
+                    }),
                 );
             }
             BufferHead { path } => {

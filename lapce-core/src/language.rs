@@ -1002,7 +1002,7 @@ impl LapceLanguage {
         match LapceLanguage::from_str(name.to_lowercase().as_str()) {
             Ok(v) => Some(v),
             Err(e) => {
-                debug!("failed parsing {name} LapceLanguage: {e}");
+                debug!("failed parsing `{name}` LapceLanguage: {e}");
                 None
             }
         }
