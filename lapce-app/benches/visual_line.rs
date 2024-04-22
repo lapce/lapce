@@ -116,6 +116,7 @@ impl<'a> TextLayoutProvider for TLProv<'a> {
             text: text_layout,
             whitespaces: None,
             indent: 0.0,
+            phantom_text: PhantomTextLine::default(),
         })
     }
 

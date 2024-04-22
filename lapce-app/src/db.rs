@@ -9,6 +9,7 @@ use crossbeam_channel::{unbounded, Sender};
 use floem::peniko::kurbo::Vec2;
 use lapce_core::directory::Directory;
 use lapce_rpc::plugin::VoltID;
+use sha2::{Digest, Sha256};
 
 use crate::{
     app::{AppData, AppInfo},
@@ -397,7 +398,7 @@ fn workspace_folder_name(workspace: &LapceWorkspace) -> String {
 }
 
 fn doc_path_name(path: &Path) -> String {
-    url::form_urlencoded::Serializer::new(String::new())
-        .append_key_only(&path.to_string_lossy())
-        .finish()
+    let mut hasher = Sha256::new();
+    hasher.update(path.to_string_lossy().as_bytes());
+    format!("{:x}", hasher.finalize())
 }

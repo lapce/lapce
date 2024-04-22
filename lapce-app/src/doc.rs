@@ -564,9 +564,9 @@ impl Doc {
                 buffer.set_cursor_before(old_cursor);
                 buffer.set_cursor_after(cursor.mode.clone());
             });
+            self.apply_deltas(&deltas);
         }
 
-        self.apply_deltas(&deltas);
         deltas
     }
 
@@ -1427,6 +1427,7 @@ impl Document for Doc {
         self.apply_deltas(&[delta]);
     }
 }
+
 impl DocumentPhantom for Doc {
     fn phantom_text(
         &self,
@@ -1935,7 +1936,9 @@ fn should_blink(
     keyboard_focus: RwSignal<Option<floem::id::Id>>,
 ) -> impl Fn() -> bool {
     move || {
-        let focus = focus.get_untracked();
+        let Some(focus) = focus.try_get_untracked() else {
+            return false;
+        };
         if matches!(
             focus,
             Focus::Workbench
@@ -1989,9 +1992,8 @@ fn extra_styles_for_range(
                 return None;
             }
 
-            let y = (run.line_height - run.glyph_ascent - run.glyph_descent) as f64
-                / 2.0;
             let height = (run.glyph_ascent + run.glyph_descent) as f64;
+            let y = run.line_y as f64 - run.glyph_ascent as f64;
 
             Some(LineExtraStyle {
                 x,

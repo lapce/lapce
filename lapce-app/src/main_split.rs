@@ -575,7 +575,11 @@ impl MainSplitData {
         self.go_to_location(location, edits);
     }
 
-    pub fn get_doc(&self, path: PathBuf) -> (Rc<Doc>, bool) {
+    pub fn get_doc(
+        &self,
+        path: PathBuf,
+        unsaved: Option<String>,
+    ) -> (Rc<Doc>, bool) {
         let cx = self.scope;
         let doc = self.docs.with_untracked(|docs| docs.get(&path).cloned());
         if let Some(doc) = doc {
@@ -611,6 +615,8 @@ impl MainSplitData {
                                     *read_only = true;
                                 }
                             });
+                        } else if let Some(unsaved) = unsaved {
+                            local_doc.reload(Rope::from(unsaved), false);
                         }
                     }
                 });
@@ -635,7 +641,7 @@ impl MainSplitData {
             self.common.focus.set(Focus::Workbench);
         }
         let path = location.path.clone();
-        let (doc, new_doc) = self.get_doc(path.clone());
+        let (doc, new_doc) = self.get_doc(path.clone(), None);
 
         let child = self.get_editor_tab_child(
             EditorTabChildSource::Editor { path, doc },
@@ -650,7 +656,7 @@ impl MainSplitData {
     }
 
     pub fn open_file_changes(&self, path: PathBuf) {
-        let (right, _) = self.get_doc(path.clone());
+        let (right, _) = self.get_doc(path.clone(), None);
         let left = Doc::new_history(
             self.scope,
             DocContent::History(DocHistory {
@@ -683,7 +689,8 @@ impl MainSplitData {
     }
 
     pub fn open_diff_files(&self, left_path: PathBuf, right_path: PathBuf) {
-        let [left, right] = [left_path, right_path].map(|path| self.get_doc(path).0);
+        let [left, right] =
+            [left_path, right_path].map(|path| self.get_doc(path, None).0);
 
         self.get_editor_tab_child(
             EditorTabChildSource::DiffEditor { left, right },

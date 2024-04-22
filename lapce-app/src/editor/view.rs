@@ -537,8 +537,6 @@ impl EditorView {
                     break;
                 }
 
-                let phantom_text = ed.phantom_text(line);
-
                 let left_col = if rvline == start_rvline { start_col } else { 0 };
                 let (right_col, _vline_end) = if rvline == end_rvline {
                     let max_col = ed.last_col(rvline_info, true);
@@ -546,10 +544,6 @@ impl EditorView {
                 } else {
                     (ed.last_col(rvline_info, true), true)
                 };
-
-                // Shift it by the phantom text
-                let left_col = phantom_text.col_after(left_col, false);
-                let right_col = phantom_text.col_after(right_col, false);
 
                 // TODO(minor): sel region should have the affinity of the start/end
                 let x0 = ed
@@ -758,9 +752,6 @@ impl EditorView {
         col: usize,
         affinity: CursorAffinity,
     ) -> f64 {
-        let before_cursor = affinity == CursorAffinity::Backward;
-        let phantom_text = ed.phantom_text(line);
-        let col = phantom_text.col_after(col, before_cursor);
         ed.line_point_of_line_col(line, col, affinity).x
     }
 
@@ -782,13 +773,13 @@ impl EditorView {
                     editor,
                     rvline.line,
                     col,
-                    CursorAffinity::Backward,
+                    CursorAffinity::Forward,
                 );
                 let x1 = Self::calculate_col_x(
                     editor,
                     rvline.line,
                     col + 1,
-                    CursorAffinity::Forward,
+                    CursorAffinity::Backward,
                 );
 
                 let y0 = line_info.vline_y;

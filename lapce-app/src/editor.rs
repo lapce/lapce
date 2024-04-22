@@ -88,7 +88,7 @@ pub enum InlineFindDirection {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct EditorInfo {
     pub content: DocContent,
-    // pub unsaved: Option<String>,
+    pub unsaved: Option<String>,
     pub offset: usize,
     pub scroll_offset: (f64, f64),
 }
@@ -103,7 +103,8 @@ impl EditorInfo {
         let common = data.common.clone();
         match &self.content {
             DocContent::File { path, .. } => {
-                let (doc, new_doc) = data.get_doc(path.clone());
+                let (doc, new_doc) =
+                    data.get_doc(path.clone(), self.unsaved.clone());
                 let editor = editors.make_from_doc(
                     data.scope,
                     doc,
@@ -149,6 +150,9 @@ impl EditorInfo {
                             data.common.clone(),
                         );
                         let doc = Rc::new(doc);
+                        if let Some(unsaved) = &self.unsaved {
+                            doc.reload(Rope::from(unsaved), false);
+                        }
                         scratch_docs.insert(name.to_string(), doc.clone());
                         doc
                     })
@@ -315,8 +319,16 @@ impl EditorData {
     pub fn editor_info(&self, _data: &WindowTabData) -> EditorInfo {
         let offset = self.cursor().get_untracked().offset();
         let scroll_offset = self.viewport().get_untracked().origin();
+        let doc = self.doc();
+        let is_pristine = doc.is_pristine();
+        let unsaved = if is_pristine {
+            None
+        } else {
+            Some(doc.buffer.with_untracked(|b| b.to_string()))
+        };
         EditorInfo {
             content: self.doc().content.get_untracked(),
+            unsaved,
             offset,
             scroll_offset: (scroll_offset.x, scroll_offset.y),
         }
