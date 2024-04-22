@@ -1239,7 +1239,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e3d747f100290a1ca24b752186f61f6637e1deffe3bf6320de6fcb29510a307"
 dependencies = [
  "bitflags 2.5.0",
- "libloading 0.8.1",
+ "libloading 0.7.4",
  "winapi",
 ]
 
@@ -1385,7 +1385,7 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330c60081dcc4c72131f8eb70510f1ac07223e5d4163db481a04a0befcffa412"
 dependencies = [
- "libloading 0.8.1",
+ "libloading 0.7.4",
 ]
 
 [[package]]
@@ -2386,7 +2386,7 @@ dependencies = [
  "bitflags 2.5.0",
  "com",
  "libc",
- "libloading 0.8.1",
+ "libloading 0.7.4",
  "thiserror",
  "widestring",
  "winapi",
@@ -2883,7 +2883,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6aae1df220ece3c0ada96b8153459b67eebe9ae9212258bb0134ae60416fdf76"
 dependencies = [
  "libc",
- "libloading 0.8.1",
+ "libloading 0.8.3",
  "pkg-config",
 ]
 
@@ -3014,7 +3014,7 @@ dependencies = [
  "itertools 0.12.1",
  "lapce-rpc",
  "lapce-xi-rope",
- "libloading 0.8.1",
+ "libloading 0.8.3",
  "lsp-types",
  "once_cell",
  "slotmap",
@@ -3170,12 +3170,12 @@ dependencies = [
 
 [[package]]
 name = "libloading"
-version = "0.8.1"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c571b676ddfc9a8c12f1f3d3085a7b163966a8fd8098a90640953ce5f6170161"
+checksum = "0c2a198fb6b0eada2a8df47933734e6d35d350665a33a3593d7164fa52c75c19"
 dependencies = [
  "cfg-if",
- "windows-sys 0.48.0",
+ "windows-targets 0.52.0",
 ]
 
 [[package]]
@@ -5174,7 +5174,7 @@ checksum = "d4098d49269baa034a8d1eae9bd63e9fa532148d772121dace3bcd6a6c98eb6d"
 dependencies = [
  "as-raw-xcb-connection",
  "ctor",
- "libloading 0.8.1",
+ "libloading 0.8.3",
  "tracing 0.1.37",
 ]
 
@@ -6552,7 +6552,7 @@ dependencies = [
  "js-sys",
  "khronos-egl",
  "libc",
- "libloading 0.8.1",
+ "libloading 0.7.4",
  "log",
  "metal",
  "naga",
@@ -7036,7 +7036,7 @@ dependencies = [
  "as-raw-xcb-connection",
  "gethostname",
  "libc",
- "libloading 0.8.1",
+ "libloading 0.8.3",
  "once_cell",
  "rustix",
  "x11rb-protocol",

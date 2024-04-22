@@ -22,7 +22,7 @@ lapce-xi-rope     = { workspace = true }
 lapce-rpc         = { workspace = true }
 floem-editor-core = { workspace = true }
 
-libloading  = "0.8.1"
+libloading  = "0.8.3"
 slotmap     = "1.0"
 arc-swap    = "1.6.0"
 tree-sitter = "0.20.10"
