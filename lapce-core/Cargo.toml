@@ -33,7 +33,7 @@ tree-sitter-bash       = { git = "https://github.com/tree-sitter/tree-sitter-bas
 tree-sitter-c          = { version = "0.20.8", optional = true }
 tree-sitter-cpp        = { version = "0.20.5", optional = true }
 tree-sitter-javascript = { version = "0.20.4", optional = true }
-tree-sitter-json       = { version = "0.20.2", optional = true }
+tree-sitter-json       = { version = "0.21.0", optional = true }
 tree-sitter-md         = { git = "https://github.com/MDeiml/tree-sitter-markdown.git", rev = "272e080bca0efd19a06a7f4252d746417224959e", optional = true }
 tree-sitter-python     = { version = "0.20.4", optional = true }
 tree-sitter-rust       = { version = "0.20.4", optional = true }
