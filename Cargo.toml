@@ -53,7 +53,7 @@ regex             = { version = "1.10.4" }
 reqwest           = { version = "0.11", features = ["blocking", "json", "socks"] }
 serde             = { version = "1.0" }
 serde_json        = { version = "1.0" }
-smallvec          = { version = "1.13.1" }
+smallvec          = { version = "1.13.2" }
 strum             = { version = "0.26.2" }
 strum_macros      = { version = "0.26.2" }
 tar               = { version = "0.4" }
