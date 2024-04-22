@@ -1245,9 +1245,9 @@ dependencies = [
 
 [[package]]
 name = "darling"
-version = "0.13.4"
+version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a01d95850c592940db9b8194bc39f4bc0e89dee5c4265e4b1807c34a9aba453c"
+checksum = "7b750cb3417fd1b327431a470f388520309479ab0bf5e323505daf0290cd3850"
 dependencies = [
  "darling_core",
  "darling_macro",
@@ -1255,9 +1255,9 @@ dependencies = [
 
 [[package]]
 name = "darling_core"
-version = "0.13.4"
+version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "859d65a907b6852c9361e3185c862aae7fafd2887876799fa55f5f99dc40d610"
+checksum = "109c1ca6e6b7f82cc233a97004ea8ed7ca123a9af07a8230878fcfda9b158bf0"
 dependencies = [
  "fnv",
  "ident_case",
@@ -1269,9 +1269,9 @@ dependencies = [
 
 [[package]]
 name = "darling_macro"
-version = "0.13.4"
+version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c972679f83bdf9c42bd905396b6c3588a843a17f0f16dfcfa3e2c5d57441835"
+checksum = "a4aab4dbc9f7611d8b55048a3a16d2d010c2c8334e46304b40ac1cc14bf3b48e"
 dependencies = [
  "darling_core",
  "quote",
@@ -4902,7 +4902,7 @@ checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 [[package]]
 name = "structdesc"
 version = "0.1.0"
-source = "git+https://github.com/lapce/structdesc#a6a2b8ab65d43475238f889736c4aa5dfff4500a"
+source = "git+https://github.com/lapce/structdesc#47d8201fb13240166f4d842c718d63c1e24f0236"
 dependencies = [
  "darling",
  "proc-macro2",
