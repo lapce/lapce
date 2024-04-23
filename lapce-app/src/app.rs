@@ -3439,7 +3439,8 @@ fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
 
     let log_file_filter_targets = filter::Targets::new()
         .with_target("lapce_app", LevelFilter::DEBUG)
-        .with_target("lapce_proxy", LevelFilter::DEBUG);
+        .with_target("lapce_proxy", LevelFilter::DEBUG)
+        .with_target("lapce_core", LevelFilter::DEBUG);
     let (log_file_filter, reload_handle) =
         reload::Subscriber::new(log_file_filter_targets);
 

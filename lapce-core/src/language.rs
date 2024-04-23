@@ -1784,6 +1784,9 @@ fn load_grammar(
         > = match library.get(language_fn_name.as_bytes()) {
             Ok(v) => v,
             Err(e) => {
+                if let Some(e) = library.close().err() {
+                    error!("Failed to drop loaded library: {e}");
+                };
                 return Err(HighlightIssue::Error(format!(
                     "Failed to load '{language_fn_name}': '{e}'"
                 )))
