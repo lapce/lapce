@@ -333,6 +333,7 @@ pub enum ProxyResponse {
     NewBufferResponse {
         content: String,
         read_only: bool,
+        encoding: String,
     },
     BufferHeadResponse {
         version: String,

@@ -606,9 +606,11 @@ impl MainSplitData {
                     if let Ok(ProxyResponse::NewBufferResponse {
                         content,
                         read_only,
+                        encoding,
                     }) = result
                     {
                         local_doc.init_content(Rope::from(content));
+                        local_doc.encoding.set(encoding);
                         if read_only {
                             local_doc.content.update(|content| {
                                 if let DocContent::File { read_only, .. } = content {
