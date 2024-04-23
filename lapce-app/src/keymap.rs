@@ -284,6 +284,7 @@ pub fn keymap_view(editors: Editors, common: Rc<CommonData>) -> impl View {
             text_input_view
                 .placeholder(|| "Search Key Bindings".to_string())
                 .keyboard_navigatable()
+                .request_focus(|| {})
                 .style(move |s| {
                     s.width_pct(100.0)
                         .border_radius(6.0)
