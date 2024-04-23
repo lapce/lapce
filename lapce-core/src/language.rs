@@ -1789,7 +1789,7 @@ fn load_grammar(
                 };
                 return Err(HighlightIssue::Error(format!(
                     "Failed to load '{language_fn_name}': '{e}'"
-                )))
+                )));
             }
         };
         language_fn()
