@@ -293,11 +293,6 @@ when = "!list_focus"
 mode = "i"
 
 [[keymaps]]
-key = "right"
-command = "right"
-mode = "inv"
-
-[[keymaps]]
 key = "meta+shift+o"
 command = "palette.symbol"
 

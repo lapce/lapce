@@ -1,14 +1,11 @@
 use std::{collections::BTreeMap, rc::Rc, sync::Arc, time::Duration};
 
 use floem::{
-    action::{exec_after, TimerToken},
+    action::{add_overlay, exec_after, remove_overlay, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
     event::EventListener,
     keyboard::Modifiers,
-    peniko::{
-        kurbo::{Point, Rect, Size},
-        Color,
-    },
+    peniko::kurbo::{Point, Rect, Size},
     reactive::{
         create_effect, create_memo, create_rw_signal, Memo, ReadSignal, RwSignal,
         Scope,
@@ -16,8 +13,10 @@ use floem::{
     style::CursorStyle,
     view::View,
     views::{
-        container, dyn_stack, empty, label, scroll, stack, svg, text, virtual_stack,
-        Decorators, VirtualDirection, VirtualItemSize, VirtualVector,
+        container, dyn_stack, empty, label,
+        scroll::{scroll, PropagatePointerWheel},
+        stack, svg, text, virtual_stack, Container, Decorators, VirtualDirection,
+        VirtualItemSize, VirtualVector,
     },
 };
 use indexmap::IndexMap;
@@ -621,7 +620,7 @@ fn settings_item_view(
                         .border_radius(6.0)
                         .border_color(config.get().color(LapceColor::LAPCE_BORDER))
                 }))
-            } else if let SettingsValue::Dropdown(dropdown) = item.value {
+            } else if let SettingsValue::Dropdown(dropdown) = &item.value {
                 let expanded = create_rw_signal(false);
                 let current_value = dropdown
                     .items
@@ -631,122 +630,13 @@ fn settings_item_view(
                     .unwrap_or_default();
                 let current_value = create_rw_signal(current_value);
 
-                let kind = item.kind.clone();
-                let field = item.field.clone();
-                let view_fn = move |item_string: String| {
-                    let kind = kind.clone();
-                    let field = field.clone();
-                    let local_item_string = item_string.clone();
-                    label(move || local_item_string.clone())
-                        .on_click_stop(move |_| {
-                            current_value.set(item_string.clone());
-                            if let Ok(value) = serde::Serialize::serialize(
-                                &item_string,
-                                toml_edit::ser::ValueSerializer::new(),
-                            ) {
-                                LapceConfig::update_file(&kind, &field, value);
-                            }
-                            expanded.set(false);
-                        })
-                        .style(move |s| {
-                            s.text_ellipsis().padding_horiz(10.0).hover(|s| {
-                                s.cursor(CursorStyle::Pointer).background(
-                                    config
-                                        .get()
-                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                                )
-                            })
-                        })
-                };
-                container(
-                    stack((
-                        stack((
-                            label(move || current_value.get()).style(move |s| {
-                                s.text_ellipsis()
-                                    .width_pct(100.0)
-                                    .padding_horiz(10.0)
-                            }),
-                            container(
-                                svg(move || {
-                                    config.get().ui_svg(LapceIcons::DROPDOWN_ARROW)
-                                })
-                                .style(move |s| {
-                                    let config = config.get();
-                                    let size = config.ui.icon_size() as f32;
-                                    s.size(size, size).color(
-                                        config.color(LapceColor::LAPCE_ICON_ACTIVE),
-                                    )
-                                }),
-                            )
-                            .style(|s| s.padding_right(4.0)),
-                        ))
-                        .on_click_stop(move |_| {
-                            expanded.update(|expanded| {
-                                *expanded = !*expanded;
-                            });
-                        })
-                        .style(move |s| {
-                            s.items_center()
-                                .width_pct(100.0)
-                                .cursor(CursorStyle::Pointer)
-                                .border_color(Color::TRANSPARENT)
-                                .border(1.0)
-                                .border_radius(6.0)
-                                .apply_if(!expanded.get(), |s| {
-                                    s.border_color(
-                                        config.get().color(LapceColor::LAPCE_BORDER),
-                                    )
-                                })
-                        }),
-                        stack((
-                            label(|| " ".to_string()),
-                            scroll({
-                                dyn_stack(
-                                    move || dropdown.items.clone(),
-                                    |item| item.to_string(),
-                                    view_fn,
-                                )
-                                .style(|s| {
-                                    s.flex_col()
-                                        .width_pct(100.0)
-                                        .cursor(CursorStyle::Pointer)
-                                })
-                            })
-                            .style(move |s| {
-                                let config = config.get();
-                                s.background(
-                                    config.color(LapceColor::EDITOR_BACKGROUND),
-                                )
-                                .width_pct(100.0)
-                                .max_height(300.0)
-                                .z_index(1)
-                                .border_top(1.0)
-                                .border_radius(6.0)
-                                .border_color(config.color(LapceColor::LAPCE_BORDER))
-                                .apply_if(!expanded.get(), |s| s.hide())
-                            }),
-                        ))
-                        .keyboard_navigatable()
-                        .on_event_stop(EventListener::FocusLost, move |_| {
-                            if expanded.get_untracked() {
-                                expanded.set(false);
-                            }
-                        })
-                        .style(move |s| {
-                            s.absolute()
-                                .flex_col()
-                                .width_pct(100.0)
-                                .border(1.0)
-                                .border_radius(6.0)
-                                .border_color(
-                                    config.get().color(LapceColor::LAPCE_BORDER),
-                                )
-                                .apply_if(!expanded.get(), |s| {
-                                    s.border_color(Color::TRANSPARENT)
-                                })
-                        }),
-                    ))
-                    .style(move |s| s.width(250.0).line_height(1.8)),
+                dropdown_view(
+                    &item,
+                    current_value,
+                    dropdown,
+                    expanded,
+                    settings_data.common.window_common.size,
+                    config,
                 )
             } else if item.header {
                 container(label(move || item.kind.clone()).style(move |s| {
@@ -1191,4 +1081,219 @@ pub fn theme_color_settings_view(
         .style(|s| s.flex_col()),
     )
     .style(|s| s.absolute().size_full())
+}
+
+fn dropdown_view(
+    item: &SettingsItem,
+    current_value: RwSignal<String>,
+    dropdown: &DropdownInfo,
+    expanded: RwSignal<bool>,
+    window_size: RwSignal<Size>,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> Container {
+    let window_origin = create_rw_signal(Point::ZERO);
+    let size = create_rw_signal(Size::ZERO);
+    let overlay_id = create_rw_signal(None);
+    let dropdown_input_focus = create_rw_signal(false);
+    let dropdown_scroll_focus = create_rw_signal(true);
+
+    {
+        let item = item.to_owned();
+        let dropdown = dropdown.to_owned();
+        create_effect(move |_| {
+            if expanded.get() {
+                let item = item.clone();
+                let dropdown = dropdown.clone();
+                let id = add_overlay(Point::ZERO, move |_| {
+                    dropdown_scroll(
+                        &item.clone(),
+                        current_value,
+                        &dropdown.clone(),
+                        expanded,
+                        dropdown_scroll_focus,
+                        dropdown_input_focus,
+                        window_origin,
+                        size,
+                        window_size,
+                        config,
+                    )
+                    .build()
+                });
+                overlay_id.set(Some(id));
+            } else if let Some(id) = overlay_id.get_untracked() {
+                remove_overlay(id);
+                overlay_id.set(None);
+            }
+        });
+    }
+
+    container(
+        stack((
+            label(move || current_value.get()).style(move |s| {
+                s.text_ellipsis().width_pct(100.0).padding_horiz(10.0)
+            }),
+            container(
+                svg(move || {
+                    if expanded.get() {
+                        config.get().ui_svg(LapceIcons::CLOSE)
+                    } else {
+                        config.get().ui_svg(LapceIcons::DROPDOWN_ARROW)
+                    }
+                })
+                .style(move |s| {
+                    let config = config.get();
+                    let size = config.ui.icon_size() as f32;
+                    s.size(size, size)
+                        .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+                }),
+            )
+            .style(|s| s.padding_right(4.0)),
+        ))
+        .on_click_stop(move |_| {
+            expanded.update(|expanded| {
+                *expanded = !*expanded;
+            });
+        })
+        .on_move(move |point| {
+            window_origin.set(point);
+            if expanded.get_untracked() {
+                expanded.set(false);
+            }
+        })
+        .on_resize(move |rect| {
+            size.set(rect.size());
+        })
+        .style(move |s| {
+            s.items_center()
+                .width_pct(100.0)
+                .cursor(CursorStyle::Pointer)
+                .border_color(config.get().color(LapceColor::LAPCE_BORDER))
+                .border(1.0)
+                .border_radius(6.0)
+        }),
+    )
+    .keyboard_navigatable()
+    .on_event_stop(EventListener::FocusGained, move |_| {
+        dropdown_input_focus.set(true);
+    })
+    .on_event_stop(EventListener::FocusLost, move |_| {
+        dropdown_input_focus.set(false);
+        if expanded.get_untracked() && !dropdown_scroll_focus.get_untracked() {
+            expanded.set(false);
+        }
+    })
+    .style(move |s| s.width(250.0).line_height(1.8))
+    .on_cleanup(move || {
+        if let Some(id) = overlay_id.get_untracked() {
+            remove_overlay(id);
+        }
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn dropdown_scroll(
+    item: &SettingsItem,
+    current_value: RwSignal<String>,
+    dropdown: &DropdownInfo,
+    expanded: RwSignal<bool>,
+    dropdown_scroll_focus: RwSignal<bool>,
+    dropdown_input_focus: RwSignal<bool>,
+    window_origin: RwSignal<Point>,
+    input_size: RwSignal<Size>,
+    window_size: RwSignal<Size>,
+    config: ReadSignal<Arc<LapceConfig>>,
+) -> impl View {
+    dropdown_scroll_focus.set(true);
+
+    let kind = item.kind.clone();
+    let field = item.field.clone();
+    let view_fn = move |item_string: String| {
+        let kind = kind.clone();
+        let field = field.clone();
+        let local_item_string = item_string.clone();
+        label(move || local_item_string.clone())
+            .on_click_stop(move |_| {
+                current_value.set(item_string.clone());
+                if let Ok(value) = serde::Serialize::serialize(
+                    &item_string,
+                    toml_edit::ser::ValueSerializer::new(),
+                ) {
+                    LapceConfig::update_file(&kind, &field, value);
+                }
+                expanded.set(false);
+            })
+            .style(move |s| {
+                s.text_ellipsis().padding_horiz(10.0).hover(|s| {
+                    s.cursor(CursorStyle::Pointer).background(
+                        config.get().color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                    )
+                })
+            })
+    };
+
+    let items = dropdown.items.clone();
+
+    let scroll_size = create_rw_signal(Size::ZERO);
+
+    scroll({
+        dyn_stack(move || items.clone(), |item| item.to_string(), view_fn)
+            .style(|s| s.flex_col().width_pct(100.0).cursor(CursorStyle::Pointer))
+    })
+    .style(move |s| {
+        s.width_pct(100.0)
+            .max_height(200.0)
+            .set(PropagatePointerWheel, false)
+    })
+    .keyboard_navigatable()
+    .request_focus(|| {})
+    .on_event_stop(EventListener::FocusGained, move |_| {
+        dropdown_scroll_focus.set(true);
+    })
+    .on_event_stop(EventListener::FocusLost, move |_| {
+        dropdown_scroll_focus.set(false);
+        if expanded.get_untracked() && !dropdown_input_focus.get_untracked() {
+            expanded.set(false);
+        }
+    })
+    .on_event_stop(EventListener::PointerMove, move |_| {})
+    .on_event_stop(EventListener::PointerDown, move |_| {})
+    .on_resize(move |rect| {
+        scroll_size.set(rect.size());
+    })
+    .style(move |s| {
+        let config = config.get();
+        let window_origin = window_origin.get();
+        let window_size = window_size.get();
+        let input_size = input_size.get();
+        let scroll_size = scroll_size.get();
+
+        let x = if window_origin.x + scroll_size.width + 5.0 > window_size.width {
+            window_size.width - scroll_size.width - 5.0
+        } else {
+            window_origin.x
+        };
+
+        let y = if window_origin.y + input_size.height + scroll_size.height + 5.0
+            > window_size.height
+        {
+            window_origin.y - scroll_size.height + 1.0
+        } else {
+            window_origin.y + input_size.height - 1.0
+        };
+
+        s.width(250.0)
+            .line_height(1.8)
+            .font_size(config.ui.font_size() as f32)
+            .font_family(config.ui.font_family.clone())
+            .color(config.color(LapceColor::EDITOR_FOREGROUND))
+            .background(config.color(LapceColor::EDITOR_BACKGROUND))
+            .class(floem::views::scroll::Handle, |s| {
+                s.background(config.color(LapceColor::LAPCE_SCROLL_BAR))
+            })
+            .border(1)
+            .border_radius(6.0)
+            .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .inset_left(x)
+            .inset_top(y)
+    })
 }

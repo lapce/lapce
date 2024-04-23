@@ -547,13 +547,19 @@ impl EditorView {
 
                 // TODO(minor): sel region should have the affinity of the start/end
                 let x0 = ed
-                    .line_point_of_line_col(line, left_col, CursorAffinity::Forward)
+                    .line_point_of_line_col(
+                        line,
+                        left_col,
+                        CursorAffinity::Forward,
+                        true,
+                    )
                     .x;
                 let x1 = ed
                     .line_point_of_line_col(
                         line,
                         right_col,
                         CursorAffinity::Backward,
+                        true,
                     )
                     .x;
 
@@ -742,19 +748,6 @@ impl EditorView {
         }
     }
 
-    /// Calculate the `x` coordinate of the left edge of the given column on the given line.
-    /// If `before_cursor` is `true`, the calculated position will be to the right of any inlay
-    /// hints before and adjacent to the given column. Else, the calculated position will be to the
-    /// left of any such inlay hints.
-    fn calculate_col_x(
-        ed: &Editor,
-        line: usize,
-        col: usize,
-        affinity: CursorAffinity,
-    ) -> f64 {
-        ed.line_point_of_line_col(line, col, affinity).x
-    }
-
     /// Paint a highlight around the characters at the given positions.
     fn paint_char_highlights(
         &self,
@@ -769,18 +762,22 @@ impl EditorView {
         for (rvline, col) in highlight_line_cols {
             // Is the given line on screen?
             if let Some(line_info) = screen_lines.info(rvline) {
-                let x0 = Self::calculate_col_x(
-                    editor,
-                    rvline.line,
-                    col,
-                    CursorAffinity::Forward,
-                );
-                let x1 = Self::calculate_col_x(
-                    editor,
-                    rvline.line,
-                    col + 1,
-                    CursorAffinity::Backward,
-                );
+                let x0 = editor
+                    .line_point_of_line_col(
+                        rvline.line,
+                        col,
+                        CursorAffinity::Forward,
+                        true,
+                    )
+                    .x;
+                let x1 = editor
+                    .line_point_of_line_col(
+                        rvline.line,
+                        col + 1,
+                        CursorAffinity::Backward,
+                        true,
+                    )
+                    .x;
 
                 let y0 = line_info.vline_y;
                 let y1 = y0 + line_height;
@@ -811,18 +808,22 @@ impl EditorView {
         if start == end {
             if let Some(line_info) = screen_lines.info(start) {
                 // TODO: Due to line wrapping the y positions of these two spots could be different, do we need to change it?
-                let x0 = Self::calculate_col_x(
-                    editor,
-                    start.line,
-                    start_col + 1,
-                    CursorAffinity::Forward,
-                );
-                let x1 = Self::calculate_col_x(
-                    editor,
-                    end.line,
-                    end_col,
-                    CursorAffinity::Backward,
-                );
+                let x0 = editor
+                    .line_point_of_line_col(
+                        start.line,
+                        start_col + 1,
+                        CursorAffinity::Forward,
+                        true,
+                    )
+                    .x;
+                let x1 = editor
+                    .line_point_of_line_col(
+                        end.line,
+                        end_col,
+                        CursorAffinity::Backward,
+                        true,
+                    )
+                    .x;
 
                 if x0 < x1 {
                     let y = line_info.vline_y + line_height;
@@ -861,18 +862,22 @@ impl EditorView {
             });
 
             if let [Some(y0), Some(y1)] = [y0, y1] {
-                let start_x = Self::calculate_col_x(
-                    editor,
-                    start.line,
-                    start_col + 1,
-                    CursorAffinity::Forward,
-                );
-                let end_x = Self::calculate_col_x(
-                    editor,
-                    end.line,
-                    end_col,
-                    CursorAffinity::Backward,
-                );
+                let start_x = editor
+                    .line_point_of_line_col(
+                        start.line,
+                        start_col + 1,
+                        CursorAffinity::Forward,
+                        true,
+                    )
+                    .x;
+                let end_x = editor
+                    .line_point_of_line_col(
+                        end.line,
+                        end_col,
+                        CursorAffinity::Backward,
+                        true,
+                    )
+                    .x;
 
                 // TODO(minor): is this correct with line wrapping?
                 // The vertical line should be drawn to the left of any non-whitespace characters
@@ -886,12 +891,14 @@ impl EditorView {
                             let (_, col) =
                                 editor.offset_to_line_col(non_blank_offset);
 
-                            Self::calculate_col_x(
-                                editor,
-                                line,
-                                col,
-                                CursorAffinity::Backward,
-                            )
+                            editor
+                                .line_point_of_line_col(
+                                    line,
+                                    col,
+                                    CursorAffinity::Backward,
+                                    true,
+                                )
+                                .x
                         })
                         .min_by(f64::total_cmp)
                 });
