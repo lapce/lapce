@@ -1068,8 +1068,9 @@ impl Widget for EditorView {
             } else {
                 width
             };
-            let last_line_height =
-                line_height * (editor.last_vline().get() + 1) as f64;
+            let last_vline = editor.last_vline().get();
+            let last_vline = e_data.visual_line(last_vline);
+            let last_line_height = line_height * (last_vline + 1) as f64;
             let height = last_line_height.max(line_height);
             let height = if !is_local {
                 height.max(viewport_size.height)
@@ -1319,11 +1320,13 @@ pub fn editor_container_view(
         .style(|s| s.width_full().flex_basis(0).flex_grow(1.0)),
     ))
     .on_cleanup(move || {
+        let editor = editor.get_untracked();
+        editor.cancel_completion();
+        editor.cancel_inline_completion();
         if editors.contains_untracked(editor_id) {
             // editor still exist, so it might be moved to a different editor tab
             return;
         }
-        let editor = editor.get_untracked();
         let doc = editor.doc();
         editor.scope.dispose();
 
@@ -1786,6 +1789,15 @@ fn editor_content(
         )
     });
 
+    {
+        create_effect(move |_| {
+            is_active(true);
+            let e_data = e_data.get_untracked();
+            e_data.cancel_completion();
+            e_data.cancel_inline_completion();
+        });
+    }
+
     scroll({
         let editor_content_view =
             editor_view(e_data.get_untracked(), debug_breakline, is_active).style(
@@ -1828,6 +1840,11 @@ fn editor_content(
     .on_move(move |point| {
         window_origin.set(point);
     })
+    .on_scroll(move |_| {
+        let e_data = e_data.get_untracked();
+        e_data.cancel_completion();
+        e_data.cancel_inline_completion();
+    })
     .scroll_to(move || scroll_to.get().map(|s| s.to_point()))
     .scroll_delta(move || scroll_delta.get())
     .ensure_visible(move || {
@@ -1847,8 +1864,9 @@ fn editor_content(
         let line_height = config.editor.line_height();
         // TODO: is there a good way to avoid the calculation of the vline here?
         let vline = e_data.editor.vline_of_rvline(rvline);
+        let vline = e_data.visual_line(vline.get());
         let rect = Rect::from_origin_size(
-            (x, (vline.get() * line_height) as f64),
+            (x, (vline * line_height) as f64),
             (width, line_height as f64),
         )
         .inflate(10.0, 0.0);

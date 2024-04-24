@@ -2794,6 +2794,7 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
 
 fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
     let completion_data = window_tab_data.common.completion;
+    let active_editor = window_tab_data.main_split.active_editor;
     let config = window_tab_data.common.config;
     let active = completion_data.with_untracked(|c| c.active);
     let request_id =
@@ -2837,15 +2838,29 @@ fn completion(window_tab_data: Rc<WindowTabData>) -> impl View {
                         move || item.indices.clone(),
                         move || config.get().color(LapceColor::EDITOR_FOCUS),
                     )
+                    .on_click_stop(move |_| {
+                        active.set(i);
+                        if let Some(editor) = active_editor.get_untracked() {
+                            editor.select_completion();
+                        }
+                    })
+                    .on_event_stop(EventListener::PointerDown, |_| {})
                     .style(move |s| {
                         let config = config.get();
                         s.padding_horiz(5.0)
                             .min_width(0.0)
                             .align_items(Some(AlignItems::Center))
                             .size_full()
+                            .cursor(CursorStyle::Pointer)
                             .apply_if(active.get() == i, |s| {
                                 s.background(
                                     config.color(LapceColor::COMPLETION_CURRENT),
+                                )
+                            })
+                            .hover(move |s| {
+                                s.background(
+                                    config
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
                                 )
                             })
                     }),
@@ -2915,6 +2930,12 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
                         text(item.title().replace('\n', " "))
                             .style(|s| s.text_ellipsis().min_width(0.0)),
                     )
+                    .on_click_stop(move |_| {
+                        let code_action = code_action.get_untracked();
+                        code_action.active.set(i);
+                        code_action.select();
+                    })
+                    .on_event_stop(EventListener::PointerDown, |_| {})
                     .style(move |s| {
                         let config = config.get();
                         s.padding_horiz(10.0)
@@ -2922,9 +2943,17 @@ fn code_action(window_tab_data: Rc<WindowTabData>) -> impl View {
                             .min_width(0.0)
                             .width_full()
                             .line_height(1.6)
+                            .border_radius(6.0)
+                            .cursor(CursorStyle::Pointer)
                             .apply_if(active.get() == i, |s| {
-                                s.border_radius(6.0).background(
+                                s.background(
                                     config.color(LapceColor::COMPLETION_CURRENT),
+                                )
+                            })
+                            .hover(move |s| {
+                                s.background(
+                                    config
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
                                 )
                             })
                     })

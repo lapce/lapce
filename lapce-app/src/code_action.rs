@@ -194,7 +194,7 @@ impl CodeActionData {
         self.common.focus.set(Focus::Workbench);
     }
 
-    fn select(&self) {
+    pub fn select(&self) {
         if let Some(item) = self.filtered_items.get(self.active.get_untracked()) {
             self.common
                 .internal_command
