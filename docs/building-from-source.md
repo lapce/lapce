@@ -12,7 +12,7 @@ sudo apt install clang libxkbcommon-x11-dev pkg-config libvulkan-dev libwayland-
 ```
 #### Fedora
 ```sh
-sudo dnf install clang libxkbcommon-x11-devel libxcb-devel vulkan-loader-devel wayland-devel perl-File-Compare perl-FindBin
+sudo dnf install clang libxkbcommon-x11-devel libxcb-devel vulkan-loader-devel wayland-devel openssl-devel
 ```
 #### Void Linux
 ```sh
