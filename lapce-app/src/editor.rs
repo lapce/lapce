@@ -3069,13 +3069,6 @@ pub(crate) fn compute_screen_lines(
             .iter_vlines(text_prov.clone(), false, min_vline)
             .next()
     });
-    // TODO: if you need the max vline you probably need the min vline too and so you could grab
-    // both in one iter call, which would be more efficient than two iterations
-    let max_info = once_cell::sync::Lazy::new(|| {
-        lines
-            .iter_vlines(text_prov.clone(), false, max_vline)
-            .next()
-    });
 
     match view_kind.get() {
         EditorViewKind::Normal => {
@@ -3212,16 +3205,6 @@ pub(crate) fn compute_screen_lines(
                             last_change = Some(change);
                             continue;
                         }
-
-                        let Some(min_info) = *min_info else {
-                            // TODO(minor): What is the proper behavior here?
-                            break;
-                        };
-
-                        let Some(max_info) = *max_info else {
-                            // TODO(minor): What is the proper behavior here?
-                            break;
-                        };
 
                         let start_rvline =
                             lines.rvline_of_line(&text_prov, range.start);
