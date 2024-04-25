@@ -1571,7 +1571,7 @@ impl DocumentPhantom for Doc {
                                     Some(PhantomText {
                                         kind: PhantomTextKind::Diagnostic,
                                         col: end_offset - start_offset,
-                                        affinity: None,
+                                        affinity: Some(CursorAffinity::Backward),
                                         text,
                                         fg: Some(fg),
                                         font_size: Some(
