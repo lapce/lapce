@@ -68,10 +68,18 @@ static DEFAULT_DARK_THEME_COLOR_CONFIG: Lazy<ColorThemeConfig> = Lazy::new(|| {
     theme.get::<ColorThemeConfig>("color-theme")
     .expect("Failed to load default dark theme. This is likely due to a missing or misnamed field in dark-theme.toml")
 });
-static DEFAULT_ICON_THEME_CONFIG: Lazy<IconThemeConfig> = Lazy::new(|| {
-    let (_, theme) =
-        LapceConfig::load_icon_theme_from_str(DEFAULT_ICON_THEME).unwrap();
-    theme.get::<IconThemeConfig>("icon-theme")
+
+static DEFAULT_ICON_THEME_CONFIG: Lazy<config::Config> = Lazy::new(|| {
+    config::Config::builder()
+        .add_source(config::File::from_str(
+            DEFAULT_ICON_THEME,
+            config::FileFormat::Toml,
+        ))
+        .build()
+        .unwrap()
+});
+static DEFAULT_ICON_THEME_ICON_CONFIG: Lazy<IconThemeConfig> = Lazy::new(|| {
+    DEFAULT_ICON_THEME_CONFIG.get::<IconThemeConfig>("icon-theme")
     .expect("Failed to load default icon theme. This is likely due to a missing or misnamed field in icon-theme.toml")
 });
 
@@ -245,7 +253,7 @@ impl LapceConfig {
         let mut default_lapce_config: LapceConfig =
             DEFAULT_CONFIG.clone().try_deserialize().expect("Failed to deserialize default config, this likely indicates a missing or misnamed field in settings.toml");
         default_lapce_config.color_theme = DEFAULT_DARK_THEME_COLOR_CONFIG.clone();
-        default_lapce_config.icon_theme = DEFAULT_ICON_THEME_CONFIG.clone();
+        default_lapce_config.icon_theme = DEFAULT_ICON_THEME_ICON_CONFIG.clone();
         default_lapce_config.resolve_colors(None);
         default_lapce_config
     }
@@ -256,40 +264,39 @@ impl LapceConfig {
         let color_theme_config = self
             .available_color_themes
             .get(&self.core.color_theme.to_lowercase())
-            .map(|(_, config)| config);
+            .map(|(_, config)| config)
+            .unwrap_or(&DEFAULT_DARK_THEME_CONFIG);
 
         let icon_theme_config = self
             .available_icon_themes
             .get(&self.core.icon_theme.to_lowercase())
-            .map(|(_, config, _)| config);
+            .map(|(_, config, _)| config)
+            .unwrap_or(&DEFAULT_ICON_THEME_CONFIG);
 
         let icon_theme_path = self
             .available_icon_themes
             .get(&self.core.icon_theme.to_lowercase())
             .map(|(_, _, path)| path);
 
-        if color_theme_config.is_some() || icon_theme_config.is_some() {
-            if let Ok(new) = Self::merge_config(
-                workspace,
-                color_theme_config.cloned(),
-                icon_theme_config.cloned(),
-            )
-            .try_deserialize::<LapceConfig>()
-            {
-                self.core = new.core;
-                self.ui = new.ui;
-                self.editor = new.editor;
-                self.terminal = new.terminal;
-                self.terminal.get_indexed_colors();
+        if let Ok(new) = Self::merge_config(
+            workspace,
+            Some(color_theme_config.clone()),
+            Some(icon_theme_config.clone()),
+        )
+        .try_deserialize::<LapceConfig>()
+        {
+            self.core = new.core;
+            self.ui = new.ui;
+            self.editor = new.editor;
+            self.terminal = new.terminal;
+            self.terminal.get_indexed_colors();
 
-                self.color_theme = new.color_theme;
-                self.icon_theme = new.icon_theme;
-                if let Some(icon_theme_path) = icon_theme_path {
-                    self.icon_theme.path =
-                        icon_theme_path.clone().unwrap_or_default();
-                }
-                self.plugins = new.plugins;
+            self.color_theme = new.color_theme;
+            self.icon_theme = new.icon_theme;
+            if let Some(icon_theme_path) = icon_theme_path {
+                self.icon_theme.path = icon_theme_path.clone().unwrap_or_default();
             }
+            self.plugins = new.plugins;
         }
         self.resolve_colors(Some(&default_lapce_config));
         self.update_id();
@@ -588,7 +595,7 @@ impl LapceConfig {
         });
 
         svg.unwrap_or_else(|| {
-            let name = DEFAULT_ICON_THEME_CONFIG.ui.get(icon).unwrap();
+            let name = DEFAULT_ICON_THEME_ICON_CONFIG.ui.get(icon).unwrap();
             self.svg_store.write().get_default_svg(name)
         })
     }
