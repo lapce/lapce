@@ -160,24 +160,25 @@ variable "RHEL_FAMILY_PACKAGES" {
 }
 
 target "fedora" {
-  inherits   = ["package"]
-  name       = "${os_name}-${build.os_version}"
-  dockerfile = "extra/linux/docker/${os_name}/Dockerfile"
+  inherits   = [build.type]
+  name       = "${name}-${build.version}-${build.type}"
+  dockerfile = "extra/linux/docker/${name}/Dockerfile"
   args = {
     XX_VERSION = "test"
 
-    DISTRIBUTION_NAME     = os_name
-    DISTRIBUTION_VERSION  = build.os_version
+    DISTRIBUTION_NAME     = name
+    DISTRIBUTION_VERSION  = build.version
     DISTRIBUTION_PACKAGES = join(" ", coalesce(build.packages, RHEL_FAMILY_PACKAGES))
   }
-  platforms = coalesce(build.platforms, platforms)
+  // platforms = coalesce(build.platforms, platforms)
+  platforms = ["linux/amd64"]
   matrix = {
-    os_name = ["fedora"]
+    name = ["fedora"]
     build = [
-      { os_version = "39",      packages = null, platforms = null },
-      { os_version = "40",      packages = null, platforms = null },
-      { os_version = "41",      packages = null, platforms = null },
-      { os_version = "rawhide", packages = null, platforms = null },
+      { packages = null, platforms = null, type = "package", version = "39" },
+      { packages = null, platforms = null, type = "package", version = "40" },
+      { packages = null, platforms = null, type = "package", version = "41" },
+      { packages = null, platforms = null, type = "package", version = "rawhide" },
     ]
   }
 }

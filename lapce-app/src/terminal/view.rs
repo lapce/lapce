@@ -3,7 +3,7 @@ use std::time::SystemTime;
 
 use alacritty_terminal::index::Side;
 use alacritty_terminal::selection::{Selection, SelectionType};
-use alacritty_terminal::term::search::{Match, RegexSearch};
+use alacritty_terminal::term::search::Match;
 use alacritty_terminal::term::RenderableContent;
 use alacritty_terminal::{
     grid::Dimensions,
@@ -33,7 +33,6 @@ use super::{panel::TerminalPanelData, raw::RawTerminal};
 use crate::command::InternalCommand;
 use crate::editor::location::{EditorLocation, EditorPosition};
 use crate::listener::Listener;
-use crate::terminal::raw::visible_regex_match_iter;
 use crate::workspace::LapceWorkspace;
 use crate::{
     config::{color::LapceColor, LapceConfig},
@@ -671,8 +670,8 @@ impl Widget for TerminalView {
         let term = &raw.term;
         let content = term.renderable_content();
 
-        let mut search = RegexSearch::new("[\\w\\\\?]+\\.rs:\\d+:\\d+").unwrap();
-        self.hyper_matches = visible_regex_match_iter(term, &mut search).collect();
+        // let mut search = RegexSearch::new("[\\w\\\\?]+\\.rs:\\d+:\\d+").unwrap();
+        // self.hyper_matches = visible_regex_match_iter(term, &mut search).collect();
 
         if let Some(selection) = content.selection.as_ref() {
             let start_line = selection.start.line.0 + content.display_offset as i32;

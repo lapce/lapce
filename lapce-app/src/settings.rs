@@ -1293,6 +1293,8 @@ fn dropdown_scroll(
             .border(1)
             .border_radius(6.0)
             .border_color(config.color(LapceColor::LAPCE_BORDER))
+            .box_shadow_blur(3.0)
+            .box_shadow_color(config.color(LapceColor::LAPCE_DROPDOWN_SHADOW))
             .inset_left(x)
             .inset_top(y)
     })

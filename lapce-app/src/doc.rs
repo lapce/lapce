@@ -943,16 +943,16 @@ impl Doc {
         col: usize,
     ) {
         // TODO: more granular invalidation
-        self.clear_text_cache();
         self.completion_lens.set(Some(completion_lens));
         self.completion_pos.set((line, col));
+        self.clear_text_cache();
     }
 
     pub fn clear_completion_lens(&self) {
         // TODO: more granular invalidation
         if self.completion_lens.get_untracked().is_some() {
-            self.clear_text_cache();
             self.completion_lens.set(None);
+            self.clear_text_cache();
         }
     }
 
@@ -1239,9 +1239,9 @@ impl Doc {
     ) {
         // TODO: more granular invalidation
         batch(|| {
-            self.clear_text_cache();
             self.inline_completion.set(Some(inline_completion));
             self.inline_completion_pos.set((line, col));
+            self.clear_text_cache();
         });
     }
 
@@ -1571,7 +1571,7 @@ impl DocumentPhantom for Doc {
                                     Some(PhantomText {
                                         kind: PhantomTextKind::Diagnostic,
                                         col: end_offset - start_offset,
-                                        affinity: None,
+                                        affinity: Some(CursorAffinity::Backward),
                                         text,
                                         fg: Some(fg),
                                         font_size: Some(

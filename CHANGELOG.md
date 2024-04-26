@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Features/Changes
+
+### Bug Fixes
+- [#3203](https://github.com/lapce/lapce/pull/3203): Fallback to default theme is theme key is not found
+
+## 0.4.0
+
+### Features/Changes
 - [#2723](https://github.com/lapce/lapce/pull/2723): Line wrapping based on width (no column-based yet)
 - [#1277](https://github.com/lapce/lapce/pull/1277): Error message prompted on missing git user.email and/or user.name
 - [#2910](https://github.com/lapce/lapce/pull/2910): Files can be compared in the diff editor
@@ -15,12 +22,15 @@
 - [#3086](https://github.com/lapce/lapce/pull/3086): Add folding to panels
 - [#3095](https://github.com/lapce/lapce/pull/3095): Add option to hide the Open Editors section in the explorer
 - [#3096](https://github.com/lapce/lapce/pull/3096): Add source control status coloring to file explorer
+- [#2989](https://github.com/lapce/lapce/pull/2989): Add building packages for linux distros
+- [#3123](https://github.com/lapce/lapce/pull/3123): Swap sled to plain text file for db
 
 ### Bug Fixes
 - [#2779](https://github.com/lapce/lapce/pull/2779): Fix files detection on fresh git/VCS repository
 - [#3031](https://github.com/lapce/lapce/pull/3031): Fix find not receiving inputs when clicked
 - [#3142](https://github.com/lapce/lapce/pull/3142): Fix terminal default profile saving incorrectly
 - [#3158](https://github.com/lapce/lapce/pull/3158): Fix ShowHover command for showing hover with keybind
+- [#3119](https://github.com/lapce/lapce/pull/3119): Fix non US keyboard layout
 
 ## 0.3.1
 
