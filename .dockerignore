@@ -1,1 +1,9 @@
-/target
+.github
+.vscode
+.lapce
+docs
+extra/linux/docker
+extra/macos
+extra/windows
+target
+lapce.spec

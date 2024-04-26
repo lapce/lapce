@@ -183,6 +183,38 @@ jobs:
             ./target/linux_*/*
           retention-days: 1
 
+  rpm:
+    runs-on: ubuntu-latest
+    needs: tagname
+    env:
+      RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os-name: fedora
+            os-version: 39
+          - os-name: fedora
+            os-version: 40
+          # - os-name: fedora
+          #   os-version: 41
+          # - os-name: fedora
+          #   os-version: rawhide
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build rpm packages
+        run: |
+          docker buildx create --driver=docker-container --use
+          docker buildx bake --pull ${{ matrix.os-name }}-${{ matrix.os-version }}-package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lapce-${{ matrix.os-name }}-${{ matrix.os-version }}
+          path: |
+            ./target/*
+          retention-days: 1
+
   linux-musl:
     name: Build lapce-proxy for ${{ matrix.platform }}
     runs-on: ubuntu-latest
@@ -335,6 +367,7 @@ jobs:
       - linux
       - linux-musl
       - deb
+      - rpm
       - windows
       - macos
     runs-on: ubuntu-latest
@@ -391,5 +424,6 @@ jobs:
             lapce-linux/* \
             lapce-debian*/*/* \
             lapce-ubuntu*/*/* \
+            lapce-fedora*/*/* \
             lapce-proxy-linux-*/* \
             lapce-windows/*
