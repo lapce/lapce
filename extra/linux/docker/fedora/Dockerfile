@@ -80,9 +80,6 @@ FROM build-prep AS build
 ARG PACKAGE_NAME
 ENV PACKAGE_NAME="${PACKAGE_NAME}"
 
-ARG OUTPUT_DIR="/output"
-ENV OUTPUT_DIR="${OUTPUT_DIR}"
-
 ARG CARGO_BUILD_INCREMENTAL='false'
 
 ENV CC='xx-clang'
@@ -95,58 +92,99 @@ ARG RELEASE_TAG_NAME
 ENV RELEASE_TAG_NAME="${RELEASE_TAG_NAME}"
 
 RUN \
-    --mount=type=cache,target=/cargo/git/db,sharing=locked,readonly=true \
-    --mount=type=cache,target=/cargo/registry/cache,sharing=locked,readonly=true \
-    --mount=type=cache,target=/cargo/registry/index,sharing=locked,readonly=true \
+    --mount=type=cache,target=/cargo/git/db,readonly=true \
+    --mount=type=cache,target=/cargo/registry/cache,readonly=true \
+    --mount=type=cache,target=/cargo/registry/index,readonly=true \
     --mount=type=cache,target=/root/.cache,sharing=private \
 <<EOF
 #!/usr/bin/env bash
 set -euxo pipefail
 
+LAPCE_VERSION=$(cargo pkgid | cut -d'#' -f2 | cut -d'@' -f2 | cut -d':' -f2)
+
+case "${RELEASE_TAG_NAME}" in
+  nightly-*)
+    commit=$(echo "${RELEASE_TAG_NAME}" | cut -d'-' -f2)
+    RELEASE_TAG_NAME="${LAPCE_VERSION}+${commit}"
+  ;;
+  debug|nightly)
+    date=$(date +%Y%m%d%H%M)
+    RELEASE_TAG_NAME="${LAPCE_VERSION}+${date}"
+  ;;
+  *)
+    RELEASE_TAG_NAME="${RELEASE_TAG_NAME//v/}"
+  ;;
+esac
+
+. /etc/os-release
+export DISTRO_ID="$(echo $ID | tr - _)"
+export DISTRO_VERSION="$(echo $VERSION_ID | tr - _)"
+
+cat > lapce.spec <<EOL
+Name:     ${PACKAGE_NAME}
+Version:  ${RELEASE_TAG_NAME}
+Release:  1.${DISTRO_ID}${DISTRO_VERSION}
+Summary:  Lightning-fast and Powerful Code Editor written in Rust
+License:  Apache-2.0
+URL:      https://github.com/lapce/lapce
+Packager: Jakub Panek
+
+%description
+Lapce is written in pure Rust with a UI in Druid (which is also written in Rust).
+It is designed with Rope Science from the Xi-Editor which makes for lightning-fast computation, and leverages OpenGL for rendering.
+
+%build
 xx-clang --setup-target-triple
 xx-clang --wrap
-
 export RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=/usr/bin/ld.lld"
 export PKG_CONFIG="$(xx-clang --print-prog-name=pkg-config)"
-export CARGO_BUILD_TARGET="$(xx-cargo --print-target-triple)"
-
 rustup target add "$(xx-cargo --print-target-triple)"
+export RELEASE_TAG_NAME="${RELEASE_TAG_NAME}"
 xx-cargo build --profile release-lto --bin lapce --frozen
 xx-verify "${CARGO_TARGET_DIR}"/"$(xx-cargo --print-target-triple)"/release-lto/lapce
 
-mkdir -p /target
-mv -v "${CARGO_TARGET_DIR}"/"$(xx-cargo --print-target-triple)"/release-lto/lapce /target/
+%install
+install -Dm755 "${CARGO_TARGET_DIR}"/"$(xx-cargo --print-target-triple)"/release-lto/lapce %{buildroot}%{_bindir}/lapce
+install -Dm644 extra/linux/dev.lapce.lapce.desktop %{buildroot}/usr/share/applications/dev.lapce.lapce.desktop
+install -Dm644 extra/linux/dev.lapce.lapce.metainfo.xml %{buildroot}/usr/share/metainfo/dev.lapce.lapce.metainfo.xml
+install -Dm644 extra/images/logo.png %{buildroot}/usr/share/pixmaps/dev.lapce.lapce.png
+
+%files
+%license LICENSE*
+%doc *.md
+%{_bindir}/lapce
+/usr/share/applications/dev.lapce.lapce.desktop
+/usr/share/metainfo/dev.lapce.lapce.metainfo.xml
+/usr/share/pixmaps/dev.lapce.lapce.png
+
+%changelog
+* Thu Apr 25 2024 Jakub Panek
+- See GitHub for full changelog
+EOL
+
+/usr/bin/rpmbuild --build-in-place --noclean --noprep -bb --rmspec lapce.spec --verbose
+ls -lahR $HOME/rpmbuild
 EOF
 
-WORKDIR /output
-RUN <<EOF
+RUN \
+<<EOF
 #!/usr/bin/env bash
 set -euxo pipefail
 
-export _PACKAGE_ARCHITECTURE=$(xx-info rhel-arch)
-
-mkdir -v -p ${PACKAGE_NAME}/{etc,usr/bin}
-cd ${PACKAGE_NAME}
-
-mv /target/lapce ./usr/bin/
-
-if [ "${PACKAGE_NAME}" = "lapce" ]; then
-  conflicts="lapce-nightly"
-else
-  conflicts="lapce"
-fi
-
-if [ "${RELEASE_TAG_NAME}" = "nightly" ]; then
-  RELEASE_TAG_NAME="v0.0.1"
-fi
-
+mv -v $HOME/rpmbuild/RPMS/* /output/
 EOF
 
 FROM build-base AS dev
 COPY . ./dev
 
 FROM scratch AS binary
-COPY --from=build /output/*.deb .
+COPY --from=build /output/lapce .
 
 FROM scratch AS cross-binary
-COPY --from=build /output/*.deb .
+COPY --from=build /output/lapce .
+
+FROM scratch AS package
+COPY --from=build /output/*.rpm .
+
+FROM scratch AS cross-package
+COPY --from=build /output/*.rpm .
