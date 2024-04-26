@@ -424,6 +424,6 @@ jobs:
             lapce-linux/* \
             lapce-debian*/*/* \
             lapce-ubuntu*/*/* \
-            lapce-fedora*/*/* \
+            lapce-fedora*/* \
             lapce-proxy-linux-*/* \
             lapce-windows/*
