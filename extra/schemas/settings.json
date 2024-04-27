@@ -333,7 +333,7 @@
                 "drop-shadow-width": {
                     "type": "integer"
                 },
-                "preview-editor-width": {
+                "palette-width": {
                     "type": "integer"
                 },
                 "hover-font-family": {
