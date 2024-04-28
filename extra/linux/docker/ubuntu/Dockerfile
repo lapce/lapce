@@ -137,7 +137,18 @@ mv -v "${CARGO_TARGET_DIR}"/"$(xx-cargo --print-target-triple)"/release-lto/lapc
 cargo pkgid | cut -d'#' -f2 | cut -d'@' -f2 | cut -d':' -f2 | tee /target/lapce.version
 EOF
 
+FROM build-base AS dev
+COPY . ./dev
+
+FROM scratch AS binary
+COPY --from=build /target/lapce .
+
+FROM scratch AS cross-binary
+COPY --from=build /target/lapce .
+
+FROM build AS package-prepare
 WORKDIR /output
+COPY --from=build /target /target
 RUN <<EOF
 #!/usr/bin/env bash
 set -euxo pipefail
@@ -151,10 +162,7 @@ cp '/source/extra/linux/dev.lapce.lapce.desktop' './usr/share/applications/dev.l
 cp '/source/extra/linux/dev.lapce.lapce.metainfo.xml' './usr/share/metainfo/dev.lapce.lapce.metainfo.xml'
 cp '/source/extra/images/logo.png' './usr/share/pixmaps/dev.lapce.lapce.png'
 
-cp '/target/lapce' './usr/bin/'
-
-# single binary
-cp /target/lapce /output/lapce
+mv '/target/lapce' './usr/bin/'
 
 if [[ "${PACKAGE_NAME}" == "lapce" ]]; then
   conflicts="lapce-nightly"
@@ -199,17 +207,8 @@ mv debian DEBIAN
 dpkg-deb --root-owner-group --build . "${OUTPUT_DIR}"/"${PACKAGE_NAME}.${ID}.${VERSION_CODENAME}.${_PACKAGE_ARCHITECTURE}.deb"
 EOF
 
-FROM build-base AS dev
-COPY . ./dev
-
-FROM scratch AS binary
-COPY --from=build /output/lapce .
-
-FROM scratch AS cross-binary
-COPY --from=build /output/lapce .
-
 FROM scratch AS package
-COPY --from=build /output/*.deb .
+COPY --from=package-prepare /output/*.deb .
 
 FROM scratch AS cross-package
-COPY --from=build /output/*.deb .
+COPY --from=package-prepare /output/*.deb .
