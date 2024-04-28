@@ -1082,14 +1082,21 @@ impl PluginCatalogRpcHandler {
         version: i32,
         text: String,
     ) {
-        let _ = self.plugin_tx.send(PluginCatalogRpc::DidOpenTextDocument {
-            document: TextDocumentItem::new(
-                Url::from_file_path(path).unwrap(),
-                language_id,
-                version,
-                text,
-            ),
-        });
+        match Url::from_file_path(path) {
+            Ok(path) => {
+                let _ = self.plugin_tx.send(PluginCatalogRpc::DidOpenTextDocument {
+                    document: TextDocumentItem::new(
+                        path,
+                        language_id,
+                        version,
+                        text,
+                    ),
+                });
+            }
+            Err(_) => {
+                tracing::error!("Failed to parse URL from file path: {path:?}");
+            }
+        }
     }
 
     pub fn unactivated_volts(&self, volts: Vec<VoltMetadata>) -> Result<()> {
