@@ -33,8 +33,8 @@ pub struct UIConfig {
     #[field_names(desc = "Controls the width of drop shadow in the UI")]
     drop_shadow_width: usize,
 
-    #[field_names(desc = "Controls the width of the preview editor")]
-    pub preview_editor_width: usize,
+    #[field_names(desc = "Controls the width of the command palette")]
+    palette_width: usize,
 
     #[field_names(
         desc = "Set the hover font family. If empty, it uses the UI font family"
@@ -101,5 +101,13 @@ impl UIConfig {
     pub fn status_height(&self) -> usize {
         let font_size = self.font_size();
         self.status_height.max(font_size)
+    }
+
+    pub fn palette_width(&self) -> usize {
+        if self.palette_width == 0 {
+            500
+        } else {
+            self.palette_width.max(100)
+        }
     }
 }

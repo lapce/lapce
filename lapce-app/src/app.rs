@@ -2573,7 +2573,7 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
         .on_event_stop(EventListener::PointerDown, move |_| {})
         .style(move |s| {
             let config = config.get();
-            s.width(config.ui.preview_editor_width as f64)
+            s.width(config.ui.palette_width() as f64)
                 .max_width_full()
                 .max_height(if has_preview.get() {
                     PxPctAuto::Auto
@@ -2585,7 +2585,7 @@ fn palette(window_tab_data: Rc<WindowTabData>) -> impl View {
                 } else {
                     PxPctAuto::Auto
                 })
-                .margin_top(5.0)
+                .margin_top(4.0)
                 .border(1.0)
                 .border_radius(6.0)
                 .border_color(config.color(LapceColor::LAPCE_BORDER))
