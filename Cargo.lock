@@ -933,7 +933,7 @@ dependencies = [
  "nom",
  "pathdiff",
  "serde",
- "toml",
+ "toml 0.5.11",
 ]
 
 [[package]]
@@ -2999,7 +2999,7 @@ dependencies = [
  "strum_macros",
  "tar",
  "thiserror",
- "toml",
+ "toml 0.8.2",
  "toml_edit 0.20.2",
  "tracing 0.2.0",
  "tracing-appender",
@@ -3085,7 +3085,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "tar",
- "toml",
+ "toml 0.8.2",
  "toml_edit 0.20.2",
  "tracing 0.2.0",
  "tracing-log",
@@ -5297,11 +5297,23 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.5.9"
+version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d82e1a7758622a465f8cee077614c73484dac5b836c02ff6a40d5d1010324d7"
+checksum = "f4f7f0dd8d50a853a531c426359045b1998f04219d88799810762cd4ad314234"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "toml"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "185d8ab0dfbb35cf1399a6344d8484209c088f75f8f68230da55d48d95d43e3d"
+dependencies = [
+ "serde",
+ "serde_spanned",
+ "toml_datetime",
+ "toml_edit 0.20.2",
 ]
 
 [[package]]
@@ -6030,7 +6042,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "sha2",
- "toml",
+ "toml 0.5.11",
  "windows-sys 0.48.0",
  "zstd",
 ]
