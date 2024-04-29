@@ -34,7 +34,9 @@ use floem::{
     views::{
         clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
         empty, label, rich_text,
-        scroll::{scroll, HideBar, VerticalScrollAsHorizontal},
+        scroll::{
+            scroll, HideBar, PropagatePointerWheel, VerticalScrollAsHorizontal,
+        },
         stack, svg, tab, text, tooltip, virtual_stack, Decorators, VirtualDirection,
         VirtualItemSize, VirtualVector,
     },
@@ -2785,6 +2787,7 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
                     .border_radius(6.0)
                     .border_color(config.color(LapceColor::LAPCE_BORDER))
                     .background(config.color(LapceColor::PANEL_BACKGROUND))
+                    .set(PropagatePointerWheel, false)
             } else {
                 s.hide()
             }
