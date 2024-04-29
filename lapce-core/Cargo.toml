@@ -25,7 +25,7 @@ floem-editor-core = { workspace = true }
 libloading  = "0.8.1"
 slotmap     = "1.0"
 arc-swap    = "1.6.0"
-tree-sitter = "0.20.10"
+tree-sitter = "0.22.2"
 
 # please keep below dependencies and features sorted just like LANGUAGES in language.rs
 
