@@ -53,7 +53,7 @@ open           = "5.1.2"
 unicode-width  = "0.1.11"
 nucleo         = "0.5.0"
 bytemuck       = "1.14.3"
-config         = { version = "=0.13.4", default-features = false, features = ["toml"] }
+config         = { version = "=0.14.0", default-features = false, features = ["toml"] }
 structdesc     = { git = "https://github.com/lapce/structdesc" }
 base64         = "0.21.7"
 sha2           = "0.10.8"
