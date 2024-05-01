@@ -3678,11 +3678,13 @@ pub fn launch() {
 fn load_shell_env() {
     use std::process::Command;
 
+    use tracing::warn;
+
     let shell = match std::env::var("SHELL") {
         Ok(s) => s,
-        Err(_) => {
+        Err(error) => {
             // Shell variable is not set, so we can't determine the correct shell executable.
-            // Silently failing, since logger is not set up yet.
+            error!("Failed to obtain shell environment: {error}");
             return;
         }
     };
@@ -3694,8 +3696,8 @@ fn load_shell_env() {
     let env = match command.output() {
         Ok(output) => String::from_utf8(output.stdout).unwrap_or_default(),
 
-        Err(_) => {
-            // silently ignoring since logger is not yet available
+        Err(error) => {
+            error!("Failed to obtain shell environment: {error}");
             return;
         }
     };
@@ -3703,6 +3705,9 @@ fn load_shell_env() {
     env.split('\n')
         .filter_map(|line| line.split_once('='))
         .for_each(|(key, value)| {
+            if let Ok(v) = std::env::var(key) {
+                warn!("Overwriting '{key}', previous value: '{v}', new value '{value}'");
+            };
             std::env::set_var(key, value);
         })
 }
