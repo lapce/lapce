@@ -11,3 +11,9 @@ impl Counter {
         self.0.fetch_add(1, atomic::Ordering::Relaxed)
     }
 }
+
+impl Default for Counter {
+    fn default() -> Self {
+        Self::new()
+    }
+}

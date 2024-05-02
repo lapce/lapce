@@ -48,9 +48,12 @@ impl WrapStyle {
         }
     }
 }
-impl ToString for WrapStyle {
-    fn to_string(&self) -> String {
-        self.as_str().to_string()
+
+impl std::fmt::Display for WrapStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())?;
+
+        Ok(())
     }
 }
 

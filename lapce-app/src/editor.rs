@@ -1579,9 +1579,9 @@ impl EditorData {
 
         let doc = self.doc();
         self.common.completion.update(|completion| {
-            completion.path = path.clone();
+            completion.path.clone_from(&path);
             completion.offset = start_offset;
-            completion.input = input.clone();
+            completion.input.clone_from(&input);
             completion.status = CompletionStatus::Started;
             completion.input_items.clear();
             completion.request_id += 1;
