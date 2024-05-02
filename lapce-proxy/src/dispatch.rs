@@ -930,7 +930,7 @@ impl ProxyHandler for Dispatcher {
                             let buffer = self.buffers.remove(&from);
 
                             if let Some(mut buffer) = buffer {
-                                buffer.path = to.clone();
+                                buffer.path.clone_from(&to);
                                 self.buffers.insert(to.clone(), buffer);
                             }
                         }

@@ -78,7 +78,7 @@ impl TerminalConfig {
     ) -> Option<lapce_rpc::terminal::TerminalProfile> {
         let profile = self.profiles.get(
             self.default_profile
-                .get(&std::env::consts::OS.to_string())
+                .get(std::env::consts::OS)
                 .unwrap_or(&String::from("default")),
         )?;
         let workdir = if let Some(workdir) = &profile.workdir {

@@ -892,7 +892,7 @@ impl LapceConfig {
                             == self
                                 .terminal
                                 .default_profile
-                                .get(&std::env::consts::OS.to_string())
+                                .get(std::env::consts::OS)
                                 .unwrap_or(&String::from("default"))
                     })
                     .unwrap_or(0),

@@ -1831,8 +1831,9 @@ impl WindowTabData {
                             if let Some(breakpoint) = breakpoints.get(i) {
                                 current_breakpoint.id = breakpoint.id;
                                 current_breakpoint.verified = breakpoint.verified;
-                                current_breakpoint.message =
-                                    breakpoint.message.clone();
+                                current_breakpoint
+                                    .message
+                                    .clone_from(&breakpoint.message);
                                 if let Some(new_line) = breakpoint.line {
                                     if current_breakpoint.line + 1 != new_line {
                                         line_changed.insert(current_breakpoint.line);
@@ -2448,7 +2449,7 @@ impl WindowTabData {
                 lsp_types::WorkDoneProgress::Report(report) => {
                     self.progresses.update(|p| {
                         if let Some(progress) = p.get_mut(&token) {
-                            progress.message = report.message.clone();
+                            progress.message.clone_from(&report.message);
                             progress.percentage = report.percentage;
                         }
                     })
