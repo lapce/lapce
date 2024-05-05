@@ -447,8 +447,11 @@ impl WindowTabData {
                 )
             });
 
-        let terminal =
-            TerminalPanelData::new(workspace.clone(), None, common.clone());
+        let terminal = TerminalPanelData::new(
+            workspace.clone(),
+            common.config.get_untracked().terminal.get_default_profile(),
+            common.clone(),
+        );
         if let Some(workspace_info) = workspace_info.as_ref() {
             terminal.debug.breakpoints.set(
                 workspace_info
