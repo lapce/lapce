@@ -94,7 +94,6 @@ all-languages = [
   "lapce-core/lang-python",
   "lapce-core/lang-rust",
   "lapce-core/lang-toml",
-  "lapce-core/lang-yaml",
 ]
 
 [dev-dependencies]

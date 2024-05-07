@@ -38,7 +38,6 @@ tree-sitter-md         = { git = "https://github.com/MDeiml/tree-sitter-markdown
 tree-sitter-python     = { version = "0.20.4", optional = true }
 tree-sitter-rust       = { version = "0.20.4", optional = true }
 tree-sitter-toml       = { version = "0.20.0", optional = true }
-tree-sitter-yaml       = { git = "https://github.com/panekj/tree-sitter-yaml", rev = "80c8d76847f03e772c5c524cf29bafb56858a8d1", optional = true }
 
 [features]
 default  = []
@@ -55,7 +54,6 @@ lang-markdown   = ["dep:tree-sitter-md"]
 lang-python     = ["dep:tree-sitter-python"]
 lang-rust       = ["dep:tree-sitter-rust"]
 lang-toml       = ["dep:tree-sitter-toml"]
-lang-yaml       = ["dep:tree-sitter-yaml"]
 
 [build-dependencies]
 anyhow.workspace = true
