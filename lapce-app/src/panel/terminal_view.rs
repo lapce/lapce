@@ -1,16 +1,16 @@
 use std::rc::Rc;
 
 use floem::{
+    event::EventPropagation,
     event::{Event, EventListener},
     kurbo::Size,
     reactive::create_rw_signal,
-    view::View,
     views::{
         container, dyn_stack, empty, label,
         scroll::{scroll, Thickness, VerticalScrollAsHorizontal},
         stack, svg, tab, Decorators,
     },
-    EventPropagation,
+    View,
 };
 
 use super::kind::PanelKind;

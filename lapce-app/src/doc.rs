@@ -29,6 +29,7 @@ use floem::{
         view::{ScreenLines, ScreenLinesBase},
         CursorInfo, Editor, EditorStyle,
     },
+    ViewId,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -1974,7 +1975,7 @@ fn syntax_prev_unmatched(
 
 fn should_blink(
     focus: RwSignal<Focus>,
-    keyboard_focus: RwSignal<Option<floem::id::Id>>,
+    keyboard_focus: RwSignal<Option<ViewId>>,
 ) -> impl Fn() -> bool {
     move || {
         let Some(focus) = focus.try_get_untracked() else {

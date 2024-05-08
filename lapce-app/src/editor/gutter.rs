@@ -1,10 +1,8 @@
 use floem::{
     context::PaintCx,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
-    id::Id,
     peniko::kurbo::{Point, Rect, Size},
-    view::{AnyWidget, View, ViewData, Widget},
-    Renderer,
+    Renderer, View, ViewId,
 };
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 
@@ -13,18 +11,16 @@ use crate::config::{color::LapceColor, LapceConfig};
 use super::{view::changes_colors_screen, EditorData};
 
 pub struct EditorGutterView {
-    id: Id,
-    data: ViewData,
+    id: ViewId,
     editor: EditorData,
     width: f64,
 }
 
 pub fn editor_gutter_view(editor: EditorData) -> EditorGutterView {
-    let id = Id::next();
+    let id = ViewId::new();
 
     EditorGutterView {
         id,
-        data: ViewData::new(id),
         editor,
         width: 0.0,
     }
@@ -105,32 +101,15 @@ impl EditorGutterView {
 }
 
 impl View for EditorGutterView {
-    fn view_data(&self) -> &ViewData {
-        &self.data
-    }
-
-    fn view_data_mut(&mut self) -> &mut ViewData {
-        &mut self.data
-    }
-
-    fn build(self) -> AnyWidget {
-        Box::new(self)
-    }
-}
-impl Widget for EditorGutterView {
-    fn view_data(&self) -> &ViewData {
-        &self.data
-    }
-
-    fn view_data_mut(&mut self) -> &mut ViewData {
-        &mut self.data
+    fn id(&self) -> ViewId {
+        self.id
     }
 
     fn compute_layout(
         &mut self,
-        cx: &mut floem::context::ComputeLayoutCx,
+        _cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<floem::peniko::kurbo::Rect> {
-        if let Some(width) = cx.get_layout(self.id).map(|l| l.size.width as f64) {
+        if let Some(width) = self.id.get_layout().map(|l| l.size.width as f64) {
             self.width = width;
         }
         None

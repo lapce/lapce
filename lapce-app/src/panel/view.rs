@@ -1,18 +1,17 @@
 use std::{rc::Rc, sync::Arc};
 
 use floem::{
-    event::{Event, EventListener},
+    event::{Event, EventListener, EventPropagation},
     kurbo::{Point, Size},
     reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::{CursorStyle, Style},
     taffy::AlignItems,
     unit::PxPctAuto,
-    view::{AnyView, View},
     views::{
         container, dyn_stack, empty, h_stack, label, stack, stack_from_iter, tab,
         text, Decorators,
     },
-    EventPropagation,
+    AnyView, IntoView, View,
 };
 
 use super::{
@@ -115,7 +114,7 @@ impl PanelBuilder {
 
                 style(s)
             });
-        self.views.push(view.any());
+        self.views.push(view.into_any());
         self
     }
 

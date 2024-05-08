@@ -17,6 +17,7 @@ use floem::{
     kurbo::Size,
     peniko::kurbo::{Point, Rect, Vec2},
     reactive::{use_context, Memo, ReadSignal, RwSignal, Scope, WriteSignal},
+    ViewId,
 };
 use indexmap::IndexMap;
 use itertools::Itertools;
@@ -128,7 +129,7 @@ pub struct CommonData {
     pub term_tx: Sender<(TermId, TermEvent)>,
     pub term_notification_tx: Sender<TermNotification>,
     pub proxy: ProxyRpcHandler,
-    pub view_id: RwSignal<floem::id::Id>,
+    pub view_id: RwSignal<ViewId>,
     pub ui_line_height: Memo<f64>,
     pub dragging: RwSignal<Option<DragContent>>,
     pub config: ReadSignal<Arc<LapceConfig>>,
@@ -136,7 +137,7 @@ pub struct CommonData {
     pub mouse_hover_timer: RwSignal<TimerToken>,
     pub breakpoints: RwSignal<BTreeMap<PathBuf, BTreeMap<usize, LapceBreakpoint>>>,
     // the current focused view which will receive keyboard events
-    pub keyboard_focus: RwSignal<Option<floem::id::Id>>,
+    pub keyboard_focus: RwSignal<Option<ViewId>>,
     pub window_common: Rc<WindowCommonData>,
 }
 
@@ -307,7 +308,7 @@ impl WindowTabData {
         let hover = HoverData::new(cx);
 
         let register = cx.create_rw_signal(Register::default());
-        let view_id = cx.create_rw_signal(floem::id::Id::next());
+        let view_id = cx.create_rw_signal(ViewId::new());
         let find = Find::new(cx);
 
         let ui_line_height = cx.create_memo(move |_| {

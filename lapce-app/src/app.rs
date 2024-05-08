@@ -14,7 +14,7 @@ use clap::Parser;
 use crossbeam_channel::Sender;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
-    event::{Event, EventListener},
+    event::{Event, EventListener, EventPropagation},
     ext_event::create_signal_from_channel,
     menu::{Menu, MenuItem},
     peniko::{
@@ -30,7 +30,6 @@ use floem::{
         Style,
     },
     unit::PxPctAuto,
-    view::{View, Widget},
     views::{
         clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
         empty, label, rich_text,
@@ -41,7 +40,7 @@ use floem::{
         VirtualItemSize, VirtualVector,
     },
     window::{ResizeDirection, WindowConfig, WindowId},
-    EventPropagation,
+    IntoView, View,
 };
 use lapce_core::{
     command::{EditCommand, FocusCommand},
@@ -435,7 +434,7 @@ impl AppData {
     }
 
     fn app_view(&self, window_id: WindowId, info: WindowInfo) -> impl View {
-        let app_view_id = create_rw_signal(floem::id::Id::next());
+        let app_view_id = create_rw_signal(floem::ViewId::new());
         let window_data = WindowData::new(
             window_id,
             app_view_id,
@@ -1932,7 +1931,7 @@ pub fn tooltip_label<S: std::fmt::Display + 'static, V: View + 'static>(
 fn tooltip_tip<V: View + 'static>(
     config: ReadSignal<Arc<LapceConfig>>,
     child: V,
-) -> impl Widget {
+) -> impl IntoView {
     container(child).style(move |s| {
         let config = config.get();
         s.padding_horiz(10.0)

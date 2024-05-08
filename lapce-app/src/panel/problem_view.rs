@@ -4,8 +4,8 @@ use floem::{
     peniko::Color,
     reactive::{create_effect, create_rw_signal, ReadSignal},
     style::{CursorStyle, Style},
-    view::View,
     views::{container, dyn_stack, label, scroll, stack, svg, Decorators},
+    View,
 };
 use lsp_types::{DiagnosticRelatedInformation, DiagnosticSeverity};
 

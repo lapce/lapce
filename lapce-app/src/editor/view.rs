@@ -3,8 +3,7 @@ use std::{cmp, path::PathBuf, rc::Rc, sync::Arc};
 use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::{PaintCx, StyleCx},
-    event::{Event, EventListener},
-    id::Id,
+    event::{Event, EventListener, EventPropagation},
     keyboard::Modifiers,
     peniko::{
         kurbo::{Line, Point, Rect, Size},
@@ -15,7 +14,6 @@ use floem::{
     },
     style::{CursorColor, CursorStyle, Style, TextColor},
     taffy::prelude::NodeId,
-    view::{AnyWidget, View, ViewData, Widget},
     views::{
         clip, container, dyn_stack,
         editor::{
@@ -35,7 +33,7 @@ use floem::{
         scroll::{scroll, HideBar},
         stack, svg, Decorators,
     },
-    EventPropagation, Renderer,
+    Renderer, View, ViewId,
 };
 use itertools::Itertools;
 use lapce_core::{
@@ -127,7 +125,7 @@ pub fn editor_style(
 }
 
 pub struct EditorView {
-    data: ViewData,
+    id: ViewId,
     editor: EditorData,
     is_active: Memo<bool>,
     inner_node: Option<NodeId>,
@@ -141,7 +139,7 @@ pub fn editor_view(
     debug_breakline: Memo<Option<(usize, PathBuf)>>,
     is_active: impl Fn(bool) -> bool + 'static + Copy,
 ) -> EditorView {
-    let id = Id::next();
+    let id = ViewId::new();
     let is_active = create_memo(move |_| is_active(true));
 
     let viewport = e_data.viewport();
@@ -246,7 +244,7 @@ pub fn editor_view(
 
     let doc = e_data.doc_signal();
     EditorView {
-        data: ViewData::new(id),
+        id,
         editor: e_data,
         is_active,
         inner_node: None,
@@ -990,26 +988,8 @@ impl EditorView {
 }
 
 impl View for EditorView {
-    fn view_data(&self) -> &ViewData {
-        &self.data
-    }
-
-    fn view_data_mut(&mut self) -> &mut ViewData {
-        &mut self.data
-    }
-
-    fn build(self) -> AnyWidget {
-        Box::new(self)
-    }
-}
-
-impl Widget for EditorView {
-    fn view_data(&self) -> &ViewData {
-        &self.data
-    }
-
-    fn view_data_mut(&mut self) -> &mut ViewData {
-        &mut self.data
+    fn id(&self) -> ViewId {
+        self.id
     }
 
     fn style(&mut self, cx: &mut StyleCx<'_>) {
@@ -1026,12 +1006,12 @@ impl Widget for EditorView {
 
     fn update(
         &mut self,
-        cx: &mut floem::context::UpdateCx,
+        _cx: &mut floem::context::UpdateCx,
         state: Box<dyn std::any::Any>,
     ) {
         if let Ok(state) = state.downcast() {
             self.sticky_header_info = *state;
-            cx.request_layout(self.data.id());
+            self.id.request_layout();
         }
     }
 
@@ -1039,9 +1019,9 @@ impl Widget for EditorView {
         &mut self,
         cx: &mut floem::context::LayoutCx,
     ) -> floem::taffy::prelude::NodeId {
-        cx.layout_node(self.data.id(), true, |cx| {
+        cx.layout_node(self.id, true, |_cx| {
             if self.inner_node.is_none() {
-                self.inner_node = Some(cx.new_node());
+                self.inner_node = Some(self.id.new_taffy_node());
             }
 
             let e_data = &self.editor;
@@ -1093,7 +1073,7 @@ impl Widget for EditorView {
                 .height(height)
                 .margin_bottom(margin_bottom)
                 .to_taffy_style();
-            cx.set_style(inner_node, style);
+            self.id.set_taffy_style(inner_node, style);
 
             vec![inner_node]
         })

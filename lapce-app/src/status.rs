@@ -4,10 +4,11 @@ use std::{
 };
 
 use floem::{
+    event::EventPropagation,
     reactive::{create_memo, Memo, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Display},
-    view::View,
     views::{dyn_stack, label, stack, svg, Decorators},
+    View,
 };
 use indexmap::IndexMap;
 use lapce_core::mode::{Mode, VisualMode};
@@ -158,7 +159,7 @@ pub fn status(
                             .send(LapceWorkbenchCommand::PaletteSCMReferences);
                     }
                     pointer_down.set(false);
-                    floem::EventPropagation::Continue
+                    EventPropagation::Continue
                 },
             ),
             {

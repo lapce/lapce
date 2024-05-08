@@ -4,11 +4,11 @@ use floem::{
     event::EventListener,
     reactive::ReadSignal,
     style::{CursorStyle, Style},
-    view::View,
     views::{
         container, label, scroll, stack, svg, virtual_stack, Decorators,
         VirtualDirection, VirtualItemSize,
     },
+    View,
 };
 use lapce_xi_rope::find::CaseMatching;
 

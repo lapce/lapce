@@ -8,8 +8,8 @@ use floem::{
     event::EventListener,
     reactive::{ReadSignal, RwSignal, Scope},
     style::CursorStyle,
-    view::View,
     views::{container, dyn_stack, label, stack, svg, Decorators},
+    View,
 };
 
 use crate::{

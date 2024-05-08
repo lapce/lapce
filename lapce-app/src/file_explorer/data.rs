@@ -8,12 +8,12 @@ use std::{
 
 use floem::{
     action::show_context_menu,
+    event::EventPropagation,
     ext_event::create_ext_action,
     keyboard::Modifiers,
     menu::{Menu, MenuItem},
     reactive::{RwSignal, Scope},
     views::editor::text::SystemClipboard,
-    EventPropagation,
 };
 use globset::Glob;
 use lapce_core::{

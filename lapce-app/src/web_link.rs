@@ -1,8 +1,8 @@
 use floem::{
     peniko::Color,
     style::CursorStyle,
-    view::View,
     views::{label, Decorators},
+    View,
 };
 
 use crate::{command::InternalCommand, listener::Listener};

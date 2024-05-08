@@ -15,11 +15,11 @@ use floem::{
         create_effect, create_memo, create_rw_signal, use_context, RwSignal, Scope,
     },
     style::CursorStyle,
-    view::View,
     views::{
         container, dyn_container, dyn_stack, empty, img, label, rich_text, scroll,
         stack, svg, text, Decorators,
     },
+    IntoView, View,
 };
 use indexmap::IndexMap;
 use lapce_core::{directory::Directory, mode::Mode};
@@ -784,196 +784,181 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
     };
 
     scroll(
-        dyn_container(
-            move || plugin_info.get(),
-            move |plugin_info| {
+        dyn_container(move || {
+            let plugin_info = plugin_info.get();
+            stack((
                 stack((
-                    stack((
-                        match plugin_info
-                            .as_ref()
-                            .and_then(|(_, _, icon, _, _)| icon.clone())
-                        {
-                            None => container(
-                                img(move || VOLT_DEFAULT_PNG.to_vec())
-                                    .style(|s| s.size_full()),
-                            ),
-                            Some(VoltIcon::Svg(svg_str)) => container(
-                                svg(move || svg_str.clone())
-                                    .style(|s| s.size_full()),
-                            ),
-                            Some(VoltIcon::Img(buf)) => container(
-                                img(move || buf.clone()).style(|s| s.size_full()),
-                            ),
-                        }
-                        .style(|s| {
-                            s.min_size(150.0, 150.0).size(150.0, 150.0).padding(20)
-                        }),
-                        stack((
-                            text(
-                                plugin_info
-                                    .as_ref()
-                                    .map(|(_, volt, _, _, _)| {
-                                        volt.display_name.as_str()
-                                    })
-                                    .unwrap_or(""),
-                            )
-                            .style(move |s| {
-                                s.font_bold().font_size(
-                                    (config.get().ui.font_size() as f32 * 1.6)
-                                        .round(),
-                                )
-                            }),
-                            text(
-                                plugin_info
-                                    .as_ref()
-                                    .map(|(_, volt, _, _, _)| {
-                                        volt.description.as_str()
-                                    })
-                                    .unwrap_or(""),
-                            )
-                            .style(move |s| {
-                                let scroll_width = scroll_width.get();
-                                s.max_width(
-                                    scroll_width
-                                        .max(200.0 + 60.0 * 2.0 + 200.0)
-                                        .min(800.0)
-                                        - 60.0 * 2.0
-                                        - 200.0,
-                                )
-                            }),
-                            {
-                                let repo = plugin_info
-                                    .as_ref()
-                                    .and_then(|(_, volt, _, _, _)| {
-                                        volt.repository.as_deref()
-                                    })
-                                    .unwrap_or("")
-                                    .to_string();
-                                let local_repo = repo.clone();
-                                stack((
-                                    text("Repository: "),
-                                    web_link(
-                                        move || repo.clone(),
-                                        move || local_repo.clone(),
-                                        move || {
-                                            config
-                                                .get()
-                                                .color(LapceColor::EDITOR_LINK)
-                                        },
-                                        internal_command,
-                                    ),
-                                ))
-                            },
-                            text(
-                                plugin_info
-                                    .as_ref()
-                                    .map(|(_, volt, _, _, _)| volt.author.as_str())
-                                    .unwrap_or(""),
-                            )
-                            .style(move |s| {
-                                s.color(config.get().color(LapceColor::EDITOR_DIM))
-                            }),
-                            version_view(local_plugin.clone(), plugin_info.clone()),
-                        ))
-                        .style(|s| s.flex_col().line_height(1.6)),
-                    ))
-                    .style(|s| s.absolute())
-                    .on_resize(move |rect| {
-                        if header_rect.get_untracked() != rect {
-                            header_rect.set(rect);
-                        }
-                    }),
-                    empty().style(move |s| {
-                        let rect = header_rect.get();
-                        s.size(rect.width(), rect.height())
-                    }),
-                    empty().style(move |s| {
-                        s.margin_vert(6)
-                            .height(1)
-                            .width_full()
-                            .background(config.get().color(LapceColor::LAPCE_BORDER))
-                    }),
+                    match plugin_info
+                        .as_ref()
+                        .and_then(|(_, _, icon, _, _)| icon.clone())
                     {
-                        let readme = create_rw_signal(None);
-                        let info = plugin_info
-                            .as_ref()
-                            .map(|(_, info, _, _, _)| info.to_owned());
-                        create_effect(move |_| {
-                            let config = config.get();
-                            let info = info.clone();
-                            if let Some(info) = info {
-                                let cx = Scope::current();
-                                let send = create_ext_action(cx, move |result| {
-                                    if let Ok(md) = result {
-                                        readme.set(Some(md));
-                                    }
-                                });
-                                std::thread::spawn(move || {
-                                    let result =
-                                        PluginData::download_readme(&info, &config);
-                                    send(result);
-                                });
-                            }
-                        });
-                        {
-                            let id = AtomicU64::new(0);
-                            dyn_stack(
-                                move || {
-                                    readme.get().unwrap_or_else(|| {
-                                        parse_markdown(
-                                            "Loading README",
-                                            2.0,
-                                            &config.get(),
-                                        )
-                                    })
-                                },
-                                move |_| {
-                                    id.fetch_add(
-                                        1,
-                                        std::sync::atomic::Ordering::Relaxed,
-                                    )
-                                },
-                                move |content| match content {
-                                    MarkdownContent::Text(text_layout) => container(
-                                        rich_text(move || text_layout.clone())
-                                            .style(|s| s.width_full()),
-                                    )
-                                    .style(|s| s.width_full()),
-                                    MarkdownContent::Image { .. } => {
-                                        container(empty())
-                                    }
-                                    MarkdownContent::Separator => {
-                                        container(empty().style(move |s| {
-                                            s.width_full()
-                                                .margin_vert(5.0)
-                                                .height(1.0)
-                                                .background(
-                                                    config.get().color(
-                                                        LapceColor::LAPCE_BORDER,
-                                                    ),
-                                                )
-                                        }))
-                                    }
-                                },
-                            )
-                            .style(|s| s.flex_col().width_full())
-                        }
-                    },
-                ))
-                .style(move |s| {
-                    let padding = 60.0;
-                    s.flex_col()
-                        .width(
-                            scroll_width
-                                .get()
-                                .min(800.0)
-                                .max(header_rect.get().width() + padding * 2.0),
+                        None => container(
+                            img(move || VOLT_DEFAULT_PNG.to_vec())
+                                .style(|s| s.size_full()),
+                        ),
+                        Some(VoltIcon::Svg(svg_str)) => container(
+                            svg(move || svg_str.clone()).style(|s| s.size_full()),
+                        ),
+                        Some(VoltIcon::Img(buf)) => container(
+                            img(move || buf.clone()).style(|s| s.size_full()),
+                        ),
+                    }
+                    .style(|s| {
+                        s.min_size(150.0, 150.0).size(150.0, 150.0).padding(20)
+                    }),
+                    stack((
+                        text(
+                            plugin_info
+                                .as_ref()
+                                .map(|(_, volt, _, _, _)| volt.display_name.as_str())
+                                .unwrap_or(""),
                         )
-                        .padding(padding)
-                })
-                .any()
-            },
-        )
+                        .style(move |s| {
+                            s.font_bold().font_size(
+                                (config.get().ui.font_size() as f32 * 1.6).round(),
+                            )
+                        }),
+                        text(
+                            plugin_info
+                                .as_ref()
+                                .map(|(_, volt, _, _, _)| volt.description.as_str())
+                                .unwrap_or(""),
+                        )
+                        .style(move |s| {
+                            let scroll_width = scroll_width.get();
+                            s.max_width(
+                                scroll_width
+                                    .max(200.0 + 60.0 * 2.0 + 200.0)
+                                    .min(800.0)
+                                    - 60.0 * 2.0
+                                    - 200.0,
+                            )
+                        }),
+                        {
+                            let repo = plugin_info
+                                .as_ref()
+                                .and_then(|(_, volt, _, _, _)| {
+                                    volt.repository.as_deref()
+                                })
+                                .unwrap_or("")
+                                .to_string();
+                            let local_repo = repo.clone();
+                            stack((
+                                text("Repository: "),
+                                web_link(
+                                    move || repo.clone(),
+                                    move || local_repo.clone(),
+                                    move || {
+                                        config.get().color(LapceColor::EDITOR_LINK)
+                                    },
+                                    internal_command,
+                                ),
+                            ))
+                        },
+                        text(
+                            plugin_info
+                                .as_ref()
+                                .map(|(_, volt, _, _, _)| volt.author.as_str())
+                                .unwrap_or(""),
+                        )
+                        .style(move |s| {
+                            s.color(config.get().color(LapceColor::EDITOR_DIM))
+                        }),
+                        version_view(local_plugin.clone(), plugin_info.clone()),
+                    ))
+                    .style(|s| s.flex_col().line_height(1.6)),
+                ))
+                .style(|s| s.absolute())
+                .on_resize(move |rect| {
+                    if header_rect.get_untracked() != rect {
+                        header_rect.set(rect);
+                    }
+                }),
+                empty().style(move |s| {
+                    let rect = header_rect.get();
+                    s.size(rect.width(), rect.height())
+                }),
+                empty().style(move |s| {
+                    s.margin_vert(6)
+                        .height(1)
+                        .width_full()
+                        .background(config.get().color(LapceColor::LAPCE_BORDER))
+                }),
+                {
+                    let readme = create_rw_signal(None);
+                    let info = plugin_info
+                        .as_ref()
+                        .map(|(_, info, _, _, _)| info.to_owned());
+                    create_effect(move |_| {
+                        let config = config.get();
+                        let info = info.clone();
+                        if let Some(info) = info {
+                            let cx = Scope::current();
+                            let send = create_ext_action(cx, move |result| {
+                                if let Ok(md) = result {
+                                    readme.set(Some(md));
+                                }
+                            });
+                            std::thread::spawn(move || {
+                                let result =
+                                    PluginData::download_readme(&info, &config);
+                                send(result);
+                            });
+                        }
+                    });
+                    {
+                        let id = AtomicU64::new(0);
+                        dyn_stack(
+                            move || {
+                                readme.get().unwrap_or_else(|| {
+                                    parse_markdown(
+                                        "Loading README",
+                                        2.0,
+                                        &config.get(),
+                                    )
+                                })
+                            },
+                            move |_| {
+                                id.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                            },
+                            move |content| match content {
+                                MarkdownContent::Text(text_layout) => container(
+                                    rich_text(move || text_layout.clone())
+                                        .style(|s| s.width_full()),
+                                )
+                                .style(|s| s.width_full()),
+                                MarkdownContent::Image { .. } => container(empty()),
+                                MarkdownContent::Separator => {
+                                    container(empty().style(move |s| {
+                                        s.width_full()
+                                            .margin_vert(5.0)
+                                            .height(1.0)
+                                            .background(
+                                                config
+                                                    .get()
+                                                    .color(LapceColor::LAPCE_BORDER),
+                                            )
+                                    }))
+                                }
+                            },
+                        )
+                        .style(|s| s.flex_col().width_full())
+                    }
+                },
+            ))
+            .style(move |s| {
+                let padding = 60.0;
+                s.flex_col()
+                    .width(
+                        scroll_width
+                            .get()
+                            .min(800.0)
+                            .max(header_rect.get().width() + padding * 2.0),
+                    )
+                    .padding(padding)
+            })
+            .into_any()
+        })
         .style(|s| s.min_width_full().justify_center()),
     )
     .on_resize(move |rect| {
