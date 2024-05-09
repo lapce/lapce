@@ -91,7 +91,7 @@ else
 fi
 
 printf 'Decompressing gzip\n'
-gzip -d "${lapce_dir}/lapce-proxy-${os_name}-${arch_name}.gz"
+gzip -df "${lapce_dir}/lapce-proxy-${os_name}-${arch_name}.gz"
 
 printf 'Renaming proxy \n'
 mv -v "${lapce_dir}/lapce-proxy-${os_name}-${arch_name}" "${lapce_dir}/lapce"
