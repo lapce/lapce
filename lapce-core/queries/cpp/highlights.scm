@@ -132,7 +132,6 @@
 ; Constants
 
 (this) @variable.builtin
-(nullptr) @constant
 
 ; Keywords
 

@@ -7,11 +7,11 @@ use floem::{
         Scope,
     },
     style::CursorStyle,
-    view::View,
     views::{
         container, dyn_stack, label, scroll, stack, text, virtual_stack, Decorators,
         VirtualDirection, VirtualItemSize,
     },
+    View,
 };
 use lapce_core::mode::Modes;
 

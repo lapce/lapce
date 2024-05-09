@@ -6,11 +6,11 @@ use floem::{
     peniko::Color,
     reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::CursorStyle,
-    view::View,
     views::{
         container, dyn_stack, label, scroll, stack, svg, text, virtual_stack,
         Decorators, VirtualDirection, VirtualItemSize,
     },
+    View,
 };
 use lapce_rpc::{
     dap_types::{DapId, ThreadId},

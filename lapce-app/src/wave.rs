@@ -1,46 +1,25 @@
 use floem::{
-    id::Id,
     peniko::kurbo::{BezPath, Point, Size},
     style::TextColor,
-    view::{AnyWidget, View, ViewData, Widget},
-    Renderer,
+    Renderer, View, ViewId,
 };
 
 pub fn wave_box() -> WaveBox {
-    WaveBox {
-        data: ViewData::new(Id::next()),
-    }
+    WaveBox { id: ViewId::new() }
 }
 
 pub struct WaveBox {
-    data: ViewData,
+    id: ViewId,
 }
 
 impl View for WaveBox {
-    fn view_data(&self) -> &ViewData {
-        &self.data
-    }
-
-    fn view_data_mut(&mut self) -> &mut ViewData {
-        &mut self.data
-    }
-
-    fn build(self) -> AnyWidget {
-        Box::new(self)
-    }
-}
-impl Widget for WaveBox {
-    fn view_data(&self) -> &ViewData {
-        &self.data
-    }
-
-    fn view_data_mut(&mut self) -> &mut ViewData {
-        &mut self.data
+    fn id(&self) -> ViewId {
+        self.id
     }
 
     fn paint(&mut self, cx: &mut floem::context::PaintCx) {
-        if let Some(color) = cx.get_computed_style(self.data.id()).get(TextColor) {
-            let layout = cx.get_layout(self.data.id()).unwrap();
+        if let Some(color) = self.id.get_combined_style().get(TextColor) {
+            let layout = self.id.get_layout().unwrap_or_default();
             let size = layout.size;
             let size = Size::new(size.width as f64, size.height as f64);
             let radius = 4.0;

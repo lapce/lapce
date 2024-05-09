@@ -11,13 +11,13 @@ use floem::{
         Scope,
     },
     style::CursorStyle,
-    view::View,
     views::{
         container, dyn_stack, empty, label,
         scroll::{scroll, PropagatePointerWheel},
         stack, svg, text, virtual_stack, Container, Decorators, VirtualDirection,
         VirtualItemSize, VirtualVector,
     },
+    View,
 };
 use indexmap::IndexMap;
 use inflector::Inflector;
@@ -1117,7 +1117,6 @@ fn dropdown_view(
                         window_size,
                         config,
                     )
-                    .build()
                 });
                 overlay_id.set(Some(id));
             } else if let Some(id) = overlay_id.get_untracked() {

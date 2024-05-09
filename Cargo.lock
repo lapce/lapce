@@ -1677,7 +1677,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=a3dd7599823d74977ff431ecb08fffbcf4df2d8a#a3dd7599823d74977ff431ecb08fffbcf4df2d8a"
+source = "git+https://github.com/lapce/floem?rev=8f5a9c5c2bee1bb0355c7a058b6e39be42878534#8f5a9c5c2bee1bb0355c7a058b6e39be42878534"
 dependencies = [
  "bitflags 2.5.0",
  "copypasta",
@@ -1685,7 +1685,6 @@ dependencies = [
  "downcast-rs",
  "educe",
  "floem-editor-core",
- "floem-peniko",
  "floem-winit",
  "floem_reactive",
  "floem_renderer",
@@ -1695,15 +1694,17 @@ dependencies = [
  "im-rc",
  "image",
  "indexmap",
- "kurbo 0.9.5",
+ "kurbo 0.11.0",
  "lapce-xi-rope",
  "once_cell",
  "parking_lot",
+ "peniko",
  "raw-window-handle 0.6.0",
  "rfd",
  "rustc-hash",
  "serde",
  "sha2",
+ "slotmap",
  "smallvec",
  "strum",
  "strum_macros",
@@ -1714,17 +1715,17 @@ dependencies = [
 
 [[package]]
 name = "floem-cosmic-text"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43d74a7975acd84233e843c26da850aa43b39f1e64503fd46d6af9be4ea498dd"
+checksum = "275b8b99e4cb052beeea4ea35d1ce21810dda584945c0e71778b64e516994ea1"
 dependencies = [
- "floem-peniko",
  "fontdb",
  "libm",
  "log",
  "once_cell",
  "ouroboros",
  "parking_lot",
+ "peniko",
  "rangemap",
  "rustybuzz",
  "stretto",
@@ -1740,7 +1741,7 @@ dependencies = [
 [[package]]
 name = "floem-editor-core"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=a3dd7599823d74977ff431ecb08fffbcf4df2d8a#a3dd7599823d74977ff431ecb08fffbcf4df2d8a"
+source = "git+https://github.com/lapce/floem?rev=8f5a9c5c2bee1bb0355c7a058b6e39be42878534#8f5a9c5c2bee1bb0355c7a058b6e39be42878534"
 dependencies = [
  "bitflags 2.5.0",
  "itertools 0.12.1",
@@ -1750,16 +1751,6 @@ dependencies = [
  "serde",
  "strum",
  "strum_macros",
-]
-
-[[package]]
-name = "floem-peniko"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f505394c816e710e2b664647a7a1a4ffdf45e3b3493ad6560d9489f23100430"
-dependencies = [
- "kurbo 0.9.5",
- "smallvec",
 ]
 
 [[package]]
@@ -1828,7 +1819,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=a3dd7599823d74977ff431ecb08fffbcf4df2d8a#a3dd7599823d74977ff431ecb08fffbcf4df2d8a"
+source = "git+https://github.com/lapce/floem?rev=8f5a9c5c2bee1bb0355c7a058b6e39be42878534#8f5a9c5c2bee1bb0355c7a058b6e39be42878534"
 dependencies = [
  "smallvec",
 ]
@@ -1836,25 +1827,25 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=a3dd7599823d74977ff431ecb08fffbcf4df2d8a#a3dd7599823d74977ff431ecb08fffbcf4df2d8a"
+source = "git+https://github.com/lapce/floem?rev=8f5a9c5c2bee1bb0355c7a058b6e39be42878534#8f5a9c5c2bee1bb0355c7a058b6e39be42878534"
 dependencies = [
  "floem-cosmic-text",
- "floem-peniko",
  "image",
+ "peniko",
  "resvg",
 ]
 
 [[package]]
 name = "floem_tiny_skia_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=a3dd7599823d74977ff431ecb08fffbcf4df2d8a#a3dd7599823d74977ff431ecb08fffbcf4df2d8a"
+source = "git+https://github.com/lapce/floem?rev=8f5a9c5c2bee1bb0355c7a058b6e39be42878534#8f5a9c5c2bee1bb0355c7a058b6e39be42878534"
 dependencies = [
  "anyhow",
  "bytemuck",
- "floem-peniko",
  "floem_renderer",
  "futures",
  "image",
+ "peniko",
  "raw-window-handle 0.6.0",
  "resvg",
  "softbuffer",
@@ -1864,14 +1855,14 @@ dependencies = [
 [[package]]
 name = "floem_vger_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=a3dd7599823d74977ff431ecb08fffbcf4df2d8a#a3dd7599823d74977ff431ecb08fffbcf4df2d8a"
+source = "git+https://github.com/lapce/floem?rev=8f5a9c5c2bee1bb0355c7a058b6e39be42878534#8f5a9c5c2bee1bb0355c7a058b6e39be42878534"
 dependencies = [
  "anyhow",
- "floem-peniko",
  "floem-vger",
  "floem_renderer",
  "futures",
  "image",
+ "peniko",
  "raw-window-handle 0.6.0",
  "resvg",
  "swash",
@@ -2378,9 +2369,9 @@ checksum = "eabb4a44450da02c90444cf74558da904edde8fb4e9035a9a6a4e15445af0bd7"
 
 [[package]]
 name = "hashbrown"
-version = "0.14.3"
+version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "290f1a1d9242c78d09ce40a5e87e7554ee637af1351968159f4952f028f75604"
+checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 dependencies = [
  "ahash",
  "allocator-api2",
@@ -2929,7 +2920,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd85a5776cd9500c2e2059c8c76c3b01528566b7fcbaf8098b55a33fc298849b"
 dependencies = [
  "arrayvec",
- "serde",
 ]
 
 [[package]]
@@ -2939,6 +2929,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1618d4ebd923e97d67e7cd363d80aef35fe961005cbbbb3d2dad8bdd1bc63440"
 dependencies = [
  "arrayvec",
+ "smallvec",
+]
+
+[[package]]
+name = "kurbo"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e5aa9f0f96a938266bdb12928a67169e8d22c6a786fda8ed984b85e6ba93c3c"
+dependencies = [
+ "arrayvec",
+ "serde",
  "smallvec",
 ]
 
@@ -3007,7 +3008,7 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width",
  "url",
- "windows-sys 0.36.1",
+ "windows-sys 0.48.0",
  "zip",
 ]
 
@@ -3041,7 +3042,6 @@ dependencies = [
  "tree-sitter-python",
  "tree-sitter-rust",
  "tree-sitter-toml",
- "tree-sitter-yaml",
 ]
 
 [[package]]
@@ -3868,6 +3868,16 @@ name = "pathdiff"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8835116a5c179084a830efb3adc117ab007512b535bc1a21c991d3b32a6b44dd"
+
+[[package]]
+name = "peniko"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "caaf7fec601d640555d9a4cab7343eba1e1c7a5a71c9993ff63b4c26bc5d50c5"
+dependencies = [
+ "kurbo 0.11.0",
+ "smallvec",
+]
 
 [[package]]
 name = "percent-encoding"
@@ -4753,6 +4763,9 @@ name = "smallvec"
 version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "smithay-client-toolkit"
@@ -5547,15 +5560,6 @@ name = "tree-sitter-toml"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca517f578a98b23d20780247cc2688407fa81effad5b627a5a364ec3339b53e8"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-yaml"
-version = "0.0.1"
-source = "git+https://github.com/panekj/tree-sitter-yaml?rev=80c8d76847f03e772c5c524cf29bafb56858a8d1#80c8d76847f03e772c5c524cf29bafb56858a8d1"
 dependencies = [
  "cc",
  "tree-sitter",

@@ -6,11 +6,11 @@ use floem::{
     peniko::Color,
     reactive::{create_rw_signal, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, Position, Style},
-    view::View,
     views::{
         container, dyn_stack, label, scroll, stack, svg, virtual_stack, Container,
         Decorators, VirtualDirection, VirtualItemSize,
     },
+    View,
 };
 use lapce_core::selection::Selection;
 use lapce_rpc::{

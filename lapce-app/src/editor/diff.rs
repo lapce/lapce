@@ -5,10 +5,10 @@ use floem::{
     ext_event::create_ext_action,
     reactive::{RwSignal, Scope},
     style::CursorStyle,
-    view::View,
     views::{
         clip, dyn_stack, editor::id::EditorId, empty, label, stack, svg, Decorators,
     },
+    View,
 };
 use lapce_core::buffer::{
     diff::{expand_diff_lines, rope_diff, DiffExpand, DiffLines},

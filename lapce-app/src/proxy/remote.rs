@@ -51,6 +51,7 @@ enum HostArchitecture {
 }
 
 pub trait Remote: Sized {
+    #[allow(unused)]
     fn home_dir(&self) -> Result<String> {
         let cmd = self
             .command_builder()

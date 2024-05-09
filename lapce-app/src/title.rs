@@ -6,8 +6,8 @@ use floem::{
     peniko::Color,
     reactive::{create_memo, Memo, ReadSignal, RwSignal},
     style::{AlignItems, CursorStyle, JustifyContent},
-    view::View,
     views::{container, drag_window_area, empty, label, stack, svg, Decorators},
+    View,
 };
 use lapce_core::meta;
 use lapce_rpc::proxy::ProxyStatus;

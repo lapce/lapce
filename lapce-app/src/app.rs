@@ -14,7 +14,7 @@ use clap::Parser;
 use crossbeam_channel::Sender;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
-    event::{Event, EventListener},
+    event::{Event, EventListener, EventPropagation},
     ext_event::create_signal_from_channel,
     menu::{Menu, MenuItem},
     peniko::{
@@ -30,16 +30,17 @@ use floem::{
         Style,
     },
     unit::PxPctAuto,
-    view::{View, Widget},
     views::{
         clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
         empty, label, rich_text,
-        scroll::{scroll, HideBar, VerticalScrollAsHorizontal},
+        scroll::{
+            scroll, HideBar, PropagatePointerWheel, VerticalScrollAsHorizontal,
+        },
         stack, svg, tab, text, tooltip, virtual_stack, Decorators, VirtualDirection,
         VirtualItemSize, VirtualVector,
     },
     window::{ResizeDirection, WindowConfig, WindowId},
-    EventPropagation,
+    IntoView, View,
 };
 use lapce_core::{
     command::{EditCommand, FocusCommand},
@@ -433,7 +434,7 @@ impl AppData {
     }
 
     fn app_view(&self, window_id: WindowId, info: WindowInfo) -> impl View {
-        let app_view_id = create_rw_signal(floem::id::Id::next());
+        let app_view_id = create_rw_signal(floem::ViewId::new());
         let window_data = WindowData::new(
             window_id,
             app_view_id,
@@ -1930,7 +1931,7 @@ pub fn tooltip_label<S: std::fmt::Display + 'static, V: View + 'static>(
 fn tooltip_tip<V: View + 'static>(
     config: ReadSignal<Arc<LapceConfig>>,
     child: V,
-) -> impl Widget {
+) -> impl IntoView {
     container(child).style(move |s| {
         let config = config.get();
         s.padding_horiz(10.0)
@@ -2785,6 +2786,7 @@ fn hover(window_tab_data: Rc<WindowTabData>) -> impl View {
                     .border_radius(6.0)
                     .border_color(config.color(LapceColor::LAPCE_BORDER))
                     .background(config.color(LapceColor::PANEL_BACKGROUND))
+                    .set(PropagatePointerWheel, false)
             } else {
                 s.hide()
             }
@@ -3675,11 +3677,13 @@ pub fn launch() {
 fn load_shell_env() {
     use std::process::Command;
 
+    use tracing::warn;
+
     let shell = match std::env::var("SHELL") {
         Ok(s) => s,
-        Err(_) => {
+        Err(error) => {
             // Shell variable is not set, so we can't determine the correct shell executable.
-            // Silently failing, since logger is not set up yet.
+            error!("Failed to obtain shell environment: {error}");
             return;
         }
     };
@@ -3691,8 +3695,8 @@ fn load_shell_env() {
     let env = match command.output() {
         Ok(output) => String::from_utf8(output.stdout).unwrap_or_default(),
 
-        Err(_) => {
-            // silently ignoring since logger is not yet available
+        Err(error) => {
+            error!("Failed to obtain shell environment: {error}");
             return;
         }
     };
@@ -3700,6 +3704,9 @@ fn load_shell_env() {
     env.split('\n')
         .filter_map(|line| line.split_once('='))
         .for_each(|(key, value)| {
+            if let Ok(v) = std::env::var(key) {
+                warn!("Overwriting '{key}', previous value: '{v}', new value '{value}'");
+            };
             std::env::set_var(key, value);
         })
 }

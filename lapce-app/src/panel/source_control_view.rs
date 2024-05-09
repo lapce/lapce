@@ -7,12 +7,12 @@ use floem::{
     peniko::kurbo::Rect,
     reactive::{create_memo, create_rw_signal},
     style::{CursorStyle, Style},
-    view::View,
     views::{
         container, dyn_stack,
         editor::view::{cursor_caret, LineRegion},
         label, scroll, stack, svg, text, Decorators,
     },
+    View,
 };
 use lapce_core::buffer::rope_text::RopeText;
 use lapce_rpc::source_control::FileDiff;

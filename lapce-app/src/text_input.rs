@@ -4,8 +4,8 @@ use floem::{
     action::{set_ime_allowed, set_ime_cursor_area},
     context::EventCx,
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout},
+    event::EventPropagation,
     event::{Event, EventListener},
-    id::Id,
     peniko::{
         kurbo::{Line, Point, Rect, Size, Vec2},
         Color,
@@ -21,9 +21,8 @@ use floem::{
     },
     taffy::prelude::NodeId,
     unit::PxPct,
-    view::{AnyWidget, View, ViewData, Widget},
     views::Decorators,
-    EventPropagation, Renderer,
+    Renderer, View, ViewId,
 };
 use lapce_core::{
     buffer::rope_text::RopeText,
@@ -139,7 +138,7 @@ fn text_input_full<T: KeyPressFocus + 'static>(
     is_focused: Memo<bool>,
     keyboard_focus: RwSignal<bool>,
 ) -> TextInput {
-    let id = Id::next();
+    let id = ViewId::new();
 
     let doc = e_data.doc_signal();
     let cursor = e_data.cursor();
@@ -215,7 +214,6 @@ fn text_input_full<T: KeyPressFocus + 'static>(
     let ed2 = editor.clone();
     TextInput {
         id,
-        data: ViewData::new(id),
         config,
         offset: 0,
         preedit_range: None,
@@ -313,8 +311,7 @@ enum TextInputState {
 }
 
 pub struct TextInput {
-    id: Id,
-    data: ViewData,
+    id: ViewId,
     content: String,
     offset: usize,
     preedit_range: Option<(usize, usize)>,
@@ -411,19 +408,17 @@ impl TextInput {
         self.placeholder_text_layout = Some(placeholder_text_layout);
     }
 
-    fn hit_index(&self, cx: &mut EventCx, point: Point) -> usize {
+    fn hit_index(&self, _cx: &mut EventCx, point: Point) -> usize {
         self.text_layout.with_untracked(|text_layout| {
             if let Some(text_layout) = text_layout.as_ref() {
-                let padding_left = cx
-                    .get_computed_style(self.id)
-                    .map(|s| match s.get(PaddingLeft) {
+                let padding_left =
+                    match self.id.get_combined_style().get(PaddingLeft) {
                         PxPct::Px(v) => v,
                         PxPct::Pct(pct) => {
-                            let layout = cx.get_layout(self.id()).unwrap();
+                            let layout = self.id.get_layout().unwrap_or_default();
                             pct * layout.size.width as f64
                         }
-                    })
-                    .unwrap_or(0.0);
+                    };
                 let hit =
                     text_layout.hit_point(Point::new(point.x - padding_left, 0.0));
                 hit.index.min(self.content.len())
@@ -517,34 +512,13 @@ impl TextInput {
 }
 
 impl View for TextInput {
-    fn id(&self) -> Id {
+    fn id(&self) -> ViewId {
         self.id
-    }
-
-    fn view_data(&self) -> &ViewData {
-        &self.data
-    }
-
-    fn view_data_mut(&mut self) -> &mut ViewData {
-        &mut self.data
-    }
-
-    fn build(self) -> AnyWidget {
-        Box::new(self)
-    }
-}
-impl Widget for TextInput {
-    fn view_data(&self) -> &ViewData {
-        &self.data
-    }
-
-    fn view_data_mut(&mut self) -> &mut ViewData {
-        &mut self.data
     }
 
     fn update(
         &mut self,
-        cx: &mut floem::context::UpdateCx,
+        _cx: &mut floem::context::UpdateCx,
         state: Box<dyn std::any::Any>,
     ) {
         if let Ok(state) = state.downcast() {
@@ -567,14 +541,14 @@ impl Widget for TextInput {
                     self.placeholder_text_layout = None;
                 }
             }
-            cx.request_layout(self.id);
+            self.id.request_layout();
         }
     }
 
     fn style(&mut self, cx: &mut floem::context::StyleCx<'_>) {
         if self.style.read(cx) {
             self.set_text_layout();
-            cx.app_state_mut().request_layout(self.id());
+            self.id.request_layout();
         }
     }
 
@@ -582,7 +556,7 @@ impl Widget for TextInput {
         &mut self,
         cx: &mut floem::context::LayoutCx,
     ) -> floem::taffy::prelude::NodeId {
-        cx.layout_node(self.id, true, |cx| {
+        cx.layout_node(self.id, true, |_cx| {
             if self
                 .text_layout
                 .with_untracked(|text_layout| text_layout.is_none())
@@ -606,13 +580,13 @@ impl Widget for TextInput {
                 let height = size.height as f32;
 
                 if self.text_node.is_none() {
-                    self.text_node = Some(cx.new_node());
+                    self.text_node = Some(self.id.new_taffy_node());
                 }
 
                 let text_node = self.text_node.unwrap();
 
                 let style = Style::new().height(height).to_taffy_style();
-                cx.set_style(text_node, style);
+                self.id.set_taffy_style(text_node, style);
             });
 
             vec![self.text_node.unwrap()]
@@ -621,11 +595,12 @@ impl Widget for TextInput {
 
     fn compute_layout(
         &mut self,
-        cx: &mut floem::context::ComputeLayoutCx,
+        _cx: &mut floem::context::ComputeLayoutCx,
     ) -> Option<Rect> {
-        let layout = cx.get_layout(self.id).unwrap();
+        let layout = self.id.get_layout().unwrap_or_default();
 
-        let style = cx.app_state_mut().get_builtin_style(self.id);
+        let style = self.id.get_combined_style();
+        let style = style.builtin();
         let padding_left = match style.padding_left() {
             PxPct::Px(padding) => padding,
             PxPct::Pct(pct) => pct * layout.size.width as f64,
@@ -644,7 +619,7 @@ impl Widget for TextInput {
         self.clamp_text_viewport(self.text_viewport);
 
         let text_node = self.text_node.unwrap();
-        let location = cx.layout(text_node).unwrap().location;
+        let location = self.id.taffy_layout(text_node).unwrap_or_default().location;
         self.layout_rect = size
             .to_rect()
             .with_origin(Point::new(location.x as f64, location.y as f64));
@@ -671,14 +646,13 @@ impl Widget for TextInput {
         None
     }
 
-    fn event(
+    fn event_before_children(
         &mut self,
         cx: &mut floem::context::EventCx,
-        _id_path: Option<&[Id]>,
-        event: floem::event::Event,
+        event: &floem::event::Event,
     ) -> EventPropagation {
         let text_offset = self.text_viewport.origin();
-        let event = event.offset((-text_offset.x, -text_offset.y));
+        let event = event.clone().offset((-text_offset.x, -text_offset.y));
         match event {
             Event::PointerDown(pointer) => {
                 let offset = self.hit_index(cx, pointer.pos);
@@ -728,7 +702,7 @@ impl Widget for TextInput {
         cx.save();
         cx.clip(&self.text_rect.inflate(1.0, 0.0));
         let text_node = self.text_node.unwrap();
-        let location = cx.layout(text_node).unwrap().location;
+        let location = self.id.taffy_layout(text_node).unwrap_or_default().location;
         let point = Point::new(location.x as f64, location.y as f64)
             - self.text_viewport.origin().to_vec2();
 

@@ -5,8 +5,8 @@ use floem::{
     keyboard::Modifiers,
     reactive::{RwSignal, Scope},
     style::{CursorStyle, Display, Position},
-    view::View,
     views::{container, label, stack, svg, Decorators},
+    View,
 };
 use lapce_core::{command::FocusCommand, meta::VERSION, mode::Mode};
 
