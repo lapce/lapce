@@ -2504,7 +2504,11 @@ fn palette_content(
                     index.get() as f64 * palette_item_height,
                 ))
         })
-        .style(|s| s.width_full().min_height(0.0)),
+        .style(|s| {
+            s.width_full()
+                .min_height(0.0)
+                .set(PropagatePointerWheel, false)
+        }),
         text("No matching results").style(move |s| {
             s.display(if items.with(|items| items.is_empty()) {
                 Display::Flex
