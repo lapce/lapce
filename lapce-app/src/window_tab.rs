@@ -36,7 +36,7 @@ use lapce_rpc::{
 };
 use lsp_types::{Diagnostic, ProgressParams, ProgressToken, ShowMessageParams};
 use serde_json::Value;
-use tracing::{debug, error};
+use tracing::{debug, error, event, Level};
 
 use crate::{
     about::AboutData,
@@ -1273,9 +1273,23 @@ impl WindowTabData {
 
             // ==== Movement ====
             #[cfg(target_os = "macos")]
-            InstallToPATH => {}
+            InstallToPATH => {
+                self.common.internal_command.send(
+                    InternalCommand::ExecuteProcess {
+                        program: String::from("osascript"),
+                        arguments: vec![String::from("-e"), format!(r#"do shell script "ln -sf '{}' /usr/local/bin/lapce" with administrator privileges"#, std::env::args().next().unwrap())],
+                    }
+                )
+            }
             #[cfg(target_os = "macos")]
-            UninstallFromPATH => {}
+            UninstallFromPATH => {
+                self.common.internal_command.send(
+                    InternalCommand::ExecuteProcess {
+                        program: String::from("osascript"),
+                        arguments: vec![String::from("-e"), String::from(r#"do shell script "rm /usr/local/bin/lapce" with administrator privileges"#)],
+                    }
+                )
+            }
             JumpLocationForward => {
                 self.main_split.jump_location_forward(false);
             }
@@ -1695,6 +1709,24 @@ impl WindowTabData {
                 left_path,
                 right_path,
             } => self.main_split.open_diff_files(left_path, right_path),
+            InternalCommand::ExecuteProcess { program, arguments } => {
+                let mut cmd = match std::process::Command::new(program)
+                    .args(arguments)
+                    .spawn()
+                {
+                    Ok(v) => v,
+                    Err(e) => {
+                        return event!(Level::ERROR, "Failed to spawn process: {e}")
+                    }
+                };
+
+                match cmd.wait() {
+                    Ok(v) => event!(Level::TRACE, "Process exited with status {v}"),
+                    Err(e) => {
+                        event!(Level::ERROR, "Proces exited with an error: {e}")
+                    }
+                };
+            }
         }
     }
 

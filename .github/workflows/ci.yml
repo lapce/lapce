@@ -40,7 +40,7 @@ jobs:
 
       - name: Update toolchain & add llvm-tools
         run: |
-          rustup update
+          rustup update --no-self-update
           rustup component add llvm-tools-preview
 
       - name: Cache Rust dependencies
@@ -101,7 +101,7 @@ jobs:
 
       - name: Update toolchain & add clippy
         run: |
-          rustup update
+          rustup update --no-self-update
           rustup component add clippy
 
       - name: Install dependencies on Ubuntu

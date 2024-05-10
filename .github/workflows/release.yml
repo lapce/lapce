@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Update rust
-        run: rustup update
+        run: rustup update --no-self-update
 
       - name: Fetch dependencies
         run: cargo fetch --locked
