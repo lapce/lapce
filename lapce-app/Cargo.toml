@@ -47,12 +47,12 @@ tracing-subscriber = { workspace = true }
 tracing-appender   = { workspace = true }
 url                = { workspace = true }
 
-pulldown-cmark = "0.10.2"
+pulldown-cmark = "0.10.3"
 Inflector      = "0.11.4"
 open           = "5.1.2"
-unicode-width  = "0.1.11"
+unicode-width  = "0.1.12"
 nucleo         = "0.5.0"
-bytemuck       = "1.14.3"
+bytemuck       = "1.15.0"
 config         = { version = "=0.13.4", default-features = false, features = ["toml"] }
 structdesc     = { git = "https://github.com/lapce/structdesc" }
 base64         = "0.21.7"
@@ -62,7 +62,7 @@ zip            = { version = "0.6.6", default-features = false, features = ["def
 [dependencies.floem]
 # path = "../../workspaces/floem"
 git              = "https://github.com/lapce/floem"
-rev              = "8f5a9c5c2bee1bb0355c7a058b6e39be42878534"
+rev              = "9a4c0fa6e1f8412b4a5eb73c8d7f3e0e7dcd9cbc"
 default-features = true
 features         = ["editor", "serde", "default-image-formats", "rfd-async-std"]
 

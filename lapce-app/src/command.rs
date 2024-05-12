@@ -712,6 +712,10 @@ pub enum InternalCommand {
         left_path: PathBuf,
         right_path: PathBuf,
     },
+    ExecuteProcess {
+        program: String,
+        arguments: Vec<String>,
+    },
 }
 
 #[derive(Clone)]

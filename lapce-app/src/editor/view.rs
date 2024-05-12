@@ -30,7 +30,7 @@ use floem::{
             ShowIndentGuide, SmartTab, VisibleWhitespaceColor, WrapProp,
         },
         empty, label,
-        scroll::{scroll, HideBar},
+        scroll::{scroll, HideBar, PropagatePointerWheel},
         stack, svg, Decorators,
     },
     Renderer, View, ViewId,
@@ -1877,7 +1877,11 @@ fn editor_content(
             rect
         }
     })
-    .style(|s| s.absolute().size_pct(100.0, 100.0))
+    .style(|s| {
+        s.absolute()
+            .size_pct(100.0, 100.0)
+            .set(PropagatePointerWheel, false)
+    })
 }
 
 fn search_editor_view(

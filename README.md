@@ -17,6 +17,9 @@
   <a href="https://docs.lapce.dev" target="_blank">
       <img src="https://img.shields.io/static/v1?label=Docs&message=docs.lapce.dev&color=blue" alt="Lapce Docs">
   </a>
+  <a href="https://wiki.mutable.ai/lapce/lapce" target="_blank">
+      <img src="https://img.shields.io/static/v1?label=Code Wiki&message=Mutable.ai&color=blue" alt="Mutable.ai Auto Wiki">
+  </a>
 </div>
 <br/>
 
