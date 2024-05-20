@@ -49,7 +49,7 @@ use crate::{
     main_split::MainSplitData,
     source_control::SourceControlData,
     window_tab::{CommonData, Focus},
-    workspace::{LapceWorkspace, LapceWorkspaceType, SshHost},
+    workspace::{self, LapceWorkspace, LapceWorkspaceType},
 };
 
 pub mod item;
@@ -379,6 +379,9 @@ impl PaletteData {
             PaletteKind::SshHost => {
                 self.get_ssh_hosts();
             }
+            PaletteKind::GhHost => {
+                self.get_gh_hosts();
+            }
             #[cfg(windows)]
             PaletteKind::WslHost => {
                 self.get_wsl_hosts();
@@ -578,6 +581,9 @@ impl PaletteData {
                     LapceWorkspaceType::RemoteSSH(remote) => {
                         format!("[{remote}] {text}")
                     }
+                    LapceWorkspaceType::RemoteGH(remote) => {
+                        format!("[{remote}] {text}")
+                    }
                     #[cfg(windows)]
                     LapceWorkspaceType::RemoteWSL(remote) => {
                         format!("[{remote}] {text}")
@@ -763,6 +769,28 @@ impl PaletteData {
         self.items.set(items);
     }
 
+    fn get_gh_hosts(&self) {
+        let db: Arc<LapceDb> = use_context().unwrap();
+        let workspaces = db.recent_workspaces().unwrap_or_default();
+        let mut hosts = HashSet::new();
+        for workspace in workspaces.iter() {
+            if let LapceWorkspaceType::RemoteGH(host) = &workspace.kind {
+                hosts.insert(host.clone());
+            }
+        }
+
+        let items = hosts
+            .iter()
+            .map(|host| PaletteItem {
+                content: PaletteItemContent::GhHost { host: host.clone() },
+                filter_text: host.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+        self.items.set(items);
+    }
+
     #[cfg(windows)]
     fn get_wsl_hosts(&self) {
         use std::{os::windows::process::CommandExt, process};
@@ -812,7 +840,7 @@ impl PaletteData {
             .iter()
             .map(|host| PaletteItem {
                 content: PaletteItemContent::WslHost {
-                    host: crate::workspace::WslHost { host: host.clone() },
+                    host: workspace::wsl::Host { host: host.clone() },
                 },
                 filter_text: host.to_string(),
                 score: 0,
@@ -1156,6 +1184,17 @@ impl PaletteData {
                         },
                     );
                 }
+                PaletteItemContent::GhHost { host } => {
+                    self.common.window_common.window_command.send(
+                        WindowCommand::SetWorkspace {
+                            workspace: LapceWorkspace {
+                                kind: LapceWorkspaceType::RemoteGH(host.clone()),
+                                path: None,
+                                last_open: 0,
+                            },
+                        },
+                    );
+                }
                 #[cfg(windows)]
                 PaletteItemContent::WslHost { host } => {
                     self.common.window_common.window_command.send(
@@ -1275,7 +1314,7 @@ impl PaletteData {
             }
         } else if self.kind.get_untracked() == PaletteKind::SshHost {
             let input = self.input.with_untracked(|input| input.input.clone());
-            let ssh = SshHost::from_string(&input);
+            let ssh = workspace::ssh::Host::from_string(&input);
             self.common.window_common.window_command.send(
                 WindowCommand::SetWorkspace {
                     workspace: LapceWorkspace {
@@ -1333,6 +1372,7 @@ impl PaletteData {
                 PaletteItemContent::Workspace { .. } => {}
                 PaletteItemContent::RunAndDebug { .. } => {}
                 PaletteItemContent::SshHost { .. } => {}
+                PaletteItemContent::GhHost { .. } => {}
                 #[cfg(windows)]
                 PaletteItemContent::WslHost { .. } => {}
                 PaletteItemContent::Language { .. } => {}

@@ -329,7 +329,7 @@ impl AppData {
                     .is_empty()
                     || !std::env::var("WSL_INTEROP").unwrap_or_default().is_empty()
                 {
-                    LapceWorkspaceType::RemoteWSL(crate::workspace::WslHost {
+                    LapceWorkspaceType::RemoteWSL(crate::workspace::wsl::Host {
                         host: String::new(),
                     })
                 } else {
@@ -2441,6 +2441,7 @@ fn palette_item(
         PaletteItemContent::Line { .. }
         | PaletteItemContent::Workspace { .. }
         | PaletteItemContent::SshHost { .. }
+        | PaletteItemContent::GhHost { .. }
         | PaletteItemContent::Language { .. }
         | PaletteItemContent::LineEnding { .. }
         | PaletteItemContent::ColorTheme { .. }
@@ -3222,6 +3223,7 @@ fn workspace_title(workspace: &LapceWorkspace) -> Option<String> {
     Some(match &workspace.kind {
         LapceWorkspaceType::Local => format!("{dir}"),
         LapceWorkspaceType::RemoteSSH(remote) => format!("{dir} [{remote}]"),
+        LapceWorkspaceType::RemoteGH(remote) => format!("{dir} [{remote}]"),
         #[cfg(windows)]
         LapceWorkspaceType::RemoteWSL(remote) => format!("{dir} [{remote}]"),
     })
