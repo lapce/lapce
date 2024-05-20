@@ -1017,6 +1017,9 @@ impl WindowTabData {
             ConnectSshHost => {
                 self.palette.run(PaletteKind::SshHost);
             }
+            ConnectGhHost => {
+                self.palette.run(PaletteKind::GhHost);
+            }
             #[cfg(windows)]
             ConnectWslHost => {
                 self.palette.run(PaletteKind::WslHost);

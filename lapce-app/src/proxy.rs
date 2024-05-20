@@ -11,12 +11,13 @@ use lapce_rpc::{
 };
 use tracing::error;
 
-use self::{remote::start_remote, ssh::SshRemote};
+use self::remote::start_remote;
 use crate::{
     terminal::event::TermEvent,
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
+mod gh;
 mod remote;
 mod ssh;
 #[cfg(windows)]
@@ -79,8 +80,8 @@ pub fn new_proxy(
                 }
                 LapceWorkspaceType::RemoteSSH(remote) => {
                     if let Err(e) = start_remote(
-                        SshRemote {
-                            ssh: remote.clone(),
+                        ssh::SshRemote {
+                            host: remote.clone(),
                         },
                         core_rpc.clone(),
                         proxy_rpc.clone(),
@@ -88,11 +89,22 @@ pub fn new_proxy(
                         error!("Failed to start SSH remote: {e}");
                     }
                 }
+                LapceWorkspaceType::RemoteGH(remote) => {
+                    if let Err(e) = start_remote(
+                        gh::GhRemote {
+                            host: remote.clone(),
+                        },
+                        core_rpc.clone(),
+                        proxy_rpc.clone(),
+                    ) {
+                        error!("Failed to start GH remote: {e}");
+                    }
+                }
                 #[cfg(windows)]
                 LapceWorkspaceType::RemoteWSL(remote) => {
                     if let Err(e) = start_remote(
                         wsl::WslRemote {
-                            wsl: remote.clone(),
+                            host: remote.clone(),
                         },
                         core_rpc.clone(),
                         proxy_rpc.clone(),

@@ -225,6 +225,7 @@ impl LapceConfig {
                 }
             }
             LapceWorkspaceType::RemoteSSH(_) => {}
+            LapceWorkspaceType::RemoteGH(_) => {}
             #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL(_) => {}
         }

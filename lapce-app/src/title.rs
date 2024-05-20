@@ -83,11 +83,13 @@ fn left(
         )
         .popout_menu(move || {
             #[allow(unused_mut)]
-            let mut menu = Menu::new("").entry(
-                MenuItem::new("Connect to SSH Host").action(move || {
+            let mut menu = Menu::new("")
+                .entry(MenuItem::new("Connect to SSH Host").action(move || {
                     workbench_command.send(LapceWorkbenchCommand::ConnectSshHost);
-                }),
-            );
+                }))
+                .entry(MenuItem::new("Connect to GitHub Host").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::ConnectGhHost);
+                }));
             if !is_local
                 && proxy_status.get().is_some_and(|p| {
                     matches!(p, ProxyStatus::Connecting | ProxyStatus::Connected)
