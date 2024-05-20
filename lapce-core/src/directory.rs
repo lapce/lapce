@@ -169,4 +169,17 @@ impl Directory {
             None
         }
     }
+
+    pub fn docs_dir() -> Option<PathBuf> {
+        if let Some(dir) = Self::data_local_directory() {
+            let dir = dir.join("files");
+            if !dir.exists() {
+                let _ = std::fs::create_dir(&dir);
+            }
+
+            Some(dir)
+        } else {
+            None
+        }
+    }
 }

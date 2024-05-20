@@ -1,14 +1,20 @@
 use lapce_core::directory::Directory;
 use tracing::level_filters::LevelFilter;
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{filter::Targets, reload::Handle};
+use tracing_subscriber::{
+    filter,
+    filter::Targets,
+    fmt::Subscriber as FmtSubscriber,
+    prelude::*,
+    reload::{Handle as ReloadHandle, Subscriber as ReloadSubscriber},
+};
+
+use crate::tracing::*;
 
 use crate::tracing::*;
 
 #[inline(always)]
-pub(super) fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
-    use tracing_subscriber::{filter, fmt, prelude::*, reload};
-
+pub(super) fn logging() -> (ReloadHandle<Targets>, Option<WorkerGuard>) {
     let (log_file, guard) = match Directory::logs_directory()
         .and_then(|dir| {
             tracing_appender::rolling::Builder::new()
@@ -31,12 +37,12 @@ pub(super) fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
         .with_target("lapce_core", LevelFilter::DEBUG)
         .with_default(LevelFilter::from_level(TraceLevel::INFO));
     let (log_file_filter, reload_handle) =
-        reload::Subscriber::new(log_file_filter_targets);
+        ReloadSubscriber::new(log_file_filter_targets.clone());
 
     let console_filter_targets = std::env::var("LAPCE_LOG")
         .unwrap_or_default()
-        .parse::<filter::Targets>()
-        .unwrap_or_default();
+        .parse::<Targets>()
+        .unwrap_or(log_file_filter_targets);
 
     let registry = tracing_subscriber::registry();
     if let Some(log_file) = log_file {
@@ -47,7 +53,7 @@ pub(super) fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
         registry
             .with(file_layer)
             .with(
-                fmt::Subscriber::default()
+                FmtSubscriber::default()
                     .with_line_number(true)
                     .with_target(true)
                     .with_filter(console_filter_targets),
@@ -55,7 +61,7 @@ pub(super) fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
             .init();
     } else {
         registry
-            .with(fmt::Subscriber::default().with_filter(console_filter_targets))
+            .with(FmtSubscriber::default().with_filter(console_filter_targets))
             .init();
     };
 

@@ -63,13 +63,16 @@ sha2             = { version = "0.10.8" }
 zip              = { version = "0.6.6", default-features = false, features = ["deflate"] }
 percent-encoding = { version = "2.3.1" }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [target.'cfg(target_os="macos")'.dependencies]
 fs_extra = "1.2.0"
 dmg      = "0.1.1"
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 workspace = true
-features  = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"]
+features  = ["Win32_Foundation", "Win32_System_Console", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"]
 
 [features]
 default        = ["updater", "vendored-fonts"]

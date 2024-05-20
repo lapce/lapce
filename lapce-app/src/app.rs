@@ -1,10 +1,7 @@
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
 use std::{
     io::{BufReader, IsTerminal, Read, Write},
     ops::Range,
     path::PathBuf,
-    process::Stdio,
     rc::Rc,
     sync::{atomic::AtomicU64, Arc},
 };
@@ -3592,6 +3589,11 @@ pub fn launch() {
     let (reload_handle, _guard) = logging::logging();
     trace!(TraceLevel::INFO, "Starting up Lapce..");
 
+    #[cfg(windows)]
+    if let Err(err) = attach_console() {
+        trace!(TraceLevel::ERROR, "Failed to attach console: {err}");
+    };
+
     #[cfg(feature = "vendored-fonts")]
     {
         use floem::cosmic_text::{fontdb::Source, FONT_SYSTEM};
@@ -3623,50 +3625,77 @@ pub fn launch() {
         load_shell_env();
     }
 
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
 
-    // small hack to unblock terminal if launched from it
-    // launch it as a separate process that waits
+    // It's an inefficient copy from stdin to file
+    // might improve that later
+    if !stdin.is_terminal() {
+        match read_stdin() {
+            Ok(v) => {
+                cli.paths = v;
+            }
+            Err(err) => {
+                trace!(TraceLevel::ERROR, "Failed to read from stdin: {err}");
+            }
+        }
+    }
+
     if !cli.wait {
-        let mut args = std::env::args().collect::<Vec<_>>();
-        args.push("--wait".to_string());
-        let mut cmd = std::process::Command::new(&args[0]);
-        #[cfg(target_os = "windows")]
-        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        #[cfg(unix)]
+        let fork = fork();
 
-        let stderr_file_path =
-            Directory::logs_directory().unwrap().join("stderr.log");
-        let stderr_file = std::fs::OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .read(true)
-            .open(stderr_file_path)
-            .unwrap();
-        let stderr = Stdio::from(stderr_file);
+        #[cfg(windows)]
+        let fork: Result<(), anyhow::Error> = Ok(());
 
-        let stdout_file_path =
-            Directory::logs_directory().unwrap().join("stdout.log");
-        let stdout_file = std::fs::OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .read(true)
-            .open(stdout_file_path)
-            .unwrap();
-        let stdout = Stdio::from(stdout_file);
+        if let Err(err) = fork {
+            trace!(TraceLevel::ERROR, "Failed to fork lapce: {err}");
+            trace!(TraceLevel::WARN, "Falling back to re-exec method");
 
-        if let Err(why) = cmd
-            .args(&args[1..])
-            .stderr(stderr)
-            .stdout(stdout)
-            .env("LAPCE_LOG", "lapce_app::app=error,off")
-            .spawn()
-        {
-            eprintln!("Failed to launch lapce: {why}");
-            std::process::exit(1);
-        };
-        return;
+            #[cfg(windows)]
+            use std::os::windows::process::CommandExt;
+            use std::process::Stdio;
+
+            let mut args = std::env::args().collect::<Vec<_>>();
+            args.push("--wait".to_string());
+            let mut cmd = std::process::Command::new(&args[0]);
+
+            #[cfg(windows)]
+            cmd.creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW);
+
+            let stderr_file_path =
+                Directory::logs_directory().unwrap().join("stderr.log");
+            let stderr_file = std::fs::OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .read(true)
+                .open(stderr_file_path)
+                .unwrap();
+            let stderr = Stdio::from(stderr_file);
+
+            let stdout_file_path =
+                Directory::logs_directory().unwrap().join("stdout.log");
+            let stdout_file = std::fs::OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .read(true)
+                .open(stdout_file_path)
+                .unwrap();
+            let stdout = Stdio::from(stdout_file);
+
+            if let Err(why) = cmd
+                .args(&args[1..])
+                .stderr(stderr)
+                .stdout(stdout)
+                .env("LAPCE_LOG", "lapce_app::app=error,off")
+                .spawn()
+            {
+                eprintln!("Failed to launch lapce: {why}");
+                std::process::exit(1);
+            };
+            return;
+        }
     }
 
     // If the cli is not requesting a new window, and we're not developing a plugin, we try to open
@@ -3829,6 +3858,89 @@ pub fn launch() {
         }
     })
     .run();
+
+    #[cfg(windows)]
+    unsafe {
+        // Never fails
+        windows::Win32::System::Console::FreeConsole();
+    }
+}
+
+fn read_stdin() -> Result<Vec<PathObject>> {
+    let mut buf = vec![];
+    let i = std::io::stdin().lock().read_to_end(&mut buf)?;
+    trace!(TraceLevel::INFO, "Bytes read: {i}");
+
+    if let Some(stdin_dir) = Directory::docs_dir() {
+        let mut f = tempfile::Builder::new().tempfile_in(stdin_dir)?;
+        f.write_all(&buf)?;
+
+        let (_, path) = f.keep()?;
+
+        return Ok(vec![PathObject {
+            path,
+            linecol: None,
+            is_dir: false,
+        }]);
+    }
+    Ok(vec![])
+}
+
+#[cfg(windows)]
+fn attach_console() -> Result<()> {
+    unsafe {
+        use windows::Win32::System::Console::{
+            AttachConsole, ATTACH_PARENT_PROCESS,
+        };
+
+        // Check if more than just program name are passed as args
+        // arg[0] = lapce.exe
+        if std::env::args().collect::<Vec<_>>().len() > 1 {
+            if AttachConsole(ATTACH_PARENT_PROCESS) == 0 {
+                return Err(anyhow!("Failed to attach to parent process console!"));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn fork() -> Result<()> {
+    use std::{os::fd::AsRawFd, process::exit};
+
+    match unsafe { libc::fork() } {
+        -1 => {
+            return Err(anyhow!("Failed to fork process"));
+        }
+        0 => {} // success, continue exec
+        _ => exit(0),
+    }
+
+    if unsafe { libc::setsid() } == -1 {
+        return Err(anyhow!("Failed to create new process session"));
+    }
+
+    let dev_null = match std::fs::File::open("/dev/null") {
+        Ok(v) => v,
+        Err(err) => {
+            return Err(anyhow!("Failed to open '/dev/null': {err}"));
+        }
+    };
+
+    fn redirect_fd(old_fd: i32, new_fd: i32) -> Result<()> {
+        if unsafe { libc::dup2(old_fd, new_fd) } == -1 {
+            let err = std::io::Error::last_os_error();
+            return Err(anyhow!("Failed to redirect file descriptor: {err}"));
+        }
+        Ok(())
+    }
+
+    redirect_fd(dev_null.as_raw_fd(), libc::STDIN_FILENO)?;
+    redirect_fd(dev_null.as_raw_fd(), libc::STDOUT_FILENO)?;
+    redirect_fd(dev_null.as_raw_fd(), libc::STDERR_FILENO)?;
+
+    Ok(())
 }
 
 /// Uses a login shell to load the correct shell environment for the current user.
