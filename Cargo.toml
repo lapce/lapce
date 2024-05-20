@@ -129,7 +129,6 @@ codegen-units = 1
 #   cargo run --profile fastdev --bin lapce
 [profile.fastdev.package."*"]
 opt-level = 3
-codegen-units = 1
 
 [profile.fastdev]
 inherits = "dev"
