@@ -1384,10 +1384,6 @@ impl WindowTabData {
             InternalCommand::ReloadConfig => {
                 self.reload_config();
             }
-            InternalCommand::UpdateLogLevel { level } => {
-                // TODO: implement logging panel, runtime log level change
-                debug!("{level}");
-            }
             InternalCommand::MakeConfirmed => {
                 if let Some(editor) = self.main_split.active_editor.get_untracked() {
                     editor.confirmed.set(true);

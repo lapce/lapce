@@ -160,6 +160,7 @@ pub struct AppData {
     /// The latest release information
     pub latest_release: RwSignal<Arc<Option<ReleaseInfo>>>,
     pub watcher: Arc<notify::RecommendedWatcher>,
+    /// Handle to tracing configuration
     pub tracing_handle: Handle<Targets>,
     pub config: RwSignal<Arc<LapceConfig>>,
     /// Paths to extra plugins to load
@@ -168,9 +169,33 @@ pub struct AppData {
 
 impl AppData {
     pub fn reload_config(&self) {
+        let previous_filter =
+            self.config.get_untracked().core.log_level_filter.clone();
+
         let config =
             LapceConfig::load(&LapceWorkspace::default(), &[], &self.plugin_paths);
         self.config.set(Arc::new(config));
+
+        let level_filter = self.config.get_untracked().core.log_level_filter.clone();
+        if level_filter != previous_filter {
+            if let Ok(new_targets) =
+                level_filter.parse::<tracing_subscriber::filter::Targets>()
+            {
+                trace!(
+                    TraceLevel::WARN,
+                    "Changing log level filters to '{new_targets}'"
+                );
+                if let Err(error) =
+                    self.tracing_handle.modify(|targets| *targets = new_targets)
+                {
+                    trace!(
+                        TraceLevel::ERROR,
+                        "Failed to update trace level filters: {error}"
+                    );
+                };
+            }
+        }
+
         let windows = self.windows.get_untracked();
         for (_, window) in windows {
             window.reload_config();
@@ -3758,18 +3783,43 @@ pub fn launch() {
 
     let (tx, rx) = crossbeam_channel::bounded(1);
     let mut watcher = notify::recommended_watcher(ConfigWatcher::new(tx)).unwrap();
-    if let Some(path) = LapceConfig::settings_file() {
-        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
+
+    fn watch(
+        watcher: &mut notify::RecommendedWatcher,
+        path: Option<PathBuf>,
+        recurse_mode: notify::RecursiveMode,
+    ) {
+        if let Some(path) = path {
+            if watcher.watch(&path, recurse_mode).is_err() {
+                trace!(
+                    TraceLevel::ERROR,
+                    "Failed to add watcher for: {}",
+                    path.display()
+                );
+            };
+        }
     }
-    if let Some(path) = Directory::themes_directory() {
-        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
-    }
-    if let Some(path) = LapceConfig::keymaps_file() {
-        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
-    }
-    if let Some(path) = Directory::plugins_directory() {
-        let _ = watcher.watch(&path, notify::RecursiveMode::Recursive);
-    }
+
+    watch(
+        &mut watcher,
+        LapceConfig::settings_file(),
+        notify::RecursiveMode::NonRecursive,
+    );
+    watch(
+        &mut watcher,
+        Directory::themes_directory(),
+        notify::RecursiveMode::Recursive,
+    );
+    watch(
+        &mut watcher,
+        LapceConfig::keymaps_file(),
+        notify::RecursiveMode::NonRecursive,
+    );
+    watch(
+        &mut watcher,
+        Directory::plugins_directory(),
+        notify::RecursiveMode::Recursive,
+    );
 
     let windows = scope.create_rw_signal(im::HashMap::new());
     let config = LapceConfig::load(&LapceWorkspace::default(), &[], &plugin_paths);
@@ -3778,6 +3828,19 @@ pub fn launch() {
     window_scale.set(config.ui.scale());
 
     let config = scope.create_rw_signal(Arc::new(config));
+
+    let level_filter = config.get_untracked().core.log_level_filter.clone();
+    if let Ok(new_targets) =
+        level_filter.parse::<tracing_subscriber::filter::Targets>()
+    {
+        if let Err(error) = reload_handle.modify(|targets| *targets = new_targets) {
+            trace!(
+                TraceLevel::ERROR,
+                "Failed to update trace level filters: {error}"
+            );
+        };
+    }
+
     let app_data = AppData {
         windows,
         active_window: scope.create_rw_signal(WindowId::from(0)),
