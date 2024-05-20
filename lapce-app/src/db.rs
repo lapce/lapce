@@ -51,7 +51,7 @@ impl LapceDb {
             .ok_or_else(|| anyhow!("can't get config directory"))?
             .join("db");
         let workspace_folder = folder.join("workspaces");
-        let _ = std::fs::create_dir_all(&workspace_folder);
+        std::fs::create_dir_all(&workspace_folder)?;
 
         let (save_tx, save_rx) = unbounded();
 
