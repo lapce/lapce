@@ -202,7 +202,7 @@ pub enum LapceLanguage {
     #[remain::unsorted]
     #[default]
     #[strum(message = "Plain Text")]
-    Plaintext,
+    PlainText,
 
     #[strum(message = "Ada")]
     Ada,
@@ -457,8 +457,8 @@ pub enum LapceLanguage {
 const LANGUAGES: &[SyntaxProperties] = &[
     // Undetected/unmatched fallback or just plain file
     SyntaxProperties {
-        id: LapceLanguage::Plaintext,
-        indent: "    ",
+        id: LapceLanguage::PlainText,
+        indent: Indent::tab(),
         files: &[],
         extensions: &["txt"],
         comment: comment_properties!(),
@@ -468,7 +468,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Ada,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -479,7 +479,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Adl,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -490,7 +490,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Agda,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -501,7 +501,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Astro,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -511,7 +511,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Bash,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["bash"],
         comment: comment_properties!("#"),
@@ -520,7 +521,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Bass,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -531,7 +532,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Beancount,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -542,7 +543,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Bibtex,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -553,7 +554,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Bitbake,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -564,7 +565,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Blade,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -574,7 +575,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::C,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["c", "h"],
         comment: comment_properties!("//"),
@@ -587,7 +589,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Clojure,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &[
             "clj",
@@ -604,7 +607,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Cmake,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &["cmakelists"],
         extensions: &["cmake"],
         comment: comment_properties!("#"),
@@ -619,7 +623,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Comment,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -628,7 +632,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Cpp,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["cpp", "cxx", "cc", "c++", "hpp", "hxx", "hh", "h++"],
         comment: comment_properties!("//"),
@@ -645,7 +650,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Csharp,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["cs", "csx"],
         comment: comment_properties!("#"),
@@ -669,7 +675,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Css,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["css"],
         comment: comment_properties!("/*", "*/"),
@@ -679,7 +686,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Cue,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -688,7 +695,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::D,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["d", "di", "dlang"],
         comment: CommentProperties {
@@ -702,7 +710,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Dart,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["dart"],
         comment: CommentProperties {
@@ -731,7 +740,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Dhall,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -742,7 +751,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Diff,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -752,7 +761,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Dockerfile,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &["dockerfile", "containerfile"],
         extensions: &["containerfile", "dockerfile"],
         comment: comment_properties!("#"),
@@ -761,7 +771,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Dot,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -771,7 +781,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Elixir,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["ex", "exs", "eex", "heex", "sface"],
         comment: comment_properties!("#"),
@@ -784,7 +795,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Elm,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["elm"],
         comment: comment_properties!("#"),
@@ -792,7 +804,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Erlang,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["erl", "hrl"],
         comment: comment_properties!("%"),
@@ -801,7 +814,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::FSharp,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -812,7 +825,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Fish,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &["fish"],
 
@@ -823,7 +836,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Fluent,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -834,7 +847,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Forth,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -845,7 +858,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Fortran,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -856,7 +869,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Gitattributes,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -889,7 +902,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::GitRebase,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -900,7 +913,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Gleam,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -910,7 +923,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Glimmer,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["hbs"],
         comment: comment_properties!("{{!", "!}}"),
@@ -918,7 +932,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Glsl,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &[
             "glsl", "cs", "vs", "gs", "fs", "csh", "vsh", "gsh", "fsh", "cshader",
@@ -932,7 +947,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Gn,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -942,7 +957,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Go,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["go"],
         comment: comment_properties!("//"),
@@ -965,7 +981,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::GoMod,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -976,7 +992,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::GoTemplate,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -987,7 +1003,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::GoWork,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -998,7 +1014,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::GraphQl,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1009,7 +1025,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Groovy,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1019,7 +1035,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Hare,
-        indent: "        ",
+
+        indent: Indent::space(8),
         files: &[],
         extensions: &["ha"],
         comment: comment_properties!("//"),
@@ -1027,7 +1044,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Haskell,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["hs"],
         comment: comment_properties!("--"),
@@ -1035,7 +1053,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Haxe,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["hx"],
         comment: comment_properties!("//"),
@@ -1043,7 +1062,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Hcl,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["hcl", "tf"],
         comment: comment_properties!("//"),
@@ -1052,7 +1072,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Hosts,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1062,7 +1082,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Html,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["html", "htm"],
         comment: comment_properties!("<!--", "-->"),
@@ -1071,7 +1092,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Ini,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1081,7 +1102,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Java,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["java"],
         comment: comment_properties!("//"),
@@ -1089,7 +1111,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Javascript,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["js", "cjs", "mjs"],
         comment: comment_properties!("//"),
@@ -1103,7 +1126,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Jsdoc,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1113,7 +1136,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Json,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["json"],
 
@@ -1124,7 +1148,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Json5,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1135,7 +1159,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Jsonnet,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1145,7 +1169,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Jsx,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["jsx"],
         comment: comment_properties!("//"),
@@ -1158,7 +1183,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Julia,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["julia", "jl"],
         comment: CommentProperties {
@@ -1173,7 +1199,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Just,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1184,7 +1210,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Kdl,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1194,7 +1220,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Kotlin,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["kt", "kts"],
         comment: CommentProperties {
@@ -1209,7 +1236,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Latex,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["tex"],
         comment: comment_properties!("%"),
@@ -1218,7 +1246,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Ld,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1229,7 +1257,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Llvm,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1240,7 +1268,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::LlvmMir,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1251,7 +1279,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Log,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &["log.txt"],
         extensions: &["log"],
 
@@ -1261,7 +1289,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Lua,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["lua"],
         comment: comment_properties!("--"),
@@ -1270,7 +1299,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Make,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1280,7 +1309,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Markdown,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["md"],
         comment: comment_properties!(),
@@ -1288,7 +1318,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::MarkdownInline,
-        indent: "    ",
+
+        indent: Indent::space(4),
         // markdown inline is only used as an injection by the Markdown language
         files: &[],
         extensions: &[],
@@ -1303,7 +1334,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Meson,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1314,7 +1345,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Nasm,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1324,7 +1355,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Nix,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["nix"],
         comment: CommentProperties {
@@ -1340,7 +1372,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Nushell,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1350,7 +1382,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Ocaml,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["ml"],
         comment: CommentProperties {
@@ -1365,7 +1398,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::OcamlInterface,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["mli"],
         comment: comment_properties!("(*"),
@@ -1374,7 +1408,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Odin,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1385,7 +1419,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::OpenCl,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1396,7 +1430,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Pascal,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1407,7 +1441,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Passwd,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1418,7 +1452,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Pem,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1428,7 +1462,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Php,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["php"],
         comment: comment_properties!("//"),
@@ -1463,7 +1498,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Pkl,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1474,7 +1509,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::PowerShell,
 
-        indent: "    ",
+        indent: Indent::space(4),
         files: &[],
         extensions: &["ps1", "psm1", "psd1", "ps1xml"],
 
@@ -1490,7 +1525,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Prisma,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["prisma"],
         comment: comment_properties!("//"),
@@ -1498,7 +1534,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::ProtoBuf,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["proto"],
         comment: comment_properties!("//"),
@@ -1506,7 +1543,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Python,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["py", "pyi", "pyc", "pyd", "pyw"],
         comment: comment_properties!("#"),
@@ -1530,7 +1568,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Ql,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["ql"],
         comment: comment_properties!("//"),
@@ -1538,7 +1577,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::R,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["r"],
         comment: comment_properties!("#"),
@@ -1547,7 +1587,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Rcl,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1558,7 +1598,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Regex,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1569,7 +1609,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Rego,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1580,7 +1620,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Ron,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1591,7 +1631,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Rst,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1601,7 +1641,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Ruby,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["rb"],
         comment: comment_properties!("#"),
@@ -1614,7 +1655,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Rust,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["rs"],
         comment: comment_properties!("//"),
@@ -1636,7 +1678,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Scala,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1647,7 +1689,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Scheme,
 
-        indent: "  ",
+        indent: Indent::space(2),
         files: &[],
         extensions: &["scm", "ss"],
 
@@ -1656,7 +1698,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Scss,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["scss"],
         comment: comment_properties!("//"),
@@ -1665,7 +1708,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::ShellScript,
 
-        indent: "  ",
+        indent: Indent::space(2),
         files: &[],
         extensions: &["sh"],
         comment: comment_properties!("#"),
@@ -1674,7 +1717,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Smithy,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1684,7 +1727,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Sql,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["sql"],
         comment: comment_properties!("--"),
@@ -1693,7 +1737,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::SshClientConfig,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1704,7 +1748,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Strace,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1714,7 +1758,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Svelte,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["svelte"],
         comment: comment_properties!("//"),
@@ -1723,7 +1768,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Sway,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1733,7 +1778,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Swift,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["swift"],
         comment: comment_properties!("//"),
@@ -1742,7 +1788,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Tcl,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &["tcl"],
 
@@ -1752,7 +1798,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Toml,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["toml"],
         comment: comment_properties!("#"),
@@ -1760,7 +1807,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Tsx,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["tsx"],
         comment: comment_properties!("//"),
@@ -1773,7 +1821,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Typescript,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["ts", "cts", "mts"],
         comment: comment_properties!("//"),
@@ -1787,7 +1836,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Typst,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1798,7 +1847,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Verilog,
 
-        indent: "",
+        indent: Indent::tab(),
         files: &[],
         extensions: &[],
 
@@ -1808,7 +1857,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Vue,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["vue"],
         comment: comment_properties!("//"),
@@ -1817,7 +1867,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Wasm,
 
-        indent: "    ",
+        indent: Indent::space(4),
         files: &[],
         extensions: &["wasm"],
 
@@ -1827,7 +1877,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Wgsl,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["wgsl"],
         comment: comment_properties!("//"),
@@ -1836,7 +1887,7 @@ const LANGUAGES: &[SyntaxProperties] = &[
     SyntaxProperties {
         id: LapceLanguage::Wit,
 
-        indent: "    ",
+        indent: Indent::space(4),
         files: &[],
         extensions: &["wit"],
 
@@ -1846,7 +1897,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Xml,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["xml", "csproj"],
         comment: comment_properties!("//"),
@@ -1854,7 +1906,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Yaml,
-        indent: "  ",
+
+        indent: Indent::space(2),
         files: &[],
         extensions: &["yml", "yaml"],
         comment: comment_properties!("#"),
@@ -1862,7 +1915,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
     },
     SyntaxProperties {
         id: LapceLanguage::Zig,
-        indent: "    ",
+
+        indent: Indent::space(4),
         files: &[],
         extensions: &["zig"],
         comment: comment_properties!("//"),
@@ -1879,7 +1933,7 @@ impl LapceLanguage {
     const SYSTEM_QUERIES_DIRECTORY: &'static str = "/usr/share/tree-sitter/grammars";
 
     pub fn from_path(path: &Path) -> LapceLanguage {
-        Self::from_path_raw(path).unwrap_or(LapceLanguage::Plaintext)
+        Self::from_path_raw(path).unwrap_or(LapceLanguage::PlainText)
     }
 
     pub fn from_path_raw(path: &Path) -> Option<LapceLanguage> {
