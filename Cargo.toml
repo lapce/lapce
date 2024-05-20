@@ -51,6 +51,7 @@ once_cell         = { version = "1.19" }
 parking_lot       = { version = "0.12.3" }
 rayon             = { version = "1.10.0" }
 regex             = { version = "1.10.5" }
+remain            = { version = "0.2" }
 semver            = { version = "1.0" }
 reqwest           = { version = "0.11", features = ["blocking", "json", "socks"] }
 serde             = { version = "1.0" }
@@ -128,6 +129,7 @@ codegen-units = 1
 #   cargo run --profile fastdev --bin lapce
 [profile.fastdev.package."*"]
 opt-level = 3
+codegen-units = 1
 
 [profile.fastdev]
 inherits = "dev"
