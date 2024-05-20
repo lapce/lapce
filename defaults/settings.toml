@@ -5,6 +5,7 @@ modal = false
 color-theme = "Lapce Dark"
 icon-theme = "Lapce Codicons"
 custom-titlebar = true
+log-level-filter = "lapce_app=proxy,lapce_core=debug,lapce_app=debug,lapce_app::keypress::loader=off"
 
 [editor]
 font-family = "monospace"

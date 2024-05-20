@@ -682,9 +682,6 @@ pub enum InternalCommand {
     SetModal {
         modal: bool,
     },
-    UpdateLogLevel {
-        level: tracing_subscriber::filter::LevelFilter,
-    },
     OpenWebUri {
         uri: String,
     },

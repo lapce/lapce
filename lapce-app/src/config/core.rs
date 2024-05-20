@@ -14,4 +14,6 @@ pub struct CoreConfig {
         desc = "Enable customised titlebar and disable OS native one (Linux, BSD, Windows)"
     )]
     pub custom_titlebar: bool,
+    #[field_names(desc = "Log level filter")]
+    pub log_level_filter: String,
 }
