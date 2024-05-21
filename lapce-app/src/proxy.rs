@@ -20,6 +20,7 @@ use crate::{
 mod gh;
 mod remote;
 mod ssh;
+mod ts;
 #[cfg(windows)]
 mod wsl;
 
@@ -92,6 +93,17 @@ pub fn new_proxy(
                 LapceWorkspaceType::RemoteGH(remote) => {
                     if let Err(e) = start_remote(
                         gh::GhRemote {
+                            host: remote.clone(),
+                        },
+                        core_rpc.clone(),
+                        proxy_rpc.clone(),
+                    ) {
+                        error!("Failed to start GH remote: {e}");
+                    }
+                }
+                LapceWorkspaceType::RemoteTS(remote) => {
+                    if let Err(e) = start_remote(
+                        ts::TsRemote {
                             host: remote.clone(),
                         },
                         core_rpc.clone(),

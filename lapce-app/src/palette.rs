@@ -382,6 +382,9 @@ impl PaletteData {
             PaletteKind::GhHost => {
                 self.get_gh_hosts();
             }
+            PaletteKind::TsHost => {
+                self.get_ts_hosts();
+            }
             #[cfg(windows)]
             PaletteKind::WslHost => {
                 self.get_wsl_hosts();
@@ -584,6 +587,9 @@ impl PaletteData {
                     LapceWorkspaceType::RemoteGH(remote) => {
                         format!("[{remote}] {text}")
                     }
+                    LapceWorkspaceType::RemoteTS(remote) => {
+                        format!("[{remote}] {text}")
+                    }
                     #[cfg(windows)]
                     LapceWorkspaceType::RemoteWSL(remote) => {
                         format!("[{remote}] {text}")
@@ -783,6 +789,28 @@ impl PaletteData {
             .iter()
             .map(|host| PaletteItem {
                 content: PaletteItemContent::GhHost { host: host.clone() },
+                filter_text: host.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+        self.items.set(items);
+    }
+
+    fn get_ts_hosts(&self) {
+        let db: Arc<LapceDb> = use_context().unwrap();
+        let workspaces = db.recent_workspaces().unwrap_or_default();
+        let mut hosts = HashSet::new();
+        for workspace in workspaces.iter() {
+            if let LapceWorkspaceType::RemoteTS(host) = &workspace.kind {
+                hosts.insert(host.clone());
+            }
+        }
+
+        let items = hosts
+            .iter()
+            .map(|host| PaletteItem {
+                content: PaletteItemContent::TsHost { host: host.clone() },
                 filter_text: host.to_string(),
                 score: 0,
                 indices: vec![],
@@ -1195,6 +1223,17 @@ impl PaletteData {
                         },
                     );
                 }
+                PaletteItemContent::TsHost { host } => {
+                    self.common.window_common.window_command.send(
+                        WindowCommand::SetWorkspace {
+                            workspace: LapceWorkspace {
+                                kind: LapceWorkspaceType::RemoteTS(host.clone()),
+                                path: None,
+                                last_open: 0,
+                            },
+                        },
+                    );
+                }
                 #[cfg(windows)]
                 PaletteItemContent::WslHost { host } => {
                     self.common.window_common.window_command.send(
@@ -1373,6 +1412,7 @@ impl PaletteData {
                 PaletteItemContent::RunAndDebug { .. } => {}
                 PaletteItemContent::SshHost { .. } => {}
                 PaletteItemContent::GhHost { .. } => {}
+                PaletteItemContent::TsHost { .. } => {}
                 #[cfg(windows)]
                 PaletteItemContent::WslHost { .. } => {}
                 PaletteItemContent::Language { .. } => {}
