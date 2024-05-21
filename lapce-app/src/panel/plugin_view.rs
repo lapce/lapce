@@ -97,17 +97,20 @@ fn installed_view(plugin: PluginData) -> impl View {
         let local_volt_id = volt_id.clone();
         let icon = volt.icon;
         stack((
-            dyn_container(move || match icon.get() {
-                None => img(move || VOLT_DEFAULT_PNG.to_vec())
-                    .style(|s| s.size_full())
-                    .into_any(),
-                Some(VoltIcon::Svg(svg_str)) => svg(move || svg_str.clone())
-                    .style(|s| s.size_full())
-                    .into_any(),
-                Some(VoltIcon::Img(buf)) => {
-                    img(move || buf.clone()).style(|s| s.size_full()).into_any()
-                }
-            })
+            dyn_container(
+                move || icon.get(),
+                move |icon| match icon {
+                    None => img(move || VOLT_DEFAULT_PNG.to_vec())
+                        .style(|s| s.size_full())
+                        .into_any(),
+                    Some(VoltIcon::Svg(svg_str)) => svg(move || svg_str.clone())
+                        .style(|s| s.size_full())
+                        .into_any(),
+                    Some(VoltIcon::Img(buf)) => {
+                        img(move || buf.clone()).style(|s| s.size_full()).into_any()
+                    }
+                },
+            )
             .style(|s| {
                 s.min_size(50.0, 50.0)
                     .size(50.0, 50.0)
@@ -260,17 +263,20 @@ fn available_view(plugin: PluginData) -> impl View {
         let icon = volt.icon;
         let volt_id = info.id();
         stack((
-            dyn_container(move || match icon.get() {
-                None => img(move || VOLT_DEFAULT_PNG.to_vec())
-                    .style(|s| s.size_full())
-                    .into_any(),
-                Some(VoltIcon::Svg(svg_str)) => svg(move || svg_str.clone())
-                    .style(|s| s.size_full())
-                    .into_any(),
-                Some(VoltIcon::Img(buf)) => {
-                    img(move || buf.clone()).style(|s| s.size_full()).into_any()
-                }
-            })
+            dyn_container(
+                move || icon.get(),
+                move |icon| match icon {
+                    None => img(move || VOLT_DEFAULT_PNG.to_vec())
+                        .style(|s| s.size_full())
+                        .into_any(),
+                    Some(VoltIcon::Svg(svg_str)) => svg(move || svg_str.clone())
+                        .style(|s| s.size_full())
+                        .into_any(),
+                    Some(VoltIcon::Img(buf)) => {
+                        img(move || buf.clone()).style(|s| s.size_full()).into_any()
+                    }
+                },
+            )
             .style(|s| {
                 s.min_size(50.0, 50.0)
                     .size(50.0, 50.0)
