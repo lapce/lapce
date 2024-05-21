@@ -89,7 +89,12 @@ fn left(
                 }))
                 .entry(MenuItem::new("Connect to GitHub Host").action(move || {
                     workbench_command.send(LapceWorkbenchCommand::ConnectGhHost);
-                }));
+                }))
+                .entry(MenuItem::new("Connect to Tailscale Host").action(
+                    move || {
+                        workbench_command.send(LapceWorkbenchCommand::ConnectTsHost);
+                    },
+                ));
             if !is_local
                 && proxy_status.get().is_some_and(|p| {
                     matches!(p, ProxyStatus::Connecting | ProxyStatus::Connected)

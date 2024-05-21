@@ -2484,6 +2484,7 @@ fn palette_item(
         | PaletteItemContent::Workspace { .. }
         | PaletteItemContent::SshHost { .. }
         | PaletteItemContent::GhHost { .. }
+        | PaletteItemContent::TsHost { .. }
         | PaletteItemContent::Language { .. }
         | PaletteItemContent::LineEnding { .. }
         | PaletteItemContent::ColorTheme { .. }
@@ -3266,6 +3267,7 @@ fn workspace_title(workspace: &LapceWorkspace) -> Option<String> {
         LapceWorkspaceType::Local => format!("{dir}"),
         LapceWorkspaceType::RemoteSSH(remote) => format!("{dir} [{remote}]"),
         LapceWorkspaceType::RemoteGH(remote) => format!("{dir} [{remote}]"),
+        LapceWorkspaceType::RemoteTS(remote) => format!("{dir} [{remote}]"),
         #[cfg(windows)]
         LapceWorkspaceType::RemoteWSL(remote) => format!("{dir} [{remote}]"),
     })

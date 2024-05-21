@@ -60,6 +60,9 @@ pub enum PaletteItemContent {
     GhHost {
         host: workspace::gh::Host,
     },
+    TsHost {
+        host: workspace::ts::Host,
+    },
     #[cfg(windows)]
     WslHost {
         host: workspace::wsl::Host,

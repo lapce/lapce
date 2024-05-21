@@ -331,6 +331,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Connect to GitHub Host")]
     ConnectGhHost,
 
+    #[strum(serialize = "connect_ts_host")]
+    #[strum(message = "Connect to Tailscale Host")]
+    ConnectTsHost,
+
     #[cfg(windows)]
     #[strum(serialize = "connect_wsl_host")]
     #[strum(message = "Connect to WSL Host")]

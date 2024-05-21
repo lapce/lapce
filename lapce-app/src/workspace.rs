@@ -6,6 +6,7 @@ use crate::{debug::LapceBreakpoint, main_split::SplitInfo, panel::data::PanelInf
 
 pub mod gh;
 pub mod ssh;
+pub mod ts;
 #[cfg(windows)]
 pub mod wsl;
 
@@ -14,6 +15,7 @@ pub enum LapceWorkspaceType {
     Local,
     RemoteSSH(ssh::Host),
     RemoteGH(gh::Host),
+    RemoteTS(ts::Host),
     #[cfg(windows)]
     RemoteWSL(wsl::Host),
 }
@@ -27,10 +29,13 @@ impl LapceWorkspaceType {
         use LapceWorkspaceType::*;
 
         #[cfg(not(windows))]
-        return matches!(self, RemoteSSH(_) | RemoteGH(_));
+        return matches!(self, RemoteSSH(_) | RemoteGH(_) | RemoteTS(_));
 
         #[cfg(windows)]
-        return matches!(self, RemoteSSH(_) | RemoteGH(_) | RemoteWSL(_));
+        return matches!(
+            self,
+            RemoteSSH(_) | RemoteGH(_) | RemoteTS(_) | RemoteWSL(_)
+        );
     }
 }
 
@@ -43,6 +48,9 @@ impl std::fmt::Display for LapceWorkspaceType {
             }
             LapceWorkspaceType::RemoteGH(remote) => {
                 write!(f, "GitHub Codespaces ({remote})")
+            }
+            LapceWorkspaceType::RemoteTS(remote) => {
+                write!(f, "Tailscale ({remote})")
             }
             #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL(remote) => {
@@ -74,6 +82,9 @@ impl LapceWorkspace {
             }
             LapceWorkspaceType::RemoteGH(remote) => {
                 format!(" [GH: {}]", remote.codespace)
+            }
+            LapceWorkspaceType::RemoteTS(remote) => {
+                format!(" [TS: {}]", remote.host)
             }
             #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL(remote) => {
