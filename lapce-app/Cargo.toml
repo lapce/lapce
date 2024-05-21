@@ -52,7 +52,7 @@ Inflector      = "0.11.4"
 open           = "5.1.2"
 unicode-width  = "0.1.12"
 nucleo         = "0.5.0"
-bytemuck       = "1.15.0"
+bytemuck       = "1.16.0"
 config         = { version = "=0.13.4", default-features = false, features = ["toml"] }
 structdesc     = { git = "https://github.com/lapce/structdesc" }
 base64         = "0.21.7"
