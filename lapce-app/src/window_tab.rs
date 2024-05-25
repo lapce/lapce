@@ -291,11 +291,14 @@ impl WindowTabData {
             info
         };
 
-        let config = LapceConfig::load(
+        let Ok(config) = LapceConfig::load(
             &workspace,
             &all_disabled_volts,
             &window_common.extra_plugin_paths,
-        );
+        ) else {
+            event!(Level::ERROR, "Failed to load config");
+            panic!("Failed to load config");
+        };
         let lapce_command = Listener::new_empty(cx);
         let workbench_command = Listener::new_empty(cx);
         let internal_command = Listener::new_empty(cx);
@@ -614,11 +617,14 @@ impl WindowTabData {
         let mut all_disabled_volts = disabled_volts;
         all_disabled_volts.extend(workspace_disabled_volts);
 
-        let config = LapceConfig::load(
+        let Ok(config) = LapceConfig::load(
             &self.workspace,
             &all_disabled_volts,
             &self.common.window_common.extra_plugin_paths,
-        );
+        ) else {
+            event!(Level::ERROR, "Failed to load config");
+            return;
+        };
         self.common.keypress.update(|keypress| {
             keypress.update_keymaps(&config);
         });

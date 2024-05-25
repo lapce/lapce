@@ -53,8 +53,6 @@ const DEFAULT_UI_ICON_THEME: &str =
     include_str!("../../defaults/icon-theme-ui.toml");
 
 static DEFAULT_CONFIG: Lazy<config::Config> = Lazy::new(LapceConfig::default_config);
-static DEFAULT_LAPCE_CONFIG: Lazy<LapceConfig> =
-    Lazy::new(LapceConfig::default_lapce_config);
 
 static DEFAULT_DARK_THEME_CONFIG: Lazy<config::Config> = Lazy::new(|| {
     config::Config::builder()
@@ -175,18 +173,32 @@ pub struct LapceConfig {
     wrap_style_list: im::Vector<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum LapceConfigError {
+    #[error("Failed to deserialise config")]
+    DeserError(String),
+    #[error("Unknown error")]
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ConfigError {
+    #[error("Unknown error")]
+    Unknown,
+}
+
 impl LapceConfig {
     pub fn load(
         workspace: &LapceWorkspace,
         disabled_volts: &[VoltID],
         extra_plugin_paths: &[PathBuf],
-    ) -> Self {
+    ) -> Result<Self, LapceConfigError> {
         let config = Self::merge_config(workspace, None, None, None);
         let mut lapce_config: LapceConfig = match config.try_deserialize() {
             Ok(config) => config,
             Err(error) => {
                 error!("Failed to deserialize configuration file: {error}");
-                DEFAULT_LAPCE_CONFIG.clone()
+                LapceConfig::default_lapce_config()?.clone()
             }
         };
 
@@ -196,7 +208,7 @@ impl LapceConfig {
             Self::load_icon_themes(disabled_volts, extra_plugin_paths);
         lapce_config.available_ui_icon_themes =
             Self::load_icon_themes(disabled_volts, extra_plugin_paths);
-        lapce_config.resolve_theme(workspace);
+        lapce_config.resolve_theme(workspace, Some(&lapce_config.clone()));
 
         lapce_config.color_theme_list = lapce_config
             .available_color_themes
@@ -231,7 +243,7 @@ impl LapceConfig {
 
         lapce_config.terminal.get_indexed_colors();
 
-        lapce_config
+        Ok(lapce_config)
     }
 
     fn merge_config(
@@ -318,21 +330,30 @@ impl LapceConfig {
             .unwrap()
     }
 
-    fn default_lapce_config() -> LapceConfig {
-        let mut default_lapce_config: LapceConfig =
-            DEFAULT_CONFIG.clone().try_deserialize().expect("Failed to deserialize default config, this likely indicates a missing or misnamed field in settings.toml");
+    fn default_lapce_config() -> Result<LapceConfig, LapceConfigError> {
+        let mut default_lapce_config: LapceConfig = match DEFAULT_CONFIG
+            .clone()
+            .try_deserialize()
+        {
+            Ok(v) => v,
+            Err(e) => {
+                return Err(LapceConfigError::DeserError(format!("Failed to deserialize default config, this likely indicates a missing or misnamed field in settings.toml: {e}")));
+            }
+        };
         default_lapce_config.color_theme = DEFAULT_DARK_THEME_COLOR_CONFIG.clone();
         default_lapce_config.file_icon_theme =
             DEFAULT_FILE_ICON_THEME_ICON_CONFIG.clone();
         default_lapce_config.ui_icon_theme =
             DEFAULT_UI_ICON_THEME_ICON_CONFIG.clone();
         default_lapce_config.resolve_colors(None);
-        default_lapce_config
+        Ok(default_lapce_config)
     }
 
-    fn resolve_theme(&mut self, workspace: &LapceWorkspace) {
-        let default_lapce_config = DEFAULT_LAPCE_CONFIG.clone();
-
+    fn resolve_theme(
+        &mut self,
+        workspace: &LapceWorkspace,
+        default_config: Option<&LapceConfig>,
+    ) {
         let color_theme_config = self
             .available_color_themes
             .get(&self.core.color_theme.to_lowercase())
@@ -388,7 +409,7 @@ impl LapceConfig {
             }
             self.plugins = new.plugins;
         }
-        self.resolve_colors(Some(&default_lapce_config));
+        self.resolve_colors(default_config);
         self.update_id();
     }
 
@@ -422,21 +443,21 @@ impl LapceConfig {
     /// Note that this does not save the config.
     pub fn set_color_theme(&mut self, workspace: &LapceWorkspace, theme: &str) {
         self.core.color_theme = theme.to_string();
-        self.resolve_theme(workspace);
+        self.resolve_theme(workspace, None);
     }
 
     /// Set the active file icon theme.  
     /// Note that this does not save the config.
     pub fn set_file_icon_theme(&mut self, workspace: &LapceWorkspace, theme: &str) {
         self.core.file_icon_theme = theme.to_string();
-        self.resolve_theme(workspace);
+        self.resolve_theme(workspace, None);
     }
 
     /// Set the active UI icon theme.  
     /// Note that this does not save the config.
     pub fn set_ui_icon_theme(&mut self, workspace: &LapceWorkspace, theme: &str) {
         self.core.ui_icon_theme = theme.to_string();
-        self.resolve_theme(workspace);
+        self.resolve_theme(workspace, None);
     }
 
     pub fn set_modal(&mut self, _workspace: &LapceWorkspace, modal: bool) {

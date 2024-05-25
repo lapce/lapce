@@ -6,7 +6,7 @@ use std::{
     sync::{atomic::AtomicU64, Arc},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use crossbeam_channel::Sender;
 use floem::{
@@ -172,8 +172,12 @@ impl AppData {
         let previous_filter =
             self.config.get_untracked().core.log_level_filter.clone();
 
-        let config =
-            LapceConfig::load(&LapceWorkspace::default(), &[], &self.plugin_paths);
+        let Ok(config) =
+            LapceConfig::load(&LapceWorkspace::default(), &[], &self.plugin_paths)
+        else {
+            trace!(TraceLevel::ERROR, "Failed to load config");
+            return;
+        };
         self.config.set(Arc::new(config));
 
         let level_filter = self.config.get_untracked().core.log_level_filter.clone();
@@ -3829,7 +3833,9 @@ pub fn launch() {
     );
 
     let windows = scope.create_rw_signal(im::HashMap::new());
-    let config = LapceConfig::load(&LapceWorkspace::default(), &[], &plugin_paths);
+    let config = LapceConfig::load(&LapceWorkspace::default(), &[], &plugin_paths)
+        .context("Failed to load config")
+        .unwrap();
 
     // Restore scale from config
     window_scale.set(config.ui.scale());
