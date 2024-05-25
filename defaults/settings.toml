@@ -63,8 +63,8 @@ bracket-pair-colorization = false
 bracket-colorization-limit = 30000
 files-exclude = "**/{.git,.svn,.hg,CVS,.DS_Store,Thumbs.db}" # Glob patterns
 
-[remote]
-[remote.entries]
+# [remote]
+# [remote.entries]
 
 [terminal]
 font-family = ""

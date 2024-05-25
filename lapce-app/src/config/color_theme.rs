@@ -227,7 +227,7 @@ color-preference = "dark"
         // lapce_config.available_icon_themes = Some(vec![]);
         lapce_config.core.color_theme = "test".to_string();
 
-        lapce_config.resolve_theme(&workspace);
+        lapce_config.resolve_theme(&workspace, None);
 
         println!("Hot Pink: {:?}", Color::HOT_PINK);
         // test basic override
