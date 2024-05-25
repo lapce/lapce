@@ -17,6 +17,7 @@ use crate::{
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
+mod custom;
 mod gh;
 mod remote;
 mod ssh;
@@ -79,15 +80,16 @@ pub fn new_proxy(
                         proxy_rpc.mainloop(&mut dispatcher);
                     });
                 }
-                LapceWorkspaceType::RemoteSSH(remote) => {
+                LapceWorkspaceType::RemoteCustom(remote) => {
                     if let Err(e) = start_remote(
-                        ssh::SshRemote {
+                        custom::CustomRemote {
                             host: remote.clone(),
+                            output: None,
                         },
                         core_rpc.clone(),
                         proxy_rpc.clone(),
                     ) {
-                        error!("Failed to start SSH remote: {e}");
+                        error!("Failed to start GH remote: {e}");
                     }
                 }
                 LapceWorkspaceType::RemoteGH(remote) => {
@@ -99,6 +101,17 @@ pub fn new_proxy(
                         proxy_rpc.clone(),
                     ) {
                         error!("Failed to start GH remote: {e}");
+                    }
+                }
+                LapceWorkspaceType::RemoteSSH(remote) => {
+                    if let Err(e) = start_remote(
+                        ssh::SshRemote {
+                            host: remote.clone(),
+                        },
+                        core_rpc.clone(),
+                        proxy_rpc.clone(),
+                    ) {
+                        error!("Failed to start SSH remote: {e}");
                     }
                 }
                 LapceWorkspaceType::RemoteTS(remote) => {
@@ -121,7 +134,7 @@ pub fn new_proxy(
                         core_rpc.clone(),
                         proxy_rpc.clone(),
                     ) {
-                        error!("Failed to start SSH remote: {e}");
+                        error!("Failed to start WSL remote: {e}");
                     }
                 }
             }

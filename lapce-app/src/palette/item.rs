@@ -54,11 +54,14 @@ pub enum PaletteItemContent {
         container_name: Option<String>,
         location: EditorLocation,
     },
-    SshHost {
-        host: workspace::ssh::Host,
+    CustomHost {
+        host: workspace::custom::Host,
     },
     GhHost {
         host: workspace::gh::Host,
+    },
+    SshHost {
+        host: workspace::ssh::Host,
     },
     TsHost {
         host: workspace::ts::Host,

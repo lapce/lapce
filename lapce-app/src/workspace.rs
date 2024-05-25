@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{debug::LapceBreakpoint, main_split::SplitInfo, panel::data::PanelInfo};
 
+pub mod custom;
 pub mod gh;
 pub mod ssh;
 pub mod ts;
@@ -13,8 +14,9 @@ pub mod wsl;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LapceWorkspaceType {
     Local,
-    RemoteSSH(ssh::Host),
+    RemoteCustom(custom::Host),
     RemoteGH(gh::Host),
+    RemoteSSH(ssh::Host),
     RemoteTS(ts::Host),
     #[cfg(windows)]
     RemoteWSL(wsl::Host),
@@ -37,20 +39,30 @@ impl LapceWorkspaceType {
             RemoteSSH(_) | RemoteGH(_) | RemoteTS(_) | RemoteWSL(_)
         );
     }
+
+    // pub fn display_name(&self) -> String {
+    //     match self {
+    //         Self::Local => String::new(),
+    //         v => v..display_name(),
+    //     }
+    // }
 }
 
 impl std::fmt::Display for LapceWorkspaceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LapceWorkspaceType::Local => f.write_str("Local"),
+            LapceWorkspaceType::RemoteCustom(remote) => {
+                write!(f, "{remote} (custom)")
+            }
+            LapceWorkspaceType::RemoteGH(remote) => {
+                write!(f, "{remote} (GitHub Codespaces)")
+            }
             LapceWorkspaceType::RemoteSSH(remote) => {
                 write!(f, "ssh://{remote}")
             }
-            LapceWorkspaceType::RemoteGH(remote) => {
-                write!(f, "GitHub Codespaces ({remote})")
-            }
             LapceWorkspaceType::RemoteTS(remote) => {
-                write!(f, "Tailscale ({remote})")
+                write!(f, "{remote} (Tailscale)")
             }
             #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL(remote) => {
@@ -77,11 +89,14 @@ impl LapceWorkspace {
             .to_string();
         let remote = match &self.kind {
             LapceWorkspaceType::Local => String::new(),
-            LapceWorkspaceType::RemoteSSH(remote) => {
-                format!(" [SSH: {}]", remote.host)
+            LapceWorkspaceType::RemoteCustom(remote) => {
+                format!(" [Custom: {}]", remote)
             }
             LapceWorkspaceType::RemoteGH(remote) => {
-                format!(" [GH: {}]", remote.codespace)
+                format!(" [GH: {}]", remote)
+            }
+            LapceWorkspaceType::RemoteSSH(remote) => {
+                format!(" [SSH: {}]", remote.host)
             }
             LapceWorkspaceType::RemoteTS(remote) => {
                 format!(" [TS: {}]", remote.host)
@@ -91,7 +106,7 @@ impl LapceWorkspace {
                 format!(" [WSL: {}]", remote.host)
             }
         };
-        Some(format!("{path}{remote}"))
+        Some(format!("{path} {remote}"))
     }
 }
 

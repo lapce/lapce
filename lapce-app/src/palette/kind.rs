@@ -12,8 +12,9 @@ pub enum PaletteKind {
     Reference,
     DocumentSymbol,
     WorkspaceSymbol,
-    SshHost,
+    CustomHost,
     GhHost,
+    SshHost,
     TsHost,
     #[cfg(windows)]
     WslHost,
@@ -42,8 +43,9 @@ impl PaletteKind {
             PaletteKind::TerminalProfile => "<",
             PaletteKind::File
             | PaletteKind::Reference
-            | PaletteKind::SshHost
+            | PaletteKind::CustomHost
             | PaletteKind::GhHost
+            | PaletteKind::SshHost
             | PaletteKind::TsHost
             | PaletteKind::RunAndDebug
             | PaletteKind::ColorTheme
@@ -87,8 +89,11 @@ impl PaletteKind {
             PaletteKind::Command => Some(LapceWorkbenchCommand::PaletteCommand),
             PaletteKind::File => Some(LapceWorkbenchCommand::Palette),
             PaletteKind::Reference => None, // InternalCommand::PaletteReferences
-            PaletteKind::SshHost => Some(LapceWorkbenchCommand::ConnectSshHost),
+            PaletteKind::CustomHost => {
+                Some(LapceWorkbenchCommand::ConnectCustomHost)
+            }
             PaletteKind::GhHost => Some(LapceWorkbenchCommand::ConnectGhHost),
+            PaletteKind::SshHost => Some(LapceWorkbenchCommand::ConnectSshHost),
             PaletteKind::TsHost => Some(LapceWorkbenchCommand::ConnectTsHost),
             #[cfg(windows)]
             PaletteKind::WslHost => Some(LapceWorkbenchCommand::ConnectWslHost),
@@ -131,8 +136,9 @@ impl PaletteKind {
             PaletteKind::WslHost => input,
             PaletteKind::File
             | PaletteKind::Reference
-            | PaletteKind::SshHost
+            | PaletteKind::CustomHost
             | PaletteKind::GhHost
+            | PaletteKind::SshHost
             | PaletteKind::TsHost
             | PaletteKind::RunAndDebug
             | PaletteKind::ColorTheme

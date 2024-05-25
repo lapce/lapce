@@ -84,11 +84,14 @@ fn left(
         .popout_menu(move || {
             #[allow(unused_mut)]
             let mut menu = Menu::new("")
-                .entry(MenuItem::new("Connect to SSH Host").action(move || {
-                    workbench_command.send(LapceWorkbenchCommand::ConnectSshHost);
+                .entry(MenuItem::new("Connect to Custom Host").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::ConnectCustomHost);
                 }))
                 .entry(MenuItem::new("Connect to GitHub Host").action(move || {
                     workbench_command.send(LapceWorkbenchCommand::ConnectGhHost);
+                }))
+                .entry(MenuItem::new("Connect to SSH Host").action(move || {
+                    workbench_command.send(LapceWorkbenchCommand::ConnectSshHost);
                 }))
                 .entry(MenuItem::new("Connect to Tailscale Host").action(
                     move || {

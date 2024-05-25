@@ -376,11 +376,14 @@ impl PaletteData {
             PaletteKind::WorkspaceSymbol => {
                 self.get_workspace_symbols();
             }
-            PaletteKind::SshHost => {
-                self.get_ssh_hosts();
+            PaletteKind::CustomHost => {
+                self.get_custom_hosts();
             }
             PaletteKind::GhHost => {
                 self.get_gh_hosts();
+            }
+            PaletteKind::SshHost => {
+                self.get_ssh_hosts();
             }
             PaletteKind::TsHost => {
                 self.get_ts_hosts();
@@ -584,10 +587,13 @@ impl PaletteData {
                 let text = w.path.as_ref()?.to_str()?.to_string();
                 let filter_text = match &w.kind {
                     LapceWorkspaceType::Local => text,
-                    LapceWorkspaceType::RemoteSSH(remote) => {
+                    LapceWorkspaceType::RemoteCustom(remote) => {
                         format!("[{remote}] {text}")
                     }
                     LapceWorkspaceType::RemoteGH(remote) => {
+                        format!("[{remote}] {text}")
+                    }
+                    LapceWorkspaceType::RemoteSSH(remote) => {
                         format!("[{remote}] {text}")
                     }
                     LapceWorkspaceType::RemoteTS(remote) => {
@@ -756,12 +762,12 @@ impl PaletteData {
             });
     }
 
-    fn get_ssh_hosts(&self) {
+    fn get_custom_hosts(&self) {
         let db: Arc<LapceDb> = use_context().unwrap();
         let workspaces = db.recent_workspaces().unwrap_or_default();
         let mut hosts = HashSet::new();
         for workspace in workspaces.iter() {
-            if let LapceWorkspaceType::RemoteSSH(host) = &workspace.kind {
+            if let LapceWorkspaceType::RemoteCustom(host) = &workspace.kind {
                 hosts.insert(host.clone());
             }
         }
@@ -769,7 +775,7 @@ impl PaletteData {
         let items = hosts
             .iter()
             .map(|host| PaletteItem {
-                content: PaletteItemContent::SshHost { host: host.clone() },
+                content: PaletteItemContent::CustomHost { host: host.clone() },
                 filter_text: host.to_string(),
                 score: 0,
                 indices: vec![],
@@ -792,6 +798,28 @@ impl PaletteData {
             .iter()
             .map(|host| PaletteItem {
                 content: PaletteItemContent::GhHost { host: host.clone() },
+                filter_text: host.to_string(),
+                score: 0,
+                indices: vec![],
+            })
+            .collect();
+        self.items.set(items);
+    }
+
+    fn get_ssh_hosts(&self) {
+        let db: Arc<LapceDb> = use_context().unwrap();
+        let workspaces = db.recent_workspaces().unwrap_or_default();
+        let mut hosts = HashSet::new();
+        for workspace in workspaces.iter() {
+            if let LapceWorkspaceType::RemoteSSH(host) = &workspace.kind {
+                hosts.insert(host.clone());
+            }
+        }
+
+        let items = hosts
+            .iter()
+            .map(|host| PaletteItem {
+                content: PaletteItemContent::SshHost { host: host.clone() },
                 filter_text: host.to_string(),
                 score: 0,
                 indices: vec![],
@@ -1223,11 +1251,11 @@ impl PaletteData {
                         },
                     );
                 }
-                PaletteItemContent::SshHost { host } => {
+                PaletteItemContent::CustomHost { host } => {
                     self.common.window_common.window_command.send(
                         WindowCommand::SetWorkspace {
                             workspace: LapceWorkspace {
-                                kind: LapceWorkspaceType::RemoteSSH(host.clone()),
+                                kind: LapceWorkspaceType::RemoteCustom(host.clone()),
                                 path: None,
                                 last_open: 0,
                             },
@@ -1239,6 +1267,17 @@ impl PaletteData {
                         WindowCommand::SetWorkspace {
                             workspace: LapceWorkspace {
                                 kind: LapceWorkspaceType::RemoteGH(host.clone()),
+                                path: None,
+                                last_open: 0,
+                            },
+                        },
+                    );
+                }
+                PaletteItemContent::SshHost { host } => {
+                    self.common.window_common.window_command.send(
+                        WindowCommand::SetWorkspace {
+                            workspace: LapceWorkspace {
+                                kind: LapceWorkspaceType::RemoteSSH(host.clone()),
                                 path: None,
                                 last_open: 0,
                             },
@@ -1439,8 +1478,9 @@ impl PaletteData {
                 PaletteItemContent::Command { .. } => {}
                 PaletteItemContent::Workspace { .. } => {}
                 PaletteItemContent::RunAndDebug { .. } => {}
-                PaletteItemContent::SshHost { .. } => {}
+                PaletteItemContent::CustomHost { .. } => {}
                 PaletteItemContent::GhHost { .. } => {}
+                PaletteItemContent::SshHost { .. } => {}
                 PaletteItemContent::TsHost { .. } => {}
                 #[cfg(windows)]
                 PaletteItemContent::WslHost { .. } => {}

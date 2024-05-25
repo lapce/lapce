@@ -2440,8 +2440,9 @@ fn palette_item(
         }
         PaletteItemContent::Line { .. }
         | PaletteItemContent::Workspace { .. }
-        | PaletteItemContent::SshHost { .. }
+        | PaletteItemContent::CustomHost { .. }
         | PaletteItemContent::GhHost { .. }
+        | PaletteItemContent::SshHost { .. }
         | PaletteItemContent::TsHost { .. }
         | PaletteItemContent::Language { .. }
         | PaletteItemContent::LineEnding { .. }
@@ -3224,8 +3225,9 @@ fn workspace_title(workspace: &LapceWorkspace) -> Option<String> {
     let dir = p.file_name().unwrap_or(p.as_os_str()).to_string_lossy();
     Some(match &workspace.kind {
         LapceWorkspaceType::Local => format!("{dir}"),
-        LapceWorkspaceType::RemoteSSH(remote) => format!("{dir} [{remote}]"),
+        LapceWorkspaceType::RemoteCustom(remote) => format!("{dir} [{remote}]"),
         LapceWorkspaceType::RemoteGH(remote) => format!("{dir} [{remote}]"),
+        LapceWorkspaceType::RemoteSSH(remote) => format!("{dir} [{remote}]"),
         LapceWorkspaceType::RemoteTS(remote) => format!("{dir} [{remote}]"),
         #[cfg(windows)]
         LapceWorkspaceType::RemoteWSL(remote) => format!("{dir} [{remote}]"),
