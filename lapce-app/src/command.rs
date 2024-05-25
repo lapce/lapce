@@ -327,13 +327,17 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "new_file")]
     NewFile,
 
-    #[strum(serialize = "connect_ssh_host")]
-    #[strum(message = "Connect to SSH Host")]
-    ConnectSshHost,
+    #[strum(serialize = "connect_custom_host")]
+    #[strum(message = "Connect to Custom Host")]
+    ConnectCustomHost,
 
     #[strum(serialize = "connect_gh_host")]
     #[strum(message = "Connect to GitHub Host")]
     ConnectGhHost,
+
+    #[strum(serialize = "connect_ssh_host")]
+    #[strum(message = "Connect to SSH Host")]
+    ConnectSshHost,
 
     #[strum(serialize = "connect_ts_host")]
     #[strum(message = "Connect to Tailscale Host")]

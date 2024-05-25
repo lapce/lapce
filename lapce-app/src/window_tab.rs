@@ -1014,11 +1014,14 @@ impl WindowTabData {
             }
 
             // ==== Remote ====
-            ConnectSshHost => {
-                self.palette.run(PaletteKind::SshHost);
+            ConnectCustomHost => {
+                self.palette.run(PaletteKind::CustomHost);
             }
             ConnectGhHost => {
                 self.palette.run(PaletteKind::GhHost);
+            }
+            ConnectSshHost => {
+                self.palette.run(PaletteKind::SshHost);
             }
             ConnectTsHost => {
                 self.palette.run(PaletteKind::TsHost);

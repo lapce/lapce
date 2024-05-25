@@ -22,8 +22,9 @@ use self::{
     color_theme::{ColorThemeConfig, ThemeColor, ThemeColorPreference},
     core::CoreConfig,
     editor::{EditorConfig, WrapStyle, SCALE_OR_SIZE_LIMIT},
-    icon_theme::{file::FileIconThemeConfig, ui::UIIconThemeConfig},
     icon::LapceIcons,
+    icon_theme::{file::FileIconThemeConfig, ui::UIIconThemeConfig},
+    remote::RemoteConfig,
     svg::SvgStore,
     terminal::TerminalConfig,
     ui::UIConfig,
@@ -36,6 +37,7 @@ pub mod core;
 pub mod editor;
 pub mod icon;
 pub mod icon_theme;
+pub mod remote;
 pub mod svg;
 pub mod terminal;
 pub mod ui;
@@ -119,10 +121,13 @@ pub struct DropdownInfo {
 pub struct LapceConfig {
     #[serde(skip)]
     pub id: u64,
+
     pub core: CoreConfig,
-    pub ui: UIConfig,
     pub editor: EditorConfig,
+    pub remote: RemoteConfig,
     pub terminal: TerminalConfig,
+    pub ui: UIConfig,
+
     /// Current colour theme config
     #[serde(default)]
     pub color_theme: ColorThemeConfig,
@@ -287,6 +292,7 @@ impl LapceConfig {
             }
             LapceWorkspaceType::RemoteSSH(_) => {}
             LapceWorkspaceType::RemoteGH(_) => {}
+            LapceWorkspaceType::RemoteCustom(_) => {}
             LapceWorkspaceType::RemoteTS(_) => {}
             #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL(_) => {}
