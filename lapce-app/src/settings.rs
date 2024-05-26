@@ -425,7 +425,7 @@ pub fn settings_view(
             .style(|s| s.flex_col().width_pct(100.0)),
             stack((
                 switcher_item(
-                    "Plugin Settings".to_string(),
+                    "Plugins".to_string(),
                     Box::new(move || {
                         plugin_kinds
                             .with_untracked(|k| k.get(0).map(|(_, pos)| *pos))
