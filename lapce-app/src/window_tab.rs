@@ -47,7 +47,7 @@ use crate::{
         LapceWorkbenchCommand, WindowCommand,
     },
     completion::{CompletionData, CompletionStatus},
-    config::LapceConfig,
+    config::{color_theme, LapceConfig},
     db::LapceDb,
     debug::{DapData, LapceBreakpoint, RunDebugMode, RunDebugProcess},
     doc::DocContent,
@@ -777,7 +777,7 @@ impl WindowTabData {
                 self.main_split.open_settings();
             }
             OpenSettingsFile => {
-                if let Some(path) = LapceConfig::settings_file() {
+                if let Ok(path) = LapceConfig::settings_file() {
                     self.main_split.jump_to_location(
                         EditorLocation {
                             path,
@@ -791,7 +791,7 @@ impl WindowTabData {
                 }
             }
             OpenSettingsDirectory => {
-                if let Some(dir) = Directory::config_directory() {
+                if let Ok(dir) = Directory::config_directory(None) {
                     open_uri(&dir);
                 }
             }
@@ -802,7 +802,7 @@ impl WindowTabData {
                 self.main_split.open_keymap();
             }
             OpenKeyboardShortcutsFile => {
-                if let Some(path) = LapceConfig::keymaps_file() {
+                if let Ok(path) = LapceConfig::keymaps_file() {
                     self.main_split.jump_to_location(
                         EditorLocation {
                             path,
@@ -816,7 +816,7 @@ impl WindowTabData {
                 }
             }
             OpenLogFile => {
-                if let Some(dir) = Directory::logs_directory() {
+                if let Ok(dir) = Directory::logs_directory() {
                     self.open_paths(&[PathObject::from_path(
                         dir.join(format!(
                             "lapce.{}.log",
@@ -827,22 +827,22 @@ impl WindowTabData {
                 }
             }
             OpenLogsDirectory => {
-                if let Some(dir) = Directory::logs_directory() {
+                if let Ok(dir) = Directory::logs_directory() {
                     open_uri(&dir);
                 }
             }
             OpenProxyDirectory => {
-                if let Some(dir) = Directory::proxy_directory() {
+                if let Ok(dir) = Directory::proxy_directory() {
                     open_uri(&dir);
                 }
             }
             OpenThemesDirectory => {
-                if let Some(dir) = Directory::themes_directory() {
+                if let Ok(dir) = Directory::themes_directory() {
                     open_uri(&dir);
                 }
             }
             OpenPluginsDirectory => {
-                if let Some(dir) = Directory::plugins_directory() {
+                if let Ok(dir) = Directory::plugins_directory() {
                     open_uri(&dir);
                 }
             }
@@ -1105,7 +1105,7 @@ impl WindowTabData {
                 }
                 self.common.window_common.window_scale.set(scale);
 
-                LapceConfig::update_file(
+                let _ = LapceConfig::update_file(
                     "ui",
                     "scale",
                     toml_edit::Value::from(scale),
@@ -1120,7 +1120,7 @@ impl WindowTabData {
                 }
                 self.common.window_common.window_scale.set(scale);
 
-                LapceConfig::update_file(
+                let _ = LapceConfig::update_file(
                     "ui",
                     "scale",
                     toml_edit::Value::from(scale),
@@ -1129,7 +1129,7 @@ impl WindowTabData {
             ZoomReset => {
                 self.common.window_common.window_scale.set(1.0);
 
-                LapceConfig::update_file(
+                let _ = LapceConfig::update_file(
                     "ui",
                     "scale",
                     toml_edit::Value::from(1.0),
@@ -1680,11 +1680,13 @@ impl WindowTabData {
             InternalCommand::SetColorTheme { name, save } => {
                 if save {
                     // The config file is watched
-                    LapceConfig::update_file(
-                        "core",
-                        "color-theme",
+                    if let Err(e) = LapceConfig::update_file(
+                        crate::config::core::CONFIG_KEY,
+                        color_theme::CONFIG_KEY,
                         toml_edit::Value::from(name),
-                    );
+                    ) {
+                        event!(Level::ERROR, "{e}");
+                    };
                 } else {
                     let mut new_config = self.common.config.get_untracked();
                     Arc::make_mut(&mut new_config)
@@ -1695,11 +1697,13 @@ impl WindowTabData {
             InternalCommand::SetFileIconTheme { name, save } => {
                 if save {
                     // The config file is watched
-                    LapceConfig::update_file(
-                        "core",
+                    if let Err(e) = LapceConfig::update_file(
+                        crate::config::core::CONFIG_KEY,
                         "file-icon-theme",
                         toml_edit::Value::from(name),
-                    );
+                    ) {
+                        event!(Level::ERROR, "{e}");
+                    };
                 } else {
                     let mut new_config = self.common.config.get_untracked();
                     Arc::make_mut(&mut new_config)
@@ -1710,11 +1714,13 @@ impl WindowTabData {
             InternalCommand::SetUIIconTheme { name, save } => {
                 if save {
                     // The config file is watched
-                    LapceConfig::update_file(
-                        "core",
+                    if let Err(e) = LapceConfig::update_file(
+                        crate::config::core::CONFIG_KEY,
                         "ui-icon-theme",
                         toml_edit::Value::from(name),
-                    );
+                    ) {
+                        event!(Level::ERROR, "{e}");
+                    };
                 } else {
                     let mut new_config = self.common.config.get_untracked();
                     Arc::make_mut(&mut new_config)
@@ -1723,11 +1729,13 @@ impl WindowTabData {
                 }
             }
             InternalCommand::SetModal { modal } => {
-                LapceConfig::update_file(
-                    "core",
+                if let Err(e) = LapceConfig::update_file(
+                    crate::config::core::CONFIG_KEY,
                     "modal",
                     toml_edit::Value::from(modal),
-                );
+                ) {
+                    event!(Level::ERROR, "{e}");
+                };
             }
             InternalCommand::OpenWebUri { uri } => {
                 if !uri.is_empty() {

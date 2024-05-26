@@ -57,9 +57,7 @@ impl FileIconThemeConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::try_all_equal_value;
-
-    use super::FileIconThemeConfig;
+    use super::{try_all_equal_value, FileIconThemeConfig};
 
     #[test]
     fn try_all_equal_value_empty_none() {

@@ -1,15 +1,17 @@
+use std::env;
+
 use lapce_core::directory::Directory;
 use tracing::level_filters::LevelFilter;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{
-    filter,
     filter::Targets,
-    fmt::Subscriber as FmtSubscriber,
-    prelude::*,
+    fmt::{subscriber as fmt_subscriber, Subscriber as FmtSubscriber},
+    registry,
     reload::{Handle as ReloadHandle, Subscriber as ReloadSubscriber},
+    subscribe::CollectExt,
+    util::SubscriberInitExt,
+    Subscribe,
 };
-
-use crate::tracing::*;
 
 use crate::tracing::*;
 
@@ -17,21 +19,20 @@ use crate::tracing::*;
 pub(super) fn logging() -> (ReloadHandle<Targets>, Option<WorkerGuard>) {
     let (log_file, guard) = match Directory::logs_directory()
         .and_then(|dir| {
-            tracing_appender::rolling::Builder::new()
+            Ok(tracing_appender::rolling::Builder::new()
                 .max_log_files(10)
                 .rotation(tracing_appender::rolling::Rotation::DAILY)
                 .filename_prefix("lapce")
                 .filename_suffix("log")
-                .build(dir)
-                .ok()
+                .build(dir)?)
         })
         .map(tracing_appender::non_blocking)
     {
-        Some((log_file, guard)) => (Some(log_file), Some(guard)),
-        None => (None, None),
+        Ok((log_file, guard)) => (Some(log_file), Some(guard)),
+        Err(e) => panic!("Failed to obtain logs directory: {e}"),
     };
 
-    let log_file_filter_targets = filter::Targets::new()
+    let log_file_filter_targets = Targets::new()
         .with_target("lapce_app", LevelFilter::DEBUG)
         .with_target("lapce_proxy", LevelFilter::DEBUG)
         .with_target("lapce_core", LevelFilter::DEBUG)
@@ -39,14 +40,14 @@ pub(super) fn logging() -> (ReloadHandle<Targets>, Option<WorkerGuard>) {
     let (log_file_filter, reload_handle) =
         ReloadSubscriber::new(log_file_filter_targets.clone());
 
-    let console_filter_targets = std::env::var("LAPCE_LOG")
+    let console_filter_targets = env::var("LAPCE_LOG")
         .unwrap_or_default()
         .parse::<Targets>()
         .unwrap_or(log_file_filter_targets);
 
-    let registry = tracing_subscriber::registry();
+    let registry = registry();
     if let Some(log_file) = log_file {
-        let file_layer = tracing_subscriber::fmt::subscriber()
+        let file_layer = fmt_subscriber()
             .with_ansi(false)
             .with_writer(log_file)
             .with_filter(log_file_filter);

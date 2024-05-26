@@ -16,7 +16,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{Receiver, Sender};
 use dyn_clone::DynClone;
 use flate2::read::GzDecoder;
@@ -1364,7 +1364,7 @@ pub fn download_volt(volt: &VoltInfo) -> Result<VoltMetadata> {
 
     let id = volt.id();
     let plugin_dir = Directory::plugins_directory()
-        .ok_or_else(|| anyhow!("can't get plugin directory"))?
+        .context("can't get plugin directory")?
         .join(id.to_string());
     let _ = fs::remove_dir_all(&plugin_dir);
     fs::create_dir_all(&plugin_dir)?;

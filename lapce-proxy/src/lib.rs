@@ -15,7 +15,7 @@ use std::{
     thread,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Context, Result};
 use clap::Parser;
 use dispatch::Dispatcher;
 use lapce_core::{directory::Directory, meta};
@@ -136,8 +136,8 @@ pub fn register_lapce_path() -> Result<()> {
 }
 
 fn listen_local_socket(proxy_rpc: ProxyRpcHandler) -> Result<()> {
-    let local_socket = Directory::local_socket()
-        .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+    let local_socket =
+        Directory::local_socket().context("can't get local socket folder")?;
     let _ = std::fs::remove_file(&local_socket);
     let socket =
         interprocess::local_socket::LocalSocketListener::bind(local_socket)?;

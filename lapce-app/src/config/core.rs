@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 
+pub const CONFIG_KEY: &str = "core";
+
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct CoreConfig {

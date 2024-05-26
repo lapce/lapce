@@ -11,7 +11,7 @@ use std::{
     thread,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use jsonrpc_lite::{Id, Params};
 use lapce_core::directory::Directory;
 use lapce_rpc::{
@@ -264,7 +264,7 @@ pub fn load_all_volts(
 /// As well, this function skips any volt in the typical plugin directory that match the name
 /// of the dev plugin so as to support developing a plugin you actively use.
 pub fn find_all_volts(extra_plugin_paths: &[PathBuf]) -> Vec<VoltMetadata> {
-    let Some(plugin_dir) = Directory::plugins_directory() else {
+    let Ok(plugin_dir) = Directory::plugins_directory() else {
         return Vec::new();
     };
 
@@ -397,7 +397,7 @@ pub fn enable_volt(
     volt: VoltInfo,
 ) -> Result<()> {
     let path = Directory::plugins_directory()
-        .ok_or_else(|| anyhow!("can't get plugin directory"))?
+        .context("can't get plugin directory")?
         .join(volt.id().to_string());
     let meta = load_volt(&path)?;
     plugin_rpc.unactivated_volts(vec![meta])?;
