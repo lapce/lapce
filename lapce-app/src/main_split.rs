@@ -2913,7 +2913,12 @@ impl MainSplitData {
             if let Some(editor) = self.editors.editor_untracked(id) {
                 let doc = editor.doc();
                 doc.reload(
-                    Rope::from(self.common.config.get_untracked().export_theme()),
+                    Rope::from(
+                        match self.common.config.get_untracked().export_theme() {
+                            Ok(theme) => theme,
+                            Err(error) => format!("Failed to export theme: {error}"),
+                        },
+                    ),
                     true,
                 );
             }

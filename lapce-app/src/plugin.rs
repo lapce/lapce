@@ -4,7 +4,7 @@ use std::{
     sync::{atomic::AtomicU64, Arc},
 };
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use floem::{
     action::show_context_menu,
     ext_event::create_ext_action,
@@ -397,20 +397,22 @@ impl PluginData {
             cache_dir.join(filename)
         });
 
-        let cache_content =
-            cache_file_path.as_ref().and_then(|p| std::fs::read(p).ok());
+        let cache_content = cache_file_path
+            .as_ref()
+            .map(std::fs::read)
+            .map_err(|e| anyhow!("Failed to read path: {e}"))?;
 
         let content = match cache_content {
-            Some(content) => content,
-            None => {
+            Ok(content) => content,
+            Err(_) => {
                 let resp = reqwest::blocking::get(&url)?;
                 if !resp.status().is_success() {
                     return Err(anyhow::anyhow!("can't download icon"));
                 }
                 let buf = resp.bytes()?.to_vec();
 
-                if let Some(path) = cache_file_path.as_ref() {
-                    let _ = std::fs::write(path, &buf);
+                if let Ok(path) = cache_file_path.as_ref() {
+                    std::fs::write(path, &buf)?;
                 }
 
                 buf

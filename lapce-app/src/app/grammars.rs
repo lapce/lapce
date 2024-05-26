@@ -63,8 +63,8 @@ pub fn find_release() -> Result<ReleaseInfo> {
 }
 
 pub fn fetch_grammars(release: &ReleaseInfo) -> Result<()> {
-    let dir = Directory::grammars_directory()
-        .ok_or_else(|| anyhow!("can't get grammars directory"))?;
+    let dir =
+        Directory::grammars_directory().context("can't get grammars directory")?;
 
     let file_name = format!("grammars-{}-{}", env::consts::OS, env::consts::ARCH);
 
@@ -76,8 +76,8 @@ pub fn fetch_grammars(release: &ReleaseInfo) -> Result<()> {
 }
 
 pub fn fetch_queries(release: &ReleaseInfo) -> Result<()> {
-    let dir = Directory::queries_directory()
-        .ok_or_else(|| anyhow!("can't get queries directory"))?;
+    let dir =
+        Directory::queries_directory().context("can't get queries directory")?;
 
     let file_name = "queries";
 

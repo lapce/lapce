@@ -5,8 +5,14 @@ use std::{
 
 use floem::peniko::Color;
 use serde::{Deserialize, Serialize};
+use tracing::{event, Level};
 
 use super::color::LoadThemeError;
+
+pub mod dark;
+pub mod light;
+
+pub const CONFIG_KEY: &str = "color-theme";
 
 #[derive(Debug, Clone, Default)]
 pub enum ThemeColorPreference {
@@ -63,22 +69,16 @@ impl ThemeBaseConfig {
                 Ok(Some(color)) => {
                     let color = Color::parse(color)
                         .unwrap_or_else(|| {
-                            tracing::warn!(
-                                "Failed to parse color theme variable for ({key}: {value})"
-                            );
+                            event!(Level::WARN, "Failed to parse color theme variable for ({key}: {value})");
                             Color::HOT_PINK
                         });
                     base.0.insert(key.to_string(), color);
                 }
                 Ok(None) => {
-                    tracing::warn!(
-                        "Failed to resolve color theme variable for ({key}: {value})"
-                    );
+                    event!(Level::WARN, "Failed to resolve color theme variable for ({key}: {value})");
                 }
                 Err(err) => {
-                    tracing::error!(
-                        "Failed to resolve color theme variable ({key}: {value}): {err}"
-                    );
+                    event!(Level::ERROR, "Failed to resolve color theme variable ({key}: {value}): {err}");
                 }
             }
         }

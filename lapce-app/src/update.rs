@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use lapce_core::{directory::Directory, meta};
 use serde::Deserialize;
 
@@ -57,8 +57,8 @@ pub fn get_latest_release() -> Result<ReleaseInfo> {
 }
 
 pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
-    let dir =
-        Directory::updates_directory().ok_or_else(|| anyhow!("no directory"))?;
+    let dir = Directory::updates_directory()
+        .context("Failed to obtain updates directory")?;
     let name = match std::env::consts::OS {
         "macos" => "Lapce-macos.dmg",
         "linux" => match std::env::consts::ARCH {

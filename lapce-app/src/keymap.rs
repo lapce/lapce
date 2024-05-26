@@ -14,6 +14,7 @@ use floem::{
     View,
 };
 use lapce_core::mode::Modes;
+use tracing::{event, Level};
 
 use crate::{
     command::LapceCommand,
@@ -457,13 +458,15 @@ fn keyboard_picker_view(
                         if let Some(keymap) = keymap {
                             let keys = picker.keys.get_untracked();
                             picker.keymap.set(None);
-                            KeyPressData::update_file(
+                            if let Err(e) = KeyPressData::update_file(
                                 &keymap,
                                 &keys
                                     .iter()
                                     .map(|(key, _)| key.clone())
                                     .collect::<Vec<KeyMapPress>>(),
-                            );
+                            ) {
+                                event!(Level::ERROR, "{e}");
+                            };
                         }
                     }),
                 text("Cancel")

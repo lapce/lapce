@@ -1,10 +1,11 @@
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    slice,
     sync::Arc,
 };
 
-use ::core::slice;
+use anyhow::{anyhow, Result};
 use floem::peniko::Color;
 use itertools::Itertools;
 use lapce_core::directory::Directory;
@@ -62,14 +63,6 @@ static DEFAULT_DARK_THEME_CONFIG: Lazy<config::Config> = Lazy::new(|| {
         ))
         .build()
         .unwrap()
-});
-
-/// The default theme is the dark theme.
-static DEFAULT_DARK_THEME_COLOR_CONFIG: Lazy<ColorThemeConfig> = Lazy::new(|| {
-    let (_, theme) =
-        LapceConfig::load_color_theme_from_str(DEFAULT_DARK_THEME).unwrap();
-    theme.get::<ColorThemeConfig>("color-theme")
-    .expect("Failed to load default dark theme. This is likely due to a missing or misnamed field in dark-theme.toml")
 });
 
 /// Default icon theme for icons describing files
@@ -192,7 +185,7 @@ impl LapceConfig {
         workspace: &LapceWorkspace,
         disabled_volts: &[VoltID],
         extra_plugin_paths: &[PathBuf],
-    ) -> Result<Self, LapceConfigError> {
+    ) -> Result<Self> {
         let config = Self::merge_config(workspace, None, None, None);
         let mut lapce_config: LapceConfig = match config.try_deserialize() {
             Ok(config) => config,
@@ -203,11 +196,11 @@ impl LapceConfig {
         };
 
         lapce_config.available_color_themes =
-            Self::load_color_themes(disabled_volts, extra_plugin_paths);
+            Self::load_color_themes(disabled_volts, extra_plugin_paths)?;
         lapce_config.available_file_icon_themes =
-            Self::load_icon_themes(disabled_volts, extra_plugin_paths);
+            Self::load_icon_themes(disabled_volts, extra_plugin_paths)?;
         lapce_config.available_ui_icon_themes =
-            Self::load_icon_themes(disabled_volts, extra_plugin_paths);
+            Self::load_icon_themes(disabled_volts, extra_plugin_paths)?;
         lapce_config.resolve_theme(workspace, Some(&lapce_config.clone()));
 
         lapce_config.color_theme_list = lapce_config
@@ -281,7 +274,7 @@ impl LapceConfig {
                 .unwrap_or_else(|_| config.clone());
         }
 
-        if let Some(path) = Self::settings_file() {
+        if let Ok(path) = Self::settings_file() {
             config = config::Config::builder()
                 .add_source(config.clone())
                 .add_source(config::File::from(path.as_path()).required(false))
@@ -340,7 +333,7 @@ impl LapceConfig {
                 return Err(LapceConfigError::DeserError(format!("Failed to deserialize default config, this likely indicates a missing or misnamed field in settings.toml: {e}")));
             }
         };
-        default_lapce_config.color_theme = DEFAULT_DARK_THEME_COLOR_CONFIG.clone();
+        default_lapce_config.color_theme = color_theme::dark::THEME.clone();
         default_lapce_config.file_icon_theme =
             DEFAULT_FILE_ICON_THEME_ICON_CONFIG.clone();
         default_lapce_config.ui_icon_theme =
@@ -416,8 +409,8 @@ impl LapceConfig {
     fn load_color_themes(
         disabled_volts: &[VoltID],
         extra_plugin_paths: &[PathBuf],
-    ) -> HashMap<String, (String, config::Config)> {
-        let mut themes = Self::load_local_themes().unwrap_or_default();
+    ) -> Result<HashMap<String, (String, config::Config)>> {
+        let mut themes = Self::load_local_themes()?;
 
         for (key, theme) in
             Self::load_plugin_color_themes(disabled_volts, extra_plugin_paths)
@@ -425,18 +418,16 @@ impl LapceConfig {
             themes.insert(key, theme);
         }
 
-        let (name, theme) =
-            Self::load_color_theme_from_str(DEFAULT_LIGHT_THEME).unwrap();
+        let (name, theme) = Self::load_color_theme_from_str(DEFAULT_LIGHT_THEME)?;
         themes.insert(name.to_lowercase(), (name, theme));
-        let (name, theme) =
-            Self::load_color_theme_from_str(DEFAULT_DARK_THEME).unwrap();
+        let (name, theme) = Self::load_color_theme_from_str(DEFAULT_DARK_THEME)?;
         themes.insert(name.to_lowercase(), (name, theme));
 
-        themes
+        Ok(themes)
     }
 
     pub fn default_color_theme(&self) -> &ColorThemeConfig {
-        &DEFAULT_DARK_THEME_COLOR_CONFIG
+        &color_theme::dark::THEME
     }
 
     /// Set the active color theme.
@@ -536,49 +527,63 @@ impl LapceConfig {
         };
     }
 
-    fn load_local_themes() -> Option<HashMap<String, (String, config::Config)>> {
+    fn load_local_themes() -> Result<HashMap<String, (String, config::Config)>> {
         let themes_folder = Directory::themes_directory()?;
         let themes: HashMap<String, (String, config::Config)> =
-            std::fs::read_dir(themes_folder)
-                .ok()?
+            std::fs::read_dir(themes_folder)?
                 .filter_map(|entry| {
-                    entry
-                        .ok()
-                        .and_then(|entry| Self::load_color_theme(&entry.path()))
+                    if let Ok(entry) = entry {
+                        Self::load_color_theme(&entry.path()).ok()
+                    } else {
+                        None
+                    }
                 })
                 .collect();
-        Some(themes)
+        Ok(themes)
     }
 
-    fn load_color_theme(path: &Path) -> Option<(String, (String, config::Config))> {
+    fn load_color_theme(path: &Path) -> Result<(String, (String, config::Config))> {
         if !path.is_file() {
-            return None;
+            return Err(anyhow!("Provided path is not a file: {}", path.display()));
         }
         let config = config::Config::builder()
             .add_source(config::File::from(path))
-            .build()
-            .ok()?;
-        let table = config.get_table("color-theme").ok()?;
-        let name = table.get("name")?.to_string();
-        Some((name.to_lowercase(), (name, config)))
+            .build()?;
+        let table = config.get_table(color_theme::CONFIG_KEY)?;
+        let name = table
+            .get("name")
+            .ok_or(anyhow!(
+                "No key `name` available on table `{}`",
+                color_theme::CONFIG_KEY
+            ))?
+            .to_string();
+        Ok((name.to_lowercase(), (name, config)))
     }
 
     /// Load the given theme by its contents.  
     /// Returns `(name, theme fields)`
-    fn load_color_theme_from_str(s: &str) -> Option<(String, config::Config)> {
+    fn load_color_theme_from_str(
+        s: &str,
+    ) -> anyhow::Result<(String, config::Config)> {
         let config = config::Config::builder()
             .add_source(config::File::from_str(s, config::FileFormat::Toml))
-            .build()
-            .ok()?;
-        let table = config.get_table("color-theme").ok()?;
-        let name = table.get("name")?.to_string();
-        Some((name, config))
+            .build()?;
+        let table = config.get_table(color_theme::CONFIG_KEY)?;
+        let name = table
+            .get("name")
+            .ok_or(anyhow!(
+                "No key `name` available on table `{}`",
+                color_theme::CONFIG_KEY
+            ))?
+            .to_string();
+        Ok((name, config))
     }
 
+    #[allow(clippy::type_complexity)]
     fn load_icon_themes(
         disabled_volts: &[VoltID],
         extra_plugin_paths: &[PathBuf],
-    ) -> HashMap<String, (String, config::Config, Option<PathBuf>)> {
+    ) -> Result<HashMap<String, (String, config::Config, Option<PathBuf>)>> {
         let mut themes = HashMap::new();
 
         for (key, (name, theme, path)) in
@@ -587,21 +592,25 @@ impl LapceConfig {
             themes.insert(key, (name, theme, Some(path)));
         }
 
-        let (name, theme) =
-            Self::load_icon_theme_from_str(DEFAULT_UI_ICON_THEME).unwrap();
+        let (name, theme) = Self::load_icon_theme_from_str(DEFAULT_UI_ICON_THEME)?;
         themes.insert(name.to_lowercase(), (name, theme, None));
 
-        themes
+        Ok(themes)
     }
 
-    fn load_icon_theme_from_str(s: &str) -> Option<(String, config::Config)> {
+    fn load_icon_theme_from_str(s: &str) -> Result<(String, config::Config)> {
         let config = config::Config::builder()
             .add_source(config::File::from_str(s, config::FileFormat::Toml))
-            .build()
-            .ok()?;
-        let table = config.get_table("icon-theme").ok()?;
-        let name = table.get("name")?.to_string();
-        Some((name, config))
+            .build()?;
+        let table = config.get_table("icon-theme")?;
+        let name = table
+            .get("name")
+            .ok_or(anyhow!(
+                "No key `name` available on table `{}`",
+                icon_theme::CONFIG_KEY
+            ))?
+            .to_string();
+        Ok((name, config))
     }
 
     fn load_plugin_color_themes(
@@ -615,7 +624,7 @@ impl LapceConfig {
             }
             if let Some(plugin_themes) = meta.color_themes.as_ref() {
                 for theme_path in plugin_themes {
-                    if let Some((key, theme)) =
+                    if let Ok((key, theme)) =
                         Self::load_color_theme(&PathBuf::from(theme_path))
                     {
                         themes.insert(key, theme);
@@ -638,7 +647,7 @@ impl LapceConfig {
             }
             if let Some(plugin_themes) = meta.icon_themes.as_ref() {
                 for theme_path in plugin_themes {
-                    if let Some((key, theme)) =
+                    if let Ok((key, theme)) =
                         Self::load_icon_theme(&PathBuf::from(theme_path))
                     {
                         themes.insert(key, theme);
@@ -651,59 +660,69 @@ impl LapceConfig {
 
     fn load_icon_theme(
         path: &Path,
-    ) -> Option<(String, (String, config::Config, PathBuf))> {
+    ) -> Result<(String, (String, config::Config, PathBuf))> {
         if !path.is_file() {
-            return None;
+            return Err(anyhow!("Provided path is not a file: {}", path.display()));
         }
         let config = config::Config::builder()
             .add_source(config::File::from(path))
-            .build()
-            .ok()?;
-        let table = config.get_table("file-icon-theme").ok()?;
-        let name = table.get("name")?.to_string();
-        Some((
+            .build()?;
+        let table = config.get_table("file-icon-theme")?;
+        let name = table
+            .get("name")
+            .ok_or(anyhow!(
+                "No key `name` available on table `{}`",
+                icon_theme::CONFIG_KEY
+            ))?
+            .to_string();
+        Ok((
             name.to_lowercase(),
-            (name, config, path.parent().unwrap().to_path_buf()),
+            (
+                name,
+                config,
+                path.parent()
+                    .ok_or(anyhow!("Failed to obtain parent path"))?
+                    .to_path_buf(),
+            ),
         ))
     }
 
-    pub fn export_theme(&self) -> String {
+    pub fn export_theme(&self) -> Result<String> {
         let mut table = toml::value::Table::new();
         let mut theme = self.color_theme.clone();
-        theme.name = "".to_string();
+        theme.name = String::from("User Theme");
         table.insert(
-            "color-theme".to_string(),
-            toml::Value::try_from(&theme).unwrap(),
+            color_theme::CONFIG_KEY.to_string(),
+            toml::Value::try_from(&theme)?,
         );
-        table.insert("ui".to_string(), toml::Value::try_from(&self.ui).unwrap());
         let value = toml::Value::Table(table);
-        toml::to_string_pretty(&value).unwrap()
+        Ok(toml::to_string_pretty(&value)?)
     }
 
-    pub fn settings_file() -> Option<PathBuf> {
-        let path = Directory::config_directory()?.join("settings.toml");
+    pub fn settings_file() -> Result<PathBuf> {
+        let path = Directory::config_directory(None)?.join("settings.toml");
 
         if !path.exists() {
-            let _ = std::fs::OpenOptions::new()
+            std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
-                .open(&path);
+                .open(&path)?;
         }
 
-        Some(path)
+        Ok(path)
     }
 
-    pub fn keymaps_file() -> Option<PathBuf> {
-        let path = Directory::config_directory()?.join("keymaps.toml");
+    pub fn keymaps_file() -> Result<PathBuf> {
+        let path = Directory::config_directory(None)?.join("keymaps.toml");
 
         if !path.exists() {
-            let _ = std::fs::OpenOptions::new()
+            std::fs::OpenOptions::new()
                 .create_new(true)
                 .write(true)
-                .open(&path);
+                .open(&path)?;
         }
 
-        Some(path)
+        Ok(path)
     }
 
     pub fn ui_svg(&self, icon: &'static str) -> String {
@@ -969,7 +988,7 @@ impl LapceConfig {
     /// update the dropdown items.
     pub fn get_dropdown_info(&self, kind: &str, key: &str) -> Option<DropdownInfo> {
         match (kind, key) {
-            ("core", "color-theme") => Some(DropdownInfo {
+            (core::CONFIG_KEY, color_theme::CONFIG_KEY) => Some(DropdownInfo {
                 active_index: self
                     .color_theme_list
                     .iter()
@@ -977,7 +996,7 @@ impl LapceConfig {
                     .unwrap_or(0),
                 items: self.color_theme_list.clone(),
             }),
-            ("core", "file-icon-theme") => Some(DropdownInfo {
+            (core::CONFIG_KEY, "file-icon-theme") => Some(DropdownInfo {
                 active_index: self
                     .file_icon_theme_list
                     .iter()
@@ -985,7 +1004,7 @@ impl LapceConfig {
                     .unwrap_or(0),
                 items: self.file_icon_theme_list.clone(),
             }),
-            ("core", "ui-icon-theme") => Some(DropdownInfo {
+            (core::CONFIG_KEY, "ui-icon-theme") => Some(DropdownInfo {
                 active_index: self
                     .ui_icon_theme_list
                     .iter()
@@ -1041,14 +1060,14 @@ impl LapceConfig {
         }
     }
 
-    fn get_file_table() -> Option<toml_edit::Document> {
+    fn get_file_table() -> Result<toml_edit::Document> {
         let path = Self::settings_file()?;
-        let content = std::fs::read_to_string(path).ok()?;
-        let document: toml_edit::Document = content.parse().ok()?;
-        Some(document)
+        let content = std::fs::read_to_string(path)?;
+        let document: toml_edit::Document = content.parse()?;
+        Ok(document)
     }
 
-    pub fn reset_setting(parent: &str, key: &str) -> Option<()> {
+    pub fn reset_setting(parent: &str, key: &str) -> Result<()> {
         let mut main_table = Self::get_file_table().unwrap_or_default();
 
         // Find the container table
@@ -1060,16 +1079,20 @@ impl LapceConfig {
                     toml_edit::Item::Table(toml_edit::Table::default()),
                 );
             }
-            table = table.get_mut(key)?.as_table_mut()?;
+            table = table
+                .get_mut(key)
+                .ok_or(anyhow!("No key `{key}` available on table"))?
+                .as_table_mut()
+                .ok_or(anyhow!("Failed to cast as mutable for `{key}`"))?;
         }
 
         table.remove(key);
 
         // Store
         let path = Self::settings_file()?;
-        std::fs::write(path, main_table.to_string().as_bytes()).ok()?;
+        std::fs::write(path, main_table.to_string().as_bytes())?;
 
-        Some(())
+        Ok(())
     }
 
     /// Update the config file with the given edit.  
@@ -1078,7 +1101,7 @@ impl LapceConfig {
         parent: &str,
         key: &str,
         value: toml_edit::Value,
-    ) -> Option<()> {
+    ) -> Result<()> {
         // TODO: This is a hack to fix the fact that terminal default profile is saved in a
         // different manner than other fields. As it is per-operating-system.
         // Thus we have to instead set the terminal.default-profile.{OS}
@@ -1089,7 +1112,7 @@ impl LapceConfig {
             (parent, key)
         };
 
-        let mut main_table = Self::get_file_table().unwrap_or_default();
+        let mut main_table = Self::get_file_table()?;
 
         // Find the container table
         let mut table = main_table.as_table_mut();
@@ -1100,7 +1123,11 @@ impl LapceConfig {
                     toml_edit::Item::Table(toml_edit::Table::default()),
                 );
             }
-            table = table.get_mut(key)?.as_table_mut()?;
+            table = table
+                .get_mut(key)
+                .ok_or(anyhow!("No key `{key}` available on table"))?
+                .as_table_mut()
+                .ok_or(anyhow!("Failed to cast as mutable for `{key}`"))?;
         }
 
         // Update key
@@ -1108,8 +1135,8 @@ impl LapceConfig {
 
         // Store
         let path = Self::settings_file()?;
-        std::fs::write(path, main_table.to_string().as_bytes()).ok()?;
+        std::fs::write(path, main_table.to_string().as_bytes())?;
 
-        Some(())
+        Ok(())
     }
 }

@@ -25,12 +25,14 @@ use lapce_core::mode::Mode;
 use lapce_rpc::plugin::VoltID;
 use lapce_xi_rope::Rope;
 use serde::Serialize;
+use tracing::{event, Level};
 
 use crate::{
     command::CommandExecuted,
     config::{
-        color::LapceColor, core::CoreConfig, editor::EditorConfig, icon::LapceIcons,
-        terminal::TerminalConfig, ui::UIConfig, DropdownInfo, LapceConfig,
+        color::LapceColor, color_theme, core::CoreConfig, editor::EditorConfig,
+        icon::LapceIcons, terminal::TerminalConfig, ui::UIConfig, DropdownInfo,
+        LapceConfig,
     },
     keypress::KeyPressFocus,
     main_split::Editors,
@@ -603,9 +605,11 @@ fn settings_item_view(
                                     };
 
                                     if let Some(value) = value {
-                                        LapceConfig::update_file(
+                                        if let Err(e) = LapceConfig::update_file(
                                             &kind, &field, value,
-                                        );
+                                        ) {
+                                            event!(Level::ERROR, "{e}");
+                                        };
                                     }
                                 }
                             }
@@ -693,7 +697,11 @@ fn settings_item_view(
                         &checked,
                         toml_edit::ser::ValueSerializer::new(),
                     ) {
-                        LapceConfig::update_file(&kind, &field, value);
+                        if let Err(e) =
+                            LapceConfig::update_file(&kind, &field, value)
+                        {
+                            event!(Level::ERROR, "{e}");
+                        };
                     }
                 });
 
@@ -893,17 +901,32 @@ fn color_section_list(
                                             .ok();
 
                                             if let Some(value) = value {
-                                                LapceConfig::update_file(
-                                                    &format!("color-theme.{kind}"),
-                                                    &field,
-                                                    value,
-                                                );
+                                                if let Err(e) =
+                                                    LapceConfig::update_file(
+                                                        &format!(
+                                                            "{}.{kind}",
+                                                            color_theme::CONFIG_KEY
+                                                        ),
+                                                        &field,
+                                                        value,
+                                                    )
+                                                {
+                                                    event!(Level::ERROR, "{e}");
+                                                };
                                             }
                                         } else {
-                                            LapceConfig::reset_setting(
-                                                &format!("color-theme.{kind}"),
-                                                &field,
-                                            );
+                                            #[allow(clippy::collapsible_else_if)]
+                                            if let Err(e) =
+                                                LapceConfig::reset_setting(
+                                                    &format!(
+                                                        "{}.{kind}",
+                                                        color_theme::CONFIG_KEY
+                                                    ),
+                                                    &field,
+                                                )
+                                            {
+                                                event!(Level::ERROR, "{e}");
+                                            };
                                         }
                                     }
                                 }
@@ -954,10 +977,12 @@ fn color_section_list(
                         let local_kind = kind.clone();
                         text("Reset")
                             .on_click_stop(move |_| {
-                                LapceConfig::reset_setting(
+                                if let Err(e) = LapceConfig::reset_setting(
                                     &format!("color-theme.{local_kind}"),
                                     &local_key,
-                                );
+                                ) {
+                                    event!(Level::ERROR, "{e}");
+                                };
                             })
                             .style(move |s| {
                                 let doc = doc.get_untracked();
@@ -1225,7 +1250,9 @@ fn dropdown_scroll(
                     &item_string,
                     toml_edit::ser::ValueSerializer::new(),
                 ) {
-                    LapceConfig::update_file(&kind, &field, value);
+                    if let Err(e) = LapceConfig::update_file(&kind, &field, value) {
+                        event!(Level::ERROR, "{e}");
+                    };
                 }
                 expanded.set(false);
             })

@@ -2039,7 +2039,7 @@ impl LapceLanguage {
             }
         };
 
-        if let Some(grammars_dir) = Directory::grammars_directory() {
+        if let Ok(grammars_dir) = Directory::grammars_directory() {
             if let Ok(grammar) = self::load_grammar(&grammar_name, &grammars_dir) {
                 return Some(grammar);
             }
@@ -2068,7 +2068,7 @@ impl LapceLanguage {
         let query_name = self.query_name();
 
         // Try reading highlights from user config dir
-        if let Some(queries_dir) = Directory::queries_directory() {
+        if let Ok(queries_dir) = Directory::queries_directory() {
             return (
                 read_grammar_query(
                     &queries_dir,

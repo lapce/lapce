@@ -4,7 +4,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use flate2::read::GzDecoder;
 use lapce_core::{directory::Directory, meta};
 use lapce_rpc::{
@@ -311,7 +311,7 @@ fn download_remote(
         if !cmd.success() {
             let proxy_filename = format!("lapce-proxy-{platform}-{architecture}");
             let local_proxy_file = Directory::proxy_directory()
-                .ok_or_else(|| anyhow!("can't find proxy directory"))?
+                .context("can't find proxy directory")?
                 .join(&proxy_filename);
             // remove possibly outdated proxy
             if local_proxy_file.exists() {

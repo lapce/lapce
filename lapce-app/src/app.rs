@@ -3797,10 +3797,10 @@ pub fn launch() {
 
     fn watch(
         watcher: &mut notify::RecommendedWatcher,
-        path: Option<PathBuf>,
+        path: Result<PathBuf>,
         recurse_mode: notify::RecursiveMode,
     ) {
-        if let Some(path) = path {
+        if let Ok(path) = path {
             if watcher.watch(&path, recurse_mode).is_err() {
                 trace!(
                     TraceLevel::ERROR,
@@ -3947,19 +3947,17 @@ fn read_stdin() -> Result<Vec<PathObject>> {
     let i = std::io::stdin().lock().read_to_end(&mut buf)?;
     trace!(TraceLevel::INFO, "Bytes read: {i}");
 
-    if let Some(stdin_dir) = Directory::docs_dir() {
-        let mut f = tempfile::Builder::new().tempfile_in(stdin_dir)?;
-        f.write_all(&buf)?;
+    let stdin_dir = Directory::docs_dir()?;
+    let mut f = tempfile::Builder::new().tempfile_in(stdin_dir)?;
+    f.write_all(&buf)?;
 
-        let (_, path) = f.keep()?;
+    let (_, path) = f.keep()?;
 
-        return Ok(vec![PathObject {
-            path,
-            linecol: None,
-            is_dir: false,
-        }]);
-    }
-    Ok(vec![])
+    Ok(vec![PathObject {
+        path,
+        linecol: None,
+        is_dir: false,
+    }])
 }
 
 #[cfg(windows)]
@@ -4074,8 +4072,8 @@ fn load_shell_env() {
 }
 
 pub fn get_socket() -> Result<interprocess::local_socket::LocalSocketStream> {
-    let local_socket = Directory::local_socket()
-        .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+    let local_socket =
+        Directory::local_socket().context("can't get local socket folder")?;
     let socket =
         interprocess::local_socket::LocalSocketStream::connect(local_socket)?;
     Ok(socket)
@@ -4110,8 +4108,8 @@ pub fn try_open_in_existing_process(
 }
 
 fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
-    let local_socket = Directory::local_socket()
-        .ok_or_else(|| anyhow!("can't get local socket folder"))?;
+    let local_socket =
+        Directory::local_socket().context("can't get local socket folder")?;
     let _ = std::fs::remove_file(&local_socket);
     let socket =
         interprocess::local_socket::LocalSocketListener::bind(local_socket)?;
