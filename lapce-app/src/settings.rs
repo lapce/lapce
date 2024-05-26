@@ -185,7 +185,7 @@ impl SettingsData {
                 size: cx.create_rw_signal(Size::ZERO),
                 header: true,
             });
-            kinds.push_back((format!("{kind} Settings"), pos));
+            kinds.push_back((kind.to_string(), pos));
             for (name, desc) in fields.iter().zip(descs.iter()) {
                 let field = name.replace('_', "-");
 
