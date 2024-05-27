@@ -47,7 +47,7 @@ interprocess      = { version = "1.2.1" }
 itertools         = { version = "0.12.1" }
 notify            = { version = "5.2.0", features = ["serde"] }
 once_cell         = { version = "1.19" }
-parking_lot       = { version = "0.12.0" }
+parking_lot       = { version = "0.12.3" }
 rayon             = { version = "1.10.0" }
 regex             = { version = "1.10.4" }
 reqwest           = { version = "0.11", features = ["blocking", "json", "socks"] }
