@@ -2329,7 +2329,13 @@ impl WindowTabData {
                 .tab_info
                 .with_untracked(|info| info.tabs.is_empty())
         {
-            self.terminal.new_tab(None);
+            self.terminal.new_tab(
+                self.common
+                    .config
+                    .get_untracked()
+                    .terminal
+                    .get_default_profile(),
+            );
         }
         self.panel.show_panel(&kind);
         if kind == PanelKind::Search
