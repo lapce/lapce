@@ -78,7 +78,7 @@ floem-editor-core = { git = "https://github.com/lapce/floem", rev = "c9e3d6a131c
 # Temporarily patch lsp-types with a version that supports inline-completion
 lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "feaa1e2ec80975c9dadd400a238ceacf071058e6" }
 regalloc2 = { rev = "5d79e12d0a93b10fc181f4da409b4671dd365228", git = "https://github.com/bytecodealliance/regalloc2" }
-
+schannel = { git = "https://github.com/steffengy/schannel-rs", tag = "v0.1.21"}
 
 [workspace.dependencies.tracing]
 git     = "https://github.com/tokio-rs/tracing"
