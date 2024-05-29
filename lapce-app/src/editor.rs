@@ -60,11 +60,11 @@ use crate::{
     id::{DiffEditorId, EditorTabId},
     inline_completion::{InlineCompletionItem, InlineCompletionStatus},
     keypress::{condition::Condition, KeyPressFocus},
+    lsp::path_from_url,
     main_split::{Editors, MainSplitData, SplitDirection, SplitMoveDirection},
     markdown::{
         from_marked_string, from_plaintext, parse_markdown, MarkdownContent,
     },
-    proxy::path_from_url,
     snippet::Snippet,
     window_tab::{CommonData, Focus, WindowTabData},
 };

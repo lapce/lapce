@@ -61,6 +61,7 @@ use crate::{
     inline_completion::InlineCompletionData,
     keypress::{condition::Condition, EventRef, KeyPressData, KeyPressFocus},
     listener::Listener,
+    lsp::path_from_url,
     main_split::{MainSplitData, SplitData, SplitDirection, SplitMoveDirection},
     palette::{kind::PaletteKind, PaletteData, PaletteStatus},
     panel::{
@@ -69,7 +70,7 @@ use crate::{
         position::PanelContainerPosition,
     },
     plugin::PluginData,
-    proxy::{new_proxy, path_from_url, ProxyData},
+    proxy::{new_proxy, ProxyData},
     rename::RenameData,
     source_control::SourceControlData,
     terminal::{

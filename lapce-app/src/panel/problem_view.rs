@@ -16,7 +16,7 @@ use crate::{
     doc::{DiagnosticData, EditorDiagnostic},
     editor::location::{EditorLocation, EditorPosition},
     listener::Listener,
-    proxy::path_from_url,
+    lsp::path_from_url,
     window_tab::WindowTabData,
     workspace::LapceWorkspace,
 };

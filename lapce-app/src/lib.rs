@@ -21,6 +21,7 @@ pub mod inline_completion;
 pub mod keymap;
 pub mod keypress;
 pub mod listener;
+pub mod lsp;
 pub mod main_split;
 pub mod markdown;
 pub mod palette;

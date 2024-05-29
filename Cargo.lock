@@ -2987,6 +2987,7 @@ dependencies = [
  "once_cell",
  "open",
  "parking_lot",
+ "percent-encoding",
  "pulldown-cmark",
  "rayon",
  "regex",
