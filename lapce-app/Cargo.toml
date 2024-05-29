@@ -47,7 +47,7 @@ tracing-subscriber = { workspace = true }
 tracing-appender   = { workspace = true }
 url                = { workspace = true }
 
-pulldown-cmark   = "0.10.3"
+pulldown-cmark   = "0.11.0"
 Inflector        = "0.11.4"
 open             = "5.1.2"
 unicode-width    = "0.1.12"
