@@ -157,7 +157,9 @@ pub fn path_from_url(url: &Url) -> PathBuf {
     let path = url.path();
     if let Some(path) = path.strip_prefix('/') {
         event!(Level::DEBUG, "Found `/` prefix");
-        if let Some((maybe_drive_letter, path_second_part)) = path.split_once(['/', '\\']) {
+        if let Some((maybe_drive_letter, path_second_part)) =
+            path.split_once(['/', '\\'])
+        {
             event!(Level::DEBUG, maybe_drive_letter);
             event!(Level::DEBUG, path_second_part);
 
@@ -168,17 +170,18 @@ pub fn path_from_url(url: &Url) -> PathBuf {
             }
 
             match maybe_drive_letter.len() {
-                2 => {
-                    match maybe_drive_letter.chars().nth(1) {
-                        Some(':') => {
-                            event!(Level::DEBUG, "Returning path `{:?}`", path);
-                            return PathBuf::from(path);
-                        }
-                        v => {
-                            event!(Level::ERROR, "Unhandled 'maybe_drive_letter' chars: {v:?}");
-                        }
+                2 => match maybe_drive_letter.chars().nth(1) {
+                    Some(':') => {
+                        event!(Level::DEBUG, "Returning path `{:?}`", path);
+                        return PathBuf::from(path);
                     }
-                }
+                    v => {
+                        event!(
+                            Level::ERROR,
+                            "Unhandled 'maybe_drive_letter' chars: {v:?}"
+                        );
+                    }
+                },
                 4 => {
                     if maybe_drive_letter.contains("%3A") {
                         let path = path.replace("%3A", ":");
@@ -189,7 +192,10 @@ pub fn path_from_url(url: &Url) -> PathBuf {
                     }
                 }
                 v => {
-                    event!(Level::ERROR, "Unhandled 'maybe_drive_letter' length: {v}");
+                    event!(
+                        Level::ERROR,
+                        "Unhandled 'maybe_drive_letter' length: {v}"
+                    );
                 }
             }
         }

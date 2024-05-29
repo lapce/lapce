@@ -2311,7 +2311,11 @@ impl MainSplitData {
                     let path = path.clone();
                     create_ext_action(self.scope, move |result| {
                         if let Err(err) = result {
-                            event!(Level::WARN, "Failed to save as a file: {:?}", err);
+                            event!(
+                                Level::WARN,
+                                "Failed to save as a file: {:?}",
+                                err
+                            );
                         } else {
                             let syntax = Syntax::init(&path);
                             doc.content.set(DocContent::File {
@@ -2362,7 +2366,11 @@ impl MainSplitData {
                     let path = path.clone();
                     create_ext_action(self.scope, move |result| {
                         if let Err(err) = result {
-                            event!(Level::WARN, "Failed to save as a file: {:?}", err);
+                            event!(
+                                Level::WARN,
+                                "Failed to save as a file: {:?}",
+                                err
+                            );
                         } else {
                             let syntax = Syntax::init(&path);
                             doc.content.set(DocContent::File {
