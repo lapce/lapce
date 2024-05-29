@@ -150,15 +150,51 @@ impl CoreHandler for Proxy {
 // This function strips the additional / from the beginning, if the first segment is a drive letter.
 #[cfg(windows)]
 pub fn path_from_url(url: &Url) -> PathBuf {
+    use tracing::{event, Level};
+
+    event!(Level::DEBUG, "Converting `{:?}` to path", url);
+
     let path = url.path();
     if let Some(path) = path.strip_prefix('/') {
-        if let Some((maybe_drive_letter, _)) = path.split_once(['/', '\\']) {
+        event!(Level::DEBUG, "Found `/` prefix");
+        if let Some((maybe_drive_letter, path_second_part)) = path.split_once(['/', '\\']) {
+            event!(Level::DEBUG, maybe_drive_letter);
+            event!(Level::DEBUG, path_second_part);
+
             let b = maybe_drive_letter.as_bytes();
-            if b.len() == 2 && b[0].is_ascii_alphabetic() && b[1] == b':' {
-                return PathBuf::from(path);
+
+            if !b.is_empty() && !b[0].is_ascii_alphabetic() {
+                event!(Level::ERROR, "First byte is not ascii alphabetic: {b:?}");
+            }
+
+            match maybe_drive_letter.len() {
+                2 => {
+                    match maybe_drive_letter.chars().nth(1) {
+                        Some(':') => {
+                            event!(Level::DEBUG, "Returning path `{:?}`", path);
+                            return PathBuf::from(path);
+                        }
+                        v => {
+                            event!(Level::ERROR, "Unhandled 'maybe_drive_letter' chars: {v:?}");
+                        }
+                    }
+                }
+                4 => {
+                    if maybe_drive_letter.contains("%3A") {
+                        let path = path.replace("%3A", ":");
+                        event!(Level::DEBUG, "Returning path `{:?}`", path);
+                        return PathBuf::from(path);
+                    } else {
+                        event!(Level::ERROR, "Unhandled 'maybe_drive_letter' pattern: {maybe_drive_letter:?}");
+                    }
+                }
+                v => {
+                    event!(Level::ERROR, "Unhandled 'maybe_drive_letter' length: {v}");
+                }
             }
         }
     }
+    event!(Level::DEBUG, "Returning unmodified path `{:?}`", path);
     PathBuf::from(path)
 }
 

@@ -29,7 +29,7 @@ use lsp_types::{
     DocumentChanges, OneOf, Position, TextEdit, Url, WorkspaceEdit,
 };
 use serde::{Deserialize, Serialize};
-use tracing::warn;
+use tracing::{event, Level};
 
 use crate::{
     alert::AlertButton,
@@ -239,7 +239,7 @@ impl Editors {
         let id = editor.id();
         self.0.update(|editors| {
             if editors.insert(id, editor).is_some() {
-                warn!("Inserted EditorId that already exists");
+                event!(Level::WARN, "Inserted EditorId that already exists");
             }
         });
 
@@ -2311,7 +2311,7 @@ impl MainSplitData {
                     let path = path.clone();
                     create_ext_action(self.scope, move |result| {
                         if let Err(err) = result {
-                            warn!("Failed to save as a file: {:?}", err);
+                            event!(Level::WARN, "Failed to save as a file: {:?}", err);
                         } else {
                             let syntax = Syntax::init(&path);
                             doc.content.set(DocContent::File {
@@ -2362,7 +2362,7 @@ impl MainSplitData {
                     let path = path.clone();
                     create_ext_action(self.scope, move |result| {
                         if let Err(err) = result {
-                            warn!("Failed to save as a file: {:?}", err);
+                            event!(Level::WARN, "Failed to save as a file: {:?}", err);
                         } else {
                             let syntax = Syntax::init(&path);
                             doc.content.set(DocContent::File {
