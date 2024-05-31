@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -8,6 +7,7 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender};
+use dap_types::types::{Scope, SourceBreakpoint, Variable};
 use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
 use lsp_types::{
@@ -19,11 +19,12 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use super::plugin::VoltID;
 use crate::{
     buffer::BufferId,
-    dap_types::{self, DapId, RunDebugConfig, SourceBreakpoint, ThreadId},
+    dap::{Breakpoints, BreakpointsMapping, DapId, RunDebugConfig, ThreadId},
     file::{FileNodeItem, PathObject},
     plugin::{PluginId, VoltInfo, VoltMetadata},
     source_control::FileDiff,
@@ -60,10 +61,10 @@ pub struct SearchMatch {
 pub enum ProxyRequest {
     NewBuffer {
         buffer_id: BufferId,
-        path: PathBuf,
+        path: Url,
     },
     BufferHead {
-        path: PathBuf,
+        path: Url,
     },
     GlobalSearch {
         pattern: String,
@@ -81,7 +82,7 @@ pub enum ProxyRequest {
     },
     GetHover {
         request_id: usize,
-        path: PathBuf,
+        path: Url,
         position: Position,
     },
     GetSignature {
@@ -89,101 +90,101 @@ pub enum ProxyRequest {
         position: Position,
     },
     GetSelectionRange {
-        path: PathBuf,
+        path: Url,
         positions: Vec<Position>,
     },
     GitGetRemoteFileUrl {
-        file: PathBuf,
+        file: Url,
     },
     GetReferences {
-        path: PathBuf,
+        path: Url,
         position: Position,
     },
     GetDefinition {
         request_id: usize,
-        path: PathBuf,
+        path: Url,
         position: Position,
     },
     GetTypeDefinition {
         request_id: usize,
-        path: PathBuf,
+        path: Url,
         position: Position,
     },
     GetInlayHints {
-        path: PathBuf,
+        path: Url,
     },
     GetInlineCompletions {
-        path: PathBuf,
+        path: Url,
         position: Position,
         trigger_kind: InlineCompletionTriggerKind,
     },
     GetSemanticTokens {
-        path: PathBuf,
+        path: Url,
     },
     PrepareRename {
-        path: PathBuf,
+        path: Url,
         position: Position,
     },
     Rename {
-        path: PathBuf,
+        path: Url,
         position: Position,
         new_name: String,
     },
     GetCodeActions {
-        path: PathBuf,
+        path: Url,
         position: Position,
         diagnostics: Vec<Diagnostic>,
     },
     GetDocumentSymbols {
-        path: PathBuf,
+        path: Url,
     },
     GetWorkspaceSymbols {
         /// The search query
         query: String,
     },
     GetDocumentFormatting {
-        path: PathBuf,
+        path: Url,
     },
     GetOpenFilesContent {},
     GetFiles {
         path: String,
     },
     ReadDir {
-        path: PathBuf,
+        path: Url,
     },
     Save {
         rev: u64,
-        path: PathBuf,
+        path: Url,
         /// Whether to create the parent directories if they do not exist.
         create_parents: bool,
     },
     SaveBufferAs {
         buffer_id: BufferId,
-        path: PathBuf,
+        path: Url,
         rev: u64,
         content: String,
         /// Whether to create the parent directories if they do not exist.
         create_parents: bool,
     },
     CreateFile {
-        path: PathBuf,
+        path: Url,
     },
     CreateDirectory {
-        path: PathBuf,
+        path: Url,
     },
     TrashPath {
-        path: PathBuf,
+        path: Url,
     },
     DuplicatePath {
-        existing_path: PathBuf,
-        new_path: PathBuf,
+        existing_path: Url,
+        new_path: Url,
     },
     RenamePath {
-        from: PathBuf,
-        to: PathBuf,
+        from: Url,
+        to: Url,
     },
     TestCreateAtPath {
-        path: PathBuf,
+        path: Url,
     },
     DapVariable {
         dap_id: DapId,
@@ -200,16 +201,16 @@ pub enum ProxyRequest {
 #[serde(tag = "method", content = "params")]
 pub enum ProxyNotification {
     Initialize {
-        workspace: Option<PathBuf>,
+        workspace: Option<Url>,
         disabled_volts: Vec<VoltID>,
         /// Paths to extra plugins that should be loaded
-        extra_plugin_paths: Vec<PathBuf>,
+        extra_plugin_paths: Vec<Url>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
     },
     OpenFileChanged {
-        path: PathBuf,
+        path: Url,
     },
     OpenPaths {
         paths: Vec<PathObject>,
@@ -217,17 +218,17 @@ pub enum ProxyNotification {
     Shutdown {},
     Completion {
         request_id: usize,
-        path: PathBuf,
+        path: Url,
         input: String,
         position: Position,
     },
     SignatureHelp {
         request_id: usize,
-        path: PathBuf,
+        path: Url,
         position: Position,
     },
     Update {
-        path: PathBuf,
+        path: Url,
         delta: RopeDelta,
         rev: u64,
     },
@@ -261,7 +262,7 @@ pub enum ProxyNotification {
         reference: String,
     },
     GitDiscardFilesChanges {
-        files: Vec<PathBuf>,
+        files: Vec<Url>,
     },
     GitDiscardWorkspaceChanges {},
     GitInit {},
@@ -279,7 +280,7 @@ pub enum ProxyNotification {
     },
     DapStart {
         config: RunDebugConfig,
-        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+        breakpoints: HashMap<Url, Vec<SourceBreakpoint>>,
     },
     DapProcessId {
         dap_id: DapId,
@@ -314,12 +315,12 @@ pub enum ProxyNotification {
     },
     DapRestart {
         dap_id: DapId,
-        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+        breakpoints: BreakpointsMapping,
     },
     DapSetBreakpoints {
         dap_id: DapId,
-        path: PathBuf,
-        breakpoints: Vec<SourceBreakpoint>,
+        path: Url,
+        breakpoints: Breakpoints,
     },
 }
 
@@ -367,7 +368,7 @@ pub enum ProxyResponse {
         resp: CodeActionResponse,
     },
     GetFilesResponse {
-        items: Vec<PathBuf>,
+        items: Vec<Url>,
     },
     GetDocumentFormatting {
         edits: Vec<TextEdit>,
@@ -400,16 +401,16 @@ pub enum ProxyResponse {
         items: Vec<TextDocumentItem>,
     },
     GlobalSearchResponse {
-        matches: IndexMap<PathBuf, Vec<SearchMatch>>,
+        matches: IndexMap<Url, Vec<SearchMatch>>,
     },
     DapVariableResponse {
-        varialbes: Vec<dap_types::Variable>,
+        varialbes: Vec<Variable>,
     },
     DapGetScopesResponse {
-        scopes: Vec<(dap_types::Scope, Vec<dap_types::Variable>)>,
+        scopes: Vec<(Scope, Vec<Variable>)>,
     },
     CreatePathResponse {
-        path: PathBuf,
+        path: Url,
     },
     Success {},
     SaveResponse {},
@@ -419,7 +420,7 @@ pub type ProxyMessage = RpcMessage<ProxyRequest, ProxyNotification, ProxyRespons
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReadDirResponse {
-    pub items: HashMap<PathBuf, FileNodeItem>,
+    pub items: HashMap<Url, FileNodeItem>,
 }
 
 pub trait ProxyCallback: Send + FnOnce(Result<ProxyResponse, RpcError>) {}
@@ -532,6 +533,14 @@ impl ProxyRpcHandler {
         let _ = self.tx.send(ProxyRpc::Notification(notification));
     }
 
+    pub fn get_os(&self) -> &'static str {
+        std::env::consts::OS
+    }
+
+    pub fn get_arch(&self) -> &'static str {
+        std::env::consts::ARCH
+    }
+
     pub fn git_init(&self) {
         self.notification(ProxyNotification::GitInit {});
     }
@@ -571,9 +580,9 @@ impl ProxyRpcHandler {
 
     pub fn initialize(
         &self,
-        workspace: Option<PathBuf>,
+        workspace: Option<Url>,
         disabled_volts: Vec<VoltID>,
-        extra_plugin_paths: Vec<PathBuf>,
+        extra_plugin_paths: Vec<Url>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         window_id: usize,
         tab_id: usize,
@@ -591,7 +600,7 @@ impl ProxyRpcHandler {
     pub fn completion(
         &self,
         request_id: usize,
-        path: PathBuf,
+        path: Url,
         input: String,
         position: Position,
     ) {
@@ -603,12 +612,7 @@ impl ProxyRpcHandler {
         });
     }
 
-    pub fn signature_help(
-        &self,
-        request_id: usize,
-        path: PathBuf,
-        position: Position,
-    ) {
+    pub fn signature_help(&self, request_id: usize, path: Url, position: Position) {
         self.notification(ProxyNotification::SignatureHelp {
             request_id,
             path,
@@ -639,32 +643,32 @@ impl ProxyRpcHandler {
     pub fn new_buffer(
         &self,
         buffer_id: BufferId,
-        path: PathBuf,
+        path: Url,
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::NewBuffer { buffer_id, path }, f);
     }
 
-    pub fn get_buffer_head(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+    pub fn get_buffer_head(&self, path: Url, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::BufferHead { path }, f);
     }
 
-    pub fn create_file(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+    pub fn create_file(&self, path: Url, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::CreateFile { path }, f);
     }
 
-    pub fn create_directory(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+    pub fn create_directory(&self, path: Url, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::CreateDirectory { path }, f);
     }
 
-    pub fn trash_path(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+    pub fn trash_path(&self, path: Url, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::TrashPath { path }, f);
     }
 
     pub fn duplicate_path(
         &self,
-        existing_path: PathBuf,
-        new_path: PathBuf,
+        existing_path: Url,
+        new_path: Url,
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(
@@ -676,27 +680,18 @@ impl ProxyRpcHandler {
         );
     }
 
-    pub fn rename_path(
-        &self,
-        from: PathBuf,
-        to: PathBuf,
-        f: impl ProxyCallback + 'static,
-    ) {
+    pub fn rename_path(&self, from: Url, to: Url, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::RenamePath { from, to }, f);
     }
 
-    pub fn test_create_at_path(
-        &self,
-        path: PathBuf,
-        f: impl ProxyCallback + 'static,
-    ) {
+    pub fn test_create_at_path(&self, path: Url, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::TestCreateAtPath { path }, f);
     }
 
     pub fn save_buffer_as(
         &self,
         buffer_id: BufferId,
-        path: PathBuf,
+        path: Url,
         rev: u64,
         content: String,
         create_parents: bool,
@@ -736,7 +731,7 @@ impl ProxyRpcHandler {
     pub fn save(
         &self,
         rev: u64,
-        path: PathBuf,
+        path: Url,
         create_parents: bool,
         f: impl ProxyCallback + 'static,
     ) {
@@ -763,7 +758,7 @@ impl ProxyRpcHandler {
         self.request(ProxyRequest::GetOpenFilesContent {})
     }
 
-    pub fn read_dir(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+    pub fn read_dir(&self, path: Url, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::ReadDir { path }, f);
     }
 
@@ -800,7 +795,7 @@ impl ProxyRpcHandler {
     pub fn get_hover(
         &self,
         request_id: usize,
-        path: PathBuf,
+        path: Url,
         position: Position,
         f: impl ProxyCallback + 'static,
     ) {
@@ -817,7 +812,7 @@ impl ProxyRpcHandler {
     pub fn get_definition(
         &self,
         request_id: usize,
-        path: PathBuf,
+        path: Url,
         position: Position,
         f: impl ProxyCallback + 'static,
     ) {
@@ -834,7 +829,7 @@ impl ProxyRpcHandler {
     pub fn get_type_definition(
         &self,
         request_id: usize,
-        path: PathBuf,
+        path: Url,
         position: Position,
         f: impl ProxyCallback + 'static,
     ) {
@@ -850,7 +845,7 @@ impl ProxyRpcHandler {
 
     pub fn get_references(
         &self,
-        path: PathBuf,
+        path: Url,
         position: Position,
         f: impl ProxyCallback + 'static,
     ) {
@@ -859,7 +854,7 @@ impl ProxyRpcHandler {
 
     pub fn get_code_actions(
         &self,
-        path: PathBuf,
+        path: Url,
         position: Position,
         diagnostics: Vec<Diagnostic>,
         f: impl ProxyCallback + 'static,
@@ -876,25 +871,17 @@ impl ProxyRpcHandler {
 
     pub fn get_document_formatting(
         &self,
-        path: PathBuf,
+        path: Url,
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::GetDocumentFormatting { path }, f);
     }
 
-    pub fn get_semantic_tokens(
-        &self,
-        path: PathBuf,
-        f: impl ProxyCallback + 'static,
-    ) {
+    pub fn get_semantic_tokens(&self, path: Url, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::GetSemanticTokens { path }, f);
     }
 
-    pub fn get_document_symbols(
-        &self,
-        path: PathBuf,
-        f: impl ProxyCallback + 'static,
-    ) {
+    pub fn get_document_symbols(&self, path: Url, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::GetDocumentSymbols { path }, f);
     }
 
@@ -908,7 +895,7 @@ impl ProxyRpcHandler {
 
     pub fn prepare_rename(
         &self,
-        path: PathBuf,
+        path: Url,
         position: Position,
         f: impl ProxyCallback + 'static,
     ) {
@@ -917,7 +904,7 @@ impl ProxyRpcHandler {
 
     pub fn git_get_remote_file_url(
         &self,
-        file: PathBuf,
+        file: Url,
         f: impl ProxyCallback + 'static,
     ) {
         self.request_async(ProxyRequest::GitGetRemoteFileUrl { file }, f);
@@ -925,7 +912,7 @@ impl ProxyRpcHandler {
 
     pub fn rename(
         &self,
-        path: PathBuf,
+        path: Url,
         position: Position,
         new_name: String,
         f: impl ProxyCallback + 'static,
@@ -940,13 +927,13 @@ impl ProxyRpcHandler {
         );
     }
 
-    pub fn get_inlay_hints(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+    pub fn get_inlay_hints(&self, path: Url, f: impl ProxyCallback + 'static) {
         self.request_async(ProxyRequest::GetInlayHints { path }, f);
     }
 
     pub fn get_inline_completions(
         &self,
-        path: PathBuf,
+        path: Url,
         position: Position,
         trigger_kind: InlineCompletionTriggerKind,
         f: impl ProxyCallback + 'static,
@@ -961,7 +948,7 @@ impl ProxyRpcHandler {
         );
     }
 
-    pub fn update(&self, path: PathBuf, delta: RopeDelta, rev: u64) {
+    pub fn update(&self, path: Url, delta: RopeDelta, rev: u64) {
         self.notification(ProxyNotification::Update { path, delta, rev });
     }
 
@@ -972,7 +959,7 @@ impl ProxyRpcHandler {
         self.notification(ProxyNotification::UpdatePluginConfigs { configs });
     }
 
-    pub fn git_discard_files_changes(&self, files: Vec<PathBuf>) {
+    pub fn git_discard_files_changes(&self, files: Vec<Url>) {
         self.notification(ProxyNotification::GitDiscardFilesChanges { files });
     }
 
@@ -982,7 +969,7 @@ impl ProxyRpcHandler {
 
     pub fn get_selection_range(
         &self,
-        path: PathBuf,
+        path: Url,
         positions: Vec<Position>,
         f: impl ProxyCallback + 'static,
     ) {
@@ -992,7 +979,7 @@ impl ProxyRpcHandler {
     pub fn dap_start(
         &self,
         config: RunDebugConfig,
-        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
+        breakpoints: HashMap<Url, Vec<SourceBreakpoint>>,
     ) {
         self.notification(ProxyNotification::DapStart {
             config,
@@ -1013,11 +1000,7 @@ impl ProxyRpcHandler {
         })
     }
 
-    pub fn dap_restart(
-        &self,
-        dap_id: DapId,
-        breakpoints: HashMap<PathBuf, Vec<SourceBreakpoint>>,
-    ) {
+    pub fn dap_restart(&self, dap_id: DapId, breakpoints: BreakpointsMapping) {
         self.notification(ProxyNotification::DapRestart {
             dap_id,
             breakpoints,
@@ -1055,8 +1038,8 @@ impl ProxyRpcHandler {
     pub fn dap_set_breakpoints(
         &self,
         dap_id: DapId,
-        path: PathBuf,
-        breakpoints: Vec<SourceBreakpoint>,
+        path: Url,
+        breakpoints: Breakpoints,
     ) {
         self.notification(ProxyNotification::DapSetBreakpoints {
             dap_id,

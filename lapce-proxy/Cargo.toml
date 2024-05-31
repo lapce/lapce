@@ -32,6 +32,7 @@ tracing            = { workspace = true }
 tracing-log        = { workspace = true }
 url                = { workspace = true }
 
+dap-types = { workspace = true }
 lsp-types = { workspace = true }
 psp-types = { workspace = true }
 
@@ -70,6 +71,9 @@ wasi-common   = "14.0.0"
 [dependencies.wasi-experimental-http-wasmtime]
 git = "https://github.com/lapce/wasi-experimental-http"
 # path = "../../wasi-experimental-http/crates/wasi-experimental-http-wasmtime"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = {workspace = true}
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.25"

@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
     collections::HashMap,
-    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -56,6 +55,7 @@ use psp_types::{
 };
 use serde::Serialize;
 use serde_json::Value;
+use url::Url;
 
 use super::{
     lsp::{DocumentFilter, LspClient},
@@ -116,14 +116,14 @@ pub enum PluginServerRpc {
         method: Cow<'static, str>,
         params: Params,
         language_id: Option<String>,
-        path: Option<PathBuf>,
+        path: Option<Url>,
         rh: ResponseHandler<Value, RpcError>,
     },
     ServerNotification {
         method: Cow<'static, str>,
         params: Params,
         language_id: Option<String>,
-        path: Option<PathBuf>,
+        path: Option<Url>,
     },
     HostRequest {
         id: Id,
@@ -137,7 +137,7 @@ pub enum PluginServerRpc {
     },
     DidSaveTextDocument {
         language_id: String,
-        path: PathBuf,
+        path: Url,
         text_document: TextDocumentIdentifier,
         text: Rope,
     },
@@ -206,7 +206,7 @@ pub trait PluginServerHandler {
     fn document_supported(
         &mut self,
         language_id: Option<&str>,
-        path: Option<&Path>,
+        path: Option<&Url>,
     ) -> bool;
     fn method_registered(&mut self, method: &str) -> bool;
     fn handle_host_notification(&mut self, method: String, params: Params);
@@ -224,7 +224,7 @@ pub trait PluginServerHandler {
     fn handle_did_save_text_document(
         &self,
         language_id: String,
-        path: PathBuf,
+        path: Url,
         text_document: TextDocumentIdentifier,
         text: Rope,
     );
@@ -315,7 +315,7 @@ impl PluginServerRpcHandler {
         method: impl Into<Cow<'static, str>>,
         params: P,
         language_id: Option<String>,
-        path: Option<PathBuf>,
+        path: Option<Url>,
         check: bool,
     ) {
         let params = Params::from(serde_json::to_value(params).unwrap());
@@ -344,7 +344,7 @@ impl PluginServerRpcHandler {
         method: impl Into<Cow<'static, str>>,
         params: P,
         language_id: Option<String>,
-        path: Option<PathBuf>,
+        path: Option<Url>,
         check: bool,
     ) -> Result<Value, RpcError> {
         let (tx, rx) = crossbeam_channel::bounded(1);
@@ -369,7 +369,7 @@ impl PluginServerRpcHandler {
         method: impl Into<Cow<'static, str>>,
         params: P,
         language_id: Option<String>,
-        path: Option<PathBuf>,
+        path: Option<Url>,
         check: bool,
         f: impl RpcCallback<Value, RpcError> + 'static,
     ) {
@@ -388,7 +388,7 @@ impl PluginServerRpcHandler {
         method: Cow<'static, str>,
         params: P,
         language_id: Option<String>,
-        path: Option<PathBuf>,
+        path: Option<Url>,
         check: bool,
         rh: ResponseHandler<Value, RpcError>,
     ) {
@@ -438,7 +438,7 @@ impl PluginServerRpcHandler {
                     rh,
                 } => {
                     if handler
-                        .document_supported(language_id.as_deref(), path.as_deref())
+                        .document_supported(language_id.as_deref(), path.as_ref())
                         && handler.method_registered(&method)
                     {
                         self.send_server_request(id, &method, params, rh);
@@ -456,7 +456,7 @@ impl PluginServerRpcHandler {
                     path,
                 } => {
                     if handler
-                        .document_supported(language_id.as_deref(), path.as_deref())
+                        .document_supported(language_id.as_deref(), path.as_ref())
                         && handler.method_registered(&method)
                     {
                         self.send_server_notification(&method, params);
@@ -590,8 +590,8 @@ struct ServerRegistrations {
 pub struct PluginHostHandler {
     volt_id: VoltID,
     volt_display_name: String,
-    pwd: Option<PathBuf>,
-    pub(crate) workspace: Option<PathBuf>,
+    pwd: Option<Url>,
+    pub(crate) workspace: Option<Url>,
     document_selector: Vec<DocumentFilter>,
     core_rpc: CoreRpcHandler,
     catalog_rpc: PluginCatalogRpcHandler,
@@ -607,8 +607,8 @@ pub struct PluginHostHandler {
 impl PluginHostHandler {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        workspace: Option<PathBuf>,
-        pwd: Option<PathBuf>,
+        workspace: Option<Url>,
+        pwd: Option<Url>,
         volt_id: VoltID,
         volt_display_name: String,
         document_selector: DocumentSelector,
@@ -638,7 +638,7 @@ impl PluginHostHandler {
     pub fn document_supported(
         &self,
         language_id: Option<&str>,
-        path: Option<&Path>,
+        path: Option<&Url>,
     ) -> bool {
         match language_id {
             Some(language_id) => {
@@ -647,11 +647,9 @@ impl PluginHostHandler {
                         || filter.language_id.as_deref() == Some(language_id))
                         && (path.is_none()
                             || filter.pattern.is_none()
-                            || filter
-                                .pattern
-                                .as_ref()
-                                .unwrap()
-                                .is_match(path.as_ref().unwrap()))
+                            || filter.pattern.as_ref().unwrap().is_match(
+                                path.and_then(|p| p.to_file_path().ok()).unwrap(),
+                            ))
                     {
                         return true;
                     }
@@ -784,7 +782,7 @@ impl PluginHostHandler {
         }
     }
 
-    fn check_save_capability(&self, language_id: &str, path: &Path) -> (bool, bool) {
+    fn check_save_capability(&self, language_id: &str, path: &Url) -> (bool, bool) {
         if self.document_supported(Some(language_id), Some(path)) {
             let (should_send, include_text) = self
                 .server_capabilities
@@ -812,7 +810,11 @@ impl PluginHostHandler {
                 if (filter.language_id.is_none()
                     || filter.language_id.as_deref() == Some(language_id))
                     && (filter.pattern.is_none()
-                        || filter.pattern.as_ref().unwrap().is_match(path))
+                        || filter
+                            .pattern
+                            .as_ref()
+                            .unwrap()
+                            .is_match(path.to_file_path().unwrap()))
                 {
                     return (true, options.include_text);
                 }
@@ -1089,7 +1091,7 @@ impl PluginHostHandler {
     pub fn handle_did_save_text_document(
         &self,
         language_id: String,
-        path: PathBuf,
+        path: Url,
         text_document: TextDocumentIdentifier,
         text: Rope,
     ) {
@@ -1117,7 +1119,7 @@ impl PluginHostHandler {
 
     pub fn handle_did_change_text_document(
         &mut self,
-        lanaguage_id: String,
+        language_id: String,
         document: VersionedTextDocumentIdentifier,
         delta: RopeDelta,
         text: Rope,
@@ -1170,7 +1172,7 @@ impl PluginHostHandler {
             _ => return,
         };
 
-        let path = document.uri.to_file_path().ok();
+        let path = document.uri.clone();
 
         let params = DidChangeTextDocumentParams {
             text_document: document,
@@ -1180,8 +1182,8 @@ impl PluginHostHandler {
         self.server_rpc.server_notification(
             DidChangeTextDocument::METHOD,
             params,
-            Some(lanaguage_id),
-            path,
+            Some(language_id),
+            Some(path),
             false,
         );
     }

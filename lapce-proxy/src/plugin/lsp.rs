@@ -1,8 +1,5 @@
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
 use std::{
     io::{BufRead, BufReader, BufWriter, Write},
-    path::{Path, PathBuf},
     process::{self, Child, Command, Stdio},
     sync::Arc,
     thread,
@@ -61,7 +58,7 @@ pub struct LspClient {
     plugin_rpc: PluginCatalogRpcHandler,
     server_rpc: PluginServerRpcHandler,
     process: Child,
-    workspace: Option<PathBuf>,
+    workspace: Option<Url>,
     host: PluginHostHandler,
     options: Option<Value>,
 }
@@ -74,7 +71,7 @@ impl PluginServerHandler for LspClient {
     fn document_supported(
         &mut self,
         lanaguage_id: Option<&str>,
-        path: Option<&Path>,
+        path: Option<&Url>,
     ) -> bool {
         self.host.document_supported(lanaguage_id, path)
     }
@@ -115,7 +112,7 @@ impl PluginServerHandler for LspClient {
     fn handle_did_save_text_document(
         &self,
         language_id: String,
-        path: PathBuf,
+        path: Url,
         text_document: TextDocumentIdentifier,
         text: lapce_xi_rope::Rope,
     ) {
@@ -166,12 +163,12 @@ impl LspClient {
     fn new(
         plugin_rpc: PluginCatalogRpcHandler,
         document_selector: DocumentSelector,
-        workspace: Option<PathBuf>,
+        workspace: Option<Url>,
         volt_id: VoltID,
         volt_display_name: String,
         spawned_by: Option<PluginId>,
         plugin_id: Option<PluginId>,
-        pwd: Option<PathBuf>,
+        pwd: Option<Url>,
         server_uri: Url,
         args: Vec<String>,
         options: Option<Value>,
@@ -303,12 +300,12 @@ impl LspClient {
     pub fn start(
         plugin_rpc: PluginCatalogRpcHandler,
         document_selector: DocumentSelector,
-        workspace: Option<PathBuf>,
+        workspace: Option<Url>,
         volt_id: VoltID,
         volt_display_name: String,
         spawned_by: Option<PluginId>,
         plugin_id: Option<PluginId>,
-        pwd: Option<PathBuf>,
+        pwd: Option<Url>,
         server_uri: Url,
         args: Vec<String>,
         options: Option<Value>,
@@ -336,10 +333,8 @@ impl LspClient {
     }
 
     fn initialize(&mut self) {
-        let root_uri = self
-            .workspace
-            .clone()
-            .map(|p| Url::from_directory_path(p).unwrap());
+        let root_uri = self.workspace.clone();
+
         #[allow(deprecated)]
         let params = InitializeParams {
             process_id: Some(process::id()),
@@ -404,19 +399,28 @@ impl LspClient {
     }
 
     fn process(
-        workspace: Option<&PathBuf>,
+        workspace: Option<&Url>,
         server: &str,
         args: &[String],
     ) -> Result<Child> {
         let mut process = Command::new(server);
         if let Some(workspace) = workspace {
-            process.current_dir(workspace);
+            if let Ok(workspace) = workspace.to_file_path() {
+                process.current_dir(workspace);
+            }
         }
 
         process.args(args);
 
         #[cfg(target_os = "windows")]
-        let process = process.creation_flags(0x08000000);
+        let process = {
+            use std::os::windows::process::CommandExt;
+
+            process.creation_flags(
+                windows_sys::Win32::System::Threading::CREATE_NO_WINDOW,
+            )
+        };
+
         let child = process
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

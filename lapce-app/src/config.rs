@@ -1,10 +1,10 @@
-use ::core::slice;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
+use ::core::slice;
 use floem::peniko::Color;
 use itertools::Itertools;
 use lapce_core::directory::Directory;

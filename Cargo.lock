@@ -1244,6 +1244,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "dap"
+version = "0.4.1-alpha1"
+source = "git+https://github.com/lapce/dap-types?rev=913a2a520416a2a81a1f09a7946f595d5ae3ee4a#913a2a520416a2a81a1f09a7946f595d5ae3ee4a"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "darling"
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2966,6 +2976,7 @@ dependencies = [
  "config",
  "criterion",
  "crossbeam-channel",
+ "dap",
  "directories",
  "dmg",
  "flate2",
@@ -3054,6 +3065,7 @@ dependencies = [
  "clap",
  "cocoa",
  "crossbeam-channel",
+ "dap",
  "directories",
  "dyn-clone",
  "flate2",
@@ -3097,6 +3109,7 @@ dependencies = [
  "wasi-experimental-http-wasmtime",
  "wasmtime",
  "wasmtime-wasi",
+ "windows-sys 0.36.1",
  "zstd",
 ]
 
@@ -3106,6 +3119,7 @@ version = "0.4.0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
+ "dap",
  "human-sort",
  "indexmap",
  "lapce-xi-rope",

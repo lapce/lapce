@@ -8,17 +8,20 @@ use std::{
 };
 
 use crossbeam_channel::{Receiver, Sender};
+use dap_types::{
+    events::StoppedEventBody,
+    types::{Breakpoint, Scope, StackFrame, Variable},
+};
 use lsp_types::{
     CompletionResponse, LogMessageParams, ProgressParams, PublishDiagnosticsParams,
     ShowMessageParams, SignatureHelp,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::{
-    dap_types::{
-        self, DapId, RunDebugConfig, Scope, StackFrame, Stopped, ThreadId, Variable,
-    },
+    dap::{DapId, RunDebugConfig, ThreadId},
     file::PathObject,
     plugin::{PluginId, VoltInfo, VoltMetadata},
     proxy::ProxyStatus,
@@ -41,7 +44,7 @@ pub enum CoreNotification {
         status: ProxyStatus,
     },
     OpenFileChanged {
-        path: PathBuf,
+        path: Url,
         content: String,
     },
     CompletionResponse {
@@ -120,7 +123,7 @@ pub enum CoreNotification {
     },
     DapStopped {
         dap_id: DapId,
-        stopped: Stopped,
+        stopped: StoppedEventBody,
         stack_frames: HashMap<ThreadId, Vec<StackFrame>>,
         variables: Vec<(Scope, Vec<Variable>)>,
     },
@@ -130,7 +133,7 @@ pub enum CoreNotification {
     DapBreakpointsResp {
         dap_id: DapId,
         path: PathBuf,
-        breakpoints: Vec<dap_types::Breakpoint>,
+        breakpoints: Vec<Breakpoint>,
     },
 }
 
@@ -235,7 +238,7 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::DiffInfo { diff });
     }
 
-    pub fn open_file_changed(&self, path: PathBuf, content: String) {
+    pub fn open_file_changed(&self, path: Url, content: String) {
         self.notification(CoreNotification::OpenFileChanged { path, content });
     }
 
@@ -356,7 +359,7 @@ impl CoreRpcHandler {
         &self,
         dap_id: DapId,
         path: PathBuf,
-        breakpoints: Vec<dap_types::Breakpoint>,
+        breakpoints: Vec<Breakpoint>,
     ) {
         self.notification(CoreNotification::DapBreakpointsResp {
             dap_id,

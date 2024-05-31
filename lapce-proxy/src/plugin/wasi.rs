@@ -5,7 +5,7 @@ use std::{
     collections::{HashMap, VecDeque},
     fs,
     io::{Read, Seek, Write},
-    path::{Path, PathBuf},
+    path::Path,
     process,
     sync::{Arc, RwLock},
     thread,
@@ -23,12 +23,13 @@ use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     notification::Initialized, request::Initialize, DocumentFilter,
     InitializeParams, InitializedParams, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, Url, VersionedTextDocumentIdentifier,
-    WorkDoneProgressParams, WorkspaceFolder,
+    TextDocumentIdentifier, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    WorkspaceFolder,
 };
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
 use serde_json::Value;
+use url::Url;
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
 
@@ -97,7 +98,7 @@ impl PluginServerHandler for Plugin {
     fn document_supported(
         &mut self,
         language_id: Option<&str>,
-        path: Option<&Path>,
+        path: Option<&Url>,
     ) -> bool {
         self.host.document_supported(language_id, path)
     }
@@ -140,7 +141,7 @@ impl PluginServerHandler for Plugin {
     fn handle_did_save_text_document(
         &self,
         language_id: String,
-        path: PathBuf,
+        path: Url,
         text_document: TextDocumentIdentifier,
         text: Rope,
     ) {
@@ -190,7 +191,7 @@ impl Plugin {
     fn initialize(&mut self) {
         let workspace = self.host.workspace.clone();
         let configurations = self.configurations.as_ref().map(unflatten_map);
-        let root_uri = workspace.map(|p| Url::from_directory_path(p).unwrap());
+        let root_uri = workspace.clone();
         let server_rpc = self.host.server_rpc.clone();
         self.host.server_rpc.server_request_async(
             Initialize::METHOD,
@@ -239,7 +240,7 @@ impl Plugin {
 
 pub fn load_all_volts(
     plugin_rpc: PluginCatalogRpcHandler,
-    extra_plugin_paths: &[PathBuf],
+    extra_plugin_paths: &[Url],
     disabled_volts: Vec<VoltID>,
 ) {
     let all_volts = find_all_volts(extra_plugin_paths);
@@ -263,7 +264,7 @@ pub fn load_all_volts(
 /// purposes.  
 /// As well, this function skips any volt in the typical plugin directory that match the name
 /// of the dev plugin so as to support developing a plugin you actively use.
-pub fn find_all_volts(extra_plugin_paths: &[PathBuf]) -> Vec<VoltMetadata> {
+pub fn find_all_volts(extra_plugin_paths: &[Url]) -> Vec<VoltMetadata> {
     let Some(plugin_dir) = Directory::plugins_directory() else {
         return Vec::new();
     };
@@ -294,7 +295,8 @@ pub fn find_all_volts(extra_plugin_paths: &[PathBuf]) -> Vec<VoltMetadata> {
         .collect();
 
     for plugin_path in extra_plugin_paths {
-        let mut metadata = match load_volt(plugin_path) {
+        let plugin_path = plugin_path.to_file_path().unwrap();
+        let mut metadata = match load_volt(&plugin_path) {
             Ok(metadata) => metadata,
             Err(e) => {
                 tracing::error!("Failed to load extra plugin: {:?}", e);
@@ -405,7 +407,7 @@ pub fn enable_volt(
 }
 
 pub fn start_volt(
-    workspace: Option<PathBuf>,
+    workspace: Option<Url>,
     configurations: Option<HashMap<String, serde_json::Value>>,
     plugin_rpc: PluginCatalogRpcHandler,
     meta: VoltMetadata,
@@ -542,7 +544,9 @@ pub fn start_volt(
         id,
         host: PluginHostHandler::new(
             workspace,
-            meta.dir.clone(),
+            meta.dir
+                .clone()
+                .and_then(|d| Url::from_directory_path(d).ok()),
             meta.id(),
             meta.display_name.clone(),
             meta.activation

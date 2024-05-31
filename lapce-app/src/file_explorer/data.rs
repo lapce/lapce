@@ -25,6 +25,8 @@ use lapce_rpc::{
     file::{Duplicating, FileNodeItem, Naming, NamingState, NewNode, Renaming},
     proxy::ProxyResponse,
 };
+use tracing::{event, Level};
+use url::Url;
 
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand, LapceCommand},
@@ -37,10 +39,7 @@ use crate::{
 enum RenamedPath {
     NotRenaming,
     NameUnchanged,
-    Renamed {
-        current_path: PathBuf,
-        new_path: PathBuf,
-    },
+    Renamed { current_path: Url, new_path: Url },
 }
 
 #[derive(Clone)]
@@ -112,9 +111,13 @@ impl KeyPressFocus for FileExplorerData {
 
 impl FileExplorerData {
     pub fn new(cx: Scope, editors: Editors, common: Rc<CommonData>) -> Self {
-        let path = common.workspace.path.clone().unwrap_or_default();
+        let path = common
+            .workspace
+            .path
+            .clone()
+            .and_then(|w| Url::from_directory_path(w).ok());
         let root = cx.create_rw_signal(FileNodeItem {
-            path: path.clone(),
+            path: path.unwrap_or_default(),
             is_dir: true,
             read: false,
             open: false,
@@ -132,7 +135,7 @@ impl FileExplorerData {
         };
         if data.common.workspace.path.is_some() {
             // only fill in the child files if there is open folder
-            data.toggle_expand(&path);
+            data.toggle_expand(&mut &path.unwrap());
         }
         data
     }
@@ -146,7 +149,7 @@ impl FileExplorerData {
 
     /// Toggle whether the directory is expanded or not.  
     /// Does nothing if the path does not exist or is not a directory.
-    pub fn toggle_expand(&self, path: &Path) {
+    pub fn toggle_expand(&self, path: &mut Url) {
         let Some(read) = self
             .root
             .try_update(|root| {
@@ -176,19 +179,18 @@ impl FileExplorerData {
         }
     }
 
-    pub fn read_dir(&self, path: &Path) {
+    pub fn read_dir(&self, path: &Url) {
         self.read_dir_cb(path, |_| {});
     }
 
     /// Read the directory's information and update the file explorer tree.  
     /// `done : FnOnce(was_read: bool)` is called when the operation is completed, whether success,
     /// failure, or ignored.
-    pub fn read_dir_cb(&self, path: &Path, done: impl FnOnce(bool) + 'static) {
+    pub fn read_dir_cb(&self, path: &Url, done: impl FnOnce(bool) + 'static) {
         let root = self.root;
         let data = self.clone();
         let config = self.common.config;
         let send = {
-            let path = path.to_path_buf();
             create_ext_action(self.common.scope, move |result| {
                 let Ok(ProxyResponse::ReadDirResponse { mut items }) = result else {
                     done(false);
@@ -198,13 +200,16 @@ impl FileExplorerData {
                 root.update(|root| {
                     // Get the node for this path, which should already exist if we're calling
                     // read_dir on it.
-                    if let Some(node) = root.get_file_node_mut(&path) {
+                    if let Some(node) = root.get_file_node_mut(&mut &path) {
                         // TODO: do not recreate glob every time we read a directory
                         // Retain only items that are not excluded from view by the configuration
                         match Glob::new(&config.get().editor.files_exclude) {
                             Ok(glob) => {
                                 let matcher = glob.compile_matcher();
-                                items.retain(|i| !matcher.is_match(&i.path));
+                                items.retain(|i| {
+                                    !matcher
+                                        .is_match(&i.path.to_file_path().unwrap())
+                                });
                             }
                             Err(e) => tracing::error!(
                                 target:"files_exclude",
@@ -216,11 +221,10 @@ impl FileExplorerData {
                         node.read = true;
 
                         // Remove paths that no longer exist
-                        let removed_paths: Vec<PathBuf> = node
+                        let removed_paths = node
                             .children
                             .keys()
                             .filter(|p| !items.iter().any(|i| &&i.path == p))
-                            .map(PathBuf::from)
                             .collect();
                         for path in removed_paths {
                             node.children.remove(&path);
@@ -237,7 +241,7 @@ impl FileExplorerData {
                             }
                         }
                     }
-                    root.update_node_count_recursive(&path);
+                    root.update_node_count_recursive(&mut &path);
                 });
 
                 done(true);
@@ -245,20 +249,21 @@ impl FileExplorerData {
         };
 
         // Ask the proxy for the directory information
-        self.common.proxy.read_dir(path.to_path_buf(), send);
+        self.common.proxy.read_dir(path.clone(), send);
     }
 
     /// Returns `true` if `path` exists in the file explorer tree and is a directory, `false`
     /// otherwise.
     fn is_dir(&self, path: &Path) -> bool {
         self.root.with_untracked(|root| {
-            root.get_file_node(path).is_some_and(|node| node.is_dir)
+            root.get_file_node(&mut Url::from_directory_path(path.clone()).unwrap())
+                .is_some_and(|node| node.is_dir)
         })
     }
 
     /// The current path that we're renaming to / creating or duplicating a node at.  
     /// Note: returns `None` when renaming if the file name has not changed.
-    fn naming_path(&self) -> Option<PathBuf> {
+    fn naming_path(&self) -> Option<Url> {
         self.naming.with_untracked(|naming| match naming {
             Naming::None => None,
             Naming::Renaming(_) => {
@@ -270,24 +275,15 @@ impl FileExplorerData {
             }
             Naming::NewNode(n) => {
                 let relative_path = self.naming_editor_data.text();
-                let relative_path: Cow<OsStr> = match relative_path.slice_to_cow(..)
-                {
-                    Cow::Borrowed(path) => Cow::Borrowed(path.as_ref()),
-                    Cow::Owned(path) => Cow::Owned(path.into()),
-                };
 
-                Some(n.base_path.join(relative_path))
+                Some(Url::from_file_path(relative_path).ok()?)
             }
             Naming::Duplicating(d) => {
                 let relative_path = self.naming_editor_data.text();
-                let relative_path: Cow<OsStr> = match relative_path.slice_to_cow(..)
-                {
-                    Cow::Borrowed(path) => Cow::Borrowed(path.as_ref()),
-                    Cow::Owned(path) => Cow::Owned(path.into()),
-                };
 
-                let new_path =
-                    d.path.parent().unwrap_or("".as_ref()).join(relative_path);
+                let new_path = lapce_rpc::file::parent(&d.path)
+                    .and_then(|p| p.join(relative_path.to_owned()).ok())
+                    .unwrap();
 
                 Some(new_path)
             }
@@ -313,10 +309,9 @@ impl FileExplorerData {
                 if new_relative_path == current_file_name {
                     RenamedPath::NameUnchanged
                 } else {
-                    let new_path = current_path
-                        .parent()
-                        .unwrap_or("".as_ref())
-                        .join(new_relative_path);
+                    let new_path = lapce_rpc::file::parent(current_path)
+                        .and_then(|p| p.join(new_relative_path).ok())
+                        .unwrap();
 
                     RenamedPath::Renamed {
                         current_path: current_path.to_owned(),

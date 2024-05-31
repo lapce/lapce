@@ -8,6 +8,7 @@ use std::{
 };
 
 use crossbeam_channel::Sender;
+use dap_types::types::RunDebugConfig;
 use floem::{
     action::{open_file, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
@@ -27,7 +28,6 @@ use lapce_core::{
 };
 use lapce_rpc::{
     core::CoreNotification,
-    dap_types::RunDebugConfig,
     file::{Naming, PathObject},
     proxy::{ProxyResponse, ProxyRpcHandler, ProxyStatus},
     source_control::FileDiff,
@@ -451,7 +451,11 @@ impl WindowTabData {
 
         let terminal = TerminalPanelData::new(
             workspace.clone(),
-            common.config.get_untracked().terminal.get_default_profile(),
+            if workspace.kind.is_local() {
+                common.config.get_untracked().terminal.get_default_profile()
+            } else {
+                None
+            },
             common.clone(),
         );
         if let Some(workspace_info) = workspace_info.as_ref() {
@@ -941,11 +945,15 @@ impl WindowTabData {
             // ==== Terminal ====
             NewTerminalTab => {
                 self.terminal.new_tab(
-                    self.common
+                    if self.workspace.kind.is_local() {
+                        self.common
                         .config
                         .get_untracked()
                         .terminal
-                        .get_default_profile(),
+                        .get_default_profile()
+                    } else {
+                        None
+                    },
                 );
                 if !self.panel.is_panel_visible(&PanelKind::Terminal) {
                     self.panel.show_panel(&PanelKind::Terminal);
@@ -2330,13 +2338,15 @@ impl WindowTabData {
                 .tab_info
                 .with_untracked(|info| info.tabs.is_empty())
         {
-            self.terminal.new_tab(
+            self.terminal.new_tab(if self.workspace.kind.is_local() {
                 self.common
                     .config
                     .get_untracked()
                     .terminal
-                    .get_default_profile(),
-            );
+                    .get_default_profile()
+            } else {
+                None
+            });
         }
         self.panel.show_panel(&kind);
         if kind == PanelKind::Search

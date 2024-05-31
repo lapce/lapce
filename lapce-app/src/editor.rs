@@ -49,7 +49,12 @@ use lsp_types::{
     InlineCompletionTriggerKind, Location, MarkedString, MarkupKind, TextEdit,
 };
 use serde::{Deserialize, Serialize};
+use url::Url;
 
+use self::{
+    diff::DiffInfo,
+    location::{EditorLocation, EditorPosition},
+};
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
     completion::CompletionStatus,
@@ -67,11 +72,6 @@ use crate::{
     },
     snippet::Snippet,
     window_tab::{CommonData, Focus, WindowTabData},
-};
-
-use self::{
-    diff::DiffInfo,
-    location::{EditorLocation, EditorPosition},
 };
 
 pub mod diff;
@@ -1133,7 +1133,7 @@ impl EditorData {
         } else {
             None
         } {
-            Some(path) => path,
+            Some(path) => Url::from_file_path(path).unwrap(),
             None => return,
         };
 
@@ -1353,7 +1353,7 @@ impl EditorData {
         } else {
             None
         } {
-            Some(path) => path,
+            Some(path) => Url::from_file_path(path).unwrap(),
             None => return,
         };
 
@@ -1395,7 +1395,7 @@ impl EditorData {
                         .collect()
                 });
                 inline_completion.update(|c| {
-                    c.set_items(items, offset, path2);
+                    c.set_items(items, offset, path2.to_file_path().unwrap());
                     c.update_doc(&doc, offset);
                 });
             },
@@ -1944,7 +1944,7 @@ impl EditorData {
         } else {
             None
         } {
-            Some(path) => path,
+            Some(path) => Url::from_file_path(path).unwrap(),
             None => return,
         };
 
@@ -2079,9 +2079,12 @@ impl EditorData {
             let (tx, rx) = crossbeam_channel::bounded(1);
             let proxy = self.common.proxy.clone();
             std::thread::spawn(move || {
-                proxy.get_document_formatting(path, move |result| {
-                    let _ = tx.send(result);
-                });
+                proxy.get_document_formatting(
+                    Url::from_file_path(path).unwrap(),
+                    move |result| {
+                        let _ = tx.send(result);
+                    },
+                );
                 let result = rx.recv_timeout(std::time::Duration::from_secs(1));
                 send(result);
             });
@@ -2111,9 +2114,12 @@ impl EditorData {
             let (tx, rx) = crossbeam_channel::bounded(1);
             let proxy = self.common.proxy.clone();
             std::thread::spawn(move || {
-                proxy.get_document_formatting(path, move |result| {
-                    let _ = tx.send(result);
-                });
+                proxy.get_document_formatting(
+                    Url::from_file_path(path).unwrap(),
+                    move |result| {
+                        let _ = tx.send(result);
+                    },
+                );
                 let result = rx.recv_timeout(std::time::Duration::from_secs(1));
                 send(result);
             });
@@ -2301,11 +2307,13 @@ impl EditorData {
                 });
             }
         });
-        self.common
-            .proxy
-            .prepare_rename(path, position, move |result| {
+        self.common.proxy.prepare_rename(
+            Url::from_file_path(path).unwrap(),
+            position,
+            move |result| {
                 send(result);
-            });
+            },
+        );
     }
 
     pub fn word_at_cursor(&self) -> String {
@@ -2547,7 +2555,7 @@ impl EditorData {
         let position = doc
             .buffer
             .with_untracked(|buffer| buffer.offset_to_position(offset));
-        let path = match path {
+        let path = match path.and_then(|d| Url::from_file_path(d).ok()) {
             Some(path) => path,
             None => return,
         };

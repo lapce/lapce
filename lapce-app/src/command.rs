@@ -1,5 +1,7 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
+use dap_types::types::{DapId, RunDebugConfig};
+pub use floem::views::editor::command::CommandExecuted;
 use floem::{
     keyboard::Modifiers, peniko::kurbo::Vec2, views::editor::command::Command,
 };
@@ -9,7 +11,6 @@ use lapce_core::command::{
     MultiSelectionCommand, ScrollCommand,
 };
 use lapce_rpc::{
-    dap_types::{DapId, RunDebugConfig},
     plugin::{PluginId, VoltID},
     proxy::ProxyStatus,
     terminal::{TermId, TerminalProfile},
@@ -29,8 +30,6 @@ use crate::{
     main_split::{SplitDirection, SplitMoveDirection},
     workspace::LapceWorkspace,
 };
-
-pub use floem::views::editor::command::CommandExecuted;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LapceCommand {
@@ -560,19 +559,19 @@ pub enum InternalCommand {
     ReloadFileExplorer,
     /// Test whether a file/directory can be created at that path
     TestPathCreation {
-        new_path: PathBuf,
+        new_path: Url,
     },
     FinishRenamePath {
-        current_path: PathBuf,
-        new_path: PathBuf,
+        current_path: Url,
+        new_path: Url,
     },
     FinishNewNode {
         is_dir: bool,
-        path: PathBuf,
+        path: Url,
     },
     FinishDuplicate {
-        source: PathBuf,
-        path: PathBuf,
+        source: Url,
+        path: Url,
     },
     GoToLocation {
         location: EditorLocation,

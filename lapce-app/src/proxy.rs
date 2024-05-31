@@ -2,6 +2,7 @@ use std::{collections::HashMap, path::PathBuf, process::Command, sync::Arc};
 
 use crossbeam_channel::Sender;
 use floem::{ext_event::create_signal_from_channel, reactive::ReadSignal};
+use itertools::Itertools;
 use lapce_proxy::dispatch::Dispatcher;
 use lapce_rpc::{
     core::{CoreHandler, CoreNotification, CoreRpcHandler},
@@ -58,8 +59,19 @@ pub fn new_proxy(
             core_rpc.notification(CoreNotification::ProxyStatus {
                 status: ProxyStatus::Connecting,
             });
+
+            let workspace_path = workspace
+                .path
+                .clone()
+                .and_then(|d| Url::from_directory_path(d).ok());
+
+            let extra_plugin_paths = extra_plugin_paths
+                .iter()
+                .map(|p| Url::from_directory_path(p).unwrap())
+                .collect_vec();
+
             proxy_rpc.initialize(
-                workspace.path.clone(),
+                workspace_path,
                 disabled_volts,
                 extra_plugin_paths,
                 plugin_configurations,

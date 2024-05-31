@@ -9,23 +9,23 @@ use std::{
     thread,
 };
 
-use lapce_rpc::plugin::VoltInfo;
 use lapce_rpc::{
-    dap_types::{self, DapId, DapServer, SetBreakpointsResponse},
-    plugin::{PluginId, VoltID, VoltMetadata},
+    dap::{DapId, DapServer},
+    plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     proxy::ProxyResponse,
     style::LineStyle,
     RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
-use lsp_types::request::Request;
 use lsp_types::{
-    notification::DidOpenTextDocument, DidOpenTextDocumentParams, SemanticTokens,
-    TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier,
+    notification::DidOpenTextDocument, request::Request, DidOpenTextDocumentParams,
+    SemanticTokens, TextDocumentIdentifier, TextDocumentItem,
+    VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::Notification;
 use serde_json::Value;
+use url::Url;
 
 use super::{
     dap::{DapClient, DapRpcHandler, DebuggerData},
@@ -38,21 +38,21 @@ use crate::plugin::{
 };
 
 pub struct PluginCatalog {
-    workspace: Option<PathBuf>,
+    workspace: Option<Url>,
     plugin_rpc: PluginCatalogRpcHandler,
     plugins: HashMap<PluginId, PluginServerRpcHandler>,
     daps: HashMap<DapId, DapRpcHandler>,
     debuggers: HashMap<String, DebuggerData>,
     plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
     unactivated_volts: HashMap<VoltID, VoltMetadata>,
-    open_files: HashMap<PathBuf, String>,
+    open_files: HashMap<Url, String>,
 }
 
 impl PluginCatalog {
     pub fn new(
-        workspace: Option<PathBuf>,
+        workspace: Option<Url>,
         disabled_volts: Vec<VoltID>,
-        extra_plugin_paths: Vec<PathBuf>,
+        extra_plugin_paths: Vec<Url>,
         plugin_configurations: HashMap<String, HashMap<String, serde_json::Value>>,
         plugin_rpc: PluginCatalogRpcHandler,
     ) -> Self {
@@ -82,7 +82,7 @@ impl PluginCatalog {
         method: Cow<'static, str>,
         params: Value,
         language_id: Option<String>,
-        path: Option<PathBuf>,
+        path: Option<Url>,
         check: bool,
         f: Box<dyn ClonableCallback<Value, RpcError>>,
     ) {
@@ -153,7 +153,7 @@ impl PluginCatalog {
         method: impl Into<Cow<'static, str>>,
         params: Value,
         language_id: Option<String>,
-        path: Option<PathBuf>,
+        path: Option<Url>,
         check: bool,
     ) {
         if let Some(plugin_id) = plugin_id {
@@ -249,9 +249,11 @@ impl PluginCatalog {
                         }
                         if let Ok(matcher) = builder.build() {
                             if !matcher.is_empty() {
-                                for entry in walkdir::WalkDir::new(workspace)
-                                    .into_iter()
-                                    .flatten()
+                                for entry in walkdir::WalkDir::new(
+                                    workspace.to_file_path().unwrap(),
+                                )
+                                .into_iter()
+                                .flatten()
                                 {
                                     if matcher.is_match(entry.path()) {
                                         return Some(id.clone());
@@ -269,9 +271,9 @@ impl PluginCatalog {
     }
 
     pub fn handle_did_open_text_document(&mut self, document: TextDocumentItem) {
-        if let Ok(path) = document.uri.to_file_path() {
-            self.open_files.insert(path, document.language_id.clone());
-        }
+        let path = document.uri.clone();
+        self.open_files
+            .insert(path.clone(), document.language_id.clone());
 
         let to_be_activated: Vec<VoltID> = self
             .unactivated_volts
@@ -291,7 +293,6 @@ impl PluginCatalog {
             .collect();
         self.start_unactivated_volts(to_be_activated);
 
-        let path = document.uri.to_file_path().ok();
         for (_, plugin) in self.plugins.iter() {
             plugin.server_notification(
                 DidOpenTextDocument::METHOD,
@@ -299,7 +300,7 @@ impl PluginCatalog {
                     text_document: document.clone(),
                 },
                 Some(document.language_id.clone()),
-                path.clone(),
+                Some(path.clone()),
                 true,
             );
         }
@@ -308,7 +309,7 @@ impl PluginCatalog {
     pub fn handle_did_save_text_document(
         &mut self,
         language_id: String,
-        path: PathBuf,
+        path: Url,
         text_document: TextDocumentIdentifier,
         text: Rope,
     ) {
@@ -478,14 +479,14 @@ impl PluginCatalog {
                 {
                     for item in items {
                         let language_id = Some(item.language_id.clone());
-                        let path = item.uri.to_file_path().ok();
+                        let path = item.uri.clone();
                         plugin.server_notification(
                             DidOpenTextDocument::METHOD,
                             DidOpenTextDocumentParams {
                                 text_document: item,
                             },
                             language_id,
-                            path,
+                            Some(path),
                             true,
                         );
                     }
@@ -571,8 +572,8 @@ impl PluginCatalog {
                         if let Ok(dap_rpc) = DapClient::start(
                             DapServer {
                                 program: debugger.program,
-                                args: debugger.args.unwrap_or_default(),
-                                cwd: workspace,
+                                arguments: debugger.args.unwrap_or_default(),
+                                working_directory: workspace,
                             },
                             config.clone(),
                             breakpoints,

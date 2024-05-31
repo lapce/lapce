@@ -17,6 +17,7 @@ serde_json        = { workspace = true }
 tracing           = { workspace = true }
 url               = { workspace = true }
 
+dap-types     = { workspace = true }
 lsp-types     = { workspace = true }
 lapce-xi-rope = { workspace = true }
 

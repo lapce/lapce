@@ -58,9 +58,8 @@ impl IconThemeConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::icon_theme::try_all_equal_value;
-
     use super::IconThemeConfig;
+    use crate::config::icon_theme::try_all_equal_value;
 
     #[test]
     fn try_all_equal_value_empty_none() {

@@ -1,10 +1,11 @@
 use std::{
     cmp::{Ord, Ordering, PartialOrd},
-    collections::HashMap,
-    path::{Path, PathBuf},
+    collections::{HashMap, VecDeque},
+    path::PathBuf,
 };
 
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 /// UTF8 line and column-offset
 #[derive(
@@ -50,19 +51,19 @@ impl PathObject {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FileNodeViewKind {
     /// An actual file/directory
-    Path(PathBuf),
+    Path(Url),
     /// We are renaming the file at this path
-    Renaming { path: PathBuf, err: Option<String> },
+    Renaming { path: Url, err: Option<String> },
     /// We are naming a new file/directory
     Naming { err: Option<String> },
     Duplicating {
         /// The path that is being duplicated
-        source: PathBuf,
+        source: Url,
         err: Option<String>,
     },
 }
 impl FileNodeViewKind {
-    pub fn path(&self) -> Option<&Path> {
+    pub fn path(&self) -> Option<&Url> {
         match self {
             Self::Path(path) => Some(path),
             Self::Renaming { path, .. } => Some(path),
@@ -124,7 +125,7 @@ impl NamingState {
 pub struct Renaming {
     pub state: NamingState,
     /// Original file's path
-    pub path: PathBuf,
+    pub path: Url,
     pub editor_needs_reset: bool,
 }
 
@@ -134,7 +135,7 @@ pub struct NewNode {
     /// If true, then we are creating a directory
     pub is_dir: bool,
     /// The folder that the file/directory is being created within
-    pub base_path: PathBuf,
+    pub base_path: Url,
     pub editor_needs_reset: bool,
 }
 
@@ -142,7 +143,7 @@ pub struct NewNode {
 pub struct Duplicating {
     pub state: NamingState,
     /// Path to the item being duplicated
-    pub path: PathBuf,
+    pub path: Url,
     pub editor_needs_reset: bool,
 }
 
@@ -224,7 +225,7 @@ impl Naming {
         &self,
         is_dir: bool,
         level: usize,
-        path: &Path,
+        path: Url,
     ) -> Option<FileNodeViewData> {
         match self {
             Naming::NewNode(n) if n.base_path == path => Some(FileNodeViewData {
@@ -237,7 +238,7 @@ impl Naming {
             }),
             Naming::Duplicating(d) if d.path == path => Some(FileNodeViewData {
                 kind: FileNodeViewKind::Duplicating {
-                    source: d.path.to_path_buf(),
+                    source: d.path.clone(),
                     err: d.state.err().map(ToString::to_string),
                 },
                 is_dir,
@@ -259,14 +260,14 @@ pub struct FileNodeViewData {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FileNodeItem {
-    pub path: PathBuf,
+    pub path: Url,
     pub is_dir: bool,
     /// Whether the directory's children have been read.  
     /// Does nothing if not a directory.
     pub read: bool,
     /// Whether the directory is open in the explorer view.
     pub open: bool,
-    pub children: HashMap<PathBuf, FileNodeItem>,
+    pub children: HashMap<Url, FileNodeItem>,
     /// The number of child (directories) that are open themselves  
     /// Used for sizing of the explorer list
     pub children_open_count: usize,
@@ -286,9 +287,10 @@ impl Ord for FileNodeItem {
             _ => {
                 let [self_file_name, other_file_name] = [&self.path, &other.path]
                     .map(|path| {
-                        path.file_name()
+                        path.path_segments()
+                            .unwrap()
+                            .last()
                             .unwrap_or_default()
-                            .to_string_lossy()
                             .to_lowercase()
                     });
                 human_sort::compare(&self_file_name, &other_file_name)
@@ -317,6 +319,10 @@ impl FileNodeItem {
         children
     }
 
+    pub fn parent(&self, url: &Url) -> Option<Url> {
+        parent(url)
+    }
+
     /// Returns an iterator over the ancestors of `path`, starting with the first descendant of `prefix`.
     ///
     /// # Example:
@@ -339,54 +345,70 @@ impl FileNodeItem {
     /// assert_eq!(Some(Path::new("/pre/fix/foo")), iter.next());
     /// assert_eq!(Some(Path::new("/pre/fix/foo/bar")), iter.next());
     /// ```
-    fn ancestors_rev<'a>(
-        &self,
-        path: &'a Path,
-    ) -> Option<impl Iterator<Item = &'a Path>> {
-        let take = if let Ok(suffix) = path.strip_prefix(&self.path) {
-            suffix.components().count()
-        } else {
-            return None;
-        };
+    pub fn ancestors(&self, path: &mut Url) -> Option<impl Iterator<Item = Url>> {
+        ancestors(path)
+    }
 
-        #[allow(clippy::needless_collect)] // Ancestors is not reversible
-        let ancestors = path.ancestors().take(take).collect::<Vec<&Path>>();
-        Some(ancestors.into_iter().rev())
+    /// Returns an iterator over the ancestors of `path`, starting with the first descendant of `prefix`.
+    ///
+    /// # Example:
+    /// (ignored because the function is private but I promise this passes)
+    /// ```rust,ignore
+    /// # use lapce_rpc::file::FileNodeItem;
+    /// # use std::path::{Path, PathBuf};
+    /// # use std::collections::HashMap;
+    /// #
+    /// let node_item = FileNodeItem {
+    ///     path_buf: PathBuf::from("/pre/fix"),
+    ///     // ...
+    /// #    is_dir: true,
+    /// #    read: false,
+    /// #    open: false,
+    /// #    children: HashMap::new(),
+    /// #    children_open_count: 0,
+    ///};
+    /// let mut iter = node_item.ancestors_rev(Path::new("/pre/fix/foo/bar")).unwrap();
+    /// assert_eq!(Some(Path::new("/pre/fix/foo")), iter.next());
+    /// assert_eq!(Some(Path::new("/pre/fix/foo/bar")), iter.next());
+    /// ```
+    fn ancestors_rev(&self, path: &mut Url) -> Option<impl Iterator<Item = Url>> {
+        ancestors_rev(path)
     }
 
     /// Recursively get the node at `path`.
-    pub fn get_file_node(&self, path: &Path) -> Option<&FileNodeItem> {
+    pub fn get_file_node(&self, path: &mut Url) -> Option<&FileNodeItem> {
         self.ancestors_rev(path)?
-            .try_fold(self, |node, path| node.children.get(path))
+            .try_fold(self, |node, path| node.children.get(&path))
     }
 
     /// Recursively get the (mutable) node at `path`.
-    pub fn get_file_node_mut(&mut self, path: &Path) -> Option<&mut FileNodeItem> {
+    pub fn get_file_node_mut(
+        &mut self,
+        path: &mut Url,
+    ) -> Option<&mut FileNodeItem> {
         self.ancestors_rev(path)?
-            .try_fold(self, |node, path| node.children.get_mut(path))
+            .try_fold(self, |node, path| node.children.get_mut(&path))
     }
 
     /// Remove a specific child from the node.  
     /// The path is recursive and will remove the child from parent indicated by the path.
-    pub fn remove_child(&mut self, path: &Path) -> Option<FileNodeItem> {
-        let parent = path.parent()?;
-        let node = self.get_file_node_mut(parent)?;
+    pub fn remove_child(&mut self, path: &mut Url) -> Option<FileNodeItem> {
+        let node = self.get_file_node_mut(path)?;
         let node = node.children.remove(path)?;
-        for p in path.ancestors() {
-            self.update_node_count(p);
+        for mut p in self.ancestors(path)? {
+            self.update_node_count(&mut p);
         }
 
         Some(node)
     }
 
     /// Add a new (unread & unopened) child to the node.
-    pub fn add_child(&mut self, path: &Path, is_dir: bool) -> Option<()> {
-        let parent = path.parent()?;
-        let node = self.get_file_node_mut(parent)?;
+    pub fn add_child(&mut self, path: &mut Url, is_dir: bool) -> Option<()> {
+        let node = self.get_file_node_mut(path)?;
         node.children.insert(
-            PathBuf::from(path),
+            path.clone(),
             FileNodeItem {
-                path: PathBuf::from(path),
+                path: path.clone(),
                 is_dir,
                 read: false,
                 open: false,
@@ -394,8 +416,8 @@ impl FileNodeItem {
                 children_open_count: 0,
             },
         );
-        for p in path.ancestors() {
-            self.update_node_count(p);
+        for mut p in self.ancestors(path)? {
+            self.update_node_count(&mut p);
         }
 
         Some(())
@@ -405,8 +427,8 @@ impl FileNodeItem {
     /// Note: this opens the node.
     pub fn set_item_children(
         &mut self,
-        path: &Path,
-        children: HashMap<PathBuf, FileNodeItem>,
+        path: &mut Url,
+        children: HashMap<Url, FileNodeItem>,
     ) {
         if let Some(node) = self.get_file_node_mut(path) {
             node.open = true;
@@ -414,18 +436,18 @@ impl FileNodeItem {
             node.children = children;
         }
 
-        for p in path.ancestors() {
-            self.update_node_count(p);
+        for mut p in self.ancestors(path).unwrap() {
+            self.update_node_count(&mut p);
         }
     }
 
-    pub fn update_node_count_recursive(&mut self, path: &Path) {
-        for current_path in path.ancestors() {
-            self.update_node_count(current_path);
+    pub fn update_node_count_recursive(&mut self, path: &mut Url) {
+        for mut current_path in self.ancestors(path).unwrap() {
+            self.update_node_count(&mut current_path);
         }
     }
 
-    pub fn update_node_count(&mut self, path: &Path) -> Option<()> {
+    pub fn update_node_count(&mut self, path: &mut Url) -> Option<()> {
         let node = self.get_file_node_mut(path)?;
         if node.is_dir {
             node.children_open_count = if node.open {
@@ -490,7 +512,8 @@ impl FileNodeItem {
         mut i: usize,
         level: usize,
     ) -> usize {
-        let mut naming_extra = naming.extra_node(self.is_dir, level, &self.path);
+        let mut naming_extra =
+            naming.extra_node(self.is_dir, level, self.path.clone());
 
         if !self.open {
             // If the folder isn't open, then we just put it right at the top
@@ -559,4 +582,32 @@ impl FileNodeItem {
 
         i
     }
+}
+
+pub fn parent(url: &Url) -> Option<Url> {
+    let mut url = url.clone();
+    let mut segments = url.path_segments()?;
+    let _ = segments.next_back();
+    url.set_path(&segments.collect::<Vec<&str>>().join("/"));
+    Some(url)
+}
+
+pub fn ancestors(path: &mut Url) -> Option<impl Iterator<Item = Url>> {
+    let mut ancestors = vec![];
+    for _ in path.path_segments()?.collect::<Vec<_>>() {
+        let url = parent(path)?.clone();
+        ancestors.push(url);
+    }
+
+    Some(ancestors.into_iter())
+}
+
+fn ancestors_rev(path: &mut Url) -> Option<impl Iterator<Item = Url>> {
+    let mut ancestors = VecDeque::new();
+    for _ in path.path_segments()?.collect::<Vec<_>>() {
+        let url = parent(path)?.clone();
+        ancestors.push_front(url);
+    }
+
+    Some(ancestors.into_iter())
 }

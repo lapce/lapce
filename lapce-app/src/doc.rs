@@ -583,7 +583,7 @@ impl Doc {
                 if let DocContent::File { path, .. } = self.content.get_untracked() {
                     self.update_breakpoints(delta, &path, &inval.old_text);
                     self.common.proxy.update(
-                        path,
+                        Url::from_file_path(path).unwrap(),
                         delta.clone(),
                         rev + i as u64 + 1,
                     );
@@ -799,7 +799,7 @@ impl Doc {
 
         let path =
             if let DocContent::File { path, .. } = self.content.get_untracked() {
-                path
+                Url::from_file_path(path).unwrap()
             } else {
                 return;
             };
@@ -855,7 +855,7 @@ impl Doc {
 
         let path =
             if let DocContent::File { path, .. } = self.content.get_untracked() {
-                path
+                Url::from_file_path(path).unwrap()
             } else {
                 return;
             };
@@ -1159,9 +1159,12 @@ impl Doc {
             let path = path.clone();
             let proxy = self.common.proxy.clone();
             std::thread::spawn(move || {
-                proxy.get_buffer_head(path, move |result| {
-                    send(result);
-                });
+                proxy.get_buffer_head(
+                    Url::from_file_path(path).unwrap(),
+                    move |result| {
+                        send(result);
+                    },
+                );
             });
         }
     }
@@ -1226,9 +1229,14 @@ impl Doc {
                 }
             });
 
-            self.common.proxy.save(rev, path, true, move |result| {
-                send(result);
-            })
+            self.common.proxy.save(
+                rev,
+                Url::from_file_path(path).unwrap(),
+                true,
+                move |result| {
+                    send(result);
+                },
+            )
         }
     }
 

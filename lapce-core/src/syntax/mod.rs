@@ -35,13 +35,11 @@ use self::{
     util::RopeProvider,
 };
 use crate::{
-    buffer::rope_text::RopeText,
+    buffer::{rope_text::RopeText, Buffer},
     language::{self, LapceLanguage},
     lens::{Lens, LensBuilder},
     style::SCOPES,
 };
-
-use crate::buffer::Buffer;
 pub mod edit;
 pub mod highlight;
 pub mod util;

@@ -3932,9 +3932,8 @@ fn panic_hook() {
 
 #[cfg(windows)]
 fn error_modal(title: &str, msg: &str) -> i32 {
-    use std::iter::once;
-    use std::os::windows::prelude::OsStrExt;
-    use std::{ffi::OsStr, mem};
+    use std::{ffi::OsStr, iter::once, mem, os::windows::prelude::OsStrExt};
+
     use windows::Win32::UI::WindowsAndMessaging::{
         MessageBoxW, MB_ICONERROR, MB_SYSTEMMODAL,
     };

@@ -6,19 +6,16 @@ use std::{
     time::Instant,
 };
 
+use dap_types::types::{
+    self, DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped, ThreadId,
+    Variable,
+};
 use floem::{
     ext_event::create_ext_action,
     reactive::{Memo, RwSignal, Scope},
     views::VirtualVector,
 };
-use lapce_rpc::{
-    dap_types::{
-        self, DapId, RunDebugConfig, SourceBreakpoint, StackFrame, Stopped,
-        ThreadId, Variable,
-    },
-    proxy::ProxyResponse,
-    terminal::TermId,
-};
+use lapce_rpc::{proxy::ProxyResponse, terminal::TermId};
 use serde::{Deserialize, Serialize};
 
 use crate::{

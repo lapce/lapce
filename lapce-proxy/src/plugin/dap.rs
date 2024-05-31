@@ -13,18 +13,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use crossbeam_channel::{Receiver, Sender};
 use lapce_rpc::{
-    dap_types::{
-        self, ConfigurationDone, Continue, ContinueArguments, ContinueResponse,
-        DapEvent, DapId, DapPayload, DapRequest, DapResponse, DapServer,
-        DebuggerCapabilities, Disconnect, Initialize, Launch, Next, NextArguments,
-        Pause, PauseArguments, Request, RunDebugConfig, RunInTerminal,
-        RunInTerminalArguments, RunInTerminalResponse, Scope, Scopes,
-        ScopesArguments, ScopesResponse, SetBreakpoints, SetBreakpointsArguments,
-        SetBreakpointsResponse, Source, SourceBreakpoint, StackTrace,
-        StackTraceArguments, StackTraceResponse, StepIn, StepInArguments, StepOut,
-        StepOutArguments, Terminate, ThreadId, Threads, ThreadsResponse, Variable,
-        Variables, VariablesArguments, VariablesResponse,
-    },
+    dap::{DapId, RunDebugConfig, ThreadId},
     terminal::TermId,
     RpcError,
 };
@@ -590,8 +579,8 @@ impl DapRpcHandler {
     pub fn launch(&self, config: &RunDebugConfig) -> Result<()> {
         let params = serde_json::json!({
             "program": config.program,
-            "args": config.args,
-            "cwd": config.cwd,
+            "args": config.arguments,
+            "cwd": config.working_directory,
             "runInTerminal": true,
         });
         let _resp = self
