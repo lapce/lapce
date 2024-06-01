@@ -324,14 +324,18 @@ impl PaletteData {
 
     /// Get the placeholder text to use in the palette input field.
     pub fn placeholder_text(&self) -> &'static str {
-        if self.kind.get() == PaletteKind::DiffFiles {
-            if self.left_diff_path.with(Option::is_some) {
-                "Select right file"
-            } else {
-                "Seleft left file"
+        match self.kind.get() {
+            PaletteKind::SshHost => {
+                "Type [user@]host or select a previously connected workspace below"
             }
-        } else {
-            ""
+            PaletteKind::DiffFiles => {
+                if self.left_diff_path.with(Option::is_some) {
+                    "Select right file"
+                } else {
+                    "Seleft left file"
+                }
+            }
+            _ => "",
         }
     }
 
