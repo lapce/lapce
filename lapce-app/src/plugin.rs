@@ -22,7 +22,7 @@ use floem::{
     IntoView, View,
 };
 use indexmap::IndexMap;
-use lapce_core::{directory::Directory, mode::Mode};
+use lapce_core::{command::EditCommand, directory::Directory, mode::Mode};
 use lapce_proxy::plugin::{download_volt, volt_icon, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltID, VoltInfo, VoltMetadata};
 use serde::{Deserialize, Serialize};
@@ -126,6 +126,14 @@ impl KeyPressFocus for PluginData {
             CommandKind::Edit(_)
             | CommandKind::Move(_)
             | CommandKind::MultiSelection(_) => {
+                #[allow(clippy::single_match)]
+                match command.kind {
+                    CommandKind::Edit(EditCommand::InsertNewLine) => {
+                        return CommandExecuted::Yes
+                    }
+                    _ => {}
+                }
+
                 return self
                     .available
                     .query_editor

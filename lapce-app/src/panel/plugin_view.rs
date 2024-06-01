@@ -332,6 +332,7 @@ fn available_view(plugin: PluginData) -> impl View {
                 TextInputBuilder::new()
                     .is_focused(is_focused)
                     .build_editor(editor.clone())
+                    .placeholder(|| "Search extensions".to_string())
                     .on_cursor_pos(move |point| {
                         cursor_x.set(point.x);
                     })
