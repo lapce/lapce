@@ -9,13 +9,14 @@ rust-version = { workspace = true }
 [dependencies]
 anyhow       = { workspace = true }
 directories  = { workspace = true }
+include_dir  = { workspace = true }
 itertools    = { workspace = true }
 once_cell    = { workspace = true }
+remain       = { workspace = true }
 strum        = { workspace = true }
 strum_macros = { workspace = true }
 thiserror    = { workspace = true }
 tracing      = { workspace = true }
-include_dir  = { workspace = true }
 regex        = { workspace = true }
 
 lsp-types         = { workspace = true }
@@ -23,14 +24,12 @@ lapce-xi-rope     = { workspace = true }
 lapce-rpc         = { workspace = true }
 floem-editor-core = { workspace = true }
 
-libloading  = "0.8.1"
-slotmap     = "1.0"
-arc-swap    = "1.6.0"
-tree-sitter = "0.22.6"
-ahash       = "0.8.11"
-remain      = "0.2"
+ahash       = { version = "0.8.11" }
+arc-swap    = { version = "1.6.0" }
 hashbrown   = { version = "0.14.5", features = ["raw"] }
-
+libloading  = { version = "0.8.1" }
+slotmap     = { version = "1.0" }
+tree-sitter = { version = "0.22.6" }
 
 [features]
 default      = []

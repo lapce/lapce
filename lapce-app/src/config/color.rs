@@ -21,6 +21,7 @@ pub enum LoadThemeError {
 
 pub struct LapceColor {}
 
+#[rustfmt::skip]
 impl LapceColor {
     pub const LAPCE_WARN: &'static str = "lapce.warn";
     pub const LAPCE_ERROR: &'static str = "lapce.error";

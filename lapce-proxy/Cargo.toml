@@ -48,8 +48,8 @@ polling       = "3.5.0"
 libc          = "0.2"
 
 # Encoding
-encoding_rs           = { version = "0.8.34" }
-encoding_rs_io        = { version = "0.1.7" }
+encoding_rs    = { version = "0.8.34" }
+encoding_rs_io = { version = "0.1.7" }
 # charset-normalizer-rs = { version = "1.0.6" }
 # charset-normalizer-rs = { path = "../../charset-normalizer-rs/crates/charset-normalizer" }
 charset-normalizer-rs = { rev = "807868b19ef693e86fb17d0b4d93463753c3b59b", git = "https://github.com/lapce/charset-normalizer-rs" }

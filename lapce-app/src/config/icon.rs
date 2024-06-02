@@ -1,5 +1,6 @@
 pub struct LapceIcons {}
 
+#[rustfmt::skip]
 impl LapceIcons {
     pub const WINDOW_CLOSE: &'static str = "window.close";
     pub const WINDOW_RESTORE: &'static str = "window.restore";

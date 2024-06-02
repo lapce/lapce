@@ -12,6 +12,7 @@ pub struct TsRemote {
     pub host: Host,
 }
 
+#[rustfmt::skip]
 impl TsRemote {
     const TS_PROG: &'static str = "tailscale";
     const TS_ARGS: &'static [&'static str] = &["ssh"];
