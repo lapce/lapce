@@ -21,11 +21,11 @@ use crate::{
 struct AboutUri {}
 
 impl AboutUri {
-    const LAPCE: &'static str = "https://lapce.dev";
-    const GITHUB: &'static str = "https://github.com/lapce/lapce";
-    const MATRIX: &'static str = "https://matrix.to/#/#lapce-editor:matrix.org";
-    const DISCORD: &'static str = "https://discord.gg/n8tGJ6Rn6D";
     const CODICONS: &'static str = "https://github.com/microsoft/vscode-codicons";
+    const DISCORD: &'static str = "https://discord.gg/n8tGJ6Rn6D";
+    const GITHUB: &'static str = "https://github.com/lapce/lapce";
+    const LAPCE: &'static str = "https://lapce.dev";
+    const MATRIX: &'static str = "https://matrix.to/#/#lapce-editor:matrix.org";
 }
 
 #[derive(Clone, Debug)]

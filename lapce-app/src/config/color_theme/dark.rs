@@ -37,6 +37,7 @@ pub static BASE_THEME: Lazy<HashMap<String, Color>> = Lazy::new(|| {
 
 pub struct Base {}
 
+#[rustfmt::skip]
 impl Base {
     /// Hex: #ABB2BF
     pub const WHITE: Color = Color::rgba8(171, 178, 191, 1);
