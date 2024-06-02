@@ -7,7 +7,6 @@ edition      = { workspace = true }
 rust-version = { workspace = true }
 
 [dependencies]
-anyhow       = { workspace = true }
 directories  = { workspace = true }
 itertools    = { workspace = true }
 once_cell    = { workspace = true }
@@ -56,4 +55,4 @@ lang-rust       = ["dep:tree-sitter-rust"]
 lang-toml       = ["dep:tree-sitter-toml"]
 
 [build-dependencies]
-anyhow.workspace = true
+anyhow = { workspace = true }

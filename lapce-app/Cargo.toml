@@ -13,7 +13,6 @@ backtrace          = { workspace = true }
 chrono             = { workspace = true }
 clap               = { workspace = true }
 crossbeam-channel  = { workspace = true }
-directories        = { workspace = true }
 flate2             = { workspace = true }
 globset            = { workspace = true }
 im                 = { workspace = true }
