@@ -21,7 +21,8 @@ pub static RUNTIME_LANGUAGES: Lazy<Vec<SyntaxProperties>> = Lazy::new(Vec::new);
 const DEFAULT_CODE_LENS_LIST: &[&str] = &["source_file"];
 #[allow(dead_code)]
 const DEFAULT_CODE_LENS_IGNORE_LIST: &[&str] = &["source_file"];
-const DEFAULT_QUERIES: include_dir::Dir = include_dir::include_dir!("$CARGO_MANIFEST_DIR/queries");
+const DEFAULT_QUERIES: include_dir::Dir =
+    include_dir::include_dir!("$CARGO_MANIFEST_DIR/queries");
 
 #[macro_export]
 macro_rules! comment_properties {
