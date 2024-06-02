@@ -75,9 +75,10 @@ workspace = true
 features  = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"]
 
 [features]
-default  = ["all-languages", "updater"]
-portable = ["lapce-core/portable"]
-updater  = []
+default        = ["all-languages", "updater", "vendored-fonts"]
+portable       = ["lapce-core/portable"]
+updater        = []
+vendored-fonts = []
 
 # To build lapce with only some of the supported languages, for example:
 #

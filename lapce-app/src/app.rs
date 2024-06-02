@@ -3509,6 +3509,17 @@ pub fn launch() {
 
     panic_hook();
 
+    #[cfg(feature = "vendored-fonts")]
+    {
+        use floem::cosmic_text::{FONT_SYSTEM, fontdb::Source};
+
+        const FONT_DEJAVU_SANS_REGULAR: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../extra/fonts/DejaVu/DejaVuSans.ttf"));
+        const FONT_DEJAVU_SANS_MONO_REGULAR: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../extra/fonts/DejaVu/DejaVuSansMono.ttf"));
+
+        FONT_SYSTEM.db().write().load_font_source(Source::Binary(Arc::new(FONT_DEJAVU_SANS_REGULAR)));
+        FONT_SYSTEM.db().write().load_font_source(Source::Binary(Arc::new(FONT_DEJAVU_SANS_MONO_REGULAR)));
+    }
+
     // if PWD is not set, then we are not being launched via a terminal
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     if std::env::var("PWD").is_err() {
