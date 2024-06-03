@@ -3561,8 +3561,8 @@ pub fn launch() {
         Ok(db) => Arc::new(db),
         Err(e) => {
             #[cfg(windows)]
-            error_modal("Error", &format!("Failed to create LapceDb: {e}"));
-            #[cfg(not(windows))]
+            logging::error_modal("Error", &format!("Failed to create LapceDb: {e}"));
+
             trace!(TraceLevel::ERROR, "Failed to create LapceDb: {e}");
             std::process::exit(1);
         }
