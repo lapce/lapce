@@ -1661,7 +1661,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=c9e3d6a131c63286dc634b27c38b95bde43ed90d#c9e3d6a131c63286dc634b27c38b95bde43ed90d"
+source = "git+https://github.com/lapce/floem?rev=f178d220309dbaa74ebb7447c78a8b2b7660053c#f178d220309dbaa74ebb7447c78a8b2b7660053c"
 dependencies = [
  "bitflags 2.5.0",
  "copypasta",
@@ -1678,7 +1678,6 @@ dependencies = [
  "im-rc",
  "image",
  "indexmap",
- "kurbo 0.11.0",
  "lapce-xi-rope",
  "once_cell",
  "parking_lot",
@@ -1725,7 +1724,7 @@ dependencies = [
 [[package]]
 name = "floem-editor-core"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=c9e3d6a131c63286dc634b27c38b95bde43ed90d#c9e3d6a131c63286dc634b27c38b95bde43ed90d"
+source = "git+https://github.com/lapce/floem?rev=f178d220309dbaa74ebb7447c78a8b2b7660053c#f178d220309dbaa74ebb7447c78a8b2b7660053c"
 dependencies = [
  "bitflags 2.5.0",
  "itertools 0.12.1",
@@ -1803,7 +1802,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=c9e3d6a131c63286dc634b27c38b95bde43ed90d#c9e3d6a131c63286dc634b27c38b95bde43ed90d"
+source = "git+https://github.com/lapce/floem?rev=f178d220309dbaa74ebb7447c78a8b2b7660053c#f178d220309dbaa74ebb7447c78a8b2b7660053c"
 dependencies = [
  "smallvec",
 ]
@@ -1811,7 +1810,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=c9e3d6a131c63286dc634b27c38b95bde43ed90d#c9e3d6a131c63286dc634b27c38b95bde43ed90d"
+source = "git+https://github.com/lapce/floem?rev=f178d220309dbaa74ebb7447c78a8b2b7660053c#f178d220309dbaa74ebb7447c78a8b2b7660053c"
 dependencies = [
  "floem-cosmic-text",
  "image",
@@ -1822,7 +1821,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=c9e3d6a131c63286dc634b27c38b95bde43ed90d#c9e3d6a131c63286dc634b27c38b95bde43ed90d"
+source = "git+https://github.com/lapce/floem?rev=f178d220309dbaa74ebb7447c78a8b2b7660053c#f178d220309dbaa74ebb7447c78a8b2b7660053c"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1839,7 +1838,7 @@ dependencies = [
 [[package]]
 name = "floem_vger_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=c9e3d6a131c63286dc634b27c38b95bde43ed90d#c9e3d6a131c63286dc634b27c38b95bde43ed90d"
+source = "git+https://github.com/lapce/floem?rev=f178d220309dbaa74ebb7447c78a8b2b7660053c#f178d220309dbaa74ebb7447c78a8b2b7660053c"
 dependencies = [
  "anyhow",
  "floem-vger",
@@ -2972,7 +2971,7 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width",
  "url",
- "windows-sys 0.36.1",
+ "windows-sys 0.48.0",
  "zip",
 ]
 
@@ -3799,11 +3798,13 @@ checksum = "8835116a5c179084a830efb3adc117ab007512b535bc1a21c991d3b32a6b44dd"
 
 [[package]]
 name = "peniko"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "caaf7fec601d640555d9a4cab7343eba1e1c7a5a71c9993ff63b4c26bc5d50c5"
+checksum = "3c28d7294093837856bb80ad191cc46a2fcec8a30b43b7a3b0285325f0a917a9"
 dependencies = [
  "kurbo 0.11.0",
+ "serde",
+ "serde_bytes",
  "smallvec",
 ]
 
@@ -4495,18 +4496,27 @@ checksum = "836fa6a3e1e547f9a2c4040802ec865b5d85f4014efe00555d7090a3dcaa1090"
 
 [[package]]
 name = "serde"
-version = "1.0.197"
+version = "1.0.203"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fb1c873e1b9b056a4dc4c0c198b24c3ffa059243875552b2bd0933b1aee4ce2"
+checksum = "7253ab4de971e72fb7be983802300c30b5a7f0c2e56fab8abfc6a214307c0094"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
-name = "serde_derive"
-version = "1.0.197"
+name = "serde_bytes"
+version = "0.11.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7eb0b34b42edc17f6b7cac84a52a1c5f0e1bb2227e997ca9011ea3dd34e8610b"
+checksum = "8b8497c313fd43ab992087548117643f6fcd935cbf36f176ffda0aacf9591734"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.203"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "500cbc0ebeb6f46627f50f3f5811ccf6bf00643be300b4c3eabc0ef55dc5b5ba"
 dependencies = [
  "proc-macro2",
  "quote",

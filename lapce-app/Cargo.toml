@@ -62,7 +62,7 @@ percent-encoding = { version = "2.3.1" }
 [dependencies.floem]
 # path = "../../workspaces/floem"
 git              = "https://github.com/lapce/floem"
-rev              = "c9e3d6a131c63286dc634b27c38b95bde43ed90d"
+rev              = "f178d220309dbaa74ebb7447c78a8b2b7660053c"
 default-features = true
 features         = ["editor", "serde", "default-image-formats", "rfd-async-std"]
 
