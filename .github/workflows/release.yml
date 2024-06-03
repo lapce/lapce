@@ -319,7 +319,7 @@ jobs:
         run: rustup update && rustup target add x86_64-apple-darwin
 
       - name: Import Certificate
-        uses: lapce/import-codesign-certs@72dec84923586f8bef2bed09fdb4f9475c8f623d # use updated action, can be dropped once/if upstream is fixed
+        uses: Apple-Actions/import-codesign-certs@v3
         with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
