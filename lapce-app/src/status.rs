@@ -319,7 +319,9 @@ pub fn status(
                     {
                         status = format!(
                             "Ln {}, Col {}, Char {}",
-                            line, column, character,
+                            line + 1,
+                            column + 1,
+                            character,
                         );
                     }
                     if let Some(selection) = cursor.get_selection() {
