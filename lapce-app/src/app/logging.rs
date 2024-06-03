@@ -95,7 +95,7 @@ pub(super) fn panic_hook() {
 }
 
 #[cfg(windows)]
-fn error_modal(title: &str, msg: &str) -> i32 {
+pub(super) fn error_modal(title: &str, msg: &str) -> i32 {
     use std::iter::once;
     use std::os::windows::prelude::OsStrExt;
     use std::{ffi::OsStr, mem};
