@@ -55,8 +55,6 @@ use lapce_rpc::{
 use lsp_types::{CompletionItemKind, MessageType, ShowMessageParams};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
-use tracing::{error, metadata::LevelFilter, trace};
-use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{filter::Targets, reload::Handle};
 
 use crate::{
@@ -94,11 +92,14 @@ use crate::{
     status::status,
     text_input::TextInputBuilder,
     title::{title, window_controls_view},
+    tracing::*,
     update::ReleaseInfo,
     window::{TabsInfo, WindowData, WindowInfo},
     window_tab::{Focus, WindowTabData},
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
+
+mod logging;
 
 #[derive(Parser)]
 #[clap(name = "Lapce")]
@@ -3452,62 +3453,11 @@ fn window(window_data: WindowData) -> impl View {
     .style(|s| s.size_full())
 }
 
-#[inline(always)]
-fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
-    use tracing_subscriber::{filter, fmt, prelude::*, reload};
-
-    let (log_file, guard) = match Directory::logs_directory()
-        .and_then(|dir| {
-            tracing_appender::rolling::Builder::new()
-                .max_log_files(10)
-                .rotation(tracing_appender::rolling::Rotation::DAILY)
-                .filename_prefix("lapce")
-                .filename_suffix("log")
-                .build(dir)
-                .ok()
-        })
-        .map(tracing_appender::non_blocking)
-    {
-        Some((log_file, guard)) => (Some(log_file), Some(guard)),
-        None => (None, None),
-    };
-
-    let log_file_filter_targets = filter::Targets::new()
-        .with_target("lapce_app", LevelFilter::DEBUG)
-        .with_target("lapce_proxy", LevelFilter::DEBUG)
-        .with_target("lapce_core", LevelFilter::DEBUG);
-    let (log_file_filter, reload_handle) =
-        reload::Subscriber::new(log_file_filter_targets);
-
-    let console_filter_targets = std::env::var("LAPCE_LOG")
-        .unwrap_or_default()
-        .parse::<filter::Targets>()
-        .unwrap_or_default();
-
-    let registry = tracing_subscriber::registry();
-    if let Some(log_file) = log_file {
-        let file_layer = tracing_subscriber::fmt::subscriber()
-            .with_ansi(false)
-            .with_writer(log_file)
-            .with_filter(log_file_filter);
-        registry
-            .with(file_layer)
-            .with(fmt::Subscriber::default().with_filter(console_filter_targets))
-            .init();
-    } else {
-        registry
-            .with(fmt::Subscriber::default().with_filter(console_filter_targets))
-            .init();
-    };
-
-    (reload_handle, guard)
-}
-
 pub fn launch() {
-    let (reload_handle, _guard) = logging();
-    tracing::info!("Starting up Lapce..");
+    logging::panic_hook();
 
-    panic_hook();
+    let (reload_handle, _guard) = logging::logging();
+    trace!(TraceLevel::INFO, "Starting up Lapce..");
 
     #[cfg(feature = "vendored-fonts")]
     {
@@ -3550,13 +3500,38 @@ pub fn launch() {
         let mut cmd = std::process::Command::new(&args[0]);
         #[cfg(target_os = "windows")]
         cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+
+        let stderr_file_path =
+            Directory::logs_directory().unwrap().join("stderr.log");
+        let stderr_file = std::fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .read(true)
+            .open(stderr_file_path)
+            .unwrap();
+        let stderr = Stdio::from(stderr_file);
+
+        let stdout_file_path =
+            Directory::logs_directory().unwrap().join("stdout.log");
+        let stdout_file = std::fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .read(true)
+            .open(stdout_file_path)
+            .unwrap();
+        let stdout = Stdio::from(stdout_file);
+
         if let Err(why) = cmd
             .args(&args[1..])
-            .stderr(Stdio::null())
-            .stdout(Stdio::null())
+            .stderr(stderr)
+            .stdout(stdout)
+            .env("LAPCE_LOG", "lapce_app::app=error,off")
             .spawn()
         {
             eprintln!("Failed to launch lapce: {why}");
+            std::process::exit(1);
         };
         return;
     }
@@ -3566,7 +3541,7 @@ pub fn launch() {
     if !cli.new {
         if let Ok(socket) = get_socket() {
             if let Err(e) = try_open_in_existing_process(socket, &cli.paths) {
-                error!("failed to open path(s): {e}");
+                trace!(TraceLevel::ERROR, "failed to open path(s): {e}");
             };
             return;
         }
@@ -3574,7 +3549,7 @@ pub fn launch() {
 
     std::thread::spawn(move || {
         if let Err(e) = fetch_grammars() {
-            error!("failed to fetch grammars: {e}");
+            trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
         }
     });
 
@@ -3588,7 +3563,7 @@ pub fn launch() {
             #[cfg(windows)]
             error_modal("Error", &format!("Failed to create LapceDb: {e}"));
             #[cfg(not(windows))]
-            error!("Failed to create LapceDb: {e}");
+            trace!(TraceLevel::ERROR, "Failed to create LapceDb: {e}");
             std::process::exit(1);
         }
     };
@@ -3712,7 +3687,10 @@ fn load_shell_env() {
         Ok(s) => s,
         Err(error) => {
             // Shell variable is not set, so we can't determine the correct shell executable.
-            error!("Failed to obtain shell environment: {error}");
+            trace!(
+                TraceLevel::ERROR,
+                "Failed to obtain shell environment: {error}"
+            );
             return;
         }
     };
@@ -3725,7 +3703,10 @@ fn load_shell_env() {
         Ok(output) => String::from_utf8(output.stdout).unwrap_or_default(),
 
         Err(error) => {
-            error!("Failed to obtain shell environment: {error}");
+            trace!(
+                TraceLevel::ERROR,
+                "Failed to obtain shell environment: {error}"
+            );
             return;
         }
     };
@@ -3794,7 +3775,7 @@ fn listen_local_socket(tx: Sender<CoreNotification>) -> Result<()> {
                 if let Some(RpcMessage::Notification(msg)) = msg {
                     tx.send(msg)?;
                 } else {
-                    trace!("Unhandled message: {msg:?}");
+                    trace!(TraceLevel::ERROR, "Unhandled message: {msg:?}");
                 }
 
                 let stream_ref = reader.get_mut();
@@ -3916,74 +3897,6 @@ pub fn window_menu(
                     });
                 })),
         )
-}
-
-fn panic_hook() {
-    std::panic::set_hook(Box::new(move |info| {
-        let thread = std::thread::current();
-        let thread = thread.name().unwrap_or("main");
-        let backtrace = backtrace::Backtrace::new();
-
-        let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
-            s
-        } else {
-            "<unknown>"
-        };
-
-        match info.location() {
-            Some(loc) => {
-                error!(
-                    target: "lapce_app::panic_hook",
-                    "thread {thread} panicked at {} | file://./{}:{}:{}\n{:?}",
-                    payload,
-                    loc.file(), loc.line(), loc.column(),
-                    backtrace,
-                );
-            }
-            None => {
-                error!(
-                    target: "lapce_app::panic_hook",
-                    "thread {thread} panicked at {}\n{:?}",
-                    payload,
-                    backtrace,
-                );
-            }
-        }
-
-        #[cfg(windows)]
-        error_modal("Error", &info.to_string());
-    }))
-}
-
-#[cfg(windows)]
-fn error_modal(title: &str, msg: &str) -> i32 {
-    use std::iter::once;
-    use std::os::windows::prelude::OsStrExt;
-    use std::{ffi::OsStr, mem};
-    use windows::Win32::UI::WindowsAndMessaging::{
-        MessageBoxW, MB_ICONERROR, MB_SYSTEMMODAL,
-    };
-
-    let result: i32;
-
-    let title = OsStr::new(title)
-        .encode_wide()
-        .chain(once(0u16))
-        .collect::<Vec<u16>>();
-    let msg = OsStr::new(msg)
-        .encode_wide()
-        .chain(once(0u16))
-        .collect::<Vec<u16>>();
-    unsafe {
-        result = MessageBoxW(
-            mem::zeroed(),
-            msg.as_ptr(),
-            title.as_ptr(),
-            MB_ICONERROR | MB_SYSTEMMODAL,
-        );
-    }
-
-    result
 }
 
 fn fetch_grammars() -> Result<()> {
