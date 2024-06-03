@@ -142,6 +142,14 @@ pub struct CommonData {
     pub window_common: Rc<WindowCommonData>,
 }
 
+impl std::fmt::Debug for CommonData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommonData")
+            .field("workspace", &self.workspace)
+            .finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct WindowTabData {
     pub scope: Scope,
@@ -168,6 +176,14 @@ pub struct WindowTabData {
     pub progresses: RwSignal<IndexMap<ProgressToken, WorkProgress>>,
     pub messages: RwSignal<Vec<(String, ShowMessageParams)>>,
     pub common: Rc<CommonData>,
+}
+
+impl std::fmt::Debug for WindowTabData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WindowTabData")
+            .field("window_tab_id", &self.window_tab_id)
+            .finish()
+    }
 }
 
 impl KeyPressFocus for WindowTabData {

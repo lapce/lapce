@@ -43,7 +43,7 @@ enum RenamedPath {
     },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FileExplorerData {
     pub root: RwSignal<FileNodeItem>,
     pub naming: RwSignal<Naming>,

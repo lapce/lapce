@@ -66,7 +66,7 @@ impl From<serde_json::Value> for SettingsValue {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct SettingsItem {
     kind: String,
     name: String,
@@ -80,7 +80,7 @@ struct SettingsItem {
     header: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct SettingsData {
     items: im::Vector<SettingsItem>,
     kinds: im::Vector<(String, RwSignal<Point>)>,

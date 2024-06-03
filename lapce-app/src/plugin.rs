@@ -85,7 +85,7 @@ pub struct AvailableVoltData {
     pub installing: RwSignal<bool>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AvailableVoltList {
     pub loading: RwSignal<bool>,
     pub query_id: RwSignal<usize>,
@@ -94,7 +94,7 @@ pub struct AvailableVoltList {
     pub total: RwSignal<usize>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PluginData {
     pub installed: RwSignal<IndexMap<VoltID, InstalledVoltData>>,
     pub available: AvailableVoltList,

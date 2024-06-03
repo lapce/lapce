@@ -38,7 +38,7 @@ use crate::{
     workspace::LapceWorkspace,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TerminalData {
     pub scope: Scope,
     pub term_id: TermId,

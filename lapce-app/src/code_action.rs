@@ -21,7 +21,7 @@ pub enum CodeActionStatus {
     Active,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ScoredCodeActionItem {
     pub item: CodeActionOrCommand,
     pub plugin_id: PluginId,
@@ -38,7 +38,7 @@ impl ScoredCodeActionItem {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CodeActionData {
     pub status: RwSignal<CodeActionStatus>,
     pub active: RwSignal<usize>,

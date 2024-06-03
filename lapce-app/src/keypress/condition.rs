@@ -37,7 +37,7 @@ impl<'a> CheckCondition<'a> {
     }
 }
 
-#[derive(EnumString, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, EnumString, PartialEq, Eq)]
 pub enum Condition {
     #[strum(serialize = "editor_focus")]
     EditorFocus,
@@ -79,6 +79,7 @@ mod test {
     use super::Condition;
     use crate::keypress::{condition::CheckCondition, KeyPressData, KeyPressFocus};
 
+    #[derive(Clone, Copy, Debug)]
     struct MockFocus {
         accepted_conditions: &'static [Condition],
     }

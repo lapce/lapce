@@ -186,7 +186,7 @@ impl EditorViewKind {
 pub type SnippetIndex = Vec<(usize, (usize, usize))>;
 
 /// Shares data between cloned instances as long as the signals aren't swapped out.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EditorData {
     pub scope: Scope,
     pub editor_tab_id: RwSignal<Option<EditorTabId>>,

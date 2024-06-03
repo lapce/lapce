@@ -38,7 +38,7 @@ const DEFAULT_KEYMAPS_MACOS: &str =
 const DEFAULT_KEYMAPS_NONMACOS: &str =
     include_str!("../../defaults/keymaps-nonmacos.toml");
 
-pub trait KeyPressFocus {
+pub trait KeyPressFocus: std::fmt::Debug {
     fn get_mode(&self) -> Mode;
 
     fn check_condition(&self, condition: Condition) -> bool;
@@ -137,7 +137,7 @@ impl<'a> From<&'a PointerInputEvent> for EventRef<'a> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct KeyPressData {
     count: RwSignal<Option<usize>>,
     pending_keypress: RwSignal<Vec<KeyPress>>,

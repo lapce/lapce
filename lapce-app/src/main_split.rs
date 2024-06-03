@@ -388,6 +388,14 @@ pub struct MainSplitData {
     pub common: Rc<CommonData>,
 }
 
+impl std::fmt::Debug for MainSplitData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MainSplitData")
+            .field("root_split", &self.root_split)
+            .finish()
+    }
+}
+
 impl MainSplitData {
     pub fn new(cx: Scope, common: Rc<CommonData>) -> Self {
         let splits = cx.create_rw_signal(im::HashMap::new());

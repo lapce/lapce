@@ -9,6 +9,7 @@ pub struct KeyPress {
 }
 
 impl KeyPress {
+    #[tracing::instrument]
     pub fn keymap_press(&self) -> KeyMapPress {
         KeyMapPress {
             key: self.key.keymap_key(),

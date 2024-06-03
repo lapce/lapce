@@ -105,6 +105,12 @@ pub struct PaletteData {
     left_diff_path: RwSignal<Option<PathBuf>>,
 }
 
+impl std::fmt::Debug for PaletteData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PaletteData").finish()
+    }
+}
+
 impl PaletteData {
     pub fn new(
         cx: Scope,
