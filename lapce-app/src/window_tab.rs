@@ -1085,6 +1085,12 @@ impl WindowTabData {
                     scale = 4.0
                 }
                 self.common.window_common.window_scale.set(scale);
+
+                LapceConfig::update_file(
+                    "ui",
+                    "scale",
+                    toml_edit::Value::from(scale),
+                );
             }
             ZoomOut => {
                 let mut scale =
@@ -1094,9 +1100,21 @@ impl WindowTabData {
                     scale = 0.1
                 }
                 self.common.window_common.window_scale.set(scale);
+
+                LapceConfig::update_file(
+                    "ui",
+                    "scale",
+                    toml_edit::Value::from(scale),
+                );
             }
             ZoomReset => {
                 self.common.window_common.window_scale.set(1.0);
+
+                LapceConfig::update_file(
+                    "ui",
+                    "scale",
+                    toml_edit::Value::from(1.0),
+                );
             }
 
             ToggleMaximizedPanel => {

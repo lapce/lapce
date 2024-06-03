@@ -3593,6 +3593,10 @@ pub fn launch() {
 
     let windows = scope.create_rw_signal(im::HashMap::new());
     let config = LapceConfig::load(&LapceWorkspace::default(), &[], &plugin_paths);
+
+    // Restore scale from config
+    window_scale.set(config.ui.scale());
+
     let config = scope.create_rw_signal(Arc::new(config));
     let app_data = AppData {
         windows,

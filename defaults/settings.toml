@@ -81,6 +81,7 @@ default = {}
 # workdir     = "/home/user"
 
 [ui]
+scale = +1.0
 font-family = ""
 font-size = 13
 icon-size = 0

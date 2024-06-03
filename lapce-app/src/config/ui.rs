@@ -5,6 +5,9 @@ use structdesc::FieldNames;
 #[derive(FieldNames, Debug, Clone, Deserialize, Serialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct UIConfig {
+    #[field_names(desc = "Set the UI scale. Defaults to 1.0")]
+    scale: f64,
+
     #[field_names(
         desc = "Set the UI font family. If empty, it uses system default."
     )]
@@ -77,6 +80,10 @@ pub enum TabCloseButton {
 }
 
 impl UIConfig {
+    pub fn scale(&self) -> f64 {
+        self.scale.max(0.1).min(4.0)
+    }
+
     pub fn font_size(&self) -> usize {
         self.font_size.max(6).min(32)
     }
