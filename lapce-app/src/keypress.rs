@@ -252,6 +252,7 @@ impl KeyPressData {
                     logical: ev.key.logical_key.to_owned(),
                     physical: ev.key.physical_key,
                     key_without_modifiers: ev.key.key_without_modifiers(),
+                    location: ev.key.location,
                 },
                 mods: Self::get_key_modifiers(ev),
             },
