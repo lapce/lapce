@@ -4847,7 +4847,7 @@ checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 [[package]]
 name = "structdesc"
 version = "0.1.0"
-source = "git+https://github.com/lapce/structdesc#47d8201fb13240166f4d842c718d63c1e24f0236"
+source = "git+https://github.com/lapce/structdesc?rev=bb56969f22fdb2c2d6c03f158fd4a2bdc983b659#bb56969f22fdb2c2d6c03f158fd4a2bdc983b659"
 dependencies = [
  "darling",
  "proc-macro2",

@@ -125,4 +125,3 @@ opt-level = 3
 
 [profile.fastdev]
 inherits = "dev"
-
