@@ -304,7 +304,7 @@ jobs:
           retention-days: 1
 
   macos:
-    runs-on: macos-11
+    runs-on: macos-14
     needs: tagname
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
@@ -316,7 +316,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install ARM target
-        run: rustup update && rustup target add aarch64-apple-darwin
+        run: rustup update && rustup target add x86_64-apple-darwin
 
       - name: Import Certificate
         uses: lapce/import-codesign-certs@72dec84923586f8bef2bed09fdb4f9475c8f623d # use updated action, can be dropped once/if upstream is fixed
