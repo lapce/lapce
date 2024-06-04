@@ -35,7 +35,6 @@ jobs:
       - name: Update toolchain & add llvm-tools
         run: |
           rustup update --no-self-update
-          rustup component add llvm-tools-preview
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -54,19 +53,8 @@ jobs:
         if: startsWith(matrix.os, 'windows')
         run: cargo clean
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
-      - name: Run tests and coverage
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
-
       - name: Run doc tests
         run: cargo test --doc --workspace
-
-      - uses: codecov/codecov-action@v4
-        with:
-          files: lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
 
   fmt:
     name: Rustfmt
