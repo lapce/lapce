@@ -35,7 +35,7 @@ jobs:
       APP_NAME: Lapce-macos-${{ matrix.rust-arch }}.app
       DMG_NAME: lapce-macos-${{ matrix.rust-arch }}.dmg
 
-      CARGO_BUILD_TARGET: ${{ matrix.rust-arch }}-apple-darwin
+      # CARGO_BUILD_TARGET: ${{ matrix.rust-arch }}-apple-darwin
     steps:
       - uses: actions/checkout@v4
 
