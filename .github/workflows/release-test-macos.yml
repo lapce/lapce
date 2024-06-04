@@ -57,7 +57,6 @@ jobs:
 
       - name: Make DMG
         run: make dmg
-          MACOSX_DEPLOYMENT_TARGET: 
 
       - name: Rename
         run: |
