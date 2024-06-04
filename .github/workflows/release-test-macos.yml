@@ -51,8 +51,13 @@ jobs:
       - name: Fetch dependencies
         run: cargo fetch --locked
 
+      - name: arm64
+        if: matrix.rust-arch == 'aarch64'
+        run: echo 'MACOSX_DEPLOYMENT_TARGET=11.0' >> $GITHUB_ENV
+
       - name: Make DMG
         run: make dmg
+          MACOSX_DEPLOYMENT_TARGET: 
 
       - name: Rename
         run: |
