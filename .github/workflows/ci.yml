@@ -17,19 +17,13 @@ env:
 
 jobs:
   build:
-    name: Rust on ${{ matrix.os }} (${{ join(matrix.features, ',') }})
+    name: Rust on ${{ matrix.os }}
     if: github.event.pull_request.draft == false
     needs: [fmt, clippy]
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest, macos-latest ]
-        include:
-          - os: windows-latest
-            features: []
-          - os: windows-latest
-            features: 
-              - lapce-app/portable
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -50,14 +44,13 @@ jobs:
         run: cargo fetch --locked
 
       - name: Build
-        if: ${{ join(matrix.features, ',') == '' }}
         run: cargo build --frozen
 
-      - name: Build
-        if: ${{ join(matrix.features, ',') != '' }}
-        run: cargo build --frozen --features ${{ join(matrix.features, ',') }}
+      - name: Build as portable
+        if: startsWith(matrix.os, 'windows')
+        run: cargo build --frozen --features lapce-app/portable
 
-      - name: Free space
+      - name: Free space on Windows
         if: startsWith(matrix.os, 'windows')
         run: cargo clean
 
@@ -65,7 +58,6 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Run tests and coverage
-        if: ${{ toJSON(matrix.features) == '[]' }}
         run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
 
       - name: Run doc tests
@@ -74,6 +66,7 @@ jobs:
       - uses: codecov/codecov-action@v4
         with:
           files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   fmt:
     name: Rustfmt
