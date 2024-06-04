@@ -19,13 +19,13 @@ jobs:
     strategy:
       matrix:
         include:
-          # - rust-arch: aarch64
-          #   darwin-arch: arm64
-          #   runs-on: macos-14
+          - rust-arch: aarch64
+            darwin-arch: arm64
+            runs-on: macos-14
 
-          # - rust-arch: x86_64
-          #   darwin-arch: x86_64
-          #   runs-on: macos-13
+          - rust-arch: aarch64
+            darwin-arch: x86_64
+            runs-on: macos-13
 
           - rust-arch: aarch64
             darwin-arch: x86_64
@@ -87,4 +87,4 @@ jobs:
           name: lapce-macos-${{ matrix.runs-on }}
           path: |
             ${{ env.RELEASE_DIR }}/macos/${{ env.DMG_NAME }}
-          retention-days: 1
+          retention-days: 7
