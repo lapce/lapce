@@ -4,6 +4,10 @@ on:
       - master
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - Cargo.toml
+      - Cargo.lock
+      - lapce-*/*
 
 name: CI
 
