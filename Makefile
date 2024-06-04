@@ -34,7 +34,7 @@ binary: $(TARGET)-native ## Build a release binary
 binary-universal: $(TARGET)-universal ## Build a universal release binary
 $(TARGET)-native:
 	cargo build --profile release-lto
-	@lipo target/release-lto/$(TARGET) -create -output $(APP_BINARY)
+	@lipo $(RELEASE_DIR)/$(TARGET) -create -output $(APP_BINARY)
 $(TARGET)-universal:
 	MACOSX_DEPLOYMENT_TARGET="10.11" cargo build --profile release-lto --target=x86_64-apple-darwin
 	MACOSX_DEPLOYMENT_TARGET="11.0" cargo build --profile release-lto --target=aarch64-apple-darwin
