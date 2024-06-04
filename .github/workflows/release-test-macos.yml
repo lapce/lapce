@@ -1,4 +1,4 @@
-name: Release
+name: Release Test
 
 on:
   pull_request:
@@ -76,5 +76,5 @@ jobs:
         with:
           name: lapce-macos-${{ matrix.rust-arch }}
           path: |
-            ./target/release-lto/macos/${{ env.DMG_NAME }}.dmg
+            ./target/release-lto/macos/${{ env.DMG_NAME }}
           retention-days: 1
