@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/release-test-macos.yml
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  CARGO_TERM_COLOR: always
+
+jobs:
+  macos:
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      matrix:
+        include:
+          - rust-arch: aarch64
+            darwin-arch: arm64
+            runs-on: macos-14
+
+          - rust-arch: x86_64
+            darwin-arch: x86_64
+            runs-on: macos-13
+    env:
+      RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
+
+      NOTARIZE_USERNAME: ${{ secrets.NOTARIZE_USERNAME }}
+      NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
+
+      APP_NAME: Lapce-macos-${{ matrix.rust-arch }}.app
+      DMG_NAME: lapce-macos-${{ matrix.rust-arch }}.dmg
+
+      CARGO_BUILD_TARGET: ${{ matrix.rust-arch }}-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update rust
+        run: rustup update
+
+      - name: Import Certificate
+        uses: Apple-Actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
+          p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+
+      - name: Fetch dependencies
+        run: cargo fetch --locked
+
+      - name: Make DMG
+        run: make dmg
+
+      - name: Rename
+        run: |
+          cp ./target/release-lto/macos/Lapce.dmg ./target/release-lto/macos/${{ env.DMG_NAME }}
+
+      - name: Notarize Release Build
+        uses: lando/notarize-action@v2
+        with:
+          product-path: "./target/release-lto/macos/${{ env.DMG_NAME }}"
+          appstore-connect-username: ${{ secrets.NOTARIZE_USERNAME }}
+          appstore-connect-password: ${{ secrets.NOTARIZE_PASSWORD }}
+          appstore-connect-team-id: CYSGAZFR8D
+          primary-bundle-id: "io.lapce"
+
+      - name: "Staple Release Build"
+        uses: lapce/xcode-staple@062485d6eeafe841c18a412f012e80f49e23c517
+        with:
+          product-path: "./target/release-lto/macos/${{ env.DMG_NAME }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lapce-macos-${{ matrix.rust-arch }}
+          path: |
+            ./target/release-lto/macos/${{ env.DMG_NAME }}.dmg
+          retention-days: 1
