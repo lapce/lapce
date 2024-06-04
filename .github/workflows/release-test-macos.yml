@@ -35,13 +35,15 @@ jobs:
             darwin-arch: x86_64
             runs-on: macos-11
     env:
-      RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
+      RELEASE_TAG_NAME: nightly
 
       NOTARIZE_USERNAME: ${{ secrets.NOTARIZE_USERNAME }}
       NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
 
       APP_NAME: Lapce-macos-${{ matrix.rust-arch }}.app
       DMG_NAME: lapce-macos-${{ matrix.rust-arch }}.dmg
+
+      RELEASE_DIR: ./target/${{ matrix.rust-arch }}-apple-darwin/release-lto
 
       CARGO_BUILD_TARGET: ${{ matrix.rust-arch }}-apple-darwin
     steps:
@@ -64,12 +66,12 @@ jobs:
 
       - name: Rename
         run: |
-          cp ./target/${{ env.CARGO_BUILD_TARGET }}/release-lto/macos/Lapce.dmg ./target/${{ env.CARGO_BUILD_TARGET }}/release-lto/macos/${{ env.DMG_NAME }}
+          cp ${{ env.RELEASE_DIR }}/macos/Lapce.dmg ${{ env.RELEASE_DIR }}/macos/${{ env.DMG_NAME }}
 
       - name: Notarize Release Build
         uses: lando/notarize-action@v2
         with:
-          product-path: "./target/${{ env.CARGO_BUILD_TARGET }}/release-lto/macos/${{ env.DMG_NAME }}"
+          product-path: "${{ env.RELEASE_DIR }}/macos/${{ env.DMG_NAME }}"
           appstore-connect-username: ${{ secrets.NOTARIZE_USERNAME }}
           appstore-connect-password: ${{ secrets.NOTARIZE_PASSWORD }}
           appstore-connect-team-id: CYSGAZFR8D
@@ -78,11 +80,11 @@ jobs:
       - name: "Staple Release Build"
         uses: lapce/xcode-staple@062485d6eeafe841c18a412f012e80f49e23c517
         with:
-          product-path: "./target/${{ env.CARGO_BUILD_TARGET }}/release-lto/macos/${{ env.DMG_NAME }}"
+          product-path: "${{ env.RELEASE_DIR }}/macos/${{ env.DMG_NAME }}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: lapce-macos-${{ matrix.runs-on }}
           path: |
-            ./target/${{ env.CARGO_BUILD_TARGET }}/release-lto/macos/${{ env.DMG_NAME }}
+            ${{ env.RELEASE_DIR }}/macos/${{ env.DMG_NAME }}
           retention-days: 1
