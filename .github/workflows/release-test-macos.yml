@@ -36,7 +36,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Update rust
-        run: rustup update && rustup target add aarch64-apple-darwin
+        run: rustup update && rustup target add x86_64-apple-darwin
 
       - name: Import Certificate
         uses: Apple-Actions/import-codesign-certs@v3
