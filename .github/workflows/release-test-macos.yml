@@ -17,23 +17,28 @@ jobs:
   macos:
     runs-on: ${{ matrix.runs-on }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - rust-arch: aarch64
             darwin-arch: arm64
             runs-on: macos-14
+            xcode-ver: '15.4'
 
           - rust-arch: aarch64
             darwin-arch: x86_64
             runs-on: macos-13
+            xcode-ver: '15.2'
 
           - rust-arch: aarch64
             darwin-arch: x86_64
             runs-on: macos-12
+            xcode-ver: '14.2'
 
           - rust-arch: aarch64
             darwin-arch: x86_64
             runs-on: macos-11
+            xcode-ver: '13.2.1'
     env:
       RELEASE_TAG_NAME: nightly
 
@@ -57,6 +62,10 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+
+      - name: Configure default Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer
 
       - name: Fetch dependencies
         run: cargo fetch --locked
