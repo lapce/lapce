@@ -65,7 +65,7 @@ jobs:
 
       - name: Configure default Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer
+          sudo xcode-select -s /Applications/Xcode_${{ matrix.xcode-ver }}.app/Contents/Developer
 
       - name: Fetch dependencies
         run: cargo fetch --locked
