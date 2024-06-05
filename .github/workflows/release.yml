@@ -304,7 +304,7 @@ jobs:
           retention-days: 1
 
   macos:
-    runs-on: macos-12
+    runs-on: macos-14
     needs: tagname
     env:
       RELEASE_TAG_NAME: ${{ needs.tagname.outputs.tag_name }}
@@ -316,13 +316,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install ARM target
-        run: rustup update && rustup target add aarch64-apple-darwin
+        run: rustup update && rustup target add x86_64-apple-darwin
 
       - name: Import Certificate
         uses: Apple-Actions/import-codesign-certs@v3
         with:
           p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
           p12-password: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+
+      - name: Select newer Xcode for building
+        run: |
+          sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
 
       - name: Fetch dependencies
         run: cargo fetch --locked
@@ -347,7 +351,6 @@ jobs:
           appstore-connect-password: ${{ secrets.NOTARIZE_PASSWORD }}
           appstore-connect-team-id: CYSGAZFR8D
           primary-bundle-id: "io.lapce"
-          
 
       - name: "Staple Release Build"
         uses: lapce/xcode-staple@062485d6eeafe841c18a412f012e80f49e23c517
@@ -360,7 +363,7 @@ jobs:
           path: |
             ./target/release-lto/macos/lapce-proxy-darwin-*.gz
             ./target/release-lto/macos/Lapce-macos.dmg
-          retention-days: 1
+          retention-days: 3
 
   publish:
     needs:
