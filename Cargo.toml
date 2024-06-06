@@ -71,8 +71,8 @@ lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
-floem-editor-core = { git = "https://github.com/lapce/floem", rev = "f178d220309dbaa74ebb7447c78a8b2b7660053c", features = ["serde"] }
-# floem-editor-core = { path = "../workspaces/floem/editor-core/", features = ["serde"] }
+floem-editor-core = { git = "https://github.com/lapce/floem", rev = "e5d2ded9b7c35d0ef357d966bc688b3904da2770", features = ["serde"] }
+# floem-editor-core = { path = "../floem/editor-core/", features = ["serde"] }
 
 [patch.crates-io]
 # Temporarily patch lsp-types with a version that adds message-type debug

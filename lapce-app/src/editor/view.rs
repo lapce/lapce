@@ -395,7 +395,7 @@ impl EditorView {
         }
     }
 
-    fn paint_cursor(
+    fn paint_current_line(
         &self,
         cx: &mut PaintCx,
         is_local: bool,
@@ -404,14 +404,11 @@ impl EditorView {
         let e_data = self.editor.clone();
         let ed = e_data.editor.clone();
         let cursor = self.editor.cursor();
-        let find_focus = self.editor.find_focus;
         let config = self.editor.common.config;
 
         let config = config.get_untracked();
         let line_height = config.editor.line_height() as f64;
         let viewport = self.viewport.get_untracked();
-        let is_active =
-            self.is_active.get_untracked() && !find_focus.get_untracked();
 
         let current_line_color = ed.es.with_untracked(EditorStyle::current_line);
 
@@ -472,10 +469,6 @@ impl EditorView {
                     }
                 }
             }
-
-            FloemEditorView::paint_selection(cx, &ed, screen_lines);
-
-            FloemEditorView::paint_cursor_caret(cx, &ed, is_active, screen_lines);
         });
     }
 
@@ -1097,6 +1090,9 @@ impl View for EditorView {
         let config = e_data.common.config.get_untracked();
         let doc = e_data.doc();
         let is_local = doc.content.with_untracked(|content| content.is_local());
+        let find_focus = self.editor.find_focus;
+        let is_active =
+            self.is_active.get_untracked() && !find_focus.get_untracked();
 
         // We repeatedly get the screen lines because we don't currently carefully manage the
         // paint functions to avoid potentially needing to recompute them, which could *maybe*
@@ -1107,13 +1103,16 @@ impl View for EditorView {
         // I expect that most/all of the paint functions could restrict themselves to only what is
         // within the active screen lines without issue.
         let screen_lines = ed.screen_lines.get_untracked();
-        self.paint_cursor(cx, is_local, &screen_lines);
+        self.paint_current_line(cx, is_local, &screen_lines);
+        FloemEditorView::paint_selection(cx, ed, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_diff_sections(cx, viewport, &screen_lines, &config);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_find(cx, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
+        let screen_lines = ed.screen_lines.get_untracked();
+        FloemEditorView::paint_cursor_caret(cx, ed, is_active, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         FloemEditorView::paint_text(cx, ed, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
