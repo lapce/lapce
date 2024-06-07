@@ -1112,9 +1112,7 @@ impl View for EditorView {
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_bracket_highlights_scope_lines(cx, viewport, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
-        FloemEditorView::paint_cursor_caret(cx, ed, is_active, &screen_lines);
-        let screen_lines = ed.screen_lines.get_untracked();
-        FloemEditorView::paint_text(cx, ed, viewport, &screen_lines);
+        FloemEditorView::paint_text(cx, ed, viewport, is_active, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
         self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);
@@ -1780,7 +1778,12 @@ fn editor_content(
     scroll({
         let editor_content_view =
             editor_view(e_data.get_untracked(), debug_breakline, is_active).style(
-                move |s| s.absolute().min_size_full().cursor(CursorStyle::Text),
+                move |s| {
+                    s.absolute()
+                        .margin_left(1.0)
+                        .min_size_full()
+                        .cursor(CursorStyle::Text)
+                },
             );
 
         let id = editor_content_view.id();
