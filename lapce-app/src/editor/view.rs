@@ -1263,8 +1263,7 @@ pub fn editor_container_view(
         container(
             stack((
                 editor_gutter(window_tab_data.clone(), editor, is_active),
-                container(editor_content(editor, debug_breakline, is_active))
-                    .style(move |s| s.size_pct(100.0, 100.0)),
+                editor_content(editor, debug_breakline, is_active),
                 empty().style(move |s| {
                     let config = config.get();
                     s.absolute()
@@ -1322,6 +1321,7 @@ pub fn editor_container_view(
         }
     })
     .style(|s| s.flex_col().absolute().size_pct(100.0, 100.0))
+    .debug_name("Editor Container")
 }
 
 fn editor_gutter(
@@ -1478,6 +1478,7 @@ fn editor_gutter(
             }),
             empty().style(move |s| s.width(padding_right)),
         ))
+        .debug_name("Centered Last Line Count")
         .style(|s| s.height_pct(100.0)),
         clip(
             stack((
@@ -1495,7 +1496,8 @@ fn editor_gutter(
                             % config.get().editor.line_height() as f64)
                             as f32,
                     )
-                }),
+                })
+                .debug_name("Breakpoint Stack"),
                 dyn_stack(
                     move || {
                         let e_data = e_data.get();
@@ -1565,54 +1567,51 @@ fn editor_gutter(
                         }
                     })
                     .style(|s| s.size_pct(100.0, 100.0)),
-                container(
-                    svg(move || config.get().ui_svg(LapceIcons::LIGHTBULB)).style(
-                        move |s| {
-                            let config = config.get();
-                            let size = config.ui.icon_size() as f32;
-                            s.size(size, size)
-                                .color(config.color(LapceColor::LAPCE_WARN))
-                        },
-                    ),
-                )
-                .on_click_stop(move |_| {
-                    e_data.get_untracked().show_code_actions(true);
-                })
-                .style(move |s| {
-                    let config = config.get();
-                    let viewport = viewport.get();
-                    let gutter_width = gutter_width.get();
-                    let code_action_vline = code_action_vline.get();
-                    let size = config.ui.icon_size() as f32;
-                    let margin_left =
-                        gutter_width as f32 + (padding_right - size) / 2.0 - 4.0;
-                    let line_height = config.editor.line_height();
-                    let margin_top = if let Some(vline) = code_action_vline {
-                        (vline.get() * line_height) as f32 - viewport.y0 as f32
-                            + (line_height as f32 - size) / 2.0
-                            - 4.0
-                    } else {
-                        0.0
-                    };
-                    s.absolute()
-                        .padding(4.0)
-                        .border_radius(6.0)
-                        .margin_left(margin_left)
-                        .margin_top(margin_top)
-                        .apply_if(code_action_vline.is_none(), |s| s.hide())
-                        .hover(|s| {
-                            s.cursor(CursorStyle::Pointer).background(
-                                config.color(LapceColor::PANEL_HOVERED_BACKGROUND),
-                            )
-                        })
-                        .active(|s| {
-                            s.background(
-                                config.color(
+                svg(move || config.get().ui_svg(LapceIcons::LIGHTBULB))
+                    .style(move |s| {
+                        let config = config.get();
+                        let size = config.ui.icon_size() as f32;
+                        s.size(size, size)
+                            .color(config.color(LapceColor::LAPCE_WARN))
+                    })
+                    .on_click_stop(move |_| {
+                        e_data.get_untracked().show_code_actions(true);
+                    })
+                    .style(move |s| {
+                        let config = config.get();
+                        let viewport = viewport.get();
+                        let gutter_width = gutter_width.get();
+                        let code_action_vline = code_action_vline.get();
+                        let size = config.ui.icon_size() as f32;
+                        let margin_left =
+                            gutter_width as f32 + (padding_right - size) / 2.0 - 4.0;
+                        let line_height = config.editor.line_height();
+                        let margin_top = if let Some(vline) = code_action_vline {
+                            (vline.get() * line_height) as f32 - viewport.y0 as f32
+                                + (line_height as f32 - size) / 2.0
+                                - 4.0
+                        } else {
+                            0.0
+                        };
+                        s.absolute()
+                            .padding(4.0)
+                            .border_radius(6.0)
+                            .margin_left(margin_left)
+                            .margin_top(margin_top)
+                            .apply_if(code_action_vline.is_none(), |s| s.hide())
+                            .hover(|s| {
+                                s.cursor(CursorStyle::Pointer).background(
+                                    config
+                                        .color(LapceColor::PANEL_HOVERED_BACKGROUND),
+                                )
+                            })
+                            .active(|s| {
+                                s.background(config.color(
                                     LapceColor::PANEL_HOVERED_ACTIVE_BACKGROUND,
-                                ),
-                            )
-                        })
-                }),
+                                ))
+                            })
+                    })
+                    .debug_name("Code Action LightBulb"),
             ))
             .style(|s| s.size_pct(100.0, 100.0)),
         )
@@ -1624,6 +1623,7 @@ fn editor_gutter(
         }),
     ))
     .style(|s| s.height_pct(100.0))
+    .debug_name("Editor Gutter")
 }
 
 fn editor_breadcrumbs(
@@ -1737,6 +1737,7 @@ fn editor_breadcrumbs(
             .height(line_height as f32)
             .apply_if(doc_path.get().is_none(), |s| s.hide())
     })
+    .debug_name("Editor BreadCrumbs")
 }
 
 fn editor_content(
@@ -1879,11 +1880,8 @@ fn editor_content(
             rect
         }
     })
-    .style(|s| {
-        s.absolute()
-            .size_pct(100.0, 100.0)
-            .set(PropagatePointerWheel, false)
-    })
+    .style(|s| s.size_full().set(PropagatePointerWheel, false))
+    .debug_name("Editor Content")
 }
 
 fn search_editor_view(
