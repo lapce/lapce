@@ -501,6 +501,7 @@ fn keyboard_picker_view(
                     .border_color(config.color(LapceColor::LAPCE_BORDER))
             }),
         ))
+        .on_event_stop(EventListener::PointerDown, |_| {})
         .style(move |s| {
             let config = config.get();
             s.items_center()
