@@ -696,6 +696,8 @@ fn editor_tab_header(
 
             let tab_style = move |s: Style| {
                 s.items_center()
+                    .justify_center()
+                    .height_full()
                     .border_left(if i.get() == 0 { 1.0 } else { 0.0 })
                     .border_right(1.0)
                     .border_color(config.get().color(LapceColor::LAPCE_BORDER))
@@ -818,54 +820,59 @@ fn editor_tab_header(
                         .border_color(config.color(LapceColor::LAPCE_BORDER))
                 })
                 .style(|s| s.align_items(Some(AlignItems::Center)).height_full()),
-            container(empty().style(move |s| {
-                s.size_full()
-                    .border_bottom(if editor_tab_active.get() == i.get() {
-                        2.0
-                    } else {
-                        0.0
-                    })
-                    .border_color(config.get().color(if is_focused() {
-                        LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE
-                    } else {
-                        LapceColor::LAPCE_TAB_INACTIVE_UNDERLINE
-                    }))
-            }))
-            .style(|s| s.absolute().padding_horiz(3.0).size_full()),
-            empty().style(move |s| {
-                let i = i.get();
-                let drag_over_left = drag_over_left.get();
-                s.absolute()
-                    .margin_left(if i == 0 { 0.0 } else { -2.0 })
-                    .height_full()
-                    .width(
-                        header_content_size.get().width as f32
-                            + if i == 0 { 1.0 } else { 3.0 },
-                    )
-                    .apply_if(drag_over_left.is_none(), |s| s.hide())
-                    .apply_if(drag_over_left.is_some(), |s| {
-                        if let Some(drag_over_left) = drag_over_left {
-                            if drag_over_left {
-                                s.border_left(3.0)
-                            } else {
-                                s.border_right(3.0)
-                            }
+            empty()
+                .style(move |s| {
+                    s.size_full()
+                        .border_bottom(if editor_tab_active.get() == i.get() {
+                            2.0
                         } else {
-                            s
-                        }
-                    })
-                    .border_color(
-                        config
-                            .get()
-                            .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
-                            .with_alpha_factor(0.5),
-                    )
-            }),
+                            0.0
+                        })
+                        .border_color(config.get().color(if is_focused() {
+                            LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE
+                        } else {
+                            LapceColor::LAPCE_TAB_INACTIVE_UNDERLINE
+                        }))
+                })
+                .style(|s| s.absolute().padding_horiz(3.0).size_full())
+                .debug_name("Drop Indicator"),
+            empty()
+                .style(move |s| {
+                    let i = i.get();
+                    let drag_over_left = drag_over_left.get();
+                    s.absolute()
+                        .margin_left(if i == 0 { 0.0 } else { -2.0 })
+                        .height_full()
+                        .width(
+                            header_content_size.get().width as f32
+                                + if i == 0 { 1.0 } else { 3.0 },
+                        )
+                        .apply_if(drag_over_left.is_none(), |s| s.hide())
+                        .apply_if(drag_over_left.is_some(), |s| {
+                            if let Some(drag_over_left) = drag_over_left {
+                                if drag_over_left {
+                                    s.border_left(3.0)
+                                } else {
+                                    s.border_right(3.0)
+                                }
+                            } else {
+                                s
+                            }
+                        })
+                        .border_color(
+                            config
+                                .get()
+                                .color(LapceColor::LAPCE_TAB_ACTIVE_UNDERLINE)
+                                .with_alpha_factor(0.5),
+                        )
+                })
+                .debug_name("Active Tab Indicator"),
         ))
         .on_resize(move |rect| {
             layout_rect.set(rect);
         })
         .style(|s| s.height_full())
+        .debug_name("Tab and Active Indicator")
     };
 
     let content_size = create_rw_signal(Size::ZERO);
@@ -924,8 +931,9 @@ fn editor_tab_header(
                 .debug_name("Next/Previoius Tab Buttons")
                 .style(move |s| s.items_center()),
             )
-        }),
-        container({
+        })
+        .style(|s| s.flex_shrink(0.)),
+        container(
             scroll({
                 dyn_stack(items, key, view_fn)
                     .on_resize(move |rect| {
@@ -949,13 +957,12 @@ fn editor_tab_header(
             .style(|s| {
                 s.set(HideBar, true)
                     .set(VerticalScrollAsHorizontal, true)
-                    .position(Position::Absolute)
-                    .height_full()
-                    .max_width_full()
-            })
-        })
-        .debug_name("Tab scroll")
-        .style(|s| s.height_full().flex_grow(1.0).flex_basis(0.0)),
+                    .absolute()
+                    .size_full()
+            }),
+        )
+        .style(|s| s.height_full().flex_grow(1.0).flex_basis(0.).min_width(10.))
+        .debug_name("Tab scroll"),
         stack({
             let size = create_rw_signal(Size::ZERO);
             (
@@ -1023,11 +1030,22 @@ fn editor_tab_header(
                 .style(|s| s.items_center().height_full()),
             )
         })
-        .style(|s| s.height_full()),
+        .debug_name("Split/Close Panel Buttons")
+        .style(move |s| {
+            let content_size = content_size.get();
+            let scroll_offset = scroll_offset.get();
+            s.height_full()
+                .flex_shrink(0.)
+                .margin_left(PxPctAuto::Auto)
+                .apply_if(scroll_offset.x1 < content_size.width, |s| {
+                    s.margin_left(0.)
+                })
+        }),
     ))
     .style(move |s| {
         let config = config.get();
         s.items_center()
+            .max_width_full()
             .border_bottom(1.0)
             .border_color(config.color(LapceColor::LAPCE_BORDER))
             .background(config.color(LapceColor::PANEL_BACKGROUND))
@@ -1977,7 +1995,8 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
     let workbench_size = window_tab_data.common.workbench_size;
     let main_split_width = window_tab_data.main_split.width;
     stack((
-        panel_container_view(window_tab_data.clone(), PanelContainerPosition::Left),
+        panel_container_view(window_tab_data.clone(), PanelContainerPosition::Left)
+            .style(|s| s.border_right(0.)),
         {
             let window_tab_data = window_tab_data.clone();
             stack((
