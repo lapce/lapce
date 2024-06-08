@@ -390,6 +390,7 @@ pub fn status(
             .height(config.ui.status_height() as f32)
             .align_items(Some(AlignItems::Center))
     })
+    .debug_name("Status/Bottom Bar")
 }
 
 fn progress_view(

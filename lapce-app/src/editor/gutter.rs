@@ -187,4 +187,8 @@ impl View for EditorGutterView {
         self.paint_head_changes(cx, &self.editor, viewport, kind_is_normal, &config);
         self.paint_sticky_headers(cx, kind_is_normal, &config);
     }
+
+    fn debug_name(&self) -> std::borrow::Cow<'static, str> {
+        "Editor Gutter".into()
+    }
 }

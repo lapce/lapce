@@ -544,4 +544,5 @@ pub fn diff_show_more_section_view(
         .style(|s| s.size_pct(100.0, 100.0)),
     ))
     .style(|s| s.absolute().flex_col().size_pct(100.0, 100.0))
+    .debug_name("Diff Show More Section")
 }
