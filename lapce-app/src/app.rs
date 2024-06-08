@@ -663,6 +663,7 @@ fn editor_tab_header(
                             .unwrap_or(true),
                         |s| s.font_style(FontStyle::Italic),
                     )
+                    .selectable(false)
                 });
 
             let tab_close_button = clickable_icon(
@@ -1991,7 +1992,12 @@ pub fn tooltip_label<S: std::fmt::Display + 'static, V: View + 'static>(
     child: V,
     text: impl Fn() -> S + 'static + Clone,
 ) -> impl View {
-    tooltip(child, move || tooltip_tip(config, label(text.clone())))
+    tooltip(child, move || {
+        tooltip_tip(
+            config,
+            label(text.clone()).style(move |s| s.selectable(false)),
+        )
+    })
 }
 
 fn tooltip_tip<V: View + 'static>(
@@ -2395,6 +2401,7 @@ fn palette_item(
                                     .border_color(
                                         config.get().color(LapceColor::LAPCE_BORDER),
                                     )
+                                    .selectable(false)
                             })
                         },
                     ),)),

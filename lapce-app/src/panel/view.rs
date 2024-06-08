@@ -95,25 +95,30 @@ impl PanelBuilder {
         style: impl Fn(Style) -> Style + 'static,
     ) -> Self {
         let position = self.position;
-        let view = foldable_panel_section(text(name), view, open, self.config)
-            .style(move |s| {
-                let s = s.width_full().flex_col();
-                // Use the manual height if given, otherwise if we're open behave flex,
-                // otherwise, do nothing so that there's no height
-                let s = if open.get() {
-                    if let Some(height) = height {
-                        s.height(height)
-                    } else {
-                        s.flex_grow(1.0).flex_basis(0.0)
-                    }
-                } else if position.is_bottom() {
-                    s.flex_grow(0.3).flex_basis(0.0)
+        let view = foldable_panel_section(
+            text(name).style(move |s| s.selectable(false)),
+            view,
+            open,
+            self.config,
+        )
+        .style(move |s| {
+            let s = s.width_full().flex_col();
+            // Use the manual height if given, otherwise if we're open behave flex,
+            // otherwise, do nothing so that there's no height
+            let s = if open.get() {
+                if let Some(height) = height {
+                    s.height(height)
                 } else {
-                    s
-                };
+                    s.flex_grow(1.0).flex_basis(0.0)
+                }
+            } else if position.is_bottom() {
+                s.flex_grow(0.3).flex_basis(0.0)
+            } else {
+                s
+            };
 
-                style(s)
-            });
+            style(s)
+        });
         self.views.push(view.into_any());
         self
     }

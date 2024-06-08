@@ -162,12 +162,16 @@ fn file_view(
             container(
                 stack((
                     label(move || file_name.clone()).style(|s| {
-                        s.margin_right(6.0).max_width_pct(100.0).text_ellipsis()
+                        s.margin_right(6.0)
+                            .max_width_pct(100.0)
+                            .text_ellipsis()
+                            .selectable(false)
                     }),
                     label(move || folder.clone()).style(move |s| {
                         s.color(config.get().color(LapceColor::EDITOR_DIM))
                             .min_width(0.0)
                             .text_ellipsis()
+                            .selectable(false)
                     }),
                 ))
                 .style(move |s| s.width_pct(100.0).min_width(0.0)),
@@ -210,7 +214,7 @@ fn file_view(
                         .size(size, size)
                         .apply_opt(color, Style::color)
                 }),
-                label(|| " ".to_string()),
+                label(|| " ".to_string()).style(move |s| s.selectable(false)),
             ))
             .style(|s| s.absolute().items_center().margin_left(10.0)),
         ))
@@ -283,7 +287,7 @@ fn item_view(
                         let size = config.ui.icon_size() as f32;
                         s.size(size, size).color(icon_color())
                     }),
-                    label(|| " ".to_string()),
+                    label(|| " ".to_string()).style(move |s| s.selectable(false)),
                 ))
                 .style(move |s| {
                     s.absolute().items_center().margin_left(
@@ -374,7 +378,7 @@ fn related_view(
                 s.size(size, size)
                     .color(config.color(LapceColor::EDITOR_DIM))
             }),
-            label(|| " ".to_string()),
+            label(|| " ".to_string()).style(move |s| s.selectable(false)),
         ))
         .style(move |s| {
             s.absolute()

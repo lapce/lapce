@@ -77,6 +77,7 @@ use crate::{
         event::{terminal_update_process, TermEvent, TermNotification},
         panel::TerminalPanelData,
     },
+    tracing::*,
     window::WindowCommonData,
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
@@ -1700,10 +1701,13 @@ impl WindowTabData {
                 if !uri.is_empty() {
                     match open::that(&uri) {
                         Ok(_) => {
-                            debug!("opened web uri: {uri:?}");
+                            trace!(TraceLevel::TRACE, "opened web uri: {uri:?}");
                         }
                         Err(e) => {
-                            error!("failed to open web uri: {uri:?}, error: {e}");
+                            trace!(
+                                TraceLevel::ERROR,
+                                "failed to open web uri: {uri:?}, error: {e}"
+                            );
                         }
                     }
                 }

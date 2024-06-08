@@ -120,6 +120,7 @@ pub fn status(
                     .background(bg)
                     .height_pct(100.0)
                     .align_items(Some(AlignItems::Center))
+                    .selectable(false)
             }),
             stack((
                 svg(move || config.get().ui_svg(LapceIcons::SCM)).style(move |s| {
@@ -131,6 +132,7 @@ pub fn status(
                 label(branch).style(move |s| {
                     s.margin_left(10.0)
                         .color(config.get().color(LapceColor::STATUS_FOREGROUND))
+                        .selectable(false)
                 }),
             ))
             .style(move |s| {
@@ -175,9 +177,13 @@ pub fn status(
                     ),
                     label(move || diagnostic_count.get().0.to_string()).style(
                         move |s| {
-                            s.margin_left(5.0).color(
-                                config.get().color(LapceColor::STATUS_FOREGROUND),
-                            )
+                            s.margin_left(5.0)
+                                .color(
+                                    config
+                                        .get()
+                                        .color(LapceColor::STATUS_FOREGROUND),
+                                )
+                                .selectable(false)
                         },
                     ),
                     svg(move || config.get().ui_svg(LapceIcons::WARNING)).style(
@@ -191,9 +197,13 @@ pub fn status(
                     ),
                     label(move || diagnostic_count.get().1.to_string()).style(
                         move |s| {
-                            s.margin_left(5.0).color(
-                                config.get().color(LapceColor::STATUS_FOREGROUND),
-                            )
+                            s.margin_left(5.0)
+                                .color(
+                                    config
+                                        .get()
+                                        .color(LapceColor::STATUS_FOREGROUND),
+                                )
+                                .selectable(false)
                         },
                     ),
                 ))
@@ -409,6 +419,7 @@ fn progress_view(
                     s.min_width(0.0)
                         .text_ellipsis()
                         .apply_if(is_empty, |s| s.hide())
+                        .selectable(false)
                 })
             }))
             .style(move |s| {
@@ -445,5 +456,6 @@ fn status_text<S: std::fmt::Display + 'static>(
                 s.cursor(CursorStyle::Pointer)
                     .background(config.color(LapceColor::PANEL_HOVERED_BACKGROUND))
             })
+            .selectable(false)
     })
 }

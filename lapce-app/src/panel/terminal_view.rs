@@ -129,6 +129,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
                                     .flex_basis(0.0)
                                     .flex_grow(1.0)
                                     .text_ellipsis()
+                                    .selectable(false)
                             }),
                             clickable_icon(
                                 || LapceIcons::CLOSE,

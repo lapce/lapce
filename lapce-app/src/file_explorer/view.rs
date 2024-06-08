@@ -178,13 +178,14 @@ fn file_node_text_view(
                     .unwrap_or_default()
             })
             .style(move |s| {
-                s.flex_grow(1.0).height(ui_line_height.get()).color(
-                    file_node_text_color(
+                s.flex_grow(1.0)
+                    .height(ui_line_height.get())
+                    .color(file_node_text_color(
                         config,
                         node.clone(),
                         source_control.clone(),
-                    ),
-                )
+                    ))
+                    .selectable(false)
             }),
         ),
         FileNodeViewKind::Renaming { path, err } => {

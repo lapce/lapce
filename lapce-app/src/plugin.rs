@@ -771,6 +771,7 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
                         .disabled(|s| {
                             s.background(config.color(LapceColor::EDITOR_DIM))
                         })
+                        .selectable(false)
                 })
                 .disabled(move || installing.map(|i| i.get()).unwrap_or(false))
                 .on_click_stop(move |_| {
