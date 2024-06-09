@@ -81,6 +81,7 @@ pub fn plugin_panel(
             window_tab_data.panel.section_open(PanelSection::Available),
         )
         .build()
+        .debug_name("Plugin Panel")
 }
 
 fn installed_view(plugin: PluginData) -> impl View {

@@ -37,6 +37,7 @@ pub fn terminal_panel(window_tab_data: Rc<WindowTabData>) -> impl View {
         }
     })
     .style(|s| s.absolute().size_pct(100.0, 100.0).flex_col())
+    .debug_name("Terminal Panel")
 }
 
 fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {

@@ -990,4 +990,5 @@ pub fn plugin_info_view(plugin: PluginData, volt: VoltID) -> impl View {
         }
     })
     .style(|s| s.absolute().size_full())
+    .debug_name("Plugin Info")
 }
