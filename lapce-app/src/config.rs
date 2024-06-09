@@ -882,6 +882,14 @@ impl LapceConfig {
                     .sorted()
                     .collect(),
             }),
+            ("ui", "tab-separator-height") => Some(DropdownInfo {
+                active_index: self.ui.tab_separator_height as usize,
+                items: ui::TabSeparatorHeight::VARIANTS
+                    .iter()
+                    .map(|s| s.to_string())
+                    .sorted()
+                    .collect(),
+            }),
             ("terminal", "default-profile") => Some(DropdownInfo {
                 active_index: self
                     .terminal

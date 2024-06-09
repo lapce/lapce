@@ -30,6 +30,11 @@ pub struct UIConfig {
     #[field_names(desc = "Set the minimum width for editor tab")]
     tab_min_width: usize,
 
+    #[field_names(
+        desc = "Set whether the editor tab separator should be full height or the height of the content"
+    )]
+    pub tab_separator_height: TabSeparatorHeight,
+
     #[field_names(desc = "Set the width for scroll bar")]
     scroll_width: usize,
 
@@ -77,6 +82,25 @@ pub enum TabCloseButton {
     #[default]
     Right,
     Off,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Deserialize,
+    Serialize,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    strum_macros::VariantNames,
+)]
+pub enum TabSeparatorHeight {
+    #[default]
+    Content,
+    Full,
 }
 
 impl UIConfig {
