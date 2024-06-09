@@ -695,18 +695,6 @@ impl EditorView {
             return;
         }
 
-        cx.fill(
-            &Rect::ZERO
-                .with_size(Size::new(1.0, viewport.height()))
-                .with_origin(Point::new(
-                    viewport.x0 + viewport.width() - BAR_WIDTH,
-                    viewport.y0,
-                ))
-                .inflate(0.0, 10.0),
-            config.color(LapceColor::LAPCE_SCROLL_BAR),
-            0.0,
-        );
-
         if !self.editor.kind.get_untracked().is_normal() {
             return;
         }
@@ -1114,8 +1102,8 @@ impl View for EditorView {
         let screen_lines = ed.screen_lines.get_untracked();
         FloemEditorView::paint_text(cx, ed, viewport, is_active, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
-        self.paint_sticky_headers(cx, viewport, &screen_lines);
         self.paint_scroll_bar(cx, viewport, is_local, config);
+        self.paint_sticky_headers(cx, viewport, &screen_lines);
     }
 }
 
@@ -1260,39 +1248,36 @@ pub fn editor_container_view(
 
     stack((
         editor_breadcrumbs(workspace, editor.get_untracked(), config),
-        container(
-            stack((
-                editor_gutter(window_tab_data.clone(), editor, is_active),
-                editor_content(editor, debug_breakline, is_active),
-                empty().style(move |s| {
-                    let config = config.get();
-                    s.absolute()
-                        .width_pct(100.0)
-                        .height(sticky_header_height.get() as f32)
-                        // .box_shadow_blur(5.0)
-                        // .border_bottom(1.0)
-                        // .border_color(
-                        //     config.get_color(LapceColor::LAPCE_BORDER),
-                        // )
-                        .apply_if(
-                            !config.editor.sticky_header
-                                || sticky_header_height.get() == 0.0
-                                || !editor_view.get().is_normal(),
-                            |s| s.hide(),
-                        )
-                }),
-                find_view(
-                    editor,
-                    find_editor,
-                    find_focus,
-                    replace_editor,
-                    replace_active,
-                    replace_focus,
-                    is_active,
-                ),
-            ))
-            .style(|s| s.absolute().size_full()),
-        )
+        stack((
+            editor_gutter(window_tab_data.clone(), editor, is_active),
+            editor_content(editor, debug_breakline, is_active),
+            empty().style(move |s| {
+                let config = config.get();
+                s.absolute()
+                    .width_pct(100.0)
+                    .height(sticky_header_height.get() as f32)
+                    // .box_shadow_blur(5.0)
+                    // .border_bottom(1.0)
+                    // .border_color(
+                    //     config.get_color(LapceColor::LAPCE_BORDER),
+                    // )
+                    .apply_if(
+                        !config.editor.sticky_header
+                            || sticky_header_height.get() == 0.0
+                            || !editor_view.get().is_normal(),
+                        |s| s.hide(),
+                    )
+            }),
+            find_view(
+                editor,
+                find_editor,
+                find_focus,
+                replace_editor,
+                replace_active,
+                replace_focus,
+                is_active,
+            ),
+        ))
         .style(|s| s.width_full().flex_basis(0).flex_grow(1.0)),
     ))
     .on_cleanup(move || {
@@ -1736,6 +1721,7 @@ fn editor_breadcrumbs(
             .width_pct(100.0)
             .height(line_height as f32)
             .apply_if(doc_path.get().is_none(), |s| s.hide())
+            .apply_if(!config.editor.show_bread_crumbs, |s| s.hide())
     })
     .debug_name("Editor BreadCrumbs")
 }

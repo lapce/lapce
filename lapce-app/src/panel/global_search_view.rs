@@ -107,6 +107,7 @@ pub fn global_search_panel(
         search_result(workspace, global_search, internal_command, config),
     ))
     .style(|s| s.absolute().size_pct(100.0, 100.0).flex_col())
+    .debug_name("Global Search Panel")
 }
 
 fn search_result(

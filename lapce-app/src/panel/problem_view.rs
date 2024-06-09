@@ -44,6 +44,7 @@ pub fn problem_panel(
             window_tab_data.panel.section_open(PanelSection::Warn),
         )
         .build()
+        .debug_name("Problem Panel")
 }
 
 fn problem_section(

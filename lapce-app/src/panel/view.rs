@@ -458,26 +458,26 @@ fn panel_view(
         move |kind| {
             let view = match kind {
                 PanelKind::Terminal => {
-                    container(terminal_panel(window_tab_data.clone()))
+                    terminal_panel(window_tab_data.clone()).into_any()
                 }
                 PanelKind::FileExplorer => {
-                    container(file_explorer_panel(window_tab_data.clone(), position))
+                    file_explorer_panel(window_tab_data.clone(), position).into_any()
                 }
-                PanelKind::SourceControl => container(source_control_panel(
-                    window_tab_data.clone(),
-                    position,
-                )),
+                PanelKind::SourceControl => {
+                    source_control_panel(window_tab_data.clone(), position)
+                        .into_any()
+                }
                 PanelKind::Plugin => {
-                    container(plugin_panel(window_tab_data.clone(), position))
+                    plugin_panel(window_tab_data.clone(), position).into_any()
                 }
                 PanelKind::Search => {
-                    container(global_search_panel(window_tab_data.clone(), position))
+                    global_search_panel(window_tab_data.clone(), position).into_any()
                 }
                 PanelKind::Problem => {
-                    container(problem_panel(window_tab_data.clone(), position))
+                    problem_panel(window_tab_data.clone(), position).into_any()
                 }
                 PanelKind::Debug => {
-                    container(debug_panel(window_tab_data.clone(), position))
+                    debug_panel(window_tab_data.clone(), position).into_any()
                 }
             };
             view.style(|s| s.size_pct(100.0, 100.0))

@@ -191,6 +191,7 @@ pub fn source_control_panel(
         }
     })
     .style(|s| s.flex_col().size_pct(100.0, 100.0))
+    .debug_name("Source Control Panel")
 }
 
 fn file_diffs_view(source_control: SourceControlData) -> impl View {

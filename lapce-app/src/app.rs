@@ -29,6 +29,10 @@ use floem::{
         AlignItems, CursorStyle, Display, FlexDirection, JustifyContent, Position,
         Style,
     },
+    taffy::{
+        style_helpers::{self, auto, fr},
+        Line,
+    },
     unit::PxPctAuto,
     views::{
         clip, container, drag_resize_window_area, drag_window_area, dyn_stack,
@@ -584,6 +588,7 @@ impl AppData {
     }
 }
 
+/// The top bar of an Editor tab. Includes the tab forward/back buttons, the tab scroll bar and the new split and tab close all button.
 fn editor_tab_header(
     window_tab_data: Rc<WindowTabData>,
     active_editor_tab: ReadSignal<Option<EditorTabId>>,
@@ -634,12 +639,11 @@ fn editor_tab_header(
         let child_for_mouse_close = child.clone();
         let main_split = main_split.clone();
         let plugin = plugin.clone();
-        let child_view = move || {
+        let child_view = {
             let info = child.view_info(editors, diff_editors, plugin, config);
             let hovered = create_rw_signal(false);
 
             use crate::config::ui::TabCloseButton;
-            let tab_close_button_style = config.get().ui.tab_close_button;
 
             let tab_icon = container({
                 svg(move || info.with(|info| info.icon.clone())).style(move |s| {
@@ -648,7 +652,7 @@ fn editor_tab_header(
                         .apply_opt(info.with(|info| info.color), |s, c| s.color(c))
                 })
             })
-            .style(|s| s.padding_horiz(10.0));
+            .style(|s| s.padding(4.));
 
             let tab_content = label(move || info.with(|info| info.path.clone()))
                 .style(move |s| {
@@ -659,9 +663,6 @@ fn editor_tab_header(
                             .unwrap_or(true),
                         |s| s.font_style(FontStyle::Italic),
                     )
-                    .apply_if(tab_close_button_style == TabCloseButton::Off, |s| {
-                        s.margin_right(15.0)
-                    })
                 });
 
             let tab_close_button = clickable_icon(
@@ -691,31 +692,53 @@ fn editor_tab_header(
             })
             .on_event_stop(EventListener::PointerLeave, move |_| {
                 hovered.set(false);
-            })
-            .style(|s| s.margin_horiz(6.0));
+            });
 
-            let tab_style = move |s: Style| {
+            stack((
+                tab_icon.style(move |s| {
+                    let tab_close_button = config.get().ui.tab_close_button;
+                    s.apply_if(tab_close_button == TabCloseButton::Left, |s| {
+                        s.grid_column(Line {
+                            start: style_helpers::line(3),
+                            end: style_helpers::span(1),
+                        })
+                    })
+                }),
+                tab_content.style(move |s| {
+                    let tab_close_button = config.get().ui.tab_close_button;
+                    s.apply_if(tab_close_button == TabCloseButton::Left, |s| {
+                        s.grid_column(Line {
+                            start: style_helpers::line(2),
+                            end: style_helpers::span(1),
+                        })
+                    })
+                    .apply_if(tab_close_button == TabCloseButton::Off, |s| {
+                        s.padding_right(4.)
+                    })
+                }),
+                tab_close_button.style(move |s| {
+                    let tab_close_button = config.get().ui.tab_close_button;
+                    s.apply_if(tab_close_button == TabCloseButton::Left, |s| {
+                        s.grid_column(Line {
+                            start: style_helpers::line(1),
+                            end: style_helpers::span(1),
+                        })
+                    })
+                    .apply_if(tab_close_button == TabCloseButton::Off, |s| s.hide())
+                }),
+            ))
+            .style(move |s| {
                 s.items_center()
                     .justify_center()
                     .height_full()
                     .border_left(if i.get() == 0 { 1.0 } else { 0.0 })
                     .border_right(1.0)
                     .border_color(config.get().color(LapceColor::LAPCE_BORDER))
-            };
-
-            match tab_close_button_style {
-                TabCloseButton::Left => container(
-                    stack((tab_close_button, tab_content, tab_icon))
-                        .style(tab_style),
-                ),
-                TabCloseButton::Right => container(
-                    stack((tab_icon, tab_content, tab_close_button))
-                        .style(tab_style),
-                ),
-                TabCloseButton::Off => {
-                    container(stack((tab_icon, tab_content)).style(tab_style))
-                }
-            }
+                    .padding_horiz(6.)
+                    .gap(6.)
+                    .grid()
+                    .grid_template_columns(vec![auto(), fr(1.), auto()])
+            })
         };
 
         let confirmed = match local_child {
@@ -734,7 +757,7 @@ fn editor_tab_header(
         let header_content_size = create_rw_signal(Size::ZERO);
         let drag_over_left: RwSignal<Option<bool>> = create_rw_signal(None);
         stack((
-            child_view()
+            child_view
                 .on_double_click_stop(move |_| {
                     if let Some(confirmed) = confirmed {
                         confirmed.set(true);
@@ -1741,15 +1764,16 @@ fn split_list(
                     let editor_tab_data = editor_tabs
                         .with_untracked(|tabs| tabs.get(editor_tab_id).cloned());
                     if let Some(editor_tab_data) = editor_tab_data {
-                        container(editor_tab(
+                        editor_tab(
                             window_tab_data.clone(),
                             plugin.clone(),
                             active_editor_tab,
                             editor_tab_data,
                             dragging,
-                        ))
+                        )
+                        .into_any()
                     } else {
-                        container(text("empty editor tab"))
+                        text("empty editor tab").into_any()
                     }
                 }
                 SplitContent::Split(split_id) => {
@@ -1762,8 +1786,9 @@ fn split_list(
                             plugin.clone(),
                             dragging,
                         )
+                        .into_any()
                     } else {
-                        container(text("empty split"))
+                        text("empty split").into_any()
                     }
                 }
             };
@@ -1995,8 +2020,7 @@ fn workbench(window_tab_data: Rc<WindowTabData>) -> impl View {
     let workbench_size = window_tab_data.common.workbench_size;
     let main_split_width = window_tab_data.main_split.width;
     stack((
-        panel_container_view(window_tab_data.clone(), PanelContainerPosition::Left)
-            .style(|s| s.border_right(0.)),
+        panel_container_view(window_tab_data.clone(), PanelContainerPosition::Left),
         {
             let window_tab_data = window_tab_data.clone();
             stack((
