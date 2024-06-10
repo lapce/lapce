@@ -69,7 +69,8 @@ use crate::{
         WindowCommand,
     },
     config::{
-        color::LapceColor, icon::LapceIcons, watcher::ConfigWatcher, LapceConfig,
+        color::LapceColor, icon::LapceIcons, ui::TabSeparatorHeight,
+        watcher::ConfigWatcher, LapceConfig,
     },
     db::LapceDb,
     debug::RunDebugMode,
@@ -731,7 +732,6 @@ fn editor_tab_header(
             .style(move |s| {
                 s.items_center()
                     .justify_center()
-                    .height_full()
                     .border_left(if i.get() == 0 { 1.0 } else { 0.0 })
                     .border_right(1.0)
                     .border_color(config.get().color(LapceColor::LAPCE_BORDER))
@@ -739,6 +739,11 @@ fn editor_tab_header(
                     .gap(6.)
                     .grid()
                     .grid_template_columns(vec![auto(), fr(1.), auto()])
+                    .apply_if(
+                        config.get().ui.tab_separator_height
+                            == TabSeparatorHeight::Full,
+                        |s| s.height_full(),
+                    )
             })
         };
 
@@ -843,7 +848,7 @@ fn editor_tab_header(
                         )
                         .border_color(config.color(LapceColor::LAPCE_BORDER))
                 })
-                .style(|s| s.align_items(Some(AlignItems::Center)).height_full()),
+                .style(|s| s.align_items(Some(AlignItems::Center))),
             empty()
                 .style(move |s| {
                     s.size_full()
@@ -895,7 +900,7 @@ fn editor_tab_header(
         .on_resize(move |rect| {
             layout_rect.set(rect);
         })
-        .style(|s| s.height_full())
+        .style(|s| s.height_full().flex_col().items_center().justify_center())
         .debug_name("Tab and Active Indicator")
     };
 

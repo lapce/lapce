@@ -88,6 +88,7 @@ icon-size = 0
 header-height = 36
 status-height = 25
 tab-min-width = 100
+tab-separator-height = "Content"
 scroll-width = 10
 drop-shadow-width = 0
 palette-width = 500
