@@ -1675,7 +1675,8 @@ fn editor_breadcrumbs(
                                             ),
                                         )
                                 }),
-                                label(move || section.clone()),
+                                label(move || section.clone())
+                                    .style(move |s| s.selectable(false)),
                             ))
                             .style(|s| s.items_center())
                         },

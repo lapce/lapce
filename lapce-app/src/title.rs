@@ -245,7 +245,7 @@ fn middle(
                         "Open Folder".to_string()
                     }
                 })
-                .style(|s| s.padding_left(10).padding_right(5)),
+                .style(|s| s.padding_left(10).padding_right(5).selectable(false)),
                 open_folder(),
             ))
             .style(|s| s.align_items(Some(AlignItems::Center))),
