@@ -669,7 +669,6 @@ fn editor_tab_header(
 
             let tab_close_button = clickable_icon(
                 move || {
-                    println!("tab close button change");
                     if hovered.get() || info.with(|info| info.is_pristine) {
                         LapceIcons::CLOSE
                     } else {
