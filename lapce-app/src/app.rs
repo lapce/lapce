@@ -669,6 +669,7 @@ fn editor_tab_header(
 
             let tab_close_button = clickable_icon(
                 move || {
+                    println!("tab close button change");
                     if hovered.get() || info.with(|info| info.is_pristine) {
                         LapceIcons::CLOSE
                     } else {
@@ -1198,18 +1199,21 @@ fn editor_tab_content(
                     let right_editor =
                         create_rw_signal(diff_editor_data.right.clone());
                     stack((
-                        editor_container_view(
-                            window_tab_data.clone(),
-                            workspace.clone(),
-                            move |track| {
-                                is_active(track)
-                                    && if track {
-                                        !focus_right.get()
-                                    } else {
-                                        !focus_right.get_untracked()
-                                    }
-                            },
-                            left_editor,
+                        container(
+                            editor_container_view(
+                                window_tab_data.clone(),
+                                workspace.clone(),
+                                move |track| {
+                                    is_active(track)
+                                        && if track {
+                                            !focus_right.get()
+                                        } else {
+                                            !focus_right.get_untracked()
+                                        }
+                                },
+                                left_editor,
+                            )
+                            .debug_name("Left Editor"),
                         )
                         .on_event_cont(EventListener::PointerDown, move |_| {
                             focus_right.set(false);
@@ -1222,26 +1226,27 @@ fn editor_tab_content(
                                 .border_color(
                                     config.get().color(LapceColor::LAPCE_BORDER),
                                 )
-                        })
-                        .debug_name("Left Editor"),
-                        editor_container_view(
-                            window_tab_data.clone(),
-                            workspace.clone(),
-                            move |track| {
-                                is_active(track)
-                                    && if track {
-                                        focus_right.get()
-                                    } else {
-                                        focus_right.get_untracked()
-                                    }
-                            },
-                            right_editor,
+                        }),
+                        container(
+                            editor_container_view(
+                                window_tab_data.clone(),
+                                workspace.clone(),
+                                move |track| {
+                                    is_active(track)
+                                        && if track {
+                                            focus_right.get()
+                                        } else {
+                                            focus_right.get_untracked()
+                                        }
+                                },
+                                right_editor,
+                            )
+                            .debug_name("Right Editor"),
                         )
                         .on_event_cont(EventListener::PointerDown, move |_| {
                             focus_right.set(true);
                         })
-                        .style(|s| s.height_full().flex_grow(1.0).flex_basis(0.0))
-                        .debug_name("Right Editor"),
+                        .style(|s| s.height_full().flex_grow(1.0).flex_basis(0.0)),
                         diff_show_more_section_view(
                             &diff_editor_data.left,
                             &diff_editor_data.right,
@@ -1928,14 +1933,11 @@ pub fn clickable_icon<S: std::fmt::Display + 'static>(
     tooltip_: impl Fn() -> S + 'static + Clone,
     config: ReadSignal<Arc<LapceConfig>>,
 ) -> impl View {
-    let icon_val = icon();
-    let icon = move || icon_val;
     tooltip_label(
         config,
         clickable_icon_base(icon, Some(on_click), active_fn, disabled_fn, config),
         tooltip_,
     )
-    .debug_name(format!("Clickable Icon: {}", icon_val))
 }
 
 pub fn clickable_icon_base(

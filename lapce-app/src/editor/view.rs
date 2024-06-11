@@ -695,6 +695,18 @@ impl EditorView {
             return;
         }
 
+        cx.fill(
+            &Rect::ZERO
+                .with_size(Size::new(1.0, viewport.height()))
+                .with_origin(Point::new(
+                    viewport.x0 + viewport.width() - BAR_WIDTH,
+                    viewport.y0,
+                ))
+                .inflate(0.0, 10.0),
+            config.color(LapceColor::LAPCE_SCROLL_BAR),
+            0.0,
+        );
+
         if !self.editor.kind.get_untracked().is_normal() {
             return;
         }
@@ -1102,8 +1114,8 @@ impl View for EditorView {
         let screen_lines = ed.screen_lines.get_untracked();
         FloemEditorView::paint_text(cx, ed, viewport, is_active, &screen_lines);
         let screen_lines = ed.screen_lines.get_untracked();
-        self.paint_scroll_bar(cx, viewport, is_local, config);
         self.paint_sticky_headers(cx, viewport, &screen_lines);
+        self.paint_scroll_bar(cx, viewport, is_local, config);
     }
 }
 

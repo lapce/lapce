@@ -1134,8 +1134,12 @@ fn dropdown_view(
     }
 
     stack((
-        label(move || current_value.get())
-            .style(move |s| s.text_ellipsis().width_pct(100.0).padding_horiz(10.0)),
+        label(move || current_value.get()).style(move |s| {
+            s.text_ellipsis()
+                .width_pct(100.0)
+                .padding_horiz(10.0)
+                .selectable(false)
+        }),
         container(
             svg(move || {
                 if expanded.get() {
