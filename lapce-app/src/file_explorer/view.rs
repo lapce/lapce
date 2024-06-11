@@ -79,14 +79,17 @@ pub fn file_explorer_panel(
         .add_height_style(
             "Open Editors",
             150.0,
-            open_editors_view(window_tab_data.clone()).style(|s| s.size_full()),
+            container(open_editors_view(window_tab_data.clone()))
+                .style(|s| s.size_full()),
             window_tab_data.panel.section_open(PanelSection::OpenEditor),
             move |s| s.apply_if(!config.get().ui.open_editors_visible, |s| s.hide()),
         )
         .add(
             "File Explorer",
-            new_file_node_view(data, source_control)
-                .style(|s| s.size_full().line_height(1.6)),
+            container(
+                new_file_node_view(data, source_control).style(|s| s.absolute()),
+            )
+            .style(|s| s.size_full().line_height(1.6)),
             window_tab_data
                 .panel
                 .section_open(PanelSection::FileExplorer),
@@ -418,7 +421,7 @@ fn new_file_node_view(
         )
         .style(|s| s.flex_col().align_items(AlignItems::Stretch).width_full()),
     )
-    .style(|s| s.min_height(0).flex_grow(1.).flex_basis(0.).size_full())
+    .style(|s| s.size_full())
     .on_secondary_click_stop(move |_| {
         if let Naming::None = naming.get_untracked() {
             if let Some(path) = &secondary_click_data.common.workspace.path {
@@ -549,12 +552,6 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
         )
         .style(|s| s.flex_col().width_pct(100.0)),
     )
-    .style(|s| {
-        s.min_height(0)
-            .flex_grow(1.)
-            .flex_basis(0.)
-            .size_full()
-            .line_height(1.6)
-    })
+    .style(|s| s.absolute().size_full().line_height(1.6))
     .debug_name("Open Editors")
 }
