@@ -584,7 +584,8 @@ fn panel_picker(
                 })
                 .style(|s| s.padding(1.0)),
                 label(|| "".to_string()).style(move |s| {
-                    s.absolute()
+                    s.selectable(false)
+                        .absolute()
                         .size_pct(100.0, 100.0)
                         .apply_if(!is_bottom && is_first, |s| s.margin_top(2.0))
                         .apply_if(!is_bottom && !is_first, |s| s.margin_top(-2.0))
