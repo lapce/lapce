@@ -957,16 +957,14 @@ fn editor_tab_header(
                 .on_resize(move |rect| {
                     size.set(rect.size());
                 })
-                .debug_name("Next/Previoius Tab Buttons")
-                .style(move |s| {
-                    s.items_center()
-                        .apply_if(!config.get().ui.tab_forward_back_visible, |s| {
-                            s.hide()
-                        })
-                }),
+                .style(|s| s.items_center())
+                .debug_name("Next/Previoius Tab Buttons"),
             )
         })
-        .style(|s| s.flex_shrink(0.)),
+        .style(move |s| {
+            s.apply_if(!config.get().ui.tab_forward_back_visible, |s| s.hide())
+                .flex_shrink(0.)
+        }),
         container(
             scroll({
                 dyn_stack(items, key, view_fn)
@@ -1074,6 +1072,7 @@ fn editor_tab_header(
                 .apply_if(scroll_offset.x1 < content_size.width, |s| {
                     s.margin_left(0.)
                 })
+                .apply_if(!config.get().ui.tab_split_closeall_visible, |s| s.hide())
         }),
     ))
     .style(move |s| {

@@ -100,3 +100,4 @@ tab-close-button = "Right"
 open-editors-visible = true
 tab-bar-visible = true
 tab-forward-back-visible = true
+tab-split-closeall-visible = true

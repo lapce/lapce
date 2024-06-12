@@ -68,6 +68,9 @@ pub struct UIConfig {
 
     #[field_names(desc = "Display the Forward/Back buttons in the tab bar")]
     pub tab_forward_back_visible: bool,
+
+    #[field_names(desc = "Display the Split/Close All buttons in the tab bar")]
+    pub tab_split_closeall_visible: bool,
 }
 
 #[derive(
