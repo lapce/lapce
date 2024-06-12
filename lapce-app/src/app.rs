@@ -1083,6 +1083,8 @@ fn editor_tab_header(
             .border_bottom(1.0)
             .border_color(config.color(LapceColor::LAPCE_BORDER))
             .background(config.color(LapceColor::PANEL_BACKGROUND))
+            .height(config.ui.header_height() as i32)
+            .apply_if(!config.ui.tab_bar_visible, |s| s.hide())
     })
     .debug_name("Editor Tab Header")
 }
