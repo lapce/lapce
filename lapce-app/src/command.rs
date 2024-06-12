@@ -191,6 +191,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open Internal UI Inspector")]
     OpenUIInspector,
 
+    #[strum(serialize = "show_env")]
+    #[strum(message = "Show Environment")]
+    ShowEnvironment,
+
     #[strum(serialize = "change_color_theme")]
     #[strum(message = "Change Color Theme")]
     ChangeColorTheme,
