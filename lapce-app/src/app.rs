@@ -87,7 +87,7 @@ use crate::{
     main_split::{
         SplitContent, SplitData, SplitDirection, SplitMoveDirection, TabCloseKind,
     },
-    markdown::MarkdownContent,
+    markdown::{markdown_preview_view, MarkdownContent},
     palette::{
         item::{PaletteItem, PaletteItemContent},
         PaletteStatus,
@@ -1338,6 +1338,45 @@ fn editor_tab_content(
             EditorTabChild::Keymap(_) => keymap_view(editors, common).into_any(),
             EditorTabChild::Volt(_, id) => {
                 plugin_info_view(plugin.clone(), id).into_any()
+            }
+            EditorTabChild::Markdown(editor_id) => {
+                if let Some(editor_data) = editors.editor_untracked(editor_id) {
+                    let editor_scope = editor_data.scope;
+                    let editor_tab_id = editor_data.editor_tab_id;
+                    let is_active = move |tracked: bool| {
+                        editor_scope.track();
+                        let focus = if tracked {
+                            focus.get()
+                        } else {
+                            focus.get_untracked()
+                        };
+                        if let Focus::Workbench = focus {
+                            let active_editor_tab = if tracked {
+                                active_editor_tab.get()
+                            } else {
+                                active_editor_tab.get_untracked()
+                            };
+                            let editor_tab = if tracked {
+                                editor_tab_id.get()
+                            } else {
+                                editor_tab_id.get_untracked()
+                            };
+                            editor_tab.is_some() && editor_tab == active_editor_tab
+                        } else {
+                            false
+                        }
+                    };
+                    let editor_data = create_rw_signal(editor_data);
+                    markdown_preview_view(
+                        window_tab_data.clone(),
+                        workspace.clone(),
+                        is_active,
+                        editor_data,
+                    )
+                    .into_any()
+                } else {
+                    text("empty editor").into_any()
+                }
             }
         };
         child.style(|s| s.size_full())

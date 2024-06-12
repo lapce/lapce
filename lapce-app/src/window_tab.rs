@@ -727,6 +727,14 @@ impl WindowTabData {
                     });
                 }
             }
+            OpenMarkdownPreview => {
+                if let Some(editor_tab_id) = self.main_split.active_editor_tab.get_untracked() {
+                    let internal_command = self.common.internal_command;
+                    internal_command.send(InternalCommand::OpenMarkdownPreview {
+                        editor_tab_id,
+                    });
+                }
+            }
             NewFile => {
                 self.main_split.new_file();
             }
@@ -1814,6 +1822,9 @@ impl WindowTabData {
             }
             InternalCommand::OpenVoltView { volt_id } => {
                 self.main_split.open_volt_view(volt_id);
+            }
+            InternalCommand::OpenMarkdownPreview { editor_tab_id } => {
+                self.main_split.open_markdown_preview(editor_tab_id);
             }
             InternalCommand::ResetBlinkCursor => {
                 // All the editors share the blinking information and logic, so we can just reset

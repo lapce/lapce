@@ -508,6 +508,7 @@ impl MainSplitData {
             EditorTabChild::ThemeColorSettings(_) => None,
             EditorTabChild::Keymap(_) => None,
             EditorTabChild::Volt(_, _) => None,
+            EditorTabChild::Markdown(_) => None,
         }
     }
 
@@ -872,6 +873,7 @@ impl MainSplitData {
                         EditorTabChild::ThemeColorSettings(_) => true,
                         EditorTabChild::Keymap(_) => true,
                         EditorTabChild::Volt(_, _) => true,
+                        EditorTabChild::Markdown(_) => true,
                     };
 
                     if can_be_selected {
@@ -1130,6 +1132,7 @@ impl MainSplitData {
                         EditorTabChild::ThemeColorSettings(_) => {}
                         EditorTabChild::Keymap(_) => {}
                         EditorTabChild::Volt(_, _) => {}
+                        EditorTabChild::Markdown(_) => {}
                     }
                     (editor_tab_id, current_child.clone())
                 });
@@ -1196,6 +1199,9 @@ impl MainSplitData {
                 EditorTabChild::ThemeColorSettings(_) => {}
                 EditorTabChild::Keymap(_) => {}
                 EditorTabChild::Volt(_, _) => {}
+                EditorTabChild::Markdown(editor_id) => {
+                    self.remove_editor(*editor_id)
+                }
             }
 
             // Now loading the new child
@@ -1575,6 +1581,14 @@ impl MainSplitData {
             EditorTabChild::Volt(_, id) => {
                 EditorTabChild::Volt(VoltViewId::next(), id.to_owned())
             }
+            EditorTabChild::Markdown(editor_id) => {
+                let editor_id = self
+                    .editors
+                    .copy(*editor_id, cx, Some(editor_tab_id), None, None)
+                    .unwrap();
+
+                EditorTabChild::Markdown(editor_id)
+            }
         };
 
         let editor_tab = {
@@ -1917,6 +1931,7 @@ impl MainSplitData {
             EditorTabChild::ThemeColorSettings(_) => None,
             EditorTabChild::Keymap(_) => None,
             EditorTabChild::Volt(_, _) => None,
+            EditorTabChild::Markdown(_) => None,
         }
     }
 
@@ -2153,6 +2168,7 @@ impl MainSplitData {
             EditorTabChild::ThemeColorSettings(_) => {}
             EditorTabChild::Keymap(_) => {}
             EditorTabChild::Volt(_, _) => {}
+            EditorTabChild::Markdown(_) => {}
         }
 
         if editor_tab_children_len == 0 {
@@ -2371,6 +2387,107 @@ impl MainSplitData {
 
     pub fn open_volt_view(&self, id: VoltID) {
         self.get_editor_tab_child(EditorTabChildSource::Volt(id), false, false);
+    }
+
+    pub fn open_markdown_preview(&self, editor_tab_id: EditorTabId) -> Option<()> {
+        let editor_tabs = self.editor_tabs.get_untracked();
+        let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
+
+        let split_id = editor_tab.with_untracked(|editor_tab| editor_tab.split);
+        let splits = self.splits.get_untracked();
+        let split = splits.get(&split_id).copied()?;
+
+        let (index, _children_len) = split.with_untracked(|split| {
+            split
+                .children
+                .iter()
+                .position(|(_, c)| c == &SplitContent::EditorTab(editor_tab_id))
+                .map(|index| (index, split.children.len()))
+        })?;
+
+        {
+            let new_split_id = SplitId::next();
+
+            editor_tab.update(|editor_tab| {
+                editor_tab.split = new_split_id;
+            });
+            let new_editor_tab = editor_tab.with_untracked(|editor_tab| {
+                let (_, _, child) = editor_tab.children.get(editor_tab.active)?;
+
+                let editor_tab_id = EditorTabId::next();
+
+                let new_child = match child {
+                    EditorTabChild::Editor(editor_id) => {
+                        EditorTabChild::Markdown(*editor_id)
+                    }
+                    _ => panic!(),
+                };
+
+                let editor_tab = {
+                    let cx = self.scope.create_child();
+                    let editor_tab = EditorTabData {
+                        scope: cx,
+                        split: split_id,
+                        editor_tab_id,
+                        active: 0,
+                        children: vec![(
+                            cx.create_rw_signal(0),
+                            cx.create_rw_signal(Rect::ZERO),
+                            new_child,
+                        )],
+                        window_origin: Point::ZERO,
+                        layout_rect: Rect::ZERO,
+                        locations: cx
+                            .create_rw_signal(editor_tab.locations.get_untracked()),
+                        current_location: cx.create_rw_signal(
+                            editor_tab.current_location.get_untracked(),
+                        ),
+                    };
+                    cx.create_rw_signal(editor_tab)
+                };
+                self.editor_tabs.update(|editor_tabs| {
+                    editor_tabs.insert(editor_tab_id, editor_tab);
+                });
+                Some(editor_tab)
+            })?;
+            let new_editor_tab_id =
+                new_editor_tab.with_untracked(|editor_tab| editor_tab.editor_tab_id);
+
+            let new_split = {
+                let cx = self.scope.create_child();
+                let new_split = SplitData {
+                    scope: cx,
+                    parent_split: Some(split_id),
+                    split_id: new_split_id,
+                    children: vec![
+                        (
+                            cx.create_rw_signal(1.0),
+                            SplitContent::EditorTab(editor_tab_id),
+                        ),
+                        (
+                            cx.create_rw_signal(1.0),
+                            SplitContent::EditorTab(new_editor_tab_id),
+                        ),
+                    ],
+                    direction: SplitDirection::Vertical,
+                    window_origin: Point::ZERO,
+                    layout_rect: Rect::ZERO,
+                };
+                cx.create_rw_signal(new_split)
+            };
+            self.splits.update(|splits| {
+                splits.insert(new_split_id, new_split);
+            });
+            split.update(|split| {
+                let size = split.children[index].0.get_untracked();
+                split.children[index] = (
+                    split.scope.create_rw_signal(size),
+                    SplitContent::Split(new_split_id),
+                );
+            });
+        }
+
+        Some(())
     }
 
     pub fn open_settings(&self) {
@@ -2701,6 +2818,7 @@ impl MainSplitData {
             EditorTabChild::ThemeColorSettings(_) => {}
             EditorTabChild::Keymap(_) => {}
             EditorTabChild::Volt(_, _) => {}
+            EditorTabChild::Markdown(_) => {}
         }
         Some(())
     }

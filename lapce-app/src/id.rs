@@ -9,3 +9,4 @@ pub type ThemeColorSettingsId = Id;
 pub type VoltViewId = Id;
 pub type DiffEditorId = Id;
 pub type TerminalTabId = Id;
+pub type MarkdownPreviewId = Id;
