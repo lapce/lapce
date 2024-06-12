@@ -1532,13 +1532,23 @@ impl LapceLanguage {
     }
 
     fn from_path_raw(path: &Path) -> Option<LapceLanguage> {
-        let filename = path.file_stem()?.to_str()?.to_lowercase();
-        let extension = path.extension()?.to_str()?.to_lowercase();
+        let filename = path
+            .file_stem()
+            .and_then(|s| s.to_str().map(|s| s.to_lowercase()));
+        let extension = path
+            .extension()
+            .and_then(|s| s.to_str().map(|s| s.to_lowercase()));
         // NOTE: This is a linear search.  It is assumed that this function
         // isn't called in any tight loop.
         for properties in LANGUAGES {
-            if properties.files.contains(&filename.as_str())
-                || properties.extensions.contains(&extension.as_str())
+            if properties
+                .files
+                .iter()
+                .zip(properties.extensions)
+                .any(|(f, e)| {
+                    Some(*f) == filename.as_deref()
+                        || Some(*e) == extension.as_deref()
+                })
             {
                 return Some(properties.id);
             }
