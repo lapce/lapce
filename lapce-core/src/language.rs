@@ -1544,11 +1544,14 @@ impl LapceLanguage {
             if properties
                 .files
                 .iter()
-                .zip(properties.extensions)
-                .any(|(f, e)| {
-                    Some(*f) == filename.as_deref()
-                        || Some(*e) == extension.as_deref()
-                })
+                .any(|f| Some(*f) == filename.as_deref())
+            {
+                return Some(properties.id);
+            }
+            if properties
+                .extensions
+                .iter()
+                .any(|e| Some(*e) == extension.as_deref())
             {
                 return Some(properties.id);
             }
@@ -1906,5 +1909,18 @@ pub(crate) fn walk_tree_bracket_ast(
             }
         }
         cursor.goto_parent();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::LapceLanguage;
+
+    #[test]
+    fn test_lanaguage_from_path() {
+        let l = LapceLanguage::from_path(&PathBuf::new().join("test.rs"));
+        assert_eq!(l, LapceLanguage::Rust);
     }
 }
