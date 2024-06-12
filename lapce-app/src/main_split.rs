@@ -2832,6 +2832,21 @@ impl MainSplitData {
             }
         }
     }
+
+    pub fn show_env(&self) {
+        let child = self.new_file();
+        if let EditorTabChild::Editor(id) = child {
+            if let Some(editor) = self.editors.editor_untracked(id) {
+                let doc = editor.doc();
+                doc.reload(
+                    Rope::from(
+                        std::env::vars().map(|(k, v)| format!("{k}={v}")).join("\n"),
+                    ),
+                    true,
+                );
+            }
+        }
+    }
 }
 
 fn workspace_edits(edit: &WorkspaceEdit) -> Option<HashMap<Url, Vec<TextEdit>>> {

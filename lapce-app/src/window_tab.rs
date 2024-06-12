@@ -1212,6 +1212,9 @@ impl WindowTabData {
             OpenUIInspector => {
                 self.common.view_id.get_untracked().inspect();
             }
+            ShowEnvironment => {
+                self.main_split.show_env();
+            }
 
             // ==== Source Control ====
             SourceControlInit => {

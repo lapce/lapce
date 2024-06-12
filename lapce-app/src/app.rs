@@ -1,7 +1,7 @@
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 use std::{
-    io::{BufReader, Read, Write},
+    io::{BufReader, IsTerminal, Read, Write},
     ops::Range,
     path::PathBuf,
     process::Stdio,
@@ -3573,9 +3573,9 @@ pub fn launch() {
             )));
     }
 
-    // if PWD is not set, then we are not being launched via a terminal
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    if std::env::var("PWD").is_err() {
+    let stdin = std::io::stdin();
+    if !stdin.is_terminal() {
+        trace!(TraceLevel::INFO, "Loading custom environment from shell");
         load_shell_env();
     }
 
@@ -3770,12 +3770,12 @@ pub fn launch() {
 }
 
 /// Uses a login shell to load the correct shell environment for the current user.
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn load_shell_env() {
     use std::process::Command;
 
     use tracing::warn;
 
+    #[cfg(not(windows))]
     let shell = match std::env::var("SHELL") {
         Ok(s) => s,
         Err(error) => {
@@ -3788,9 +3788,16 @@ fn load_shell_env() {
         }
     };
 
+    #[cfg(windows)]
+    let shell = "powershell";
+
     let mut command = Command::new(shell);
 
-    command.args(["--login"]).args(["-c", "printenv"]);
+    #[cfg(not(windows))]
+    command.args(["--login", "-c", "printenv"]);
+
+    #[cfg(windows)]
+    command.args(["{ ls env: | foreach { '{0}={1}' -f $_.Name, $_.Value } }"]);
 
     let env = match command.output() {
         Ok(output) => String::from_utf8(output.stdout).unwrap_or_default(),
@@ -3808,7 +3815,9 @@ fn load_shell_env() {
         .filter_map(|line| line.split_once('='))
         .for_each(|(key, value)| {
             if let Ok(v) = std::env::var(key) {
-                warn!("Overwriting '{key}', previous value: '{v}', new value '{value}'");
+                if v != value {
+                    warn!("Overwriting '{key}', previous value: '{v}', new value '{value}'");
+                }
             };
             std::env::set_var(key, value);
         })
