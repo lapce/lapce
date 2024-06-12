@@ -98,3 +98,4 @@ trim-search-results-whitespace = true
 list-line-height = 25
 tab-close-button = "Right"
 open-editors-visible = true
+tab-forward-back-visible = true

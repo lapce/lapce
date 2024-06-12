@@ -958,7 +958,12 @@ fn editor_tab_header(
                     size.set(rect.size());
                 })
                 .debug_name("Next/Previoius Tab Buttons")
-                .style(move |s| s.items_center()),
+                .style(move |s| {
+                    s.items_center()
+                        .apply_if(!config.get().ui.tab_forward_back_visible, |s| {
+                            s.hide()
+                        })
+                }),
             )
         })
         .style(|s| s.flex_shrink(0.)),
