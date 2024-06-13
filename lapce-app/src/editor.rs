@@ -2887,7 +2887,10 @@ impl KeyPressFocus for EditorData {
         }
 
         match &command.kind {
-            crate::command::CommandKind::Workbench(_) => CommandExecuted::No,
+            crate::command::CommandKind::Workbench(cmd) => {
+                self.common.workbench_command.send(cmd.clone());
+                CommandExecuted::Yes
+            }
             crate::command::CommandKind::Edit(cmd) => self.run_edit_command(cmd),
             crate::command::CommandKind::Move(cmd) => {
                 let movement = cmd.to_movement(count);
