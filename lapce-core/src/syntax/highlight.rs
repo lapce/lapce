@@ -29,6 +29,12 @@ thread_local! {
     static HIGHLIGHT_CONFIGS: RefCell<HashMap<LapceLanguage, Result<Arc<HighlightConfiguration>, HighlightIssue>>> = Default::default();
 }
 
+pub fn reset_highlight_configs() {
+    HIGHLIGHT_CONFIGS.with_borrow_mut(|configs| {
+        configs.clear();
+    });
+}
+
 pub(crate) fn get_highlight_config(
     lang: LapceLanguage,
 ) -> Result<Arc<HighlightConfiguration>, HighlightIssue> {

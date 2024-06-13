@@ -105,11 +105,11 @@ pub enum TabSeparatorHeight {
 
 impl UIConfig {
     pub fn scale(&self) -> f64 {
-        self.scale.max(0.1).min(4.0)
+        self.scale.clamp(0.1, 4.0)
     }
 
     pub fn font_size(&self) -> usize {
-        self.font_size.max(6).min(32)
+        self.font_size.clamp(6, 32)
     }
 
     pub fn font_family(&self) -> Vec<FamilyOwned> {
@@ -125,7 +125,7 @@ impl UIConfig {
         if self.icon_size == 0 {
             self.font_size()
         } else {
-            self.icon_size.max(6).min(32)
+            self.icon_size.clamp(6, 32)
         }
     }
 

@@ -69,27 +69,10 @@ workspace = true
 features  = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"]
 
 [features]
-default        = ["all-languages", "updater", "vendored-fonts"]
+default        = ["updater", "vendored-fonts"]
 portable       = ["lapce-core/portable"]
 updater        = []
 vendored-fonts = []
-
-# To build lapce with only some of the supported languages, for example:
-#
-#   cargo build --no-default-features -p lapce-ui \
-#     --features lang-rust,lang-toml,lang-markdown,lang-json
-#
-all-languages = [
-  "lapce-core/lang-bash",
-  "lapce-core/lang-c",
-  "lapce-core/lang-cpp",
-  "lapce-core/lang-javascript",
-  "lapce-core/lang-json",
-  "lapce-core/lang-markdown",
-  "lapce-core/lang-python",
-  "lapce-core/lang-rust",
-  "lapce-core/lang-toml",
-]
 
 [dev-dependencies]
 criterion = "0.5"

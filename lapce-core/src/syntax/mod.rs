@@ -759,7 +759,10 @@ impl SyntaxLayers {
                 // prevents them from being moved. But both of these values are really just
                 // pointers, so it's actually ok to move them.
                 let cursor_ref = unsafe {
-                    mem::transmute::<_, &'static mut QueryCursor>(&mut cursor)
+                    mem::transmute::<
+                        &mut tree_sitter::QueryCursor,
+                        &mut tree_sitter::QueryCursor,
+                    >(&mut cursor)
                 };
 
                 // if reusing cursors & no range this resets to whole range

@@ -237,7 +237,7 @@ pub struct EditorConfig {
 
 impl EditorConfig {
     pub fn font_size(&self) -> usize {
-        self.font_size.max(6).min(32)
+        self.font_size.clamp(6, 32)
     }
 
     pub fn line_height(&self) -> usize {

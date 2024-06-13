@@ -1661,7 +1661,7 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 [[package]]
 name = "floem"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=0e1cb1d3b4afc04a52b16c7245f502d2dea7b73f#0e1cb1d3b4afc04a52b16c7245f502d2dea7b73f"
+source = "git+https://github.com/lapce/floem?rev=9a9e6c21834ce2f30db2c36d9aadfeb98f899277#9a9e6c21834ce2f30db2c36d9aadfeb98f899277"
 dependencies = [
  "bitflags 2.5.0",
  "copypasta",
@@ -1724,7 +1724,7 @@ dependencies = [
 [[package]]
 name = "floem-editor-core"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=0e1cb1d3b4afc04a52b16c7245f502d2dea7b73f#0e1cb1d3b4afc04a52b16c7245f502d2dea7b73f"
+source = "git+https://github.com/lapce/floem?rev=9a9e6c21834ce2f30db2c36d9aadfeb98f899277#9a9e6c21834ce2f30db2c36d9aadfeb98f899277"
 dependencies = [
  "bitflags 2.5.0",
  "itertools 0.12.1",
@@ -1802,7 +1802,7 @@ dependencies = [
 [[package]]
 name = "floem_reactive"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=0e1cb1d3b4afc04a52b16c7245f502d2dea7b73f#0e1cb1d3b4afc04a52b16c7245f502d2dea7b73f"
+source = "git+https://github.com/lapce/floem?rev=9a9e6c21834ce2f30db2c36d9aadfeb98f899277#9a9e6c21834ce2f30db2c36d9aadfeb98f899277"
 dependencies = [
  "smallvec",
 ]
@@ -1810,7 +1810,7 @@ dependencies = [
 [[package]]
 name = "floem_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=0e1cb1d3b4afc04a52b16c7245f502d2dea7b73f#0e1cb1d3b4afc04a52b16c7245f502d2dea7b73f"
+source = "git+https://github.com/lapce/floem?rev=9a9e6c21834ce2f30db2c36d9aadfeb98f899277#9a9e6c21834ce2f30db2c36d9aadfeb98f899277"
 dependencies = [
  "floem-cosmic-text",
  "image",
@@ -1821,7 +1821,7 @@ dependencies = [
 [[package]]
 name = "floem_tiny_skia_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=0e1cb1d3b4afc04a52b16c7245f502d2dea7b73f#0e1cb1d3b4afc04a52b16c7245f502d2dea7b73f"
+source = "git+https://github.com/lapce/floem?rev=9a9e6c21834ce2f30db2c36d9aadfeb98f899277#9a9e6c21834ce2f30db2c36d9aadfeb98f899277"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -1838,7 +1838,7 @@ dependencies = [
 [[package]]
 name = "floem_vger_renderer"
 version = "0.1.1"
-source = "git+https://github.com/lapce/floem?rev=0e1cb1d3b4afc04a52b16c7245f502d2dea7b73f#0e1cb1d3b4afc04a52b16c7245f502d2dea7b73f"
+source = "git+https://github.com/lapce/floem?rev=9a9e6c21834ce2f30db2c36d9aadfeb98f899277#9a9e6c21834ce2f30db2c36d9aadfeb98f899277"
 dependencies = [
  "anyhow",
  "floem-vger",
@@ -2996,15 +2996,6 @@ dependencies = [
  "thiserror",
  "tracing 0.2.0",
  "tree-sitter",
- "tree-sitter-bash",
- "tree-sitter-c",
- "tree-sitter-cpp",
- "tree-sitter-javascript",
- "tree-sitter-json",
- "tree-sitter-md",
- "tree-sitter-python",
- "tree-sitter-rust",
- "tree-sitter-toml",
 ]
 
 [[package]]
@@ -5386,94 +5377,6 @@ checksum = "e747b1f9b7b931ed39a548c1fae149101497de3c1fc8d9e18c62c1a66c683d3d"
 dependencies = [
  "cc",
  "regex",
-]
-
-[[package]]
-name = "tree-sitter-bash"
-version = "0.19.0"
-source = "git+https://github.com/tree-sitter/tree-sitter-bash?rev=4488aa41406547e478636a4fcfd24f5bbc3f2f74#4488aa41406547e478636a4fcfd24f5bbc3f2f74"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-c"
-version = "0.20.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4bbd5f3d8658c08581f8f2adac6c391c2e9fa00fe9246bf6c5f52213b9cc6b72"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-cpp"
-version = "0.20.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46b04a5ada71059afb9895966a6cc1094acc8d2ea1971006db26573e7dfebb74"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-javascript"
-version = "0.20.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d015c02ea98b62c806f7329ff71c383286dfc3a7a7da0cc484f6e42922f73c2c"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-json"
-version = "0.20.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a9a38a9c679b55cc8d17350381ec08d69fa1a17a53fcf197f344516e485ed4d"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-md"
-version = "0.1.2"
-source = "git+https://github.com/MDeiml/tree-sitter-markdown.git?rev=272e080bca0efd19a06a7f4252d746417224959e#272e080bca0efd19a06a7f4252d746417224959e"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-python"
-version = "0.20.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6c93b1b1fbd0d399db3445f51fd3058e43d0b4dcff62ddbdb46e66550978aa5"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-rust"
-version = "0.20.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0832309b0b2b6d33760ce5c0e818cb47e1d72b468516bfe4134408926fa7594"
-dependencies = [
- "cc",
- "tree-sitter",
-]
-
-[[package]]
-name = "tree-sitter-toml"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca517f578a98b23d20780247cc2688407fa81effad5b627a5a364ec3339b53e8"
-dependencies = [
- "cc",
- "tree-sitter",
 ]
 
 [[package]]

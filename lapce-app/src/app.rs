@@ -15,7 +15,7 @@ use crossbeam_channel::Sender;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener, EventPropagation},
-    ext_event::create_signal_from_channel,
+    ext_event::{create_ext_action, create_signal_from_channel},
     menu::{Menu, MenuItem},
     peniko::{
         kurbo::{Point, Rect, Size},
@@ -50,6 +50,7 @@ use lapce_core::{
     command::{EditCommand, FocusCommand},
     directory::Directory,
     meta,
+    syntax::highlight::reset_highlight_configs,
 };
 use lapce_rpc::{
     core::{CoreMessage, CoreNotification},
@@ -3255,6 +3256,7 @@ fn workspace_tab_header(window_data: WindowData) -> impl View {
                                 .min_width(0.0)
                                 .flex_basis(0.0)
                                 .flex_grow(1.0)
+                                .selectable(false)
                                 .text_ellipsis()
                         }),
                         {
@@ -3636,11 +3638,31 @@ pub fn launch() {
         }
     }
 
-    std::thread::spawn(move || {
-        if let Err(e) = fetch_grammars() {
-            trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
-        }
-    });
+    {
+        let cx = Scope::new();
+        let send = create_ext_action(cx, |_| {
+            reset_highlight_configs();
+        });
+        std::thread::spawn(move || {
+            if let Err(e) = fetch_grammars() {
+                trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
+            }
+            send(());
+        });
+    }
+
+    {
+        let cx = Scope::new();
+        let send = create_ext_action(cx, |_| {
+            reset_highlight_configs();
+        });
+        std::thread::spawn(move || {
+            if let Err(e) = fetch_queries() {
+                trace!(TraceLevel::ERROR, "failed to fetch queries: {e}");
+            }
+            send(());
+        });
+    }
 
     #[cfg(feature = "updater")]
     crate::update::cleanup();
@@ -4052,4 +4074,53 @@ fn fetch_grammars() -> Result<()> {
     }
 
     Err(anyhow!("can't find support grammars"))
+}
+
+fn fetch_queries() -> Result<()> {
+    let dir = Directory::queries_directory()
+        .ok_or_else(|| anyhow!("can't get queries directory"))?;
+    if !dir.exists() {
+        let _ = std::fs::create_dir(&dir);
+    }
+
+    let url =
+        "https://api.github.com/repos/lapce/tree-sitter-grammars/releases/latest";
+    let resp = reqwest::blocking::ClientBuilder::new()
+        .user_agent("Lapce")
+        .build()?
+        .get(url)
+        .send()?;
+    if !resp.status().is_success() {
+        return Err(anyhow!("get release info failed {}", resp.text()?));
+    }
+    let current_version =
+        std::fs::read_to_string(dir.join("version")).unwrap_or_default();
+    let release: ReleaseInfo = serde_json::from_str(&resp.text()?)?;
+    if release.tag_name == current_version {
+        return Ok(());
+    }
+
+    let file_name = "queries.zip";
+
+    for asset in &release.assets {
+        if asset.name == file_name {
+            let mut resp = reqwest::blocking::get(&asset.browser_download_url)?;
+            if !resp.status().is_success() {
+                return Err(anyhow!("download file error {}", resp.text()?));
+            }
+            {
+                let mut out = std::fs::File::create(dir.join(file_name))?;
+                resp.copy_to(&mut out)?;
+            }
+
+            let mut archive =
+                zip::ZipArchive::new(std::fs::File::open(dir.join(file_name))?)?;
+            archive.extract(&dir)?;
+            let _ = std::fs::remove_file(dir.join(file_name));
+            std::fs::write(dir.join("version"), release.tag_name)?;
+            return Ok(());
+        }
+    }
+
+    Err(anyhow!("can't find support queries"))
 }
