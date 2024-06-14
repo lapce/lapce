@@ -126,8 +126,7 @@ xx-cargo build \
   --frozen \
   --package lapce-app \
   --profile release-lto \
-  --no-default-features \
-  --features all-languages
+  --no-default-features
 
 xx-verify "${CARGO_TARGET_DIR}"/"$(xx-cargo --print-target-triple)"/release-lto/lapce
 
