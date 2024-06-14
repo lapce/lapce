@@ -47,7 +47,7 @@ use crate::{
         DiffEditorId, EditorTabId, KeymapId, SettingsId, SplitId,
         ThemeColorSettingsId, VoltViewId,
     },
-    keypress::{EventRef, KeyPressData},
+    keypress::{EventRef, KeyPressData, KeyPressHandle},
     window_tab::{CommonData, Focus, WindowTabData},
 };
 
@@ -475,7 +475,7 @@ impl MainSplitData {
         &self,
         event: impl Into<EventRef<'a>>,
         keypress: &KeyPressData,
-    ) -> Option<bool> {
+    ) -> Option<KeyPressHandle> {
         let active_editor_tab = self.active_editor_tab.get_untracked()?;
         let editor_tab = self.editor_tabs.with_untracked(|editor_tabs| {
             editor_tabs.get(&active_editor_tab).copied()
@@ -486,9 +486,9 @@ impl MainSplitData {
         match child {
             EditorTabChild::Editor(editor_id) => {
                 let editor = self.editors.editor_untracked(editor_id)?;
-                let proccesed = keypress.key_down(event, &editor);
+                let handle = keypress.key_down(event, &editor);
                 editor.get_code_actions();
-                Some(proccesed)
+                Some(handle)
             }
             EditorTabChild::DiffEditor(diff_editor_id) => {
                 let diff_editor =
@@ -500,9 +500,9 @@ impl MainSplitData {
                 } else {
                     &diff_editor.left
                 };
-                let processed = keypress.key_down(event, editor);
+                let handle = keypress.key_down(event, editor);
                 editor.get_code_actions();
-                Some(processed)
+                Some(handle)
             }
             EditorTabChild::Settings(_) => None,
             EditorTabChild::ThemeColorSettings(_) => None,

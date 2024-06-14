@@ -259,7 +259,7 @@ fn text_input_full<T: KeyPressFocus + 'static>(
                 .as_ref()
                 .map(|k| k as &dyn KeyPressFocus)
                 .unwrap_or(&e_data);
-            if keypress.key_down(key_event, key_focus) {
+            if keypress.key_down(key_event, key_focus).handled {
                 EventPropagation::Stop
             } else {
                 EventPropagation::Continue

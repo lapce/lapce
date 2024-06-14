@@ -2009,37 +2009,45 @@ impl WindowTabData {
         }
         let focus = self.common.focus.get_untracked();
         let keypress = self.common.keypress.get_untracked();
-        let executed = match focus {
-            Focus::Workbench => {
-                self.main_split.key_down(event, &keypress) == Some(true)
-            }
-            Focus::Palette => keypress.key_down(event, &self.palette),
+        let handle = match focus {
+            Focus::Workbench => self.main_split.key_down(event, &keypress),
+            Focus::Palette => Some(keypress.key_down(event, &self.palette)),
             Focus::CodeAction => {
                 let code_action = self.code_action.get_untracked();
-                keypress.key_down(event, &code_action)
+                Some(keypress.key_down(event, &code_action))
             }
-            Focus::Rename => keypress.key_down(event, &self.rename),
-            Focus::AboutPopup => keypress.key_down(event, &self.about_data),
+            Focus::Rename => Some(keypress.key_down(event, &self.rename)),
+            Focus::AboutPopup => Some(keypress.key_down(event, &self.about_data)),
             Focus::Panel(PanelKind::Terminal) => {
                 self.terminal.key_down(event, &keypress)
             }
             Focus::Panel(PanelKind::Search) => {
-                keypress.key_down(event, &self.global_search)
+                Some(keypress.key_down(event, &self.global_search))
             }
             Focus::Panel(PanelKind::Plugin) => {
-                keypress.key_down(event, &self.plugin)
+                Some(keypress.key_down(event, &self.plugin))
             }
             Focus::Panel(PanelKind::SourceControl) => {
-                keypress.key_down(event, &self.source_control)
+                Some(keypress.key_down(event, &self.source_control))
             }
-            _ => false,
+            _ => None,
         };
 
-        if executed {
-            return true;
+        if let Some(handle) = &handle {
+            if handle.handled {
+                true
+            } else {
+                keypress
+                    .handle_keymatch(
+                        self,
+                        handle.keymatch.clone(),
+                        handle.keypress.clone(),
+                    )
+                    .handled
+            }
+        } else {
+            keypress.key_down(event, self).handled
         }
-
-        keypress.key_down(event, self)
     }
 
     pub fn workspace_info(&self) -> WorkspaceInfo {

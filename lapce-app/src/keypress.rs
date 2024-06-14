@@ -9,7 +9,7 @@ use std::{path::PathBuf, rc::Rc, str::FromStr};
 use anyhow::Result;
 use floem::{
     keyboard::{Key, KeyEvent, KeyEventExtModifierSupplement, Modifiers, NamedKey},
-    pointer::PointerInputEvent,
+    pointer::{PointerButton, PointerInputEvent},
     reactive::{RwSignal, Scope},
 };
 use indexmap::IndexMap;
@@ -136,6 +136,12 @@ impl<'a> From<&'a PointerInputEvent> for EventRef<'a> {
     fn from(ev: &'a PointerInputEvent) -> Self {
         Self::Pointer(ev)
     }
+}
+
+pub struct KeyPressHandle {
+    pub handled: bool,
+    pub keypress: KeyPress,
+    pub keymatch: KeymapMatch,
 }
 
 #[derive(Clone, Debug)]
@@ -268,15 +274,27 @@ impl KeyPressData {
         &self,
         event: impl Into<EventRef<'a>>,
         focus: &T,
-    ) -> bool {
+    ) -> KeyPressHandle {
         let keypress = match Self::keypress(event) {
             Some(keypress) => keypress,
-            None => return false,
+            None => {
+                return KeyPressHandle {
+                    handled: false,
+                    keymatch: KeymapMatch::None,
+                    keypress: KeyPress {
+                        key: KeyInput::Pointer(PointerButton::Primary),
+                        mods: Modifiers::empty(),
+                    },
+                }
+            }
         };
-        let mods = keypress.mods;
 
         if self.handle_count(focus, &keypress) {
-            return true;
+            return KeyPressHandle {
+                handled: true,
+                keymatch: KeymapMatch::None,
+                keypress,
+            };
         }
 
         self.pending_keypress.update(|pending_keypress| {
@@ -286,14 +304,29 @@ impl KeyPressData {
         let keymatch = self.pending_keypress.with_untracked(|pending_keypress| {
             self.match_keymap(pending_keypress, focus)
         });
-        match keymatch {
+        self.handle_keymatch(focus, keymatch, keypress)
+    }
+
+    pub fn handle_keymatch<T: KeyPressFocus + ?Sized>(
+        &self,
+        focus: &T,
+        keymatch: KeymapMatch,
+        keypress: KeyPress,
+    ) -> KeyPressHandle {
+        let mods = keypress.mods;
+        match &keymatch {
             KeymapMatch::Full(command) => {
                 self.pending_keypress.update(|pending_keypress| {
                     pending_keypress.clear();
                 });
                 let count = self.count.try_update(|count| count.take()).unwrap();
-                return self.run_command(&command, count, mods, focus)
+                let handled = self.run_command(command, count, mods, focus)
                     == CommandExecuted::Yes;
+                return KeyPressHandle {
+                    handled,
+                    keymatch,
+                    keypress,
+                };
             }
             KeymapMatch::Multiple(commands) => {
                 self.pending_keypress.update(|pending_keypress| {
@@ -301,25 +334,38 @@ impl KeyPressData {
                 });
                 let count = self.count.try_update(|count| count.take()).unwrap();
                 for command in commands {
-                    if self.run_command(&command, count, mods, focus)
-                        == CommandExecuted::Yes
-                    {
-                        return true;
+                    let handled = self.run_command(command, count, mods, focus)
+                        == CommandExecuted::Yes;
+                    if handled {
+                        return KeyPressHandle {
+                            handled,
+                            keymatch,
+                            keypress,
+                        };
                     }
                 }
 
-                return false;
+                return KeyPressHandle {
+                    handled: false,
+                    keymatch,
+                    keypress,
+                };
             }
             KeymapMatch::Prefix => {
                 // Here pending_keypress contains only a prefix of some keymap, so let's keep
                 // collecting key presses.
-                return true;
+                return KeyPressHandle {
+                    handled: true,
+                    keymatch,
+                    keypress,
+                };
             }
             KeymapMatch::None => {
                 self.pending_keypress.update(|pending_keypress| {
                     pending_keypress.clear();
                 });
                 if focus.get_mode() == Mode::Insert {
+                    let old_keypress = keypress.clone();
                     let mut keypress = keypress.clone();
                     keypress.mods.set(Modifiers::SHIFT, false);
                     if let KeymapMatch::Full(command) =
@@ -327,8 +373,13 @@ impl KeyPressData {
                     {
                         if let Some(cmd) = self.commands.get(&command) {
                             if let CommandKind::Move(_) = cmd.kind {
-                                return focus.run_command(cmd, None, mods)
+                                let handled = focus.run_command(cmd, None, mods)
                                     == CommandExecuted::Yes;
+                                return KeyPressHandle {
+                                    handled,
+                                    keymatch,
+                                    keypress: old_keypress,
+                                };
                             }
                         }
                     }
@@ -353,16 +404,28 @@ impl KeyPressData {
                 if let Key::Character(c) = logical {
                     focus.receive_char(c);
                     self.count.set(None);
-                    return true;
+                    return KeyPressHandle {
+                        handled: true,
+                        keymatch,
+                        keypress,
+                    };
                 } else if let Key::Named(NamedKey::Space) = logical {
                     focus.receive_char(" ");
                     self.count.set(None);
-                    return true;
+                    return KeyPressHandle {
+                        handled: true,
+                        keymatch,
+                        keypress,
+                    };
                 }
             }
         }
 
-        false
+        KeyPressHandle {
+            handled: false,
+            keymatch,
+            keypress,
+        }
     }
 
     fn get_key_modifiers(key_event: &KeyEvent) -> Modifiers {
