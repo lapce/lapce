@@ -43,7 +43,7 @@ dyn-clone     = "1.0.16"
 walkdir       = "2.4.0"
 locale_config = "0.3.0"
 jsonrpc-lite  = "0.6.0"
-polling       = "3.5.0"
+polling       = "3.7.2"
 libc          = "0.2"
 
 # git

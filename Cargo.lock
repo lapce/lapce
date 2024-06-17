@@ -2391,6 +2391,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
 
 [[package]]
+name = "hermit-abi"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbf6a919d6cf397374f7dfeeea91d974c7c0a7221d0d0f4f20d859d329e53fcc"
+
+[[package]]
 name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2971,7 +2977,7 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width",
  "url",
- "windows-sys 0.48.0",
+ "windows-sys 0.52.0",
  "zip",
 ]
 
@@ -3896,13 +3902,13 @@ dependencies = [
 
 [[package]]
 name = "polling"
-version = "3.6.0"
+version = "3.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0c976a60b2d7e99d6f229e414670a9b85d13ac305cc6d1e9c134de58c5aaaf6"
+checksum = "a3ed00ed3fbf728b5816498ecd316d1716eecaced9c0c8d2c5a6740ca214985b"
 dependencies = [
  "cfg-if",
  "concurrent-queue",
- "hermit-abi 0.3.9",
+ "hermit-abi 0.4.0",
  "pin-project-lite",
  "rustix",
  "tracing 0.1.37",
