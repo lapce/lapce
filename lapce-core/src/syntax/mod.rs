@@ -9,12 +9,15 @@
 use std::{
     cell::RefCell,
     collections::{hash_map::Entry, HashMap, HashSet, VecDeque},
+    hash::{Hash, Hasher},
     mem,
     path::Path,
     sync::{atomic::AtomicUsize, Arc},
 };
 
+use ahash::RandomState;
 use floem_editor_core::util::{matching_bracket_general, matching_pair_direction};
+use hashbrown::raw::RawTable;
 use itertools::Itertools;
 use lapce_rpc::style::{LineStyle, Style};
 use lapce_xi_rope::{
@@ -28,9 +31,9 @@ use tree_sitter::{Node, Parser, Point, QueryCursor, Tree};
 use self::{
     edit::SyntaxEdit,
     highlight::{
-        get_highlight_config, injection_for_match, intersect_ranges, Highlight,
-        HighlightConfiguration, HighlightEvent, HighlightIter, HighlightIterLayer,
-        IncludedChildren, LocalScope,
+        get_highlight_config, intersect_ranges, Highlight, HighlightConfiguration,
+        HighlightEvent, HighlightIter, HighlightIterLayer, IncludedChildren,
+        LocalScope,
     },
     util::RopeProvider,
 };
@@ -39,12 +42,15 @@ use crate::{
     language::{self, LapceLanguage},
     lens::{Lens, LensBuilder},
     style::SCOPES,
+    syntax::highlight::InjectionLanguageMarker,
 };
 
 use crate::buffer::Buffer;
 pub mod edit;
 pub mod highlight;
 pub mod util;
+
+const TREE_SITTER_MATCH_LIMIT: u32 = 256;
 
 // Uses significant portions Helix's implementation, and on tree-sitter's highlighter implementation
 
@@ -65,6 +71,8 @@ thread_local! {
 pub enum Error {
     #[error("Cancelled")]
     Cancelled,
+    #[error("Invalid ranges")]
+    InvalidRanges,
     #[error("Invalid language")]
     InvalidLanguage,
     #[error("Unknown error")]
@@ -382,7 +390,30 @@ pub struct LanguageLayer {
     pub(crate) tree: Option<Tree>,
     pub ranges: Vec<tree_sitter::Range>,
     pub depth: usize,
+    _parent: Option<LayerId>,
     rev: u64,
+}
+
+/// This PartialEq implementation only checks if that
+/// two layers are theoretically identical (meaning they highlight the same text range with the same language).
+/// It does not check whether the layers have the same internal treesitter
+/// state.
+impl PartialEq for LanguageLayer {
+    fn eq(&self, other: &Self) -> bool {
+        self.depth == other.depth
+            && self.config.language == other.config.language
+            && self.ranges == other.ranges
+    }
+}
+
+/// Hash implementation belongs to PartialEq implementation above.
+/// See its documentation for details.
+impl Hash for LanguageLayer {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.depth.hash(state);
+        self.config.language.hash(state);
+        self.ranges.hash(state);
+    }
 }
 
 impl LanguageLayer {
@@ -397,10 +428,12 @@ impl LanguageLayer {
         had_edits: bool,
         cancellation_flag: &AtomicUsize,
     ) -> Result<(), Error> {
-        parser.set_included_ranges(&self.ranges).unwrap();
+        parser
+            .set_included_ranges(&self.ranges)
+            .map_err(|_| Error::InvalidRanges)?;
 
         parser
-            .set_language(self.config.language)
+            .set_language(&self.config.language)
             .map_err(|_| Error::InvalidLanguage)?;
 
         unsafe { parser.set_cancellation_flag(Some(cancellation_flag)) };
@@ -449,6 +482,7 @@ impl SyntaxLayers {
                 start_point: Point::new(0, 0),
                 end_point: Point::new(usize::MAX, usize::MAX),
             }],
+            _parent: None,
             rev: 0,
         };
 
@@ -476,8 +510,17 @@ impl SyntaxLayers {
         let mut queue = VecDeque::new();
         queue.push_back(self.root);
 
-        let injection_callback = |language: &str| {
-            LapceLanguage::from_name(language)
+        let injection_callback = |language: &InjectionLanguageMarker| {
+            let language = match language {
+                InjectionLanguageMarker::Name(name) => {
+                    LapceLanguage::from_name(name)
+                }
+                InjectionLanguageMarker::Filename(path) => {
+                    LapceLanguage::from_path_raw(path)
+                }
+                InjectionLanguageMarker::Shebang(id) => LapceLanguage::from_name(id),
+            };
+            language
                 .map(get_highlight_config)
                 .unwrap_or(Err(highlight::HighlightIssue::NotAvailable))
         };
@@ -491,29 +534,37 @@ impl SyntaxLayers {
             }
         }
 
+        // This table allows inverse indexing of `layers`.
+        // That is by hashing a `Layer` you can find
+        // the `LayerId` of an existing equivalent `Layer` in `layers`.
+        //
+        // It is used to determine if a new layer exists for an injection
+        // or if an existing layer needs to be updated.
+        let mut layers_table = RawTable::with_capacity(self.layers.len());
+        let layers_hasher = RandomState::new();
         // Use the edits to update all layers markers
-        if !edits.is_empty() {
-            fn point_add(a: Point, b: Point) -> Point {
-                if b.row > 0 {
-                    Point::new(a.row.saturating_add(b.row), b.column)
-                } else {
-                    Point::new(0, a.column.saturating_add(b.column))
-                }
+        fn point_add(a: Point, b: Point) -> Point {
+            if b.row > 0 {
+                Point::new(a.row.saturating_add(b.row), b.column)
+            } else {
+                Point::new(0, a.column.saturating_add(b.column))
             }
-            fn point_sub(a: Point, b: Point) -> Point {
-                if a.row > b.row {
-                    Point::new(a.row.saturating_sub(b.row), a.column)
-                } else {
-                    Point::new(0, a.column.saturating_sub(b.column))
-                }
+        }
+        fn point_sub(a: Point, b: Point) -> Point {
+            if a.row > b.row {
+                Point::new(a.row.saturating_sub(b.row), a.column)
+            } else {
+                Point::new(0, a.column.saturating_sub(b.column))
+            }
+        }
+
+        for (layer_id, layer) in self.layers.iter_mut() {
+            // The root layer always covers the whole range (0..usize::MAX)
+            if layer.depth == 0 {
+                continue;
             }
 
-            for layer in &mut self.layers.values_mut() {
-                // The root layer always covers the whole range (0..usize::MAX)
-                if layer.depth == 0 {
-                    continue;
-                }
-
+            if !edits.is_empty() {
                 for range in &mut layer.ranges {
                     // Roughly based on https://github.com/tree-sitter/tree-sitter/blob/ddeaa0c7f534268b35b4f6cb39b52df082754413/lib/src/subtree.c#L691-L720
                     for edit in edits.iter().rev() {
@@ -575,17 +626,23 @@ impl SyntaxLayers {
                     }
                 }
             }
+
+            let hash = layers_hasher.hash_one(layer);
+            // Safety: insert_no_grow is unsafe because it assumes that the table
+            // has enough capacity to hold additional elements.
+            // This is always the case as we reserved enough capacity above.
+            unsafe { layers_table.insert_no_grow(hash, layer_id) };
         }
 
         PARSER.with(|ts_parser| {
             let ts_parser = &mut ts_parser.borrow_mut();
-            let mut cursor = ts_parser.cursors.pop().unwrap_or_else(QueryCursor::new);
+            ts_parser.parser.set_timeout_micros(1000 * 500); // half a second is pretty generours
+            let mut cursor = ts_parser.cursors.pop().unwrap_or_default();
             // TODO: might need to set cursor range
             cursor.set_byte_range(0..usize::MAX);
+            cursor.set_match_limit(TREE_SITTER_MATCH_LIMIT);
 
             let mut touched = HashSet::new();
-
-            // TODO: we should be able to avoid editing & parsing layers with ranges earlier in the document before the edit
 
             while let Some(layer_id) = queue.pop_front() {
                 // Mark the layer as touched
@@ -604,7 +661,12 @@ impl SyntaxLayers {
                 }
 
                 // Re-parse the tree.
-                layer.parse(&mut ts_parser.parser, source, had_edits, cancellation_flag)?;
+                layer.parse(
+                    &mut ts_parser.parser,
+                    source,
+                    had_edits,
+                    cancellation_flag,
+                )?;
                 layer.rev = new_rev;
 
                 // Switch to an immutable borrow.
@@ -617,14 +679,42 @@ impl SyntaxLayers {
                         tree.root_node(),
                         RopeProvider(source),
                     );
+                    let mut combined_injections =
+                        vec![
+                            (None, Vec::new(), IncludedChildren::default());
+                            layer.config.combined_injections_patterns.len()
+                        ];
                     let mut injections = Vec::new();
+                    let mut last_injection_end = 0;
                     for mat in matches {
-                        let (language_name, content_node, included_children) = injection_for_match(
-                            &layer.config,
-                            &layer.config.injections_query,
-                            &mat,
-                            source,
-                        );
+                        let (injection_capture, content_node, included_children) =
+                            layer.config.injection_for_match(
+                                &layer.config.injections_query,
+                                &mat,
+                                source,
+                            );
+
+                        // in case this is a combined injection save it for more processing later
+                        if let Some(combined_injection_idx) = layer
+                            .config
+                            .combined_injections_patterns
+                            .iter()
+                            .position(|&pattern| pattern == mat.pattern_index)
+                        {
+                            let entry =
+                                &mut combined_injections[combined_injection_idx];
+                            if injection_capture.is_some() {
+                                entry.0 = injection_capture;
+                            }
+                            if let Some(content_node) = content_node {
+                                if content_node.start_byte() >= last_injection_end {
+                                    entry.1.push(content_node);
+                                    last_injection_end = content_node.end_byte();
+                                }
+                            }
+                            entry.2 = included_children;
+                            continue;
+                        }
 
                         // Explicitly remove this match so that none of its other captures will remain
                         // in the stream of captures.
@@ -632,59 +722,44 @@ impl SyntaxLayers {
 
                         // If a language is found with the given name, then add a new language layer
                         // to the highlighted document.
-                        if let (Some(language_name), Some(content_node)) = (language_name, content_node)
+                        if let (Some(injection_capture), Some(content_node)) =
+                            (injection_capture, content_node)
                         {
-                            if let Ok(config) = (injection_callback)(&language_name) {
-                                let ranges =
-                                    intersect_ranges(&layer.ranges, &[content_node], included_children);
+                            if let Ok(config) =
+                                (injection_callback)(&injection_capture)
+                            {
+                                let ranges = intersect_ranges(
+                                    &layer.ranges,
+                                    &[content_node],
+                                    included_children,
+                                );
 
                                 if !ranges.is_empty() {
+                                    if content_node.start_byte() < last_injection_end
+                                    {
+                                        continue;
+                                    }
+                                    last_injection_end = content_node.end_byte();
                                     injections.push((config, ranges));
                                 }
                             }
                         }
                     }
 
-                    // Process combined injections.
-                    if let Some(combined_injections_query) = &layer.config.combined_injections_query {
-                        let mut injections_by_pattern_index =
-                            vec![
-                                (None, Vec::new(), IncludedChildren::default());
-                                combined_injections_query.pattern_count()
-                            ];
-                        let matches = cursor.matches(
-                            combined_injections_query,
-                            tree.root_node(),
-                            RopeProvider(source),
-                        );
-                        for mat in matches {
-                            let entry = &mut injections_by_pattern_index[mat.pattern_index];
-                            let (language_name, content_node, included_children) = injection_for_match(
-                                &layer.config,
-                                combined_injections_query,
-                                &mat,
-                                source,
-                            );
-                            if language_name.is_some() {
-                                entry.0 = language_name;
-                            }
-                            if let Some(content_node) = content_node {
-                                entry.1.push(content_node);
-                            }
-                            entry.2 = included_children;
-                        }
-                        for (lang_name, content_nodes, included_children) in injections_by_pattern_index
+                    for (lang_name, content_nodes, included_children) in
+                        combined_injections
+                    {
+                        if let (Some(lang_name), false) =
+                            (lang_name, content_nodes.is_empty())
                         {
-                            if let (Some(lang_name), false) = (lang_name, content_nodes.is_empty()) {
-                                if let Ok(config) = (injection_callback)(&lang_name) {
-                                    let ranges = intersect_ranges(
-                                        &layer.ranges,
-                                        &content_nodes,
-                                        included_children,
-                                    );
-                                    if !ranges.is_empty() {
-                                        injections.push((config, ranges));
-                                    }
+                            if let Ok(config) = (injection_callback)(&lang_name) {
+                                let ranges = intersect_ranges(
+                                    &layer.ranges,
+                                    &content_nodes,
+                                    included_children,
+                                );
+                                if !ranges.is_empty() {
+                                    injections.push((config, ranges));
                                 }
                             }
                         }
@@ -693,26 +768,25 @@ impl SyntaxLayers {
                     let depth = layer.depth + 1;
                     // TODO: can't inline this since matches borrows self.layers
                     for (config, ranges) in injections {
-                        // Find an existing layer
-                        let layer = self
-                            .layers
-                            .iter_mut()
-                            .find(|(_, layer)| {
-                                layer.depth == depth && // TODO: track parent id instead
-                                layer.config.language == config.language && layer.ranges == ranges
+                        let new_layer = LanguageLayer {
+                            tree: None,
+                            config,
+                            depth,
+                            ranges,
+                            _parent: Some(layer_id),
+                            rev: 0,
+                        };
+
+                        // Find an identical existing layer
+                        let layer = layers_table
+                            .get(layers_hasher.hash_one(&new_layer), |&it| {
+                                self.layers[it] == new_layer
                             })
-                            .map(|(id, _layer)| id);
+                            .copied();
 
                         // ...or insert a new one.
-                        let layer_id = layer.unwrap_or_else(|| {
-                            self.layers.insert(LanguageLayer {
-                                tree: None,
-                                config,
-                                depth,
-                                ranges,
-                                rev: 0,
-                            })
-                        });
+                        let layer_id =
+                            layer.unwrap_or_else(|| self.layers.insert(new_layer));
 
                         queue.push_back(layer_id);
                     }
@@ -752,7 +826,7 @@ impl SyntaxLayers {
                 // Reuse a cursor from the pool if available.
                 let mut cursor = PARSER.with(|ts_parser| {
                     let highlighter = &mut ts_parser.borrow_mut();
-                    highlighter.cursors.pop().unwrap_or_else(QueryCursor::new)
+                    highlighter.cursors.pop().unwrap_or_default()
                 });
 
                 // The `captures` iterator borrows the `Tree` and the `QueryCursor`, which
@@ -767,6 +841,7 @@ impl SyntaxLayers {
 
                 // if reusing cursors & no range this resets to whole range
                 cursor_ref.set_byte_range(range.clone().unwrap_or(0..usize::MAX));
+                cursor_ref.set_match_limit(TREE_SITTER_MATCH_LIMIT);
 
                 let mut captures = cursor_ref
                     .captures(
@@ -788,21 +863,14 @@ impl SyntaxLayers {
                     }],
                     cursor,
                     _tree: None,
-                    captures,
+                    captures: RefCell::new(captures),
                     config: layer.config.as_ref(), // TODO: just reuse `layer`
                     depth: layer.depth,            // TODO: just reuse `layer`
-                    ranges: &layer.ranges,         // TODO: temp
                 })
             })
             .collect::<Vec<_>>();
 
-        // HAXX: arrange layers by byte range, with deeper layers positioned first
-        layers.sort_by_key(|layer| {
-            (
-                layer.ranges.first().cloned(),
-                std::cmp::Reverse(layer.depth),
-            )
-        });
+        layers.sort_unstable_by_key(|layer| layer.sort_key());
 
         let mut result = HighlightIter {
             source,
@@ -816,17 +884,6 @@ impl SyntaxLayers {
         result.sort_layers();
         result
     }
-
-    // Commenting
-    // comment_strings_for_pos
-    // is_commented
-
-    // Indentation
-    // suggested_indent_for_line_at_buffer_row
-    // suggested_indent_for_buffer_row
-    // indent_level_for_line
-
-    // TODO: Folding
 }
 
 #[derive(Clone)]

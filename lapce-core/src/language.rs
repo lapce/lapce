@@ -1,11 +1,13 @@
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
+    fmt::Write,
     path::Path,
     str::FromStr,
 };
 
 use lapce_rpc::style::{LineStyle, Style};
 use once_cell::sync::Lazy;
+use regex::Regex;
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumString, IntoStaticStr};
 use tracing::{debug, error};
 use tree_sitter::{Point, TreeCursor};
@@ -270,7 +272,7 @@ pub enum LapceLanguage {
     Swift,
     #[strum(message = "TOML")]
     Toml,
-    #[strum(message = "TypeScript React")]
+    #[strum(message = "Tsx")]
     Tsx,
     #[strum(message = "TypeScript")]
     Typescript,
@@ -894,8 +896,8 @@ const LANGUAGES: &[SyntaxProperties] = &[
         extensions: &["tsx"],
         comment: comment_properties!("//"),
         tree_sitter: TreeSitterProperties {
-            grammar: Some("typescript"),
-            query: Some("typescript"),
+            grammar: Some("tsx"),
+            query: Some("tsx"),
             code_lens: (&["source_file", "program"], &["source_file"]),
             sticky_headers: &[],
         },
@@ -967,7 +969,7 @@ impl LapceLanguage {
         Self::from_path_raw(path).unwrap_or(LapceLanguage::Plaintext)
     }
 
-    fn from_path_raw(path: &Path) -> Option<LapceLanguage> {
+    pub fn from_path_raw(path: &Path) -> Option<LapceLanguage> {
         let filename = path
             .file_stem()
             .and_then(|s| s.to_str().map(|s| s.to_lowercase()));
@@ -1100,23 +1102,18 @@ impl LapceLanguage {
 
         // Try reading highlights from user config dir
         if let Some(queries_dir) = Directory::queries_directory() {
-            let queries_dir = queries_dir.join(&query_name);
-            if queries_dir.exists() {
-                let highlights_file =
-                    queries_dir.join(Self::HIGHLIGHTS_QUERIES_FILE_NAME);
-                if highlights_file.exists() {
-                    if let Ok(s) = std::fs::read_to_string(highlights_file) {
-                        return (
-                            s,
-                            std::fs::read_to_string(
-                                queries_dir
-                                    .join(Self::HIGHLIGHTS_INJECTIONS_FILE_NAME),
-                            )
-                            .unwrap_or_else(|_| "".to_string()),
-                        );
-                    }
-                }
-            }
+            return (
+                read_grammar_query(
+                    &queries_dir,
+                    &query_name,
+                    Self::HIGHLIGHTS_QUERIES_FILE_NAME,
+                ),
+                read_grammar_query(
+                    &queries_dir,
+                    &query_name,
+                    Self::HIGHLIGHTS_INJECTIONS_FILE_NAME,
+                ),
+            );
         }
 
         #[cfg(unix)]
@@ -1313,6 +1310,30 @@ pub(crate) fn walk_tree_bracket_ast(
         }
         cursor.goto_parent();
     }
+}
+
+fn read_grammar_query(queries_dir: &Path, name: &str, kind: &str) -> String {
+    static INHERITS_REGEX: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r";+\s*inherits\s*:?\s*([a-z_,()-]+)\s*").unwrap());
+
+    let file = queries_dir.join(name).join(kind);
+    let query = std::fs::read_to_string(file).unwrap_or_default();
+
+    INHERITS_REGEX
+        .replace_all(&query, |captures: &regex::Captures| {
+            captures[1]
+                .split(',')
+                .fold(String::new(), |mut output, name| {
+                    write!(
+                        output,
+                        "\n{}\n",
+                        read_grammar_query(queries_dir, name, kind)
+                    )
+                    .unwrap();
+                    output
+                })
+        })
+        .to_string()
 }
 
 #[cfg(test)]

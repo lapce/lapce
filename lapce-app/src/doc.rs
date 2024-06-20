@@ -804,24 +804,33 @@ impl Doc {
                 return;
             };
 
-        let (rev, len) = self.buffer.with_untracked(|b| (b.rev(), b.len()));
-
-        let syntactic_styles =
-            self.syntax.with_untracked(|syntax| syntax.styles.clone());
+        let (atomic_rev, rev, len) = self
+            .buffer
+            .with_untracked(|b| (b.atomic_rev(), b.rev(), b.len()));
 
         let doc = self.clone();
         let send = create_ext_action(self.scope, move |styles| {
-            if doc.buffer.with_untracked(|b| b.rev()) == rev {
-                doc.semantic_styles.set(Some(styles));
-                doc.clear_style_cache();
+            if let Some(styles) = styles {
+                if doc.buffer.with_untracked(|b| b.rev()) == rev {
+                    doc.semantic_styles.set(Some(styles));
+                    doc.clear_style_cache();
+                }
             }
         });
 
         self.common.proxy.get_semantic_tokens(path, move |result| {
             if let Ok(ProxyResponse::GetSemanticTokens { styles }) = result {
-                rayon::spawn(move || {
+                if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                    send(None);
+                    return;
+                }
+                std::thread::spawn(move || {
                     let mut styles_span = SpansBuilder::new(len);
                     for style in styles.styles {
+                        if atomic_rev.load(atomic::Ordering::Acquire) != rev {
+                            send(None);
+                            return;
+                        }
                         styles_span.add_span(
                             Interval::new(style.start, style.end),
                             style.style,
@@ -829,20 +838,10 @@ impl Doc {
                     }
 
                     let styles = styles_span.build();
-
-                    let styles = if let Some(syntactic_styles) = syntactic_styles {
-                        syntactic_styles.merge(&styles, |a, b| {
-                            if let Some(b) = b {
-                                return b.clone();
-                            }
-                            a.clone()
-                        })
-                    } else {
-                        styles
-                    };
-
-                    send(styles);
+                    send(Some(styles));
                 });
+            } else {
+                send(None);
             }
         });
     }

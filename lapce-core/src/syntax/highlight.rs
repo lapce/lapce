@@ -10,6 +10,7 @@ use std::{
     borrow::Cow,
     cell::RefCell,
     collections::HashMap,
+    path::Path,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -18,6 +19,8 @@ use std::{
 
 use arc_swap::ArcSwap;
 use lapce_xi_rope::Rope;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use tree_sitter::{
     Language, Point, Query, QueryCaptures, QueryCursor, QueryMatch, Tree,
 };
@@ -79,6 +82,15 @@ pub(crate) struct LocalScope<'a> {
     pub(crate) local_defs: Vec<LocalDef<'a>>,
 }
 
+#[derive(Debug, Clone)]
+pub enum InjectionLanguageMarker<'a> {
+    Name(Cow<'a, str>),
+    Filename(Cow<'a, Path>),
+    Shebang(String),
+}
+
+const SHEBANG: &str = r"#!\s*(?:\S*[/\\](?:env\s+(?:\-\S+\s+)*)?)?([^\s\.\d]+)";
+
 const CANCELLATION_CHECK_INTERVAL: usize = 100;
 
 /// Contains the data needed to highlight code written in a particular language.
@@ -89,12 +101,14 @@ pub struct HighlightConfiguration {
     pub language: Language,
     pub query: Query,
     pub injections_query: Query,
-    pub combined_injections_query: Option<Query>,
+    pub combined_injections_patterns: Vec<usize>,
     pub highlights_pattern_index: usize,
     pub highlight_indices: ArcSwap<Vec<Option<Highlight>>>,
     pub non_local_variable_patterns: Vec<bool>,
     pub injection_content_capture_index: Option<u32>,
     pub injection_language_capture_index: Option<u32>,
+    pub injection_filename_capture_index: Option<u32>,
+    pub injection_shebang_capture_index: Option<u32>,
     pub local_scope_capture_index: Option<u32>,
     pub local_def_capture_index: Option<u32>,
     pub local_def_value_capture_index: Option<u32>,
@@ -130,7 +144,7 @@ impl HighlightConfiguration {
 
         // Construct a single query by concatenating the three query strings, but record the
         // range of pattern indices that belong to each individual string.
-        let query = Query::new(language, &query_source)?;
+        let query = Query::new(&language, &query_source)?;
         let mut highlights_pattern_index = 0;
         for i in 0..(query.pattern_count()) {
             let pattern_offset = query.start_byte_for_pattern(i);
@@ -139,26 +153,15 @@ impl HighlightConfiguration {
             }
         }
 
-        let mut injections_query = Query::new(language, injection_query)?;
-
-        // Construct a separate query just for dealing with the 'combined injections'.
-        // Disable the combined injection patterns in the main query.
-        let mut combined_injections_query = Query::new(language, injection_query)?;
-        let mut has_combined_queries = false;
-        for pattern_index in 0..injections_query.pattern_count() {
-            let settings = injections_query.property_settings(pattern_index);
-            if settings.iter().any(|s| &*s.key == "injection.combined") {
-                has_combined_queries = true;
-                injections_query.disable_pattern(pattern_index);
-            } else {
-                combined_injections_query.disable_pattern(pattern_index);
-            }
-        }
-        let combined_injections_query = if has_combined_queries {
-            Some(combined_injections_query)
-        } else {
-            None
-        };
+        let injections_query = Query::new(&language, injection_query)?;
+        let combined_injections_patterns = (0..injections_query.pattern_count())
+            .filter(|&i| {
+                injections_query
+                    .property_settings(i)
+                    .iter()
+                    .any(|s| &*s.key == "injection.combined")
+            })
+            .collect();
 
         // Find all of the highlighting patterns that are disabled for nodes that
         // have been identified as local variables.
@@ -173,13 +176,15 @@ impl HighlightConfiguration {
         // Store the numeric ids for all of the special captures.
         let mut injection_content_capture_index = None;
         let mut injection_language_capture_index = None;
+        let mut injection_filename_capture_index = None;
+        let mut injection_shebang_capture_index = None;
         let mut local_def_capture_index = None;
         let mut local_def_value_capture_index = None;
         let mut local_ref_capture_index = None;
         let mut local_scope_capture_index = None;
         for (i, name) in query.capture_names().iter().enumerate() {
             let i = Some(i as u32);
-            match name.as_str() {
+            match *name {
                 "local.definition" => local_def_capture_index = i,
                 "local.definition-value" => local_def_value_capture_index = i,
                 "local.reference" => local_ref_capture_index = i,
@@ -190,9 +195,11 @@ impl HighlightConfiguration {
 
         for (i, name) in injections_query.capture_names().iter().enumerate() {
             let i = Some(i as u32);
-            match name.as_str() {
+            match *name {
                 "injection.content" => injection_content_capture_index = i,
                 "injection.language" => injection_language_capture_index = i,
+                "injection.filename" => injection_filename_capture_index = i,
+                "injection.shebang" => injection_shebang_capture_index = i,
                 _ => {}
             }
         }
@@ -203,12 +210,14 @@ impl HighlightConfiguration {
             language,
             query,
             injections_query,
-            combined_injections_query,
+            combined_injections_patterns,
             highlights_pattern_index,
             highlight_indices,
             non_local_variable_patterns,
             injection_content_capture_index,
             injection_language_capture_index,
+            injection_shebang_capture_index,
+            injection_filename_capture_index,
             local_scope_capture_index,
             local_def_capture_index,
             local_def_value_capture_index,
@@ -219,7 +228,7 @@ impl HighlightConfiguration {
     }
 
     /// Get a slice containing all of the highlight names used in the configuration.
-    pub fn names(&self) -> &[String] {
+    pub fn names(&self) -> &[&str] {
         self.query.capture_names()
     }
 
@@ -268,6 +277,97 @@ impl HighlightConfiguration {
 
         self.highlight_indices.store(Arc::new(indices));
     }
+
+    pub fn injection_pair<'a>(
+        &self,
+        query_match: &QueryMatch<'a, 'a>,
+        source: &'a Rope,
+    ) -> (
+        Option<InjectionLanguageMarker<'a>>,
+        Option<tree_sitter::Node<'a>>,
+    ) {
+        let mut injection_capture = None;
+        let mut content_node = None;
+
+        for capture in query_match.captures {
+            let index = Some(capture.index);
+            if index == self.injection_language_capture_index {
+                let name = source.slice_to_cow(capture.node.byte_range());
+                injection_capture = Some(InjectionLanguageMarker::Name(name));
+            } else if index == self.injection_filename_capture_index {
+                let name = source.slice_to_cow(capture.node.byte_range());
+                let path = Path::new(name.as_ref()).to_path_buf();
+                injection_capture =
+                    Some(InjectionLanguageMarker::Filename(path.into()));
+            } else if index == self.injection_shebang_capture_index {
+                let node_slice = source.slice(capture.node.byte_range());
+                let max_line = node_slice.line_of_offset(node_slice.len());
+                let node_slice = if max_line > 0 {
+                    node_slice.slice(..node_slice.offset_of_line(1))
+                } else {
+                    node_slice
+                };
+
+                static SHEBANG_REGEX: Lazy<Regex> =
+                    Lazy::new(|| Regex::new(SHEBANG).unwrap());
+
+                injection_capture = SHEBANG_REGEX
+                    .captures_iter(&node_slice.slice_to_cow(..))
+                    .map(|cap| InjectionLanguageMarker::Shebang(cap[1].to_string()))
+                    .next()
+            } else if index == self.injection_content_capture_index {
+                content_node = Some(capture.node);
+            }
+        }
+        (injection_capture, content_node)
+    }
+
+    pub(crate) fn injection_for_match<'a>(
+        &self,
+        query: &'a Query,
+        query_match: &QueryMatch<'a, 'a>,
+        source: &'a Rope,
+    ) -> (
+        Option<InjectionLanguageMarker<'a>>,
+        Option<tree_sitter::Node<'a>>,
+        IncludedChildren,
+    ) {
+        let (mut injection_capture, content_node) =
+            self.injection_pair(query_match, source);
+
+        let mut included_children = IncludedChildren::default();
+        for prop in query.property_settings(query_match.pattern_index) {
+            match prop.key.as_ref() {
+                // In addition to specifying the language name via the text of a
+                // captured node, it can also be hard-coded via a `#set!` predicate
+                // that sets the injection.language key.
+                "injection.language" if injection_capture.is_none() => {
+                    injection_capture = prop
+                        .value
+                        .as_ref()
+                        .map(|s| InjectionLanguageMarker::Name(s.as_ref().into()));
+                }
+
+                // By default, injections do not include the *children* of an
+                // `injection.content` node - only the ranges that belong to the
+                // node itself. This can be changed using a `#set!` predicate that
+                // sets the `injection.include-children` key.
+                "injection.include-children" => {
+                    included_children = IncludedChildren::All
+                }
+
+                // Some queries might only exclude named children but include unnamed
+                // children in their `injection.content` node. This can be enabled using
+                // a `#set!` predicate that sets the `injection.include-unnamed-children` key.
+                "injection.include-unnamed-children" => {
+                    included_children = IncludedChildren::Unnamed
+                }
+                _ => {}
+            }
+        }
+
+        (injection_capture, content_node, included_children)
+    }
 }
 
 #[derive(Debug)]
@@ -284,14 +384,15 @@ pub(crate) struct HighlightIter<'a> {
 pub(crate) struct HighlightIterLayer<'a> {
     pub(crate) _tree: Option<Tree>,
     pub(crate) cursor: QueryCursor,
-    pub(crate) captures:
-        std::iter::Peekable<QueryCaptures<'a, 'a, RopeProvider<'a>>>,
+    pub(crate) captures: RefCell<
+        std::iter::Peekable<QueryCaptures<'a, 'a, RopeProvider<'a>, &'a [u8]>>,
+    >,
     pub(crate) config: &'a HighlightConfiguration,
     pub(crate) highlight_end_stack: Vec<usize>,
     pub(crate) scope_stack: Vec<LocalScope<'a>>,
     pub(crate) depth: usize,
-    pub(crate) ranges: &'a [tree_sitter::Range],
 }
+
 impl<'a> std::fmt::Debug for HighlightIterLayer<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HighlightIterLayer").finish()
@@ -302,10 +403,11 @@ impl<'a> HighlightIterLayer<'a> {
     // First, sort scope boundaries by their byte offset in the document. At a
     // given position, emit scope endings before scope beginnings. Finally, emit
     // scope boundaries from deeper layers first.
-    fn sort_key(&mut self) -> Option<(usize, bool, isize)> {
+    pub fn sort_key(&self) -> Option<(usize, bool, isize)> {
         let depth = -(self.depth as isize);
         let next_start = self
             .captures
+            .borrow_mut()
             .peek()
             .map(|(m, i)| m.captures[*i].node.start_byte());
         let next_end = self.highlight_end_stack.last().cloned();
@@ -419,7 +521,8 @@ impl<'a> Iterator for HighlightIter<'a> {
             // Get the next capture from whichever layer has the earliest highlight boundary.
             let range;
             let layer = &mut self.layers[0];
-            if let Some((next_match, capture_index)) = layer.captures.peek() {
+            let captures = layer.captures.get_mut();
+            if let Some((next_match, capture_index)) = captures.peek() {
                 let next_capture = next_match.captures[*capture_index];
                 range = next_capture.node.byte_range();
 
@@ -447,7 +550,7 @@ impl<'a> Iterator for HighlightIter<'a> {
                 return self.emit_event(self.source.len(), None);
             };
 
-            let (mut match_, capture_index) = layer.captures.next().unwrap();
+            let (mut match_, capture_index) = captures.next().unwrap();
             let mut capture = match_.captures[capture_index];
 
             // Remove from the local scope stack any local scopes that have already ended.
@@ -535,12 +638,11 @@ impl<'a> Iterator for HighlightIter<'a> {
                 }
 
                 // Continue processing any additional matches for the same node.
-                if let Some((next_match, next_capture_index)) = layer.captures.peek()
-                {
+                if let Some((next_match, next_capture_index)) = captures.peek() {
                     let next_capture = next_match.captures[*next_capture_index];
                     if next_capture.node == capture.node {
                         capture = next_capture;
-                        match_ = layer.captures.next().unwrap().0;
+                        match_ = captures.next().unwrap().0;
                         continue;
                     }
                 }
@@ -569,13 +671,11 @@ impl<'a> Iterator for HighlightIter<'a> {
             if definition_highlight.is_some() || reference_highlight.is_some() {
                 while layer.config.non_local_variable_patterns[match_.pattern_index]
                 {
-                    if let Some((next_match, next_capture_index)) =
-                        layer.captures.peek()
-                    {
+                    if let Some((next_match, next_capture_index)) = captures.peek() {
                         let next_capture = next_match.captures[*next_capture_index];
                         if next_capture.node == capture.node {
                             capture = next_capture;
-                            match_ = layer.captures.next().unwrap().0;
+                            match_ = captures.next().unwrap().0;
                             continue;
                         }
                     }
@@ -590,11 +690,10 @@ impl<'a> Iterator for HighlightIter<'a> {
             // for a given node are ordered by pattern index, so these subsequent
             // captures are guaranteed to be for highlighting, not injections or
             // local variables.
-            while let Some((next_match, next_capture_index)) = layer.captures.peek()
-            {
+            while let Some((next_match, next_capture_index)) = captures.peek() {
                 let next_capture = next_match.captures[*next_capture_index];
                 if next_capture.node == capture.node {
-                    layer.captures.next();
+                    captures.next();
                 } else {
                     break;
                 }
@@ -734,62 +833,4 @@ pub(crate) fn intersect_ranges(
         }
     }
     result
-}
-
-pub(crate) fn injection_for_match<'a>(
-    config: &HighlightConfiguration,
-    query: &'a Query,
-    query_match: &QueryMatch<'a, 'a>,
-    source: &'a Rope,
-) -> (
-    Option<Cow<'a, str>>,
-    Option<tree_sitter::Node<'a>>,
-    IncludedChildren,
-) {
-    let content_capture_index = config.injection_content_capture_index;
-    let language_capture_index = config.injection_language_capture_index;
-
-    let mut language_name = None;
-    let mut content_node = None;
-    for capture in query_match.captures {
-        let index = Some(capture.index);
-        if index == language_capture_index {
-            let name = source.slice_to_cow(capture.node.byte_range());
-            language_name = Some(name);
-        } else if index == content_capture_index {
-            content_node = Some(capture.node);
-        }
-    }
-
-    let mut included_children = IncludedChildren::default();
-    for prop in query.property_settings(query_match.pattern_index) {
-        match prop.key.as_ref() {
-            // In addition to specifying the language name via the text of a
-            // captured node, it can also be hard-coded via a `#set!` predicate
-            // that sets the injection.language key.
-            "injection.language" => {
-                if language_name.is_none() {
-                    language_name = prop.value.as_ref().map(|s| s.as_ref().into())
-                }
-            }
-
-            // By default, injections do not include the *children* of an
-            // `injection.content` node - only the ranges that belong to the
-            // node itself. This can be changed using a `#set!` predicate that
-            // sets the `injection.include-children` key.
-            "injection.include-children" => {
-                included_children = IncludedChildren::All
-            }
-
-            // Some queries might only exclude named children but include unnamed
-            // children in their `injection.content` node. This can be enabled using
-            // a `#set!` predicate that sets the `injection.include-unnamed-children` key.
-            "injection.include-unnamed-children" => {
-                included_children = IncludedChildren::Unnamed
-            }
-            _ => {}
-        }
-    }
-
-    (language_name, content_node, included_children)
 }
