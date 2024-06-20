@@ -55,7 +55,7 @@ serde             = { version = "1.0" }
 serde_json        = { version = "1.0" }
 smallvec          = { version = "1.13.2" }
 strum             = { version = "0.26.2" }
-strum_macros      = { version = "0.26.2" }
+strum_macros      = { version = "0.26.4" }
 tar               = { version = "0.4" }
 thiserror         = { version = "1.0" }
 toml              = { version = "*" }
