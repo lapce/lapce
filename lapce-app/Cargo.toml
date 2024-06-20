@@ -50,7 +50,7 @@ floem              = { workspace = true }
 pulldown-cmark   = { version = "0.11.0" }
 Inflector        = { version = "0.11.4" }
 open             = { version = "5.1.2" }
-unicode-width    = { version = "0.1.12" }
+unicode-width    = { version = "0.1.13" }
 nucleo           = { version = "0.5.0" }
 bytemuck         = { version = "1.15.0" }
 config           = { version = "=0.13.4", default-features = false, features = ["toml"] }
