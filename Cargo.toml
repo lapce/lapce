@@ -50,6 +50,7 @@ once_cell         = { version = "1.19" }
 parking_lot       = { version = "0.12.3" }
 rayon             = { version = "1.10.0" }
 regex             = { version = "1.10.4" }
+remain            = { version = "0.2" }
 reqwest           = { version = "0.11", features = ["blocking", "json", "socks"] }
 serde             = { version = "1.0" }
 serde_json        = { version = "1.0" }
@@ -57,6 +58,7 @@ smallvec          = { version = "1.13.2" }
 strum             = { version = "0.26.2" }
 strum_macros      = { version = "0.26.2" }
 tar               = { version = "0.4" }
+tempfile          = { version = "3.10.1" }
 thiserror         = { version = "1.0" }
 toml              = { version = "*" }
 toml_edit         = { version = "0.20.2", features = ["serde"] }
@@ -124,6 +126,7 @@ codegen-units = 1
 #   cargo run --profile fastdev --bin lapce
 [profile.fastdev.package."*"]
 opt-level = 3
+codegen-units = 1
 
 [profile.fastdev]
 inherits = "dev"

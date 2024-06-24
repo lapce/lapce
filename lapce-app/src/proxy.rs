@@ -11,14 +11,17 @@ use lapce_rpc::{
 };
 use tracing::error;
 
-use self::{remote::start_remote, ssh::SshRemote};
+use self::remote::start_remote;
 use crate::{
     terminal::event::TermEvent,
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
+mod custom;
+mod gh;
 mod remote;
 mod ssh;
+mod ts;
 #[cfg(windows)]
 mod wsl;
 
@@ -77,10 +80,33 @@ pub fn new_proxy(
                         proxy_rpc.mainloop(&mut dispatcher);
                     });
                 }
+                LapceWorkspaceType::RemoteCustom(remote) => {
+                    if let Err(e) = start_remote(
+                        custom::CustomRemote {
+                            host: remote.clone(),
+                            output: None,
+                        },
+                        core_rpc.clone(),
+                        proxy_rpc.clone(),
+                    ) {
+                        error!("Failed to start GH remote: {e}");
+                    }
+                }
+                LapceWorkspaceType::RemoteGH(remote) => {
+                    if let Err(e) = start_remote(
+                        gh::GhRemote {
+                            host: remote.clone(),
+                        },
+                        core_rpc.clone(),
+                        proxy_rpc.clone(),
+                    ) {
+                        error!("Failed to start GH remote: {e}");
+                    }
+                }
                 LapceWorkspaceType::RemoteSSH(remote) => {
                     if let Err(e) = start_remote(
-                        SshRemote {
-                            ssh: remote.clone(),
+                        ssh::SshRemote {
+                            host: remote.clone(),
                         },
                         core_rpc.clone(),
                         proxy_rpc.clone(),
@@ -88,16 +114,27 @@ pub fn new_proxy(
                         error!("Failed to start SSH remote: {e}");
                     }
                 }
-                #[cfg(windows)]
-                LapceWorkspaceType::RemoteWSL(remote) => {
+                LapceWorkspaceType::RemoteTS(remote) => {
                     if let Err(e) = start_remote(
-                        wsl::WslRemote {
-                            wsl: remote.clone(),
+                        ts::TsRemote {
+                            host: remote.clone(),
                         },
                         core_rpc.clone(),
                         proxy_rpc.clone(),
                     ) {
-                        error!("Failed to start SSH remote: {e}");
+                        error!("Failed to start GH remote: {e}");
+                    }
+                }
+                #[cfg(windows)]
+                LapceWorkspaceType::RemoteWSL(remote) => {
+                    if let Err(e) = start_remote(
+                        wsl::WslRemote {
+                            host: remote.clone(),
+                        },
+                        core_rpc.clone(),
+                        proxy_rpc.clone(),
+                    ) {
+                        error!("Failed to start WSL remote: {e}");
                     }
                 }
             }

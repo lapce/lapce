@@ -12,12 +12,16 @@ pub enum PaletteKind {
     Reference,
     DocumentSymbol,
     WorkspaceSymbol,
+    CustomHost,
+    GhHost,
     SshHost,
+    TsHost,
     #[cfg(windows)]
     WslHost,
     RunAndDebug,
     ColorTheme,
-    IconTheme,
+    FileIconTheme,
+    UIIconTheme,
     Language,
     LineEnding,
     SCMReferences,
@@ -39,10 +43,14 @@ impl PaletteKind {
             PaletteKind::TerminalProfile => "<",
             PaletteKind::File
             | PaletteKind::Reference
+            | PaletteKind::CustomHost
+            | PaletteKind::GhHost
             | PaletteKind::SshHost
+            | PaletteKind::TsHost
             | PaletteKind::RunAndDebug
             | PaletteKind::ColorTheme
-            | PaletteKind::IconTheme
+            | PaletteKind::FileIconTheme
+            | PaletteKind::UIIconTheme
             | PaletteKind::Language
             | PaletteKind::LineEnding
             | PaletteKind::SCMReferences
@@ -81,14 +89,24 @@ impl PaletteKind {
             PaletteKind::Command => Some(LapceWorkbenchCommand::PaletteCommand),
             PaletteKind::File => Some(LapceWorkbenchCommand::Palette),
             PaletteKind::Reference => None, // InternalCommand::PaletteReferences
+            PaletteKind::CustomHost => {
+                Some(LapceWorkbenchCommand::ConnectCustomHost)
+            }
+            PaletteKind::GhHost => Some(LapceWorkbenchCommand::ConnectGhHost),
             PaletteKind::SshHost => Some(LapceWorkbenchCommand::ConnectSshHost),
+            PaletteKind::TsHost => Some(LapceWorkbenchCommand::ConnectTsHost),
             #[cfg(windows)]
             PaletteKind::WslHost => Some(LapceWorkbenchCommand::ConnectWslHost),
             PaletteKind::RunAndDebug => {
                 Some(LapceWorkbenchCommand::PaletteRunAndDebug)
             }
             PaletteKind::ColorTheme => Some(LapceWorkbenchCommand::ChangeColorTheme),
-            PaletteKind::IconTheme => Some(LapceWorkbenchCommand::ChangeIconTheme),
+            PaletteKind::FileIconTheme => {
+                Some(LapceWorkbenchCommand::ChangeFileIconTheme)
+            }
+            PaletteKind::UIIconTheme => {
+                Some(LapceWorkbenchCommand::ChangeUIIconTheme)
+            }
             PaletteKind::Language => Some(LapceWorkbenchCommand::ChangeFileLanguage),
             PaletteKind::LineEnding => {
                 Some(LapceWorkbenchCommand::ChangeFileLineEnding)
@@ -118,10 +136,14 @@ impl PaletteKind {
             PaletteKind::WslHost => input,
             PaletteKind::File
             | PaletteKind::Reference
+            | PaletteKind::CustomHost
+            | PaletteKind::GhHost
             | PaletteKind::SshHost
+            | PaletteKind::TsHost
             | PaletteKind::RunAndDebug
             | PaletteKind::ColorTheme
-            | PaletteKind::IconTheme
+            | PaletteKind::FileIconTheme
+            | PaletteKind::UIIconTheme
             | PaletteKind::Language
             | PaletteKind::LineEnding
             | PaletteKind::SCMReferences

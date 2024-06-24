@@ -40,6 +40,7 @@ pub enum EditorTabChildInfo {
     ThemeColorSettings,
     Keymap,
     Volt(VoltID),
+    Markdown(EditorInfo),
 }
 
 impl EditorTabChildInfo {
@@ -66,6 +67,10 @@ impl EditorTabChildInfo {
             EditorTabChildInfo::Keymap => EditorTabChild::Keymap(KeymapId::next()),
             EditorTabChildInfo::Volt(id) => {
                 EditorTabChild::Volt(VoltViewId::next(), id.to_owned())
+            }
+            EditorTabChildInfo::Markdown(editor_info) => {
+                let editor_id = editor_info.to_data(data, editor_tab_id);
+                EditorTabChild::Markdown(editor_id)
             }
         }
     }
@@ -138,6 +143,7 @@ pub enum EditorTabChild {
     ThemeColorSettings(ThemeColorSettingsId),
     Keymap(KeymapId),
     Volt(VoltViewId, VoltID),
+    Markdown(EditorId),
 }
 
 #[derive(PartialEq)]
@@ -158,6 +164,7 @@ impl EditorTabChild {
             EditorTabChild::ThemeColorSettings(id) => id.to_raw(),
             EditorTabChild::Keymap(id) => id.to_raw(),
             EditorTabChild::Volt(id, _) => id.to_raw(),
+            EditorTabChild::Markdown(id) => id.to_raw(),
         }
     }
 
@@ -191,6 +198,14 @@ impl EditorTabChild {
             }
             EditorTabChild::Keymap(_) => EditorTabChildInfo::Keymap,
             EditorTabChild::Volt(_, id) => EditorTabChildInfo::Volt(id.to_owned()),
+            EditorTabChild::Markdown(editor_id) => {
+                let editor_data = data
+                    .main_split
+                    .editors
+                    .editor_untracked(*editor_id)
+                    .unwrap();
+                EditorTabChildInfo::Markdown(editor_data.editor_info(data))
+            }
         }
     }
 
@@ -202,7 +217,8 @@ impl EditorTabChild {
         config: ReadSignal<Arc<LapceConfig>>,
     ) -> Memo<EditorTabChildViewInfo> {
         match self.clone() {
-            EditorTabChild::Editor(editor_id) => create_memo(move |_| {
+            EditorTabChild::Editor(editor_id)
+            | EditorTabChild::Markdown(editor_id) => create_memo(move |_| {
                 let config = config.get();
                 let editor_data = editors.editor(editor_id);
                 let path = if let Some(editor_data) = editor_data {

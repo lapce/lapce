@@ -2,6 +2,8 @@ use floem::views::editor::text::RenderWhitespace;
 use serde::{Deserialize, Serialize};
 use structdesc::FieldNames;
 
+pub const CONFIG_KEY: &str = "editor";
+
 pub const SCALE_OR_SIZE_LIMIT: f64 = 5.0;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

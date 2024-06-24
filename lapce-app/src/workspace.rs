@@ -1,73 +1,25 @@
-use std::{collections::HashMap, fmt::Display, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{debug::LapceBreakpoint, main_split::SplitInfo, panel::data::PanelInfo};
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
-pub struct SshHost {
-    pub user: Option<String>,
-    pub host: String,
-    pub port: Option<usize>,
-}
-
-impl SshHost {
-    pub fn from_string(s: &str) -> Self {
-        let mut whole_splits = s.split(':');
-        let splits = whole_splits
-            .next()
-            .unwrap()
-            .split('@')
-            .collect::<Vec<&str>>();
-        let mut splits = splits.iter().rev();
-        let host = splits.next().unwrap().to_string();
-        let user = splits.next().map(|s| s.to_string());
-        let port = whole_splits.next().and_then(|s| s.parse::<usize>().ok());
-        Self { user, host, port }
-    }
-
-    pub fn user_host(&self) -> String {
-        if let Some(user) = self.user.as_ref() {
-            format!("{user}@{}", self.host)
-        } else {
-            self.host.clone()
-        }
-    }
-}
-
-impl Display for SshHost {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(user) = self.user.as_ref() {
-            write!(f, "{user}@")?;
-        }
-        write!(f, "{}", self.host)?;
-        if let Some(port) = self.port {
-            write!(f, ":{port}")?;
-        }
-        Ok(())
-    }
-}
-
+pub mod custom;
+pub mod gh;
+pub mod ssh;
+pub mod ts;
 #[cfg(windows)]
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
-pub struct WslHost {
-    pub host: String,
-}
-
-#[cfg(windows)]
-impl Display for WslHost {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.host)?;
-        Ok(())
-    }
-}
+pub mod wsl;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LapceWorkspaceType {
     Local,
-    RemoteSSH(SshHost),
+    RemoteCustom(custom::Host),
+    RemoteGH(gh::Host),
+    RemoteSSH(ssh::Host),
+    RemoteTS(ts::Host),
     #[cfg(windows)]
-    RemoteWSL(WslHost),
+    RemoteWSL(wsl::Host),
 }
 
 impl LapceWorkspaceType {
@@ -79,19 +31,38 @@ impl LapceWorkspaceType {
         use LapceWorkspaceType::*;
 
         #[cfg(not(windows))]
-        return matches!(self, RemoteSSH(_));
+        return matches!(self, RemoteSSH(_) | RemoteGH(_) | RemoteTS(_));
 
         #[cfg(windows)]
-        return matches!(self, RemoteSSH(_) | RemoteWSL(_));
+        return matches!(
+            self,
+            RemoteSSH(_) | RemoteGH(_) | RemoteTS(_) | RemoteWSL(_)
+        );
     }
+
+    // pub fn display_name(&self) -> String {
+    //     match self {
+    //         Self::Local => String::new(),
+    //         v => v..display_name(),
+    //     }
+    // }
 }
 
 impl std::fmt::Display for LapceWorkspaceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             LapceWorkspaceType::Local => f.write_str("Local"),
+            LapceWorkspaceType::RemoteCustom(remote) => {
+                write!(f, "{remote} (custom)")
+            }
+            LapceWorkspaceType::RemoteGH(remote) => {
+                write!(f, "{remote} (GitHub Codespaces)")
+            }
             LapceWorkspaceType::RemoteSSH(remote) => {
                 write!(f, "ssh://{remote}")
+            }
+            LapceWorkspaceType::RemoteTS(remote) => {
+                write!(f, "{remote} (Tailscale)")
             }
             #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL(remote) => {
@@ -118,15 +89,24 @@ impl LapceWorkspace {
             .to_string();
         let remote = match &self.kind {
             LapceWorkspaceType::Local => String::new(),
+            LapceWorkspaceType::RemoteCustom(remote) => {
+                format!(" [Custom: {}]", remote)
+            }
+            LapceWorkspaceType::RemoteGH(remote) => {
+                format!(" [GH: {}]", remote)
+            }
             LapceWorkspaceType::RemoteSSH(remote) => {
                 format!(" [SSH: {}]", remote.host)
+            }
+            LapceWorkspaceType::RemoteTS(remote) => {
+                format!(" [TS: {}]", remote.host)
             }
             #[cfg(windows)]
             LapceWorkspaceType::RemoteWSL(remote) => {
                 format!(" [WSL: {}]", remote.host)
             }
         };
-        Some(format!("{path}{remote}"))
+        Some(format!("{path} {remote}"))
     }
 }
 
@@ -146,7 +126,10 @@ impl std::fmt::Display for LapceWorkspace {
             f,
             "{}:{}",
             self.kind,
-            self.path.as_ref().and_then(|p| p.to_str()).unwrap_or("")
+            self.path
+                .as_ref()
+                .and_then(|p| p.to_str())
+                .unwrap_or_default()
         )
     }
 }

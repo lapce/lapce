@@ -1,7 +1,9 @@
-.vscode
-.lapce
-.idea
-.fleet
+/.vscode
+/.lapce
+/.idea
+/.fleet
+/.flatpak-builder
+/build
 shell.nix
 lib/
 target/

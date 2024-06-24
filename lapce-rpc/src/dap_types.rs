@@ -127,6 +127,7 @@ pub enum Initialize {}
 impl Request for Initialize {
     type Arguments = InitializeParams;
     type Result = DebuggerCapabilities;
+
     const COMMAND: &'static str = "initialize";
 }
 
@@ -479,6 +480,7 @@ pub enum Launch {}
 impl Request for Launch {
     type Arguments = Value;
     type Result = Value;
+
     const COMMAND: &'static str = "launch";
 }
 
@@ -511,6 +513,7 @@ pub enum RunInTerminal {}
 impl Request for RunInTerminal {
     type Arguments = RunInTerminalArguments;
     type Result = RunInTerminalResponse;
+
     const COMMAND: &'static str = "runInTerminal";
 }
 
@@ -538,6 +541,7 @@ pub enum SetBreakpoints {}
 impl Request for SetBreakpoints {
     type Arguments = SetBreakpointsArguments;
     type Result = SetBreakpointsResponse;
+
     const COMMAND: &'static str = "setBreakpoints";
 }
 
@@ -547,6 +551,7 @@ pub enum ConfigurationDone {}
 impl Request for ConfigurationDone {
     type Arguments = ();
     type Result = ();
+
     const COMMAND: &'static str = "configurationDone";
 }
 
@@ -569,6 +574,7 @@ pub enum Continue {}
 impl Request for Continue {
     type Arguments = ContinueArguments;
     type Result = ContinueResponse;
+
     const COMMAND: &'static str = "continue";
 }
 
@@ -584,6 +590,7 @@ pub enum Threads {}
 impl Request for Threads {
     type Arguments = ();
     type Result = ThreadsResponse;
+
     const COMMAND: &'static str = "threads";
 }
 
@@ -655,6 +662,7 @@ pub enum StackTrace {}
 impl Request for StackTrace {
     type Arguments = StackTraceArguments;
     type Result = StackTraceResponse;
+
     const COMMAND: &'static str = "stackTrace";
 }
 
@@ -664,6 +672,7 @@ pub enum Disconnect {}
 impl Request for Disconnect {
     type Arguments = ();
     type Result = ();
+
     const COMMAND: &'static str = "disconnect";
 }
 
@@ -673,6 +682,7 @@ pub enum Terminate {}
 impl Request for Terminate {
     type Arguments = ();
     type Result = ();
+
     const COMMAND: &'static str = "terminate";
 }
 
@@ -688,6 +698,7 @@ pub enum Pause {}
 impl Request for Pause {
     type Arguments = PauseArguments;
     type Result = ();
+
     const COMMAND: &'static str = "pause";
 }
 
@@ -733,6 +744,7 @@ pub enum Scopes {}
 impl Request for Scopes {
     type Arguments = ScopesArguments;
     type Result = ScopesResponse;
+
     const COMMAND: &'static str = "scopes";
 }
 
@@ -800,6 +812,7 @@ pub enum Variables {}
 impl Request for Variables {
     type Arguments = VariablesArguments;
     type Result = VariablesResponse;
+
     const COMMAND: &'static str = "variables";
 }
 
@@ -817,6 +830,7 @@ pub enum Next {}
 impl Request for Next {
     type Arguments = NextArguments;
     type Result = ();
+
     const COMMAND: &'static str = "next";
 }
 
@@ -836,6 +850,7 @@ pub enum StepIn {}
 impl Request for StepIn {
     type Arguments = StepInArguments;
     type Result = ();
+
     const COMMAND: &'static str = "stepIn";
 }
 
@@ -853,5 +868,6 @@ pub enum StepOut {}
 impl Request for StepOut {
     type Arguments = StepOutArguments;
     type Result = ();
+
     const COMMAND: &'static str = "stepOut";
 }

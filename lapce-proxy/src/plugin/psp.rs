@@ -532,7 +532,7 @@ pub fn handle_plugin_server_message(
                 resp: ResponseSender::new(tx),
             };
             server_rpc.handle_rpc(rpc);
-            let result = rx.recv().unwrap();
+            let result = rx.recv().ok()?;
             let resp = match result {
                 Ok(v) => JsonRpc::success(id, &v),
                 Err(e) => JsonRpc::error(

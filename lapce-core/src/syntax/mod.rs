@@ -919,7 +919,7 @@ impl Syntax {
     }
 
     pub fn plaintext() -> Syntax {
-        Self::from_language(LapceLanguage::Plaintext)
+        Self::from_language(LapceLanguage::PlainText)
     }
 
     pub fn from_language(language: LapceLanguage) -> Syntax {

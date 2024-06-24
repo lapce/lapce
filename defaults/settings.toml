@@ -3,8 +3,10 @@
 [core]
 modal = false
 color-theme = "Lapce Dark"
-icon-theme = "Lapce Codicons"
+ui-icon-theme = "Lapce Codicons"
+file-icon-theme = "Lapce Seti"
 custom-titlebar = true
+log-level-filter = "lapce_app=proxy,lapce_core=debug,lapce_app=debug,lapce_app::keypress::loader=off"
 
 [editor]
 font-family = "monospace"
@@ -60,6 +62,9 @@ scroll-speed-modifier = 1
 bracket-pair-colorization = false
 bracket-colorization-limit = 30000
 files-exclude = "**/{.git,.svn,.hg,CVS,.DS_Store,Thumbs.db}" # Glob patterns
+
+[remote]
+[remote.entries]
 
 [terminal]
 font-family = ""
