@@ -43,6 +43,20 @@ impl Directory {
         Ok(dir)
     }
 
+    /// Get path of data directory
+    /// Data directory differs from data local directory
+    /// on some platforms and can be transferred across
+    /// machines
+    pub fn data_directory(join_dir: Option<&'static str>) -> Result<PathBuf> {
+        let dir = Self::project_dirs()?;
+        let dir = dir.data_dir();
+        let dir = join_dir.map(|d| dir.join(d)).unwrap_or(dir.to_path_buf());
+        if !dir.exists() {
+            std::fs::create_dir_all(&dir)?;
+        };
+        Ok(dir)
+    }
+
     /// Get the path to cache directory
     pub fn cache_directory() -> Result<PathBuf> {
         let dir = Self::project_dirs()?;
