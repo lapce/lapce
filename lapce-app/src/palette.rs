@@ -765,8 +765,7 @@ impl PaletteData {
 
     #[cfg(windows)]
     fn get_wsl_hosts(&self) {
-        use std::os::windows::process::CommandExt;
-        use std::process;
+        use std::{os::windows::process::CommandExt, process};
         let cmd = process::Command::new("wsl")
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .arg("-l")

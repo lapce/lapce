@@ -6,9 +6,8 @@ use floem::{
 };
 use lapce_core::{buffer::rope_text::RopeText, mode::Mode};
 
-use crate::config::{color::LapceColor, LapceConfig};
-
 use super::{view::changes_colors_screen, EditorData};
+use crate::config::{color::LapceColor, LapceConfig};
 
 pub struct EditorGutterView {
     id: ViewId,

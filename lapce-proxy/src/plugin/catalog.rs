@@ -9,19 +9,18 @@ use std::{
     thread,
 };
 
-use lapce_rpc::plugin::VoltInfo;
 use lapce_rpc::{
     dap_types::{self, DapId, DapServer, SetBreakpointsResponse},
-    plugin::{PluginId, VoltID, VoltMetadata},
+    plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     proxy::ProxyResponse,
     style::LineStyle,
     RpcError,
 };
 use lapce_xi_rope::{Rope, RopeDelta};
-use lsp_types::request::Request;
 use lsp_types::{
-    notification::DidOpenTextDocument, DidOpenTextDocumentParams, SemanticTokens,
-    TextDocumentIdentifier, TextDocumentItem, VersionedTextDocumentIdentifier,
+    notification::DidOpenTextDocument, request::Request, DidOpenTextDocumentParams,
+    SemanticTokens, TextDocumentIdentifier, TextDocumentItem,
+    VersionedTextDocumentIdentifier,
 };
 use parking_lot::Mutex;
 use psp_types::Notification;

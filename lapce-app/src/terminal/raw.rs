@@ -1,8 +1,13 @@
-use alacritty_terminal::grid::Dimensions;
-use alacritty_terminal::index::{Column, Direction, Line, Point};
-use alacritty_terminal::term::search::{Match, RegexIter, RegexSearch};
 use alacritty_terminal::{
-    event::EventListener, term::test::TermSize, vte::ansi, Term,
+    event::EventListener,
+    grid::Dimensions,
+    index::{Column, Direction, Line, Point},
+    term::{
+        search::{Match, RegexIter, RegexSearch},
+        test::TermSize,
+    },
+    vte::ansi,
+    Term,
 };
 use crossbeam_channel::Sender;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};

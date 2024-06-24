@@ -13,8 +13,9 @@ use std::{
 use alacritty_terminal::{event::WindowSize, event_loop::Msg};
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::Sender;
-use git2::ErrorCode::NotFound;
-use git2::{build::CheckoutBuilder, DiffOptions, Oid, Repository};
+use git2::{
+    build::CheckoutBuilder, DiffOptions, ErrorCode::NotFound, Oid, Repository,
+};
 use grep_matcher::Matcher;
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{sinks::UTF8, SearcherBuilder};

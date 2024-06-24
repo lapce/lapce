@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+
 use tracing::{event, Level};
 use url::Url;
 

@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
 use floem::{
-    event::EventPropagation,
-    event::{Event, EventListener},
+    event::{Event, EventListener, EventPropagation},
     kurbo::Size,
     reactive::create_rw_signal,
     views::{

@@ -9,7 +9,6 @@ use lapce_core::{
     rope_text_pos::RopeTextPosition,
     selection::Selection,
 };
-
 use lsp_types::InsertTextFormat;
 
 use crate::{config::LapceConfig, doc::Doc, editor::EditorData, snippet::Snippet};

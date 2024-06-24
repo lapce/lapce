@@ -1,5 +1,6 @@
 use std::{path::PathBuf, rc::Rc, sync::Arc};
 
+pub use floem::views::editor::command::CommandExecuted;
 use floem::{
     keyboard::Modifiers, peniko::kurbo::Vec2, views::editor::command::Command,
 };
@@ -29,8 +30,6 @@ use crate::{
     main_split::{SplitDirection, SplitMoveDirection},
     workspace::LapceWorkspace,
 };
-
-pub use floem::views::editor::command::CommandExecuted;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LapceCommand {

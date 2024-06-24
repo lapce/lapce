@@ -139,9 +139,8 @@ fn get_modes(toml_keymap: &toml_edit::Table) -> Modes {
 mod tests {
     use floem::keyboard::Key;
 
-    use crate::keypress::keymap::KeyMapKey;
-
     use super::*;
+    use crate::keypress::keymap::KeyMapKey;
 
     #[test]
     fn test_keymap() {

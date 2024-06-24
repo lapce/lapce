@@ -1,27 +1,23 @@
-use std::sync::Arc;
-use std::time::SystemTime;
+use std::{sync::Arc, time::SystemTime};
 
-use alacritty_terminal::index::Side;
-use alacritty_terminal::selection::{Selection, SelectionType};
-use alacritty_terminal::term::search::Match;
-use alacritty_terminal::term::RenderableContent;
 use alacritty_terminal::{
     grid::Dimensions,
-    term::{cell::Flags, test::TermSize},
+    index::Side,
+    selection::{Selection, SelectionType},
+    term::{cell::Flags, search::Match, test::TermSize, RenderableContent},
 };
-use floem::context::{EventCx, PaintCx};
-use floem::event::Event;
-use floem::peniko::Color;
-use floem::pointer::PointerInputEvent;
-use floem::views::editor::core::register::Clipboard;
-use floem::views::editor::text::SystemClipboard;
-use floem::ViewId;
 use floem::{
+    context::{EventCx, PaintCx},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, TextLayout, Weight},
-    event::EventPropagation,
-    peniko::kurbo::{Point, Rect, Size},
+    event::{Event, EventPropagation},
+    peniko::{
+        kurbo::{Point, Rect, Size},
+        Color,
+    },
+    pointer::PointerInputEvent,
     reactive::{create_effect, ReadSignal, RwSignal},
-    Renderer, View,
+    views::editor::{core::register::Clipboard, text::SystemClipboard},
+    Renderer, View, ViewId,
 };
 use lapce_core::mode::Mode;
 use lapce_rpc::{proxy::ProxyRpcHandler, terminal::TermId};
@@ -30,15 +26,15 @@ use parking_lot::RwLock;
 use unicode_width::UnicodeWidthChar;
 
 use super::{panel::TerminalPanelData, raw::RawTerminal};
-use crate::command::InternalCommand;
-use crate::editor::location::{EditorLocation, EditorPosition};
-use crate::listener::Listener;
-use crate::workspace::LapceWorkspace;
 use crate::{
+    command::InternalCommand,
     config::{color::LapceColor, LapceConfig},
     debug::RunDebugProcess,
+    editor::location::{EditorLocation, EditorPosition},
+    listener::Listener,
     panel::kind::PanelKind,
     window_tab::Focus,
+    workspace::LapceWorkspace,
 };
 
 /// Threshold used for double_click/triple_click.

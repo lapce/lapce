@@ -50,6 +50,10 @@ use lsp_types::{
 };
 use serde::{Deserialize, Serialize};
 
+use self::{
+    diff::DiffInfo,
+    location::{EditorLocation, EditorPosition},
+};
 use crate::{
     command::{CommandKind, InternalCommand, LapceCommand, LapceWorkbenchCommand},
     completion::CompletionStatus,
@@ -68,11 +72,6 @@ use crate::{
     snippet::Snippet,
     tracing::*,
     window_tab::{CommonData, Focus, WindowTabData},
-};
-
-use self::{
-    diff::DiffInfo,
-    location::{EditorLocation, EditorPosition},
 };
 
 pub mod diff;
