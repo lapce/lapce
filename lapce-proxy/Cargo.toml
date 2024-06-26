@@ -28,6 +28,7 @@ toml               = { workspace = true }
 tracing            = { workspace = true }
 tracing-log        = { workspace = true }
 url                = { workspace = true }
+zstd               = { workspace = true }
 
 lsp-types = { workspace = true }
 psp-types = { workspace = true }
@@ -39,7 +40,6 @@ floem-editor-core = { workspace = true }
 
 # proxy specific dependencies
 
-zstd          = "0.11.2" # follow same version wasmtime-cache in lockfile
 dyn-clone     = "1.0.16"
 walkdir       = "2.4.0"
 locale_config = "0.3.0"

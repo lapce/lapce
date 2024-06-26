@@ -3660,8 +3660,8 @@ pub fn launch() {
         });
         std::thread::spawn(move || {
             use self::grammars::*;
-            match find_release().map(|r| describe_release(&r.tag_name)) {
-                Ok(Ok(release)) => {
+            match find_release() {
+                Ok(release) => {
                     if let Err(e) = fetch_grammars(&release) {
                         trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
                     }
@@ -3669,7 +3669,7 @@ pub fn launch() {
                         trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
                     }
                 }
-                Err(e) | Ok(Err(e)) => {
+                Err(e) => {
                     trace!(TraceLevel::ERROR, "failed to obtain release info: {e}");
                 }
             }

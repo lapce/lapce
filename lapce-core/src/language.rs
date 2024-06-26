@@ -1317,7 +1317,13 @@ fn read_grammar_query(queries_dir: &Path, name: &str, kind: &str) -> String {
         Lazy::new(|| Regex::new(r";+\s*inherits\s*:?\s*([a-z_,()-]+)\s*").unwrap());
 
     let file = queries_dir.join(name).join(kind);
-    let query = std::fs::read_to_string(file).unwrap_or_default();
+    let query = std::fs::read_to_string(&file).unwrap_or_else(|err| {
+        tracing::event!(
+            tracing::Level::WARN,
+            "Failed to read queries at: {file:?}, {err}"
+        );
+        String::new()
+    });
 
     INHERITS_REGEX
         .replace_all(&query, |captures: &regex::Captures| {
