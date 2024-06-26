@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::{anyhow, Result};
 use directories::{BaseDirs, ProjectDirs};
 
+#[allow(unused_imports)]
 use crate::meta::NAME;
 
 pub struct Directory {}
@@ -24,9 +25,10 @@ impl Directory {
     #[cfg(feature = "portable")]
     fn project_dirs() -> Result<ProjectDirs> {
         if let Some(parent) = std::env::current_exe()?.parent() {
-            return Ok(ProjectDirs::from_path(parent.join("lapce-data")));
+            return ProjectDirs::from_path(parent.join("lapce-data"))
+                .ok_or(anyhow!("Failed to obtain data directory path"));
         }
-        return Err(anyhow!("Failed to obtain current process path"));
+        Err(anyhow!("Failed to obtain current process path"))
     }
 
     // Get path of local data directory
