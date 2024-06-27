@@ -54,7 +54,10 @@ impl RawTerminal {
         proxy: ProxyRpcHandler,
         term_notification_tx: Sender<TermNotification>,
     ) -> Self {
-        let config = alacritty_terminal::term::Config::default();
+        let config = alacritty_terminal::term::Config {
+            semantic_escape_chars: ",│`|\"' ()[]{}<>\t".to_string(),
+            ..Default::default()
+        };
         let event_proxy = EventProxy {
             term_id,
             proxy,

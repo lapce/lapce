@@ -1054,11 +1054,11 @@ impl LapceLanguage {
     }
 
     fn get_grammar(&self) -> Option<tree_sitter::Language> {
-        let props = self.properties();
         let grammar_name = self.grammar_name();
 
         #[cfg(unix)]
         {
+            let props = self.properties();
             let grammars_dir = Path::new(Self::SYSTEM_GRAMMARS_DIRECTORY);
             if grammars_dir.exists() {
                 let grammars_dir = grammars_dir.join(props.id.as_ref());
