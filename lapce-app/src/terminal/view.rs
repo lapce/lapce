@@ -193,7 +193,8 @@ impl TerminalView {
                     location: EditorLocation {
                         path: parent_path.join(file),
                         position: Some(EditorPosition::Position(Position::new(
-                            line, col,
+                            line.saturating_sub(1),
+                            col.saturating_sub(1),
                         ))),
                         scroll_offset: None,
                         ignore_unconfirmed: false,
