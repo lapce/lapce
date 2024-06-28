@@ -305,9 +305,11 @@ impl TerminalView {
     }
 
     fn get_terminal_point(&self, pos: Point) -> alacritty_terminal::index::Point {
+        let raw = self.raw.read();
         let col = (pos.x / self.char_size().width) as usize;
-        let line_no =
-            pos.y as i32 / (self.config.get().terminal_line_height() as i32);
+        let line_no = pos.y as i32
+            / (self.config.get().terminal_line_height() as i32)
+            - raw.term.grid().display_offset() as i32;
         alacritty_terminal::index::Point::new(
             alacritty_terminal::index::Line(line_no),
             alacritty_terminal::index::Column(col),
