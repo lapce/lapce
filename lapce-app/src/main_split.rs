@@ -1917,6 +1917,60 @@ impl MainSplitData {
         Some(())
     }
 
+    pub fn editor_tab_child_close_by_kind(
+        &self,
+        editor_tab_id: EditorTabId,
+        child: EditorTabChild,
+        kind: TabCloseKind,
+    ) -> Option<()> {
+        let tabs_to_close: Vec<EditorTabChild> = {
+            let editor_tabs = self.editor_tabs.get_untracked();
+
+            let editor_tab = editor_tabs.get(&editor_tab_id).copied()?;
+            let editor_tab = editor_tab.get_untracked();
+            match kind {
+                TabCloseKind::CloseOther => editor_tab
+                    .children
+                    .iter()
+                    .filter_map(|x| {
+                        if x.2 != child {
+                            Some(x.2.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+                TabCloseKind::CloseToLeft => {
+                    let mut tabs_to_close = Vec::new();
+                    for child_tab in &editor_tab.children {
+                        if child_tab.2 != child {
+                            tabs_to_close.push(child_tab.2.clone());
+                        } else {
+                            break;
+                        }
+                    }
+                    tabs_to_close
+                }
+                TabCloseKind::CloseToRight => {
+                    let mut tabs_to_close = Vec::new();
+                    let mut add_to_tabs = false;
+                    for child_tab in &editor_tab.children {
+                        if child_tab.2 != child && add_to_tabs {
+                            tabs_to_close.push(child_tab.2.clone());
+                        } else {
+                            add_to_tabs = true;
+                        }
+                    }
+                    tabs_to_close
+                }
+            }
+        };
+        for child_tab in tabs_to_close {
+            self.editor_tab_child_close(editor_tab_id, child_tab, false);
+        }
+        Some(())
+    }
+
     pub fn editor_tab_child_close(
         &self,
         editor_tab_id: EditorTabId,
@@ -2948,4 +3002,11 @@ fn next_in_file_errors_offset(
             EditorPosition::Position(file_diagnostics[0].1[0].diagnostic.range.start)
         },
     )
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum TabCloseKind {
+    CloseOther,
+    CloseToLeft,
+    CloseToRight,
 }
