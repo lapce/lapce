@@ -20,6 +20,7 @@ use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 
+use crate::main_split::TabCloseKind;
 use crate::{
     alert::AlertButton,
     debug::RunDebugMode,
@@ -623,6 +624,11 @@ pub enum InternalCommand {
     EditorTabChildClose {
         editor_tab_id: EditorTabId,
         child: EditorTabChild,
+    },
+    EditorTabCloseByKind {
+        editor_tab_id: EditorTabId,
+        child: EditorTabChild,
+        kind: TabCloseKind,
     },
     ShowCodeActions {
         offset: usize,

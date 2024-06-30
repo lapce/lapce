@@ -1584,6 +1584,17 @@ impl WindowTabData {
                 self.main_split
                     .editor_tab_child_close(editor_tab_id, child, false);
             }
+            InternalCommand::EditorTabCloseByKind {
+                editor_tab_id,
+                child,
+                kind,
+            } => {
+                self.main_split.editor_tab_child_close_by_kind(
+                    editor_tab_id,
+                    child,
+                    kind,
+                );
+            }
             InternalCommand::ShowCodeActions {
                 offset,
                 mouse_click,

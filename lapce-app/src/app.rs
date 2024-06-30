@@ -12,6 +12,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use crossbeam_channel::Sender;
+use floem::action::show_context_menu;
 use floem::{
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener, EventPropagation},
@@ -62,6 +63,7 @@ use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::{filter::Targets, reload::Handle};
 
+use crate::main_split::TabCloseKind;
 use crate::{
     about, alert,
     code_action::CodeActionStatus,
@@ -639,6 +641,7 @@ fn editor_tab_header(
         let local_child = child.clone();
         let child_for_close = child.clone();
         let child_for_mouse_close = child.clone();
+        let child_for_mouse_close_2 = child.clone();
         let main_split = main_split.clone();
         let plugin = plugin.clone();
         let child_view = {
@@ -791,6 +794,16 @@ fn editor_tab_header(
                     } else {
                         EventPropagation::Continue
                     }
+                })
+                .on_secondary_click_stop(move |_| {
+                    let editor_tab_id =
+                        editor_tab.with_untracked(|t| t.editor_tab_id);
+
+                    tab_secondary_click(
+                        internal_command,
+                        editor_tab_id,
+                        child_for_mouse_close_2.clone(),
+                    );
                 })
                 .on_event_stop(EventListener::DragStart, move |_| {
                     dragging.set(Some((i, editor_tab_id)));
@@ -4123,4 +4136,47 @@ fn fetch_queries() -> Result<()> {
     }
 
     Err(anyhow!("can't find support queries"))
+}
+
+fn tab_secondary_click(
+    internal_command: Listener<InternalCommand>,
+    editor_tab_id: EditorTabId,
+    child: EditorTabChild,
+) {
+    let mut menu = Menu::new("");
+    let child_other = child.clone();
+    let child_right = child.clone();
+    let child_left = child.clone();
+    menu = menu
+        .entry(MenuItem::new("Close").action(move || {
+            internal_command.send(InternalCommand::EditorTabChildClose {
+                editor_tab_id,
+                child: child.clone(),
+            });
+        }))
+        .entry(MenuItem::new("Close Other Tabs").action(move || {
+            internal_command.send(InternalCommand::EditorTabCloseByKind {
+                editor_tab_id,
+                child: child_other.clone(),
+                kind: TabCloseKind::CloseOther,
+            });
+        }))
+        .entry(MenuItem::new("Close All Tabs").action(move || {
+            internal_command.send(InternalCommand::EditorTabClose { editor_tab_id });
+        }))
+        .entry(MenuItem::new("Close Tabs to the Right").action(move || {
+            internal_command.send(InternalCommand::EditorTabCloseByKind {
+                editor_tab_id,
+                child: child_right.clone(),
+                kind: TabCloseKind::CloseToRight,
+            });
+        }))
+        .entry(MenuItem::new("Close Tabs to the Left").action(move || {
+            internal_command.send(InternalCommand::EditorTabCloseByKind {
+                editor_tab_id,
+                child: child_left.clone(),
+                kind: TabCloseKind::CloseToLeft,
+            });
+        }));
+    show_context_menu(menu, None);
 }
