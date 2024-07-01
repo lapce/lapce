@@ -3657,21 +3657,18 @@ pub fn launch() {
             reset_highlight_configs();
         });
         std::thread::spawn(move || {
-            if let Err(e) = fetch_grammars() {
-                trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
-            }
-            send(());
-        });
-    }
-
-    {
-        let cx = Scope::new();
-        let send = create_ext_action(cx, |_| {
-            reset_highlight_configs();
-        });
-        std::thread::spawn(move || {
-            if let Err(e) = fetch_queries() {
-                trace!(TraceLevel::ERROR, "failed to fetch queries: {e}");
+            match get_releases().map(get_release) {
+                Ok(Ok(release)) => {
+                    if let Err(e) = fetch_grammars(&release) {
+                        trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
+                    }
+                    if let Err(e) = fetch_queries(&release) {
+                        trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
+                    }
+                }
+                Err(e) | Ok(Err(e)) => {
+                    trace!(TraceLevel::ERROR, "failed to obtain release info: {e}");
+                }
             }
             send(());
         });
@@ -4036,26 +4033,73 @@ pub fn window_menu(
         )
 }
 
-fn fetch_grammars() -> Result<()> {
-    let dir = Directory::grammars_directory()
-        .ok_or_else(|| anyhow!("can't get grammars directory"))?;
-    if !dir.exists() {
-        let _ = std::fs::create_dir(&dir);
-    }
-
-    let url =
-        "https://api.github.com/repos/lapce/tree-sitter-grammars/releases/latest";
+fn get_github_api(url: &str) -> Result<String> {
     let resp = reqwest::blocking::ClientBuilder::new()
-        .user_agent("Lapce")
+        .user_agent(format!("Lapce/{}", lapce_core::meta::VERSION))
         .build()?
         .get(url)
         .send()?;
     if !resp.status().is_success() {
         return Err(anyhow!("get release info failed {}", resp.text()?));
     }
+
+    Ok(resp.text()?)
+}
+
+fn get_releases() -> Result<ReleaseInfo> {
+    let releases: Vec<ReleaseInfo> = serde_json::from_str(&get_github_api(
+        "https://api.github.com/repos/lapce/tree-sitter-grammars/releases",
+    )?)?;
+
+    let releases = releases
+        .into_iter()
+        .filter_map(|f| {
+            use lapce_core::meta::VERSION;
+            use std::cmp::Ordering;
+
+            let sv = semver::Version::parse(&f.tag_name).ok()?;
+            let version = semver::Version::parse(VERSION).ok()?;
+            let ordering = sv.cmp(&version);
+            if sv.major == version.major
+                && sv.minor == version.minor
+                && matches!(ordering, Ordering::Greater | Ordering::Equal)
+            {
+                Some(f)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let Some(release) = releases.first() else {
+        return Err(anyhow!("Couldn't find any release"));
+    };
+
+    Ok(release.to_owned())
+}
+
+fn get_release(release: ReleaseInfo) -> Result<ReleaseInfo> {
+    let url = format!(
+        "https://api.github.com/repos/lapce/tree-sitter-grammars/releases/{}",
+        release.tag_name
+    );
+
+    let resp = get_github_api(&url)?;
+    let release: ReleaseInfo = serde_json::from_str(&resp)?;
+
+    Ok(release)
+}
+
+fn fetch_grammars(release: &ReleaseInfo) -> Result<()> {
+    let dir = Directory::grammars_directory()
+        .ok_or_else(|| anyhow!("can't get grammars directory"))?;
+    if !dir.exists() {
+        let _ = std::fs::create_dir(&dir);
+    }
+
     let current_version =
         std::fs::read_to_string(dir.join("version")).unwrap_or_default();
-    let release: ReleaseInfo = serde_json::from_str(&resp.text()?)?;
+
     if release.tag_name == current_version {
         return Ok(());
     }
@@ -4081,7 +4125,7 @@ fn fetch_grammars() -> Result<()> {
                 zip::ZipArchive::new(std::fs::File::open(dir.join(&file_name))?)?;
             archive.extract(&dir)?;
             let _ = std::fs::remove_file(dir.join(&file_name));
-            std::fs::write(dir.join("version"), release.tag_name)?;
+            std::fs::write(dir.join("version"), release.tag_name.clone())?;
             return Ok(());
         }
     }
@@ -4089,26 +4133,16 @@ fn fetch_grammars() -> Result<()> {
     Err(anyhow!("can't find support grammars"))
 }
 
-fn fetch_queries() -> Result<()> {
+fn fetch_queries(release: &ReleaseInfo) -> Result<()> {
     let dir = Directory::queries_directory()
         .ok_or_else(|| anyhow!("can't get queries directory"))?;
     if !dir.exists() {
         let _ = std::fs::create_dir(&dir);
     }
 
-    let url =
-        "https://api.github.com/repos/lapce/tree-sitter-grammars/releases/latest";
-    let resp = reqwest::blocking::ClientBuilder::new()
-        .user_agent("Lapce")
-        .build()?
-        .get(url)
-        .send()?;
-    if !resp.status().is_success() {
-        return Err(anyhow!("get release info failed {}", resp.text()?));
-    }
     let current_version =
         std::fs::read_to_string(dir.join("version")).unwrap_or_default();
-    let release: ReleaseInfo = serde_json::from_str(&resp.text()?)?;
+
     if release.tag_name == current_version {
         return Ok(());
     }
@@ -4130,7 +4164,7 @@ fn fetch_queries() -> Result<()> {
                 zip::ZipArchive::new(std::fs::File::open(dir.join(file_name))?)?;
             archive.extract(&dir)?;
             let _ = std::fs::remove_file(dir.join(file_name));
-            std::fs::write(dir.join("version"), release.tag_name)?;
+            std::fs::write(dir.join("version"), release.tag_name.clone())?;
             return Ok(());
         }
     }
