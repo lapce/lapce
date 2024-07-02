@@ -429,14 +429,14 @@ impl TerminalData {
 
     pub fn send_keypress(&self, key: &KeyEvent) -> bool {
         if let Some(command) = Self::resolve_key_event(key) {
-            self.receive_char(command);
+            self.receive_char(command.as_str());
             true
         } else {
             false
         }
     }
 
-    pub fn resolve_key_event(key: &KeyEvent) -> Option<&str> {
+    pub fn resolve_key_event(key: &KeyEvent) -> Option<String> {
         let key = key.clone();
 
         // Generates a `Modifiers` value to check against.
@@ -505,13 +505,13 @@ impl TerminalData {
             // No modifiers
             ([], $evt:ident, $no_mod:literal) => {
                 if $evt.modifiers.is_empty() {
-                    return Some($no_mod);
+                    return Some($no_mod.to_string());
                 }
             };
             // A single modifier combination
             ([$($mod:ident)|+], $evt:ident, $pre:literal, $post:literal) => {
                 if $evt.modifiers == modifiers!($($mod)|+) {
-                    return Some(concat!($pre, modval!($($mod)|+), $post));
+                    return Some(concat!($pre, modval!($($mod)|+), $post).to_string());
                 }
             };
             // Break down multiple modifiers into a series of single combination branches
@@ -563,24 +563,28 @@ impl TerminalData {
                         _ => return None,
                     };
 
-                    Some(str)
+                    Some(str.to_string())
+                } else if key.modifiers == Modifiers::ALT {
+                    let mut rs = String::from('\x1b');
+                    rs.push_str(c.as_str());
+                    Some(rs)
                 } else {
                     None
                 }
             }
             Key::Named(NamedKey::Backspace) => {
                 Some(if key.modifiers.control() {
-                    "\x08" // backspace
+                    "\x08".to_string() // backspace
                 } else if key.modifiers.alt() {
-                    "\x1b\x7f"
+                    "\x1b\x7f".to_string()
                 } else {
-                    "\x7f"
+                    "\x7f".to_string()
                 })
             }
 
-            Key::Named(NamedKey::Tab) => Some("\x09"),
-            Key::Named(NamedKey::Enter) => Some("\r"),
-            Key::Named(NamedKey::Escape) => Some("\x1b"),
+            Key::Named(NamedKey::Tab) => Some("\x09".to_string()),
+            Key::Named(NamedKey::Enter) => Some("\r".to_string()),
+            Key::Named(NamedKey::Escape) => Some("\x1b".to_string()),
 
             // The following either expands to `\x1b[X` or `\x1b[1;NX` where N is a modifier value
             Key::Named(NamedKey::ArrowUp) => {
