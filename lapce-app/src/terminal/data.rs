@@ -564,6 +564,15 @@ impl TerminalData {
                     };
 
                     Some(str)
+                } else if key.modifiers == Modifiers::ALT {
+                    let str = match c.as_str() {
+                        "," => "\x1b\x2c",
+                        "." => "\x1b\x2e",
+                        "/" => "\x1b\x2f",
+                        "\\" => "\x1b\x5c",
+                        _ => return None,
+                    };
+                    Some(str)
                 } else {
                     None
                 }
