@@ -428,8 +428,17 @@ impl TerminalData {
     }
 
     pub fn send_keypress(&self, key: &KeyEvent) -> bool {
+        // 在终端模拟器中，当 Alt 键与另一个字符组合时（如 Alt+a），通常会发送一个前导 ESC（Escape，ASCII 代码为 0x1B）字符后跟该字符的序列。例如，Alt+a 会发送 \x1Ba。
+        if let Key::Character(_) = &key.key.logical_key {
+            if key.modifiers == Modifiers::ALT {
+                self.receive_char("\x1b");
+            }
+        }
         if let Some(command) = Self::resolve_key_event(key) {
             self.receive_char(command);
+            true
+        } else if let Key::Character(ref c) = key.key.logical_key {
+            self.receive_char(c.as_str());
             true
         } else {
             false
