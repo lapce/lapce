@@ -31,8 +31,10 @@ hashbrown   = { version = "0.14.5", features = ["raw"] }
 
 
 [features]
-default  = []
-portable = []
+default      = []
+portable     = []
+distribution = []
 
 [build-dependencies]
 anyhow = { workspace = true }
+git2   = { workspace = true }

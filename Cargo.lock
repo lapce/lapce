@@ -2985,6 +2985,7 @@ dependencies = [
  "arc-swap",
  "directories",
  "floem-editor-core",
+ "git2",
  "hashbrown",
  "include_dir",
  "itertools 0.12.1",

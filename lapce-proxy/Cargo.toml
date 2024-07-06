@@ -13,6 +13,7 @@ clap               = { workspace = true }
 crossbeam-channel  = { workspace = true }
 directories        = { workspace = true }
 flate2             = { workspace = true }
+git2               = { workspace = true }
 globset            = { workspace = true }
 indexmap           = { workspace = true }
 interprocess       = { workspace = true }
@@ -45,9 +46,6 @@ locale_config = "0.3.0"
 jsonrpc-lite  = "0.6.0"
 polling       = "3.5.0"
 libc          = "0.2"
-
-# git
-git2 = { version = "0.19.0", features = ["vendored-openssl"] }
 
 # deleting files
 trash = "3.0.6"
