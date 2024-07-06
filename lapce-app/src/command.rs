@@ -20,7 +20,6 @@ use serde_json::Value;
 use strum::{EnumMessage, IntoEnumIterator};
 use strum_macros::{Display, EnumIter, EnumMessage, EnumString, IntoStaticStr};
 
-use crate::main_split::TabCloseKind;
 use crate::{
     alert::AlertButton,
     debug::RunDebugMode,
@@ -28,7 +27,7 @@ use crate::{
     editor::location::EditorLocation,
     editor_tab::EditorTabChild,
     id::EditorTabId,
-    main_split::{SplitDirection, SplitMoveDirection},
+    main_split::{SplitDirection, SplitMoveDirection, TabCloseKind},
     workspace::LapceWorkspace,
 };
 

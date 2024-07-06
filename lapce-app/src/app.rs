@@ -12,8 +12,8 @@ use std::{
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use crossbeam_channel::Sender;
-use floem::action::show_context_menu;
 use floem::{
+    action::show_context_menu,
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener, EventPropagation},
     ext_event::{create_ext_action, create_signal_from_channel},
@@ -63,7 +63,6 @@ use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::{filter::Targets, reload::Handle};
 
-use crate::main_split::TabCloseKind;
 use crate::{
     about, alert,
     code_action::CodeActionStatus,
@@ -88,7 +87,9 @@ use crate::{
     keymap::keymap_view,
     keypress::keymap::KeyMap,
     listener::Listener,
-    main_split::{SplitContent, SplitData, SplitDirection, SplitMoveDirection},
+    main_split::{
+        SplitContent, SplitData, SplitDirection, SplitMoveDirection, TabCloseKind,
+    },
     markdown::MarkdownContent,
     palette::{
         item::{PaletteItem, PaletteItemContent},
