@@ -1,5 +1,45 @@
+# Note that all fields that take a lint level have these possible values:
+# * deny - An error will be produced and the check will fail
+# * warn - A warning will be produced, but the check will not fail
+# * allow - No warning or error will be produced, though in some cases a note
+# will be
+
+# The graph table configures how the dependency graph is constructed and thus
+# which crates the checks are performed against
+[graph]
+targets = []
+# The identifiers are [Package ID Specifications]
+# (https://doc.rust-lang.org/cargo/reference/pkgid-spec.html)
+# exclude = []
+all-features        = false
+no-default-features = false
+# features = []
+
+# The output table provides options for how/if diagnostics are outputted
+[output]
+feature-depth = 1
+
+# This section is considered when running `cargo deny check advisories`
+# More documentation for the advisories section can be found here:
+# https://embarkstudios.github.io/cargo-deny/checks/advisories/cfg.html
+[advisories]
+db-path = "$CARGO_HOME/advisory-dbs"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+ignore = [
+  #"RUSTSEC-0000-0000",
+  # { id = "RUSTSEC-0000-0000", reason = "you can specify a reason the advisory is ignored" },
+  #"a-crate-that-is-yanked@0.1.1", # you can also ignore yanked crate versions if you wish
+  # { crate = "a-crate-that-is-yanked@0.1.1", reason = "you can specify why you are ignoring the yanked crate" },
+]
+# git-fetch-with-cli = true
+
+# This section is considered when running `cargo deny check licenses`
+# More documentation for the licenses section can be found here:
+# https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html
 [licenses]
-# use SPDX short identifiers
+# List of explicitly allowed licenses
+# See https://spdx.org/licenses/ for list of possible licenses
+# [possible values: any SPDX 3.11 short identifier (+ optional exception)].
 allow = [
   "Apache-2.0",
   "Apache-2.0 WITH LLVM-exception",
@@ -13,3 +53,74 @@ allow = [
   "Unicode-DFS-2016",
   "Zlib",
 ]
+# [possible values: any between 0.0 and 1.0].
+confidence-threshold = 0.8
+exceptions = [
+  # { allow = ["Zlib"], crate = "adler32" },
+]
+
+[[licenses.clarify]]
+crate = "ittapi-sys"
+expression = "GPL-2.0-only OR BSD-3-Clause"
+license-files = [
+  # { path = "LICENSE", hash = 0xbd0eed23 }
+]
+
+[licenses.private]
+ignore     = false
+registries = []
+
+# This section is considered when running `cargo deny check bans`.
+# More documentation about the 'bans' section can be found here:
+# https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html
+[bans]
+multiple-versions          = "warn"
+wildcards                  = "allow"
+highlight                  = "all"
+workspace-default-features = "allow"
+external-default-features  = "allow"
+allow                      = []
+deny                       = []
+
+# List of features to allow/deny
+# Each entry the name of a crate and a version range. If version is
+# not specified, all versions will be matched.
+#[[bans.features]]
+#crate = "reqwest"
+# Features to not allow
+#deny = ["json"]
+# Features to allow
+#allow = [
+#    "rustls",
+#    "__rustls",
+#    "__tls",
+#    "hyper-rustls",
+#    "rustls",
+#    "rustls-pemfile",
+#    "rustls-tls-webpki-roots",
+#    "tokio-rustls",
+#    "webpki-roots",
+#]
+#exact = true
+
+# Certain crates/versions that will be skipped when doing duplicate detection.
+skip = []
+skip-tree = [
+  { crate = "windows-sys", depth = 5 },
+  { crate = "windows", depth = 5 },
+  { crate = "tracing", depth = 5 },
+]
+
+# This section is considered when running `cargo deny check sources`.
+# More documentation about the 'sources' section can be found here:
+# https://embarkstudios.github.io/cargo-deny/checks/sources/cfg.html
+[sources]
+unknown-registry = "warn"
+unknown-git      = "allow"
+allow-registry   = ["https://github.com/rust-lang/crates.io-index"]
+allow-git        = []
+
+# [sources.allow-org]
+# github    = []
+# gitlab    = []
+# bitbucket = []

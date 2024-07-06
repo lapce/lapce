@@ -5,6 +5,7 @@ authors      = { workspace = true }
 edition      = { workspace = true }
 license      = { workspace = true }
 rust-version = { workspace = true }
+publish      = { workspace = true }
 default-run  = "lapce"
 
 [dependencies]
@@ -29,6 +30,7 @@ rust-version = "1.77"
 license      = "Apache-2.0"
 homepage     = "https://lapce.dev"
 authors      = ["Dongdong Zhou <dzhou121@gmail.com>"]
+publish      = false
 
 [workspace.dependencies]
 anyhow            = { version = "1.0" }
