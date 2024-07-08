@@ -428,7 +428,7 @@ impl TerminalData {
     }
 
     pub fn send_keypress(&self, key: &KeyEvent) -> bool {
-        // 在终端模拟器中，当 Alt 键与另一个字符组合时（如 Alt+a），通常会发送一个前导 ESC（Escape，ASCII 代码为 0x1B）字符后跟该字符的序列。例如，Alt+a 会发送 \x1Ba。
+        // In terminal emulators, when the Alt key is combined with another character (such as Alt+a), a leading ESC (Escape, ASCII code 0x1B) character is usually sent followed by a sequence of that character. For example, Alt+a sends \x1Ba.
         if let Key::Character(_) = &key.key.logical_key {
             if key.modifiers == Modifiers::ALT {
                 self.receive_char("\x1b");
