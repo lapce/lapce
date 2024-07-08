@@ -428,8 +428,17 @@ impl TerminalData {
     }
 
     pub fn send_keypress(&self, key: &KeyEvent) -> bool {
+        // In terminal emulators, when the Alt key is combined with another character (such as Alt+a), a leading ESC (Escape, ASCII code 0x1B) character is usually sent followed by a sequence of that character. For example, Alt+a sends \x1Ba.
+        if let Key::Character(_) = &key.key.logical_key {
+            if key.modifiers == Modifiers::ALT {
+                self.receive_char("\x1b");
+            }
+        }
         if let Some(command) = Self::resolve_key_event(key) {
             self.receive_char(command);
+            true
+        } else if let Key::Character(ref c) = key.key.logical_key {
+            self.receive_char(c.as_str());
             true
         } else {
             false
