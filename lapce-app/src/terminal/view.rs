@@ -124,7 +124,7 @@ pub fn terminal_view(
     });
 
     // for rust
-    let reg = regex::Regex::new("[\\w\\\\/]+\\.rs:\\d+:\\d+").unwrap();
+    let reg = regex::Regex::new("[\\w\\\\/]+\\.rs:\\d+(:\\d+)?").unwrap();
 
     TerminalView {
         id,
@@ -184,10 +184,14 @@ impl TerminalView {
             {
                 let hyperlink = match_str.as_str();
                 let content: Vec<&str> = hyperlink.split(':').collect();
-                let (file, line_str, col_str) =
-                    (content.first()?, content.get(1)?, content.get(2)?);
-                let (line, col) =
-                    (line_str.parse::<u32>().ok()?, col_str.parse::<u32>().ok()?);
+                let (file, line, col) = (
+                    content.first()?,
+                    content.get(1).and_then(|x: &&str| x.parse::<u32>().ok())?,
+                    content
+                        .get(2)
+                        .and_then(|x: &&str| x.parse::<u32>().ok())
+                        .unwrap_or(0),
+                );
                 let parent_path = self.workspace.path.as_ref()?;
                 self.internal_command.send(InternalCommand::JumpToLocation {
                     location: EditorLocation {
