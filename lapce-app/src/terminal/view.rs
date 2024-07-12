@@ -124,7 +124,7 @@ pub fn terminal_view(
     });
 
     // for rust
-    let reg = regex::Regex::new("[\\w\\\\/]+\\.rs:\\d+(:\\d+)?").unwrap();
+    let reg = regex::Regex::new("[\\w\\\\/-]+\\.(rs)?(toml)?:\\d+(:\\d+)?").unwrap();
 
     TerminalView {
         id,
