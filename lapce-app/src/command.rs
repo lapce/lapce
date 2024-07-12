@@ -3,6 +3,7 @@ use std::{path::PathBuf, rc::Rc, sync::Arc};
 pub use floem::views::editor::command::CommandExecuted;
 use floem::{
     keyboard::Modifiers, peniko::kurbo::Vec2, views::editor::command::Command,
+    ViewId,
 };
 use indexmap::IndexMap;
 use lapce_core::command::{
@@ -723,6 +724,11 @@ pub enum InternalCommand {
     ExecuteProcess {
         program: String,
         arguments: Vec<String>,
+    },
+    ClearTerminalBuffer {
+        view_id: ViewId,
+        tab_index: usize,
+        terminal_index: usize,
     },
 }
 

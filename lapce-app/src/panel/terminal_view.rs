@@ -1,5 +1,7 @@
 use std::rc::Rc;
 
+use floem::action::show_context_menu;
+use floem::menu::{Menu, MenuItem};
 use floem::{
     event::{Event, EventListener, EventPropagation},
     kurbo::Size,
@@ -9,10 +11,12 @@ use floem::{
         scroll::{scroll, Thickness, VerticalScrollAsHorizontal},
         stack, svg, tab, Decorators,
     },
-    View,
+    View, ViewId,
 };
 
 use super::kind::PanelKind;
+use crate::command::InternalCommand;
+use crate::listener::Listener;
 use crate::{
     app::clickable_icon,
     command::LapceWorkbenchCommand,
@@ -252,6 +256,7 @@ fn terminal_tab_header(window_tab_data: Rc<WindowTabData>) -> impl View {
 fn terminal_tab_split(
     terminal_panel_data: TerminalPanelData,
     terminal_tab_data: TerminalTabData,
+    tab_index: usize,
 ) -> impl View {
     let config = terminal_panel_data.common.config;
     let internal_command = terminal_panel_data.common.internal_command;
@@ -273,7 +278,7 @@ fn terminal_tab_split(
             let terminal_panel_data = terminal_panel_data.clone();
             let terminal_scope = terminal.scope;
             container({
-                terminal_view(
+                let terminal_view = terminal_view(
                     terminal.term_id,
                     terminal.raw.read_only(),
                     terminal.mode.read_only(),
@@ -282,22 +287,32 @@ fn terminal_tab_split(
                     terminal.launch_error,
                     internal_command,
                     workspace.clone(),
-                )
-                .on_event_cont(EventListener::PointerDown, move |_| {
-                    active.set(index.get_untracked());
-                })
-                .on_event(EventListener::PointerWheel, move |event| {
-                    if let Event::PointerWheel(pointer_event) = event {
-                        terminal.clone().wheel_scroll(pointer_event.delta.y);
-                        EventPropagation::Stop
-                    } else {
-                        EventPropagation::Continue
-                    }
-                })
-                .on_cleanup(move || {
-                    terminal_scope.dispose();
-                })
-                .style(|s| s.size_pct(100.0, 100.0))
+                );
+                let view_id = terminal_view.id();
+                terminal_view
+                    .on_event_cont(EventListener::PointerDown, move |_| {
+                        active.set(index.get_untracked());
+                    })
+                    .on_secondary_click_stop(move |_| {
+                        tab_secondary_click(
+                            internal_command,
+                            view_id,
+                            tab_index,
+                            index.get_untracked(),
+                        );
+                    })
+                    .on_event(EventListener::PointerWheel, move |event| {
+                        if let Event::PointerWheel(pointer_event) = event {
+                            terminal.clone().wheel_scroll(pointer_event.delta.y);
+                            EventPropagation::Stop
+                        } else {
+                            EventPropagation::Continue
+                        }
+                    })
+                    .on_cleanup(move || {
+                        terminal_scope.dispose();
+                    })
+                    .style(|s| s.size_pct(100.0, 100.0))
             })
             .style(move |s| {
                 s.size_pct(100.0, 100.0).padding_horiz(10.0).apply_if(
@@ -323,7 +338,26 @@ fn terminal_tab_content(window_tab_data: Rc<WindowTabData>) -> impl View {
         move || terminal.tab_info.with(|info| info.active),
         move || terminal.tab_info.with(|info| info.tabs.clone()),
         |(_, tab)| tab.terminal_tab_id,
-        move |(_, tab)| terminal_tab_split(terminal.clone(), tab),
+        move |(tab_index, tab)| {
+            terminal_tab_split(terminal.clone(), tab, tab_index.get_untracked())
+        },
     )
     .style(|s| s.size_pct(100.0, 100.0))
+}
+
+fn tab_secondary_click(
+    internal_command: Listener<InternalCommand>,
+    view_id: ViewId,
+    tab_index: usize,
+    terminal_index: usize,
+) {
+    let mut menu = Menu::new("");
+    menu = menu.entry(MenuItem::new("Clear All").action(move || {
+        internal_command.send(InternalCommand::ClearTerminalBuffer {
+            view_id,
+            tab_index,
+            terminal_index,
+        });
+    }));
+    show_context_menu(menu, None);
 }
