@@ -117,8 +117,13 @@ impl ProxyHandler for Dispatcher {
                     if get_mod_time(&buffer.path) == buffer.mod_time {
                         return;
                     }
-                    if let Ok(content) = load_file(&buffer.path) {
-                        self.core_rpc.open_file_changed(path, content);
+                    match load_file(&buffer.path) {
+                        Ok(content) => {
+                            self.core_rpc.open_file_changed(path, content);
+                        }
+                        Err(err) => {
+                            tracing::event!(tracing::Level::ERROR, "Failed to re-read file after change notification: {err}");
+                        }
                     }
                 }
             }

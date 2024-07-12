@@ -12,8 +12,8 @@ use std::{
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use crossbeam_channel::Sender;
-use floem::action::show_context_menu;
 use floem::{
+    action::show_context_menu,
     cosmic_text::{Style as FontStyle, Weight},
     event::{Event, EventListener, EventPropagation},
     ext_event::{create_ext_action, create_signal_from_channel},
@@ -63,7 +63,6 @@ use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use tracing_subscriber::{filter::Targets, reload::Handle};
 
-use crate::main_split::TabCloseKind;
 use crate::{
     about, alert,
     code_action::CodeActionStatus,
@@ -88,7 +87,9 @@ use crate::{
     keymap::keymap_view,
     keypress::keymap::KeyMap,
     listener::Listener,
-    main_split::{SplitContent, SplitData, SplitDirection, SplitMoveDirection},
+    main_split::{
+        SplitContent, SplitData, SplitDirection, SplitMoveDirection, TabCloseKind,
+    },
     markdown::MarkdownContent,
     palette::{
         item::{PaletteItem, PaletteItemContent},
@@ -107,6 +108,7 @@ use crate::{
     workspace::{LapceWorkspace, LapceWorkspaceType},
 };
 
+mod grammars;
 mod logging;
 
 #[derive(Parser)]
@@ -3657,21 +3659,19 @@ pub fn launch() {
             reset_highlight_configs();
         });
         std::thread::spawn(move || {
-            if let Err(e) = fetch_grammars() {
-                trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
-            }
-            send(());
-        });
-    }
-
-    {
-        let cx = Scope::new();
-        let send = create_ext_action(cx, |_| {
-            reset_highlight_configs();
-        });
-        std::thread::spawn(move || {
-            if let Err(e) = fetch_queries() {
-                trace!(TraceLevel::ERROR, "failed to fetch queries: {e}");
+            use self::grammars::*;
+            match find_release().map(|r| describe_release(&r.tag_name)) {
+                Ok(Ok(release)) => {
+                    if let Err(e) = fetch_grammars(&release) {
+                        trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
+                    }
+                    if let Err(e) = fetch_queries(&release) {
+                        trace!(TraceLevel::ERROR, "failed to fetch grammars: {e}");
+                    }
+                }
+                Err(e) | Ok(Err(e)) => {
+                    trace!(TraceLevel::ERROR, "failed to obtain release info: {e}");
+                }
             }
             send(());
         });
@@ -4035,109 +4035,6 @@ pub fn window_menu(
                 })),
         )
 }
-
-fn fetch_grammars() -> Result<()> {
-    let dir = Directory::grammars_directory()
-        .ok_or_else(|| anyhow!("can't get grammars directory"))?;
-    if !dir.exists() {
-        let _ = std::fs::create_dir(&dir);
-    }
-
-    let url =
-        "https://api.github.com/repos/lapce/tree-sitter-grammars/releases/latest";
-    let resp = reqwest::blocking::ClientBuilder::new()
-        .user_agent("Lapce")
-        .build()?
-        .get(url)
-        .send()?;
-    if !resp.status().is_success() {
-        return Err(anyhow!("get release info failed {}", resp.text()?));
-    }
-    let current_version =
-        std::fs::read_to_string(dir.join("version")).unwrap_or_default();
-    let release: ReleaseInfo = serde_json::from_str(&resp.text()?)?;
-    if release.tag_name == current_version {
-        return Ok(());
-    }
-
-    let file_name = format!(
-        "grammars-{}-{}.zip",
-        std::env::consts::OS,
-        std::env::consts::ARCH
-    );
-
-    for asset in &release.assets {
-        if asset.name == file_name {
-            let mut resp = reqwest::blocking::get(&asset.browser_download_url)?;
-            if !resp.status().is_success() {
-                return Err(anyhow!("download file error {}", resp.text()?));
-            }
-            {
-                let mut out = std::fs::File::create(dir.join(&file_name))?;
-                resp.copy_to(&mut out)?;
-            }
-
-            let mut archive =
-                zip::ZipArchive::new(std::fs::File::open(dir.join(&file_name))?)?;
-            archive.extract(&dir)?;
-            let _ = std::fs::remove_file(dir.join(&file_name));
-            std::fs::write(dir.join("version"), release.tag_name)?;
-            return Ok(());
-        }
-    }
-
-    Err(anyhow!("can't find support grammars"))
-}
-
-fn fetch_queries() -> Result<()> {
-    let dir = Directory::queries_directory()
-        .ok_or_else(|| anyhow!("can't get queries directory"))?;
-    if !dir.exists() {
-        let _ = std::fs::create_dir(&dir);
-    }
-
-    let url =
-        "https://api.github.com/repos/lapce/tree-sitter-grammars/releases/latest";
-    let resp = reqwest::blocking::ClientBuilder::new()
-        .user_agent("Lapce")
-        .build()?
-        .get(url)
-        .send()?;
-    if !resp.status().is_success() {
-        return Err(anyhow!("get release info failed {}", resp.text()?));
-    }
-    let current_version =
-        std::fs::read_to_string(dir.join("version")).unwrap_or_default();
-    let release: ReleaseInfo = serde_json::from_str(&resp.text()?)?;
-    if release.tag_name == current_version {
-        return Ok(());
-    }
-
-    let file_name = "queries.zip";
-
-    for asset in &release.assets {
-        if asset.name == file_name {
-            let mut resp = reqwest::blocking::get(&asset.browser_download_url)?;
-            if !resp.status().is_success() {
-                return Err(anyhow!("download file error {}", resp.text()?));
-            }
-            {
-                let mut out = std::fs::File::create(dir.join(file_name))?;
-                resp.copy_to(&mut out)?;
-            }
-
-            let mut archive =
-                zip::ZipArchive::new(std::fs::File::open(dir.join(file_name))?)?;
-            archive.extract(&dir)?;
-            let _ = std::fs::remove_file(dir.join(file_name));
-            std::fs::write(dir.join("version"), release.tag_name)?;
-            return Ok(());
-        }
-    }
-
-    Err(anyhow!("can't find support queries"))
-}
-
 fn tab_secondary_click(
     internal_command: Listener<InternalCommand>,
     editor_tab_id: EditorTabId,

@@ -25,7 +25,7 @@ members = ["lapce-app", "lapce-proxy", "lapce-rpc", "lapce-core"]
 [workspace.package]
 version      = "0.4.0"
 edition      = "2021"
-rust-version = "1.75"
+rust-version = "1.77"
 license      = "Apache-2.0"
 homepage     = "https://lapce.dev"
 authors      = ["Dongdong Zhou <dzhou121@gmail.com>"]
@@ -38,6 +38,7 @@ clap              = { version = "4.5.0", default-features = false, features = ["
 crossbeam-channel = { version = "0.5.12" }
 directories       = { version = "4.0.1" }
 flate2            = { version = "1.0" }
+git2              = { version = "0.19.0", features = ["vendored-openssl"] }
 globset           = { version = "0.4.14" }
 hashbrown         = { version = "0.14.5", features = ["serde"] }
 im                = { version = "15.0.0", features = ["serde"] }
@@ -50,6 +51,7 @@ once_cell         = { version = "1.19" }
 parking_lot       = { version = "0.12.3" }
 rayon             = { version = "1.10.0" }
 regex             = { version = "1.10.5" }
+semver            = { version = "1.0" }
 reqwest           = { version = "0.11", features = ["blocking", "json", "socks"] }
 serde             = { version = "1.0" }
 serde_json        = { version = "1.0" }
