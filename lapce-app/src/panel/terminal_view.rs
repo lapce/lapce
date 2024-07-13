@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
-use floem::action::show_context_menu;
-use floem::menu::{Menu, MenuItem};
 use floem::{
+    action::show_context_menu,
     event::{Event, EventListener, EventPropagation},
     kurbo::Size,
+    menu::{Menu, MenuItem},
     reactive::create_rw_signal,
     views::{
         container, dyn_stack, empty, label,
