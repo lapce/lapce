@@ -15,13 +15,12 @@ use floem::{
 };
 
 use super::kind::PanelKind;
-use crate::command::InternalCommand;
-use crate::listener::Listener;
 use crate::{
     app::clickable_icon,
-    command::LapceWorkbenchCommand,
+    command::{InternalCommand, LapceWorkbenchCommand},
     config::{color::LapceColor, icon::LapceIcons},
     debug::RunDebugMode,
+    listener::Listener,
     terminal::{
         panel::TerminalPanelData, tab::TerminalTabData, view::terminal_view,
     },
