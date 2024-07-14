@@ -225,6 +225,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "assets"
+version = "0.4.0"
+
+[[package]]
 name = "async-broadcast"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7219,6 +7223,13 @@ dependencies = [
  "log",
  "thiserror",
  "wast 35.0.2",
+]
+
+[[package]]
+name = "workspace"
+version = "0.4.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

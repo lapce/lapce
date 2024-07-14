@@ -73,6 +73,7 @@ psp-types = { git = "https://github.com/lapce/psp-types", rev = "f7fea28f59e7b2d
 lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
 
 directory   = { path = "./crates/directory" }
+workspace        = { path = "./crates/workspace" }
 meta        = { path = "./crates/meta" }
 tracing     = { path = "./crates/tracing" }
 lapce-core  = { path = "./lapce-core" }

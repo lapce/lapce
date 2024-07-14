@@ -5,7 +5,7 @@
 /.flatpak-builder
 /build
 shell.nix
-lib/
+/lib/
 target/
 core/languages/
 vendor/
