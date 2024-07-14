@@ -82,6 +82,8 @@ RUN \
 #!/usr/bin/env bash
 set -euxo pipefail
 
+export XX_CC_PREFER_LINKER=lld
+
 xx-clang --setup-target-triple
 xx-clang --wrap
 
