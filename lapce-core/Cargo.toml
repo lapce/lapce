@@ -20,6 +20,7 @@ tracing      = { workspace = true }
 regex        = { workspace = true }
 
 lsp-types         = { workspace = true }
+meta              = { workspace = true }
 lapce-xi-rope     = { workspace = true }
 lapce-rpc         = { workspace = true }
 floem-editor-core = { workspace = true }

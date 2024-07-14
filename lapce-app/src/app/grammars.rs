@@ -11,7 +11,7 @@ use crate::{tracing::*, update::ReleaseInfo};
 
 fn get_github_api(url: &str) -> Result<String> {
     let resp = reqwest::blocking::ClientBuilder::new()
-        .user_agent(format!("Lapce/{}", lapce_core::meta::VERSION))
+        .user_agent(format!("Lapce/{}", meta::VERSION))
         .build()?
         .get(url)
         .send()?;
@@ -27,7 +27,7 @@ pub fn find_release() -> Result<ReleaseInfo> {
         "https://api.github.com/repos/lapce/tree-sitter-grammars/releases?per_page=100",
     ).context("Failed to retrieve releases for tree-sitter-grammars")?)?;
 
-    use lapce_core::meta::{ReleaseType, RELEASE, VERSION};
+    use meta::{ReleaseType, RELEASE, VERSION};
 
     let releases = releases
         .into_iter()

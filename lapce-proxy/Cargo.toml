@@ -17,6 +17,7 @@ git2               = { workspace = true }
 globset            = { workspace = true }
 indexmap           = { workspace = true }
 interprocess       = { workspace = true }
+meta               = { workspace = true }
 notify             = { workspace = true }
 parking_lot        = { workspace = true }
 regex              = { workspace = true }

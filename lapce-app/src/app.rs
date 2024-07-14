@@ -47,7 +47,6 @@ use floem::{
 use lapce_core::{
     command::{EditCommand, FocusCommand},
     directory::Directory,
-    meta,
     syntax::highlight::reset_highlight_configs,
 };
 use lapce_rpc::{

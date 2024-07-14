@@ -23,8 +23,8 @@ use floem::{
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
-    command::FocusCommand, cursor::CursorAffinity, directory::Directory, meta,
-    mode::Mode, register::Register,
+    command::FocusCommand, cursor::CursorAffinity, directory::Directory, mode::Mode,
+    register::Register,
 };
 use lapce_rpc::{
     core::CoreNotification,

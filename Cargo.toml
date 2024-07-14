@@ -20,7 +20,7 @@ name = "lapce-proxy"
 path = "lapce-proxy/src/bin/lapce-proxy.rs"
 
 [workspace]
-members = ["lapce-app", "lapce-proxy", "lapce-rpc", "lapce-core"]
+members = ["lapce-app", "lapce-proxy", "lapce-rpc", "lapce-core", "crates/*"]
 
 [workspace.package]
 version      = "0.4.0"
@@ -72,6 +72,7 @@ psp-types = { git = "https://github.com/lapce/psp-types", rev = "f7fea28f59e7b2d
 
 lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
 
+meta        = { path = "./crates/meta" }
 lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
@@ -128,7 +129,7 @@ codegen-units = 1
 #   cargo build --profile fastdev
 #   cargo run --profile fastdev --bin lapce
 [profile.fastdev.package."*"]
-opt-level = 3
+opt-level     = 3
 codegen-units = 1
 
 [profile.fastdev]

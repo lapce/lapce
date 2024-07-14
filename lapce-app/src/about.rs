@@ -8,7 +8,7 @@ use floem::{
     views::{container, label, stack, svg, Decorators},
     View,
 };
-use lapce_core::{command::FocusCommand, meta::VERSION, mode::Mode};
+use lapce_core::{command::FocusCommand, mode::Mode};
 
 use crate::{
     command::{CommandExecuted, CommandKind},
@@ -110,7 +110,7 @@ pub fn about_popup(window_tab_data: Rc<WindowTabData>) -> impl View {
                     .margin_top(10.0)
                     .color(config.get().color(LapceColor::EDITOR_FOREGROUND))
             }),
-            label(|| format!("Version: {}", VERSION)).style(move |s| {
+            label(|| format!("Version: {}", meta::VERSION)).style(move |s| {
                 s.margin_top(10.0)
                     .color(config.get().color(LapceColor::EDITOR_DIM))
             }),

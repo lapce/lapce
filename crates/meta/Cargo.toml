@@ -1,0 +1,15 @@
+[package]
+name         = "meta"
+license      = { workspace = true }
+version      = { workspace = true }
+authors      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+strum        = { workspace = true }
+strum_macros = { workspace = true }
+
+[build-dependencies]
+anyhow = { workspace = true }
+git2   = { workspace = true }

@@ -2,9 +2,8 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Result};
 use directories::{BaseDirs, ProjectDirs};
-
 #[allow(unused_imports)]
-use crate::meta::NAME;
+use meta::NAME;
 
 pub struct Directory {}
 

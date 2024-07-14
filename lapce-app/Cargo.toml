@@ -25,6 +25,7 @@ lapce-proxy        = { workspace = true }
 lapce-rpc          = { workspace = true }
 lapce-xi-rope      = { workspace = true }
 lsp-types          = { workspace = true }
+meta               = { workspace = true }
 notify             = { workspace = true }
 once_cell          = { workspace = true }
 parking_lot        = { workspace = true }
@@ -72,7 +73,12 @@ dmg      = "0.1.1"
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 workspace = true
-features  = ["Win32_Foundation", "Win32_System_Console", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"]
+features = [
+  "Win32_Foundation",
+  "Win32_System_Console",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+]
 
 [features]
 default        = ["updater", "vendored-fonts"]

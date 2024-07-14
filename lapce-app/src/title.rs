@@ -9,7 +9,6 @@ use floem::{
     views::{container, drag_window_area, empty, label, stack, svg, Decorators},
     View,
 };
-use lapce_core::meta;
 use lapce_rpc::proxy::ProxyStatus;
 
 use crate::{

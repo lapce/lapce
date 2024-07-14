@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use flate2::read::GzDecoder;
-use lapce_core::{directory::Directory, meta};
+use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
     proxy::{ProxyRpc, ProxyRpcHandler},

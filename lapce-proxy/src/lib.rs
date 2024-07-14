@@ -18,7 +18,7 @@ use std::{
 use anyhow::{Context, Result};
 use clap::Parser;
 use dispatch::Dispatcher;
-use lapce_core::{directory::Directory, meta};
+use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::{CoreRpc, CoreRpcHandler},
     file::PathObject,
