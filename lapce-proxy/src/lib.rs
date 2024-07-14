@@ -26,7 +26,7 @@ use lapce_rpc::{
     stdio::stdio_transport,
     RpcMessage,
 };
-use tracing::error;
+use tracing::{trace, TraceLevel};
 
 #[derive(Parser)]
 #[clap(name = "Lapce-proxy")]
@@ -48,7 +48,7 @@ pub fn mainloop() {
     let cli = Cli::parse();
     if !cli.proxy {
         if let Err(e) = cli::try_open_in_existing_process(&cli.paths) {
-            error!("failed to open path(s): {e}");
+            trace!(TraceLevel::ERROR, "failed to open path(s): {e}");
         };
         exit(1);
     }

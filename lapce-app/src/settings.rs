@@ -25,7 +25,7 @@ use lapce_core::mode::Mode;
 use lapce_rpc::plugin::VoltID;
 use lapce_xi_rope::Rope;
 use serde::Serialize;
-use tracing::{event, Level};
+use tracing::{trace, TraceLevel};
 
 use crate::{
     command::CommandExecuted,
@@ -608,7 +608,7 @@ fn settings_item_view(
                                         if let Err(e) = LapceConfig::update_file(
                                             &kind, &field, value,
                                         ) {
-                                            event!(Level::ERROR, "{e}");
+                                            trace!(TraceLevel::ERROR, "{e}");
                                         };
                                     }
                                 }
@@ -700,7 +700,7 @@ fn settings_item_view(
                         if let Err(e) =
                             LapceConfig::update_file(&kind, &field, value)
                         {
-                            event!(Level::ERROR, "{e}");
+                            trace!(TraceLevel::ERROR, "{e}");
                         };
                     }
                 });
@@ -911,7 +911,7 @@ fn color_section_list(
                                                         value,
                                                     )
                                                 {
-                                                    event!(Level::ERROR, "{e}");
+                                                    trace!(TraceLevel::ERROR, "{e}");
                                                 };
                                             }
                                         } else {
@@ -925,7 +925,7 @@ fn color_section_list(
                                                     &field,
                                                 )
                                             {
-                                                event!(Level::ERROR, "{e}");
+                                                trace!(TraceLevel::ERROR, "{e}");
                                             };
                                         }
                                     }
@@ -981,7 +981,7 @@ fn color_section_list(
                                     &format!("color-theme.{local_kind}"),
                                     &local_key,
                                 ) {
-                                    event!(Level::ERROR, "{e}");
+                                    trace!(TraceLevel::ERROR, "{e}");
                                 };
                             })
                             .style(move |s| {
@@ -1251,7 +1251,7 @@ fn dropdown_scroll(
                     toml_edit::ser::ValueSerializer::new(),
                 ) {
                     if let Err(e) = LapceConfig::update_file(&kind, &field, value) {
-                        event!(Level::ERROR, "{e}");
+                        trace!(TraceLevel::ERROR, "{e}");
                     };
                 }
                 expanded.set(false);

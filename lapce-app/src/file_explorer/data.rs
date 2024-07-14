@@ -25,6 +25,7 @@ use lapce_rpc::{
     file::{Duplicating, FileNodeItem, Naming, NamingState, NewNode, Renaming},
     proxy::ProxyResponse,
 };
+use tracing::{trace, TraceLevel};
 
 use crate::{
     command::{CommandExecuted, CommandKind, InternalCommand, LapceCommand},
@@ -588,7 +589,7 @@ impl FileExplorerData {
             menu = menu.entry(MenuItem::new(trash_text).action(move || {
                 proxy.trash_path(path.clone(), |res| {
                     if let Err(err) = res {
-                        tracing::warn!("Failed to trash path: {:?}", err);
+                        trace!(TraceLevel::WARN, "Failed to trash path: {:?}", err);
                     }
                 })
             }));

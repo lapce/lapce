@@ -1,7 +1,7 @@
 use std::{path::Path, process::Command};
 
 use anyhow::Result;
-use tracing::{event, Level};
+use tracing::{trace, TraceLevel};
 
 use crate::{
     proxy::{new_command, remote::Remote},
@@ -27,8 +27,16 @@ impl Remote for GhRemote {
 
         let output = cmd.output()?;
 
-        event!(Level::DEBUG, "{}", String::from_utf8_lossy(&output.stderr));
-        event!(Level::DEBUG, "{}", String::from_utf8_lossy(&output.stdout));
+        trace!(
+            TraceLevel::DEBUG,
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        trace!(
+            TraceLevel::DEBUG,
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
 
         Ok(())
     }

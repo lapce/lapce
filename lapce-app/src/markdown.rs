@@ -22,6 +22,7 @@ use lapce_xi_rope::Rope;
 use lsp_types::MarkedString;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Options, Parser, Tag};
 use smallvec::SmallVec;
+use tracing::{trace, TraceLevel};
 
 use crate::{
     config::{color::LapceColor, LapceConfig},
@@ -88,7 +89,7 @@ pub fn parse_markdown(
             Event::End(end_tag) => {
                 if let Some((start_offset, tag)) = tag_stack.pop() {
                     if end_tag != tag.to_end() {
-                        tracing::warn!("Mismatched markdown tag");
+                        trace!(TraceLevel::WARN, "Mismatched markdown tag");
                         continue;
                     }
 
@@ -155,7 +156,7 @@ pub fn parse_markdown(
                         }
                     }
                 } else {
-                    tracing::warn!("Unbalanced markdown tag")
+                    trace!(TraceLevel::WARN, "Unbalanced markdown tag")
                 }
             }
             Event::Text(text) => {

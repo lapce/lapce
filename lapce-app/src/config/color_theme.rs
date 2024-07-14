@@ -5,7 +5,7 @@ use std::{
 
 use floem::peniko::Color;
 use serde::{Deserialize, Serialize};
-use tracing::{event, Level};
+use tracing::{trace, TraceLevel};
 
 use super::color::LoadThemeError;
 
@@ -69,16 +69,16 @@ impl ThemeBaseConfig {
                 Ok(Some(color)) => {
                     let color = Color::parse(color)
                         .unwrap_or_else(|| {
-                            event!(Level::WARN, "Failed to parse color theme variable for ({key}: {value})");
+                            trace!(TraceLevel::WARN, "Failed to parse color theme variable for ({key}: {value})");
                             Color::HOT_PINK
                         });
                     base.0.insert(key.to_string(), color);
                 }
                 Ok(None) => {
-                    event!(Level::WARN, "Failed to resolve color theme variable for ({key}: {value})");
+                    trace!(TraceLevel::WARN, "Failed to resolve color theme variable for ({key}: {value})");
                 }
                 Err(err) => {
-                    event!(Level::ERROR, "Failed to resolve color theme variable ({key}: {value}): {err}");
+                    trace!(TraceLevel::ERROR, "Failed to resolve color theme variable ({key}: {value}): {err}");
                 }
             }
         }

@@ -15,6 +15,7 @@ use floem::{
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::mode::{Mode, Modes};
+use tracing::{trace, TraceLevel};
 
 pub use self::press::KeyPress;
 use self::{
@@ -29,7 +30,6 @@ use crate::{
         condition::{CheckCondition, Condition},
         keymap::KeymapMatch,
     },
-    tracing::*,
 };
 
 const DEFAULT_KEYMAPS_COMMON: &str =

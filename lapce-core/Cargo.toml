@@ -15,7 +15,6 @@ remain       = { workspace = true }
 strum        = { workspace = true }
 strum_macros = { workspace = true }
 thiserror    = { workspace = true }
-tracing      = { workspace = true }
 regex        = { workspace = true }
 
 directory         = { workspace = true }
@@ -24,6 +23,7 @@ meta              = { workspace = true }
 lapce-xi-rope     = { workspace = true }
 lapce-rpc         = { workspace = true }
 floem-editor-core = { workspace = true }
+tracing           = { workspace = true }
 
 ahash       = { version = "0.8.11" }
 arc-swap    = { version = "1.6.0" }

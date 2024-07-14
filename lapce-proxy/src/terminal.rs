@@ -21,6 +21,7 @@ use lapce_rpc::{
     terminal::{TermId, TerminalProfile},
 };
 use polling::PollMode;
+use tracing::{trace, TraceLevel};
 
 const READ_BUFFER_SIZE: usize = 0x10_0000;
 
@@ -159,7 +160,8 @@ impl Terminal {
                                     continue;
                                 }
 
-                                tracing::error!(
+                                trace!(
+                                    TraceLevel::ERROR,
                                     "Error reading from PTY in event loop: {}",
                                     err
                                 );

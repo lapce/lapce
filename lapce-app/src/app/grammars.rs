@@ -6,8 +6,9 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use directory::Directory;
+use tracing::{trace, TraceLevel};
 
-use crate::{tracing::*, update::ReleaseInfo};
+use crate::update::ReleaseInfo;
 
 fn get_github_api(url: &str) -> Result<String> {
     let resp = reqwest::blocking::ClientBuilder::new()

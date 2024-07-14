@@ -3254,10 +3254,7 @@ dependencies = [
  "thiserror",
  "toml",
  "toml_edit 0.20.2",
- "tracing 0.2.0",
- "tracing-appender",
- "tracing-log",
- "tracing-subscriber",
+ "tracing 0.4.0",
  "unicode-width",
  "url",
  "windows-sys 0.52.0",
@@ -3290,7 +3287,7 @@ dependencies = [
  "strum",
  "strum_macros",
  "thiserror",
- "tracing 0.2.0",
+ "tracing 0.4.0",
  "tree-sitter",
 ]
 
@@ -3336,8 +3333,7 @@ dependencies = [
  "serde_json",
  "tar",
  "toml",
- "tracing 0.2.0",
- "tracing-log",
+ "tracing 0.4.0",
  "trash",
  "url",
  "walkdir",
@@ -3361,7 +3357,7 @@ dependencies = [
  "parking_lot",
  "serde",
  "serde_json",
- "tracing 0.2.0",
+ "tracing 0.4.0",
  "url",
 ]
 
@@ -5671,6 +5667,16 @@ dependencies = [
  "pin-project-lite",
  "tracing-attributes 0.2.0",
  "tracing-core 0.2.0",
+]
+
+[[package]]
+name = "tracing"
+version = "0.4.0"
+dependencies = [
+ "tracing 0.2.0",
+ "tracing-appender",
+ "tracing-log",
+ "tracing-subscriber",
 ]
 
 [[package]]

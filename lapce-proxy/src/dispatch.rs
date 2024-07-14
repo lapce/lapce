@@ -37,6 +37,7 @@ use lsp_types::{
     MessageType, Position, Range, ShowMessageParams, TextDocumentItem, Url,
 };
 use parking_lot::Mutex;
+use tracing::{trace, TraceLevel};
 
 use crate::{
     buffer::{get_mod_time, load_file, Buffer},
@@ -122,7 +123,7 @@ impl ProxyHandler for Dispatcher {
                             self.core_rpc.open_file_changed(path, content);
                         }
                         Err(err) => {
-                            tracing::event!(tracing::Level::ERROR, "Failed to re-read file after change notification: {err}");
+                            trace!(TraceLevel::ERROR, "Failed to re-read file after change notification: {err}");
                         }
                     }
                 }

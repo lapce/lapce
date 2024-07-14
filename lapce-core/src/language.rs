@@ -10,7 +10,7 @@ use lapce_rpc::style::{LineStyle, Style};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumString, IntoStaticStr};
-use tracing::{event, Level};
+use tracing::{trace, TraceLevel};
 use tree_sitter::{Point, TreeCursor};
 
 use crate::syntax::highlight::{HighlightConfiguration, HighlightIssue};
@@ -1967,7 +1967,10 @@ impl LapceLanguage {
         match LapceLanguage::from_str(name.to_lowercase().as_str()) {
             Ok(v) => Some(v),
             Err(e) => {
-                event!(Level::DEBUG, "failed parsing `{name}` LapceLanguage: {e}");
+                trace!(
+                    TraceLevel::DEBUG,
+                    "failed parsing `{name}` LapceLanguage: {e}"
+                );
                 None
             }
         }
@@ -2115,7 +2118,7 @@ impl LapceLanguage {
             Ok(x) => Ok(x),
             Err(x) => {
                 let str = format!("Encountered {x:?} while trying to construct HighlightConfiguration for {}", self.name());
-                event!(Level::ERROR, "{str}");
+                trace!(TraceLevel::ERROR, "{str}");
                 Err(HighlightIssue::Error(str))
             }
         }
@@ -2139,31 +2142,31 @@ fn load_grammar(
     library_path.set_extension(std::env::consts::DLL_EXTENSION);
 
     if !library_path.exists() {
-        event!(Level::WARN, "Grammar not found at: {library_path:?}");
+        trace!(TraceLevel::WARN, "Grammar not found at: {library_path:?}");
 
         // Load backwar compat libraries
         library_path = path.join(format!("tree-sitter-{grammar_name}"));
         library_path.set_extension(std::env::consts::DLL_EXTENSION);
 
         if !library_path.exists() {
-            event!(Level::WARN, "Grammar not found at: {library_path:?}");
+            trace!(TraceLevel::WARN, "Grammar not found at: {library_path:?}");
             return Err(HighlightIssue::Error("grammar not found".to_string()));
         }
     }
 
-    event!(Level::DEBUG, "Loading grammar from user grammar dir");
+    trace!(TraceLevel::DEBUG, "Loading grammar from user grammar dir");
     let library = match unsafe { libloading::Library::new(&library_path) } {
         Ok(v) => v,
         Err(e) => {
             let err = format!("Failed to load '{}': '{e}'", library_path.display());
-            event!(Level::ERROR, err);
+            trace!(TraceLevel::ERROR, err);
             return Err(HighlightIssue::Error(err));
         }
     };
 
     let language_fn_name = format!("tree_sitter_{}", grammar_name.replace('-', "_"));
-    event!(
-        Level::DEBUG,
+    trace!(
+        TraceLevel::DEBUG,
         "Loading grammar with address: '{language_fn_name}'"
     );
     let language = unsafe {
@@ -2173,9 +2176,9 @@ fn load_grammar(
             Ok(v) => v,
             Err(e) => {
                 let err = format!("Failed to load '{language_fn_name}': '{e}'");
-                event!(Level::ERROR, err);
+                trace!(TraceLevel::ERROR, err);
                 if let Some(e) = library.close().err() {
-                    event!(Level::ERROR, "Failed to drop loaded library: {e}");
+                    trace!(TraceLevel::ERROR, "Failed to drop loaded library: {e}");
                 };
                 return Err(HighlightIssue::Error(err));
             }
@@ -2292,8 +2295,8 @@ fn read_grammar_query(queries_dir: &Path, name: &str, kind: &str) -> String {
 
     let file = queries_dir.join(name).join(kind);
     let query = std::fs::read_to_string(&file).unwrap_or_else(|err| {
-        tracing::event!(
-            tracing::Level::WARN,
+        trace!(
+            TraceLevel::WARN,
             "Failed to read queries at: {file:?}, {err}"
         );
         String::new()

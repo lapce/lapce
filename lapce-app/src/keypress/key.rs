@@ -1,7 +1,6 @@
 use floem::keyboard::{Key, KeyLocation, NamedKey, PhysicalKey};
 
 use super::keymap::KeyMapKey;
-use crate::tracing::*;
 
 #[derive(Clone, Debug)]
 pub(crate) enum KeyInput {
@@ -15,7 +14,7 @@ pub(crate) enum KeyInput {
 }
 
 impl KeyInput {
-    #[instrument]
+    #[tracing::instrument]
     pub fn keymap_key(&self) -> KeyMapKey {
         match self {
             KeyInput::Pointer(b) => KeyMapKey::Pointer(*b),

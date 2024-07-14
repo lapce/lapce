@@ -29,6 +29,7 @@ use lsp_types::{
 use parking_lot::Mutex;
 use psp_types::{Notification, Request};
 use serde_json::Value;
+use tracing::{trace, TraceLevel};
 use wasi_experimental_http_wasmtime::{HttpCtx, HttpState};
 use wasmtime_wasi::WasiCtxBuilder;
 
@@ -288,7 +289,7 @@ pub fn find_all_volts(extra_plugin_paths: &[PathBuf]) -> Vec<VoltMetadata> {
         .filter_map(|path| match load_volt(&path) {
             Ok(metadata) => Some(metadata),
             Err(e) => {
-                tracing::error!("Failed to load plugin: {:?}", e);
+                trace!(TraceLevel::ERROR, "Failed to load plugin: {:?}", e);
                 None
             }
         })
@@ -298,7 +299,7 @@ pub fn find_all_volts(extra_plugin_paths: &[PathBuf]) -> Vec<VoltMetadata> {
         let mut metadata = match load_volt(plugin_path) {
             Ok(metadata) => metadata,
             Err(e) => {
-                tracing::error!("Failed to load extra plugin: {:?}", e);
+                trace!(TraceLevel::ERROR, "Failed to load extra plugin: {:?}", e);
                 continue;
             }
         };
@@ -503,7 +504,7 @@ pub fn start_volt(
     let plugin_meta = meta.clone();
     linker.func_wrap("lapce", "host_handle_stderr", move || {
         if let Ok(msg) = wasi_read_string(&stderr) {
-            tracing_log::log::log!(target: &format!("lapce_proxy::plugin::wasi::{}::{}", plugin_meta.author, plugin_meta.name), tracing_log::log::Level::Debug, "{msg}");
+            tracing::log::log::log!(target: &format!("lapce_proxy::plugin::wasi::{}::{}", plugin_meta.author, plugin_meta.name), tracing::log::log::Level::Debug, "{msg}");
         }
     })?;
     linker.module(&mut store, "", &module)?;

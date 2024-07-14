@@ -1,0 +1,13 @@
+[package]
+name         = "tracing"
+license      = { workspace = true }
+version      = { workspace = true }
+authors      = { workspace = true }
+edition      = { workspace = true }
+rust-version = { workspace = true }
+
+[dependencies]
+tokio-tracing            = { workspace = true }
+tokio-tracing-log        = { workspace = true }
+tokio-tracing-subscriber = { workspace = true }
+tokio-tracing-appender   = { workspace = true }

@@ -14,7 +14,7 @@ use floem::{
     View,
 };
 use lapce_core::mode::Modes;
-use tracing::{event, Level};
+use tracing::{trace, TraceLevel};
 
 use crate::{
     command::LapceCommand,
@@ -465,7 +465,7 @@ fn keyboard_picker_view(
                                     .map(|(key, _)| key.clone())
                                     .collect::<Vec<KeyMapPress>>(),
                             ) {
-                                event!(Level::ERROR, "{e}");
+                                trace!(TraceLevel::ERROR, "{e}");
                             };
                         }
                     }),

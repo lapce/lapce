@@ -9,7 +9,7 @@ use lapce_rpc::{
     proxy::{ProxyRpcHandler, ProxyStatus},
     terminal::TermId,
 };
-use tracing::error;
+use tracing::{trace, TraceLevel};
 
 use self::remote::start_remote;
 use crate::{
@@ -89,7 +89,7 @@ pub fn new_proxy(
                         core_rpc.clone(),
                         proxy_rpc.clone(),
                     ) {
-                        error!("Failed to start GH remote: {e}");
+                        trace!(TraceLevel::ERROR, "Failed to start GH remote: {e}");
                     }
                 }
                 LapceWorkspaceType::RemoteGH(remote) => {
@@ -100,7 +100,7 @@ pub fn new_proxy(
                         core_rpc.clone(),
                         proxy_rpc.clone(),
                     ) {
-                        error!("Failed to start GH remote: {e}");
+                        trace!(TraceLevel::ERROR, "Failed to start GH remote: {e}");
                     }
                 }
                 LapceWorkspaceType::RemoteSSH(remote) => {
@@ -111,7 +111,7 @@ pub fn new_proxy(
                         core_rpc.clone(),
                         proxy_rpc.clone(),
                     ) {
-                        error!("Failed to start SSH remote: {e}");
+                        trace!(TraceLevel::ERROR, "Failed to start SSH remote: {e}");
                     }
                 }
                 LapceWorkspaceType::RemoteTS(remote) => {
@@ -122,7 +122,7 @@ pub fn new_proxy(
                         core_rpc.clone(),
                         proxy_rpc.clone(),
                     ) {
-                        error!("Failed to start GH remote: {e}");
+                        trace!(TraceLevel::ERROR, "Failed to start GH remote: {e}");
                     }
                 }
                 #[cfg(windows)]
@@ -134,7 +134,7 @@ pub fn new_proxy(
                         core_rpc.clone(),
                         proxy_rpc.clone(),
                     ) {
-                        error!("Failed to start WSL remote: {e}");
+                        trace!(TraceLevel::ERROR, "Failed to start WSL remote: {e}");
                     }
                 }
             }

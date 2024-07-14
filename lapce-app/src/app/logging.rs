@@ -1,32 +1,33 @@
 use std::env;
 
-use lapce_core::directory::Directory;
-use tracing::level_filters::LevelFilter;
-use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{
-    filter::Targets,
-    fmt::{subscriber as fmt_subscriber, Subscriber as FmtSubscriber},
-    registry,
-    reload::{Handle as ReloadHandle, Subscriber as ReloadSubscriber},
-    subscribe::CollectExt,
-    util::SubscriberInitExt,
-    Subscribe,
+use directory::Directory;
+use tracing::{
+    appender::non_blocking::WorkerGuard,
+    level_filters::LevelFilter,
+    subscriber::{
+        filter::Targets,
+        fmt::{subscriber as fmt_subscriber, Subscriber as FmtSubscriber},
+        registry,
+        reload::{Handle as ReloadHandle, Subscriber as ReloadSubscriber},
+        subscribe::CollectExt,
+        util::SubscriberInitExt,
+        Subscribe,
+    },
+    trace, TraceLevel,
 };
-
-use crate::tracing::*;
 
 #[inline(always)]
 pub(super) fn logging() -> (ReloadHandle<Targets>, Option<WorkerGuard>) {
     let (log_file, guard) = match Directory::logs_directory()
         .and_then(|dir| {
-            Ok(tracing_appender::rolling::Builder::new()
+            Ok(tracing::appender::rolling::Builder::new()
                 .max_log_files(10)
-                .rotation(tracing_appender::rolling::Rotation::DAILY)
+                .rotation(tracing::appender::rolling::Rotation::DAILY)
                 .filename_prefix("lapce")
                 .filename_suffix("log")
                 .build(dir)?)
         })
-        .map(tracing_appender::non_blocking)
+        .map(tracing::appender::non_blocking)
     {
         Ok((log_file, guard)) => (Some(log_file), Some(guard)),
         Err(e) => panic!("Failed to obtain logs directory: {e}"),

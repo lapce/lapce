@@ -8,7 +8,7 @@ use floem::{
     ViewId,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{event, Level};
+use tracing::{trace, TraceLevel};
 
 use crate::{
     app::AppCommand,
@@ -95,7 +95,7 @@ impl WindowData {
         let Ok(config) =
             LapceConfig::load(&LapceWorkspace::default(), &[], &extra_plugin_paths)
         else {
-            event!(Level::ERROR, "Failed to load config");
+            trace!(TraceLevel::ERROR, "Failed to load config");
             panic!();
         };
         let config = cx.create_rw_signal(Arc::new(config));
@@ -194,7 +194,7 @@ impl WindowData {
             &[],
             &self.common.extra_plugin_paths,
         ) else {
-            event!(Level::ERROR, "Failed to load config");
+            trace!(TraceLevel::ERROR, "Failed to load config");
             return;
         };
         self.config.set(Arc::new(config));

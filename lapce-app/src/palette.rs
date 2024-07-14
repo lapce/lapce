@@ -28,7 +28,7 @@ use lapce_xi_rope::Rope;
 use lsp_types::DocumentSymbolResponse;
 use nucleo::Utf32Str;
 use strum::{EnumMessage, IntoEnumIterator};
-use tracing::error;
+use tracing::{trace, TraceLevel};
 
 use self::{
     item::{PaletteItem, PaletteItemContent},
@@ -1134,7 +1134,7 @@ impl PaletteData {
             )) {
                 Ok(v) => Some(v),
                 Err(e) => {
-                    error!("Failed to parse uri: {e}");
+                    trace!(TraceLevel::ERROR, "Failed to parse uri: {e}");
                     None
                 }
             };

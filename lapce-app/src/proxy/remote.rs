@@ -13,7 +13,7 @@ use lapce_rpc::{
     stdio_transport, RpcMessage,
 };
 use thiserror::Error;
-use tracing::{debug, error};
+use tracing::{trace, TraceLevel};
 
 const UNIX_PROXY_SCRIPT: &[u8] = include_bytes!("../../../extra/proxy.sh");
 const WINDOWS_PROXY_SCRIPT: &[u8] = include_bytes!("../../../extra/proxy.ps1");
@@ -88,7 +88,10 @@ pub fn start_remote(
     let (platform, architecture) = host_specification(&remote).unwrap();
 
     if platform == UnknownOS || architecture == HostArchitecture::UnknownArch {
-        error!("detected remote host: {platform}/{architecture}");
+        trace!(
+            TraceLevel::ERROR,
+            "detected remote host: {platform}/{architecture}"
+        );
         return Err(anyhow!("Unknown OS and/or architecture"));
     }
 
@@ -136,7 +139,7 @@ pub fn start_remote(
         )?;
     };
 
-    debug!("remote proxy path: {remote_proxy_path}");
+    trace!(TraceLevel::DEBUG, "remote proxy path: {remote_proxy_path}");
 
     let mut child = match platform {
         // Force cmd.exe usage to resolve %envvar% variables
@@ -166,7 +169,7 @@ pub fn start_remote(
             .take()
             .ok_or_else(|| anyhow!("can't find stdout"))?,
     );
-    debug!("process id: {}", child.id());
+    trace!(TraceLevel::DEBUG, "process id: {}", child.id());
 
     let (writer_tx, writer_rx) = crossbeam_channel::unbounded();
     let (reader_tx, reader_rx) = crossbeam_channel::unbounded();
@@ -259,8 +262,16 @@ fn download_remote(
                     remote_proxy_path,
                 ])
                 .output()?;
-            debug!("{}", String::from_utf8_lossy(&cmd.stderr));
-            debug!("{}", String::from_utf8_lossy(&cmd.stdout));
+            trace!(
+                TraceLevel::DEBUG,
+                "{}",
+                String::from_utf8_lossy(&cmd.stderr)
+            );
+            trace!(
+                TraceLevel::DEBUG,
+                "{}",
+                String::from_utf8_lossy(&cmd.stdout)
+            );
 
             cmd.status
         }
@@ -288,8 +299,16 @@ fn download_remote(
                 ])
                 .output()?;
 
-            debug!("{}", String::from_utf8_lossy(&cmd.stderr));
-            debug!("{}", String::from_utf8_lossy(&cmd.stdout));
+            trace!(
+                TraceLevel::DEBUG,
+                "{}",
+                String::from_utf8_lossy(&cmd.stderr)
+            );
+            trace!(
+                TraceLevel::DEBUG,
+                "{}",
+                String::from_utf8_lossy(&cmd.stdout)
+            );
 
             cmd.status
         }
@@ -324,7 +343,7 @@ fn download_remote(
                 _ => "nightly",
             };
             let url = format!("https://github.com/lapce/lapce/releases/download/{proxy_version}/{proxy_filename}.gz");
-            debug!("proxy download URI: {url}");
+            trace!(TraceLevel::DEBUG, "proxy download URI: {url}");
             let mut resp = reqwest::blocking::get(url).expect("request failed");
             if resp.status().is_success() {
                 let mut out = std::fs::File::create(&local_proxy_file)
@@ -332,7 +351,11 @@ fn download_remote(
                 let mut gz = GzDecoder::new(&mut resp);
                 std::io::copy(&mut gz, &mut out).expect("failed to copy content");
             } else {
-                error!("proxy download failed with: {}", resp.status());
+                trace!(
+                    TraceLevel::ERROR,
+                    "proxy download failed with: {}",
+                    resp.status()
+                );
             }
 
             match platform {
@@ -378,7 +401,7 @@ fn host_specification(
         Ok(cmd) => {
             let stdout = String::from_utf8_lossy(&cmd.stdout).to_lowercase();
             let stdout = stdout.trim();
-            debug!("{}", &stdout);
+            trace!(TraceLevel::DEBUG, "{}", &stdout);
             match stdout {
                 // If empty, then we probably deal with Windows and not Unix
                 // or something went wrong with command output
@@ -393,7 +416,7 @@ fn host_specification(
                             let stdout =
                                 String::from_utf8_lossy(&cmd.stdout).to_lowercase();
                             let stdout = stdout.trim();
-                            debug!("{}", &stdout);
+                            trace!(TraceLevel::DEBUG, "{}", &stdout);
                             match stdout.split_once(' ') {
                                 Some((os, arch)) => (parse_os(os), parse_arch(arch)),
                                 None => {
@@ -408,7 +431,7 @@ fn host_specification(
                                                 String::from_utf8_lossy(&cmd.stdout)
                                                     .to_lowercase();
                                             let stdout = stdout.trim();
-                                            debug!("{}", &stdout);
+                                            trace!(TraceLevel::DEBUG, "{}", &stdout);
                                             match stdout.split_once(' ') {
                                                 Some((os, arch)) => {
                                                     (parse_os(os), parse_arch(arch))
@@ -417,7 +440,7 @@ fn host_specification(
                                             }
                                         }
                                         Err(e) => {
-                                            error!("{e}");
+                                            trace!(TraceLevel::ERROR, "{e}");
                                             (UnknownOS, UnknownArch)
                                         }
                                     }
@@ -425,7 +448,7 @@ fn host_specification(
                             }
                         }
                         Err(e) => {
-                            error!("{e}");
+                            trace!(TraceLevel::ERROR, "{e}");
                             (UnknownOS, UnknownArch)
                         }
                     }
@@ -440,7 +463,7 @@ fn host_specification(
             }
         }
         Err(e) => {
-            error!("{e}");
+            trace!(TraceLevel::ERROR, "{e}");
             (UnknownOS, UnknownArch)
         }
     };

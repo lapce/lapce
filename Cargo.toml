@@ -74,6 +74,7 @@ lapce-xi-rope = { version = "0.3.2", features = ["serde"] }
 
 directory   = { path = "./crates/directory" }
 meta        = { path = "./crates/meta" }
+tracing     = { path = "./crates/tracing" }
 lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
@@ -89,22 +90,22 @@ lsp-types = { git = "https://github.com/lapce/lsp-types", rev = "feaa1e2ec80975c
 regalloc2 = { rev = "5d79e12d0a93b10fc181f4da409b4671dd365228", git = "https://github.com/bytecodealliance/regalloc2" }
 
 
-[workspace.dependencies.tracing]
+[workspace.dependencies.tokio-tracing]
 git     = "https://github.com/tokio-rs/tracing"
 rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing"
 
-[workspace.dependencies.tracing-log]
+[workspace.dependencies.tokio-tracing-log]
 git     = "https://github.com/tokio-rs/tracing"
 rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing-log"
 
-[workspace.dependencies.tracing-subscriber]
+[workspace.dependencies.tokio-tracing-subscriber]
 git     = "https://github.com/tokio-rs/tracing"
 rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing-subscriber"
 
-[workspace.dependencies.tracing-appender]
+[workspace.dependencies.tokio-tracing-appender]
 git     = "https://github.com/tokio-rs/tracing"
 rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing-appender"

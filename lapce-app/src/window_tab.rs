@@ -1,4 +1,3 @@
-use alacritty_terminal::vte::ansi::Handler;
 use std::{
     collections::{BTreeMap, HashSet},
     env,
@@ -8,6 +7,7 @@ use std::{
     time::Instant,
 };
 
+use alacritty_terminal::vte::ansi::Handler;
 use crossbeam_channel::Sender;
 use directory::Directory;
 use floem::{
@@ -37,7 +37,7 @@ use lapce_rpc::{
 };
 use lsp_types::{Diagnostic, ProgressParams, ProgressToken, ShowMessageParams};
 use serde_json::Value;
-use tracing::{debug, error, event, Level};
+use tracing::{trace, TraceLevel};
 
 use crate::{
     about::AboutData,
@@ -78,7 +78,6 @@ use crate::{
         event::{terminal_update_process, TermEvent, TermNotification},
         panel::TerminalPanelData,
     },
-    tracing::*,
     window::WindowCommonData,
     workspace::{LapceWorkspace, LapceWorkspaceType, WorkspaceInfo},
 };
@@ -296,7 +295,7 @@ impl WindowTabData {
             &all_disabled_volts,
             &window_common.extra_plugin_paths,
         ) else {
-            event!(Level::ERROR, "Failed to load config");
+            trace!(TraceLevel::ERROR, "Failed to load config");
             panic!("Failed to load config");
         };
         let lapce_command = Listener::new_empty(cx);
@@ -622,7 +621,7 @@ impl WindowTabData {
             &all_disabled_volts,
             &self.common.window_common.extra_plugin_paths,
         ) else {
-            event!(Level::ERROR, "Failed to load config");
+            trace!(TraceLevel::ERROR, "Failed to load config");
             return;
         };
         self.common.keypress.update(|keypress| {
@@ -684,7 +683,7 @@ impl WindowTabData {
                                 path: Some(if let Some(path) = file.path.pop() {
                                     path
                                 } else {
-                                    tracing::error!("No path");
+                                    trace!(TraceLevel::ERROR, "No path");
                                     return;
                                 }),
                                 last_open: std::time::SystemTime::now()
@@ -719,7 +718,7 @@ impl WindowTabData {
                                 path: if let Some(path) = file.path.pop() {
                                     path
                                 } else {
-                                    tracing::error!("No path");
+                                    trace!(TraceLevel::ERROR, "No path");
                                     return;
                                 },
                             })
@@ -1263,7 +1262,7 @@ impl WindowTabData {
                         self.proxy.proxy_rpc.git_checkout(reference.to_string());
                     }
                 }
-                None => error!("No ref provided"),
+                None => trace!(TraceLevel::ERROR, "No ref provided"),
             },
             SourceControlCommit => {
                 self.source_control.commit();
@@ -1337,7 +1336,7 @@ impl WindowTabData {
                                 };
 
                                 if let Err(err) = do_update() {
-                                    error!("Failed to update: {err}");
+                                    trace!(TraceLevel::ERROR, "Failed to update: {err}");
                                 }
 
                                 send(false);
@@ -1731,7 +1730,7 @@ impl WindowTabData {
                         color_theme::CONFIG_KEY,
                         toml_edit::Value::from(name),
                     ) {
-                        event!(Level::ERROR, "{e}");
+                        trace!(TraceLevel::ERROR, "{e}");
                     };
                 } else {
                     let mut new_config = self.common.config.get_untracked();
@@ -1748,7 +1747,7 @@ impl WindowTabData {
                         "file-icon-theme",
                         toml_edit::Value::from(name),
                     ) {
-                        event!(Level::ERROR, "{e}");
+                        trace!(TraceLevel::ERROR, "{e}");
                     };
                 } else {
                     let mut new_config = self.common.config.get_untracked();
@@ -1765,7 +1764,7 @@ impl WindowTabData {
                         "ui-icon-theme",
                         toml_edit::Value::from(name),
                     ) {
-                        event!(Level::ERROR, "{e}");
+                        trace!(TraceLevel::ERROR, "{e}");
                     };
                 } else {
                     let mut new_config = self.common.config.get_untracked();
@@ -1780,7 +1779,7 @@ impl WindowTabData {
                     "modal",
                     toml_edit::Value::from(modal),
                 ) {
-                    event!(Level::ERROR, "{e}");
+                    trace!(TraceLevel::ERROR, "{e}");
                 };
             }
             InternalCommand::OpenWebUri { uri } => {
@@ -1844,14 +1843,19 @@ impl WindowTabData {
                 {
                     Ok(v) => v,
                     Err(e) => {
-                        return event!(Level::ERROR, "Failed to spawn process: {e}")
+                        return trace!(
+                            TraceLevel::ERROR,
+                            "Failed to spawn process: {e}"
+                        )
                     }
                 };
 
                 match cmd.wait() {
-                    Ok(v) => event!(Level::TRACE, "Process exited with status {v}"),
+                    Ok(v) => {
+                        trace!(TraceLevel::TRACE, "Process exited with status {v}")
+                    }
                     Err(e) => {
-                        event!(Level::ERROR, "Proces exited with an error: {e}")
+                        trace!(TraceLevel::ERROR, "Proces exited with an error: {e}")
                     }
                 };
             }
@@ -1869,7 +1873,10 @@ impl WindowTabData {
                         }
                     })
                 }) else {
-                    error!("cound not find terminal tab data: index={tab_index}");
+                    trace!(
+                        TraceLevel::ERROR,
+                        "cound not find terminal tab data: index={tab_index}"
+                    );
                     return;
                 };
                 let Some(raw) = tab.terminals.with_untracked(|x| {
@@ -1881,7 +1888,10 @@ impl WindowTabData {
                         }
                     })
                 }) else {
-                    error!("cound not find terminal data: index={terminal_index}");
+                    trace!(
+                        TraceLevel::ERROR,
+                        "cound not find terminal data: index={terminal_index}"
+                    );
                     return;
                 };
                 raw.write().term.reset_state();
@@ -2080,7 +2090,7 @@ impl WindowTabData {
                 target,
             } => {
                 use lapce_rpc::core::LogLevel;
-                use tracing_log::log::{log, Level};
+                use tracing::log::log::{log, Level};
 
                 let target = target.clone().unwrap_or(String::from("unknown"));
 
@@ -2104,7 +2114,7 @@ impl WindowTabData {
             }
             CoreNotification::LogMessage { message, target } => {
                 use lsp_types::MessageType;
-                use tracing_log::log::{log, Level};
+                use tracing::log::log::{log, Level};
                 match message.typ {
                     MessageType::ERROR => {
                         log!(target: target, Level::Error, "{}", message.message)
@@ -2694,10 +2704,13 @@ impl WindowTabData {
 fn open_uri(path: &Path) {
     match open::that(path) {
         Ok(_) => {
-            debug!("opened active file: {path:?}");
+            trace!(TraceLevel::DEBUG, "opened active file: {path:?}");
         }
         Err(e) => {
-            error!("failed to open active file: {path:?}, error: {e}");
+            trace!(
+                TraceLevel::ERROR,
+                "failed to open active file: {path:?}, error: {e}"
+            );
         }
     }
 }

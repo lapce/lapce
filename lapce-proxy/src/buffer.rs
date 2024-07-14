@@ -15,7 +15,7 @@ use lapce_core::encoding::offset_utf8_to_utf16;
 use lapce_rpc::buffer::BufferId;
 use lapce_xi_rope::{interval::IntervalBounds, rope::Rope, RopeDelta};
 use lsp_types::*;
-use tracing::{trace, warn};
+use tracing::{trace, TraceLevel};
 
 #[derive(Clone)]
 pub struct Buffer {
@@ -134,9 +134,9 @@ impl Buffer {
                     }
                     let (result, units, replaced) =
                         encoder.encode_from_utf8_to_vec(chunk, &mut buf, last);
-                    trace!("{units} processed");
+                    trace!(TraceLevel::TRACE, "{units} processed");
                     if replaced {
-                        warn!("replacement occured in `{chunk}`");
+                        trace!(TraceLevel::WARN, "replacement occured in `{chunk}`");
                     }
                     match result {
                         CoderResult::InputEmpty => match last {
@@ -251,7 +251,7 @@ pub fn read_path_to_string<P: AsRef<Path>>(path: P) -> Result<(String, String)> 
             contents = s;
         }
         Err(e) => {
-            tracing::error!("Failed to decode from `utf-8`: {e}");
+            trace!(TraceLevel::ERROR, "Failed to decode from `utf-8`: {e}");
 
             use charset_normalizer_rs as chardet;
             use encoding_rs_io::DecodeReaderBytesBuilder;
@@ -262,7 +262,7 @@ pub fn read_path_to_string<P: AsRef<Path>>(path: P) -> Result<(String, String)> 
 
             if let Some(charset) = chardet.get_best() {
                 let enc = charset.encoding();
-                tracing::info!("Detected encoding: {enc}");
+                trace!(TraceLevel::INFO, "Detected encoding: {enc}");
                 enc_reader.encoding(Encoding::for_label(enc.as_bytes()));
                 enc.clone_into(&mut encoding);
             };

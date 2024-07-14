@@ -1,7 +1,7 @@
 use std::{path::Path, process::Command};
 
 use anyhow::Result;
-use tracing::{event, Level};
+use tracing::{trace, TraceLevel};
 
 use crate::{
     proxy::{new_command, remote::Remote},
@@ -22,13 +22,17 @@ impl CustomRemote {
                 cmd.arg(arg);
             }
 
-            event!(Level::DEBUG, "{:?}", cmd.get_args());
+            trace!(TraceLevel::DEBUG, "{:?}", cmd.get_args());
 
             let output = cmd.output()?;
 
-            event!(Level::DEBUG, "{}", String::from_utf8_lossy(&output.stderr));
+            trace!(
+                TraceLevel::DEBUG,
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
             let stdout = String::from_utf8_lossy(&output.stdout);
-            event!(Level::DEBUG, "{}", stdout);
+            trace!(TraceLevel::DEBUG, "{}", stdout);
             return Ok(Some(stdout.trim().to_string()));
         }
 
@@ -54,8 +58,16 @@ impl Remote for CustomRemote {
 
         let output = cmd.output()?;
 
-        event!(Level::DEBUG, "{}", String::from_utf8_lossy(&output.stderr));
-        event!(Level::DEBUG, "{}", String::from_utf8_lossy(&output.stdout));
+        trace!(
+            TraceLevel::DEBUG,
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        trace!(
+            TraceLevel::DEBUG,
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
 
         Ok(())
     }

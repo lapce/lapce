@@ -16,7 +16,7 @@ use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use serde::Deserialize;
 use strum::VariantNames;
-use tracing::error;
+use tracing::{trace, TraceLevel};
 
 use self::{
     color::LapceColor,
@@ -190,7 +190,10 @@ impl LapceConfig {
         let mut lapce_config: LapceConfig = match config.try_deserialize() {
             Ok(config) => config,
             Err(error) => {
-                error!("Failed to deserialize configuration file: {error}");
+                trace!(
+                    TraceLevel::ERROR,
+                    "Failed to deserialize configuration file: {error}"
+                );
                 LapceConfig::default_lapce_config()?.clone()
             }
         };
@@ -464,7 +467,7 @@ impl LapceConfig {
         match self.color.ui.get(name) {
             Some(c) => *c,
             None => {
-                error!("Failed to find key: {name}");
+                trace!(TraceLevel::ERROR, "Failed to find key: {name}");
                 Color::HOT_PINK
             }
         }

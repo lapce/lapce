@@ -57,7 +57,10 @@ use lapce_rpc::{
 use lsp_types::{CompletionItemKind, MessageType, ShowMessageParams};
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
-use tracing_subscriber::{filter::Targets, reload::Handle};
+use tracing::{
+    subscriber::{filter::Targets, reload::Handle},
+    trace, TraceLevel,
+};
 
 use crate::{
     about, alert,
@@ -97,7 +100,6 @@ use crate::{
     status::status,
     text_input::TextInputBuilder,
     title::{title, window_controls_view},
-    tracing::*,
     update::ReleaseInfo,
     window::{TabsInfo, WindowData, WindowInfo},
     window_tab::{Focus, WindowTabData},
@@ -182,7 +184,7 @@ impl AppData {
         let level_filter = self.config.get_untracked().core.log_level_filter.clone();
         if level_filter != previous_filter {
             if let Ok(new_targets) =
-                level_filter.parse::<tracing_subscriber::filter::Targets>()
+                level_filter.parse::<tracing::subscriber::filter::Targets>()
             {
                 trace!(
                     TraceLevel::WARN,
@@ -3882,7 +3884,7 @@ pub fn launch() {
 
     let level_filter = config.get_untracked().core.log_level_filter.clone();
     if let Ok(new_targets) =
-        level_filter.parse::<tracing_subscriber::filter::Targets>()
+        level_filter.parse::<tracing::subscriber::filter::Targets>()
     {
         if let Err(error) = reload_handle.modify(|targets| *targets = new_targets) {
             trace!(
@@ -4059,8 +4061,6 @@ fn fork() -> Result<()> {
 fn load_shell_env() {
     use std::process::Command;
 
-    use tracing::warn;
-
     #[cfg(not(windows))]
     let shell = match std::env::var("SHELL") {
         Ok(s) => s,
@@ -4102,7 +4102,7 @@ fn load_shell_env() {
         .for_each(|(key, value)| {
             if let Ok(v) = std::env::var(key) {
                 if v != value {
-                    warn!("Overwriting '{key}', previous value: '{v}', new value '{value}'");
+                    trace!(TraceLevel::WARN, "Overwriting '{key}', previous value: '{v}', new value '{value}'");
                 }
             };
             std::env::set_var(key, value);

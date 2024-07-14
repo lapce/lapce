@@ -17,7 +17,6 @@ git2               = { workspace = true }
 globset            = { workspace = true }
 indexmap           = { workspace = true }
 interprocess       = { workspace = true }
-meta               = { workspace = true }
 notify             = { workspace = true }
 parking_lot        = { workspace = true }
 regex              = { workspace = true }
@@ -26,8 +25,6 @@ serde              = { workspace = true }
 serde_json         = { workspace = true }
 tar                = { workspace = true }
 toml               = { workspace = true }
-tracing            = { workspace = true }
-tracing-log        = { workspace = true }
 url                = { workspace = true }
 zstd               = { workspace = true }
 
