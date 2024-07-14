@@ -12,8 +12,8 @@ use std::{
 };
 
 use anyhow::{anyhow, Context, Result};
+use directory::Directory;
 use jsonrpc_lite::{Id, Params};
-use lapce_core::directory::Directory;
 use lapce_rpc::{
     plugin::{PluginId, VoltID, VoltInfo, VoltMetadata},
     style::LineStyle,

@@ -9,6 +9,7 @@ use std::{
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use crossbeam_channel::Sender;
+use directory::Directory;
 use floem::{
     action::show_context_menu,
     cosmic_text::{Style as FontStyle, Weight},
@@ -46,7 +47,6 @@ use floem::{
 };
 use lapce_core::{
     command::{EditCommand, FocusCommand},
-    directory::Directory,
     syntax::highlight::reset_highlight_configs,
 };
 use lapce_rpc::{

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Error, Result};
-use lapce_core::directory::Directory;
+use directory::Directory;
 use lapce_rpc::{
     file::{LineCol, PathObject},
     proxy::{ProxyMessage, ProxyNotification},

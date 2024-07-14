@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
-use lapce_core::directory::Directory;
+use directory::Directory;
 use serde::Deserialize;
 
 #[derive(Clone, Deserialize, Debug)]

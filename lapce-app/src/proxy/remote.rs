@@ -5,8 +5,8 @@ use std::{
 };
 
 use anyhow::{anyhow, Context, Result};
+use directory::Directory;
 use flate2::read::GzDecoder;
-use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
     proxy::{ProxyRpc, ProxyRpcHandler},

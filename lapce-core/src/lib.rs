@@ -1,6 +1,5 @@
 #![allow(clippy::manual_clamp)]
 
-pub mod directory;
 pub mod encoding;
 pub mod language;
 pub mod lens;

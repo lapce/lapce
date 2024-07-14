@@ -18,9 +18,9 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use crossbeam_channel::{Receiver, Sender};
+use directory::Directory;
 use dyn_clone::DynClone;
 use flate2::read::GzDecoder;
-use lapce_core::directory::Directory;
 use lapce_rpc::{
     core::CoreRpcHandler,
     dap_types::{self, DapId, RunDebugConfig, SourceBreakpoint, ThreadId},

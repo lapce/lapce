@@ -34,6 +34,9 @@ zstd               = { workspace = true }
 lsp-types = { workspace = true }
 psp-types = { workspace = true }
 
+directory         = { workspace = true }
+meta              = { workspace = true }
+tracing           = { workspace = true }
 lapce-xi-rope     = { workspace = true }
 lapce-core        = { workspace = true }
 lapce-rpc         = { workspace = true }

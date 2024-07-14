@@ -6,9 +6,9 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use directory::Directory;
 use floem::peniko::Color;
 use itertools::Itertools;
-use lapce_core::directory::Directory;
 use lapce_proxy::plugin::wasi::find_all_volts;
 use lapce_rpc::plugin::VoltID;
 use lsp_types::{CompletionItemKind, SymbolKind};

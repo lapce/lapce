@@ -5,6 +5,7 @@ use std::{
     str::FromStr,
 };
 
+use directory::Directory;
 use lapce_rpc::style::{LineStyle, Style};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -12,10 +13,7 @@ use strum_macros::{AsRefStr, Display, EnumMessage, EnumString, IntoStaticStr};
 use tracing::{event, Level};
 use tree_sitter::{Point, TreeCursor};
 
-use crate::{
-    directory::Directory,
-    syntax::highlight::{HighlightConfiguration, HighlightIssue},
-};
+use crate::syntax::highlight::{HighlightConfiguration, HighlightIssue};
 
 pub static RUNTIME_LANGUAGES: Lazy<Vec<SyntaxProperties>> = Lazy::new(Vec::new);
 

@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Context, Result};
-use lapce_core::directory::Directory;
+use directory::Directory;
 
 use crate::{tracing::*, update::ReleaseInfo};
 

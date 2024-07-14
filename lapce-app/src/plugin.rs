@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use directory::Directory;
 use floem::{
     action::show_context_menu,
     ext_event::create_ext_action,
@@ -22,7 +23,7 @@ use floem::{
     IntoView, View,
 };
 use indexmap::IndexMap;
-use lapce_core::{command::EditCommand, directory::Directory, mode::Mode};
+use lapce_core::{command::EditCommand, mode::Mode};
 use lapce_proxy::plugin::{download_volt, volt_icon, wasi::find_all_volts};
 use lapce_rpc::plugin::{VoltID, VoltInfo, VoltMetadata};
 use serde::{Deserialize, Serialize};

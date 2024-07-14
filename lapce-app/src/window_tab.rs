@@ -9,6 +9,7 @@ use std::{
 };
 
 use crossbeam_channel::Sender;
+use directory::Directory;
 use floem::{
     action::{open_file, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
@@ -23,8 +24,7 @@ use floem::{
 use indexmap::IndexMap;
 use itertools::Itertools;
 use lapce_core::{
-    command::FocusCommand, cursor::CursorAffinity, directory::Directory, mode::Mode,
-    register::Register,
+    command::FocusCommand, cursor::CursorAffinity, mode::Mode, register::Register,
 };
 use lapce_rpc::{
     core::CoreNotification,

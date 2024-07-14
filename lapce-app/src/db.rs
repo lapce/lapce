@@ -6,8 +6,8 @@ use std::{
 
 use anyhow::{Context, Result};
 use crossbeam_channel::{unbounded, Sender};
+use directory::Directory;
 use floem::peniko::kurbo::Vec2;
-use lapce_core::directory::Directory;
 use lapce_rpc::plugin::VoltID;
 use sha2::{Digest, Sha256};
 
