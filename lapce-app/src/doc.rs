@@ -152,6 +152,8 @@ pub struct DocInfo {
 /// (Offset -> (Plugin the code actions are from, Code Actions))
 pub type CodeActions = im::HashMap<usize, Arc<(PluginId, CodeActionResponse)>>;
 
+pub type CodeLens = im::HashMap<PluginId, Arc<Vec<lsp_types::CodeLens>>>;
+
 #[derive(Clone)]
 pub struct Doc {
     pub scope: Scope,
@@ -179,6 +181,8 @@ pub struct Doc {
 
     /// (Offset -> (Plugin the code actions are from, Code Actions))
     pub code_actions: RwSignal<CodeActions>,
+
+    pub code_lens: RwSignal<CodeLens>,
 
     /// Stores information about different versions of the document from source control.
     histories: RwSignal<im::HashMap<String, DocumentHistory>>,
@@ -242,6 +246,7 @@ impl Doc {
             preedit: PreeditData::new(cx),
             editors,
             common,
+            code_lens: cx.create_rw_signal(im::HashMap::new()),
         }
     }
 
@@ -290,6 +295,7 @@ impl Doc {
             preedit: PreeditData::new(cx),
             editors,
             common,
+            code_lens: cx.create_rw_signal(im::HashMap::new()),
         }
     }
 
@@ -338,6 +344,7 @@ impl Doc {
             preedit: PreeditData::new(cx),
             editors,
             common,
+            code_lens: cx.create_rw_signal(im::HashMap::new()),
         }
     }
 

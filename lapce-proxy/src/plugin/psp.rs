@@ -29,7 +29,7 @@ use lsp_types::{
         ShowMessage,
     },
     request::{
-        CodeActionRequest, CodeActionResolveRequest, Completion,
+        CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         HoverRequest, Initialize, InlayHintRequest, InlineCompletionRequest,
         PrepareRenameRequest, References, RegisterCapability, Rename,
@@ -779,6 +779,9 @@ impl PluginHostHandler {
             }
             CodeActionResolveRequest::METHOD => {
                 self.server_capabilities.code_action_provider.is_some()
+            }
+            CodeLensRequest::METHOD => {
+                self.server_capabilities.code_lens_provider.is_some()
             }
             _ => false,
         }
