@@ -233,8 +233,8 @@ jobs:
         include:
           - triple: x86_64-unknown-linux-musl
             platform: x86_64
-          - triple: aarch64-unknown-linux-musl
-            platform: aarch64
+          # - triple: aarch64-unknown-linux-musl
+          #   platform: aarch64
     steps:
       - uses: actions/checkout@v4
 
