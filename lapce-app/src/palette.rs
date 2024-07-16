@@ -413,7 +413,10 @@ impl PaletteData {
             PaletteKind::SCMReferences => {
                 self.get_scm_references();
             }
-            PaletteKind::TerminalProfile => self.get_terminal_profiles(),
+            PaletteKind::TerminalProfile => {
+                self.get_terminal_profiles();
+            }
+            PaletteKind::Encoding => {}
         }
     }
 
@@ -1412,12 +1415,21 @@ impl PaletteData {
                         data: Some(serde_json::json!(name.to_owned())),
                     });
                 }
-                PaletteItemContent::TerminalProfile { name: _, profile } => self
-                    .common
-                    .internal_command
-                    .send(InternalCommand::NewTerminal {
-                        profile: Some(profile.to_owned()),
-                    }),
+                PaletteItemContent::TerminalProfile { name: _, profile } => {
+                    self.common.internal_command.send(
+                        InternalCommand::NewTerminal {
+                            profile: Some(profile.to_owned()),
+                        },
+                    );
+                }
+                PaletteItemContent::Encoding { .. } => {
+                    // self
+                    // .common
+                    // .internal_command
+                    // .send(InternalCommand::NewTerminal {
+                    //     profile: Some(profile.to_owned()),
+                    // });
+                }
             }
         } else if self.kind.get_untracked() == PaletteKind::SshHost {
             let input = self.input.with_untracked(|input| input.input.clone());
@@ -1560,6 +1572,7 @@ impl PaletteData {
                     }),
                 PaletteItemContent::SCMReference { .. } => {}
                 PaletteItemContent::TerminalProfile { .. } => {}
+                PaletteItemContent::Encoding { .. } => {}
             }
         }
     }

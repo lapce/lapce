@@ -579,6 +579,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(serialize = "diff_files")]
     DiffFiles,
 
+    #[strum(message = "Change Encoding")]
+    #[strum(serialize = "change_encoding")]
+    ChangeEncoding,
+
     #[strum(serialize = "quit")]
     #[strum(message = "Quit Editor")]
     Quit,

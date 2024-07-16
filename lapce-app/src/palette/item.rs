@@ -96,4 +96,7 @@ pub enum PaletteItemContent {
         name: String,
         profile: lapce_rpc::terminal::TerminalProfile,
     },
+    Encoding {
+        name: String,
+    },
 }

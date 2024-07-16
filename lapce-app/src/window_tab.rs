@@ -779,6 +779,7 @@ impl WindowTabData {
                     }
                 });
             }
+            ChangeEncoding => {}
 
             // ==== Configuration / Info Files and Folders ====
             OpenSettings => {

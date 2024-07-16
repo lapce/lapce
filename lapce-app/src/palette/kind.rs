@@ -26,6 +26,7 @@ pub enum PaletteKind {
     LineEnding,
     SCMReferences,
     TerminalProfile,
+    Encoding,
     DiffFiles,
 }
 
@@ -54,7 +55,8 @@ impl PaletteKind {
             | PaletteKind::Language
             | PaletteKind::LineEnding
             | PaletteKind::SCMReferences
-            | PaletteKind::DiffFiles => "",
+            | PaletteKind::DiffFiles
+            | PaletteKind::Encoding => "",
             #[cfg(windows)]
             PaletteKind::WslHost => "",
         }
@@ -115,6 +117,7 @@ impl PaletteKind {
                 Some(LapceWorkbenchCommand::PaletteSCMReferences)
             }
             PaletteKind::TerminalProfile => None, // InternalCommand::NewTerminal
+            PaletteKind::Encoding => Some(LapceWorkbenchCommand::ChangeEncoding),
             PaletteKind::DiffFiles => Some(LapceWorkbenchCommand::DiffFiles),
         }
     }
@@ -147,6 +150,7 @@ impl PaletteKind {
             | PaletteKind::Language
             | PaletteKind::LineEnding
             | PaletteKind::SCMReferences
+            | PaletteKind::Encoding
             | PaletteKind::DiffFiles => input,
             PaletteKind::PaletteHelp
             | PaletteKind::Command
