@@ -1,3 +1,4 @@
+use alacritty_terminal::vte::ansi::Handler;
 use std::{
     collections::{BTreeMap, HashSet},
     env,
@@ -1789,6 +1790,38 @@ impl WindowTabData {
                         event!(Level::ERROR, "Proces exited with an error: {e}")
                     }
                 };
+            }
+            InternalCommand::ClearTerminalBuffer {
+                view_id,
+                tab_index,
+                terminal_index,
+            } => {
+                let Some(tab) = self.terminal.tab_info.with_untracked(|x| {
+                    x.tabs.iter().find_map(|(index, data)| {
+                        if index.get_untracked() == tab_index {
+                            Some(data.clone())
+                        } else {
+                            None
+                        }
+                    })
+                }) else {
+                    error!("cound not find terminal tab data: index={tab_index}");
+                    return;
+                };
+                let Some(raw) = tab.terminals.with_untracked(|x| {
+                    x.iter().find_map(|(index, data)| {
+                        if index.get_untracked() == terminal_index {
+                            Some(data.raw.get_untracked())
+                        } else {
+                            None
+                        }
+                    })
+                }) else {
+                    error!("cound not find terminal data: index={terminal_index}");
+                    return;
+                };
+                raw.write().term.reset_state();
+                view_id.request_paint();
             }
         }
     }
