@@ -183,6 +183,10 @@ pub enum LapceWorkbenchCommand {
     #[strum(message = "Open File")]
     OpenFile,
 
+    #[strum(serialize = "select_in_file_explorer")]
+    #[strum(message = "Select in File Explorer")]
+    SelectInFileExplorer,
+
     #[strum(serialize = "reveal_active_file_in_file_explorer")]
     #[strum(message = "Reveal Active File in File Explorer")]
     RevealActiveFileInFileExplorer,

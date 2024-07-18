@@ -290,7 +290,7 @@ fn new_file_node_view(
     let ui_line_height = data.common.ui_line_height;
     let config = data.common.config;
     let naming = data.naming;
-
+    let scroll_to_line = data.scroll_to_line;
     let secondary_click_data = data.clone();
 
     scroll(
@@ -427,6 +427,14 @@ fn new_file_node_view(
             if let Some(path) = &secondary_click_data.common.workspace.path {
                 secondary_click_data.secondary_click(path);
             }
+        }
+    })
+    .scroll_to(move || {
+        if let Some(line) = scroll_to_line.get() {
+            let line_height = ui_line_height.get();
+            Some((0.0, line * line_height).into())
+        } else {
+            None
         }
     })
 }

@@ -49,6 +49,7 @@ pub struct FileExplorerData {
     pub naming: RwSignal<Naming>,
     pub naming_editor_data: EditorData,
     pub common: Rc<CommonData>,
+    pub scroll_to_line: RwSignal<Option<f64>>,
     left_diff_path: RwSignal<Option<PathBuf>>,
 }
 
@@ -128,6 +129,7 @@ impl FileExplorerData {
             naming,
             naming_editor_data,
             common,
+            scroll_to_line: cx.create_rw_signal(None),
             left_diff_path: cx.create_rw_signal(None),
         };
         if data.common.workspace.path.is_some() {
@@ -396,6 +398,58 @@ impl FileExplorerData {
                 .send(InternalCommand::OpenFile {
                     path: path.to_path_buf(),
                 })
+        }
+    }
+
+    pub fn select(&self, path: PathBuf) {
+        let done = self
+            .root
+            .try_update(|root| {
+                // the directories in which the file are located are all readed and opened
+                if root.get_file_node(&path).is_some() {
+                    for current_path in path.ancestors() {
+                        if let Some(file) = root.get_file_node_mut(current_path) {
+                            if file.is_dir {
+                                file.open = true;
+                            }
+                        }
+                    }
+                    root.update_node_count_recursive(&path);
+                    true
+                } else {
+                    // read and open the directories in which the file are located
+                    let mut read_dir = None;
+                    // Whether the file is in the workspace
+                    let mut exist = false;
+                    for current_path in path.ancestors() {
+                        if let Some(file) = root.get_file_node_mut(current_path) {
+                            exist = true;
+                            if file.is_dir {
+                                file.open = true;
+                                if !file.read {
+                                    read_dir = Some(current_path.to_path_buf())
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    if let (true, Some(dir)) = (exist, read_dir) {
+                        let explorer = self.clone();
+                        let select_path = path.clone();
+                        self.read_dir_cb(&dir, move |_| {
+                            explorer.select(select_path);
+                        })
+                    }
+                    false
+                }
+            })
+            .unwrap_or(false);
+        if done {
+            let (found, line) =
+                self.root.with_untracked(|x| x.find_file_at_line(&path));
+            if found {
+                self.scroll_to_line.set(Some(line))
+            }
         }
     }
 
