@@ -401,7 +401,7 @@ impl FileExplorerData {
         }
     }
 
-    pub fn select(&self, path: PathBuf) {
+    pub fn reveal_in_file_tree(&self, path: PathBuf) {
         let done = self
             .root
             .try_update(|root| {
@@ -437,7 +437,7 @@ impl FileExplorerData {
                         let explorer = self.clone();
                         let select_path = path.clone();
                         self.read_dir_cb(&dir, move |_| {
-                            explorer.select(select_path);
+                            explorer.reveal_in_file_tree(select_path);
                         })
                     }
                     false

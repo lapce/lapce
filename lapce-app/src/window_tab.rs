@@ -1364,7 +1364,7 @@ impl WindowTabData {
                     self.main_split.active_editor.get_untracked()
                 {
                     if let DocContent::File {path, ..} = editor_data.doc().content.get_untracked() {
-                        self.file_explorer.select(path);
+                        self.file_explorer.reveal_in_file_tree(path);
                     }
                 }
             }
