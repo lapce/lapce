@@ -1359,7 +1359,7 @@ impl WindowTabData {
             Quit => {
                 floem::quit_app();
             }
-            SelectInFileExplorer => {
+            RevealInFileTree => {
                 if let Some(editor_data) =
                     self.main_split.active_editor.get_untracked()
                 {

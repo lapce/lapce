@@ -2533,7 +2533,7 @@ impl EditorData {
                 Some(CommandKind::Edit(EditCommand::ClipboardPaste)),
                 None,
                 Some(CommandKind::Workbench(
-                    LapceWorkbenchCommand::SelectInFileExplorer,
+                    LapceWorkbenchCommand::RevealInFileTree,
                 )),
                 Some(CommandKind::Workbench(
                     LapceWorkbenchCommand::PaletteCommand,
