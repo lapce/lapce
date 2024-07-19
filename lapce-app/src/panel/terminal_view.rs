@@ -31,12 +31,16 @@ pub fn terminal_panel(window_tab_data: Rc<WindowTabData>) -> impl View {
     let focus = window_tab_data.common.focus;
     stack((
         terminal_tab_header(window_tab_data.clone()),
-        terminal_tab_content(window_tab_data),
+        terminal_tab_content(window_tab_data.clone()),
     ))
     .on_event_cont(EventListener::PointerDown, move |_| {
         if focus.get_untracked() != Focus::Panel(PanelKind::Terminal) {
             focus.set(Focus::Panel(PanelKind::Terminal));
         }
+    })
+    .on_double_click(move |_| {
+        window_tab_data.panel.toggle_bottom_maximize();
+        EventPropagation::Stop
     })
     .style(|s| s.absolute().size_pct(100.0, 100.0).flex_col())
     .debug_name("Terminal Panel")
