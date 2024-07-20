@@ -24,8 +24,6 @@ apk add --no-cache \
   ${DISTRIBUTION_PACKAGES}
 EOF
 
-SHELL [ "/bin/bash", "-c" ]
-
 WORKDIR /source
 COPY --link . .
 
@@ -81,8 +79,6 @@ RUN \
 <<EOF
 #!/usr/bin/env bash
 set -euxo pipefail
-
-export XX_CC_PREFER_LINKER=lld
 
 xx-clang --setup-target-triple
 xx-clang --wrap
