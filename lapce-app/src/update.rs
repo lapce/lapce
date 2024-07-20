@@ -53,7 +53,11 @@ pub fn download_release(release: &ReleaseInfo) -> Result<PathBuf> {
         Directory::updates_directory().ok_or_else(|| anyhow!("no directory"))?;
     let name = match std::env::consts::OS {
         "macos" => "Lapce-macos.dmg",
-        "linux" => "Lapce-linux.tar.gz",
+        "linux" => match std::env::consts::ARCH {
+            "aarch64" => "lapce-linux-arm64.tar.gz",
+            "x86_64" => "lapce-linux-amd64.tar.gz",
+            _ => return Err(anyhow!("arch not supported")),
+        },
         #[cfg(feature = "portable")]
         "windows" => "Lapce-windows-portable.zip",
         #[cfg(not(feature = "portable"))]

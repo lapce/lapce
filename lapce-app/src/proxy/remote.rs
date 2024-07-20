@@ -319,7 +319,10 @@ fn download_remote(
                 // when needed
                 std::fs::remove_file(&local_proxy_file)?;
             }
-            let proxy_version = meta::VERSION;
+            let proxy_version = match meta::RELEASE {
+                meta::ReleaseType::Stable => meta::VERSION,
+                _ => "nightly",
+            };
             let url = format!("https://github.com/lapce/lapce/releases/download/{proxy_version}/{proxy_filename}.gz");
             debug!("proxy download URI: {url}");
             let mut resp = reqwest::blocking::get(url).expect("request failed");
