@@ -76,6 +76,7 @@ fn get_info() -> Result<ReleaseInfo> {
     Ok(release_info)
 }
 
+#[cfg(not(target_os = "linux"))]
 fn get_head() -> Option<String> {
     let repo = match git2::Repository::discover(format!(
         "{}/..",
@@ -97,4 +98,17 @@ fn get_head() -> Option<String> {
     let commit = reference.target();
     println!("cargo::warning=Commit found: {commit:?}");
     commit.map(|s| s.to_string().split_at(8).0.to_owned())
+}
+
+#[cfg(target_os = "linux")]
+fn get_head() -> Option<String> {
+    let cmd = std::process::Command::new("git")
+        .args(["show", "--pretty=format:%h", "--no-patch"])
+        .output()
+        .ok()?;
+
+    let commit = String::from_utf8_lossy(&cmd.stdout);
+    let commit = commit.trim();
+
+    Some(commit.to_string())
 }

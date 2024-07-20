@@ -37,4 +37,6 @@ distribution = []
 
 [build-dependencies]
 anyhow = { workspace = true }
+
+[target.'cfg(not(target_os = "linux"))'.build-dependencies]
 git2   = { workspace = true }

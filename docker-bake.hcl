@@ -222,11 +222,19 @@ target "alpine" {
   matrix = {
     os_name = ["alpine"]
     build = [
+      { os_version = "3.20", packages = null, platforms = null },
       { os_version = "3.18", packages = null, platforms = null },
     ]
   }
 }
 
 target "cross-alpine" {
-  inherits = ["alpine-3-18", "cross-binary"]
+  inherits = ["alpine-3-20", "cross-binary"]
+}
+
+target "alpine-dev" {
+  inherits = ["alpine-3-20"]
+  target   = "dev"
+  tags     = ["lapce/lapce:dev"]
+  output   = ["type=docker"]
 }
