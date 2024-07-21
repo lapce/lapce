@@ -75,9 +75,9 @@ lapce-core  = { path = "./lapce-core" }
 lapce-rpc   = { path = "./lapce-rpc" }
 lapce-proxy = { path = "./lapce-proxy" }
 
-floem = { git = "https://github.com/lapce/floem", rev = "9a9e6c21834ce2f30db2c36d9aadfeb98f899277", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
+floem = { git = "https://github.com/lapce/floem", rev = "d2a05e8d6f78da4733bf61666d8c94deaa5da6c6", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
 # floem = { path = "../floem", features = ["editor", "serde", "default-image-formats", "rfd-async-std"] }
-floem-editor-core = { git = "https://github.com/lapce/floem", rev = "9a9e6c21834ce2f30db2c36d9aadfeb98f899277", features = ["serde"] }
+floem-editor-core = { git = "https://github.com/lapce/floem", rev = "d2a05e8d6f78da4733bf61666d8c94deaa5da6c6", features = ["serde"] }
 # floem-editor-core = { path = "../floem/editor-core/", features = ["serde"] }
 
 [patch.crates-io]
@@ -107,7 +107,7 @@ rev     = "908cc432a5994f6e17c8f36e13c217dc40085704"
 package = "tracing-appender"
 
 [workspace.dependencies.alacritty_terminal]
-version = "0.23.0"
+version = "0.24.0"
 
 [workspace.dependencies.windows-sys]
 version  = "0"
