@@ -115,9 +115,7 @@ impl Terminal {
         let mut events =
             polling::Events::with_capacity(NonZeroUsize::new(1024).unwrap());
 
-        let mut should_exit = false;
         let timeout = Some(Duration::from_secs(6));
-
         'event_loop: loop {
             events.clear();
             if let Err(err) = self.poller.wait(&mut events, timeout) {
@@ -125,9 +123,6 @@ impl Terminal {
                     ErrorKind::Interrupted => continue,
                     _ => panic!("EventLoop polling error: {err:?}"),
                 }
-            }
-            if should_exit && events.is_empty() {
-                break;
             }
 
             // Handle channel events, if there are any.
@@ -141,7 +136,8 @@ impl Terminal {
                         if let Some(tty::ChildEvent::Exited(_)) =
                             self.pty.next_child_event()
                         {
-                            should_exit = true;
+                            let _ = self.pty_read(&core_rpc, &mut buf);
+                            break 'event_loop;
                         }
                     }
 
