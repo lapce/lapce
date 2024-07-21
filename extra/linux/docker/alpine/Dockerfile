@@ -106,8 +106,8 @@ xx-cargo build \
   --frozen \
   --package lapce-app \
   --profile release-lto \
-  --no-default-features 
-  
+  --no-default-features
+
 export RUSTFLAGS="${RUSTFLAGS} -C target-feature=+crt-static"
 
 xx-cargo build

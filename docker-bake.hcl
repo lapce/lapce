@@ -1,5 +1,5 @@
 variable "RUST_VERSION" {
-  default = "1.76"
+  default = "1"
 }
 
 variable "XX_VERSION" {
