@@ -20,7 +20,7 @@ RUN \
 apk upgrade -Ua
 apk add --no-cache \
   bash clang lld llvm file git sccache \
-  cmake pkgconf build-base abuild curl \
+  cmake pkgconf build-base abuild curl mold \
   ${DISTRIBUTION_PACKAGES}
 EOF
 
@@ -98,7 +98,7 @@ export OPENSSL_STATIC="1"
 export PKG_CONFIG_ALL_STATIC="1"
 export OPENSSL_NO_VENDOR="1"
 export ZSTD_SYS_USE_PKG_CONFIG="1"
-export RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=lld -C target-feature=+crt-static"
+export RUSTFLAGS="-C linker=clang -C link-arg=-fuse-ld=mold -C target-feature=+crt-static"
 export PKG_CONFIG="$(xx-clang --print-prog-name=pkg-config)"
 
 xx-cargo build \
