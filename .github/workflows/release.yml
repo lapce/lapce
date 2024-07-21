@@ -229,6 +229,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Build lapce-proxy binary
         run: |
           docker buildx create --driver=docker-container --use
