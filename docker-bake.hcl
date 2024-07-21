@@ -195,6 +195,7 @@ variable "APK_FAMILY_PACKAGES" {
     "lld",
     "build-base",
     "rustup",
+    "openssl-dev",
     "openssl-libs-static",
     "libssh2-static",
     "libgit2-static",
