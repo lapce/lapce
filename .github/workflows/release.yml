@@ -311,7 +311,7 @@ jobs:
   publish:
     needs:
       - linux
-      - linux-musl
+      - lapce-proxy
       - deb
       - rpm
       - windows
