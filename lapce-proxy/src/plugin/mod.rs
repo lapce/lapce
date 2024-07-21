@@ -33,7 +33,7 @@ use lapce_rpc::{
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     request::{
-        CodeActionRequest, CodeActionResolveRequest, Completion,
+        CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
         InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
@@ -43,12 +43,13 @@ use lsp_types::{
     ClientCapabilities, CodeAction, CodeActionCapabilityResolveSupport,
     CodeActionClientCapabilities, CodeActionContext, CodeActionKind,
     CodeActionKindLiteralSupport, CodeActionLiteralSupport, CodeActionParams,
-    CodeActionResponse, CompletionClientCapabilities, CompletionItem,
-    CompletionItemCapability, CompletionItemCapabilityResolveSupport,
-    CompletionParams, CompletionResponse, Diagnostic, DocumentFormattingParams,
-    DocumentSymbolParams, DocumentSymbolResponse, FormattingOptions, GotoCapability,
-    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverClientCapabilities,
-    HoverParams, InlayHint, InlayHintClientCapabilities, InlayHintParams,
+    CodeActionResponse, CodeLens, CodeLensParams, CompletionClientCapabilities,
+    CompletionItem, CompletionItemCapability,
+    CompletionItemCapabilityResolveSupport, CompletionParams, CompletionResponse,
+    Diagnostic, DocumentFormattingParams, DocumentSymbolParams,
+    DocumentSymbolResponse, FormattingOptions, GotoCapability, GotoDefinitionParams,
+    GotoDefinitionResponse, Hover, HoverClientCapabilities, HoverParams, InlayHint,
+    InlayHintClientCapabilities, InlayHintParams,
     InlineCompletionClientCapabilities, InlineCompletionParams,
     InlineCompletionResponse, InlineCompletionTriggerKind, Location, MarkupKind,
     MessageActionItemCapabilities, ParameterInformationSettings,
@@ -639,6 +640,34 @@ impl PluginCatalogRpcHandler {
         };
         let language_id =
             Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
+    pub fn get_code_lens(
+        &self,
+        path: &Path,
+        cb: impl FnOnce(PluginId, Result<Option<Vec<CodeLens>>, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = CodeLensRequest::METHOD;
+        let params = CodeLensParams {
+            text_document: TextDocumentIdentifier { uri },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+
         self.send_request_to_all_plugins(
             method,
             params,

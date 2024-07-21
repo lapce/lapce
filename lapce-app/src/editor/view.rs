@@ -1466,6 +1466,32 @@ fn editor_gutter(
         })
     };
 
+    let code_lens_view = move |line: usize| {
+        let line_y = screen_lines
+            .with_untracked(|s| s.info_for_line(line))
+            .map(|l| l.y)
+            .unwrap_or_default();
+        container(svg(move || config.get().ui_svg(LapceIcons::START)).style(
+            move |s| {
+                let config = config.get();
+                let size = config.ui.icon_size() as f32 + 2.0;
+                s.size(size, size)
+                    .color(config.color(LapceColor::LAPCE_ICON_ACTIVE))
+            },
+        ))
+        .on_click_stop(move |_| {
+            // todo
+        })
+        .style(move |s| {
+            s.width(padding_right)
+                .height(config.get().editor.line_height() as f32)
+                .justify_center()
+                .items_center()
+                .cursor(CursorStyle::Pointer)
+                .margin_top(line_y as f32 - viewport.get().y0 as f32)
+        })
+    };
+
     stack((
         stack((
             empty().style(move |s| s.width(padding_left)),
@@ -1564,6 +1590,40 @@ fn editor_gutter(
                         }
                     })
                     .style(|s| s.size_pct(100.0, 100.0)),
+                dyn_stack(
+                    move || {
+                        let doc = doc.get();
+                        let lines = doc.code_lens.with(|x| {
+                            let lines: Vec<usize> = x
+                                .iter()
+                                .map(|(_, lens)| {
+                                    lens.iter()
+                                        .map(|len| len.range.start.line as usize)
+                                        .collect()
+                                })
+                                .fold(
+                                    Vec::new(),
+                                    |mut x: Vec<usize>, mut y: Vec<usize>| {
+                                        x.append(&mut y);
+                                        x
+                                    },
+                                );
+                            lines
+                        });
+                        lines
+                    },
+                    move |i| *i,
+                    code_lens_view,
+                )
+                .style(move |s| {
+                    let config = config.get();
+                    let gutter_width = gutter_width.get();
+                    let size = config.ui.icon_size() as f32;
+                    let margin_left =
+                        gutter_width as f32 + (padding_right - size) / 2.0 - 4.0;
+                    s.absolute().size_pct(100.0, 100.0).margin_left(margin_left)
+                })
+                .debug_name("CodeLens Stack"),
                 container(
                     svg(move || config.get().ui_svg(LapceIcons::LIGHTBULB)).style(
                         move |s| {

@@ -11,7 +11,7 @@ use crossbeam_channel::{Receiver, Sender};
 use indexmap::IndexMap;
 use lapce_xi_rope::RopeDelta;
 use lsp_types::{
-    request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse,
+    request::GotoTypeDefinitionResponse, CodeAction, CodeActionResponse, CodeLens,
     CompletionItem, Diagnostic, DocumentSymbolResponse, GotoDefinitionResponse,
     Hover, InlayHint, InlineCompletionResponse, InlineCompletionTriggerKind,
     Location, Position, PrepareRenameResponse, SelectionRange, SymbolInformation,
@@ -133,6 +133,9 @@ pub enum ProxyRequest {
         path: PathBuf,
         position: Position,
         diagnostics: Vec<Diagnostic>,
+    },
+    GetCodeLens {
+        path: PathBuf,
     },
     GetDocumentSymbols {
         path: PathBuf,
@@ -365,6 +368,10 @@ pub enum ProxyResponse {
     GetCodeActionsResponse {
         plugin_id: PluginId,
         resp: CodeActionResponse,
+    },
+    GetCodeLensResponse {
+        plugin_id: PluginId,
+        resp: Option<Vec<CodeLens>>,
     },
     GetFilesResponse {
         items: Vec<PathBuf>,
@@ -872,6 +879,10 @@ impl ProxyRpcHandler {
             },
             f,
         );
+    }
+
+    pub fn get_code_lens(&self, path: PathBuf, f: impl ProxyCallback + 'static) {
+        self.request_async(ProxyRequest::GetCodeLens { path }, f);
     }
 
     pub fn get_document_formatting(

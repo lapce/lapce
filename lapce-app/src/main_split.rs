@@ -635,6 +635,37 @@ impl MainSplitData {
                         send(result);
                     });
             }
+            {
+                let doc = doc.clone();
+                if let DocContent::File { path, .. } = doc.content.get_untracked() {
+                    let send = create_ext_action(cx, move |result| {
+                        if let Ok(ProxyResponse::GetCodeLensResponse {
+                            plugin_id,
+                            resp,
+                        }) = result
+                        {
+                            let Some(codelens) = resp else {
+                                return;
+                            };
+                            if codelens.is_empty() {
+                                doc.code_lens.update(|x| {
+                                    x.remove(&plugin_id);
+                                });
+                            } else {
+                                doc.code_lens.update(|x| {
+                                    x.insert(
+                                        plugin_id,
+                                        std::sync::Arc::new(codelens),
+                                    );
+                                });
+                            }
+                        }
+                    });
+                    self.common.proxy.get_code_lens(path, move |result| {
+                        send(result);
+                    });
+                }
+            }
 
             (doc, true)
         }
