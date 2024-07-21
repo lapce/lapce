@@ -225,11 +225,14 @@ jobs:
       matrix:
         include:
           - os-name: alpine
-            os-version: '3.20'
+            os-version: '3-20'
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build rpm packages
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build lapce-proxy binary
         run: |
           docker buildx create --driver=docker-container --use
           docker buildx bake --pull ${{ matrix.os-name }}-${{ matrix.os-version }}

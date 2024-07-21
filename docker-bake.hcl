@@ -1,5 +1,5 @@
 variable "RUST_VERSION" {
-  default = "1.76"
+  default = "1"
 }
 
 variable "XX_VERSION" {
@@ -195,6 +195,7 @@ variable "APK_FAMILY_PACKAGES" {
     "lld",
     "build-base",
     "rustup",
+    "openssl-dev",
     "openssl-libs-static",
     "libssh2-static",
     "libgit2-static",
