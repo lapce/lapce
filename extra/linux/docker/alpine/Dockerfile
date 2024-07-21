@@ -13,8 +13,8 @@ SHELL [ "/bin/ash", "-c" ]
 # install host dependencies
 ARG DISTRIBUTION_PACKAGES
 RUN \
-  --mount=type=cache,target=/var/cache/apt,sharing=private \
-  --mount=type=cache,target=/var/lib/apt,sharing=private \
+  --mount=type=cache,target=/var/cache/apk,sharing=private \
+  --mount=type=cache,target=/etc/apk/cache,sharing=private \
 <<EOF
 
 apk upgrade -Ua
@@ -48,8 +48,8 @@ EOF
 ARG TARGETPLATFORM
 ARG DISTRIBUTION_PACKAGES
 RUN \
-  --mount=type=cache,target=/var/cache/apt,sharing=private \
-  --mount=type=cache,target=/var/lib/apt,sharing=private \
+  --mount=type=cache,target=/var/cache/apk,sharing=private \
+  --mount=type=cache,target=/etc/apk/cache,sharing=private \
 <<EOF
 #!/usr/bin/env bash
 set -euxo pipefail
@@ -104,40 +104,20 @@ export PKG_CONFIG="$(xx-clang --print-prog-name=pkg-config)"
 xx-cargo build \
   --verbose \
   --frozen \
-  --package lapce-app \
+  --bin lapce-proxy \
   --profile release-lto \
   --no-default-features
 
-export RUSTFLAGS="${RUSTFLAGS} -C target-feature=+crt-static"
-
-xx-cargo build
-
-xx-verify "${CARGO_TARGET_DIR}"/"$(xx-cargo --print-target-triple)"/release-lto/lapce
+xx-verify "${CARGO_TARGET_DIR}"/"$(xx-cargo --print-target-triple)"/release-lto/lapce-proxy
 
 mkdir -p /target
-mv -v "${CARGO_TARGET_DIR}"/"$(xx-cargo --print-target-triple)"/release-lto/lapce /target/
-
-cargo pkgid | cut -d'#' -f2 | cut -d'@' -f2 | cut -d':' -f2 | tee /target/lapce.version
-EOF
-
-WORKDIR /output
-RUN <<EOF
-#!/usr/bin/env bash
-set -euxo pipefail
-
-echo 'a'
+mv -v "${CARGO_TARGET_DIR}"/"$(xx-cargo --print-target-triple)"/release-lto/lapce-proxy /usr/local/bin/
 EOF
 
 FROM build-prep AS dev
 
 FROM scratch AS binary
-COPY --from=build /output/lapce .
+COPY --from=build /usr/local/bin/lapce-proxy .
 
 FROM scratch AS cross-binary
-COPY --from=build /output/lapce .
-
-# FROM scratch AS package
-# COPY --from=build /output/*.deb .
-
-# FROM scratch AS cross-package
-# COPY --from=build /output/*.deb .
+COPY --from=build /usr/local/bin/lapce-proxy .
