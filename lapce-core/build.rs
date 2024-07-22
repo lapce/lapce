@@ -97,7 +97,7 @@ fn get_head() -> Option<String> {
     };
     let commit = reference.target();
     println!("cargo::warning=Commit found: {commit:?}");
-    commit.map(|s| s.to_string().split_at(8).0.to_owned())
+    commit.map(|s| s.to_string().split_at(7).0.to_owned())
 }
 
 #[cfg(target_os = "linux")]
