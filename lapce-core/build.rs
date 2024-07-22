@@ -10,7 +10,7 @@ struct ReleaseInfo {
 
 fn main() -> Result<()> {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=.git/head");
+    println!("cargo:rerun-if-changed=../.git/head");
     println!("cargo:rerun-if-env-changed=CARGO_PKG_VERSION");
     println!("cargo:rerun-if-env-changed=CARGO_FEATURE_DISTRIBUTION");
     println!("cargo:rerun-if-env-changed=RELEASE_TAG_NAME");
