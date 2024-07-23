@@ -15,6 +15,7 @@ use dyn_clone::DynClone;
 use floem_editor_core::buffer::rope_text::{RopeText, RopeTextRef};
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::{encoding::offset_utf16_to_utf8, rope_text_pos::RopeTextPosition};
+use lapce_rpc::core::ServerStatusParams;
 use lapce_rpc::{
     core::CoreRpcHandler,
     plugin::{PluginId, VoltID},
@@ -1074,6 +1075,11 @@ impl PluginHostHandler {
                         self.volt_id.author, self.volt_id.name
                     ),
                 );
+            }
+            "experimental/serverStatus" => {
+                let param: ServerStatusParams =
+                    serde_json::from_value(serde_json::to_value(params)?)?;
+                self.catalog_rpc.core_rpc.server_status(param);
             }
             _ => {
                 self.core_rpc.log(

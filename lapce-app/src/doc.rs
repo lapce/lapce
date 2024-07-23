@@ -799,7 +799,7 @@ impl Doc {
     }
 
     /// Request semantic styles for the buffer from the LSP through the proxy.
-    fn get_semantic_styles(&self) {
+    pub fn get_semantic_styles(&self) {
         if !self.loaded() {
             return;
         }
