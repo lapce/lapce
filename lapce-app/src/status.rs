@@ -444,7 +444,12 @@ fn status_text<S: std::fmt::Display + 'static>(
         let config = config.get();
         let display = if editor
             .get()
-            .map(|editor| editor.doc_signal().get().content.with(|c| c.is_file()))
+            .map(|editor| {
+                editor.doc_signal().get().content.with(|c| {
+                    use crate::doc::DocContent;
+                    matches!(c, DocContent::File { .. } | DocContent::Scratch { .. })
+                })
+            })
             .unwrap_or(false)
         {
             Display::Flex
