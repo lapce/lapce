@@ -68,7 +68,7 @@ use lsp_types::{
 };
 use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use tar::Archive;
 use tracing::error;
 
@@ -1472,6 +1472,9 @@ pub fn remove_volt(
 }
 
 fn client_capabilities() -> ClientCapabilities {
+    // https://github.com/rust-lang/rust-analyzer/blob/master/docs/dev/lsp-extensions.md#server-status
+    let mut experimental = Map::new();
+    experimental.insert("serverStatusNotification".into(), true.into());
     ClientCapabilities {
         text_document: Some(TextDocumentClientCapabilities {
             synchronization: Some(TextDocumentSyncClientCapabilities {
@@ -1575,6 +1578,7 @@ fn client_capabilities() -> ClientCapabilities {
             workspace_folders: Some(true),
             ..Default::default()
         }),
+        experimental: Some(experimental.into()),
         ..Default::default()
     }
 }

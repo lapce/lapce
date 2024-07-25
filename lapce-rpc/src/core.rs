@@ -62,6 +62,9 @@ pub enum CoreNotification {
     PublishDiagnostics {
         diagnostics: PublishDiagnosticsParams,
     },
+    ServerStatus {
+        params: ServerStatusParams,
+    },
     WorkDoneProgress {
         progress: ProgressParams,
     },
@@ -302,6 +305,10 @@ impl CoreRpcHandler {
         self.notification(CoreNotification::PublishDiagnostics { diagnostics });
     }
 
+    pub fn server_status(&self, params: ServerStatusParams) {
+        self.notification(CoreNotification::ServerStatus { params });
+    }
+
     pub fn work_done_progress(&self, progress: ProgressParams) {
         self.notification(CoreNotification::WorkDoneProgress { progress });
     }
@@ -383,4 +390,17 @@ pub enum LogLevel {
     Error = 2,
     Debug = 3,
     Trace = 4,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ServerStatusParams {
+    health: String,
+    quiescent: bool,
+    message: Option<String>,
+}
+
+impl ServerStatusParams {
+    pub fn is_ok(&self) -> bool {
+        self.health.as_str() == "ok"
+    }
 }

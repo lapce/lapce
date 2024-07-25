@@ -1912,6 +1912,16 @@ impl WindowTabData {
                     doc.init_diagnostics();
                 }
             }
+            CoreNotification::ServerStatus { params } => {
+                if params.is_ok() {
+                    // todo filter by language
+                    self.main_split.docs.with_untracked(|x| {
+                        for doc in x.values() {
+                            doc.get_semantic_styles();
+                        }
+                    });
+                }
+            }
             CoreNotification::TerminalProcessStopped { term_id } => {
                 let _ = self
                     .common
