@@ -496,7 +496,7 @@ fn open_editors_view(window_tab_data: Rc<WindowTabData>) -> impl View {
                 },
             ))
             .style(|s| s.padding_horiz(6.0)),
-            label(move || info.with(|info| info.path.clone())).style(move |s| {
+            label(move || info.with(|info| info.name.clone())).style(move |s| {
                 s.apply_if(
                     !info
                         .with(|info| info.confirmed)

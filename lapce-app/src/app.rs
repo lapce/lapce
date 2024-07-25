@@ -654,15 +654,21 @@ fn editor_tab_header(
 
             let tab_icon = container({
                 svg(move || info.with(|info| info.icon.clone())).style(move |s| {
-                    let size = config.get().ui.icon_size() as f32;
+                    let config = config.get();
+                    let size = config.ui.icon_size() as f32;
                     s.size(size, size)
                         .apply_opt(info.with(|info| info.color), |s, c| s.color(c))
+                        .apply_if(
+                            !info.with(|info| info.is_pristine)
+                                && config.ui.tab_close_button == TabCloseButton::Off,
+                            |s| s.color(config.color(LapceColor::LAPCE_WARN)),
+                        )
                 })
             })
             .style(|s| s.padding(4.));
 
-            let tab_content = label(move || info.with(|info| info.path.clone()))
-                .style(move |s| {
+            let tab_content = tooltip(
+                label(move || info.with(|info| info.name.clone())).style(move |s| {
                     s.apply_if(
                         !info
                             .with(|info| info.confirmed)
@@ -671,7 +677,19 @@ fn editor_tab_header(
                         |s| s.font_style(FontStyle::Italic),
                     )
                     .selectable(false)
-                });
+                }),
+                move || {
+                    tooltip_tip(
+                        config,
+                        text(info.with(|info| {
+                            info.path
+                                .clone()
+                                .map(|path| path.display().to_string())
+                                .unwrap_or("local".to_string())
+                        })),
+                    )
+                },
+            );
 
             let tab_close_button = clickable_icon(
                 move || {
@@ -916,7 +934,15 @@ fn editor_tab_header(
         .on_resize(move |rect| {
             layout_rect.set(rect);
         })
-        .style(|s| s.height_full().flex_col().items_center().justify_center())
+        .style(move |s| {
+            let config = config.get();
+            s.height_full()
+                .flex_col()
+                .items_center()
+                .justify_center()
+                .cursor(CursorStyle::Pointer)
+                .hover(|s| s.background(config.color(LapceColor::HOVER_BACKGROUND)))
+        })
         .debug_name("Tab and Active Indicator")
     };
 
@@ -1094,6 +1120,7 @@ fn editor_tab_header(
             .border_bottom(1.0)
             .border_color(config.color(LapceColor::LAPCE_BORDER))
             .background(config.color(LapceColor::PANEL_BACKGROUND))
+            .height(config.ui.header_height() as i32)
     })
     .debug_name("Editor Tab Header")
 }
