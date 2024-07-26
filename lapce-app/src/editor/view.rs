@@ -43,7 +43,6 @@ use lapce_core::{
 };
 use lapce_rpc::dap_types::{DapId, SourceBreakpoint};
 use lapce_xi_rope::find::CaseMatching;
-use tracing::debug;
 
 use super::{gutter::editor_gutter_view, DocSignal, EditorData};
 use crate::{
