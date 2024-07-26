@@ -46,7 +46,12 @@ pub(super) fn logging() -> (Handle<Targets>, Option<WorkerGuard>) {
             .with_filter(log_file_filter);
         registry
             .with(file_layer)
-            .with(fmt::Subscriber::default().with_filter(console_filter_targets))
+            .with(
+                fmt::Subscriber::default()
+                    .with_line_number(true)
+                    .with_target(true)
+                    .with_filter(console_filter_targets),
+            )
             .init();
     } else {
         registry
