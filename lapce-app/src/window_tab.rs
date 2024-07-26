@@ -10,7 +10,7 @@ use std::{
 
 use crossbeam_channel::Sender;
 use floem::{
-    action::{open_file, TimerToken},
+    action::{open_file, remove_overlay, TimerToken},
     cosmic_text::{Attrs, AttrsList, FamilyOwned, LineHeightValue, TextLayout},
     ext_event::{create_ext_action, create_signal_from_channel},
     file::FileDialogOptions,
@@ -164,6 +164,7 @@ pub struct WindowTabData {
     pub terminal: TerminalPanelData,
     pub plugin: PluginData,
     pub code_action: RwSignal<CodeActionData>,
+    pub code_lens: RwSignal<Option<ViewId>>,
     pub source_control: SourceControlData,
     pub rename: RenameData,
     pub global_search: GlobalSearchData,
@@ -534,6 +535,7 @@ impl WindowTabData {
             panel,
             file_explorer,
             code_action,
+            code_lens: cx.create_rw_signal(None),
             source_control,
             plugin,
             rename,
@@ -1917,7 +1919,7 @@ impl WindowTabData {
                     // todo filter by language
                     self.main_split.docs.with_untracked(|x| {
                         for doc in x.values() {
-                            doc.get_semantic_styles();
+                            doc.on_update(None);
                         }
                     });
                 }
@@ -2632,6 +2634,18 @@ impl WindowTabData {
         self.messages.update(|messages| {
             messages.push((title.to_string(), message.clone()));
         });
+    }
+
+    pub fn update_code_lens_id(&self, view_id: Option<ViewId>) {
+        if let Some(Some(old_id)) = self.code_lens.try_update(|x| {
+            let old = x.take();
+            if let Some(id) = view_id {
+                let _ = x.insert(id);
+            }
+            old
+        }) {
+            remove_overlay(old_id);
+        }
     }
 }
 

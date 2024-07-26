@@ -25,11 +25,12 @@ use lapce_rpc::{
 };
 use lapce_xi_rope::{spans::SpansBuilder, Rope};
 use lsp_types::{
-    CodeAction, CodeActionOrCommand, DiagnosticSeverity, DocumentChangeOperation,
-    DocumentChanges, OneOf, Position, TextEdit, Url, WorkspaceEdit,
+    CodeAction, CodeActionOrCommand, Command, DiagnosticSeverity,
+    DocumentChangeOperation, DocumentChanges, OneOf, Position, Range, TextEdit, Url,
+    WorkspaceEdit,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{event, Level};
+use tracing::{debug, event, Level};
 
 use crate::{
     alert::AlertButton,
@@ -635,38 +636,7 @@ impl MainSplitData {
                         send(result);
                     });
             }
-            {
-                let doc = doc.clone();
-                if let DocContent::File { path, .. } = doc.content.get_untracked() {
-                    let send = create_ext_action(cx, move |result| {
-                        if let Ok(ProxyResponse::GetCodeLensResponse {
-                            plugin_id,
-                            resp,
-                        }) = result
-                        {
-                            let Some(codelens) = resp else {
-                                return;
-                            };
-                            if codelens.is_empty() {
-                                doc.code_lens.update(|x| {
-                                    x.remove(&plugin_id);
-                                });
-                            } else {
-                                doc.code_lens.update(|x| {
-                                    x.insert(
-                                        plugin_id,
-                                        std::sync::Arc::new(codelens),
-                                    );
-                                });
-                            }
-                        }
-                    });
-                    self.common.proxy.get_code_lens(path, move |result| {
-                        send(result);
-                    });
-                }
-            }
-
+            doc.get_code_lens();
             (doc, true)
         }
     }
@@ -2192,6 +2162,10 @@ impl MainSplitData {
         }
     }
 
+    pub fn run_code_lens(&self, _action: Command) {
+        debug!("todo");
+    }
+
     /// Resolve a code action and apply its held workspace edit
     fn resolve_code_action(&self, plugin_id: PluginId, action: CodeAction) {
         let main_split = self.clone();
@@ -3040,4 +3014,10 @@ pub enum TabCloseKind {
     CloseOther,
     CloseToLeft,
     CloseToRight,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ScoredCodeLensItem {
+    pub item: Command,
+    pub range: Range,
 }
