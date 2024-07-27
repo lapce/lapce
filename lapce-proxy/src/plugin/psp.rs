@@ -15,9 +15,8 @@ use dyn_clone::DynClone;
 use floem_editor_core::buffer::rope_text::{RopeText, RopeTextRef};
 use jsonrpc_lite::{Id, JsonRpc, Params};
 use lapce_core::{encoding::offset_utf16_to_utf8, rope_text_pos::RopeTextPosition};
-use lapce_rpc::core::ServerStatusParams;
 use lapce_rpc::{
-    core::CoreRpcHandler,
+    core::{CoreRpcHandler, ServerStatusParams},
     plugin::{PluginId, VoltID},
     style::{LineStyle, Style},
     RpcError,
@@ -30,7 +29,8 @@ use lsp_types::{
         ShowMessage,
     },
     request::{
-        CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion,
+        CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
+        CodeActionResolveRequest, CodeLensRequest, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         HoverRequest, Initialize, InlayHintRequest, InlineCompletionRequest,
         PrepareRenameRequest, References, RegisterCapability, Rename,
@@ -783,6 +783,12 @@ impl PluginHostHandler {
             }
             CodeLensRequest::METHOD => {
                 self.server_capabilities.code_lens_provider.is_some()
+            }
+            CallHierarchyPrepare::METHOD => {
+                self.server_capabilities.call_hierarchy_provider.is_some()
+            }
+            CallHierarchyIncomingCalls::METHOD => {
+                self.server_capabilities.call_hierarchy_provider.is_some()
             }
             _ => false,
         }

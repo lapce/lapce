@@ -1267,6 +1267,49 @@ impl EditorData {
         );
     }
 
+    pub fn show_call_hierarchy(&self) {
+        let doc = self.doc();
+        let path = match if doc.loaded() {
+            doc.content.with_untracked(|c| c.path().cloned())
+        } else {
+            None
+        } {
+            Some(path) => path,
+            None => return,
+        };
+
+        let offset = self.cursor().with_untracked(|c| c.offset());
+        let (_start_position, position) = doc.buffer.with_untracked(|buffer| {
+            let start_offset = buffer.prev_code_boundary(offset);
+            let start_position = buffer.offset_to_position(start_offset);
+            let position = buffer.offset_to_position(offset);
+            (start_position, position)
+        });
+
+        let send = create_ext_action(self.scope, move |_rs| {
+            tracing::debug!("{:?}", _rs);
+        });
+        let proxy = self.common.proxy.clone();
+        self.common.proxy.show_call_hierarchy(
+            path.clone(),
+            position,
+            move |result| {
+                if let Ok(ProxyResponse::ShowCallHierarchyResponse {
+                    items, ..
+                }) = result
+                {
+                    if let Some(item) = items.and_then(|x| x.into_iter().next()) {
+                        proxy.call_hierarchy_incoming(
+                            path.clone(),
+                            item.clone(),
+                            send,
+                        );
+                    }
+                }
+            },
+        );
+    }
+
     fn scroll(&self, down: bool, count: usize, mods: Modifiers) {
         self.editor.scroll(
             self.sticky_header_height.get_untracked(),
@@ -2582,6 +2625,9 @@ impl EditorData {
             vec![
                 Some(CommandKind::Focus(FocusCommand::GotoDefinition)),
                 Some(CommandKind::Focus(FocusCommand::GotoTypeDefinition)),
+                Some(CommandKind::Workbench(
+                    LapceWorkbenchCommand::ShowCallHierarchy,
+                )),
                 None,
                 Some(CommandKind::Focus(FocusCommand::Rename)),
                 None,

@@ -522,6 +522,35 @@ impl ProxyHandler for Dispatcher {
                     },
                 );
             }
+            ShowCallHierarchy { path, position } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.show_call_hierarchy(
+                    &path,
+                    position,
+                    move |_, result| {
+                        let result = result.map(|items| {
+                            ProxyResponse::ShowCallHierarchyResponse { items }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
+            CallHierarchyIncoming {
+                path,
+                call_hierarchy_item,
+            } => {
+                let proxy_rpc = self.proxy_rpc.clone();
+                self.catalog_rpc.call_hierarchy_incoming(
+                    &path,
+                    call_hierarchy_item,
+                    move |_, result| {
+                        let result = result.map(|items| {
+                            ProxyResponse::CallHierarchyIncomingResponse { items }
+                        });
+                        proxy_rpc.handle_response(id, result);
+                    },
+                );
+            }
             GetInlayHints { path } => {
                 let proxy_rpc = self.proxy_rpc.clone();
                 let buffer = self.buffers.get(&path).unwrap();
