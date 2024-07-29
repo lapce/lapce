@@ -33,13 +33,16 @@ use lapce_rpc::{
 use lapce_xi_rope::{Rope, RopeDelta};
 use lsp_types::{
     request::{
-        CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion,
+        CallHierarchyIncomingCalls, CallHierarchyPrepare, CodeActionRequest,
+        CodeActionResolveRequest, CodeLensRequest, Completion,
         DocumentSymbolRequest, Formatting, GotoDefinition, GotoTypeDefinition,
         GotoTypeDefinitionParams, GotoTypeDefinitionResponse, HoverRequest,
         InlayHintRequest, InlineCompletionRequest, PrepareRenameRequest, References,
         Rename, Request, ResolveCompletionItem, SelectionRangeRequest,
         SemanticTokensFullRequest, SignatureHelpRequest, WorkspaceSymbolRequest,
     },
+    CallHierarchyClientCapabilities, CallHierarchyIncomingCall,
+    CallHierarchyIncomingCallsParams, CallHierarchyItem, CallHierarchyPrepareParams,
     ClientCapabilities, CodeAction, CodeActionCapabilityResolveSupport,
     CodeActionClientCapabilities, CodeActionContext, CodeActionKind,
     CodeActionKindLiteralSupport, CodeActionLiteralSupport, CodeActionParams,
@@ -565,6 +568,65 @@ impl PluginCatalogRpcHandler {
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
+        };
+
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
+    pub fn call_hierarchy_incoming(
+        &self,
+        path: &Path,
+        item: CallHierarchyItem,
+        cb: impl FnOnce(
+                PluginId,
+                Result<Option<Vec<CallHierarchyIncomingCall>>, RpcError>,
+            ) + Clone
+            + Send
+            + 'static,
+    ) {
+        let method = CallHierarchyIncomingCalls::METHOD;
+        let params = CallHierarchyIncomingCallsParams {
+            item,
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: Default::default(),
+        };
+
+        let language_id =
+            Some(language_id_from_path(path).unwrap_or("").to_string());
+        self.send_request_to_all_plugins(
+            method,
+            params,
+            language_id,
+            Some(path.to_path_buf()),
+            cb,
+        );
+    }
+
+    pub fn show_call_hierarchy(
+        &self,
+        path: &Path,
+        position: Position,
+        cb: impl FnOnce(PluginId, Result<Option<Vec<CallHierarchyItem>>, RpcError>)
+            + Clone
+            + Send
+            + 'static,
+    ) {
+        let uri = Url::from_file_path(path).unwrap();
+        let method = CallHierarchyPrepare::METHOD;
+        let params = CallHierarchyPrepareParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
         };
 
         let language_id =
@@ -1558,7 +1620,9 @@ fn client_capabilities() -> ClientCapabilities {
             inline_completion: Some(InlineCompletionClientCapabilities {
                 ..Default::default()
             }),
-
+            call_hierarchy: Some(CallHierarchyClientCapabilities {
+                dynamic_registration: Some(true),
+            }),
             ..Default::default()
         }),
         window: Some(WindowClientCapabilities {

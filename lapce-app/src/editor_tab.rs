@@ -228,7 +228,7 @@ impl EditorTabChild {
                 };
                 let (icon, color, name, confirmed, is_pristine) = match path {
                     Some((ref path, confirmed, is_pritine)) => {
-                        let (svg, color) = config.file_svg(&path);
+                        let (svg, color) = config.file_svg(path);
                         (
                             svg,
                             color,
