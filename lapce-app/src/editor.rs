@@ -2625,9 +2625,9 @@ impl EditorData {
             vec![
                 Some(CommandKind::Focus(FocusCommand::GotoDefinition)),
                 Some(CommandKind::Focus(FocusCommand::GotoTypeDefinition)),
-                Some(CommandKind::Workbench(
-                    LapceWorkbenchCommand::ShowCallHierarchy,
-                )),
+                // Some(CommandKind::Workbench(
+                //     LapceWorkbenchCommand::ShowCallHierarchy,
+                // )),
                 None,
                 Some(CommandKind::Focus(FocusCommand::Rename)),
                 None,
